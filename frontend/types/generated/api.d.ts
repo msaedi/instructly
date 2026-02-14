@@ -2675,7 +2675,7 @@ export type paths = {
          *         auth_service: Authentication service
          *
          *     Returns:
-         *         LoginResponse: Access token metadata for the client
+         *         LoginResponse: Login result metadata for the client
          *
          *     Raises:
          *         HTTPException: If credentials are invalid or rate limit exceeded
@@ -2712,7 +2712,7 @@ export type paths = {
          *         db: Database session (used only for guest search conversion after auth)
          *
          *     Returns:
-         *         LoginResponse: Access token metadata for the client
+         *         LoginResponse: Login result metadata for the client
          *
          *     Raises:
          *         HTTPException: If credentials are invalid or rate limit exceeded
@@ -14107,8 +14107,6 @@ export type components = {
         };
         /** LoginResponse */
         LoginResponse: {
-            /** Access Token */
-            access_token?: string | null;
             /**
              * Requires 2Fa
              * @default false
@@ -14116,8 +14114,6 @@ export type components = {
             requires_2fa: boolean;
             /** Temp Token */
             temp_token?: string | null;
-            /** Token Type */
-            token_type?: string | null;
         };
         /**
          * LowCacheHitRateDetails
@@ -20170,12 +20166,7 @@ export type components = {
             temp_token: string;
         };
         /** TFAVerifyLoginResponse */
-        TFAVerifyLoginResponse: {
-            /** Access Token */
-            access_token?: string | null;
-            /** Token Type */
-            token_type?: string | null;
-        };
+        TFAVerifyLoginResponse: Record<string, never>;
         /** TemplateInfo */
         TemplateInfo: {
             /** Category */

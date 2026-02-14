@@ -423,7 +423,7 @@ async def login(
         auth_service: Authentication service
 
     Returns:
-        LoginResponse: Access token metadata for the client
+        LoginResponse: Login result metadata for the client
 
     Raises:
         HTTPException: If credentials are invalid or rate limit exceeded
@@ -715,7 +715,7 @@ async def login_with_session(
         db: Database session (used only for guest search conversion after auth)
 
     Returns:
-        LoginResponse: Access token metadata for the client
+        LoginResponse: Login result metadata for the client
 
     Raises:
         HTTPException: If credentials are invalid or rate limit exceeded

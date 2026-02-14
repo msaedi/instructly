@@ -10,22 +10,12 @@ from typing import Any, cast
 import httpx
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
+from app.core.config import secret_or_plain, settings
 from app.repositories.admin_ops_repository import AdminOpsRepository
 
 from .base import BaseService
 
 logger = logging.getLogger(__name__)
-
-
-def _secret_value(value: object | None) -> str:
-    """Extract value from SecretStr or return string."""
-    if value is None:
-        return ""
-    getter = getattr(value, "get_secret_value", None)
-    if callable(getter):
-        return str(getter())
-    return str(value)
 
 
 class CeleryAdminService(BaseService):
@@ -59,7 +49,7 @@ class CeleryAdminService(BaseService):
         # Build auth if configured
         auth = None
         flower_user = settings.flower_user
-        flower_password = _secret_value(settings.flower_password)
+        flower_password = secret_or_plain(settings.flower_password)
         if flower_user and flower_password:
             auth = httpx.BasicAuth(flower_user, flower_password)
 

@@ -12,7 +12,7 @@ from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies.database import get_db
-from app.core.config import settings
+from app.core.config import secret_or_plain, settings
 from app.database import get_db_session
 from app.m2m_auth import verify_m2m_token
 from app.principal import Principal, ServicePrincipal, UserPrincipal
@@ -20,15 +20,6 @@ from app.repositories.user_repository import UserRepository
 from app.services.audit_service import AuditService, Status
 
 logger = logging.getLogger(__name__)
-
-
-def _secret_value(value: object | None) -> str:
-    if value is None:
-        return ""
-    getter = getattr(value, "get_secret_value", None)
-    if callable(getter):
-        return str(getter())
-    return str(value)
 
 
 async def get_mcp_principal(
@@ -64,7 +55,7 @@ async def get_mcp_principal(
             scopes=scopes,
         )
 
-    expected = _secret_value(settings.mcp_service_token).strip()
+    expected = secret_or_plain(settings.mcp_service_token).strip()
     if expected and secrets.compare_digest(token, expected):
         user_repo = UserRepository(db)
         service_user = await asyncio.to_thread(

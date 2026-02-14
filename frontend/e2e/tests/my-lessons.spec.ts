@@ -402,8 +402,6 @@ async function setupMocksAndAuth(page: Page) {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        access_token: 'mock_access_token',
-        token_type: 'bearer',
         user: {
           id: 1,
           email: studentCredentials.email,
@@ -487,8 +485,6 @@ test.describe('My Lessons Page', () => {
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
-            access_token: 'mock_access_token',
-            token_type: 'bearer',
             user: {
               id: 1,
               email: studentCredentials.email,
@@ -508,8 +504,6 @@ test.describe('My Lessons Page', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          access_token: 'mock_jwt_token',
-          token_type: 'bearer',
           user: {
             id: 1,
             email: studentCredentials.email,
@@ -1216,8 +1210,6 @@ test.describe('Error Handling', () => {
             'Set-Cookie': 'access_token=mock_access_token; Path=/; HttpOnly; SameSite=Lax'
           },
           body: JSON.stringify({
-            access_token: 'mock_access_token',
-            token_type: 'bearer',
             user: {
               id: 1,
               email: studentCredentials.email,

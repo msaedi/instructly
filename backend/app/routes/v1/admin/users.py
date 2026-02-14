@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies.auth import require_admin
@@ -13,8 +14,10 @@ from app.models.user import User
 from app.ratelimit.dependency import rate_limit
 from app.repositories.factory import RepositoryFactory
 from app.schemas.security import SessionInvalidationResponse
+from app.services.audit_service import AuditService
 
 router = APIRouter(tags=["admin-users"])
+logger = logging.getLogger(__name__)
 
 
 @router.post(
@@ -24,7 +27,8 @@ router = APIRouter(tags=["admin-users"])
 )
 async def force_logout_user(
     user_id: str,
-    _: User = Depends(require_admin),
+    request: Request,
+    current_admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> SessionInvalidationResponse:
     """Force logout for all active sessions belonging to a target user."""
@@ -36,6 +40,19 @@ async def force_logout_user(
     )
     if not invalidated:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    try:
+        AuditService(db).log(
+            action="admin.force_logout",
+            resource_type="user",
+            resource_id=user_id,
+            actor=current_admin,
+            actor_type="user",
+            description="Admin forced logout for user",
+            metadata={"target_user_id": user_id},
+            request=request,
+        )
+    except Exception:
+        logger.warning("Audit log write failed for admin force-logout", exc_info=True)
     return SessionInvalidationResponse(message="User sessions have been logged out")
 
 

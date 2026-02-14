@@ -4,7 +4,6 @@ from datetime import datetime, timedelta, timezone
 import logging
 import os
 from typing import Any, Dict, Optional, cast
-import uuid
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerifyMismatchError
@@ -12,12 +11,14 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 import jwt
 from jwt import InvalidIssuerError, PyJWTError
+import ulid
 
 from .core.auth_cache import lookup_user_by_id_nonblocking
-from .core.config import settings
+from .core.config import secret_or_plain, settings
 from .monitoring.prometheus_metrics import prometheus_metrics
 from .services.token_blacklist_service import TokenBlacklistService
 from .utils.cookies import session_cookie_candidates
+from .utils.token_utils import parse_token_iat
 
 logger = logging.getLogger(__name__)
 
@@ -43,13 +44,6 @@ DUMMY_HASH_FOR_TIMING_ATTACK = "$argon2id$v=19$m=19456,t=2,p=1$2nLJrVFbOidsu8s0B
 _password_executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="argon2_")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
-
-
-def _secret_value(secret_obj: Any) -> str:
-    getter = getattr(secret_obj, "get_secret_value", None)
-    if callable(getter):
-        return cast(str, getter())
-    return cast(str, secret_obj)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -182,7 +176,7 @@ def decode_access_token(token: str, *, enforce_audience: bool | None = None) -> 
     else:
         enforce = enforce_default
 
-    secret = _secret_value(settings.secret_key)
+    secret = secret_or_plain(settings.secret_key)
     if enforce and expected_aud:
         payload_raw = jwt.decode(
             token,
@@ -231,7 +225,7 @@ def create_access_token(
         {
             "exp": expire,
             "iat": int(now_utc.timestamp()),
-            "jti": str(uuid.uuid4()),
+            "jti": str(ulid.ULID()),
         }
     )
 
@@ -249,12 +243,11 @@ def create_access_token(
     elif site_mode in {"prod", "production", "live"}:
         to_encode.update({"iss": f"https://{settings.prod_api_domain}", "aud": "prod"})
 
-    # Fix: Use get_secret_value() to get the actual string from SecretStr
     encoded_jwt = cast(
         str,
         jwt.encode(
             to_encode,
-            _secret_value(settings.secret_key),
+            secret_or_plain(settings.secret_key),
             algorithm=settings.algorithm,
         ),
     )
@@ -279,26 +272,11 @@ def create_temp_token(data: Dict[str, Any], expires_delta: Optional[timedelta] =
         str,
         jwt.encode(
             to_encode,
-            _secret_value(secret_source),
+            secret_or_plain(secret_source),
             algorithm=settings.algorithm,
         ),
     )
     return encoded_jwt
-
-
-def _parse_iat_claim(payload: Dict[str, Any]) -> int | None:
-    """Parse iat claim as integer epoch seconds."""
-    iat_obj = payload.get("iat")
-    if isinstance(iat_obj, int):
-        return iat_obj
-    if isinstance(iat_obj, float):
-        return int(iat_obj)
-    if isinstance(iat_obj, str):
-        try:
-            return int(iat_obj)
-        except ValueError:
-            return None
-    return None
 
 
 async def _enforce_revocation_and_user_invalidation(payload: Dict[str, Any], user_id: str) -> None:
@@ -334,7 +312,7 @@ async def _enforce_revocation_and_user_invalidation(payload: Dict[str, Any], use
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    iat_ts = _parse_iat_claim(payload)
+    iat_ts = parse_token_iat(payload)
     if iat_ts is None:
         return
 

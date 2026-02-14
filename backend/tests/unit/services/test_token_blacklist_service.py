@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 import logging
 
 import pytest
@@ -202,3 +203,22 @@ async def test_sync_bridges_work_with_running_loop(monkeypatch):
     service.revoke_token_sync("loop-jti", 130)
     assert service.is_revoked_sync("loop-jti") is False
     assert redis.setex_calls
+
+
+def test_is_revoked_sync_timeout_is_fail_closed(monkeypatch):
+    class _Future:
+        def result(self, timeout: float):
+            raise FuturesTimeoutError()
+
+        def cancel(self):
+            return True
+
+    class _Executor:
+        def submit(self, _fn):
+            return _Future()
+
+    monkeypatch.setattr("app.services.token_blacklist_service._SYNC_BRIDGE_EXECUTOR", _Executor())
+    monkeypatch.setattr("app.services.token_blacklist_service.asyncio.get_running_loop", lambda: object())
+
+    service = TokenBlacklistService(redis_client=_FakeRedis(exists_value=0))
+    assert service.is_revoked_sync("sync-jti") is True

@@ -249,8 +249,6 @@ test.describe('Login routing without 2FA', () => {
       await routeOnce(context, '**/api/v1/auth/login-with-session', async (route) => {
         if (await handlePreflight(route)) return;
         const responseBody = {
-          access_token: 'fake.jwt.value',
-          token_type: 'bearer',
           requires_2fa: false,
         };
         logDebug('login-with-session response', responseBody);
@@ -293,8 +291,6 @@ test.describe('2FA flows', () => {
     await routeOnce(context, '**/api/v1/auth/login-with-session', async (route) => {
       if (await handlePreflight(route)) return;
       const responseBody = {
-        access_token: null,
-        token_type: null,
         requires_2fa: true,
         temp_token: 'temp-123',
       };
@@ -304,7 +300,7 @@ test.describe('2FA flows', () => {
 
     await routeOnce(context, '**/api/v1/2fa/verify-login', async (route) => {
       if (await handlePreflight(route)) return;
-      const payload = { access_token: 'fake.jwt.2', token_type: 'bearer' };
+      const payload = {};
       const requestOrigin = new URL(route.request().url()).origin;
       await respondJson(route, payload, 200, setSessionCookieHeaders(requestOrigin, 'fake.jwt.2'));
       await persistSessionCookie(context, 'fake.jwt.2');
@@ -342,8 +338,6 @@ test.describe('2FA flows', () => {
     await routeOnce(context, '**/api/v1/auth/login-with-session', async (route) => {
       if (await handlePreflight(route)) return;
       const responseBody = {
-        access_token: null,
-        token_type: null,
         requires_2fa: true,
         temp_token: 'temp-456',
       };
@@ -352,7 +346,7 @@ test.describe('2FA flows', () => {
 
     await routeOnce(context, '**/api/v1/2fa/verify-login', async (route) => {
       if (await handlePreflight(route)) return;
-      const payload = { access_token: 'fake.jwt.3', token_type: 'bearer' };
+      const payload = {};
       const requestOrigin = new URL(route.request().url()).origin;
       await respondJson(route, payload, 200, setSessionCookieHeaders(requestOrigin, 'fake.jwt.3'));
       await persistSessionCookie(context, 'fake.jwt.3');

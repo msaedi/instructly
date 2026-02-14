@@ -120,8 +120,6 @@ test.describe('Referral surfaces', () => {
             'set-cookie': 'access_token=playwright-token; Path=/; HttpOnly; SameSite=Lax',
           },
           body: JSON.stringify({
-            access_token: 'playwright-token',
-            token_type: 'bearer',
             requires_2fa: false,
           }),
         });
@@ -139,8 +137,6 @@ test.describe('Referral surfaces', () => {
             'set-cookie': 'access_token=playwright-token; Path=/; HttpOnly; SameSite=Lax',
           },
           body: JSON.stringify({
-            access_token: 'playwright-token',
-            token_type: 'bearer',
             requires_2fa: false,
           }),
         });

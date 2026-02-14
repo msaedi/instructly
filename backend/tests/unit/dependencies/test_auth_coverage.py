@@ -8,6 +8,7 @@ import pytest
 from starlette.requests import Request
 
 import app.api.dependencies.auth as auth_module
+from app.core.config import secret_or_plain
 from app.models.user import User
 
 
@@ -817,9 +818,9 @@ def test_secret_value_and_bearer_token_helpers():
         def get_secret_value(self):
             return "s3cr3t"
 
-    assert auth_module._secret_value(None) == ""
-    assert auth_module._secret_value(_Secret()) == "s3cr3t"
-    assert auth_module._secret_value(123) == "123"
+    assert secret_or_plain(None) == ""
+    assert secret_or_plain(_Secret()) == "s3cr3t"
+    assert secret_or_plain(123) == "123"
 
     assert auth_module._get_bearer_token(None) is None
     assert auth_module._get_bearer_token("Basic abc") is None

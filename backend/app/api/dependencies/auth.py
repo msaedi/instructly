@@ -18,7 +18,7 @@ import hmac
 import logging
 import os
 import secrets
-from typing import Any, Awaitable, Callable, Optional, cast
+from typing import Awaitable, Callable, Optional
 
 from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -31,22 +31,13 @@ from ...core.auth_cache import (
     create_transient_user,
     lookup_user_by_id_nonblocking,
 )
-from ...core.config import settings
+from ...core.config import secret_or_plain, settings
 from ...models.user import User
 from ...monitoring.prometheus_metrics import prometheus_metrics
 from ...repositories.beta_repository import BetaAccessRepository, BetaSettingsRepository
 from .database import get_db
 
 logger = logging.getLogger(__name__)
-
-
-def _secret_value(secret_obj: Any) -> str:
-    if secret_obj is None:
-        return ""
-    getter = getattr(secret_obj, "get_secret_value", None)
-    if callable(getter):
-        return cast(str, getter())
-    return str(secret_obj)
 
 
 def _get_bearer_token(authorization: str | None) -> str | None:
@@ -70,7 +61,7 @@ async def validate_mcp_service(
             detail="Invalid authorization header",
         )
 
-    expected = _secret_value(settings.mcp_service_token).strip()
+    expected = secret_or_plain(settings.mcp_service_token).strip()
     if not expected or not secrets.compare_digest(token, expected):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -146,7 +137,7 @@ def _preview_bypass(request: Request, user: User | None) -> bool:
     # Optional header path (only if explicitly allowed) – must come from preview origins
     if settings.allow_preview_header and _from_preview_origin(request):
         token = request.headers.get("x-staff-preview-token", "")
-        preview_token = _secret_value(settings.staff_preview_token).strip()
+        preview_token = secret_or_plain(settings.staff_preview_token).strip()
         if token and preview_token and hmac.compare_digest(token, preview_token):
             try:
                 logger.info(

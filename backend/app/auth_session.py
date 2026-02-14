@@ -12,6 +12,7 @@ from app.monitoring.prometheus_metrics import prometheus_metrics
 from app.repositories.user_repository import UserRepository
 from app.services.token_blacklist_service import TokenBlacklistService
 from app.utils.cookies import session_cookie_candidates
+from app.utils.token_utils import parse_token_iat
 
 if TYPE_CHECKING:
     from app.models.user import User
@@ -79,19 +80,7 @@ def _decode_token_claims(token: str) -> tuple[str, int | None] | None:
     if not isinstance(subject, str):
         return None
 
-    iat_obj = payload.get("iat")
-    iat_ts: int | None
-    if isinstance(iat_obj, int):
-        iat_ts = iat_obj
-    elif isinstance(iat_obj, float):
-        iat_ts = int(iat_obj)
-    elif isinstance(iat_obj, str):
-        try:
-            iat_ts = int(iat_obj)
-        except ValueError:
-            iat_ts = None
-    else:
-        iat_ts = None
+    iat_ts = parse_token_iat(payload)
 
     return subject, iat_ts
 

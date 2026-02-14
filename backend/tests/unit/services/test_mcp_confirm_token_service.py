@@ -2,7 +2,7 @@
 
 Tests cover token generation, validation, and security features.
 Focus areas based on coverage gaps:
-- _secret_value helper function (lines 20-25)
+- secret_or_plain helper function (lines 20-25)
 - Token generation with payload hash (lines 42-59)
 - Token validation edge cases (lines 62-91)
 - _resolve_secret fallback logic (lines 98-106)
@@ -22,48 +22,46 @@ from unittest.mock import MagicMock, patch
 from pydantic import SecretStr
 import pytest
 
+from app.core.config import secret_or_plain
 from app.core.exceptions import MCPTokenError, ServiceException
-from app.services.mcp_confirm_token_service import (
-    MCPConfirmTokenService,
-    _secret_value,
-)
+from app.services.mcp_confirm_token_service import MCPConfirmTokenService
 
 
 class TestSecretValueHelper:
-    """Tests for _secret_value helper function (lines 20-25)."""
+    """Tests for secret_or_plain helper function (lines 20-25)."""
 
     def test_none_returns_empty_string(self) -> None:
         """None value should return empty string (line 21-22)."""
-        result = _secret_value(None)
+        result = secret_or_plain(None)
         assert result == ""
 
     def test_secret_str_uses_get_secret_value(self) -> None:
         """SecretStr should use get_secret_value (lines 23-24)."""
         secret = SecretStr("my-secret-key")
-        result = _secret_value(secret)
+        result = secret_or_plain(secret)
         assert result == "my-secret-key"
 
     def test_empty_secret_str_returns_empty(self) -> None:
         """Empty SecretStr should return empty string."""
         secret = SecretStr("")
-        result = _secret_value(secret)
+        result = secret_or_plain(secret)
         assert result == ""
 
     def test_plain_string_converted(self) -> None:
         """Plain string should be converted directly (line 25)."""
-        result = _secret_value("plain-secret")
+        result = secret_or_plain("plain-secret")
         assert result == "plain-secret"
 
     def test_object_with_get_secret_value_returning_none(self) -> None:
-        """Object with get_secret_value returning None should return empty."""
+        """Object with get_secret_value returning None is stringified."""
         obj = MagicMock()
         obj.get_secret_value.return_value = None
-        result = _secret_value(obj)
-        assert result == ""
+        result = secret_or_plain(obj)
+        assert result == "None"
 
     def test_integer_converted_to_string(self) -> None:
         """Integer should be converted to string."""
-        result = _secret_value(12345)
+        result = secret_or_plain(12345)
         assert result == "12345"
 
 

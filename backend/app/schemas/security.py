@@ -17,8 +17,6 @@ class PasswordChangeResponse(StrictModel):
 
 class LoginResponse(StrictModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
-    access_token: Optional[str] = None
-    token_type: Optional[str] = None
     requires_2fa: bool = False
     temp_token: Optional[str] = None
 
@@ -64,8 +62,6 @@ class TFAVerifyLoginRequest(StrictRequestModel):
 
 class TFAVerifyLoginResponse(StrictModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
-    access_token: Optional[str] = None
-    token_type: Optional[str] = None
 
 
 class BackupCodesResponse(StrictModel):

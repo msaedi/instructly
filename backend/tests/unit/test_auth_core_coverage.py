@@ -10,7 +10,6 @@ import pytest
 
 import app.auth as auth_module
 from app.auth import (
-    _secret_value,
     create_access_token,
     decode_access_token,
     get_current_user,
@@ -20,8 +19,9 @@ from app.auth import (
     verify_password,
     verify_password_async,
 )
-from app.core.config import settings
+from app.core.config import secret_or_plain, settings
 from app.utils.cookies import session_cookie_candidates
+from app.utils.token_utils import parse_token_iat
 
 TEST_USER_ULID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
 
@@ -51,8 +51,8 @@ def _make_request_with_cookie(cookie_name: str, token: str):
     )
 
 
-def test_secret_value_falls_back_to_raw_string():
-    assert _secret_value("plain") == "plain"
+def test_secret_or_plain_falls_back_to_raw_string():
+    assert secret_or_plain("plain") == "plain"
 
 
 def test_verify_password_invalid_hash_logs(monkeypatch):
@@ -141,7 +141,7 @@ def test_decode_access_token_invalid_issuer(monkeypatch):
             "iss": "https://wrong.example.com",
             "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
         },
-        _secret_value(settings.secret_key),
+        secret_or_plain(settings.secret_key),
         algorithm=settings.algorithm,
     )
     with pytest.raises(InvalidIssuerError):
@@ -158,7 +158,7 @@ def test_decode_access_token_enforce_success(monkeypatch):
             "iss": f"https://{settings.preview_api_domain}",
             "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
         },
-        _secret_value(settings.secret_key),
+        secret_or_plain(settings.secret_key),
         algorithm=settings.algorithm,
     )
     payload = decode_access_token(token, enforce_audience=True)
@@ -170,7 +170,7 @@ def test_create_access_token_includes_env_claims(monkeypatch):
     token = create_access_token({"sub": TEST_USER_ULID, "email": "user@example.com"})
     decoded = jwt.decode(
         token,
-        _secret_value(settings.secret_key),
+        secret_or_plain(settings.secret_key),
         algorithms=[settings.algorithm],
         audience="preview",
     )
@@ -178,13 +178,13 @@ def test_create_access_token_includes_env_claims(monkeypatch):
     assert decoded["sub"] == TEST_USER_ULID
     assert decoded["email"] == "user@example.com"
     assert isinstance(decoded.get("iat"), int)
-    assert re.fullmatch(r"[0-9a-f-]{36}", decoded.get("jti", ""))
+    assert re.fullmatch(r"[0-9A-HJKMNP-TV-Z]{26}", decoded.get("jti", ""))
 
     monkeypatch.setenv("SITE_MODE", "prod")
     token = create_access_token({"sub": TEST_USER_ULID, "email": "user@example.com"})
     decoded = jwt.decode(
         token,
-        _secret_value(settings.secret_key),
+        secret_or_plain(settings.secret_key),
         algorithms=[settings.algorithm],
         audience="prod",
     )
@@ -200,7 +200,7 @@ def test_create_access_token_with_expiry_and_beta_claims(monkeypatch):
     )
     decoded = jwt.decode(
         token,
-        _secret_value(settings.secret_key),
+        secret_or_plain(settings.secret_key),
         algorithms=[settings.algorithm],
         audience="prod",
     )
@@ -216,7 +216,7 @@ def test_create_access_token_handles_env_error(monkeypatch):
     token = create_access_token({"sub": TEST_USER_ULID, "email": "user@example.com"})
     decoded = jwt.decode(
         token,
-        _secret_value(settings.secret_key),
+        secret_or_plain(settings.secret_key),
         algorithms=[settings.algorithm],
         options={"verify_aud": False},
     )
@@ -229,13 +229,13 @@ def test_create_access_token_jti_is_unique():
     token_2 = create_access_token({"sub": TEST_USER_ULID, "email": "user@example.com"})
     decoded_1 = jwt.decode(
         token_1,
-        _secret_value(settings.secret_key),
+        secret_or_plain(settings.secret_key),
         algorithms=[settings.algorithm],
         options={"verify_aud": False},
     )
     decoded_2 = jwt.decode(
         token_2,
-        _secret_value(settings.secret_key),
+        secret_or_plain(settings.secret_key),
         algorithms=[settings.algorithm],
         options={"verify_aud": False},
     )
@@ -307,7 +307,7 @@ async def test_get_current_user_missing_sub_raises(monkeypatch):
             "jti": "legacy-test-jti",
             "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
         },
-        _secret_value(settings.secret_key),
+        secret_or_plain(settings.secret_key),
         algorithm=settings.algorithm,
     )
     request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
@@ -326,7 +326,7 @@ async def test_get_current_user_rejects_token_without_jti(monkeypatch):
     )
     token = jwt.encode(
         {"sub": TEST_USER_ULID, "exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
-        _secret_value(settings.secret_key),
+        secret_or_plain(settings.secret_key),
         algorithm=settings.algorithm,
     )
     request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
@@ -396,7 +396,7 @@ async def test_get_current_user_rejects_token_invalidated_by_user_timestamp(monk
     token = create_access_token({"sub": TEST_USER_ULID, "email": "user@example.com"})
     decoded = jwt.decode(
         token,
-        _secret_value(settings.secret_key),
+        secret_or_plain(settings.secret_key),
         algorithms=[settings.algorithm],
         options={"verify_aud": False},
     )
@@ -424,7 +424,7 @@ async def test_get_current_user_allows_token_when_user_timestamp_is_before_iat(m
     token = create_access_token({"sub": TEST_USER_ULID, "email": "user@example.com"})
     decoded = jwt.decode(
         token,
-        _secret_value(settings.secret_key),
+        secret_or_plain(settings.secret_key),
         algorithms=[settings.algorithm],
         options={"verify_aud": False},
     )
@@ -489,7 +489,7 @@ async def test_get_current_user_optional_rejects_token_without_jti(monkeypatch):
     monkeypatch.setenv("SITE_MODE", "local")
     token = jwt.encode(
         {"sub": TEST_USER_ULID, "exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
-        _secret_value(settings.secret_key),
+        secret_or_plain(settings.secret_key),
         algorithm=settings.algorithm,
     )
     request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
@@ -525,7 +525,7 @@ async def test_get_current_user_optional_rejects_token_invalidated_by_user_times
     token = create_access_token({"sub": TEST_USER_ULID, "email": "user@example.com"})
     decoded = jwt.decode(
         token,
-        _secret_value(settings.secret_key),
+        secret_or_plain(settings.secret_key),
         algorithms=[settings.algorithm],
         options={"verify_aud": False},
     )
@@ -554,7 +554,7 @@ async def test_get_current_user_optional_rejects_token_invalidated_by_user_times
     ],
 )
 def test_parse_iat_claim_variants(payload, expected):
-    assert auth_module._parse_iat_claim(payload) == expected
+    assert parse_token_iat(payload) == expected
 
 
 @pytest.mark.asyncio

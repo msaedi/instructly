@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 import logging
-import threading
 import time
 from typing import Any, Callable, Coroutine, TypeVar, cast
 
@@ -14,6 +14,10 @@ from app.monitoring.prometheus_metrics import prometheus_metrics
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+
+# Sync-bridge calls happen on cookie/session auth paths. Keep this bounded so
+# sync callers can safely bridge to async Redis checks without unbounded thread growth.
+_SYNC_BRIDGE_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix="token-blacklist")
 
 
 class TokenBlacklistService:
@@ -108,26 +112,20 @@ class TokenBlacklistService:
                     logger.warning("[TOKEN-BL] Sync bridge failed, using default: %s", exc)
                     return default
 
-        # Running loop in this thread: execute async function in a dedicated thread.
-        result_box: dict[str, T] = {}
+        # Running loop in this thread: bridge via bounded executor.
+        def _runner() -> T:
+            return asyncio.run(async_fn(*args, **kwargs))
 
-        def _runner() -> None:
-            try:
-                result_box["value"] = asyncio.run(async_fn(*args, **kwargs))
-            except Exception as exc:
-                logger.warning("[TOKEN-BL] Sync bridge thread failed: %s", exc)
-
-        thread = threading.Thread(
-            target=_runner,
-            name="token-blacklist-sync",
-            daemon=True,
-        )
-        thread.start()
-        thread.join(timeout=self._SYNC_WAIT_SECONDS)
-        if thread.is_alive():
+        future = _SYNC_BRIDGE_EXECUTOR.submit(_runner)
+        try:
+            return future.result(timeout=self._SYNC_WAIT_SECONDS)
+        except FuturesTimeoutError:
+            future.cancel()
             logger.warning("[TOKEN-BL] Sync bridge timed out, using default")
             return default
-        return result_box.get("value", default)
+        except Exception as exc:
+            logger.warning("[TOKEN-BL] Sync bridge executor failed, using default: %s", exc)
+            return default
 
     def revoke_token_sync(
         self,

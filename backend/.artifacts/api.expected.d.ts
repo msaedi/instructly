@@ -7949,10 +7949,8 @@ export type components = {
  ttl_seconds: number;
  };
  LoginResponse: {
- access_token?: string | null;
  requires_2fa: boolean;
  temp_token?: string | null;
- token_type?: string | null;
  };
  LowCacheHitRateDetails: {
  alert_type: "low_cache_hit_rate";
@@ -10116,10 +10114,7 @@ export type components = {
  code?: string | null;
  temp_token: string;
  };
- TFAVerifyLoginResponse: {
- access_token?: string | null;
- token_type?: string | null;
- };
+ TFAVerifyLoginResponse: Record<string, never>;
  TemplateInfo: {
  category: string;
  channels: string[];

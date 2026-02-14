@@ -47,6 +47,7 @@ from .models.user import User
 from .monitoring.prometheus_metrics import prometheus_metrics
 from .services.token_blacklist_service import TokenBlacklistService
 from .utils.cookies import session_cookie_candidates
+from .utils.token_utils import parse_token_iat
 
 logger = logging.getLogger(__name__)
 
@@ -202,19 +203,7 @@ async def get_current_user_sse(
     if user_data is None:
         raise credentials_exception
 
-    iat_obj = payload.get("iat")
-    iat_ts: int | None
-    if isinstance(iat_obj, int):
-        iat_ts = iat_obj
-    elif isinstance(iat_obj, float):
-        iat_ts = int(iat_obj)
-    elif isinstance(iat_obj, str):
-        try:
-            iat_ts = int(iat_obj)
-        except ValueError:
-            iat_ts = None
-    else:
-        iat_ts = None
+    iat_ts = parse_token_iat(payload)
 
     if iat_ts is not None:
         tokens_valid_after_ts = user_data.get("tokens_valid_after_ts")

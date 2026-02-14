@@ -4599,10 +4599,8 @@ export interface LocationResolutionStageDetails {
 }
 
 export interface LoginResponse {
-  access_token?: string | null;
   requires_2fa?: boolean;
   temp_token?: string | null;
-  token_type?: string | null;
 }
 
 export type MCPActorPrincipalType =
@@ -8335,8 +8333,7 @@ export interface TFAVerifyLoginRequest {
 }
 
 export interface TFAVerifyLoginResponse {
-  access_token?: string | null;
-  token_type?: string | null;
+  [key: string]: unknown;
 }
 
 /**

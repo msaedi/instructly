@@ -12,17 +12,9 @@ from typing import Any, cast
 
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
+from app.core.config import secret_or_plain, settings
 from app.core.exceptions import MCPTokenError, ServiceException
 from app.services.base import BaseService
-
-
-def _secret_value(value: Any) -> str:
-    if value is None:
-        return ""
-    if hasattr(value, "get_secret_value"):
-        return value.get_secret_value() or ""
-    return str(value)
 
 
 class MCPConfirmTokenService(BaseService):
@@ -102,9 +94,9 @@ class MCPConfirmTokenService(BaseService):
         return self._decode_token(token)
 
     def _resolve_secret(self) -> str:
-        secret = _secret_value(getattr(settings, "mcp_token_secret", None))
+        secret = secret_or_plain(getattr(settings, "mcp_token_secret", None))
         if not secret:
-            secret = _secret_value(getattr(settings, "secret_key", None))
+            secret = secret_or_plain(getattr(settings, "secret_key", None))
         if not secret:
             raise ServiceException(
                 "MCP token secret not configured", code="mcp_token_secret_missing"
