@@ -9,10 +9,12 @@ from app.routes.v1.admin import users as users_routes
 @pytest.mark.asyncio
 async def test_force_logout_user_success(monkeypatch, db, admin_user):
     calls: list[str] = []
+    triggers: list[str | None] = []
 
     class _Repo:
-        def invalidate_all_tokens(self, user_id: str):
+        def invalidate_all_tokens(self, user_id: str, **_kwargs):
             calls.append(user_id)
+            triggers.append(_kwargs.get("trigger") if _kwargs else None)
             return True
 
     monkeypatch.setattr(
@@ -28,12 +30,13 @@ async def test_force_logout_user_success(monkeypatch, db, admin_user):
     )
     assert response.message == "User sessions have been logged out"
     assert calls == ["01USERIDFORCELOGOUT00000000"]
+    assert triggers == ["admin_force_logout"]
 
 
 @pytest.mark.asyncio
 async def test_force_logout_user_not_found(monkeypatch, db, admin_user):
     class _Repo:
-        def invalidate_all_tokens(self, _user_id: str):
+        def invalidate_all_tokens(self, _user_id: str, **_kwargs):
             return False
 
     monkeypatch.setattr(

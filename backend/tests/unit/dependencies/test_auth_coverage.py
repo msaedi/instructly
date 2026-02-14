@@ -304,12 +304,11 @@ async def test_get_current_user_legacy_not_found(monkeypatch):
 async def test_get_current_user_production_not_found(monkeypatch):
     monkeypatch.setattr(auth_module.settings, "is_testing", False, raising=False)
     monkeypatch.setattr(auth_module, "lookup_user_by_id_nonblocking", AsyncMock(return_value=None))
-    monkeypatch.setattr(auth_module, "lookup_user_nonblocking", AsyncMock(return_value=None))
 
     request = _make_request()
 
     with pytest.raises(HTTPException) as exc:
-        await auth_module.get_current_user(request, "missing@example.com", db=Mock())
+        await auth_module.get_current_user(request, "01ARZ3NDEKTSV4RRFFQ69G5FB0", db=Mock())
 
     assert exc.value.status_code == 404
 
@@ -318,9 +317,7 @@ async def test_get_current_user_production_not_found(monkeypatch):
 async def test_get_current_user_production_success(monkeypatch):
     monkeypatch.setattr(auth_module.settings, "is_testing", False, raising=False)
     lookup_by_id = AsyncMock(return_value={"id": "u2"})
-    fallback_lookup = AsyncMock(return_value=None)
     monkeypatch.setattr(auth_module, "lookup_user_by_id_nonblocking", lookup_by_id)
-    monkeypatch.setattr(auth_module, "lookup_user_nonblocking", fallback_lookup)
     monkeypatch.setattr(auth_module, "create_transient_user", lambda data: SimpleNamespace(id=data["id"]))
 
     result = await auth_module.get_current_user(
@@ -330,25 +327,6 @@ async def test_get_current_user_production_success(monkeypatch):
     )
 
     assert result.id == "u2"
-    fallback_lookup.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_get_current_user_production_falls_back_to_identifier_lookup(monkeypatch):
-    monkeypatch.setattr(auth_module.settings, "is_testing", False, raising=False)
-    monkeypatch.setattr(auth_module, "lookup_user_by_id_nonblocking", AsyncMock(return_value=None))
-    fallback_lookup = AsyncMock(return_value={"id": "u3"})
-    monkeypatch.setattr(auth_module, "lookup_user_nonblocking", fallback_lookup)
-    monkeypatch.setattr(auth_module, "create_transient_user", lambda data: SimpleNamespace(id=data["id"]))
-
-    result = await auth_module.get_current_user(
-        _make_request(),
-        "legacy@example.com",
-        db=Mock(),
-    )
-
-    assert result.id == "u3"
-    fallback_lookup.assert_awaited_once_with("legacy@example.com")
 
 
 @pytest.mark.asyncio
@@ -491,11 +469,14 @@ async def test_get_current_active_user_optional_production_lookup(monkeypatch):
         "lookup_user_by_id_nonblocking",
         AsyncMock(return_value={"id": "u1", "is_active": True}),
     )
-    monkeypatch.setattr(auth_module, "lookup_user_nonblocking", AsyncMock(return_value=None))
     monkeypatch.setattr(auth_module, "create_transient_user", lambda data: SimpleNamespace(id=data["id"]))
 
     request = _make_request()
-    result = await auth_module.get_current_active_user_optional(request, "user@example.com", db=Mock())
+    result = await auth_module.get_current_active_user_optional(
+        request,
+        "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        db=Mock(),
+    )
 
     assert result.id == "u1"
 
@@ -571,9 +552,12 @@ async def test_get_current_active_user_optional_production_inactive(monkeypatch)
         "lookup_user_by_id_nonblocking",
         AsyncMock(return_value={"id": "u3", "is_active": False}),
     )
-    monkeypatch.setattr(auth_module, "lookup_user_nonblocking", AsyncMock(return_value=None))
 
-    result = await auth_module.get_current_active_user_optional(_make_request(), "user@example.com", db=Mock())
+    result = await auth_module.get_current_active_user_optional(
+        _make_request(),
+        "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        db=Mock(),
+    )
 
     assert result is None
 

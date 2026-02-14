@@ -82,7 +82,7 @@ def setup_verify(
     try:
         backup_codes = tfa_service.setup_verify(user, req.code)
         user_repo = RepositoryFactory.create_user_repository(tfa_service.db)
-        if not user_repo.invalidate_all_tokens(user.id):
+        if not user_repo.invalidate_all_tokens(user.id, trigger="2fa_change"):
             logger.warning(
                 "2FA enable succeeded but token invalidation returned false for %s", user.id
             )
@@ -140,7 +140,7 @@ def disable(
     try:
         tfa_service.disable(user, req.current_password)
         user_repo = RepositoryFactory.create_user_repository(tfa_service.db)
-        if not user_repo.invalidate_all_tokens(user.id):
+        if not user_repo.invalidate_all_tokens(user.id, trigger="2fa_change"):
             logger.warning(
                 "2FA disable succeeded but token invalidation returned false for %s", user.id
             )

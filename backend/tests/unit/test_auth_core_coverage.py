@@ -263,11 +263,11 @@ def test_create_temp_token_uses_temp_secret(monkeypatch):
 async def test_get_current_user_cookie_fallback(monkeypatch):
     monkeypatch.setenv("SITE_MODE", "preview")
     monkeypatch.setattr(auth_module, "TokenBlacklistService", lambda: _NeverRevokedService())
+
     async def _lookup_none(_user_id):
         return None
 
     monkeypatch.setattr(auth_module, "lookup_user_by_id_nonblocking", _lookup_none)
-    monkeypatch.setattr(auth_module, "lookup_user_nonblocking", _lookup_none)
     token = create_access_token({"sub": TEST_USER_ULID, "email": "user@example.com"})
     cookie_name = session_cookie_candidates("preview")[0]
     request = _make_request_with_cookie(cookie_name, token)
@@ -318,6 +318,12 @@ async def test_get_current_user_missing_sub_raises(monkeypatch):
 @pytest.mark.asyncio
 async def test_get_current_user_rejects_token_without_jti(monkeypatch):
     monkeypatch.setenv("SITE_MODE", "local")
+    rejection_calls: list[str] = []
+    monkeypatch.setattr(
+        auth_module.prometheus_metrics,
+        "record_token_rejection",
+        lambda reason: rejection_calls.append(reason),
+    )
     token = jwt.encode(
         {"sub": TEST_USER_ULID, "exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
         _secret_value(settings.secret_key),
@@ -328,11 +334,18 @@ async def test_get_current_user_rejects_token_without_jti(monkeypatch):
         await get_current_user(request, token=token)
     assert exc.value.status_code == 401
     assert exc.value.detail == "Token format outdated, please re-login"
+    assert rejection_calls == ["format_outdated"]
 
 
 @pytest.mark.asyncio
 async def test_get_current_user_rejects_revoked_token(monkeypatch):
     monkeypatch.setenv("SITE_MODE", "local")
+    rejection_calls: list[str] = []
+    monkeypatch.setattr(
+        auth_module.prometheus_metrics,
+        "record_token_rejection",
+        lambda reason: rejection_calls.append(reason),
+    )
 
     class _RevokedService:
         async def is_revoked(self, _jti: str) -> bool:
@@ -347,6 +360,7 @@ async def test_get_current_user_rejects_revoked_token(monkeypatch):
 
     assert exc.value.status_code == 401
     assert exc.value.detail == "Token has been revoked"
+    assert rejection_calls == ["revoked"]
 
 
 @pytest.mark.asyncio
@@ -372,6 +386,12 @@ async def test_get_current_user_fail_closed_when_blacklist_check_errors(monkeypa
 async def test_get_current_user_rejects_token_invalidated_by_user_timestamp(monkeypatch):
     monkeypatch.setenv("SITE_MODE", "local")
     monkeypatch.setattr(auth_module, "TokenBlacklistService", lambda: _NeverRevokedService())
+    rejection_calls: list[str] = []
+    monkeypatch.setattr(
+        auth_module.prometheus_metrics,
+        "record_token_rejection",
+        lambda reason: rejection_calls.append(reason),
+    )
 
     token = create_access_token({"sub": TEST_USER_ULID, "email": "user@example.com"})
     decoded = jwt.decode(
@@ -386,10 +406,6 @@ async def test_get_current_user_rejects_token_invalidated_by_user_timestamp(monk
         return {"id": TEST_USER_ULID, "tokens_valid_after_ts": iat_ts + 10}
 
     monkeypatch.setattr(auth_module, "lookup_user_by_id_nonblocking", _lookup_by_id)
-    async def _lookup_none(_user_id):
-        return None
-
-    monkeypatch.setattr(auth_module, "lookup_user_nonblocking", _lookup_none)
     request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
 
     with pytest.raises(auth_module.HTTPException) as exc:
@@ -397,6 +413,7 @@ async def test_get_current_user_rejects_token_invalidated_by_user_timestamp(monk
 
     assert exc.value.status_code == 401
     assert exc.value.detail == "Token has been invalidated"
+    assert rejection_calls == ["invalidated"]
 
 
 @pytest.mark.asyncio
@@ -417,10 +434,6 @@ async def test_get_current_user_allows_token_when_user_timestamp_is_before_iat(m
         return {"id": TEST_USER_ULID, "tokens_valid_after_ts": iat_ts - 10}
 
     monkeypatch.setattr(auth_module, "lookup_user_by_id_nonblocking", _lookup_by_id)
-    async def _lookup_none(_user_id):
-        return None
-
-    monkeypatch.setattr(auth_module, "lookup_user_nonblocking", _lookup_none)
     request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
 
     assert await get_current_user(request, token=token) == TEST_USER_ULID
@@ -435,10 +448,6 @@ async def test_get_current_user_allows_token_when_tokens_valid_after_missing(mon
         return {"id": TEST_USER_ULID, "tokens_valid_after_ts": None}
 
     monkeypatch.setattr(auth_module, "lookup_user_by_id_nonblocking", _lookup_by_id)
-    async def _lookup_none(_user_id):
-        return None
-
-    monkeypatch.setattr(auth_module, "lookup_user_nonblocking", _lookup_none)
 
     token = create_access_token({"sub": TEST_USER_ULID, "email": "user@example.com"})
     request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
@@ -456,11 +465,11 @@ async def test_get_current_user_optional_invalid_token():
 async def test_get_current_user_optional_cookie_fallback(monkeypatch):
     monkeypatch.setenv("SITE_MODE", "preview")
     monkeypatch.setattr(auth_module, "TokenBlacklistService", lambda: _NeverRevokedService())
+
     async def _lookup_none(_user_id):
         return None
 
     monkeypatch.setattr(auth_module, "lookup_user_by_id_nonblocking", _lookup_none)
-    monkeypatch.setattr(auth_module, "lookup_user_nonblocking", _lookup_none)
     token = create_access_token({"sub": TEST_USER_ULID, "email": "user@example.com"})
     cookie_name = session_cookie_candidates("preview")[0]
     request = _make_request_with_cookie(cookie_name, token)
@@ -525,14 +534,116 @@ async def test_get_current_user_optional_rejects_token_invalidated_by_user_times
     async def _lookup_by_id(_user_id):
         return {"id": TEST_USER_ULID, "tokens_valid_after_ts": iat_ts + 10}
 
-    async def _lookup_none(_user_id):
-        return None
-
     monkeypatch.setattr(auth_module, "lookup_user_by_id_nonblocking", _lookup_by_id)
-    monkeypatch.setattr(auth_module, "lookup_user_nonblocking", _lookup_none)
     request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
 
     with pytest.raises(auth_module.HTTPException) as exc:
         await get_current_user_optional(request, token=token)
     assert exc.value.status_code == 401
     assert exc.value.detail == "Token has been invalidated"
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected"),
+    [
+        ({"iat": 123}, 123),
+        ({"iat": 123.9}, 123),
+        ({"iat": "456"}, 456),
+        ({"iat": "bad"}, None),
+        ({}, None),
+    ],
+)
+def test_parse_iat_claim_variants(payload, expected):
+    assert auth_module._parse_iat_claim(payload) == expected
+
+
+@pytest.mark.asyncio
+async def test_enforce_revocation_missing_jti_ignores_metric_failure(monkeypatch):
+    monkeypatch.setattr(
+        auth_module.prometheus_metrics,
+        "record_token_rejection",
+        lambda _reason: (_ for _ in ()).throw(RuntimeError("metrics down")),
+    )
+
+    with pytest.raises(auth_module.HTTPException) as exc:
+        await auth_module._enforce_revocation_and_user_invalidation(
+            payload={"sub": TEST_USER_ULID},
+            user_id=TEST_USER_ULID,
+        )
+
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Token format outdated, please re-login"
+
+
+@pytest.mark.asyncio
+async def test_enforce_revocation_revoked_ignores_metric_failure(monkeypatch):
+    class _RevokedService:
+        async def is_revoked(self, _jti: str) -> bool:
+            return True
+
+    monkeypatch.setattr(auth_module, "TokenBlacklistService", lambda: _RevokedService())
+    monkeypatch.setattr(
+        auth_module.prometheus_metrics,
+        "record_token_rejection",
+        lambda _reason: (_ for _ in ()).throw(RuntimeError("metrics down")),
+    )
+
+    with pytest.raises(auth_module.HTTPException) as exc:
+        await auth_module._enforce_revocation_and_user_invalidation(
+            payload={"sub": TEST_USER_ULID, "jti": "test-jti"},
+            user_id=TEST_USER_ULID,
+        )
+
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Token has been revoked"
+
+
+@pytest.mark.asyncio
+async def test_enforce_revocation_invalidated_ignores_metric_failure(monkeypatch):
+    class _NeverRevoked:
+        async def is_revoked(self, _jti: str) -> bool:
+            return False
+
+    async def _lookup_user(_user_id: str):
+        return {"id": TEST_USER_ULID, "tokens_valid_after_ts": 200}
+
+    monkeypatch.setattr(auth_module, "TokenBlacklistService", lambda: _NeverRevoked())
+    monkeypatch.setattr(auth_module, "lookup_user_by_id_nonblocking", _lookup_user)
+    monkeypatch.setattr(
+        auth_module.prometheus_metrics,
+        "record_token_rejection",
+        lambda _reason: (_ for _ in ()).throw(RuntimeError("metrics down")),
+    )
+
+    with pytest.raises(auth_module.HTTPException) as exc:
+        await auth_module._enforce_revocation_and_user_invalidation(
+            payload={"sub": TEST_USER_ULID, "jti": "test-jti", "iat": 100},
+            user_id=TEST_USER_ULID,
+        )
+
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Token has been invalidated"
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_handles_site_mode_env_error(monkeypatch):
+    request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
+    monkeypatch.setattr(auth_module.os, "getenv", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")))
+
+    with pytest.raises(auth_module.HTTPException) as exc:
+        await get_current_user(request, token=None)
+
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Not authenticated"
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_optional_handles_unexpected_decode_exception(monkeypatch):
+    request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
+    monkeypatch.setattr(
+        auth_module,
+        "decode_access_token",
+        lambda _token: (_ for _ in ()).throw(RuntimeError("unexpected decode failure")),
+    )
+
+    assert await get_current_user_optional(request, token="token") is None

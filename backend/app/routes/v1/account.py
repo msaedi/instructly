@@ -277,7 +277,11 @@ async def logout_all_devices(
 ) -> SessionInvalidationResponse:
     """Invalidate all active sessions for the current user."""
     user_repo = RepositoryFactory.create_user_repository(db)
-    invalidated = await asyncio.to_thread(user_repo.invalidate_all_tokens, current_user.id)
+    invalidated = await asyncio.to_thread(
+        user_repo.invalidate_all_tokens,
+        current_user.id,
+        trigger="logout_all_devices",
+    )
     if not invalidated:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
@@ -288,7 +292,12 @@ async def logout_all_devices(
             jti = payload.get("jti")
             exp_ts = _parse_epoch(payload.get("exp"))
             if isinstance(jti, str) and jti and exp_ts is not None:
-                await TokenBlacklistService().revoke_token(jti, exp_ts)
+                await TokenBlacklistService().revoke_token(
+                    jti,
+                    exp_ts,
+                    trigger="logout_all_devices",
+                    emit_metric=False,
+                )
         except Exception:
             logger.debug("Failed to decode token during logout-all blacklist step", exc_info=True)
 

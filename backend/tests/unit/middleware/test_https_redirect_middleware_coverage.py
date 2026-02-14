@@ -49,6 +49,10 @@ def test_https_redirect_adds_security_headers_for_https() -> None:
     response = client.get("/data")
     assert response.status_code == 200
     assert "Strict-Transport-Security" in response.headers
+    assert (
+        response.headers["Strict-Transport-Security"]
+        == "max-age=63072000; includeSubDomains; preload"
+    )
     assert response.headers["X-Content-Type-Options"] == "nosniff"
     assert "default-src" in response.headers["Content-Security-Policy"]
 

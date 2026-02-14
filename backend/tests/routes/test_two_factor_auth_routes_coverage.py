@@ -123,10 +123,12 @@ def test_setup_verify_invalidates_all_tokens(db, test_student, monkeypatch):
     auth_service = _AuthService(test_student)
     tfa_service = _TFAService(db)
     calls: list[str] = []
+    triggers: list[str | None] = []
 
     class _Repo:
-        def invalidate_all_tokens(self, user_id: str):
+        def invalidate_all_tokens(self, user_id: str, **_kwargs):
             calls.append(user_id)
+            triggers.append(_kwargs.get("trigger") if _kwargs else None)
             return True
 
     monkeypatch.setattr(
@@ -145,6 +147,7 @@ def test_setup_verify_invalidates_all_tokens(db, test_student, monkeypatch):
     )
     assert response.enabled is True
     assert calls == [test_student.id]
+    assert triggers == ["2fa_change"]
 
 
 def test_disable_success_and_failure(db, test_student, monkeypatch):
@@ -188,10 +191,12 @@ def test_disable_success_and_failure(db, test_student, monkeypatch):
 def test_disable_invalidates_all_tokens(db, test_student, monkeypatch):
     auth_service = _AuthService(test_student)
     calls: list[str] = []
+    triggers: list[str | None] = []
 
     class _Repo:
-        def invalidate_all_tokens(self, user_id: str):
+        def invalidate_all_tokens(self, user_id: str, **_kwargs):
             calls.append(user_id)
+            triggers.append(_kwargs.get("trigger") if _kwargs else None)
             return True
 
     monkeypatch.setattr(
@@ -210,6 +215,7 @@ def test_disable_invalidates_all_tokens(db, test_student, monkeypatch):
     )
     assert response.message
     assert calls == [test_student.id]
+    assert triggers == ["2fa_change"]
 
 
 def test_setup_verify_audit_failure(db, test_student, monkeypatch):

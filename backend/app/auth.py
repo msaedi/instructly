@@ -13,8 +13,9 @@ from fastapi.security import OAuth2PasswordBearer
 import jwt
 from jwt import InvalidIssuerError, PyJWTError
 
-from .core.auth_cache import lookup_user_by_id_nonblocking, lookup_user_nonblocking
+from .core.auth_cache import lookup_user_by_id_nonblocking
 from .core.config import settings
+from .monitoring.prometheus_metrics import prometheus_metrics
 from .services.token_blacklist_service import TokenBlacklistService
 from .utils.cookies import session_cookie_candidates
 
@@ -305,6 +306,10 @@ async def _enforce_revocation_and_user_invalidation(payload: Dict[str, Any], use
     jti_obj = payload.get("jti")
     jti = jti_obj if isinstance(jti_obj, str) else None
     if not jti:
+        try:
+            prometheus_metrics.record_token_rejection("format_outdated")
+        except Exception:
+            logger.debug("Non-fatal error ignored", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token format outdated, please re-login",
@@ -319,6 +324,10 @@ async def _enforce_revocation_and_user_invalidation(payload: Dict[str, Any], use
         revoked = True
 
     if revoked:
+        try:
+            prometheus_metrics.record_token_rejection("revoked")
+        except Exception:
+            logger.debug("Non-fatal error ignored", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has been revoked",
@@ -329,10 +338,7 @@ async def _enforce_revocation_and_user_invalidation(payload: Dict[str, Any], use
     if iat_ts is None:
         return
 
-    # ID-first path with defensive fallback for legacy email-subject callers.
     user_data = await lookup_user_by_id_nonblocking(user_id)
-    if user_data is None:
-        user_data = await lookup_user_nonblocking(user_id)
     if not user_data:
         return
 
@@ -340,6 +346,10 @@ async def _enforce_revocation_and_user_invalidation(payload: Dict[str, Any], use
     if isinstance(tokens_valid_after_ts, float):
         tokens_valid_after_ts = int(tokens_valid_after_ts)
     if isinstance(tokens_valid_after_ts, int) and iat_ts < tokens_valid_after_ts:
+        try:
+            prometheus_metrics.record_token_rejection("invalidated")
+        except Exception:
+            logger.debug("Non-fatal error ignored", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has been invalidated",

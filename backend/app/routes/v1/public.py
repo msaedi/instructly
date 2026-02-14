@@ -285,7 +285,7 @@ def public_logout(
                     exp_ts = None
 
                 if exp_ts is not None:
-                    TokenBlacklistService().revoke_token_sync(jti, exp_ts)
+                    TokenBlacklistService().revoke_token_sync(jti, exp_ts, trigger="logout")
 
             email = payload.get("email")
             AuditService(db).log(

@@ -9,6 +9,7 @@ import time
 from typing import Any, Callable, Coroutine, TypeVar, cast
 
 from app.core.cache_redis import get_async_cache_redis_client
+from app.monitoring.prometheus_metrics import prometheus_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,14 @@ class TokenBlacklistService:
             return self._redis_client
         return await get_async_cache_redis_client()
 
-    async def revoke_token(self, jti: str, exp: int) -> None:
+    async def revoke_token(
+        self,
+        jti: str,
+        exp: int,
+        *,
+        trigger: str = "logout",
+        emit_metric: bool = True,
+    ) -> None:
         """Add token jti to blacklist with TTL equal to remaining token lifetime."""
         if not jti:
             return
@@ -54,6 +62,11 @@ class TokenBlacklistService:
                 logger.warning("[TOKEN-BL] Redis unavailable, revoke skipped for jti=%s", jti)
                 return
             await redis.setex(self._key(jti), ttl_seconds, "1")
+            if emit_metric:
+                try:
+                    prometheus_metrics.record_token_revocation(trigger)
+                except Exception:
+                    logger.debug("Non-fatal error ignored", exc_info=True)
         except Exception as exc:
             logger.warning("[TOKEN-BL] Failed to revoke token jti=%s: %s", jti, exc)
 
@@ -78,6 +91,7 @@ class TokenBlacklistService:
         async_fn: Callable[..., Coroutine[Any, Any, T]],
         *args: Any,
         default: T,
+        **kwargs: Any,
     ) -> T:
         try:
             # No running loop in this thread: try worker-thread portal first.
@@ -86,10 +100,10 @@ class TokenBlacklistService:
             try:
                 import anyio
 
-                return cast(T, anyio.from_thread.run(async_fn, *args))
+                return cast(T, anyio.from_thread.run(async_fn, *args, **kwargs))
             except Exception:
                 try:
-                    return asyncio.run(async_fn(*args))
+                    return asyncio.run(async_fn(*args, **kwargs))
                 except Exception as exc:
                     logger.warning("[TOKEN-BL] Sync bridge failed, using default: %s", exc)
                     return default
@@ -99,7 +113,7 @@ class TokenBlacklistService:
 
         def _runner() -> None:
             try:
-                result_box["value"] = asyncio.run(async_fn(*args))
+                result_box["value"] = asyncio.run(async_fn(*args, **kwargs))
             except Exception as exc:
                 logger.warning("[TOKEN-BL] Sync bridge thread failed: %s", exc)
 
@@ -115,9 +129,23 @@ class TokenBlacklistService:
             return default
         return result_box.get("value", default)
 
-    def revoke_token_sync(self, jti: str, exp: int) -> None:
+    def revoke_token_sync(
+        self,
+        jti: str,
+        exp: int,
+        *,
+        trigger: str = "logout",
+        emit_metric: bool = True,
+    ) -> None:
         """Synchronous revocation bridge for sync contexts."""
-        self._run_sync(self.revoke_token, jti, exp, default=None)
+        self._run_sync(
+            self.revoke_token,
+            jti,
+            exp,
+            trigger=trigger,
+            emit_metric=emit_metric,
+            default=None,
+        )
 
     def is_revoked_sync(self, jti: str) -> bool:
         """Synchronous revoke-check bridge for sync contexts (fail-closed)."""

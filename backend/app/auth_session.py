@@ -8,6 +8,7 @@ from fastapi import Request
 from sqlalchemy.orm import Session
 
 from app.auth import decode_access_token
+from app.monitoring.prometheus_metrics import prometheus_metrics
 from app.repositories.user_repository import UserRepository
 from app.services.token_blacklist_service import TokenBlacklistService
 from app.utils.cookies import session_cookie_candidates
@@ -25,8 +26,6 @@ def _lookup_active_user(
         return None
     user_repo = UserRepository(db)
     user = user_repo.get_by_id(user_identifier, use_retry=False)
-    if not user:
-        user = user_repo.get_by_email(user_identifier)
     if not user or not getattr(user, "is_active", False):
         return None
 
@@ -34,6 +33,10 @@ def _lookup_active_user(
     if token_iat is not None:
         tokens_valid_after = getattr(user, "tokens_valid_after", None)
         if tokens_valid_after and token_iat < int(tokens_valid_after.timestamp()):
+            try:
+                prometheus_metrics.record_token_rejection("invalidated")
+            except Exception:
+                pass
             return None
 
     return user
@@ -55,10 +58,18 @@ def _decode_token_claims(token: str) -> tuple[str, int | None] | None:
     jti_obj = payload.get("jti")
     jti = jti_obj if isinstance(jti_obj, str) else None
     if not jti:
+        try:
+            prometheus_metrics.record_token_rejection("format_outdated")
+        except Exception:
+            pass
         return None
 
     try:
         if TokenBlacklistService().is_revoked_sync(jti):
+            try:
+                prometheus_metrics.record_token_rejection("revoked")
+            except Exception:
+                pass
             return None
     except Exception:
         # Defensive fail-closed fallback if sync bridge errors unexpectedly.

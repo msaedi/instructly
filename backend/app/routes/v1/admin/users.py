@@ -29,7 +29,11 @@ async def force_logout_user(
 ) -> SessionInvalidationResponse:
     """Force logout for all active sessions belonging to a target user."""
     user_repo = RepositoryFactory.create_user_repository(db)
-    invalidated = await asyncio.to_thread(user_repo.invalidate_all_tokens, user_id)
+    invalidated = await asyncio.to_thread(
+        user_repo.invalidate_all_tokens,
+        user_id,
+        trigger="admin_force_logout",
+    )
     if not invalidated:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return SessionInvalidationResponse(message="User sessions have been logged out")

@@ -103,6 +103,31 @@ def _dummy_request():
     return SimpleNamespace(headers={}, client=None)
 
 
+def test_extract_request_access_token_prefers_bearer_header():
+    request = SimpleNamespace(headers={"authorization": "Bearer abc123"}, cookies={"sid": "cookie-token"})
+    assert account_routes._extract_request_access_token(request) == "abc123"
+
+
+def test_extract_request_access_token_falls_back_to_cookie(monkeypatch):
+    request = SimpleNamespace(headers={"authorization": "Token ignored"}, cookies={"__Host-session": "cookie-token"})
+    monkeypatch.setattr(account_routes, "session_cookie_candidates", lambda: ["sid", "__Host-session"])
+    assert account_routes._extract_request_access_token(request) == "cookie-token"
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (123, 123),
+        (123.9, 123),
+        ("456", 456),
+        ("bad", None),
+        (None, None),
+    ],
+)
+def test_parse_epoch_variants(value, expected):
+    assert account_routes._parse_epoch(value) == expected
+
+
 @pytest.mark.asyncio
 async def test_suspend_account_for_student_forbidden(db, test_student):
     service = AccountLifecycleService(db, cache_service=DummyCacheService())
@@ -249,14 +274,18 @@ async def test_account_status_error(test_instructor_with_availability):
 @pytest.mark.asyncio
 async def test_logout_all_devices_revokes_current_token(monkeypatch, test_student, db):
     revoked: list[tuple[str, int]] = []
+    revoke_kwargs: list[dict[str, object]] = []
+    invalidation_triggers: list[str | None] = []
 
     class _Repo:
-        def invalidate_all_tokens(self, _user_id: str):
+        def invalidate_all_tokens(self, _user_id: str, **_kwargs):
+            invalidation_triggers.append(_kwargs.get("trigger") if _kwargs else None)
             return True
 
     class _Blacklist:
-        async def revoke_token(self, jti: str, exp: int):
+        async def revoke_token(self, jti: str, exp: int, **_kwargs):
             revoked.append((jti, exp))
+            revoke_kwargs.append(_kwargs)
 
     monkeypatch.setattr(
         account_routes.RepositoryFactory,
@@ -274,12 +303,14 @@ async def test_logout_all_devices_revokes_current_token(monkeypatch, test_studen
     response = await account_routes.logout_all_devices(request, test_student, db)
     assert response.message == "All sessions have been logged out"
     assert revoked == [("token-jti", 9999999999)]
+    assert invalidation_triggers == ["logout_all_devices"]
+    assert revoke_kwargs == [{"trigger": "logout_all_devices", "emit_metric": False}]
 
 
 @pytest.mark.asyncio
 async def test_logout_all_devices_without_token_still_succeeds(monkeypatch, test_student, db):
     class _Repo:
-        def invalidate_all_tokens(self, _user_id: str):
+        def invalidate_all_tokens(self, _user_id: str, **_kwargs):
             return True
 
     monkeypatch.setattr(
@@ -296,7 +327,7 @@ async def test_logout_all_devices_without_token_still_succeeds(monkeypatch, test
 @pytest.mark.asyncio
 async def test_logout_all_devices_returns_404_when_user_not_found(monkeypatch, test_student, db):
     class _Repo:
-        def invalidate_all_tokens(self, _user_id: str):
+        def invalidate_all_tokens(self, _user_id: str, **_kwargs):
             return False
 
     monkeypatch.setattr(

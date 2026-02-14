@@ -30,7 +30,6 @@ from ...auth import (
 from ...core.auth_cache import (
     create_transient_user,
     lookup_user_by_id_nonblocking,
-    lookup_user_nonblocking,
 )
 from ...core.config import settings
 from ...models.user import User
@@ -271,9 +270,6 @@ async def get_current_user(
         # Production: Non-blocking lookup with caching (ID-first).
         user_data = await lookup_user_by_id_nonblocking(current_user_id)
         if user_data is None:
-            # Defensive compatibility fallback for tokens with email subjects.
-            user_data = await lookup_user_nonblocking(current_user_id)
-        if user_data is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         # Create a TRANSIENT User object (not session-bound) from the dict
         user = create_transient_user(user_data)
@@ -424,9 +420,6 @@ async def get_current_active_user_optional(
     else:
         # Production: Non-blocking lookup with caching (ID-first).
         user_data = await lookup_user_by_id_nonblocking(current_user_id)
-        if user_data is None:
-            # Defensive compatibility fallback for tokens with email subjects.
-            user_data = await lookup_user_nonblocking(current_user_id)
         if user_data and user_data.get("is_active", False):
             return create_transient_user(user_data)
         return None

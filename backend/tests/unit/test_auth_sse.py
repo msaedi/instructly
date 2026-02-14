@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException
+import jwt
 import pytest
 from sqlalchemy.orm import Session
 from starlette.requests import Request
@@ -162,6 +163,12 @@ async def test_get_current_user_sse_rejects_revoked_jwt(unit_db, monkeypatch):
     monkeypatch.setenv("SITE_MODE", "preview")
     monkeypatch.setattr(auth_cache, "SessionLocal", lambda: unit_db)
     monkeypatch.setattr(auth_cache, "_get_auth_redis_client", lambda: None)
+    rejection_calls: list[str] = []
+    monkeypatch.setattr(
+        auth_sse.prometheus_metrics,
+        "record_token_rejection",
+        lambda reason: rejection_calls.append(reason),
+    )
     user = _create_user(unit_db, email="sse-revoked@example.com")
     token = create_access_token({"sub": user.id, "email": user.email})
 
@@ -177,6 +184,7 @@ async def test_get_current_user_sse_rejects_revoked_jwt(unit_db, monkeypatch):
 
     assert exc_info.value.status_code == 401
     assert exc_info.value.detail == "Token has been revoked"
+    assert rejection_calls == ["revoked"]
 
 
 @pytest.mark.asyncio
@@ -185,6 +193,12 @@ async def test_get_current_user_sse_rejects_token_invalidated_by_user_timestamp(
     monkeypatch.setattr(auth_sse, "TokenBlacklistService", lambda: _NeverRevokedService())
     monkeypatch.setattr(auth_cache, "SessionLocal", lambda: unit_db)
     monkeypatch.setattr(auth_cache, "_get_auth_redis_client", lambda: None)
+    rejection_calls: list[str] = []
+    monkeypatch.setattr(
+        auth_sse.prometheus_metrics,
+        "record_token_rejection",
+        lambda reason: rejection_calls.append(reason),
+    )
 
     user = _create_user(unit_db, email="sse-invalidated@example.com")
     token = create_access_token({"sub": user.id, "email": user.email})
@@ -199,6 +213,38 @@ async def test_get_current_user_sse_rejects_token_invalidated_by_user_timestamp(
 
     assert exc_info.value.status_code == 401
     assert exc_info.value.detail == "Token has been invalidated"
+    assert rejection_calls == ["invalidated"]
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_sse_rejects_token_without_jti_records_metric(unit_db, monkeypatch):
+    monkeypatch.setenv("SITE_MODE", "preview")
+    monkeypatch.setattr(auth_cache, "SessionLocal", lambda: unit_db)
+    monkeypatch.setattr(auth_cache, "_get_auth_redis_client", lambda: None)
+    rejection_calls: list[str] = []
+    monkeypatch.setattr(
+        auth_sse.prometheus_metrics,
+        "record_token_rejection",
+        lambda reason: rejection_calls.append(reason),
+    )
+
+    user = _create_user(unit_db, email="sse-no-jti@example.com")
+    token = create_access_token({"sub": user.id, "email": user.email})
+    payload = auth_sse.decode_access_token(token)
+    payload.pop("jti", None)
+    token_without_jti = jwt.encode(
+        payload,
+        auth_sse.settings.secret_key.get_secret_value(),
+        algorithm=auth_sse.settings.algorithm,
+    )
+
+    request = _build_request()
+    with pytest.raises(HTTPException) as exc_info:
+        await get_current_user_sse(request=request, token_header=token_without_jti, token_query=None)
+
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.detail == "Token format outdated, please re-login"
+    assert rejection_calls == ["format_outdated"]
 
 
 @pytest.mark.asyncio

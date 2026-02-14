@@ -70,10 +70,10 @@ class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
 
         if is_https:
-            # HSTS header - tells browsers to only use HTTPS for 1 year
+            # HSTS header - tells browsers to only use HTTPS for 2 years
             response.headers[
                 "Strict-Transport-Security"
-            ] = "max-age=31536000; includeSubDomains; preload"
+            ] = "max-age=63072000; includeSubDomains; preload"
 
         # Security headers for all responses (defense-in-depth for API)
         response.headers["X-Content-Type-Options"] = "nosniff"

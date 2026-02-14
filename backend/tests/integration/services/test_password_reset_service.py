@@ -264,6 +264,36 @@ class TestPasswordResetService:
         db.refresh(unique_test_user)
         assert unique_test_user.tokens_valid_after is not None
 
+    def test_confirm_password_reset_uses_password_change_trigger(
+        self, password_reset_service, unique_test_user, db, monkeypatch
+    ):
+        future_time = datetime.now(timezone.utc) + timedelta(hours=1)
+        reset_token = PasswordResetToken(
+            user_id=unique_test_user.id, token="trigger_token_123", expires_at=future_time, used=False
+        )
+        db.add(reset_token)
+        db.commit()
+
+        trigger_calls: list[tuple[str, str | None]] = []
+
+        class _InvalidationRepo:
+            def invalidate_all_tokens(self, user_id: str, *, trigger: str | None = None) -> bool:
+                trigger_calls.append((user_id, trigger))
+                return True
+
+        monkeypatch.setattr(
+            "app.services.password_reset_service.RepositoryFactory.create_user_repository",
+            lambda _db: _InvalidationRepo(),
+        )
+
+        assert (
+            password_reset_service.confirm_password_reset(
+                "trigger_token_123", "NewSecurePassword123!"
+            )
+            is True
+        )
+        assert trigger_calls == [(unique_test_user.id, "password_change")]
+
     def test_confirm_password_reset_invalid_token(self, password_reset_service):
         """Test password reset with invalid token."""
         # Execute & Verify

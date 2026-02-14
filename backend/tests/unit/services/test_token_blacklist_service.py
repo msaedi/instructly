@@ -29,10 +29,39 @@ async def test_revoke_token_sets_key_with_ttl(monkeypatch):
     redis = _FakeRedis()
     service = TokenBlacklistService(redis_client=redis)
     monkeypatch.setattr("app.services.token_blacklist_service.time.time", lambda: 1000)
+    metric_calls: list[str] = []
+    monkeypatch.setattr(
+        "app.services.token_blacklist_service.prometheus_metrics.record_token_revocation",
+        lambda trigger: metric_calls.append(trigger),
+    )
 
     await service.revoke_token("jti-1", 1060)
 
     assert redis.setex_calls == [("auth:blacklist:jti:jti-1", 60, "1")]
+    assert metric_calls == ["logout"]
+
+
+@pytest.mark.asyncio
+async def test_revoke_token_empty_jti_is_noop(monkeypatch):
+    redis = _FakeRedis()
+    service = TokenBlacklistService(redis_client=redis)
+    monkeypatch.setattr("app.services.token_blacklist_service.time.time", lambda: 1000)
+
+    await service.revoke_token("", 1060)
+
+    assert redis.setex_calls == []
+
+
+@pytest.mark.asyncio
+async def test_revoke_token_invalid_exp_logs_and_skips(caplog):
+    redis = _FakeRedis()
+    service = TokenBlacklistService(redis_client=redis)
+
+    with caplog.at_level(logging.WARNING):
+        await service.revoke_token("jti-1", "not-a-number")
+
+    assert redis.setex_calls == []
+    assert any("Invalid exp claim" in rec.message for rec in caplog.records)
 
 
 @pytest.mark.asyncio
@@ -44,6 +73,53 @@ async def test_revoke_token_expired_noop(monkeypatch):
     await service.revoke_token("jti-1", 999)
 
     assert redis.setex_calls == []
+
+
+@pytest.mark.asyncio
+async def test_revoke_token_emit_metric_can_be_disabled(monkeypatch):
+    redis = _FakeRedis()
+    service = TokenBlacklistService(redis_client=redis)
+    metric_calls: list[str] = []
+    monkeypatch.setattr("app.services.token_blacklist_service.time.time", lambda: 1000)
+    monkeypatch.setattr(
+        "app.services.token_blacklist_service.prometheus_metrics.record_token_revocation",
+        lambda trigger: metric_calls.append(trigger),
+    )
+
+    await service.revoke_token("jti-1", 1060, trigger="logout_all_devices", emit_metric=False)
+
+    assert redis.setex_calls == [("auth:blacklist:jti:jti-1", 60, "1")]
+    assert metric_calls == []
+
+
+@pytest.mark.asyncio
+async def test_revoke_token_redis_none_logs_and_skips(monkeypatch, caplog):
+    class _NoRedisService(TokenBlacklistService):
+        async def _get_redis_client(self):
+            return None
+
+    service = _NoRedisService()
+    monkeypatch.setattr("app.services.token_blacklist_service.time.time", lambda: 1000)
+
+    with caplog.at_level(logging.WARNING):
+        await service.revoke_token("jti-1", 1060)
+
+    assert any("Redis unavailable, revoke skipped" in rec.message for rec in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_revoke_token_metric_error_is_non_fatal(monkeypatch):
+    redis = _FakeRedis()
+    service = TokenBlacklistService(redis_client=redis)
+    monkeypatch.setattr("app.services.token_blacklist_service.time.time", lambda: 1000)
+    monkeypatch.setattr(
+        "app.services.token_blacklist_service.prometheus_metrics.record_token_revocation",
+        lambda _trigger: (_ for _ in ()).throw(RuntimeError("metrics down")),
+    )
+
+    await service.revoke_token("jti-1", 1060)
+
+    assert redis.setex_calls == [("auth:blacklist:jti:jti-1", 60, "1")]
 
 
 @pytest.mark.asyncio
@@ -61,6 +137,22 @@ async def test_is_revoked_false_for_non_revoked_token():
     service = TokenBlacklistService(redis_client=redis)
 
     assert await service.is_revoked("jti-1") is False
+
+
+@pytest.mark.asyncio
+async def test_is_revoked_empty_jti_is_fail_closed():
+    service = TokenBlacklistService(redis_client=_FakeRedis(exists_value=0))
+    assert await service.is_revoked("") is True
+
+
+@pytest.mark.asyncio
+async def test_is_revoked_redis_none_is_fail_closed():
+    class _NoRedisService(TokenBlacklistService):
+        async def _get_redis_client(self):
+            return None
+
+    service = _NoRedisService()
+    assert await service.is_revoked("jti-1") is True
 
 
 @pytest.mark.asyncio
@@ -89,7 +181,7 @@ def test_revoke_token_sync_bridge(monkeypatch):
     service = TokenBlacklistService(redis_client=redis)
     monkeypatch.setattr("app.services.token_blacklist_service.time.time", lambda: 100)
 
-    service.revoke_token_sync("sync-jti", 130)
+    service.revoke_token_sync("sync-jti", 130, trigger="logout")
 
     assert redis.setex_calls == [("auth:blacklist:jti:sync-jti", 30, "1")]
 

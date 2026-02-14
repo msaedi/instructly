@@ -1036,6 +1036,7 @@ async def test_change_password_invalidation_failure_is_non_blocking(monkeypatch,
 async def test_change_password_calls_invalidate_all_tokens(monkeypatch, test_student, db):
     user = test_student
     calls: list[str] = []
+    triggers: list[str | None] = []
 
     async def _true_password(*_args, **_kwargs):
         return True
@@ -1046,8 +1047,9 @@ async def test_change_password_calls_invalidate_all_tokens(monkeypatch, test_stu
         def update_password(self, *_args, **_kwargs):
             return True
 
-        def invalidate_all_tokens(self, user_id: str):
+        def invalidate_all_tokens(self, user_id: str, **_kwargs):
             calls.append(user_id)
+            triggers.append(_kwargs.get("trigger") if _kwargs else None)
             return True
 
     monkeypatch.setattr(
@@ -1067,6 +1069,7 @@ async def test_change_password_calls_invalidate_all_tokens(monkeypatch, test_stu
     )
     assert response.message == "Password changed successfully"
     assert calls == [user.id]
+    assert triggers == ["password_change"]
 
 
 @pytest.mark.asyncio

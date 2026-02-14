@@ -116,7 +116,7 @@ class AccountLifecycleService(BaseService):
             self.cache_service.delete_pattern(f"instructor:{instructor.id}:*")
             self.cache_service.delete_pattern(f"availability:instructor:{instructor.id}:*")
 
-        if not self.user_repository.invalidate_all_tokens(instructor.id):
+        if not self.user_repository.invalidate_all_tokens(instructor.id, trigger="suspension"):
             self.logger.warning(
                 "Failed to invalidate active tokens for suspended instructor %s",
                 instructor.id,

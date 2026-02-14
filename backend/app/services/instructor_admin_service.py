@@ -421,7 +421,11 @@ class InstructorAdminService(BaseService):
             profile.payout_hold_at = now
             profile.payout_hold_released_at = None
 
-        invalidated = await asyncio.to_thread(self.user_repo.invalidate_all_tokens, user.id)
+        invalidated = await asyncio.to_thread(
+            self.user_repo.invalidate_all_tokens,
+            user.id,
+            trigger="suspension",
+        )
         if not invalidated:
             logger.warning(
                 "Instructor suspend succeeded but token invalidation helper returned false for %s",

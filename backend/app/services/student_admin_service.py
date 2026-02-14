@@ -450,7 +450,7 @@ class StudentAdminService(BaseService):
             user.account_status = "suspended"
             archived_count = self._archive_conversations(user.id)
 
-        if not self.user_repo.invalidate_all_tokens(user.id):
+        if not self.user_repo.invalidate_all_tokens(user.id, trigger="suspension"):
             logger.warning(
                 "Student suspend succeeded but token invalidation helper returned false for %s",
                 user.id,

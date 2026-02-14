@@ -143,8 +143,7 @@ class UserRepository(BaseRepository[User]):
         """
         Get user by email with eager loaded roles and permissions.
 
-        Used by: auth_cache._sync_user_lookup() for caching permissions
-        This avoids a second DB query for permission checks.
+        Used by: non-auth flows that still resolve users by email with eager role data.
         """
         try:
             return cast(
@@ -402,7 +401,7 @@ class UserRepository(BaseRepository[User]):
             self.db.rollback()
             return False
 
-    def invalidate_all_tokens(self, user_id: str) -> bool:
+    def invalidate_all_tokens(self, user_id: str, *, trigger: str | None = None) -> bool:
         """Invalidate all active JWTs for a user via tokens_valid_after and cache eviction."""
         try:
             user = self.get_by_id(user_id, load_relationships=False, use_retry=False)
@@ -411,6 +410,14 @@ class UserRepository(BaseRepository[User]):
 
             user.tokens_valid_after = datetime.now(timezone.utc)
             self.db.commit()
+
+            if trigger:
+                try:
+                    from ..monitoring.prometheus_metrics import prometheus_metrics
+
+                    prometheus_metrics.record_token_revocation(trigger)
+                except Exception:
+                    logger.debug("Non-fatal error ignored", exc_info=True)
 
             # Keep auth cache in sync so tokens_valid_after checks use the new floor immediately.
             from ..core.auth_cache import invalidate_cached_user_by_id_sync

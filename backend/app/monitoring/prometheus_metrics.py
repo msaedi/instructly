@@ -102,6 +102,20 @@ instant_payout_requests_total = Counter(
     registry=REGISTRY,
 )
 
+auth_token_revocation_total = Counter(
+    "instainstru_auth_token_revocation_total",
+    "Total token revocation events",
+    ["trigger"],
+    registry=REGISTRY,
+)
+
+auth_token_rejection_total = Counter(
+    "instainstru_auth_token_rejection_total",
+    "Total rejected tokens",
+    ["reason"],
+    registry=REGISTRY,
+)
+
 # Beta program: distribution of x-beta-phase headers observed
 beta_phase_header_total = Counter(
     "instainstru_beta_phase_header_total",
@@ -227,6 +241,15 @@ class PrometheusMetrics:
     _cache_payload: Optional[bytes] = None
     _cache_ts: Optional[float] = None
     _cache_ttl_seconds: float = _metrics_ttl_seconds()
+    _allowed_revocation_triggers = {
+        "logout",
+        "password_change",
+        "2fa_change",
+        "suspension",
+        "admin_force_logout",
+        "logout_all_devices",
+    }
+    _allowed_rejection_reasons = {"revoked", "invalidated", "format_outdated"}
 
     @staticmethod
     def record_http_request(method: str, endpoint: str, duration: float, status_code: int) -> None:
@@ -430,6 +453,20 @@ class PrometheusMetrics:
     def inc_preview_bypass(via: str) -> None:
         """Increment preview bypass counter by mechanism (session|header)."""
         preview_bypass_total.labels(via=via).inc()
+        PrometheusMetrics._invalidate_cache()
+
+    @staticmethod
+    def record_token_revocation(trigger: str) -> None:
+        """Record one token revocation event with a bounded trigger label."""
+        label = trigger if trigger in PrometheusMetrics._allowed_revocation_triggers else "unknown"
+        auth_token_revocation_total.labels(trigger=label).inc()
+        PrometheusMetrics._invalidate_cache()
+
+    @staticmethod
+    def record_token_rejection(reason: str) -> None:
+        """Record one rejected token event with a bounded reason label."""
+        label = reason if reason in PrometheusMetrics._allowed_rejection_reasons else "unknown"
+        auth_token_rejection_total.labels(reason=label).inc()
         PrometheusMetrics._invalidate_cache()
 
 

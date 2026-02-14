@@ -40,11 +40,11 @@ from .auth import decode_access_token, oauth2_scheme_optional
 from .core.auth_cache import (
     create_transient_user,
     lookup_user_by_id_nonblocking,
-    lookup_user_nonblocking,
 )
 from .core.cache_redis import get_async_cache_redis_client
 from .core.config import settings
 from .models.user import User
+from .monitoring.prometheus_metrics import prometheus_metrics
 from .services.token_blacklist_service import TokenBlacklistService
 from .utils.cookies import session_cookie_candidates
 
@@ -155,6 +155,10 @@ async def get_current_user_sse(
         jti_obj = payload.get("jti")
         jti = jti_obj if isinstance(jti_obj, str) else None
         if not jti:
+            try:
+                prometheus_metrics.record_token_rejection("format_outdated")
+            except Exception:
+                logger.debug("Non-fatal error ignored", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token format outdated, please re-login",
@@ -168,6 +172,10 @@ async def get_current_user_sse(
             logger.warning("SSE blacklist check failed for jti=%s (fail-closed): %s", jti, exc)
             revoked = True
         if revoked:
+            try:
+                prometheus_metrics.record_token_rejection("revoked")
+            except Exception:
+                logger.debug("Non-fatal error ignored", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token has been revoked",
@@ -190,9 +198,6 @@ async def get_current_user_sse(
     # This uses Redis cache + asyncio.to_thread for DB queries to avoid
     # blocking the event loop under load.
     user_data = await lookup_user_by_id_nonblocking(user_id)
-    if user_data is None:
-        # Defensive compatibility fallback for legacy email subjects.
-        user_data = await lookup_user_nonblocking(user_id)
 
     if user_data is None:
         raise credentials_exception
@@ -216,6 +221,10 @@ async def get_current_user_sse(
         if isinstance(tokens_valid_after_ts, float):
             tokens_valid_after_ts = int(tokens_valid_after_ts)
         if isinstance(tokens_valid_after_ts, int) and iat_ts < tokens_valid_after_ts:
+            try:
+                prometheus_metrics.record_token_rejection("invalidated")
+            except Exception:
+                logger.debug("Non-fatal error ignored", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token has been invalidated",

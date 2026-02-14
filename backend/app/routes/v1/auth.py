@@ -651,7 +651,11 @@ async def change_password(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update password"
         )
 
-    invalidated = await asyncio.to_thread(user_repository.invalidate_all_tokens, user.id)
+    invalidated = await asyncio.to_thread(
+        user_repository.invalidate_all_tokens,
+        user.id,
+        trigger="password_change",
+    )
     if not invalidated:
         logger.warning(
             "Password updated but token invalidation helper returned false for %s", user.id

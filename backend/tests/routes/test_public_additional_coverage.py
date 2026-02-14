@@ -179,10 +179,12 @@ def test_public_logout_logs_audit_when_session_token_present(monkeypatch):
     )
     audit_calls = []
     revoked = []
+    revoke_kwargs: list[dict[str, object]] = []
 
     class DummyBlacklistService:
-        def revoke_token_sync(self, jti: str, exp: int) -> None:
+        def revoke_token_sync(self, jti: str, exp: int, **_kwargs) -> None:
             revoked.append((jti, exp))
+            revoke_kwargs.append(_kwargs)
 
     class DummyAuditService:
         def __init__(self, _db) -> None:
@@ -202,6 +204,7 @@ def test_public_logout_logs_audit_when_session_token_present(monkeypatch):
 
     assert response.status_code == 204
     assert revoked == [("test-jti", 9999999999)]
+    assert revoke_kwargs == [{"trigger": "logout"}]
     assert len(audit_calls) == 1
     assert audit_calls[0]["actor_email"] == "user@example.com"
 
@@ -216,7 +219,7 @@ def test_public_logout_skips_blacklist_when_jti_missing(monkeypatch):
     revoked = []
 
     class DummyBlacklistService:
-        def revoke_token_sync(self, jti: str, exp: int) -> None:
+        def revoke_token_sync(self, jti: str, exp: int, **_kwargs) -> None:
             revoked.append((jti, exp))
 
     class DummyAuditService:
@@ -255,7 +258,7 @@ def test_public_logout_ignores_audit_errors(monkeypatch):
             raise RuntimeError("audit write failed")
 
     class DummyBlacklistService:
-        def revoke_token_sync(self, _jti: str, _exp: int) -> None:
+        def revoke_token_sync(self, _jti: str, _exp: int, **_kwargs) -> None:
             return None
 
     monkeypatch.setattr(public_routes, "TokenBlacklistService", lambda: DummyBlacklistService())

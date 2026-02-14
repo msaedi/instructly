@@ -155,6 +155,9 @@ class Settings(BaseSettings):
     )  # type: ignore[assignment]  # defaults to ellipsis outside CI; SecretStr default provided for CI runs
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 720  # 12 hours
+    # NOTE: Server-side revocation via Redis blacklist (AUTH-VULN-02 fix) mitigates
+    # the risk of long-lived tokens. Consider reducing to 1-2 hours with a refresh
+    # token flow if tighter session control is needed in the future.
 
     # 2FA / TOTP
     totp_encryption_key: SecretStr = Field(
