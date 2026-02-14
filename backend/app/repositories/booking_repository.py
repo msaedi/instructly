@@ -1395,7 +1395,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 query = query.filter(Booking.status == status)
 
             if with_relationships:
-                query = query.options(joinedload(Booking.student), joinedload(Booking.instructor))
+                query = query.options(
+                    selectinload(Booking.student), selectinload(Booking.instructor)
+                )
 
             return cast(List[Booking], query.all())
 
@@ -1692,6 +1694,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 List[Booking],
                 self.db.query(Booking)
                 .filter(Booking.booking_date == booking_date, Booking.status == status)
+                .options(selectinload(Booking.student), selectinload(Booking.instructor))
                 .all(),
             )
         except Exception as e:
@@ -1723,6 +1726,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     Booking.booking_date <= end_date,
                     Booking.status == status,
                 )
+                .options(selectinload(Booking.student), selectinload(Booking.instructor))
                 .all(),
             )
         except Exception as e:
