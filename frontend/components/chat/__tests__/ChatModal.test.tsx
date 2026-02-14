@@ -24,6 +24,7 @@ jest.mock('@/components/errors/QueryErrorBoundary', () => ({
 // Mock apiBase
 jest.mock('@/lib/apiBase', () => ({
   withApiBase: (url: string) => url,
+  withApiBaseForRequest: (url: string) => url,
 }));
 
 // Mock fetch for conversation creation

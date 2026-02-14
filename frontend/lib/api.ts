@@ -17,7 +17,7 @@ import type {
 } from '@/features/shared/api/types';
 import { logger } from '@/lib/logger';
 import { formatDateForAPI } from '@/lib/availability/dateHelpers';
-import { getApiBase, withApiBase } from '@/lib/apiBase';
+import { getApiBase, withApiBaseForRequest } from '@/lib/apiBase';
 
 type FetchWithAuthOptions = RequestInit & {
   noCache?: boolean;
@@ -80,7 +80,7 @@ export const fetchWithAuth = async (endpoint: string, options: FetchWithAuthOpti
   logger.time(timerLabel);
 
   try {
-    const url = withApiBase(endpoint);
+    const url = withApiBaseForRequest(endpoint, method);
     const baseHeaders = { ...(requestInit.headers || {}) } as Record<string, string>;
     if (noCache) {
       baseHeaders['Cache-Control'] = 'no-cache';
@@ -184,12 +184,12 @@ export const fetchAPI = async (endpoint: string, options: RequestInit = {}) => {
   logger.time(timerLabel);
 
   try {
-    const base = getApiUrl();
+    const resolvedUrl = withApiBaseForRequest(endpoint, method);
     const requestInit: RequestInit = {
       ...options,
       credentials: options.credentials ?? 'include',
     };
-    const response = await fetch(`${base}${endpoint}`, requestInit);
+    const response = await fetch(resolvedUrl, requestInit);
 
     logger.timeEnd(timerLabel);
 
@@ -471,7 +471,7 @@ export async function getProfilePictureUrl(
   variant: 'original' | 'display' | 'thumb' = 'display',
 ): Promise<SuccessResponse> {
   const endpoint = `${API_ENDPOINTS.PROFILE_PICTURE_URL(userId)}?variant=${variant}`;
-  const url = withApiBase(endpoint);
+  const url = withApiBaseForRequest(endpoint, 'GET');
 
   try {
     const response = await fetch(url, { credentials: 'include' });

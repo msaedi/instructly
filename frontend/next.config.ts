@@ -1,6 +1,7 @@
 import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs';
 import { withAxiom } from 'next-axiom';
+import { withBotId } from 'botid/next/config';
 
 const cspReportUri = (() => {
   const dsn = process.env['NEXT_PUBLIC_SENTRY_DSN'] || '';
@@ -24,7 +25,13 @@ const cspReportUri = (() => {
 const cspApiOrigin = (() => {
   const apiBase = process.env['NEXT_PUBLIC_API_BASE'] || process.env['NEXT_PUBLIC_API_URL'] || '';
   if (!apiBase) {
-    return '';
+    const appEnv = (process.env['NEXT_PUBLIC_APP_ENV'] || '').toLowerCase();
+    const isDevLike =
+      process.env.NODE_ENV !== 'production' ||
+      appEnv === 'local' ||
+      appEnv === 'development' ||
+      appEnv === 'dev';
+    return isDevLike ? 'http://localhost:8000' : '';
   }
 
   try {
@@ -153,4 +160,4 @@ const sentryBuildOptions = {
   },
 };
 
-export default withAxiom(withSentryConfig(nextConfig, sentryBuildOptions));
+export default withBotId(withAxiom(withSentryConfig(nextConfig, sentryBuildOptions)));

@@ -13,6 +13,7 @@ jest.mock('@/lib/sessionTracking', () => ({
 
 jest.mock('@/lib/apiBase', () => ({
   withApiBase: jest.fn((path: string) => path),
+  withApiBaseForRequest: jest.fn((path: string) => path),
 }));
 
 jest.mock('@/lib/env', () => ({
@@ -77,6 +78,7 @@ describe('cleanFetch SSR code paths (node environment)', () => {
     }));
     jest.doMock('@/lib/apiBase', () => ({
       withApiBase: jest.fn((path: string) => path),
+      withApiBaseForRequest: jest.fn((path: string) => path),
     }));
     jest.doMock('@/lib/logger', () => ({
       logger: {

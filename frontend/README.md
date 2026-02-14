@@ -37,3 +37,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 // Deploy trigger Mon Jun  9 23:53:37 EDT 2025
 < Deployment test Tue Jun 10 00:22:34 EDT 2025 -->
 <!-- Auto-deploy test -->
+
+## Security Notes
+
+- BotID protection for sensitive mutation paths is enabled via the Next.js `/api/v1/[...path]` proxy architecture. See `../docs/security/botid-readiness.md` for scope and operational details.

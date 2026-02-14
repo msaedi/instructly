@@ -7,11 +7,7 @@ import { ApiResponse } from '@/features/shared/api/client';
  * with React Query, handling errors, cancellation, and response parsing.
  */
 
-/**
- * Base API URL from environment
- */
-import { withApiBase } from '@/lib/apiBase';
-import { httpGet, httpPost, ApiError } from '@/lib/http';
+import { httpGet, httpPost, httpPut, httpPatch, httpDelete, ApiError } from '@/lib/http';
 
 /**
  * Custom error class for API errors with proper typing
@@ -46,9 +42,8 @@ export interface QueryOptions extends RequestInit {
 export function queryFn<T = unknown>(endpoint: string, options: QueryOptions = {}) {
   return async (): Promise<T> => {
     const { params } = options;
-    const url = withApiBase(endpoint);
     // Use unified client; cookies are always included
-    const data = await httpGet(url, params ? { query: params } : {});
+    const data = await httpGet(endpoint, params ? { query: params } : {});
     return data as T;
   };
 }
@@ -74,8 +69,27 @@ export function mutationFn<TData = unknown, TVariables = unknown>(
 ) {
   return async (variables: TVariables): Promise<TData> => {
     const { params } = options;
-    const url = withApiBase(endpoint);
-    const data = await httpPost(url, variables, params ? { query: params } : {});
+    const method = (options.method ?? 'POST').toUpperCase();
+    const requestOptions = params ? { query: params } : {};
+
+    if (method === 'POST') {
+      const data = await httpPost(endpoint, variables, requestOptions);
+      return data as TData;
+    }
+    if (method === 'PUT') {
+      const data = await httpPut(endpoint, variables, requestOptions);
+      return data as TData;
+    }
+    if (method === 'PATCH') {
+      const data = await httpPatch(endpoint, variables, requestOptions);
+      return data as TData;
+    }
+    if (method === 'DELETE') {
+      const data = await httpDelete(endpoint, requestOptions);
+      return data as TData;
+    }
+
+    const data = await httpPost(endpoint, variables, requestOptions);
     return data as TData;
   };
 }

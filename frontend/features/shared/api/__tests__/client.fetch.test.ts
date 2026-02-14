@@ -8,6 +8,7 @@ jest.mock('@/lib/sessionTracking', () => ({
 
 jest.mock('@/lib/apiBase', () => ({
   withApiBase: (path: string) => path,
+  withApiBaseForRequest: (path: string) => path,
 }));
 
 const getSessionIdMock = getSessionId as jest.Mock;

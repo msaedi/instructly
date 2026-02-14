@@ -21,6 +21,7 @@ jest.mock('@/providers/UserMessageStreamProvider', () => ({
 
 jest.mock('@/lib/apiBase', () => ({
   withApiBase: (path: string) => `http://localhost:3000${path}`,
+  withApiBaseForRequest: (path: string) => `http://localhost:3000${path}`,
 }));
 
 // Mock fetch

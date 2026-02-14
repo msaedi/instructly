@@ -9,7 +9,7 @@
 import { useMemo, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMessageStream } from '@/providers/UserMessageStreamProvider';
-import { withApiBase } from '@/lib/apiBase';
+import { withApiBase, withApiBaseForRequest } from '@/lib/apiBase';
 import type { ConversationEntry } from '../types';
 import type { ConversationListItem, ConversationListResponse } from '@/types/conversation';
 import type { components } from '@/features/shared/api/types';
@@ -261,7 +261,7 @@ export function useUpdateConversationState() {
       state: 'active' | 'archived' | 'trashed';
     }) => {
       const response = await fetch(
-        withApiBase(`/api/v1/conversations/${conversationId}/state`),
+        withApiBaseForRequest(`/api/v1/conversations/${conversationId}/state`, 'PUT'),
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },

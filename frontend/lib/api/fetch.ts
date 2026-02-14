@@ -10,7 +10,7 @@
  *
  * No manual header injection is needed.
  */
-import { withApiBase } from '@/lib/apiBase';
+import { withApiBaseForRequest } from '@/lib/apiBase';
 import { logger } from '@/lib/logger';
 import { parseProblem, normalizeProblem, type Problem } from '@/lib/errors/problem';
 
@@ -61,8 +61,8 @@ function jitter(baseMs: number): number {
 }
 
 export async function fetchJson<T = unknown>(endpoint: string, init: FetchOptions = {}): Promise<T> {
-  const url = withApiBase(endpoint);
   const method = (init.method || 'GET').toUpperCase();
+  const url = withApiBaseForRequest(endpoint, method);
   const key = init.dedupeKey;
   const maxRetries = init.retries ?? 1;
 

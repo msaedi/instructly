@@ -6,6 +6,10 @@ jest.mock('next-axiom', () => ({
   withAxiom: (config: unknown) => config,
 }));
 
+jest.mock('botid/next/config', () => ({
+  withBotId: (config: unknown) => config,
+}));
+
 describe('next.config security headers', () => {
   const originalDsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
 
@@ -44,6 +48,7 @@ describe('next.config security headers', () => {
     expect(cspValue).toContain('https://r2.leadsy.ai');
     expect(cspValue).toContain('https://preview-api.instainstru.com');
     expect(cspValue).toContain('https://api.instainstru.com');
+    expect(cspValue).toContain('http://localhost:8000');
     expect(cspValue).toContain('report-uri /monitoring');
   });
 });

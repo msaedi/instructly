@@ -1,4 +1,9 @@
-import { resolveBaseForTest, resetApiBaseTestState } from '@/lib/apiBase';
+import {
+  resolveBaseForTest,
+  resetApiBaseTestState,
+  withApiBase,
+  withApiBaseForRequest,
+} from '@/lib/apiBase';
 
 type LayerWithSpy = {
   layer: {
@@ -177,5 +182,30 @@ describe('api base resolver (pure)', () => {
     });
     expect(base).toBe('https://api.instainstru.com');
     expect(storage.backing.size).toBe(0);
+  });
+});
+
+describe('withApiBaseForRequest', () => {
+  it('routes protected mutations to same-origin /api/v1 paths', () => {
+    expect(withApiBaseForRequest('/api/v1/auth/login', 'POST')).toBe('/api/v1/auth/login');
+    expect(withApiBaseForRequest('/api/v1/messages/mark-read', 'POST')).toBe(
+      '/api/v1/messages/mark-read'
+    );
+  });
+
+  it('keeps protected GET requests direct when absolute URLs are used', () => {
+    const absolute = 'https://api.instainstru.com/api/v1/auth/me';
+    expect(withApiBaseForRequest(absolute, 'GET')).toBe(absolute);
+  });
+
+  it('keeps non-protected mutations on the regular resolver path', () => {
+    const path = '/api/v1/addresses/me';
+    expect(withApiBaseForRequest(path, 'POST')).toBe(withApiBase(path));
+  });
+
+  it('normalizes absolute backend protected mutation URLs to same-origin paths', () => {
+    expect(withApiBaseForRequest('https://api.instainstru.com/api/v1/payments/checkout', 'POST')).toBe(
+      '/api/v1/payments/checkout'
+    );
   });
 });

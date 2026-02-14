@@ -12,7 +12,7 @@
  */
 
 import { logger } from '@/lib/logger';
-import { getApiBase } from '@/lib/apiBase';
+import { withApiBaseForRequest } from '@/lib/apiBase';
 import { APP_URL } from '@/lib/publicEnv';
 import { captureFetchError } from '@/lib/sentry';
 import type { ApiErrorResponse } from '@/features/shared/api/types';
@@ -39,26 +39,17 @@ export class ApiError extends Error {
 export class AuthError extends ApiError {}
 export class ClientError extends ApiError {}
 
-const ABSOLUTE_URL_REGEX = /^https?:\/\//i;
-
 function isJsonLike(body: unknown): boolean {
   return body != null && (typeof body === 'object' || typeof body === 'string');
 }
 
-function resolveUrl(url: string): string {
-  if (ABSOLUTE_URL_REGEX.test(url)) {
-    return url;
-  }
-
+function resolveUrl(url: string, method: string): string {
   // Preserve already-proxied paths
   if (url.startsWith('/api/proxy')) {
     return url;
   }
 
-  const base = getApiBase();
-  const normalizedBase = base.replace(/\/+$/, '');
-  const cleanPath = url.startsWith('/') ? url : `/${url}`;
-  return `${normalizedBase}${cleanPath}`;
+  return withApiBaseForRequest(url, method);
 }
 
 export interface HttpOptions extends Omit<RequestInit, 'body'> {
@@ -71,7 +62,7 @@ export interface HttpOptions extends Omit<RequestInit, 'body'> {
 export async function http<T = unknown>(method: HttpMethod, url: string, options: HttpOptions = {}): Promise<T> {
   const { headers = {}, query, body, auth, ...rest } = options;
 
-  const resolvedUrl = resolveUrl(url);
+  const resolvedUrl = resolveUrl(url, method);
   const baseForRelative = typeof window !== 'undefined' ? window.location.origin : APP_URL;
   const u = new URL(resolvedUrl, baseForRelative);
   if (query) {
@@ -173,7 +164,7 @@ export async function postWithRetry(
   attempts = 3,
   baseDelayMs = 120
 ): Promise<Response> {
-  const resolvedUrl = resolveUrl(url);
+  const resolvedUrl = resolveUrl(url, (init.method ?? 'POST').toUpperCase());
   const makeRequest = () =>
     fetch(resolvedUrl, {
       credentials: init.credentials ?? 'include',

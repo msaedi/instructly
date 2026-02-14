@@ -1230,8 +1230,8 @@ test.describe('Error Handling', () => {
     };
 
     // Mock both possible login endpoints
-    await page.route('http://localhost:8000/api/v1/auth/login', loginHandler);
-    await page.route('http://localhost:8000/api/v1/auth/login-with-session', loginHandler);
+    await page.route('**/api/v1/auth/login', loginHandler);
+    await page.route('**/api/v1/auth/login-with-session', loginHandler);
 
     // Mock auth endpoint to success after we set the token
     await page.route('**/api/v1/auth/me', async (route) => {

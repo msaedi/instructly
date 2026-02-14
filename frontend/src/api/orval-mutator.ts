@@ -7,7 +7,7 @@
  * - Error normalization
  */
 
-import { withApiBase } from '@/lib/apiBase';
+import { withApiBaseForRequest } from '@/lib/apiBase';
 import { logger } from '@/lib/logger';
 
 // Helper to check if this is a messaging-related request (for focused debug logging)
@@ -37,7 +37,7 @@ export async function customFetch<TResponse>(
   const data = options?.body;
 
   // Build full URL with base (orval 8.x includes query params in the URL)
-  const fullUrl = withApiBase(url);
+  const fullUrl = withApiBaseForRequest(url, method);
 
   // Build headers
   const headers: Record<string, string> = {
