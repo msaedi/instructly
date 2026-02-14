@@ -55,7 +55,7 @@ def test_user_with_token(db: Session):
     db.refresh(user)
 
     # Create token
-    access_token = create_access_token(data={"sub": user.email})
+    access_token = create_access_token(data={"sub": user.id, "email": user.email})
 
     return user, access_token
 

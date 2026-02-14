@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Optional
 
 from fastapi import Request
@@ -16,6 +17,8 @@ from app.utils.token_utils import parse_token_iat
 
 if TYPE_CHECKING:
     from app.models.user import User
+
+logger = logging.getLogger(__name__)
 
 
 def _lookup_active_user(
@@ -37,7 +40,7 @@ def _lookup_active_user(
             try:
                 prometheus_metrics.record_token_rejection("invalidated")
             except Exception:
-                pass
+                logger.debug("Failed to record invalidated token rejection metric", exc_info=True)
             return None
 
     return user
@@ -54,6 +57,7 @@ def _decode_token_claims(token: str) -> tuple[str, int | None] | None:
     except PyJWTError:
         return None
     except Exception:
+        logger.debug("Token decode failed in session auth helper", exc_info=True)
         return None
 
     jti_obj = payload.get("jti")
@@ -62,7 +66,7 @@ def _decode_token_claims(token: str) -> tuple[str, int | None] | None:
         try:
             prometheus_metrics.record_token_rejection("format_outdated")
         except Exception:
-            pass
+            logger.debug("Failed to record format_outdated token rejection metric", exc_info=True)
         return None
 
     try:
@@ -70,9 +74,10 @@ def _decode_token_claims(token: str) -> tuple[str, int | None] | None:
             try:
                 prometheus_metrics.record_token_rejection("revoked")
             except Exception:
-                pass
+                logger.debug("Failed to record revoked token rejection metric", exc_info=True)
             return None
     except Exception:
+        logger.warning("Blacklist sync check failed in session auth helper", exc_info=True)
         # Defensive fail-closed fallback if sync bridge errors unexpectedly.
         return None
 
@@ -85,7 +90,7 @@ def _decode_token_claims(token: str) -> tuple[str, int | None] | None:
     return subject, iat_ts
 
 
-def _decode_email(token: str) -> Optional[str]:
+def _decode_subject(token: str) -> Optional[str]:
     claims = _decode_token_claims(token)
     if claims is None:
         return None

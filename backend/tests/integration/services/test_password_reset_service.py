@@ -294,6 +294,40 @@ class TestPasswordResetService:
         )
         assert trigger_calls == [(unique_test_user.id, "password_change")]
 
+    def test_confirm_password_reset_logs_critical_when_invalidation_fails(
+        self, password_reset_service, unique_test_user, db, monkeypatch, caplog
+    ):
+        future_time = datetime.now(timezone.utc) + timedelta(hours=1)
+        reset_token = PasswordResetToken(
+            user_id=unique_test_user.id, token="critical_token_123", expires_at=future_time, used=False
+        )
+        db.add(reset_token)
+        db.commit()
+
+        class _InvalidationRepo:
+            def invalidate_all_tokens(self, user_id: str, *, trigger: str | None = None) -> bool:
+                assert user_id == unique_test_user.id
+                assert trigger == "password_change"
+                return False
+
+        monkeypatch.setattr(
+            "app.services.password_reset_service.RepositoryFactory.create_user_repository",
+            lambda _db: _InvalidationRepo(),
+        )
+
+        with caplog.at_level("CRITICAL"):
+            assert (
+                password_reset_service.confirm_password_reset(
+                    "critical_token_123", "NewSecurePassword123!"
+                )
+                is True
+            )
+
+        assert any(
+            "token invalidation helper returned false" in rec.message.lower()
+            for rec in caplog.records
+        )
+
     def test_confirm_password_reset_invalid_token(self, password_reset_service):
         """Test password reset with invalid token."""
         # Execute & Verify

@@ -173,6 +173,12 @@ class AccountLifecycleService(BaseService):
             self.cache_service.delete_pattern(f"instructor:{instructor.id}:*")
             self.cache_service.delete_pattern(f"availability:instructor:{instructor.id}:*")
 
+        if not self.user_repository.invalidate_all_tokens(instructor.id, trigger="deactivation"):
+            self.logger.warning(
+                "Failed to invalidate active tokens for deactivated instructor %s",
+                instructor.id,
+            )
+
         self.logger.info(f"Instructor {instructor.id} account deactivated successfully")
 
         return {

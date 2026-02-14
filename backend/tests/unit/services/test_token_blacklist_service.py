@@ -36,8 +36,9 @@ async def test_revoke_token_sets_key_with_ttl(monkeypatch):
         lambda trigger: metric_calls.append(trigger),
     )
 
-    await service.revoke_token("jti-1", 1060)
+    result = await service.revoke_token("jti-1", 1060)
 
+    assert result is True
     assert redis.setex_calls == [("auth:blacklist:jti:jti-1", 60, "1")]
     assert metric_calls == ["logout"]
 
@@ -48,8 +49,9 @@ async def test_revoke_token_empty_jti_is_noop(monkeypatch):
     service = TokenBlacklistService(redis_client=redis)
     monkeypatch.setattr("app.services.token_blacklist_service.time.time", lambda: 1000)
 
-    await service.revoke_token("", 1060)
+    result = await service.revoke_token("", 1060)
 
+    assert result is False
     assert redis.setex_calls == []
 
 
@@ -59,8 +61,9 @@ async def test_revoke_token_invalid_exp_logs_and_skips(caplog):
     service = TokenBlacklistService(redis_client=redis)
 
     with caplog.at_level(logging.WARNING):
-        await service.revoke_token("jti-1", "not-a-number")
+        result = await service.revoke_token("jti-1", "not-a-number")
 
+    assert result is False
     assert redis.setex_calls == []
     assert any("Invalid exp claim" in rec.message for rec in caplog.records)
 
@@ -71,8 +74,9 @@ async def test_revoke_token_expired_noop(monkeypatch):
     service = TokenBlacklistService(redis_client=redis)
     monkeypatch.setattr("app.services.token_blacklist_service.time.time", lambda: 1000)
 
-    await service.revoke_token("jti-1", 999)
+    result = await service.revoke_token("jti-1", 999)
 
+    assert result is False
     assert redis.setex_calls == []
 
 
@@ -87,8 +91,11 @@ async def test_revoke_token_emit_metric_can_be_disabled(monkeypatch):
         lambda trigger: metric_calls.append(trigger),
     )
 
-    await service.revoke_token("jti-1", 1060, trigger="logout_all_devices", emit_metric=False)
+    result = await service.revoke_token(
+        "jti-1", 1060, trigger="logout_all_devices", emit_metric=False
+    )
 
+    assert result is True
     assert redis.setex_calls == [("auth:blacklist:jti:jti-1", 60, "1")]
     assert metric_calls == []
 
@@ -103,8 +110,9 @@ async def test_revoke_token_redis_none_logs_and_skips(monkeypatch, caplog):
     monkeypatch.setattr("app.services.token_blacklist_service.time.time", lambda: 1000)
 
     with caplog.at_level(logging.WARNING):
-        await service.revoke_token("jti-1", 1060)
+        result = await service.revoke_token("jti-1", 1060)
 
+    assert result is False
     assert any("Redis unavailable, revoke skipped" in rec.message for rec in caplog.records)
 
 
@@ -118,8 +126,9 @@ async def test_revoke_token_metric_error_is_non_fatal(monkeypatch):
         lambda _trigger: (_ for _ in ()).throw(RuntimeError("metrics down")),
     )
 
-    await service.revoke_token("jti-1", 1060)
+    result = await service.revoke_token("jti-1", 1060)
 
+    assert result is True
     assert redis.setex_calls == [("auth:blacklist:jti:jti-1", 60, "1")]
 
 
@@ -172,8 +181,9 @@ async def test_revoke_token_logs_and_does_not_raise_on_redis_error(caplog):
     service = TokenBlacklistService(redis_client=redis)
 
     with caplog.at_level(logging.WARNING):
-        await service.revoke_token("jti-1", 9999999999)
+        result = await service.revoke_token("jti-1", 9999999999)
 
+    assert result is False
     assert any("Failed to revoke token" in rec.message for rec in caplog.records)
 
 
@@ -182,8 +192,9 @@ def test_revoke_token_sync_bridge(monkeypatch):
     service = TokenBlacklistService(redis_client=redis)
     monkeypatch.setattr("app.services.token_blacklist_service.time.time", lambda: 100)
 
-    service.revoke_token_sync("sync-jti", 130, trigger="logout")
+    result = service.revoke_token_sync("sync-jti", 130, trigger="logout")
 
+    assert result is True
     assert redis.setex_calls == [("auth:blacklist:jti:sync-jti", 30, "1")]
 
 
@@ -200,7 +211,7 @@ async def test_sync_bridges_work_with_running_loop(monkeypatch):
     service = TokenBlacklistService(redis_client=redis)
     monkeypatch.setattr("app.services.token_blacklist_service.time.time", lambda: 100)
 
-    service.revoke_token_sync("loop-jti", 130)
+    assert service.revoke_token_sync("loop-jti", 130) is True
     assert service.is_revoked_sync("loop-jti") is False
     assert redis.setex_calls
 

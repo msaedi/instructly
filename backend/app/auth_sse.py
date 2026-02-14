@@ -91,15 +91,13 @@ async def get_current_user_sse(
     """
     Get current user for SSE endpoints.
 
-    CRITICAL: This function uses manual DB session management to prevent holding
-    connections in "idle in transaction" state during long-running SSE streams.
-    FastAPI's Depends(get_db) cleanup only runs AFTER the response completes,
-    which for SSE can be 30+ seconds.
-
     Checks for authentication in this order:
-    1. Authorization header (for testing/non-browser clients)
-    2. Short-lived SSE token in query parameter (for EventSource)
-    3. Cookie (for browser-based EventSource with withCredentials)
+    1. Short-lived SSE token in query parameter (for browser EventSource clients)
+    2. Authorization header JWT (for non-browser clients/tests)
+    3. Session cookie JWT fallback (browser with credentials)
+
+    User resolution uses shared auth cache + non-blocking lookup to avoid
+    synchronous DB pressure during concurrent SSE connections.
 
     Args:
         token_header: Token from Authorization header

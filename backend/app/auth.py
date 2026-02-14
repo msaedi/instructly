@@ -458,7 +458,13 @@ async def get_current_user_optional(
         logger.debug(f"Successfully validated optional token for user: {user_id}")
         return user_id
 
-    except HTTPException:
+    except HTTPException as exc:
+        if (
+            exc.status_code == status.HTTP_401_UNAUTHORIZED
+            and exc.detail == "Token has been revoked"
+        ):
+            logger.debug("Optional auth ignoring revoked token")
+            return None
         raise
     except PyJWTError as e:
         logger.debug(f"JWT validation error in optional auth: {str(e)}")

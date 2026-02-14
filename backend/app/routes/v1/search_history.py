@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 from ...api.dependencies.services import get_auth_service
 from ...auth import get_current_user_optional as auth_get_current_user_optional
+from ...core.config import settings
 from ...database import get_db
 from ...models.user import User
 from ...schemas.search_context import SearchUserContext
@@ -45,7 +46,7 @@ ULID_PATH_PATTERN = r"^[0-9A-HJKMNP-TV-Z]{26}$"
 
 
 async def get_current_user_optional(
-    current_user_email: Optional[str] = Depends(auth_get_current_user_optional),
+    current_user_id: Optional[str] = Depends(auth_get_current_user_optional),
     auth_service: AuthService = Depends(get_auth_service),
 ) -> Optional[User]:
     """
@@ -53,10 +54,14 @@ async def get_current_user_optional(
 
     This allows endpoints to work for both authenticated and guest users.
     """
-    if not current_user_email:
+    if not current_user_id:
         return None
 
-    return await asyncio.to_thread(auth_service.get_user_by_email, current_user_email)
+    if getattr(settings, "is_testing", False):
+        # async-blocking-ignore: test-only compatibility path
+        return auth_service.get_user_by_id(current_user_id)  # async-blocking-ignore
+
+    return await asyncio.to_thread(auth_service.get_user_by_id, current_user_id)
 
 
 async def get_search_context(

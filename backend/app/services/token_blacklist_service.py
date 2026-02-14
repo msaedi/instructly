@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+from functools import partial
 import logging
 import time
 from typing import Any, Callable, Coroutine, TypeVar, cast
@@ -14,6 +15,20 @@ from app.monitoring.prometheus_metrics import prometheus_metrics
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+
+_REDIS_ERROR_TYPES: tuple[type[BaseException], ...]
+try:
+    from redis.exceptions import RedisError as _RedisError
+
+    _REDIS_ERROR_TYPES = (_RedisError,)
+except Exception:
+    _REDIS_ERROR_TYPES = ()
+
+_SYNC_BRIDGE_FALLBACK_ERRORS: tuple[type[BaseException], ...] = (
+    ConnectionError,
+    TimeoutError,
+    OSError,
+) + _REDIS_ERROR_TYPES
 
 # Sync-bridge calls happen on cookie/session auth paths. Keep this bounded so
 # sync callers can safely bridge to async Redis checks without unbounded thread growth.
@@ -45,34 +60,36 @@ class TokenBlacklistService:
         *,
         trigger: str = "logout",
         emit_metric: bool = True,
-    ) -> None:
+    ) -> bool:
         """Add token jti to blacklist with TTL equal to remaining token lifetime."""
         if not jti:
-            return
+            return False
 
         try:
             exp_ts = int(exp)
         except (TypeError, ValueError):
             logger.warning("[TOKEN-BL] Invalid exp claim for revocation: %r", exp)
-            return
+            return False
 
         ttl_seconds = exp_ts - int(time.time())
         if ttl_seconds <= 0:
-            return
+            return False
 
         try:
             redis = await self._get_redis_client()
             if redis is None:
                 logger.warning("[TOKEN-BL] Redis unavailable, revoke skipped for jti=%s", jti)
-                return
+                return False
             await redis.setex(self._key(jti), ttl_seconds, "1")
             if emit_metric:
                 try:
                     prometheus_metrics.record_token_revocation(trigger)
                 except Exception:
                     logger.debug("Non-fatal error ignored", exc_info=True)
+            return True
         except Exception as exc:
             logger.warning("[TOKEN-BL] Failed to revoke token jti=%s: %s", jti, exc)
+            return False
 
     async def is_revoked(self, jti: str) -> bool:
         """Return True when jti is blacklisted (fail-closed on Redis errors)."""
@@ -104,11 +121,12 @@ class TokenBlacklistService:
             try:
                 import anyio
 
-                return cast(T, anyio.from_thread.run(async_fn, *args, **kwargs))
-            except Exception:
+                runner = partial(async_fn, *args, **kwargs)
+                return cast(T, anyio.from_thread.run(runner))
+            except RuntimeError:
                 try:
                     return asyncio.run(async_fn(*args, **kwargs))
-                except Exception as exc:
+                except _SYNC_BRIDGE_FALLBACK_ERRORS as exc:
                     logger.warning("[TOKEN-BL] Sync bridge failed, using default: %s", exc)
                     return default
 
@@ -123,7 +141,7 @@ class TokenBlacklistService:
             future.cancel()
             logger.warning("[TOKEN-BL] Sync bridge timed out, using default")
             return default
-        except Exception as exc:
+        except _SYNC_BRIDGE_FALLBACK_ERRORS as exc:
             logger.warning("[TOKEN-BL] Sync bridge executor failed, using default: %s", exc)
             return default
 
@@ -134,15 +152,15 @@ class TokenBlacklistService:
         *,
         trigger: str = "logout",
         emit_metric: bool = True,
-    ) -> None:
+    ) -> bool:
         """Synchronous revocation bridge for sync contexts."""
-        self._run_sync(
+        return self._run_sync(
             self.revoke_token,
             jti,
             exp,
             trigger=trigger,
             emit_metric=emit_metric,
-            default=None,
+            default=False,
         )
 
     def is_revoked_sync(self, jti: str) -> bool:

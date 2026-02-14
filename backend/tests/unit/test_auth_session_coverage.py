@@ -7,7 +7,7 @@ import pytest
 import app.auth_session as auth_session
 
 
-def test_decode_email_returns_subject(monkeypatch):
+def test_decode_subject_returns_subject(monkeypatch):
     user_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
     monkeypatch.setattr(
         auth_session,
@@ -19,30 +19,30 @@ def test_decode_email_returns_subject(monkeypatch):
         "is_revoked_sync",
         lambda self, _jti: False,
     )
-    assert auth_session._decode_email("token") == user_id
+    assert auth_session._decode_subject("token") == user_id
 
 
-def test_decode_email_handles_pyjwt_error(monkeypatch):
+def test_decode_subject_handles_pyjwt_error(monkeypatch):
     def _raise(_token):
         raise PyJWTError("bad")
 
     monkeypatch.setattr(auth_session, "decode_access_token", _raise)
-    assert auth_session._decode_email("token") is None
+    assert auth_session._decode_subject("token") is None
 
 
-def test_decode_email_handles_empty_token():
-    assert auth_session._decode_email("") is None
+def test_decode_subject_handles_empty_token():
+    assert auth_session._decode_subject("") is None
 
 
-def test_decode_email_handles_generic_exception(monkeypatch):
+def test_decode_subject_handles_generic_exception(monkeypatch):
     def _raise(_token):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(auth_session, "decode_access_token", _raise)
-    assert auth_session._decode_email("token") is None
+    assert auth_session._decode_subject("token") is None
 
 
-def test_decode_email_rejects_revoked_token(monkeypatch):
+def test_decode_subject_rejects_revoked_token(monkeypatch):
     rejection_calls = []
     monkeypatch.setattr(
         auth_session,
@@ -59,11 +59,11 @@ def test_decode_email_rejects_revoked_token(monkeypatch):
         "record_token_rejection",
         lambda reason: rejection_calls.append(reason),
     )
-    assert auth_session._decode_email("token") is None
+    assert auth_session._decode_subject("token") is None
     assert rejection_calls == ["revoked"]
 
 
-def test_decode_email_rejects_missing_jti_records_metric(monkeypatch):
+def test_decode_subject_rejects_missing_jti_records_metric(monkeypatch):
     rejection_calls = []
     monkeypatch.setattr(
         auth_session,
@@ -76,11 +76,11 @@ def test_decode_email_rejects_missing_jti_records_metric(monkeypatch):
         lambda reason: rejection_calls.append(reason),
     )
 
-    assert auth_session._decode_email("token") is None
+    assert auth_session._decode_subject("token") is None
     assert rejection_calls == ["format_outdated"]
 
 
-def test_decode_email_missing_jti_metric_error_is_non_fatal(monkeypatch):
+def test_decode_subject_missing_jti_metric_error_is_non_fatal(monkeypatch):
     monkeypatch.setattr(
         auth_session,
         "decode_access_token",
@@ -92,10 +92,10 @@ def test_decode_email_missing_jti_metric_error_is_non_fatal(monkeypatch):
         lambda _reason: (_ for _ in ()).throw(RuntimeError("metrics down")),
     )
 
-    assert auth_session._decode_email("token") is None
+    assert auth_session._decode_subject("token") is None
 
 
-def test_decode_email_blacklist_metric_error_is_non_fatal(monkeypatch):
+def test_decode_subject_blacklist_metric_error_is_non_fatal(monkeypatch):
     monkeypatch.setattr(
         auth_session,
         "decode_access_token",
@@ -112,10 +112,10 @@ def test_decode_email_blacklist_metric_error_is_non_fatal(monkeypatch):
         lambda _reason: (_ for _ in ()).throw(RuntimeError("metrics down")),
     )
 
-    assert auth_session._decode_email("token") is None
+    assert auth_session._decode_subject("token") is None
 
 
-def test_decode_email_blacklist_exception_fail_closed(monkeypatch):
+def test_decode_subject_blacklist_exception_fail_closed(monkeypatch):
     monkeypatch.setattr(
         auth_session,
         "decode_access_token",
@@ -127,10 +127,10 @@ def test_decode_email_blacklist_exception_fail_closed(monkeypatch):
 
     monkeypatch.setattr(auth_session.TokenBlacklistService, "is_revoked_sync", _boom)
 
-    assert auth_session._decode_email("token") is None
+    assert auth_session._decode_subject("token") is None
 
 
-def test_decode_email_rejects_non_string_subject(monkeypatch):
+def test_decode_subject_rejects_non_string_subject(monkeypatch):
     monkeypatch.setattr(
         auth_session,
         "decode_access_token",
@@ -142,7 +142,7 @@ def test_decode_email_rejects_non_string_subject(monkeypatch):
         lambda self, _jti: False,
     )
 
-    assert auth_session._decode_email("token") is None
+    assert auth_session._decode_subject("token") is None
 
 
 @pytest.mark.parametrize(
@@ -154,7 +154,7 @@ def test_decode_email_rejects_non_string_subject(monkeypatch):
         (None, None),
     ],
 )
-def test_decode_email_parses_iat_variants(monkeypatch, iat_value, expected_iat):
+def test_decode_subject_parses_iat_variants(monkeypatch, iat_value, expected_iat):
     monkeypatch.setattr(
         auth_session,
         "decode_access_token",

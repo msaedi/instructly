@@ -294,12 +294,14 @@ async def logout_all_devices(
             if isinstance(jti, str) and jti and exp_ts is not None:
                 # Belt-and-suspenders: tokens_valid_after invalidates all tokens globally,
                 # and we also blacklist the current jti for immediate Redis-based rejection.
-                await TokenBlacklistService().revoke_token(
+                revoked = await TokenBlacklistService().revoke_token(
                     jti,
                     exp_ts,
                     trigger="logout_all_devices",
                     emit_metric=False,
                 )
+                if not revoked:
+                    logger.warning("Logout-all blacklist write failed for jti=%s", jti)
         except Exception:
             logger.debug("Failed to decode token during logout-all blacklist step", exc_info=True)
 

@@ -258,8 +258,8 @@ def test_public_logout_ignores_audit_errors(monkeypatch):
             raise RuntimeError("audit write failed")
 
     class DummyBlacklistService:
-        def revoke_token_sync(self, _jti: str, _exp: int, **_kwargs) -> None:
-            return None
+        def revoke_token_sync(self, _jti: str, _exp: int, **_kwargs) -> bool:
+            return True
 
     monkeypatch.setattr(public_routes, "TokenBlacklistService", lambda: DummyBlacklistService())
     monkeypatch.setattr(public_routes, "AuditService", FailingAuditService)

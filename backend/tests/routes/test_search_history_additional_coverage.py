@@ -108,6 +108,32 @@ async def test_get_search_context_uses_guest_cookie():
 
 
 @pytest.mark.asyncio
+async def test_get_current_user_optional_returns_none_without_user_id():
+    auth_service = SimpleNamespace(get_user_by_id=lambda _user_id: None)
+    result = await routes.get_current_user_optional(current_user_id=None, auth_service=auth_service)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_optional_uses_user_id_lookup():
+    seen_user_ids: list[str] = []
+    user = SimpleNamespace(id="01ARZ3NDEKTSV4RRFFQ69G5FAV")
+
+    def _get_user_by_id(user_id: str):
+        seen_user_ids.append(user_id)
+        return user
+
+    auth_service = SimpleNamespace(get_user_by_id=_get_user_by_id)
+    result = await routes.get_current_user_optional(
+        current_user_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        auth_service=auth_service,
+    )
+
+    assert result is user
+    assert seen_user_ids == ["01ARZ3NDEKTSV4RRFFQ69G5FAV"]
+
+
+@pytest.mark.asyncio
 async def test_record_guest_search_rejects_user_context():
     request = _make_request()
     payload = GuestSearchHistoryCreate(

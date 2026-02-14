@@ -34,6 +34,11 @@ class _Secret:
         return self._value
 
 
+class _BrokenSecret:
+    def get_secret_value(self) -> str:
+        raise RuntimeError("secret backend unavailable")
+
+
 class _NeverRevokedService:
     async def is_revoked(self, _jti: str) -> bool:
         return False
@@ -53,6 +58,11 @@ def _make_request_with_cookie(cookie_name: str, token: str):
 
 def test_secret_or_plain_falls_back_to_raw_string():
     assert secret_or_plain("plain") == "plain"
+
+
+def test_secret_or_plain_raises_when_secret_resolution_fails():
+    with pytest.raises(ValueError, match="Failed to resolve secret"):
+        secret_or_plain(_BrokenSecret())
 
 
 def test_verify_password_invalid_hash_logs(monkeypatch):
@@ -500,7 +510,7 @@ async def test_get_current_user_optional_rejects_token_without_jti(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_get_current_user_optional_rejects_revoked_token(monkeypatch):
+async def test_get_current_user_optional_returns_none_for_revoked_token(monkeypatch):
     monkeypatch.setenv("SITE_MODE", "local")
 
     class _RevokedService:
@@ -511,10 +521,7 @@ async def test_get_current_user_optional_rejects_revoked_token(monkeypatch):
     token = create_access_token({"sub": TEST_USER_ULID, "email": "user@example.com"})
     request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
 
-    with pytest.raises(auth_module.HTTPException) as exc:
-        await get_current_user_optional(request, token=token)
-    assert exc.value.status_code == 401
-    assert exc.value.detail == "Token has been revoked"
+    assert await get_current_user_optional(request, token=token) is None
 
 
 @pytest.mark.asyncio

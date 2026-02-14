@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 
+from app.auth import create_access_token
 from app.models.search_event import SearchEvent
 from app.models.search_interaction import SearchInteraction
 
@@ -32,12 +33,18 @@ def test_search_event(db: Session, test_student):
     return event
 
 
+@pytest.fixture
+def auth_headers_student_ulid(test_student):
+    token = create_access_token({"sub": test_student.id, "email": test_student.email})
+    return {"Authorization": f"Bearer {token}"}
+
+
 @pytest.mark.integration
 class TestSearchInteractionEndpoint:
     """Test cases for search interaction tracking endpoint."""
 
     def test_track_interaction_authenticated(
-        self, client: TestClient, test_student, test_search_event, test_instructor, auth_headers_student, db
+        self, client: TestClient, test_student, test_search_event, test_instructor, auth_headers_student_ulid, db
     ):
         """Test tracking interaction as authenticated user."""
 
@@ -53,7 +60,7 @@ class TestSearchInteractionEndpoint:
         response = client.post(
             "/api/v1/search-history/interaction",
             json=interaction_data,
-            headers={**auth_headers_student, "X-Session-ID": "test-session-123"},
+            headers={**auth_headers_student_ulid, "X-Session-ID": "test-session-123"},
         )
 
         assert response.status_code == 201
@@ -109,20 +116,24 @@ class TestSearchInteractionEndpoint:
         assert interaction.interaction_type == "hover"
         assert interaction.session_id == "browser-session-456"
 
-    def test_track_interaction_missing_required_fields(self, client: TestClient, auth_headers_student):
+    def test_track_interaction_missing_required_fields(
+        self, client: TestClient, auth_headers_student_ulid
+    ):
         """Test error handling for missing required fields."""
 
         # Missing search_event_id
         response = client.post(
             "/api/v1/search-history/interaction",
             json={"interaction_type": "click", "instructor_id": 123},
-            headers=auth_headers_student,
+            headers=auth_headers_student_ulid,
         )
 
         assert response.status_code == 400
         assert "search_event_id and interaction_type are required" in response.json()["detail"]
 
-    def test_track_interaction_invalid_search_event(self, client: TestClient, test_instructor, auth_headers_student):
+    def test_track_interaction_invalid_search_event(
+        self, client: TestClient, test_instructor, auth_headers_student_ulid
+    ):
         """Test error handling for invalid search event ID."""
 
         # Invalid search event ID (non-existent ULID)
@@ -130,14 +141,14 @@ class TestSearchInteractionEndpoint:
         response = client.post(
             "/api/v1/search-history/interaction",
             json={"search_event_id": invalid_ulid, "interaction_type": "click", "instructor_id": test_instructor.id},
-            headers=auth_headers_student,
+            headers=auth_headers_student_ulid,
         )
 
         assert response.status_code == 400
         assert f"Search event {invalid_ulid} not found" in response.json()["detail"]
 
     def test_track_multiple_interaction_types(
-        self, client: TestClient, test_search_event, test_instructor, auth_headers_student, db
+        self, client: TestClient, test_search_event, test_instructor, auth_headers_student_ulid, db
     ):
         """Test tracking different types of interactions."""
 
@@ -152,7 +163,7 @@ class TestSearchInteractionEndpoint:
                     "instructor_id": test_instructor.id,
                     "result_position": 1,
                 },
-                headers=auth_headers_student,
+                headers=auth_headers_student_ulid,
             )
 
             assert response.status_code == 201

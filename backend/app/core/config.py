@@ -96,8 +96,8 @@ def secret_or_plain(value: SecretStr | str | None, default: str = "") -> str:
     if callable(getter):
         try:
             return str(getter())
-        except Exception:
-            return default
+        except Exception as exc:
+            raise ValueError(f"Failed to resolve secret: {type(value).__name__}") from exc
     return str(value)
 
 

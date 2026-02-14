@@ -24,8 +24,6 @@ interface LoginRequest {
  * Login response type
  */
 interface LoginResponse {
-  access_token?: string | null;
-  token_type?: string | null;
   expires_in?: number;
   user?: User;
 }

@@ -200,7 +200,7 @@ class PasswordResetService(BaseService):
 
             invalidation_repo = RepositoryFactory.create_user_repository(self.db)
             if not invalidation_repo.invalidate_all_tokens(user.id, trigger="password_change"):
-                self.logger.warning(
+                self.logger.critical(
                     "Password reset succeeded but token invalidation helper returned false for user %s",
                     user.id,
                 )

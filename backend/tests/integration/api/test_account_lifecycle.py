@@ -209,6 +209,24 @@ class TestAccountLifecycleEndpoints:
         assert response.status_code == status.HTTP_409_CONFLICT
         assert "future bookings" in response.json()["detail"].lower()
 
+    def test_deactivate_account_invalidates_existing_token(
+        self, client: TestClient, instructor_with_no_bookings: User
+    ):
+        """Deactivation should invalidate the in-flight token via tokens_valid_after."""
+        token = create_access_token(
+            {"sub": instructor_with_no_bookings.id, "email": instructor_with_no_bookings.email}
+        )
+        headers = {"Authorization": f"Bearer {token}"}
+        # iat is second-granularity; ensure deactivation timestamp is strictly later.
+        time_module.sleep(1.1)
+
+        response = client.post("/api/v1/account/deactivate", headers=headers)
+        assert response.status_code == status.HTTP_200_OK
+
+        me_response = client.get("/api/v1/auth/me", headers=headers)
+        assert me_response.status_code == status.HTTP_401_UNAUTHORIZED
+        assert me_response.json().get("detail") == "Token has been invalidated"
+
     def test_deactivate_account_as_student(self, client: TestClient, test_instructor: User, auth_headers_student: dict):
         """Test student cannot deactivate an instructor account."""
         response = client.post("/api/v1/account/deactivate", headers=auth_headers_student)
