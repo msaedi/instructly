@@ -353,7 +353,11 @@ async def test_get_current_user_rejects_token_without_jti(monkeypatch):
         lambda reason: rejection_calls.append(reason),
     )
     token = jwt.encode(
-        {"sub": TEST_USER_ULID, "exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
+        {
+            "sub": TEST_USER_ULID,
+            "typ": "access",
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
+        },
         secret_or_plain(settings.secret_key),
         algorithm=settings.algorithm,
     )
@@ -535,7 +539,48 @@ async def test_get_current_user_optional_env_error_returns_none(monkeypatch):
 async def test_get_current_user_optional_returns_none_for_outdated_format_token(monkeypatch):
     monkeypatch.setenv("SITE_MODE", "local")
     token = jwt.encode(
-        {"sub": TEST_USER_ULID, "exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
+        {
+            "sub": TEST_USER_ULID,
+            "typ": "access",
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
+        },
+        secret_or_plain(settings.secret_key),
+        algorithm=settings.algorithm,
+    )
+    request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
+    assert await get_current_user_optional(request, token=token) is None
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_rejects_typeless_token(monkeypatch):
+    monkeypatch.setenv("SITE_MODE", "local")
+    token = jwt.encode(
+        {
+            "sub": TEST_USER_ULID,
+            "jti": "01TESTTYPLESSREJECTTOKEN00",
+            "iat": int(datetime.now(timezone.utc).timestamp()),
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
+        },
+        secret_or_plain(settings.secret_key),
+        algorithm=settings.algorithm,
+    )
+    request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
+    with pytest.raises(auth_module.HTTPException) as exc:
+        await get_current_user(request, token=token)
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Could not validate credentials"
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_optional_returns_none_for_typeless_token(monkeypatch):
+    monkeypatch.setenv("SITE_MODE", "local")
+    token = jwt.encode(
+        {
+            "sub": TEST_USER_ULID,
+            "jti": "01TESTTYPLESSOPTIONAL00000",
+            "iat": int(datetime.now(timezone.utc).timestamp()),
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
+        },
         secret_or_plain(settings.secret_key),
         algorithm=settings.algorithm,
     )

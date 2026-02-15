@@ -216,9 +216,8 @@ def token_type(payload: Mapping[str, Any]) -> str | None:
 
 
 def is_access_token_payload(payload: Mapping[str, Any]) -> bool:
-    """Access auth accepts typ=access and typ-less tokens for migration compatibility."""
-    token_typ = token_type(payload)
-    return token_typ in {None, "access"}
+    """Access auth accepts only typ=access."""
+    return token_type(payload) == "access"
 
 
 def is_refresh_token_payload(payload: Mapping[str, Any]) -> bool:

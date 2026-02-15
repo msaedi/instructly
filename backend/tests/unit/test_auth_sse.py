@@ -206,6 +206,29 @@ async def test_get_current_user_sse_rejects_refresh_token_type(unit_db, monkeypa
 
 
 @pytest.mark.asyncio
+async def test_get_current_user_sse_rejects_typeless_token(unit_db, monkeypatch):
+    monkeypatch.setenv("SITE_MODE", "preview")
+    monkeypatch.setattr(auth_cache, "SessionLocal", lambda: unit_db)
+    monkeypatch.setattr(auth_cache, "_get_auth_redis_client", lambda: None)
+
+    user = _create_user(unit_db, email="sse-typeless@example.com")
+    token = create_access_token({"sub": user.id, "email": user.email})
+    payload = auth_sse.decode_access_token(token)
+    payload.pop("typ", None)
+    typeless_token = jwt.encode(
+        payload,
+        auth_sse.settings.secret_key.get_secret_value(),
+        algorithm=auth_sse.settings.algorithm,
+    )
+    request = _build_request()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_current_user_sse(request=request, token_header=typeless_token, token_query=None)
+
+    assert exc_info.value.status_code == 401
+
+
+@pytest.mark.asyncio
 async def test_get_current_user_sse_rejects_token_invalidated_by_user_timestamp(unit_db, monkeypatch):
     monkeypatch.setenv("SITE_MODE", "preview")
     monkeypatch.setattr(auth_sse, "TokenBlacklistService", lambda: _NeverRevokedService())
