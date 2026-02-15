@@ -412,7 +412,7 @@ async def get_current_user(
         logger.error(f"JWT validation error: {str(e)}")
         raise invalid_credentials
     except Exception as e:
-        logger.error(f"Unexpected error in token validation: {str(e)}")
+        logger.error("Unexpected error in token validation: %s", e, exc_info=True)
         raise invalid_credentials
 
 

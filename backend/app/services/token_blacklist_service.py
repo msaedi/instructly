@@ -88,7 +88,7 @@ class TokenBlacklistService:
                     logger.debug("Non-fatal error ignored", exc_info=True)
             return True
         except Exception as exc:
-            logger.warning("[TOKEN-BL] Failed to revoke token jti=%s: %s", jti, exc)
+            logger.error("[TOKEN-BL] Failed to revoke token jti=%s: %s", jti, exc, exc_info=True)
             return False
 
     async def is_revoked(self, jti: str) -> bool:

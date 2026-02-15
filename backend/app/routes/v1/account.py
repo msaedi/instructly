@@ -305,7 +305,7 @@ async def logout_all_devices(
                 if not revoked:
                     logger.error("Logout-all blacklist write failed for jti=%s", jti)
         except Exception:
-            logger.debug("Failed to decode token during logout-all blacklist step", exc_info=True)
+            logger.warning("Failed to decode token during logout-all blacklist step", exc_info=True)
 
     return SessionInvalidationResponse(message="All sessions have been logged out")
 

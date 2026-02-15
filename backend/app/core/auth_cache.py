@@ -178,7 +178,7 @@ def invalidate_cached_user_by_id_sync(user_id: str, db_session: Any) -> bool:
             # No running event loop - use asyncio.run()
             return asyncio.run(invalidate_cached_user(user_id))
     except Exception as e:
-        logger.warning("[AUTH-CACHE] Sync invalidation failed: %s", e)
+        logger.warning("[AUTH-CACHE] Sync invalidation failed: %s", e, exc_info=True)
         return False
 
 

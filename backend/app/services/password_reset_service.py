@@ -95,7 +95,7 @@ class PasswordResetService(BaseService):
                     self.logger.info(f"Password reset token created for user {user.id}")
 
             except Exception as e:
-                self.logger.error(f"Error creating password reset token: {str(e)}")
+                self.logger.error("Error creating password reset token: %s", e, exc_info=True)
                 # Still return True to prevent enumeration
         else:
             # Log that email doesn't exist but don't reveal this
@@ -217,6 +217,7 @@ class PasswordResetService(BaseService):
                 "Password reset succeeded but token invalidation raised for user %s: %s",
                 user.id,
                 e,
+                exc_info=True,
             )
 
         self.logger.info(f"Password successfully reset for user {user.id}")
