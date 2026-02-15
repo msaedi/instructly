@@ -76,10 +76,8 @@ from ...services.search_history_service import SearchHistoryService
 from ...services.token_blacklist_service import TokenBlacklistService
 from ...utils.cookies import (
     refresh_cookie_base_name,
-    session_cookie_base_name,
     session_cookie_candidates,
-    set_refresh_cookie,
-    set_session_cookie,
+    set_auth_cookies,
 )
 from ...utils.invite_cookie import invite_cookie_name
 from ...utils.strict import model_filter
@@ -132,22 +130,6 @@ def _parse_epoch_claim(value: object) -> int | None:
         except ValueError:
             return None
     return None
-
-
-def _set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
-    set_session_cookie(
-        response,
-        session_cookie_base_name(settings.site_mode),
-        access_token,
-        max_age=settings.access_token_expire_minutes * 60,
-        domain=settings.session_cookie_domain,
-    )
-    set_refresh_cookie(
-        response,
-        refresh_token,
-        max_age=settings.refresh_token_lifetime_days * 24 * 60 * 60,
-        domain=settings.session_cookie_domain,
-    )
 
 
 def _device_fingerprint(ip_address: str, user_agent: str) -> str:
@@ -620,7 +602,7 @@ async def login(
     record_login_result("success")
 
     # Step 8: Set access + refresh cookies
-    _set_auth_cookies(response, access_token, refresh_token)
+    set_auth_cookies(response, access_token, refresh_token)
 
     if hasattr(cache_service, "get") and hasattr(cache_service, "set"):
         await _maybe_send_new_device_login_notification(
@@ -692,17 +674,7 @@ async def refresh_session_token(
     if not jti:
         raise invalid_credentials
 
-    try:
-        revoked = await TokenBlacklistService().is_revoked(jti)
-    except Exception:
-        revoked = True
-    if revoked:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has been revoked",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
+    # --- Step 1: Validate user ---
     from app.repositories import RepositoryFactory
 
     user_repo = RepositoryFactory.create_user_repository(db)
@@ -719,6 +691,20 @@ async def refresh_session_token(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
+    # --- Step 2: Atomic JTI claim (SETNX) — only one caller wins ---
+    old_exp_ts = _parse_epoch_claim(payload.get("exp"))
+    if old_exp_ts is None:
+        raise invalid_credentials
+
+    claimed = await TokenBlacklistService().claim_and_revoke(jti, old_exp_ts)
+    if not claimed:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # --- Step 3: Issue new tokens (old JTI is now atomically blacklisted) ---
     access_token = create_access_token(
         data={"sub": user.id, "email": user.email},
         expires_delta=timedelta(minutes=settings.access_token_expire_minutes),
@@ -728,18 +714,7 @@ async def refresh_session_token(
         expires_delta=timedelta(days=settings.refresh_token_lifetime_days),
     )
 
-    old_exp_ts = _parse_epoch_claim(payload.get("exp"))
-    if old_exp_ts is not None:
-        revoked_old = await TokenBlacklistService().revoke_token(
-            jti,
-            old_exp_ts,
-            trigger="logout",
-            emit_metric=False,
-        )
-        if not revoked_old:
-            logger.warning("Refresh rotation blacklist write failed for jti=%s", jti)
-
-    _set_auth_cookies(response, access_token, refresh_token)
+    set_auth_cookies(response, access_token, refresh_token)
     return SessionRefreshResponse(message="Session refreshed")
 
 
@@ -1010,7 +985,7 @@ async def login_with_session(
     record_login_result("success")
 
     # Step 8: Set access + refresh cookies
-    _set_auth_cookies(response, access_token, refresh_token)
+    set_auth_cookies(response, access_token, refresh_token)
 
     # Step 9: Convert guest searches if guest_session_id provided
     # Uses the separate `db` session (not auth_service.db which is closed)

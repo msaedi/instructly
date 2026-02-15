@@ -1500,13 +1500,9 @@ async def test_refresh_session_token_rotates_tokens(monkeypatch):
     blacklist_calls: dict[str, object] = {}
 
     class _Blacklist:
-        async def is_revoked(self, _jti: str) -> bool:
-            return False
-
-        async def revoke_token(self, jti: str, exp: int, **kwargs) -> bool:
+        async def claim_and_revoke(self, jti: str, exp: int) -> bool:
             blacklist_calls["jti"] = jti
             blacklist_calls["exp"] = exp
-            blacklist_calls["kwargs"] = kwargs
             return True
 
     class _Repo:
@@ -1575,6 +1571,7 @@ async def test_refresh_session_token_rejects_revoked_token(monkeypatch):
     now_ts = int(datetime.now(timezone.utc).timestamp())
     refresh_payload = {
         "sub": "01HUSER000000000000000000",
+        "email": "user@example.com",
         "jti": "01HOLDREFRESHTOKENJTI000000",
         "iat": now_ts,
         "exp": now_ts + 3600,
@@ -1582,14 +1579,24 @@ async def test_refresh_session_token_rejects_revoked_token(monkeypatch):
     }
 
     class _Blacklist:
-        async def is_revoked(self, _jti: str) -> bool:
-            return True
+        async def claim_and_revoke(self, _jti: str, _exp: int) -> bool:
+            return False  # already claimed — replay rejected
 
-        async def revoke_token(self, _jti: str, _exp: int, **_kwargs) -> bool:
-            return True
+    class _Repo:
+        def get_by_id(self, user_id: str):
+            return SimpleNamespace(
+                id=user_id,
+                email="user@example.com",
+                is_active=True,
+                tokens_valid_after=None,
+            )
 
     monkeypatch.setattr(auth_routes, "TokenBlacklistService", _Blacklist)
     monkeypatch.setattr(auth_routes, "decode_access_token", lambda _token: refresh_payload)
+    monkeypatch.setattr(
+        "app.repositories.RepositoryFactory.create_user_repository",
+        lambda _db: _Repo(),
+    )
 
     request = _DummyRequest(
         cookies={auth_routes.refresh_cookie_base_name(auth_routes.settings.site_mode): "old"}
@@ -1615,11 +1622,8 @@ async def test_refresh_session_token_rejects_invalidated_token(monkeypatch):
     }
 
     class _Blacklist:
-        async def is_revoked(self, _jti: str) -> bool:
-            return False
-
-        async def revoke_token(self, _jti: str, _exp: int, **_kwargs) -> bool:
-            return True
+        async def claim_and_revoke(self, _jti: str, _exp: int) -> bool:
+            return True  # never reached — tokens_valid_after rejects first
 
     class _Repo:
         def get_by_id(self, user_id: str):
@@ -1646,3 +1650,127 @@ async def test_refresh_session_token_rejects_invalidated_token(monkeypatch):
         await auth_routes.refresh_session_token(request, response, db=object())
     assert exc.value.status_code == 401
     assert exc.value.detail == "Token has been invalidated"
+
+
+@pytest.mark.asyncio
+async def test_refresh_session_token_rotation_replay_rejected(monkeypatch):
+    """M2: Full rotation replay — old refresh token rejected after successful refresh."""
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    refresh_payload = {
+        "sub": "01HREPLAYUSERID0000000000",
+        "email": "replay@example.com",
+        "jti": "01HFIRSTJTI00000000000000",
+        "iat": now_ts,
+        "exp": now_ts + 3600,
+        "typ": "refresh",
+    }
+
+    claimed_jtis: list[str] = []
+
+    class _Blacklist:
+        """Simulates a real blacklist: first claim succeeds, replay fails."""
+
+        def __init__(self):
+            self._claimed: set[str] = set()
+
+        async def claim_and_revoke(self, jti: str, _exp: int) -> bool:
+            claimed_jtis.append(jti)
+            if jti in self._claimed:
+                return False
+            self._claimed.add(jti)
+            return True
+
+    class _Repo:
+        def get_by_id(self, user_id: str):
+            return SimpleNamespace(
+                id=user_id,
+                email="replay@example.com",
+                is_active=True,
+                tokens_valid_after=None,
+            )
+
+    blacklist_instance = _Blacklist()
+    monkeypatch.setattr(auth_routes, "TokenBlacklistService", lambda: blacklist_instance)
+    monkeypatch.setattr(auth_routes, "decode_access_token", lambda _token: refresh_payload)
+    monkeypatch.setattr(
+        "app.repositories.RepositoryFactory.create_user_repository",
+        lambda _db: _Repo(),
+    )
+    monkeypatch.setattr(auth_routes, "create_access_token", lambda *a, **k: "new-access")
+    monkeypatch.setattr(auth_routes, "create_refresh_token", lambda *a, **k: "new-refresh")
+
+    cookie_name = auth_routes.refresh_cookie_base_name(auth_routes.settings.site_mode)
+
+    # First refresh succeeds
+    request1 = _DummyRequest(cookies={cookie_name: "old-refresh-token"})
+    response1 = Response()
+    result1 = await auth_routes.refresh_session_token(request1, response1, db=object())
+    assert result1.message == "Session refreshed"
+
+    # Replay with same JTI is rejected
+    request2 = _DummyRequest(cookies={cookie_name: "old-refresh-token"})
+    response2 = Response()
+    with pytest.raises(HTTPException) as exc:
+        await auth_routes.refresh_session_token(request2, response2, db=object())
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Token has been revoked"
+
+    assert len(claimed_jtis) == 2
+    assert claimed_jtis[0] == claimed_jtis[1] == "01HFIRSTJTI00000000000000"
+
+
+@pytest.mark.asyncio
+async def test_refresh_session_token_rejects_inactive_user(monkeypatch):
+    """M3: Refresh rejected when user.is_active is False."""
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    refresh_payload = {
+        "sub": "01HINACTIVEUSER00000000000",
+        "email": "inactive@example.com",
+        "jti": "01HINACTIVEJTI000000000000",
+        "iat": now_ts,
+        "exp": now_ts + 3600,
+        "typ": "refresh",
+    }
+
+    class _Repo:
+        def get_by_id(self, user_id: str):
+            return SimpleNamespace(
+                id=user_id,
+                email="inactive@example.com",
+                is_active=False,
+                tokens_valid_after=None,
+            )
+
+    monkeypatch.setattr(auth_routes, "decode_access_token", lambda _token: refresh_payload)
+    monkeypatch.setattr(
+        "app.repositories.RepositoryFactory.create_user_repository",
+        lambda _db: _Repo(),
+    )
+
+    cookie_name = auth_routes.refresh_cookie_base_name(auth_routes.settings.site_mode)
+    request = _DummyRequest(cookies={cookie_name: "old"})
+    response = Response()
+
+    with pytest.raises(HTTPException) as exc:
+        await auth_routes.refresh_session_token(request, response, db=object())
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Could not validate credentials"
+
+
+@pytest.mark.asyncio
+async def test_refresh_session_token_rejects_expired_token(monkeypatch):
+    """L3: Refresh rejected when token has expired."""
+
+    def _decode_expired(_token: str):
+        raise Exception("Signature has expired")
+
+    monkeypatch.setattr(auth_routes, "decode_access_token", _decode_expired)
+
+    cookie_name = auth_routes.refresh_cookie_base_name(auth_routes.settings.site_mode)
+    request = _DummyRequest(cookies={cookie_name: "expired-token"})
+    response = Response()
+
+    with pytest.raises(HTTPException) as exc:
+        await auth_routes.refresh_session_token(request, response, db=object())
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Could not validate credentials"

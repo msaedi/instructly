@@ -11,6 +11,7 @@ import type {
 import type { CatalogService } from '@/features/shared/api/client';
 import type { ServiceCatalogItem } from '@/types/api';
 import { withApiBase } from '@/lib/apiBase';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 
 /**
  * Services page React Query hooks
@@ -184,7 +185,7 @@ export function useServicesInfiniteSearch(filters: ServiceSearchFilters) {
       params.append('page', page.toString());
       params.append('limit', '20');
 
-      const response = await fetch(
+      const response = await fetchWithSessionRefresh(
         withApiBase(`/api/v1/services/search?${params}`)
       );
 

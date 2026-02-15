@@ -185,9 +185,7 @@ async def test_login_slot_wraps_only_password_verification(monkeypatch: pytest.M
     monkeypatch.setattr(auth_routes, "record_captcha_event", lambda res: events.append(f"captcha_{res}"))
     monkeypatch.setattr(auth_routes, "create_access_token", lambda *a, **k: "token")
     monkeypatch.setattr(auth_routes, "create_refresh_token", lambda *a, **k: "refresh-token")
-    monkeypatch.setattr(auth_routes, "set_session_cookie", lambda *a, **k: None)
-    monkeypatch.setattr(auth_routes, "set_refresh_cookie", lambda *a, **k: None)
-    monkeypatch.setattr(auth_routes, "session_cookie_base_name", lambda *a, **k: "sid")
+    monkeypatch.setattr(auth_routes, "set_auth_cookies", lambda *a, **k: None)
     monkeypatch.setattr(
         auth_routes,
         "settings",
@@ -288,9 +286,7 @@ async def test_login_with_session_slot_scope(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setattr(auth_routes, "record_captcha_event", lambda res: events.append(f"captcha_{res}"))
     monkeypatch.setattr(auth_routes, "create_access_token", lambda *a, **k: "token")
     monkeypatch.setattr(auth_routes, "create_refresh_token", lambda *a, **k: "refresh-token")
-    monkeypatch.setattr(auth_routes, "set_session_cookie", lambda *a, **k: None)
-    monkeypatch.setattr(auth_routes, "set_refresh_cookie", lambda *a, **k: None)
-    monkeypatch.setattr(auth_routes, "session_cookie_base_name", lambda *a, **k: "sid")
+    monkeypatch.setattr(auth_routes, "set_auth_cookies", lambda *a, **k: None)
     monkeypatch.setattr(
         auth_routes,
         "settings",

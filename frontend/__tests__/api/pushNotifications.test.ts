@@ -1,5 +1,11 @@
 import { pushNotificationApi } from '@/features/shared/api/pushNotifications';
 
+// Mock fetchWithSessionRefresh to delegate to global.fetch so the
+// existing fetchMock works unchanged (no refresh-interceptor side effects).
+jest.mock('@/lib/auth/sessionRefresh', () => ({
+  fetchWithSessionRefresh: (...args: Parameters<typeof fetch>) => fetch(...args),
+}));
+
 describe('pushNotificationApi', () => {
   const originalFetch = global.fetch;
   let fetchMock: jest.Mock;

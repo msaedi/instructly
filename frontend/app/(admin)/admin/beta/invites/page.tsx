@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AdminSidebar from '@/app/(admin)/admin/AdminSidebar';
 import { withApiBase } from '@/lib/apiBase';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { copyToClipboard } from '@/lib/copy';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useAuth } from '@/features/shared/hooks/useAuth';
@@ -57,7 +58,7 @@ export default function BetaInvitesAdminPage() {
   const { data: foundingCount } = useQuery<FoundingCount>({
     queryKey: ['admin', 'founding-count'],
     queryFn: async () => {
-      const res = await fetch(withApiBase('/api/v1/admin/instructors/founding/count'), { credentials: 'include' });
+      const res = await fetchWithSessionRefresh(withApiBase('/api/v1/admin/instructors/founding/count'), { credentials: 'include' });
       if (!res.ok) {
         throw new Error(`Failed to load founding count (${res.status})`);
       }
@@ -76,8 +77,8 @@ export default function BetaInvitesAdminPage() {
     async function fetchSummary() {
       try {
         const [settingsRes, summaryRes] = await Promise.all([
-          fetch(withApiBase(`/api/v1/beta/settings`), { credentials: 'include' }),
-          fetch(withApiBase(`/api/v1/beta/metrics/summary`), { credentials: 'include' }),
+          fetchWithSessionRefresh(withApiBase(`/api/v1/beta/settings`), { credentials: 'include' }),
+          fetchWithSessionRefresh(withApiBase(`/api/v1/beta/metrics/summary`), { credentials: 'include' }),
         ]);
         const settings = settingsRes.ok ? ((await settingsRes.json()) as BetaSettingsResponse) : null;
         const phase = settings?.beta_phase || 'unknown';
@@ -103,7 +104,7 @@ export default function BetaInvitesAdminPage() {
     let cancelled = false;
     async function poll() {
       try {
-        const res = await fetch(withApiBase(`/api/v1/beta/invites/send-batch-progress?task_id=${encodeURIComponent(asyncTaskId || '')}`), { credentials: 'include' });
+        const res = await fetchWithSessionRefresh(withApiBase(`/api/v1/beta/invites/send-batch-progress?task_id=${encodeURIComponent(asyncTaskId || '')}`), { credentials: 'include' });
         if (!res.ok) throw new Error('progress error');
         const data = (await res.json()) as InviteBatchProgressResponse;
         if (!cancelled) {
@@ -147,7 +148,7 @@ export default function BetaInvitesAdminPage() {
         source,
         grant_founding_status: grantFoundingStatus,
       };
-      const res = await fetch(withApiBase(`/api/v1/beta/invites/send`), {
+      const res = await fetchWithSessionRefresh(withApiBase(`/api/v1/beta/invites/send`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -398,7 +399,7 @@ export default function BetaInvitesAdminPage() {
                           source: 'csv_upload',
                           emails,
                         };
-                        const res = await fetch(withApiBase('/api/v1/beta/invites/generate'), {
+                        const res = await fetchWithSessionRefresh(withApiBase('/api/v1/beta/invites/generate'), {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify(payload),
@@ -432,7 +433,7 @@ export default function BetaInvitesAdminPage() {
                           expires_in_days: days,
                           source: 'csv_upload',
                         };
-                        const r = await fetch(withApiBase('/api/v1/beta/invites/send-batch-async'), {
+                        const r = await fetchWithSessionRefresh(withApiBase('/api/v1/beta/invites/send-batch-async'), {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify(payload),

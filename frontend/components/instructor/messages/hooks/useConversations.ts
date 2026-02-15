@@ -10,6 +10,7 @@ import { useMemo, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMessageStream } from '@/providers/UserMessageStreamProvider';
 import { withApiBase, withApiBaseForRequest } from '@/lib/apiBase';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import type { ConversationEntry } from '../types';
 import type { ConversationListItem, ConversationListResponse } from '@/types/conversation';
 import type { components } from '@/features/shared/api/types';
@@ -66,7 +67,7 @@ async function fetchConversations(stateFilter?: string | null): Promise<{
     ? `/api/v1/conversations?${queryString}`
     : '/api/v1/conversations';
 
-  const response = await fetch(withApiBase(url), {
+  const response = await fetchWithSessionRefresh(withApiBase(url), {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -260,7 +261,7 @@ export function useUpdateConversationState() {
       conversationId: string;
       state: 'active' | 'archived' | 'trashed';
     }) => {
-      const response = await fetch(
+      const response = await fetchWithSessionRefresh(
         withApiBaseForRequest(`/api/v1/conversations/${conversationId}/state`, 'PUT'),
         {
           method: 'PUT',

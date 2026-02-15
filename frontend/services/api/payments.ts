@@ -1,5 +1,6 @@
 import { logger } from '@/lib/logger';
 import { withApiBase, withApiBaseForRequest } from '@/lib/apiBase';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { httpGet, httpPost } from '@/lib/http';
 import type { CheckoutResponse } from '@/types/api/checkout';
 import type {
@@ -198,7 +199,7 @@ class PaymentService {
 
   // Download Transaction History
   async downloadTransactionHistory(): Promise<Blob> {
-    const response = await fetch(withApiBase(`${this.basePath}/transactions/download`), {
+    const response = await fetchWithSessionRefresh(withApiBase(`${this.basePath}/transactions/download`), {
       credentials: 'include',
     });
     if (!response.ok) throw new Error('Failed to download transaction history');

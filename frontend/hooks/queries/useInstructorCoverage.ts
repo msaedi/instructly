@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import { withApiBase } from '@/lib/apiBase';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { CACHE_TIMES } from '@/lib/react-query/queryClient';
 import type { components } from '@/features/shared/api/types';
 
@@ -21,7 +22,7 @@ export function useInstructorCoverage(instructorIds: string[]) {
     queryFn: async ({ signal }) => {
       const params = new URLSearchParams({ ids: ids.join(',') });
       const coverageUrl = withApiBase(`/api/v1/addresses/coverage/bulk?${params.toString()}`);
-      const response = await fetch(coverageUrl, { credentials: 'include', signal });
+      const response = await fetchWithSessionRefresh(coverageUrl, { credentials: 'include', signal });
       if (!response.ok) {
         throw new Error('Failed to load coverage areas');
       }

@@ -23,6 +23,7 @@ import * as Tooltip from '@radix-ui/react-tooltip';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { logger } from '@/lib/logger';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { ApiProblemError } from '@/lib/api/fetch';
 import { usePaymentMethods } from '@/hooks/queries/usePaymentMethods';
 import {
@@ -155,7 +156,7 @@ const PaymentForm: React.FC<{
       }
 
       // Create checkout session with backend
-      const response = await fetch('/api/v1/payments/checkout', {
+      const response = await fetchWithSessionRefresh('/api/v1/payments/checkout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

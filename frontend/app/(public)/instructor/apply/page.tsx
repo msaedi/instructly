@@ -5,6 +5,7 @@ import Script from 'next/script';
 import { BRAND } from '@/app/config/brand';
 import { useAllServicesWithInstructors, useServiceCategories } from '@/hooks/queries/useServices';
 import { withApiBase } from '@/lib/apiBase';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { logger } from '@/lib/logger';
 import type { ProfileFormState, ServiceAreaItem } from '@/features/instructor-profile/types';
 import { ServiceAreasCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/ServiceAreasCard';
@@ -114,7 +115,7 @@ export default function InstructorApplyPage() {
     if (boroughNeighborhoods[borough]) return boroughNeighborhoods[borough] || [];
     try {
       const url = withApiBase(`/api/v1/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`);
-      const response = await fetch(url, { credentials: 'include' });
+      const response = await fetchWithSessionRefresh(url, { credentials: 'include' });
       if (response.ok) {
         const data = (await response.json()) as NeighborhoodsListResponse;
         const list = (data.items ?? []).flatMap((raw) => {

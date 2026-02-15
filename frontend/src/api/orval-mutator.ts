@@ -8,6 +8,7 @@
  */
 
 import { withApiBaseForRequest } from '@/lib/apiBase';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { logger } from '@/lib/logger';
 
 // Helper to check if this is a messaging-related request (for focused debug logging)
@@ -70,7 +71,7 @@ export async function customFetch<TResponse>(
 
   // Make request
   const startTime = Date.now();
-  const response = await fetch(fullUrl, fetchOptions);
+  const response = await fetchWithSessionRefresh(fullUrl, fetchOptions);
   const duration = Date.now() - startTime;
 
   // [MSG-DEBUG] Log messaging responses

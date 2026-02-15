@@ -475,7 +475,7 @@ export async function getProfilePictureUrl(
   const url = withApiBaseForRequest(endpoint, 'GET');
 
   try {
-    const response = await fetch(url, { credentials: 'include' });
+    const response = await fetchWithSessionRefresh(url, { credentials: 'include' });
 
     if (response.status === 401 || response.status === 404) {
       logger.debug('Profile picture not available', { userId, status: response.status });

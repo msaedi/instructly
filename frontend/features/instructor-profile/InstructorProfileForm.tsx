@@ -10,6 +10,7 @@ import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { withApiBase } from '@/lib/apiBase';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { logger } from '@/lib/logger';
 import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import { useSession } from '@/src/api/hooks/useSession';
@@ -360,7 +361,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
             const def = items.find((a) => a.is_default) ?? items[0];
             const zip = def?.postal_code;
             if (zip) {
-              const nycRes = await fetch(withApiBase(`${API_ENDPOINTS.NYC_ZIP_CHECK}?zip=${encodeURIComponent(zip)}`), {
+              const nycRes = await fetchWithSessionRefresh(withApiBase(`${API_ENDPOINTS.NYC_ZIP_CHECK}?zip=${encodeURIComponent(zip)}`), {
                 credentials: 'include',
               });
               logger.debug('Prefill: NYC zip check status', { status: nycRes.status, zip });
@@ -447,7 +448,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
     if (boroughNeighborhoods[borough]) return boroughNeighborhoods[borough] || [];
     try {
       const url = withApiBase(`/api/v1/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`);
-      const r = await fetch(url, { credentials: 'include' });
+      const r = await fetchWithSessionRefresh(url, { credentials: 'include' });
       if (r.ok) {
         const data = (await r.json()) as NeighborhoodsListResponse;
         const list = (data.items ?? []).flatMap((raw) => {

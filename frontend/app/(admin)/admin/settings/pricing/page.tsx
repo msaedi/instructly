@@ -8,6 +8,7 @@ import AdminSidebar from '@/app/(admin)/admin/AdminSidebar';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { withApiBase } from '@/lib/apiBase';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { logger } from '@/lib/logger';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
@@ -105,7 +106,7 @@ export default function PricingSettingsPage() {
 
     async function fetchConfig() {
       try {
-        const response = await fetch(withApiBase('/api/v1/admin/config/pricing'), {
+        const response = await fetchWithSessionRefresh(withApiBase('/api/v1/admin/config/pricing'), {
           credentials: 'include',
         });
         if (!response.ok) {
@@ -299,7 +300,7 @@ export default function PricingSettingsPage() {
     setSubmitError(null);
     try {
       const configPayload: PricingConfigPayload = config;
-      const response = await fetch(withApiBase('/api/v1/admin/config/pricing'), {
+      const response = await fetchWithSessionRefresh(withApiBase('/api/v1/admin/config/pricing'), {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

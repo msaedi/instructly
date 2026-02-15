@@ -8,6 +8,7 @@
 import { useCallback, useMemo } from 'react';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { withApiBase } from '@/lib/apiBase';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import type { ConversationMessage, ConversationMessagesResponse, GetMessagesParams } from '@/types/conversation';
 import { conversationQueryKeys } from '@/src/api/services/conversations';
 
@@ -58,7 +59,7 @@ async function fetchMessages(
     ? `/api/v1/conversations/${conversationId}/messages?${queryString}`
     : `/api/v1/conversations/${conversationId}/messages`;
 
-  const response = await fetch(withApiBase(url), {
+  const response = await fetchWithSessionRefresh(withApiBase(url), {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',

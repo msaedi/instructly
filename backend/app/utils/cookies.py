@@ -153,6 +153,26 @@ def set_refresh_cookie(
     return cookie_name
 
 
+def set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
+    """Set both access and refresh cookies on a response.
+
+    Shared helper used by all login paths (login, login-with-session, 2FA verify).
+    """
+    set_session_cookie(
+        response,
+        session_cookie_base_name(settings.site_mode),
+        access_token,
+        max_age=settings.access_token_expire_minutes * 60,
+        domain=settings.session_cookie_domain,
+    )
+    set_refresh_cookie(
+        response,
+        refresh_token,
+        max_age=settings.refresh_token_lifetime_days * 24 * 60 * 60,
+        domain=settings.session_cookie_domain,
+    )
+
+
 def delete_refresh_cookie(response: Response, *, domain: Optional[str] = None) -> str:
     """Delete the refresh token cookie using its scoped refresh path."""
 

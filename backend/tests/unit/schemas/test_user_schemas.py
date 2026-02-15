@@ -14,7 +14,6 @@ from pydantic import ValidationError
 import pytest
 
 from app.schemas.user import (
-    Token,
     UserCreate,
     UserLogin,
     UserRegistrationMetadata,
@@ -637,16 +636,6 @@ class TestUserWithPermissionsResponse:
         assert response.beta_role == "early_adopter"
         assert response.beta_phase == "phase1"
         assert response.beta_invited_by == "admin@example.com"
-
-
-class TestToken:
-    """Tests for Token schema."""
-
-    def test_valid_token(self) -> None:
-        """Valid token data should pass."""
-        token = Token(access_token="jwt.token.here", token_type="bearer")
-        assert token.access_token == "jwt.token.here"
-        assert token.token_type == "bearer"
 
 
 class TestUnicodeNames:

@@ -1,5 +1,6 @@
 import { withApiBaseForRequest } from '@/lib/apiBase';
 import { fetchAPI } from '@/lib/api';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import type {
   components,
   ReferralLedgerResponse,
@@ -65,7 +66,7 @@ export async function fetchReferralLedger(signal?: AbortSignal): Promise<Referra
     requestInit.signal = signal;
   }
 
-  const response = await fetch(buildUrl(REFERRALS_ME_KEY), requestInit);
+  const response = await fetchWithSessionRefresh(buildUrl(REFERRALS_ME_KEY), requestInit);
 
   if (!response.ok) {
     throw new Error('Failed to load referral summary');
@@ -90,7 +91,7 @@ export async function applyReferralCredit(orderId: string): Promise<ReferralChec
     return normalizeError('disabled', 'Order ID is required');
   }
 
-  const response = await fetch(buildUrl('/api/v1/referrals/checkout/apply-referral', 'POST'), {
+  const response = await fetchWithSessionRefresh(buildUrl('/api/v1/referrals/checkout/apply-referral', 'POST'), {
     method: 'POST',
     credentials: 'include',
     headers: {

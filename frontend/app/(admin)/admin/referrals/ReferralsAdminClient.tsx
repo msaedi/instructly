@@ -6,6 +6,7 @@ import AdminSidebar from '@/app/(admin)/admin/AdminSidebar';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { withApiBase } from '@/lib/apiBase';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import type { AdminReferralsHealth, AdminReferralsSummary } from '@/features/shared/api/types';
 import {
   AlertCircle,
@@ -80,8 +81,8 @@ export default function ReferralsAdminClient() {
 
       try {
         const [healthRes, summaryRes] = await Promise.all([
-          fetch(healthEndpoint, buildRequestInit(signal)),
-          fetch(summaryEndpoint, buildRequestInit(signal)),
+          fetchWithSessionRefresh(healthEndpoint, buildRequestInit(signal)),
+          fetchWithSessionRefresh(summaryEndpoint, buildRequestInit(signal)),
         ]);
 
         if (signal?.aborted) {

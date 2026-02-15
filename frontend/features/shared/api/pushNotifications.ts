@@ -1,4 +1,5 @@
 import { withApiBase } from '@/lib/apiBase';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import type { ApiErrorResponse, components } from '@/features/shared/api/types';
 
 type PushSubscribeRequest = components['schemas']['PushSubscribeRequest'];
@@ -22,7 +23,7 @@ async function parseErrorMessage(response: Response, fallback: string): Promise<
 }
 
 async function requestJson<T>(path: string, init: RequestInit, fallbackError: string): Promise<T> {
-  const response = await fetch(withApiBase(path), {
+  const response = await fetchWithSessionRefresh(withApiBase(path), {
     ...init,
     credentials: 'include',
   });

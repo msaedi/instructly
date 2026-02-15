@@ -167,7 +167,7 @@ export async function postWithRetry(
 ): Promise<Response> {
   const resolvedUrl = resolveUrl(url, (init.method ?? 'POST').toUpperCase());
   const makeRequest = () =>
-    fetch(resolvedUrl, {
+    fetchWithSessionRefresh(resolvedUrl, {
       credentials: init.credentials ?? 'include',
       ...init,
       method: init.method ?? 'POST',
