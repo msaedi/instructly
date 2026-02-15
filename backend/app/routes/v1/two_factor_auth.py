@@ -83,8 +83,9 @@ def setup_verify(
         backup_codes = tfa_service.setup_verify(user, req.code)
         user_repo = RepositoryFactory.create_user_repository(tfa_service.db)
         if not user_repo.invalidate_all_tokens(user.id, trigger="2fa_change"):
-            logger.warning(
-                "2FA enable succeeded but token invalidation returned false for %s", user.id
+            logger.critical(
+                "2FA enable succeeded but token invalidation returned false for %s — old tokens remain valid",
+                user.id,
             )
         # On successful re-setup, ensure trust cookie is cleared; user can re-trust on next verify
         response.delete_cookie(
@@ -141,8 +142,9 @@ def disable(
         tfa_service.disable(user, req.current_password)
         user_repo = RepositoryFactory.create_user_repository(tfa_service.db)
         if not user_repo.invalidate_all_tokens(user.id, trigger="2fa_change"):
-            logger.warning(
-                "2FA disable succeeded but token invalidation returned false for %s", user.id
+            logger.critical(
+                "2FA disable succeeded but token invalidation returned false for %s — old tokens remain valid",
+                user.id,
             )
         # Invalidate any trusted-browser cookie on disable
         response.delete_cookie(
@@ -251,7 +253,7 @@ def verify_login(
             logger.info("2FA verify temp-token reject: %s", reason)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid temp token")
 
-    user = auth_service.get_current_user(email=email)
+    user = auth_service.get_current_user(identifier=email)
     if not user or not user.totp_enabled:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="2FA not enabled")
 

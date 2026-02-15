@@ -387,12 +387,12 @@ class AuthService(BaseService):
             return None
 
     @BaseService.measure_operation("get_current_user")
-    def get_current_user(self, email: str) -> User:
+    def get_current_user(self, identifier: str) -> User:
         """
         Get current user by identifier, raising exception if not found.
 
         Args:
-            email: User identifier from JWT token (ULID preferred, email fallback)
+            identifier: User identifier from JWT token (ULID preferred, email fallback)
 
         Returns:
             User object
@@ -400,9 +400,9 @@ class AuthService(BaseService):
         Raises:
             NotFoundException: If user not found
         """
-        user = self.get_user_by_email(email)
+        user = self.get_user_by_email(identifier)
         if not user:
-            self.logger.error(f"Current user not found: {email}")
+            self.logger.error(f"Current user not found: {identifier}")
             raise NotFoundException("User not found")
 
         return user
@@ -412,7 +412,7 @@ class AuthService(BaseService):
         """
         Release the database connection to free resources.
 
-        Used to release DB connection before CPU-intensive operations like bcrypt
+        Used to release DB connection before CPU-intensive operations like Argon2id
         to improve throughput under load. The connection will be returned to the pool.
         """
         try:
