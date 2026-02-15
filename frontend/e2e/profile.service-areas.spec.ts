@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { isInstructor } from './utils/projects';
+import { mockAuthenticatedPageBackgroundApis } from './utils/authenticatedPageMocks';
 
 test.beforeAll(({}, workerInfo) => {
   test.skip(!isInstructor(workerInfo), `Instructor-only spec (current project: ${workerInfo.project.name})`);
@@ -7,6 +8,7 @@ test.beforeAll(({}, workerInfo) => {
 test.skip(Boolean(process.env.CI) && !process.env.CI_LOCAL_E2E, 'local-only smoke; opt-in via CI_LOCAL_E2E=1');
 
 test('service areas: select two -> save -> reload -> persisted', async ({ page }) => {
+  await mockAuthenticatedPageBackgroundApis(page, { userId: 'mock-user' });
   await page.setViewportSize({ width: 1440, height: 900 });
   const neighborhoods = [
     { id: 'MN01', code: 'MN01', name: 'Central Village', borough: 'Manhattan' },

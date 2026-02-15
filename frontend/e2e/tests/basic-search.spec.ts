@@ -1,8 +1,16 @@
 import { test, expect, type Route } from '@playwright/test';
 import { HomePage } from '../pages/HomePage';
+import { isAnon } from '../utils/projects';
+import { mockPublicPageBaselineApis } from '../utils/publicPageMocks';
+
+test.beforeAll(({}, workerInfo) => {
+  test.skip(!isAnon(workerInfo), `Anon-only spec (current project: ${workerInfo.project.name})`);
+});
 
 test.describe('Basic Search Flow', () => {
   test.beforeEach(async ({ page }) => {
+    await mockPublicPageBaselineApis(page);
+
     // Minimal mocks to render homepage service pills (handle CORS + preflight)
     const allow = (route: Route) => ({
       'Access-Control-Allow-Origin': route.request().headers()['origin'] || 'http://localhost:3100',

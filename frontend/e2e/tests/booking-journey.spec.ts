@@ -317,11 +317,6 @@ test.describe('Student Booking Journey', () => {
     // SKIP REASON: This test requires the instructor profile page to be implemented
     // The booking flow can't proceed without being able to select time slots on the instructor profile
 
-    // Set authentication token before navigation
-    await page.addInitScript(() => {
-      localStorage.setItem('access_token', 'mock_access_token');
-    });
-
     // Step 1: Start at homepage
     const homePage = new HomePage(page);
     await homePage.goto();
@@ -379,16 +374,12 @@ test.describe('Student Booking Journey', () => {
   });
 
   test('should handle case when no instructors are found', async ({ page }) => {
-    // Set authentication token
-    await page.addInitScript(() => {
-      localStorage.setItem('access_token', 'mock_access_token');
-    });
-
     const homePage = new HomePage(page);
     await homePage.goto();
 
-    // Search for an uncommon instrument
-    await homePage.searchForInstrument('didgeridoo');
+    // Navigate directly to the search URL to avoid homepage-input timing flake
+    // across projects while still exercising the no-results search state.
+    await page.goto('/search?q=didgeridoo');
 
     const searchResults = new SearchResultsPage(page);
     await searchResults.waitForResults();

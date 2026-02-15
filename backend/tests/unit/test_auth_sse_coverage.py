@@ -144,7 +144,12 @@ async def test_get_current_user_sse_inactive_user(monkeypatch) -> None:
     monkeypatch.setattr(
         auth_sse,
         "decode_access_token",
-        lambda _token: {"sub": "01ARZ3NDEKTSV4RRFFQ69G5FAV", "jti": "test-jti", "iat": 123},
+        lambda _token: {
+            "sub": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "jti": "test-jti",
+            "iat": 123,
+            "typ": "access",
+        },
     )
 
     class _NeverRevoked:
@@ -171,7 +176,12 @@ async def test_get_current_user_sse_cookie_flow(monkeypatch) -> None:
     monkeypatch.setattr(
         auth_sse,
         "decode_access_token",
-        lambda _token: {"sub": "01ARZ3NDEKTSV4RRFFQ69G5FAV", "jti": "test-jti", "iat": 123},
+        lambda _token: {
+            "sub": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "jti": "test-jti",
+            "iat": 123,
+            "typ": "access",
+        },
     )
 
     class _NeverRevoked:
@@ -210,7 +220,7 @@ async def test_get_current_user_sse_site_mode_error_falls_back_to_local(monkeypa
     monkeypatch.setattr(
         auth_sse,
         "decode_access_token",
-        lambda _token: {"sub": "u1", "jti": "test-jti", "iat": 123},
+        lambda _token: {"sub": "u1", "jti": "test-jti", "iat": 123, "typ": "access"},
     )
 
     class _NeverRevoked:
@@ -233,7 +243,11 @@ async def test_get_current_user_sse_site_mode_error_falls_back_to_local(monkeypa
 @pytest.mark.asyncio
 async def test_get_current_user_sse_missing_jti_metric_error_is_non_fatal(monkeypatch) -> None:
     request = _make_request()
-    monkeypatch.setattr(auth_sse, "decode_access_token", lambda _token: {"sub": "u1"})
+    monkeypatch.setattr(
+        auth_sse,
+        "decode_access_token",
+        lambda _token: {"sub": "u1", "typ": "access"},
+    )
     monkeypatch.setattr(
         auth_sse.prometheus_metrics,
         "record_token_rejection",
@@ -253,7 +267,7 @@ async def test_get_current_user_sse_revoked_metric_error_is_non_fatal(monkeypatc
     monkeypatch.setattr(
         auth_sse,
         "decode_access_token",
-        lambda _token: {"sub": "u1", "jti": "test-jti", "iat": 123},
+        lambda _token: {"sub": "u1", "jti": "test-jti", "iat": 123, "typ": "access"},
     )
 
     class _Revoked:
@@ -277,7 +291,11 @@ async def test_get_current_user_sse_revoked_metric_error_is_non_fatal(monkeypatc
 @pytest.mark.asyncio
 async def test_get_current_user_sse_rejects_non_string_sub(monkeypatch) -> None:
     request = _make_request()
-    monkeypatch.setattr(auth_sse, "decode_access_token", lambda _token: {"sub": 123, "jti": "test-jti"})
+    monkeypatch.setattr(
+        auth_sse,
+        "decode_access_token",
+        lambda _token: {"sub": 123, "jti": "test-jti", "typ": "access"},
+    )
 
     class _NeverRevoked:
         async def is_revoked(self, _jti: str) -> bool:
@@ -298,7 +316,7 @@ async def test_get_current_user_sse_ignores_invalid_string_iat(monkeypatch) -> N
     monkeypatch.setattr(
         auth_sse,
         "decode_access_token",
-        lambda _token: {"sub": "u1", "jti": "test-jti", "iat": "not-an-int"},
+        lambda _token: {"sub": "u1", "jti": "test-jti", "iat": "not-an-int", "typ": "access"},
     )
 
     class _NeverRevoked:
@@ -323,7 +341,7 @@ async def test_get_current_user_sse_casts_float_invalidation_timestamp(monkeypat
     monkeypatch.setattr(
         auth_sse,
         "decode_access_token",
-        lambda _token: {"sub": "u1", "jti": "test-jti", "iat": 100},
+        lambda _token: {"sub": "u1", "jti": "test-jti", "iat": 100, "typ": "access"},
     )
 
     class _NeverRevoked:

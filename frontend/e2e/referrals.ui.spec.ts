@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { bypassGateIfPresent } from './utils/gate';
+import { mockAuthenticatedPageBackgroundApis } from './utils/authenticatedPageMocks';
 
 type NavShare = Navigator & {
   share?: (data?: ShareData) => Promise<void>;
@@ -17,7 +18,8 @@ declare global {
 
 test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
 
-test.beforeEach(async ({ context }) => {
+test.beforeEach(async ({ page, context }) => {
+  await mockAuthenticatedPageBackgroundApis(page, { userId: 'playwright-student' });
   await context.addInitScript(() => {
     window.__shared = null;
     window.__copied = null;
@@ -117,7 +119,7 @@ test.describe('Referral surfaces', () => {
           status: 200,
           contentType: 'application/json',
           headers: {
-            'set-cookie': 'access_token=playwright-token; Path=/; HttpOnly; SameSite=Lax',
+            'set-cookie': 'sid=playwright-token; Path=/; HttpOnly; SameSite=Lax',
           },
           body: JSON.stringify({
             requires_2fa: false,
@@ -134,7 +136,7 @@ test.describe('Referral surfaces', () => {
           status: 200,
           contentType: 'application/json',
           headers: {
-            'set-cookie': 'access_token=playwright-token; Path=/; HttpOnly; SameSite=Lax',
+            'set-cookie': 'sid=playwright-token; Path=/; HttpOnly; SameSite=Lax',
           },
           body: JSON.stringify({
             requires_2fa: false,

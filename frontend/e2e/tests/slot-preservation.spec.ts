@@ -11,9 +11,8 @@ test.describe('Slot Preservation on Back Navigation', () => {
     await page.goto(`/instructors/${TEST_ULIDS.instructor8}`);
     await page.waitForLoadState('domcontentloaded');
 
-    // Set up authentication after navigation to avoid login redirects
+    // Set up user context after navigation to avoid login redirects
     await page.evaluate((ids) => {
-      localStorage.setItem('access_token', 'mock_access_token_123456');
       localStorage.setItem('user', JSON.stringify({
         id: ids.userUlid,
         email: 'john.smith@example.com',

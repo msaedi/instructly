@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { mockAuthenticatedPageBackgroundApis } from '../utils/authenticatedPageMocks';
 
 const instructorUser = {
   id: 'inst-user-1',
@@ -17,6 +18,8 @@ const respondJson = (route: Route, body: unknown) =>
   });
 
 async function mockDashboardApis(page: Page) {
+  await mockAuthenticatedPageBackgroundApis(page, { userId: instructorUser.id });
+
   await page.route('**/api/v1/auth/me', async (route) => {
     await respondJson(route, instructorUser);
   });
