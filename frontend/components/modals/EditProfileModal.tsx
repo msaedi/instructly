@@ -11,6 +11,7 @@ import { useServiceCategories, useAllServicesWithInstructors } from '@/hooks/que
 import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import Modal from '@/components/Modal';
 import { fetchWithAuth, API_ENDPOINTS, getErrorMessage } from '@/lib/api';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { logger } from '@/lib/logger';
 import { useInstructorServiceAreas } from '@/hooks/queries/useInstructorServiceAreas';
 import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteInput';
@@ -654,7 +655,7 @@ export default function EditProfileModal({
     if (boroughNeighborhoods[borough]) return boroughNeighborhoods[borough] || [];
     try {
       const url = `${process.env['NEXT_PUBLIC_API_BASE'] || 'http://localhost:8000'}/api/v1/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`;
-      const r = await fetch(url);
+      const r = await fetchWithSessionRefresh(url);
       if (r.ok) {
         const data = (await r.json()) as NeighborhoodsListResponse;
         const list = (data.items || []) as ServiceAreaItem[];

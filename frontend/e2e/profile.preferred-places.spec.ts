@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { isInstructor } from './utils/projects';
+import { mockAuthenticatedPageBackgroundApis } from './utils/authenticatedPageMocks';
 
 const LIVE_MODE = Boolean(process.env.E2E_APP_ORIGIN && process.env.E2E_API_ORIGIN);
 const APP_ORIGIN = process.env.E2E_APP_ORIGIN ?? 'http://localhost:3100';
@@ -38,6 +39,8 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
   };
 
   if (!LIVE_MODE) {
+    await mockAuthenticatedPageBackgroundApis(page, { userId: 'mock-user' });
+
     const state = {
       preferredTeaching: [] as Array<{ address: string; label?: string }>,
       preferredPublic: [] as Array<{ address: string }>,

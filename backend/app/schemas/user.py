@@ -121,8 +121,3 @@ class UserWithPermissionsResponse(UserResponse):
     beta_role: Optional[str] = None
     beta_phase: Optional[str] = None
     beta_invited_by: Optional[str] = None
-
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str

@@ -14,7 +14,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 import jwt
 from sqlalchemy.orm import Session
 
-from app.auth import create_access_token, decode_access_token, get_current_user
+from app.auth import (
+    create_access_token,
+    create_refresh_token,
+    decode_access_token,
+    get_current_user,
+)
 from app.core.config import settings
 from app.database import get_db
 from app.middleware.rate_limiter import RateLimitKeyType, rate_limit
@@ -26,9 +31,8 @@ from app.services.search_history_service import SearchHistoryService
 from app.services.token_blacklist_service import TokenBlacklistService
 from app.services.two_factor_auth_service import TwoFactorAuthService
 from app.utils.cookies import (
-    session_cookie_base_name,
     session_cookie_candidates,
-    set_session_cookie,
+    set_auth_cookies,
 )
 
 from ...api.dependencies.services import get_auth_service
@@ -58,9 +62,9 @@ def _extract_request_token(request: Request) -> str | None:
             return token
     if hasattr(request, "cookies"):
         for cookie_name in session_cookie_candidates():
-            token = request.cookies.get(cookie_name)
-            if token:
-                return token
+            cookie_token: str | None = request.cookies.get(cookie_name)
+            if cookie_token:
+                return cookie_token
     return None
 
 
@@ -313,17 +317,12 @@ def verify_login(
         data={"sub": user.id, "email": user.email},
         expires_delta=access_token_expires,
     )
-    # Write session cookie (API host only)
-    site_mode = settings.site_mode
-    base_cookie_name = session_cookie_base_name(site_mode)
-
-    set_session_cookie(
-        response,
-        base_cookie_name,
-        access_token,
-        max_age=settings.access_token_expire_minutes * 60,
-        domain=settings.session_cookie_domain,
+    refresh_token = create_refresh_token(
+        data={"sub": user.id, "email": user.email},
+        expires_delta=timedelta(days=settings.refresh_token_lifetime_days),
     )
+    # Write session + refresh cookies
+    set_auth_cookies(response, access_token, refresh_token)
 
     guest_session_id = payload.get("guest_session_id")
     if guest_session_id:

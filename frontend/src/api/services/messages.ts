@@ -10,6 +10,7 @@ import type { UseQueryOptions } from '@tanstack/react-query';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/src/api/queryKeys';
 import { withApiBase, withApiBaseForRequest } from '@/lib/apiBase';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import type { components } from '@/features/shared/api/types';
 
 type MessageConfig = components['schemas']['MessageConfigResponse'];
@@ -39,7 +40,7 @@ export function useMessageConfig() {
   return useQuery({
     queryKey: queryKeys.messages.config,
     queryFn: async () => {
-      const res = await fetch(withApiBase('/api/v1/messages/config'), {
+      const res = await fetchWithSessionRefresh(withApiBase('/api/v1/messages/config'), {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -72,7 +73,7 @@ export function useUnreadCount(enabled: boolean = true) {
   return useQuery({
     queryKey: queryKeys.messages.unreadCount,
     queryFn: async () => {
-      const res = await fetch(withApiBase('/api/v1/messages/unread-count'), {
+      const res = await fetchWithSessionRefresh(withApiBase('/api/v1/messages/unread-count'), {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -138,7 +139,7 @@ export function useConversationMessages(
     queryFn: async (): Promise<ConversationMessages> => {
       const params = new URLSearchParams({ limit: String(limit) });
       if (before) params.append('before', before);
-      const response = await fetch(
+      const response = await fetchWithSessionRefresh(
         withApiBase(`/api/v1/conversations/${conversationId}/messages?${params}`),
         {
           method: 'GET',
@@ -203,7 +204,7 @@ export function useMarkMessagesAsRead() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (body: MarkReadPayload): Promise<MarkReadResult> => {
-      const response = await fetch(withApiBaseForRequest('/api/v1/messages/mark-read', 'POST'), {
+      const response = await fetchWithSessionRefresh(withApiBaseForRequest('/api/v1/messages/mark-read', 'POST'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -249,7 +250,7 @@ export function useMarkMessagesAsRead() {
 export function useDeleteMessage() {
   return useMutation({
     mutationFn: async ({ messageId }: { messageId: string }): Promise<DeleteMessageResult> => {
-      const res = await fetch(withApiBaseForRequest(`/api/v1/messages/${messageId}`, 'DELETE'), {
+      const res = await fetchWithSessionRefresh(withApiBaseForRequest(`/api/v1/messages/${messageId}`, 'DELETE'), {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -294,7 +295,7 @@ export function useEditMessage() {
       messageId: string;
       data: EditMessagePayload;
     }): Promise<void> => {
-      const res = await fetch(withApiBaseForRequest(`/api/v1/messages/${messageId}`, 'PATCH'), {
+      const res = await fetchWithSessionRefresh(withApiBaseForRequest(`/api/v1/messages/${messageId}`, 'PATCH'), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -338,7 +339,7 @@ export function useAddReaction() {
       messageId: string;
       data: ReactionPayload;
     }): Promise<void> => {
-      const res = await fetch(withApiBaseForRequest(`/api/v1/messages/${messageId}/reactions`, 'POST'), {
+      const res = await fetchWithSessionRefresh(withApiBaseForRequest(`/api/v1/messages/${messageId}/reactions`, 'POST'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -382,7 +383,7 @@ export function useRemoveReaction() {
       messageId: string;
       data: ReactionPayload;
     }): Promise<void> => {
-      const res = await fetch(withApiBaseForRequest(`/api/v1/messages/${messageId}/reactions`, 'DELETE'), {
+      const res = await fetchWithSessionRefresh(withApiBaseForRequest(`/api/v1/messages/${messageId}/reactions`, 'DELETE'), {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -412,7 +413,7 @@ export function useRemoveReaction() {
  * ```
  */
 export async function fetchMessageConfig() {
-  const response = await fetch(withApiBase('/api/v1/messages/config'), {
+  const response = await fetchWithSessionRefresh(withApiBase('/api/v1/messages/config'), {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -434,7 +435,7 @@ export async function fetchMessageConfig() {
  * ```
  */
 export async function fetchUnreadCount() {
-  const response = await fetch(withApiBase('/api/v1/messages/unread-count'), {
+  const response = await fetchWithSessionRefresh(withApiBase('/api/v1/messages/unread-count'), {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -456,7 +457,7 @@ export async function fetchUnreadCount() {
  * ```
  */
 export async function markMessagesAsReadImperative(body: MarkReadPayload) {
-  const response = await fetch(withApiBaseForRequest('/api/v1/messages/mark-read', 'POST'), {
+  const response = await fetchWithSessionRefresh(withApiBaseForRequest('/api/v1/messages/mark-read', 'POST'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -480,7 +481,7 @@ export async function markMessagesAsReadImperative(body: MarkReadPayload) {
  * ```
  */
 export async function deleteMessageImperative(messageId: string) {
-  const response = await fetch(withApiBaseForRequest(`/api/v1/messages/${messageId}`, 'DELETE'), {
+  const response = await fetchWithSessionRefresh(withApiBaseForRequest(`/api/v1/messages/${messageId}`, 'DELETE'), {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',

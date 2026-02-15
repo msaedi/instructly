@@ -12,6 +12,11 @@ import { usePlatformFees } from '@/hooks/usePlatformConfig';
 import type { ReactNode } from 'react';
 import type { SelectedNeighborhood } from '@/features/shared/components/SelectedNeighborhoodChips';
 
+// Bypass refresh-interceptor so global.fetch mocks work directly.
+jest.mock('@/lib/auth/sessionRefresh', () => ({
+  fetchWithSessionRefresh: (...args: Parameters<typeof fetch>) => fetch(...args),
+}));
+
 // Mock dependencies
 jest.mock('@/lib/api', () => {
   const actual = jest.requireActual('@/lib/api');

@@ -4,6 +4,7 @@
  */
 
 import { withApiBase } from '@/lib/apiBase';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import type {
   RedisHealthResponse,
   RedisStatsResponse,
@@ -67,7 +68,7 @@ export interface ConnectionAudit {
  * Fetch with authentication
  */
 async function fetchWithAuth<T>(endpoint: string, _token: string | null): Promise<T> {
-  const response = await fetch(`${apiBaseUrl()}${endpoint}`, {
+  const response = await fetchWithSessionRefresh(`${apiBaseUrl()}${endpoint}`, {
     headers: {
       'Content-Type': 'application/json',
     },

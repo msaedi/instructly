@@ -77,8 +77,7 @@ test.describe('Student Booking Journey (Mocked)', () => {
         },
         localStorage: {
           bookingIntent: localStorage.getItem('bookingIntent'),
-          accessToken: !!localStorage.getItem('access_token')
-        }
+        },
       };
     });
     console.log('🔍 Page state after loading:', JSON.stringify(debugInfo, null, 2));
@@ -108,8 +107,6 @@ test.describe('Student Booking Journey (Mocked)', () => {
 
     // Set mock authentication before clicking Continue to Booking
     await page.evaluate((ids) => {
-      // Use the correct key that the app expects
-      localStorage.setItem('access_token', 'mock_access_token');
       localStorage.setItem('user', JSON.stringify({
         id: ids.user1,
         email: 'john.smith@example.com',
@@ -177,8 +174,6 @@ test.describe('Student Booking Journey (Mocked)', () => {
       // Verify authentication was successful
       const authCheck = await page.evaluate(() => {
         return {
-          hasToken: !!localStorage.getItem('access_token'),
-          token: localStorage.getItem('access_token'),
           user: localStorage.getItem('user')
         };
       });
@@ -313,8 +308,6 @@ test.describe('Student Booking Journey (Mocked)', () => {
 
     // Set mock authentication before clicking Continue to Booking
     await page.evaluate((ids) => {
-      // Use the correct key that the app expects
-      localStorage.setItem('access_token', 'mock_access_token');
       localStorage.setItem('user', JSON.stringify({
         id: ids.user1,
         email: 'john.smith@example.com',
@@ -382,8 +375,6 @@ test.describe('Student Booking Journey (Mocked)', () => {
       // Verify authentication was successful
       const authCheck = await page.evaluate(() => {
         return {
-          hasToken: !!localStorage.getItem('access_token'),
-          token: localStorage.getItem('access_token'),
           user: localStorage.getItem('user')
         };
       });

@@ -135,7 +135,10 @@ export const normalizeStorageState = (
         throw createError(options?.label, 'HTTP storage state cookies require a domain or url', cookie);
       }
       if (cookie.path !== '/') {
-        throw createError(options?.label, 'HTTP storage state cookies must use path=/', cookie);
+        // Scoped paths (e.g. /api/v1/auth/refresh for the rid cookie) are a
+        // production security measure.  In E2E browser contexts we normalise
+        // to "/" so Playwright sends the cookie on every request.
+        cookie.path = '/';
       }
     } else if (cookie.name.startsWith('__Host-')) {
       if (!cookie.secure) {

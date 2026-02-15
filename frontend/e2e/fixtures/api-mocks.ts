@@ -1,5 +1,6 @@
 import { Page, Route } from '@playwright/test';
 import { testData } from './test-data';
+import { mockAuthenticatedPageBackgroundApis } from '../utils/authenticatedPageMocks';
 
 // Test ULIDs for consistent E2E testing (single source of truth)
 import { TEST_ULIDS } from './ulids';
@@ -197,7 +198,7 @@ export async function mockAuthentication(
             'Access-Control-Allow-Credentials': 'true',
             'Vary': 'Origin',
             // SameSite=Lax works for same-site (localhost:3100 -> localhost:8000)
-            'Set-Cookie': 'access_token=mock_access_token_123456; Path=/; HttpOnly; SameSite=Lax'
+            'Set-Cookie': 'sid=mock_session_token_123456; Path=/; HttpOnly; SameSite=Lax'
           },
           body: JSON.stringify({
             user: {
@@ -258,7 +259,7 @@ export async function mockAuthentication(
               'Access-Control-Allow-Origin': origin,
               'Access-Control-Allow-Credentials': 'true',
               'Vary': 'Origin',
-              'Set-Cookie': 'access_token=mock_access_token_123456; Path=/; HttpOnly; SameSite=Lax'
+              'Set-Cookie': 'sid=mock_session_token_123456; Path=/; HttpOnly; SameSite=Lax'
             },
             body: JSON.stringify({
               user: {
@@ -308,7 +309,7 @@ export async function mockAuthentication(
   await routeContext.route('**/api/v1/auth/me', async (route: Route) => {
     const origin = route.request().headers()['origin'] || 'http://localhost:3100';
     const cookieHeader = route.request().headers()['cookie'] || '';
-    const hasCookie = /(?:^|;\s*)access_token=/.test(cookieHeader);
+    const hasCookie = /(?:^|;\s*)(sid|sid_preview)=/.test(cookieHeader);
     if (options.forceAuth || isAuthenticated || hasCookie) {
       await route.fulfill({
         status: 200,
@@ -348,11 +349,14 @@ export async function mockAuthentication(
 
 export async function setupAllMocks(
   page: Page,
-  context: { route: (pattern: string, handler: (route: Route) => Promise<void>) => Promise<void> } | null = null,
+  context: { route: (pattern: string | RegExp, handler: (route: Route) => Promise<void>) => Promise<void> } | null = null,
   options: MockAuthOptions = {}
 ) {
   // Use broader API pattern matching like in debug test
   const routeContext = context || page;
+
+  // Baseline authenticated-page mocks to prevent refresh/logout cascades from background requests.
+  await mockAuthenticatedPageBackgroundApis(routeContext, { userId: TEST_ULIDS.user1 });
 
   // Set up authentication mocks first
   await mockAuthentication(routeContext, options);

@@ -104,3 +104,63 @@ def test_set_session_cookie_includes_domain(monkeypatch):
     assert name == "sid"
     kwargs = response.set_cookie.call_args.kwargs
     assert kwargs["domain"] == "example.com"
+
+
+def test_refresh_cookie_base_name_modes(monkeypatch):
+    monkeypatch.setattr(
+        cookies,
+        "settings",
+        SimpleNamespace(
+            site_mode="preview",
+            session_cookie_name="sid",
+            session_cookie_samesite="lax",
+            session_cookie_secure=True,
+            session_cookie_domain=".instainstru.com",
+        ),
+    )
+    assert cookies.refresh_cookie_base_name("preview") == "rid_preview"
+    assert cookies.refresh_cookie_base_name("prod") == "rid"
+    assert cookies.refresh_cookie_base_name("local") == "rid"
+
+
+def test_set_refresh_cookie_scoped_path(monkeypatch):
+    response = MagicMock()
+    monkeypatch.setattr(
+        cookies,
+        "settings",
+        SimpleNamespace(
+            site_mode="preview",
+            session_cookie_name="sid",
+            session_cookie_samesite="lax",
+            session_cookie_secure=True,
+            session_cookie_domain=".instainstru.com",
+        ),
+    )
+
+    name = cookies.set_refresh_cookie(response, "refresh-token")
+    assert name == "rid_preview"
+    kwargs = response.set_cookie.call_args.kwargs
+    assert kwargs["path"] == "/api/v1/auth/refresh"
+    assert kwargs["domain"] == ".instainstru.com"
+    assert kwargs["secure"] is True
+
+
+def test_delete_refresh_cookie_scoped_path(monkeypatch):
+    response = MagicMock()
+    monkeypatch.setattr(
+        cookies,
+        "settings",
+        SimpleNamespace(
+            site_mode="preview",
+            session_cookie_name="sid",
+            session_cookie_samesite="lax",
+            session_cookie_secure=True,
+            session_cookie_domain=".instainstru.com",
+        ),
+    )
+
+    name = cookies.delete_refresh_cookie(response)
+    assert name == "rid_preview"
+    kwargs = response.delete_cookie.call_args.kwargs
+    assert kwargs["path"] == "/api/v1/auth/refresh"
+    assert kwargs["domain"] == ".instainstru.com"

@@ -15,6 +15,7 @@ import { logger } from '@/lib/logger';
 import { withApiBaseForRequest } from '@/lib/apiBase';
 import { APP_URL } from '@/lib/publicEnv';
 import { captureFetchError } from '@/lib/sentry';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import type { ApiErrorResponse } from '@/features/shared/api/types';
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -97,7 +98,7 @@ export async function http<T = unknown>(method: HttpMethod, url: string, options
   try {
     // Note: @vercel/otel automatically injects traceparent headers into fetch()
     // calls matching propagateContextUrls (see instrumentation.ts).
-    resp = await fetch(u.toString(), init);
+    resp = await fetchWithSessionRefresh(u.toString(), init);
   } catch (error) {
     captureFetchError({ url: u.toString(), method, error });
     throw error;
@@ -166,7 +167,7 @@ export async function postWithRetry(
 ): Promise<Response> {
   const resolvedUrl = resolveUrl(url, (init.method ?? 'POST').toUpperCase());
   const makeRequest = () =>
-    fetch(resolvedUrl, {
+    fetchWithSessionRefresh(resolvedUrl, {
       credentials: init.credentials ?? 'include',
       ...init,
       method: init.method ?? 'POST',

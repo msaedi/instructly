@@ -1029,8 +1029,8 @@ def upgrade() -> None:
     )
     with op.get_context().autocommit_block():
         op.execute(
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_background_jobs_pending "
-            "ON background_jobs (status, available_at) WHERE status = 'pending'"
+            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_background_jobs_queued "
+            "ON background_jobs (available_at) WHERE status = 'queued'"
         )
 
     op.add_column(
@@ -1434,7 +1434,7 @@ def downgrade() -> None:
     op.drop_index("ix_background_jobs_type_status", table_name="background_jobs")
     op.drop_index("ix_background_jobs_status_available", table_name="background_jobs")
     with op.get_context().autocommit_block():
-        op.execute("DROP INDEX CONCURRENTLY IF EXISTS idx_background_jobs_pending")
+        op.execute("DROP INDEX CONCURRENTLY IF EXISTS idx_background_jobs_queued")
     op.drop_constraint("ck_background_jobs_status", "background_jobs", type_="check")
     op.drop_table("background_jobs")
 

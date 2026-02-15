@@ -94,6 +94,44 @@ class TokenBlacklistService:
             logger.error("[TOKEN-BL] Failed to revoke token jti=%s: %s", jti, exc, exc_info=True)
             return False
 
+    async def claim_and_revoke(self, jti: str, exp: int) -> bool:
+        """Atomically claim a JTI for refresh rotation.
+
+        Uses SET NX (set-if-not-exists) so exactly one concurrent caller wins.
+        Returns True if this caller is the first to claim the JTI, False if
+        already claimed or on Redis error (fail-closed).
+        """
+        if not jti:
+            return False
+
+        try:
+            exp_ts = int(exp)
+        except (TypeError, ValueError):
+            logger.warning("[TOKEN-BL] Invalid exp claim for claim_and_revoke: %r", exp)
+            return False
+
+        ttl_seconds = exp_ts - int(time.time())
+        if ttl_seconds <= 0:
+            return False
+
+        try:
+            redis = await self._get_redis_client()
+            if redis is None:
+                logger.warning(
+                    "[TOKEN-BL] Redis unavailable, claim_and_revoke fail-closed for jti=%s", jti
+                )
+                return False
+            result = await redis.set(self._key(jti), "1", nx=True, ex=ttl_seconds)
+            return bool(result)
+        except _SYNC_BRIDGE_FALLBACK_ERRORS as exc:
+            logger.error(
+                "[TOKEN-BL] claim_and_revoke failed for jti=%s (fail-closed): %s",
+                jti,
+                exc,
+                exc_info=True,
+            )
+            return False
+
     async def is_revoked(self, jti: str) -> bool:
         """Return True when jti is blacklisted (fail-closed on Redis errors)."""
         if not jti:

@@ -23,8 +23,8 @@ test.describe('Scheduled Payment Booking (>24h)', () => {
   test.beforeEach(async ({ page, context }) => {
     await context.addCookies([
       {
-        name: 'access_token',
-        value: 'mock_access_token_123456',
+        name: 'sid',
+        value: 'mock_session_token_123456',
         domain: 'localhost',
         path: '/',
       },

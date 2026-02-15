@@ -173,7 +173,20 @@ class Settings(BaseSettings):
         description="Secret key for JWT tokens",
     )  # type: ignore[assignment]  # defaults to ellipsis outside CI; SecretStr default provided for CI runs
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 720  # 12 hours
+    access_token_expire_minutes: int = Field(
+        default=720,  # 12 hours
+        validation_alias=AliasChoices(
+            "ACCESS_TOKEN_EXPIRE_MINUTES",
+            "ACCESS_TOKEN_LIFETIME_MINUTES",
+            "access_token_expire_minutes",
+        ),
+        description="Access token lifetime in minutes",
+    )
+    refresh_token_lifetime_days: int = Field(
+        default=7,
+        alias="REFRESH_TOKEN_LIFETIME_DAYS",
+        description="Refresh token lifetime in days",
+    )
     # NOTE: Server-side revocation via Redis blacklist (AUTH-VULN-02 fix) mitigates
     # the risk of long-lived tokens. Consider reducing to 1-2 hours with a refresh
     # token flow if tighter session control is needed in the future.

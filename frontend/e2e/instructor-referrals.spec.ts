@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { isInstructor } from './utils/projects';
 import { bypassGateIfPresent } from './utils/gate';
+import { mockAuthenticatedPageBackgroundApis } from './utils/authenticatedPageMocks';
 
 type NavShare = Navigator & {
   share?: (data?: ShareData) => Promise<void>;
@@ -83,6 +84,9 @@ test.beforeEach(async ({ page, context }) => {
     localStorage.setItem('instructor_referral_popup_dismissed', 'true');
   });
 
+  // Register baseline auth-related background mocks first.
+  // Spec-specific route stubs below intentionally override these when needed.
+  await mockAuthenticatedPageBackgroundApis(page, { userId: instructorUser.id });
   await mockDashboardApis(page);
 });
 

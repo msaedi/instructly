@@ -184,14 +184,15 @@ async def test_login_slot_wraps_only_password_verification(monkeypatch: pytest.M
     monkeypatch.setattr(auth_routes, "record_login_result", lambda res: events.append(f"record_{res}"))
     monkeypatch.setattr(auth_routes, "record_captcha_event", lambda res: events.append(f"captcha_{res}"))
     monkeypatch.setattr(auth_routes, "create_access_token", lambda *a, **k: "token")
-    monkeypatch.setattr(auth_routes, "set_session_cookie", lambda *a, **k: None)
-    monkeypatch.setattr(auth_routes, "session_cookie_base_name", lambda *a, **k: "sid")
+    monkeypatch.setattr(auth_routes, "create_refresh_token", lambda *a, **k: "refresh-token")
+    monkeypatch.setattr(auth_routes, "set_auth_cookies", lambda *a, **k: None)
     monkeypatch.setattr(
         auth_routes,
         "settings",
         types.SimpleNamespace(
             site_mode="local",
             access_token_expire_minutes=30,
+            refresh_token_lifetime_days=7,
             session_cookie_domain=None,
             preview_api_domain="preview.example.com",
             prod_api_domain="prod.example.com",
@@ -284,14 +285,15 @@ async def test_login_with_session_slot_scope(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setattr(auth_routes, "record_login_result", lambda res: events.append(f"record_{res}"))
     monkeypatch.setattr(auth_routes, "record_captcha_event", lambda res: events.append(f"captcha_{res}"))
     monkeypatch.setattr(auth_routes, "create_access_token", lambda *a, **k: "token")
-    monkeypatch.setattr(auth_routes, "set_session_cookie", lambda *a, **k: None)
-    monkeypatch.setattr(auth_routes, "session_cookie_base_name", lambda *a, **k: "sid")
+    monkeypatch.setattr(auth_routes, "create_refresh_token", lambda *a, **k: "refresh-token")
+    monkeypatch.setattr(auth_routes, "set_auth_cookies", lambda *a, **k: None)
     monkeypatch.setattr(
         auth_routes,
         "settings",
         types.SimpleNamespace(
             site_mode="local",
             access_token_expire_minutes=30,
+            refresh_token_lifetime_days=7,
             session_cookie_domain=None,
             preview_api_domain="preview.example.com",
             prod_api_domain="prod.example.com",

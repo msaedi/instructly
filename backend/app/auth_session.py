@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Optional
 from fastapi import Request
 from sqlalchemy.orm import Session
 
-from app.auth import decode_access_token
+from app.auth import decode_access_token, is_access_token_payload
 from app.monitoring.prometheus_metrics import prometheus_metrics
 from app.repositories.user_repository import UserRepository
 from app.services.token_blacklist_service import TokenBlacklistService
@@ -58,6 +58,9 @@ def _decode_token_claims(token: str) -> tuple[str, int | None] | None:
         return None
     except Exception:
         logger.debug("Token decode failed in session auth helper", exc_info=True)
+        return None
+
+    if not is_access_token_payload(payload):
         return None
 
     jti_obj = payload.get("jti")

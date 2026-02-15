@@ -46,7 +46,7 @@ from ...services.email import EmailService
 from ...services.instructor_service import InstructorService
 from ...services.token_blacklist_service import TokenBlacklistService
 from ...utils.bitset import SLOTS_PER_DAY
-from ...utils.cookies import session_cookie_candidates
+from ...utils.cookies import delete_refresh_cookie, session_cookie_candidates
 from ...utils.time_helpers import string_to_time
 from ...utils.time_utils import time_to_minutes
 
@@ -249,6 +249,7 @@ def public_logout(
     session_names = session_cookie_candidates(settings.site_mode)
     if session_names:
         _delete_session_cookie(session_names[0], domain=domain)
+    delete_refresh_cookie(resp, domain=domain)
 
     if len(session_names) > 1:
         for legacy_name in session_names[1:]:

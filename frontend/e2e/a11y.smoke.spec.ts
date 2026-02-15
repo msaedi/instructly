@@ -3,6 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 import fs from 'fs';
 import path from 'path';
 import { bypassGateIfPresent } from './utils/gate';
+import { mockPublicPageBaselineApis } from './utils/publicPageMocks';
 
 function parseImpacts(env?: string) {
   return (env ?? 'critical')
@@ -42,6 +43,7 @@ test('home a11y smoke (logs by default; fails only when A11Y_STRICT=1)', async (
   const impacts = parseImpacts(process.env.A11Y_IMPACTS);
   const baseline = loadBaseline();
 
+  await mockPublicPageBaselineApis(page);
   await bypassGateIfPresent(page, base, process.env.GATE_CODE);
   await page.goto(base + '/', { waitUntil: 'domcontentloaded' });
   await page.waitForLoadState('domcontentloaded');

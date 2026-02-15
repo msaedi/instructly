@@ -35,6 +35,7 @@ settings: RateLimitSettings = RateLimitSettings()
 # bucket policies (will be extended in PR-2)
 BUCKETS: Dict[str, Dict[str, Any]] = {
     "auth_bootstrap": dict(rate_per_min=100, burst=20, window_s=60),
+    "auth_refresh": dict(rate_per_min=10, burst=2, window_s=60),
     "read": dict(rate_per_min=120, burst=20, window_s=60),
     # Messaging uses the "write" bucket; relax to 30/min with a burst of 5 to prevent 429s during normal chat use
     "write": dict(rate_per_min=30, burst=10, window_s=60),
@@ -55,6 +56,7 @@ BUCKET_SHADOW_OVERRIDES: dict[str, bool] = {
     # Additional per-bucket toggles for PR-7
     "read": os.getenv("RATE_LIMIT_SHADOW_READ", "").lower() == "true",
     "auth_bootstrap": os.getenv("RATE_LIMIT_SHADOW_AUTH", "").lower() == "true",
+    "auth_refresh": os.getenv("RATE_LIMIT_SHADOW_AUTH_REFRESH", "").lower() == "true",
 }
 
 
@@ -121,6 +123,7 @@ def reload_config(cache_ttl_s: int = 30) -> Dict[str, Any]:
         "conv_msg": os.getenv("RATE_LIMIT_SHADOW_CONV_MSG", "").lower() == "true",
         "read": os.getenv("RATE_LIMIT_SHADOW_READ", "").lower() == "true",
         "auth_bootstrap": os.getenv("RATE_LIMIT_SHADOW_AUTH", "").lower() == "true",
+        "auth_refresh": os.getenv("RATE_LIMIT_SHADOW_AUTH_REFRESH", "").lower() == "true",
     }
 
     env_overrides = _load_overrides_from_env()
@@ -156,6 +159,7 @@ async def reload_config_async(cache_ttl_s: int = 30) -> Dict[str, Any]:
         "conv_msg": os.getenv("RATE_LIMIT_SHADOW_CONV_MSG", "").lower() == "true",
         "read": os.getenv("RATE_LIMIT_SHADOW_READ", "").lower() == "true",
         "auth_bootstrap": os.getenv("RATE_LIMIT_SHADOW_AUTH", "").lower() == "true",
+        "auth_refresh": os.getenv("RATE_LIMIT_SHADOW_AUTH_REFRESH", "").lower() == "true",
     }
 
     env_overrides = _load_overrides_from_env()

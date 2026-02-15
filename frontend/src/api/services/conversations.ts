@@ -9,6 +9,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { withApiBase, withApiBaseForRequest } from '@/lib/apiBase';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { logger } from '@/lib/logger';
 import { toast } from 'sonner';
 import type { components, operations } from '@/features/shared/api/types';
@@ -78,7 +79,7 @@ export async function listConversations(
     ? `/api/v1/conversations?${queryString}`
     : '/api/v1/conversations';
 
-  const response = await fetch(withApiBase(url), {
+  const response = await fetchWithSessionRefresh(withApiBase(url), {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -95,7 +96,7 @@ export async function listConversations(
  * Get details for a single conversation.
  */
 export async function getConversation(conversationId: string): Promise<ConversationDetails> {
-  const response = await fetch(withApiBase(`/api/v1/conversations/${conversationId}`), {
+  const response = await fetchWithSessionRefresh(withApiBase(`/api/v1/conversations/${conversationId}`), {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -121,7 +122,7 @@ export async function createConversation(
     ...(initialMessage !== undefined ? { initial_message: initialMessage } : {}),
   };
 
-  const response = await fetch(withApiBaseForRequest('/api/v1/conversations', 'POST'), {
+  const response = await fetchWithSessionRefresh(withApiBaseForRequest('/api/v1/conversations', 'POST'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -159,7 +160,7 @@ export async function getMessages(
     ? `/api/v1/conversations/${conversationId}/messages?${queryString}`
     : `/api/v1/conversations/${conversationId}/messages`;
 
-  const response = await fetch(withApiBase(url), {
+  const response = await fetchWithSessionRefresh(withApiBase(url), {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -185,7 +186,7 @@ export async function sendMessage(
     ...(bookingId !== undefined ? { booking_id: bookingId } : {}),
   };
 
-  const response = await fetch(withApiBaseForRequest(`/api/v1/conversations/${conversationId}/messages`, 'POST'), {
+  const response = await fetchWithSessionRefresh(withApiBaseForRequest(`/api/v1/conversations/${conversationId}/messages`, 'POST'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -208,7 +209,7 @@ export async function sendTypingIndicator(
 ): Promise<void> {
   const payload: TypingPayload = { is_typing: isTyping };
 
-  await fetch(withApiBaseForRequest(`/api/v1/conversations/${conversationId}/typing`, 'POST'), {
+  await fetchWithSessionRefresh(withApiBaseForRequest(`/api/v1/conversations/${conversationId}/typing`, 'POST'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -226,7 +227,7 @@ export async function updateConversationState(
 ): Promise<void> {
   const payload: UpdateConversationStatePayload = { state };
 
-  const response = await fetch(withApiBaseForRequest(`/api/v1/conversations/${conversationId}/state`, 'PUT'), {
+  const response = await fetchWithSessionRefresh(withApiBaseForRequest(`/api/v1/conversations/${conversationId}/state`, 'PUT'), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',

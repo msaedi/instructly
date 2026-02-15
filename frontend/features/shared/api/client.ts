@@ -10,6 +10,7 @@ import { getSessionId, refreshSession } from '@/lib/sessionTracking';
 import { withApiBaseForRequest } from '@/lib/apiBase';
 import { NEXT_PUBLIC_APP_URL as APP_URL } from '@/lib/env';
 import { logger } from '@/lib/logger';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import type {
   AgeGroup,
   ApiErrorResponse,
@@ -210,7 +211,7 @@ export async function cleanFetch<T>(
   }
 
   try {
-    const response = await fetch(url.toString(), {
+    const response = await fetchWithSessionRefresh(url.toString(), {
       ...fetchOptions,
       headers: {
         'Content-Type': 'application/json',

@@ -13,6 +13,7 @@ import type { components } from '@/features/shared/api/types';
 import { captureDeviceContext } from '@/lib/deviceContext';
 
 import { withApiBase } from '@/lib/apiBase';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { httpGet, httpPost, postWithRetry } from '@/lib/http';
 import { env } from '@/lib/env';
 
@@ -355,7 +356,7 @@ export async function trackSearchInteraction(
  */
 export async function deleteSearch(searchId: string, isAuthenticated: boolean): Promise<boolean> {
   try {
-    const response = await fetch(buildUrl(`${SEARCH_HISTORY_BASE_PATH}/${searchId}`), {
+    const response = await fetchWithSessionRefresh(buildUrl(`${SEARCH_HISTORY_BASE_PATH}/${searchId}`), {
       method: 'DELETE',
       headers: getHeaders(isAuthenticated),
     });

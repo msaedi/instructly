@@ -1,6 +1,7 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { addDays, format } from 'date-fns';
 import { isAnon } from '../utils/projects';
+import { mockAuthenticatedPageBackgroundApis } from '../utils/authenticatedPageMocks';
 
 // Test data
 const studentCredentials = {
@@ -30,10 +31,7 @@ const completedLesson = {
 
 // Mock all necessary APIs before any page navigation
 async function setupMocksAndAuth(page: Page) {
-  // Set auth token in localStorage BEFORE any navigation
-  await page.addInitScript(() => {
-    localStorage.setItem('access_token', 'mock_access_token');
-  });
+  await mockAuthenticatedPageBackgroundApis(page, { userId: '01J5TESTUSER00000000000001' });
 
   // Mock auth endpoint
   await page.route('**/api/v1/auth/me', async (route) => {
@@ -1101,8 +1099,6 @@ test.describe('Error Handling', () => {
     });
 
     test('should redirect to login when unauthorized', async ({ page }) => {
-      // Ensure no token is set
-      await page.addInitScript(() => localStorage.removeItem('access_token'));
       await page.goto('/student/lessons');
       // Accept either redirect to login or guarded My Lessons header
       const redirectedToLogin = await page
@@ -1119,10 +1115,7 @@ test.describe('Error Handling', () => {
   });
 
   test('should show error state when API fails', async ({ page }) => {
-    // Set up auth first
-    await page.addInitScript(() => {
-      localStorage.setItem('access_token', 'mock_access_token');
-    });
+    await mockAuthenticatedPageBackgroundApis(page, { userId: '01J5TESTUSER00000000000001' });
 
     const authPattern = '**/api/v1/auth/me';
     const historyPattern = '**/api/v1/bookings?*exclude_future_confirmed=true*';
@@ -1177,6 +1170,9 @@ test.describe('Error Handling', () => {
   });
 
   test('should return to My Lessons after login', async ({ page }) => {
+    await mockAuthenticatedPageBackgroundApis(page, { userId: '01J5TESTUSER00000000000001' });
+    let loggedIn = false;
+
     // Set up login mock with proper response structure - handle both regular and session login
     const loginHandler = async (route: Route) => {
       const request = route.request();
@@ -1199,6 +1195,7 @@ test.describe('Error Handling', () => {
 
       // Check credentials match what we expect
       if (email === studentCredentials.email && password === studentCredentials.password) {
+        loggedIn = true;
         const origin = request.headers()['origin'] || 'http://localhost:3100';
         await route.fulfill({
           status: 200,
@@ -1207,7 +1204,7 @@ test.describe('Error Handling', () => {
             'Access-Control-Allow-Origin': origin,
             'Access-Control-Allow-Credentials': 'true',
             'Vary': 'Origin',
-            'Set-Cookie': 'access_token=mock_access_token; Path=/; HttpOnly; SameSite=Lax'
+            'Set-Cookie': 'sid=mock_session_token; Path=/; HttpOnly; SameSite=Lax'
           },
           body: JSON.stringify({
             user: {
@@ -1235,12 +1232,7 @@ test.describe('Error Handling', () => {
 
     // Mock auth endpoint to success after we set the token
     await page.route('**/api/v1/auth/me', async (route) => {
-      const headers = route.request().headers();
-      const authHeader = headers['authorization'] || '';
-      const cookieHeader = headers['cookie'] || '';
-      const hasBearer = authHeader.includes('Bearer mock_access_token');
-      const hasCookie = /(?:^|;\s*)access_token=mock_access_token(?:;|$)/.test(cookieHeader);
-      if (hasBearer || hasCookie) {
+      if (loggedIn) {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',

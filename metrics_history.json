@@ -32912,5 +32912,107 @@
         }
       }
     }
+  },
+  {
+    "timestamp": "2026-02-15T08:30:03.882807+00:00",
+    "total_lines": 677739,
+    "total_files": 2610,
+    "backend_lines": 386394,
+    "frontend_lines": 291345,
+    "git_commits": 1572,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 215,
+          "lines": 32671
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6744
+        },
+        "Tasks/Celery": {
+          "files": 60,
+          "lines": 17538
+        },
+        "Core/Config": {
+          "files": 38,
+          "lines": 7757
+        },
+        "Repositories": {
+          "files": 142,
+          "lines": 38336
+        },
+        "Models": {
+          "files": 60,
+          "lines": 7955
+        },
+        "Schemas": {
+          "files": 93,
+          "lines": 11822
+        },
+        "Routes/APIs": {
+          "files": 212,
+          "lines": 50615
+        },
+        "Services": {
+          "files": 387,
+          "lines": 144425
+        },
+        "Unit Tests": {
+          "files": 334,
+          "lines": 81276
+        },
+        "Integration Tests": {
+          "files": 230,
+          "lines": 51557
+        },
+        "Route Tests": {
+          "files": 107,
+          "lines": 27110
+        }
+      },
+      "frontend": {
+        "Types": {
+          "files": 20,
+          "lines": 2932
+        },
+        "Pages": {
+          "files": 149,
+          "lines": 37297
+        },
+        "Utils": {
+          "files": 28,
+          "lines": 4001
+        },
+        "Unit Tests": {
+          "files": 327,
+          "lines": 127979
+        },
+        "Hooks": {
+          "files": 160,
+          "lines": 36718
+        },
+        "API/Lib": {
+          "files": 69,
+          "lines": 8826
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 7500
+        },
+        "Features": {
+          "files": 189,
+          "lines": 69382
+        },
+        "Components": {
+          "files": 334,
+          "lines": 116591
+        },
+        "Public": {
+          "files": 4,
+          "lines": 943
+        }
+      }
+    }
   }
 ]

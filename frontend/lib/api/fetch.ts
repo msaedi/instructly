@@ -11,6 +11,7 @@
  * No manual header injection is needed.
  */
 import { withApiBaseForRequest } from '@/lib/apiBase';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { logger } from '@/lib/logger';
 import { parseProblem, normalizeProblem, type Problem } from '@/lib/errors/problem';
 
@@ -69,7 +70,7 @@ export async function fetchJson<T = unknown>(endpoint: string, init: FetchOption
   const run = async () => {
     // Note: @vercel/otel automatically injects traceparent headers into fetch()
     // calls matching propagateContextUrls (see instrumentation.ts).
-    const res = await fetch(url, { credentials: 'include', ...init });
+    const res = await fetchWithSessionRefresh(url, { credentials: 'include', ...init });
     if (res.status === 429) {
       if (init.financial) return res;
       const retryAfterHeader = res.headers.get('Retry-After');
@@ -78,7 +79,7 @@ export async function fetchJson<T = unknown>(endpoint: string, init: FetchOption
       const waitMs = jitter(base);
       init.onRateLimit?.({ endpoint, attempt: 1, retryAfterMs: waitMs });
       await sleep(waitMs);
-      return fetch(url, { credentials: 'include', ...init });
+      return fetchWithSessionRefresh(url, { credentials: 'include', ...init });
     }
     return res;
   };
@@ -99,7 +100,7 @@ export async function fetchJson<T = unknown>(endpoint: string, init: FetchOption
         const waitMs = jitter(base);
         init.onRateLimit?.( { endpoint, attempt, retryAfterMs: waitMs } );
         await sleep(waitMs);
-        res = await fetch(url, { credentials: 'include', ...init });
+        res = await fetchWithSessionRefresh(url, { credentials: 'include', ...init });
       }
 
       logger.timeEnd(timer);

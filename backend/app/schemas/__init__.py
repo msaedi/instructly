@@ -111,7 +111,6 @@ from .security import PasswordChangeRequest, PasswordChangeResponse
 
 # User and authentication schemas
 from .user import (
-    Token,
     UserCreate,
     UserLogin,
     UserResponse,
@@ -126,7 +125,6 @@ __all__ = [
     "UserResponse",
     "UserUpdate",
     "UserWithPermissionsResponse",
-    "Token",
     # Security
     "PasswordChangeRequest",
     "PasswordChangeResponse",

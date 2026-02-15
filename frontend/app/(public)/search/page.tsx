@@ -15,6 +15,7 @@ import TimeSelectionModal from '@/features/student/booking/components/TimeSelect
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { recordSearch } from '@/lib/searchTracking';
 import { withApiBase } from '@/lib/apiBase';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { SearchType } from '@/types/enums';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { useInstructorSearchInfinite } from '@/hooks/queries/useInstructorSearch';
@@ -1194,7 +1195,7 @@ function SearchPageInner() {
           action,
         });
         const url = withApiBase(`/api/v1/search/click?${qs.toString()}`);
-        void fetch(url, { method: 'POST', credentials: 'include', keepalive: true });
+        void fetchWithSessionRefresh(url, { method: 'POST', credentials: 'include', keepalive: true });
       } catch {
         // best-effort: never block navigation
       }

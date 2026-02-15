@@ -12,6 +12,7 @@ import { forwardRef, useCallback, useEffect, useId, useMemo, useRef, useState } 
 
 import { cn } from '@/lib/utils';
 import { withApiBase } from '@/lib/apiBase';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import type { components } from '@/features/shared/api/types';
 
 type PlaceSuggestion = components['schemas']['PlaceSuggestion'];
@@ -131,7 +132,7 @@ export const PlacesAutocompleteInput = forwardRef<HTMLInputElement, PlacesAutoco
             params.set('scope', suggestionScope);
           }
           const url = withApiBase(`/api/v1/addresses/places/autocomplete?${params.toString()}`);
-          const response = await fetch(url, {
+          const response = await fetchWithSessionRefresh(url, {
             method: 'GET',
             credentials: 'include',
             signal: abortController.signal,

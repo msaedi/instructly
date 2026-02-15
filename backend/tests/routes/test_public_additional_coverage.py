@@ -168,6 +168,11 @@ def test_public_logout_handles_host_cookie(monkeypatch):
     )
     response = public_routes.public_logout(Response(), _make_request())
     assert response.status_code == 204
+    set_cookie_headers = response.headers.getlist("set-cookie")
+    assert any(
+        "/api/v1/auth/refresh" in header and "rid_preview=" in header
+        for header in set_cookie_headers
+    )
 
 
 def test_public_logout_logs_audit_when_session_token_present(monkeypatch):

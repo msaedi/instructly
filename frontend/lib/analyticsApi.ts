@@ -4,6 +4,7 @@
 
 import { logger } from '@/lib/logger';
 import { withApiBase } from '@/lib/apiBase';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import type {
   CodebaseCategoryStats,
   CodebaseSection,
@@ -94,7 +95,7 @@ async function fetchWithAuth<T>(endpoint: string, _token: string | null | undefi
   const base = apiBaseUrl();
   const url = `${base}${endpoint}`;
   logger.info(`Analytics API GET ${endpoint}`, { base });
-  const response = await fetch(url, {
+  const response = await fetchWithSessionRefresh(url, {
     headers: {
       'Content-Type': 'application/json',
     },

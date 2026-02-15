@@ -36,7 +36,7 @@ from typing import Optional
 from fastapi import Depends, HTTPException, Query, Request, status
 from jwt import InvalidIssuerError, PyJWTError
 
-from .auth import decode_access_token, oauth2_scheme_optional
+from .auth import decode_access_token, is_access_token_payload, oauth2_scheme_optional
 from .core.auth_cache import (
     create_transient_user,
     lookup_user_by_id_nonblocking,
@@ -151,6 +151,9 @@ async def get_current_user_sse(
 
     try:
         payload = decode_access_token(token)
+        if not is_access_token_payload(payload):
+            raise credentials_exception
+
         jti_obj = payload.get("jti")
         jti = jti_obj if isinstance(jti_obj, str) else None
         if not jti:

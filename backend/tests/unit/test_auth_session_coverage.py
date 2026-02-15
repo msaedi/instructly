@@ -12,7 +12,7 @@ def test_decode_subject_returns_subject(monkeypatch):
     monkeypatch.setattr(
         auth_session,
         "decode_access_token",
-        lambda token: {"sub": user_id, "jti": "test-jti", "iat": 123},
+        lambda token: {"sub": user_id, "jti": "test-jti", "iat": 123, "typ": "access"},
     )
     monkeypatch.setattr(
         auth_session.TokenBlacklistService,
@@ -47,7 +47,12 @@ def test_decode_subject_rejects_revoked_token(monkeypatch):
     monkeypatch.setattr(
         auth_session,
         "decode_access_token",
-        lambda token: {"sub": "01ARZ3NDEKTSV4RRFFQ69G5FAV", "jti": "test-jti", "iat": 123},
+        lambda token: {
+            "sub": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "jti": "test-jti",
+            "iat": 123,
+            "typ": "access",
+        },
     )
     monkeypatch.setattr(
         auth_session.TokenBlacklistService,
@@ -68,7 +73,7 @@ def test_decode_subject_rejects_missing_jti_records_metric(monkeypatch):
     monkeypatch.setattr(
         auth_session,
         "decode_access_token",
-        lambda token: {"sub": "01ARZ3NDEKTSV4RRFFQ69G5FAV"},
+        lambda token: {"sub": "01ARZ3NDEKTSV4RRFFQ69G5FAV", "typ": "access"},
     )
     monkeypatch.setattr(
         auth_session.prometheus_metrics,
@@ -84,7 +89,7 @@ def test_decode_subject_missing_jti_metric_error_is_non_fatal(monkeypatch):
     monkeypatch.setattr(
         auth_session,
         "decode_access_token",
-        lambda token: {"sub": "01ARZ3NDEKTSV4RRFFQ69G5FAV"},
+        lambda token: {"sub": "01ARZ3NDEKTSV4RRFFQ69G5FAV", "typ": "access"},
     )
     monkeypatch.setattr(
         auth_session.prometheus_metrics,
@@ -99,7 +104,7 @@ def test_decode_subject_blacklist_metric_error_is_non_fatal(monkeypatch):
     monkeypatch.setattr(
         auth_session,
         "decode_access_token",
-        lambda token: {"sub": "01ARZ3NDEKTSV4RRFFQ69G5FAV", "jti": "test-jti"},
+        lambda token: {"sub": "01ARZ3NDEKTSV4RRFFQ69G5FAV", "jti": "test-jti", "typ": "access"},
     )
     monkeypatch.setattr(
         auth_session.TokenBlacklistService,
@@ -119,7 +124,7 @@ def test_decode_subject_blacklist_exception_fail_closed(monkeypatch):
     monkeypatch.setattr(
         auth_session,
         "decode_access_token",
-        lambda token: {"sub": "01ARZ3NDEKTSV4RRFFQ69G5FAV", "jti": "test-jti"},
+        lambda token: {"sub": "01ARZ3NDEKTSV4RRFFQ69G5FAV", "jti": "test-jti", "typ": "access"},
     )
 
     def _boom(_self, _jti):
@@ -134,7 +139,7 @@ def test_decode_subject_rejects_non_string_subject(monkeypatch):
     monkeypatch.setattr(
         auth_session,
         "decode_access_token",
-        lambda token: {"sub": 123, "jti": "test-jti"},
+        lambda token: {"sub": 123, "jti": "test-jti", "typ": "access"},
     )
     monkeypatch.setattr(
         auth_session.TokenBlacklistService,
@@ -142,6 +147,38 @@ def test_decode_subject_rejects_non_string_subject(monkeypatch):
         lambda self, _jti: False,
     )
 
+    assert auth_session._decode_subject("token") is None
+
+
+def test_decode_subject_rejects_refresh_token_type(monkeypatch):
+    monkeypatch.setattr(
+        auth_session,
+        "decode_access_token",
+        lambda token: {
+            "sub": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "jti": "test-jti",
+            "typ": "refresh",
+        },
+    )
+    monkeypatch.setattr(
+        auth_session.TokenBlacklistService,
+        "is_revoked_sync",
+        lambda self, _jti: False,
+    )
+    assert auth_session._decode_subject("token") is None
+
+
+def test_decode_subject_rejects_typeless_token(monkeypatch):
+    monkeypatch.setattr(
+        auth_session,
+        "decode_access_token",
+        lambda token: {"sub": "01ARZ3NDEKTSV4RRFFQ69G5FAV", "jti": "test-jti"},
+    )
+    monkeypatch.setattr(
+        auth_session.TokenBlacklistService,
+        "is_revoked_sync",
+        lambda self, _jti: False,
+    )
     assert auth_session._decode_subject("token") is None
 
 
@@ -158,7 +195,12 @@ def test_decode_subject_parses_iat_variants(monkeypatch, iat_value, expected_iat
     monkeypatch.setattr(
         auth_session,
         "decode_access_token",
-        lambda token: {"sub": "01ARZ3NDEKTSV4RRFFQ69G5FAV", "jti": "test-jti", "iat": iat_value},
+        lambda token: {
+            "sub": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "jti": "test-jti",
+            "iat": iat_value,
+            "typ": "access",
+        },
     )
     monkeypatch.setattr(
         auth_session.TokenBlacklistService,

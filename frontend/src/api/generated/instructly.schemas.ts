@@ -8120,6 +8120,10 @@ export interface SessionInvalidationResponse {
   message: string;
 }
 
+export interface SessionRefreshResponse {
+  message: string;
+}
+
 export type SignedUploadResponseHeaders = { [key: string]: string };
 
 /**

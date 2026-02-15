@@ -38,6 +38,7 @@ import { useInstructorEarnings } from '@/hooks/queries/useInstructorEarnings';
 import { useStripeConnectStatus } from '@/hooks/queries/useStripeConnectStatus';
 import { useQuery } from '@tanstack/react-query';
 import { withApiBase } from '@/lib/apiBase';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import type { ConversationListResponse } from '@/types/conversation';
 import { FoundingBadge } from '@/components/ui/FoundingBadge';
 import type { ApiErrorResponse, components } from '@/features/shared/api/types';
@@ -208,7 +209,7 @@ export default function InstructorDashboardNew() {
   const { data: conversationList } = useQuery({
     queryKey: ['conversations', 'dashboard', 'active'],
     queryFn: async () => {
-      const response = await fetch(
+      const response = await fetchWithSessionRefresh(
         withApiBase('/api/v1/conversations?state=active&limit=50'),
         {
           method: 'GET',

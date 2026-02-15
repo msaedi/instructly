@@ -29,9 +29,11 @@ from ...api.dependencies.services import get_auth_service, get_cache_service_dep
 from ...auth import (
     DUMMY_HASH_FOR_TIMING_ATTACK,
     create_access_token,
+    create_refresh_token,
     create_temp_token,
     decode_access_token,
     get_current_user,
+    is_refresh_token_payload,
     verify_password_async,
 )
 from ...core.config import settings
@@ -48,12 +50,18 @@ from ...core.login_protection import (
 from ...database import get_db
 from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ...models.user import User
+from ...ratelimit.dependency import rate_limit as bucket_rate_limit
 from ...repositories.instructor_profile_repository import InstructorProfileRepository
 from ...schemas.auth_responses import (
     AuthUserResponse,
     AuthUserWithPermissionsResponse,
 )
-from ...schemas.security import LoginResponse, PasswordChangeRequest, PasswordChangeResponse
+from ...schemas.security import (
+    LoginResponse,
+    PasswordChangeRequest,
+    PasswordChangeResponse,
+    SessionRefreshResponse,
+)
 from ...schemas.user import (
     UserCreate,
     UserLogin,
@@ -67,12 +75,13 @@ from ...services.permission_service import PermissionService
 from ...services.search_history_service import SearchHistoryService
 from ...services.token_blacklist_service import TokenBlacklistService
 from ...utils.cookies import (
-    session_cookie_base_name,
+    refresh_cookie_base_name,
     session_cookie_candidates,
-    set_session_cookie,
+    set_auth_cookies,
 )
 from ...utils.invite_cookie import invite_cookie_name
 from ...utils.strict import model_filter
+from ...utils.token_utils import parse_epoch_claim, parse_token_iat
 
 logger = logging.getLogger(__name__)
 
@@ -569,23 +578,18 @@ async def login(
         expires_delta=access_token_expires,
         beta_claims=beta_claims,  # Pre-fetched in thread pool, no blocking DB call
     )
+    refresh_token = create_refresh_token(
+        data=_claims,
+        expires_delta=timedelta(days=settings.refresh_token_lifetime_days),
+    )
 
     # Success - reset counters
     await account_lockout.reset(email_input)
     await account_rate_limiter.reset(email_input)
     record_login_result("success")
 
-    # Step 8: Set cookie for SSE authentication (no DB needed)
-    site_mode = settings.site_mode
-    base_cookie_name = session_cookie_base_name(site_mode)
-
-    set_session_cookie(
-        response,
-        base_cookie_name,
-        access_token,
-        max_age=settings.access_token_expire_minutes * 60,
-        domain=settings.session_cookie_domain,
-    )
+    # Step 8: Set access + refresh cookies
+    set_auth_cookies(response, access_token, refresh_token)
 
     if hasattr(cache_service, "get") and hasattr(cache_service, "set"):
         await _maybe_send_new_device_login_notification(
@@ -610,6 +614,95 @@ async def login(
         logger.warning("Audit log write failed for user login", exc_info=True)
 
     return LoginResponse(requires_2fa=False)
+
+
+@router.post(
+    "/refresh",
+    response_model=SessionRefreshResponse,
+    dependencies=[Depends(bucket_rate_limit("auth_refresh"))],
+)
+async def refresh_session_token(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+) -> SessionRefreshResponse:
+    """Rotate refresh token and issue a new access token."""
+    not_authenticated = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Not authenticated",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    invalid_credentials = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    cookie_name = refresh_cookie_base_name(settings.site_mode)
+    token = request.cookies.get(cookie_name) if hasattr(request, "cookies") else None
+    if not token:
+        raise not_authenticated
+
+    try:
+        payload = decode_access_token(token)
+    except Exception:
+        raise invalid_credentials
+
+    if not is_refresh_token_payload(payload):
+        raise invalid_credentials
+
+    user_id_obj = payload.get("sub")
+    user_id = user_id_obj if isinstance(user_id_obj, str) else None
+    if not user_id:
+        raise invalid_credentials
+
+    jti_obj = payload.get("jti")
+    jti = jti_obj if isinstance(jti_obj, str) else None
+    if not jti:
+        raise invalid_credentials
+
+    # --- Step 1: Validate user ---
+    from app.repositories import RepositoryFactory
+
+    user_repo = RepositoryFactory.create_user_repository(db)
+    user = await asyncio.to_thread(user_repo.get_by_id, user_id)
+    if not user or not user.is_active:
+        raise invalid_credentials
+
+    iat_ts = parse_token_iat(payload)
+    if iat_ts is not None and user.tokens_valid_after is not None:
+        if iat_ts < int(user.tokens_valid_after.timestamp()):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been invalidated",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+    # --- Step 2: Atomic JTI claim (SETNX) — only one caller wins ---
+    old_exp_ts = parse_epoch_claim(payload, "exp")
+    if old_exp_ts is None:
+        raise invalid_credentials
+
+    claimed = await TokenBlacklistService().claim_and_revoke(jti, old_exp_ts)
+    if not claimed:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # --- Step 3: Issue new tokens (old JTI is now atomically blacklisted) ---
+    access_token = create_access_token(
+        data={"sub": user.id, "email": user.email},
+        expires_delta=timedelta(minutes=settings.access_token_expire_minutes),
+    )
+    refresh_token = create_refresh_token(
+        data={"sub": user.id, "email": user.email},
+        expires_delta=timedelta(days=settings.refresh_token_lifetime_days),
+    )
+
+    set_auth_cookies(response, access_token, refresh_token)
+    return SessionRefreshResponse(message="Session refreshed")
 
 
 @router.post("/change-password", response_model=PasswordChangeResponse)
@@ -868,23 +961,18 @@ async def login_with_session(
         expires_delta=access_token_expires,
         beta_claims=beta_claims,  # Pre-fetched in thread pool, no blocking DB call
     )
+    refresh_token = create_refresh_token(
+        data={"sub": user_id, "email": user_email},
+        expires_delta=timedelta(days=settings.refresh_token_lifetime_days),
+    )
 
     # Success - reset counters
     await account_lockout.reset(email_input)
     await account_rate_limiter.reset(email_input)
     record_login_result("success")
 
-    # Step 8: Set cookie for SSE authentication
-    site_mode = settings.site_mode
-    base_cookie_name = session_cookie_base_name(site_mode)
-
-    set_session_cookie(
-        response,
-        base_cookie_name,
-        access_token,
-        max_age=settings.access_token_expire_minutes * 60,
-        domain=settings.session_cookie_domain,
-    )
+    # Step 8: Set access + refresh cookies
+    set_auth_cookies(response, access_token, refresh_token)
 
     # Step 9: Convert guest searches if guest_session_id provided
     # Uses the separate `db` session (not auth_service.db which is closed)

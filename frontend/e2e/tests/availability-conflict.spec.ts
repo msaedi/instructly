@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { isInstructor } from '../utils/projects';
 import { seedSessionCookie } from '../support/cookies';
+import { mockAuthenticatedPageBackgroundApis } from '../utils/authenticatedPageMocks';
 
 test.beforeAll(({}, workerInfo) => {
   test.skip(!isInstructor(workerInfo), `Instructor-only spec (current project: ${workerInfo.project.name})`);
@@ -338,6 +339,8 @@ test.describe('Availability 409 conflict flow', () => {
     await seedSessionCookie(contextB, baseURL, SESSION_TOKEN, SESSION_COOKIE_NAME);
     const pageA = await contextA.newPage();
     const pageB = await contextB.newPage();
+    await mockAuthenticatedPageBackgroundApis(pageA, { userId: 'instructor-1' });
+    await mockAuthenticatedPageBackgroundApis(pageB, { userId: 'instructor-1' });
     await stubAuthMe(pageA);
     await stubAuthMe(pageB);
     await stubInstructorProfile(pageA);
@@ -392,6 +395,8 @@ test.describe('Availability 409 conflict flow', () => {
     await seedSessionCookie(contextB, baseURL, SESSION_TOKEN, SESSION_COOKIE_NAME);
     const pageA = await contextA.newPage();
     const pageB = await contextB.newPage();
+    await mockAuthenticatedPageBackgroundApis(pageA, { userId: 'instructor-1' });
+    await mockAuthenticatedPageBackgroundApis(pageB, { userId: 'instructor-1' });
     await stubAuthMe(pageA);
     await stubAuthMe(pageB);
     await stubInstructorProfile(pageA);

@@ -2772,6 +2772,26 @@ export type paths = {
         patch: operations["update_current_user_api_v1_auth_me_patch"];
         trace?: never;
     };
+    "/api/v1/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh Session Token
+         * @description Rotate refresh token and issue a new access token.
+         */
+        post: operations["refresh_session_token_api_v1_auth_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/register": {
         parameters: {
             query?: never;
@@ -19674,6 +19694,11 @@ export type components = {
             /** Message */
             message: string;
         };
+        /** SessionRefreshResponse */
+        SessionRefreshResponse: {
+            /** Message */
+            message: string;
+        };
         /**
          * SignedUploadResponse
          * @description Response payload for signed upload requests.
@@ -25544,6 +25569,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refresh_session_token_api_v1_auth_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionRefreshResponse"];
                 };
             };
         };

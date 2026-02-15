@@ -1,5 +1,6 @@
 import { cleanFetch, publicApi, protectedApi, getPlaceDetails } from '@/features/shared/api/client';
 import { getSessionId, refreshSession } from '@/lib/sessionTracking';
+import { __resetSessionRefreshForTests } from '@/lib/auth/sessionRefresh';
 
 jest.mock('@/lib/sessionTracking', () => ({
   getSessionId: jest.fn(),
@@ -18,6 +19,7 @@ describe('client.cleanFetch', () => {
   const originalFetch = global.fetch;
 
   afterEach(() => {
+    __resetSessionRefreshForTests();
     if (originalFetch) {
       global.fetch = originalFetch;
     } else {
@@ -81,6 +83,37 @@ describe('client.cleanFetch', () => {
 
     expect(response.status).toBe(0);
     expect(response.error).toBe('Network down');
+  });
+
+  it('refreshes session and retries once on 401', async () => {
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ detail: 'Unauthorized' }),
+        headers: new Headers(),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ message: 'Session refreshed' }),
+        headers: new Headers(),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ hello: 'after-refresh' }),
+        headers: new Headers(),
+      });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    const response = await cleanFetch<{ hello: string }>('/api/v1/auth/me');
+
+    expect(response.status).toBe(200);
+    expect(response.data).toEqual({ hello: 'after-refresh' });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/api/v1/auth/refresh');
   });
 });
 

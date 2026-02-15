@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { useRouter } from 'next/navigation';
 import { BookingPayment, PaymentMethod, PaymentCard, PAYMENT_STATUS } from '../types';
 import type { PaymentProcessResponse } from '@/features/shared/api/types';
@@ -77,7 +78,7 @@ export function usePaymentFlow({
 
     try {
       // Simulate API call - replace with actual Stripe integration
-      const response = await fetch('/api/v1/payments/process', {
+      const response = await fetchWithSessionRefresh('/api/v1/payments/process', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

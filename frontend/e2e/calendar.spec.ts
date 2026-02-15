@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { seedSessionCookie } from './support/cookies';
 import { isInstructor } from './utils/projects';
+import { mockAuthenticatedPageBackgroundApis } from './utils/authenticatedPageMocks';
 
 test.beforeAll(({}, workerInfo) => {
   test.skip(!isInstructor(workerInfo), `Instructor-only spec (current project: ${workerInfo.project.name})`);
@@ -177,6 +178,7 @@ const stubInstructorProfile = async (page: Page) => {
 };
 
 const setupInstructorSession = async (page: Page) => {
+  await mockAuthenticatedPageBackgroundApis(page, { userId: 'instructor-1' });
   await seedSessionCookie(page.context(), BASE_URL, SESSION_TOKEN, SESSION_COOKIE_NAME);
   await stubAuthMe(page);
   await stubInstructorProfile(page);

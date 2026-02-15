@@ -25,6 +25,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship, synonym
@@ -472,6 +473,12 @@ class BackgroundJob(Base):
         Index("ix_background_jobs_status_available", "status", "available_at"),
         # Secondary index for type-based lookups (get_next_scheduled, get_pending_final_adverse_job)
         Index("ix_background_jobs_type_status", "type", "status"),
+        # Partial index optimising the hot fetch_due() path for queued rows only
+        Index(
+            "idx_background_jobs_queued",
+            "available_at",
+            postgresql_where=text("status = 'queued'"),
+        ),
     )
 
 
