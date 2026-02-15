@@ -41,9 +41,20 @@ const cspApiOrigin = (() => {
   }
 })();
 
+const cspBetaLocalOrigin = (() => {
+  const appEnv = (process.env['NEXT_PUBLIC_APP_ENV'] || '').toLowerCase();
+  const isDevLike =
+    process.env.NODE_ENV !== 'production' ||
+    appEnv === 'local' ||
+    appEnv === 'development' ||
+    appEnv === 'dev';
+  return isDevLike ? 'http://api.beta-local.instainstru.com:8000' : '';
+})();
+
 const connectSrcOrigins = [
   "'self'",
   cspApiOrigin,
+  cspBetaLocalOrigin,
   'https://preview-api.instainstru.com',
   'https://api.instainstru.com',
   'https://*.sentry.io',

@@ -106,7 +106,7 @@ describe('session refresh interceptor', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('dispatches session-expired event when refresh fails', async () => {
+  it('returns 401 to caller without redirect when refresh fails', async () => {
     const fetchMock = jest.fn((input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input.toString();
       if (url.includes('/api/v1/auth/refresh')) {
@@ -119,18 +119,12 @@ describe('session refresh interceptor', () => {
     });
     global.fetch = fetchMock as unknown as typeof global.fetch;
 
-    const expiredListener = jest.fn();
-    window.addEventListener('instainstru:session-expired', expiredListener as EventListener);
-
     const response = await fetchWithSessionRefresh('/api/v1/auth/me', {
       method: 'GET',
       credentials: 'include',
     });
 
     expect(response.status).toBe(401);
-    expect(expiredListener).toHaveBeenCalled();
     expect(fetchMock.mock.calls.some((call) => String(call[0]).includes('/api/v1/public/logout'))).toBe(true);
-
-    window.removeEventListener('instainstru:session-expired', expiredListener as EventListener);
   });
 });

@@ -300,8 +300,9 @@ async def test_logout_all_devices_revokes_current_token(monkeypatch, test_studen
     monkeypatch.setattr(account_routes, "TokenBlacklistService", lambda: _Blacklist())
 
     request = SimpleNamespace(headers={"authorization": "Bearer token"}, cookies={})
-    response = await account_routes.logout_all_devices(request, test_student, db)
-    assert response.message == "All sessions have been logged out"
+    resp_obj = SimpleNamespace(set_cookie=lambda **_kw: None, delete_cookie=lambda **_kw: None)
+    result = await account_routes.logout_all_devices(request, resp_obj, test_student, db)
+    assert result.message == "All sessions have been logged out"
     assert revoked == [("token-jti", 9999999999)]
     assert invalidation_triggers == ["logout_all_devices"]
     assert revoke_kwargs == [{"trigger": "logout_all_devices", "emit_metric": False}]
@@ -320,8 +321,9 @@ async def test_logout_all_devices_without_token_still_succeeds(monkeypatch, test
     )
 
     request = SimpleNamespace(headers={}, cookies={})
-    response = await account_routes.logout_all_devices(request, test_student, db)
-    assert response.message == "All sessions have been logged out"
+    resp_obj = SimpleNamespace(set_cookie=lambda **_kw: None, delete_cookie=lambda **_kw: None)
+    result = await account_routes.logout_all_devices(request, resp_obj, test_student, db)
+    assert result.message == "All sessions have been logged out"
 
 
 @pytest.mark.asyncio
@@ -337,8 +339,9 @@ async def test_logout_all_devices_returns_404_when_user_not_found(monkeypatch, t
     )
 
     request = SimpleNamespace(headers={}, cookies={})
+    resp_obj = SimpleNamespace(set_cookie=lambda **_kw: None, delete_cookie=lambda **_kw: None)
     with pytest.raises(HTTPException) as exc:
-        await account_routes.logout_all_devices(request, test_student, db)
+        await account_routes.logout_all_devices(request, resp_obj, test_student, db)
     assert exc.value.status_code == 404
 
 
