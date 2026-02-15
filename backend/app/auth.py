@@ -279,6 +279,16 @@ def create_temp_token(data: Dict[str, Any], expires_delta: Optional[timedelta] =
     return encoded_jwt
 
 
+# Revocation detail strings — used by _enforce_revocation_and_user_invalidation
+# and checked in get_current_user_optional to distinguish revocation from other 401s.
+REVOCATION_DETAIL_FORMAT_OUTDATED = "Token format outdated, please re-login"
+REVOCATION_DETAIL_REVOKED = "Token has been revoked"
+REVOCATION_DETAIL_INVALIDATED = "Token has been invalidated"
+REVOCATION_DETAILS: frozenset[str] = frozenset(
+    {REVOCATION_DETAIL_FORMAT_OUTDATED, REVOCATION_DETAIL_REVOKED, REVOCATION_DETAIL_INVALIDATED}
+)
+
+
 async def _enforce_revocation_and_user_invalidation(payload: Dict[str, Any], user_id: str) -> None:
     """Enforce revocation and tokens_valid_after checks for a decoded JWT."""
     jti_obj = payload.get("jti")
@@ -290,7 +300,7 @@ async def _enforce_revocation_and_user_invalidation(payload: Dict[str, Any], use
             logger.debug("Non-fatal error ignored", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token format outdated, please re-login",
+            detail=REVOCATION_DETAIL_FORMAT_OUTDATED,
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -308,7 +318,7 @@ async def _enforce_revocation_and_user_invalidation(payload: Dict[str, Any], use
             logger.debug("Non-fatal error ignored", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has been revoked",
+            detail=REVOCATION_DETAIL_REVOKED,
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -341,7 +351,7 @@ async def _enforce_revocation_and_user_invalidation(payload: Dict[str, Any], use
             logger.debug("Non-fatal error ignored", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has been invalidated",
+            detail=REVOCATION_DETAIL_INVALIDATED,
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -470,11 +480,7 @@ async def get_current_user_optional(
         return user_id
 
     except HTTPException as exc:
-        if exc.status_code == status.HTTP_401_UNAUTHORIZED and exc.detail in (
-            "Token has been revoked",
-            "Token has been invalidated",
-            "Token format outdated, please re-login",
-        ):
+        if exc.status_code == status.HTTP_401_UNAUTHORIZED and exc.detail in REVOCATION_DETAILS:
             logger.debug("Optional auth ignoring auth rejection: %s", exc.detail)
             return None
         raise

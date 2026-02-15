@@ -392,32 +392,36 @@ jobs:
             fi
 
             # Auth sanity check with seeded user
+            # Login returns token via Set-Cookie (not JSON body).
+            # Use a cookie jar to capture the session cookie.
             echo "Testing authentication flow..."
-            AUTH_RESPONSE=$(curl -sS -X POST http://localhost:8000/api/v1/auth/login \
+            COOKIE_JAR=$(mktemp)
+            LOGIN_STATUS=$(curl -sS -o /tmp/login_body.json -w "%{http_code}" \
+              -c "$COOKIE_JAR" \
+              -X POST http://localhost:8000/api/v1/auth/login \
               -H 'Content-Type: application/x-www-form-urlencoded' \
               --data-urlencode "username=${E2E_USER_EMAIL}" \
               --data-urlencode "password=${E2E_USER_PASSWORD}")
 
-            # Safely extract token without exposing it
-            TOKEN=$(echo "$AUTH_RESPONSE" | jq -r '.access_token // empty' 2>/dev/null)
-
-            if [ -n "$TOKEN" ] && [ "$TOKEN" != "null" ] && [ "$TOKEN" != "" ]; then
-              echo "✅ Login successful, testing /api/v1/auth/me..."
+            if [ "$LOGIN_STATUS" = "200" ]; then
+              echo "✅ Login successful (status 200), testing /api/v1/auth/me..."
               if curl -fsS http://localhost:8000/api/v1/auth/me \
-                -H "Authorization: Bearer $TOKEN" \
+                -b "$COOKIE_JAR" \
                 -o /dev/null; then
-                echo "✅ Auth flow verified (login + protected endpoint)"
+                echo "✅ Auth flow verified (login + protected endpoint via session cookie)"
               else
-                echo "❌ Auth verification failed: /api/v1/auth/me not accessible"
+                echo "❌ Auth verification failed: /api/v1/auth/me not accessible with session cookie"
+                rm -f "$COOKIE_JAR"
                 exit 1
               fi
             else
-              # Extract error message without exposing sensitive data
-              ERROR_MSG=$(echo "$AUTH_RESPONSE" | jq -r '.detail // "Unknown error"' 2>/dev/null || echo "Malformed response")
-              echo "❌ Login failed: $ERROR_MSG"
+              ERROR_MSG=$(jq -r '.detail // "Unknown error"' /tmp/login_body.json 2>/dev/null || echo "Malformed response")
+              echo "❌ Login failed (status $LOGIN_STATUS): $ERROR_MSG"
               echo "User: ${E2E_USER_EMAIL}"
+              rm -f "$COOKIE_JAR"
               exit 1
             fi
+            rm -f "$COOKIE_JAR"
 
             break
           fi

@@ -30,6 +30,7 @@ from ...auth import (
     DUMMY_HASH_FOR_TIMING_ATTACK,
     create_access_token,
     create_temp_token,
+    decode_access_token,
     get_current_user,
     verify_password_async,
 )
@@ -64,9 +65,11 @@ from ...services.beta_service import BetaService
 from ...services.cache_service import CacheService
 from ...services.permission_service import PermissionService
 from ...services.search_history_service import SearchHistoryService
+from ...services.token_blacklist_service import TokenBlacklistService
 from ...utils.cookies import (
     expire_parent_domain_cookie,
     session_cookie_base_name,
+    session_cookie_candidates,
     set_session_cookie,
 )
 from ...utils.invite_cookie import invite_cookie_name
@@ -80,6 +83,22 @@ KNOWN_DEVICE_MAX = 10
 
 # V1 router - no prefix here, will be added when mounting in main.py
 router = APIRouter(tags=["auth-v1"])
+
+
+def _extract_request_token(request: Request) -> Optional[str]:
+    """Extract the access token from Authorization header or session cookie."""
+    auth_header = (request.headers.get("authorization") or "").strip()
+    if auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+        if token:
+            return token
+    if hasattr(request, "cookies"):
+        cookies = cast(dict[str, str], request.cookies)
+        for cookie_name in session_cookie_candidates():
+            token = cookies.get(cookie_name)
+            if token:
+                return token
+    return None
 
 
 async def _extract_captcha_token(request: Request) -> Optional[str]:
@@ -649,6 +668,29 @@ async def change_password(
             "Password changed but token invalidation failed for user %s — old tokens remain valid",
             user.id,
         )
+
+    # Belt-and-suspenders: also blacklist the current token's JTI for immediate
+    # Redis-based rejection (tokens_valid_after handles the rest on next cache refresh).
+    token = _extract_request_token(http_request)
+    if token:
+        try:
+            tok_payload = decode_access_token(token, enforce_audience=False)
+            jti = tok_payload.get("jti")
+            exp_raw = tok_payload.get("exp")
+            exp_ts = int(exp_raw) if isinstance(exp_raw, (int, float)) else None
+            if isinstance(jti, str) and jti and exp_ts is not None:
+                revoked = await TokenBlacklistService().revoke_token(
+                    jti,
+                    exp_ts,
+                    trigger="password_change",
+                    emit_metric=False,
+                )
+                if not revoked:
+                    logger.error("Password-change blacklist write failed for jti=%s", jti)
+        except Exception:
+            logger.warning(
+                "Failed to blacklist current token during password change", exc_info=True
+            )
 
     try:
         await asyncio.to_thread(

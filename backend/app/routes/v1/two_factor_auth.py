@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 import jwt
 from sqlalchemy.orm import Session
 
-from app.auth import create_access_token, get_current_user
+from app.auth import create_access_token, decode_access_token, get_current_user
 from app.core.config import settings
 from app.database import get_db
 from app.middleware.rate_limiter import RateLimitKeyType, rate_limit
@@ -23,10 +23,12 @@ from app.services.audit_service import AuditService
 from app.services.auth_service import AuthService
 from app.services.notification_service import NotificationService
 from app.services.search_history_service import SearchHistoryService
+from app.services.token_blacklist_service import TokenBlacklistService
 from app.services.two_factor_auth_service import TwoFactorAuthService
 from app.utils.cookies import (
     expire_parent_domain_cookie,
     session_cookie_base_name,
+    session_cookie_candidates,
     set_session_cookie,
 )
 
@@ -46,6 +48,44 @@ from ...schemas.security import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["2fa"])
+
+
+def _extract_request_token(request: Request) -> str | None:
+    """Extract access token from Authorization header or session cookie."""
+    auth_header = (request.headers.get("authorization") or "").strip()
+    if auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+        if token:
+            return token
+    if hasattr(request, "cookies"):
+        for cookie_name in session_cookie_candidates():
+            token = request.cookies.get(cookie_name)
+            if token:
+                return token
+    return None
+
+
+def _blacklist_current_token(request: Request, trigger: str) -> None:
+    """Best-effort blacklist of the current request's token JTI."""
+    token = _extract_request_token(request)
+    if not token:
+        return
+    try:
+        payload = decode_access_token(token, enforce_audience=False)
+        jti = payload.get("jti")
+        exp_raw = payload.get("exp")
+        exp_ts = int(exp_raw) if isinstance(exp_raw, (int, float)) else None
+        if isinstance(jti, str) and jti and exp_ts is not None:
+            revoked = TokenBlacklistService().revoke_token_sync(
+                jti,
+                exp_ts,
+                trigger=trigger,
+                emit_metric=False,
+            )
+            if not revoked:
+                logger.error("2FA %s blacklist write failed for jti=%s", trigger, jti)
+    except Exception:
+        logger.warning("Failed to blacklist current token during 2FA %s", trigger, exc_info=True)
 
 
 def get_tfa_service(db: Session = Depends(get_db)) -> TwoFactorAuthService:
@@ -87,6 +127,8 @@ def setup_verify(
                 "2FA enable succeeded but token invalidation returned false for %s — old tokens remain valid",
                 user.id,
             )
+        # Belt-and-suspenders: blacklist current token JTI for immediate rejection
+        _blacklist_current_token(request, trigger="2fa_enable")
         # On successful re-setup, ensure trust cookie is cleared; user can re-trust on next verify
         response.delete_cookie(
             key="tfa_trusted",
@@ -146,6 +188,8 @@ def disable(
                 "2FA disable succeeded but token invalidation returned false for %s — old tokens remain valid",
                 user.id,
             )
+        # Belt-and-suspenders: blacklist current token JTI for immediate rejection
+        _blacklist_current_token(request, trigger="2fa_disable")
         # Invalidate any trusted-browser cookie on disable
         response.delete_cookie(
             key="tfa_trusted",
