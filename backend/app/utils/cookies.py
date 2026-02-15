@@ -24,14 +24,18 @@ def _is_hosted() -> bool:
 
 
 def session_cookie_base_name(site_mode: Optional[str] = None) -> str:
-    """Return the configured base session cookie name."""
+    """Return the environment-aware session cookie name.
+
+    Preview → ``sid_preview``, Production → ``sid``, Local → whatever is configured.
+    """
     mode = (site_mode or _current_site_mode()).lower()
-    configured = getattr(settings, "session_cookie_name", "") or "access_token"
-    if configured == "access_token":
+    configured = getattr(settings, "session_cookie_name", "") or "sid"
+    # Environment-aware names when using the default cookie name
+    if configured in {"sid", "access_token"}:
         if mode == "preview":
             return "sid_preview"
         if mode in {"prod", "beta", "production", "live"}:
-            return "sid_prod"
+            return "sid"
     return configured
 
 
@@ -61,18 +65,18 @@ def set_session_cookie(
     expires: Optional[datetime | int] = None,
     domain: Optional[str] = None,
 ) -> str:
-    """Set a session cookie scoped to the API host.
+    """Set a session cookie shared across frontend and API origins.
 
-    Hosted environments (preview/beta/prod) use the ``__Host-`` prefix, require ``Secure``
-    and ``Path=/`` attributes, and intentionally omit ``Domain`` so the cookie is
-    restricted to the API host itself.
+    Hosted environments use a parent-domain cookie (``Domain=.instainstru.com``)
+    so the session works across the frontend proxy and the direct API host.
 
     Args:
         response: FastAPI response instance.
-        name: Base cookie name (without ``__Host-`` prefix).
+        name: Cookie name (e.g. ``sid_preview``, ``sid``).
         value: Cookie payload.
         max_age: Optional ``Max-Age`` to set.
         expires: Optional ``Expires`` timestamp/value.
+        domain: Explicit domain override; falls back to ``settings.session_cookie_domain``.
 
     Returns:
         The actual cookie name written to the response headers.

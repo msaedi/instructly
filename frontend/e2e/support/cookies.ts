@@ -15,7 +15,7 @@ export function resolveSessionCookieName(baseURL: string, envName?: string | nul
     return raw;
   }
 
-  return '__Host-sid';
+  return 'sid_preview';
 }
 
 export type PlaywrightCookie = {
@@ -95,7 +95,8 @@ export const buildStorageStateCookie = ({
   const host = parsed.hostname || 'localhost';
   const isHttps = parsed.protocol === 'https:';
 
-  // __Host-* cookies cannot carry Domain; skip from storage state and seed via addCookies instead.
+  // Safety guard: __Host-* cookies cannot carry Domain; skip from storage state.
+  // Production cookies no longer use __Host- prefix, but keep this for safety.
   if (isHttps && name.startsWith('__Host-')) {
     return null;
   }
@@ -115,7 +116,7 @@ export const buildStorageStateCookie = ({
   return cookie;
 };
 
-// Seed a session cookie after context creation (works both HTTP and HTTPS, handles __Host-*)
+// Seed a session cookie after context creation (works both HTTP and HTTPS)
 export const seedSessionCookie = async (
   context: import('@playwright/test').BrowserContext,
   baseURL: string,

@@ -17,7 +17,11 @@ describe('BotID client instrumentation', () => {
   });
 
   it('initializes BotID with protected mutation routes', async () => {
+    const env = process.env as Record<string, string | undefined>;
+    const originalEnv = env['NODE_ENV'];
+    env['NODE_ENV'] = 'production';
     const instrumentationClient = await import('../../instrumentation-client');
+    env['NODE_ENV'] = originalEnv;
 
     expect(initBotIdMock).toHaveBeenCalledTimes(1);
     expect(instrumentationClient.onRouterTransitionStart).toBeDefined();

@@ -48,7 +48,7 @@ def login(email: str, password: str) -> str | None:
         timeout=30,
     )
     if response.status_code == 200:
-        for cookie_name in ("__Host-sid", "preview_access_token", "access_token"):
+        for cookie_name in ("sid_preview", "sid", "preview_access_token", "access_token"):
             cookie_value = session.cookies.get(cookie_name)
             if cookie_value:
                 return cookie_value

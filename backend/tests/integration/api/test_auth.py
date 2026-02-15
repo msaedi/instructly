@@ -311,7 +311,10 @@ class TestAuth:
             "/api/v1/auth/me", headers={"Authorization": f"Bearer {old_token}"}
         )
         assert old_token_response.status_code == 401
-        assert old_token_response.json().get("detail") == "Token has been invalidated"
+        # The change-password endpoint blacklists the current token's JTI
+        # (belt-and-suspenders), so the blacklist check fires before
+        # tokens_valid_after — hence "revoked" rather than "invalidated".
+        assert old_token_response.json().get("detail") == "Token has been revoked"
 
         login_response = client.post(
             "/api/v1/auth/login",

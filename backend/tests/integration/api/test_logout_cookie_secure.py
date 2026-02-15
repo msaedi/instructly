@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.core.config import settings
+from app.utils.cookies import session_cookie_base_name
 
 CSRF_COOKIE = "csrftoken"
 CSRF_HEADER = "X-CSRFToken"
@@ -35,7 +36,7 @@ def test_logout_clears_host_cookie_secure(client: TestClient, monkeypatch) -> No
     assert response.status_code == 204
 
     set_cookie_headers = _set_cookie_headers(response)
-    target_cookie = settings.session_cookie_name
+    target_cookie = session_cookie_base_name("preview")
     host_cookie_headers = [header for header in set_cookie_headers if f"{target_cookie}=" in header]
     assert host_cookie_headers, f"expected {target_cookie} cookie deletion"
     for header in host_cookie_headers:

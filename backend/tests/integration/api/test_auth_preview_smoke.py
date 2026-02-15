@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.services.auth_service import AuthService
 from app.services.two_factor_auth_service import TwoFactorAuthService
+from app.utils.cookies import session_cookie_base_name
 
 CSRF_COOKIE = "csrftoken"
 CSRF_HEADER = "X-CSRFToken"
@@ -65,10 +66,10 @@ def _extract_session_token_from_set_cookie(set_cookie_header: str, cookie_name: 
 def test_preview_2fa_session_flow(client: TestClient, db: Session, monkeypatch) -> None:
     client.cookies.clear()
     monkeypatch.setenv("SITE_MODE", "preview")
-    monkeypatch.setattr(settings, "session_cookie_name", "__Host-sid", raising=False)
+    monkeypatch.setattr(settings, "session_cookie_name", "sid", raising=False)
     monkeypatch.setattr(settings, "session_cookie_secure", True, raising=False)
     monkeypatch.setattr(settings, "session_cookie_samesite", "lax", raising=False)
-    monkeypatch.setattr(settings, "session_cookie_domain", None, raising=False)
+    monkeypatch.setattr(settings, "session_cookie_domain", ".instainstru.com", raising=False)
     _ensure_hosted_totp_key(monkeypatch)
 
     email = f"preview+{uuid.uuid4().hex[:8]}@example.com"
@@ -95,9 +96,10 @@ def test_preview_2fa_session_flow(client: TestClient, db: Session, monkeypatch) 
     assert verify_response.status_code == 200
     body = verify_response.json()
     assert "access_token" not in body
+    resolved_cookie_name = session_cookie_base_name("preview")
     set_cookie_headers = verify_response.headers.get_list("set-cookie")
     session_cookie_header = next(
-        (h for h in set_cookie_headers if h.startswith(f"{settings.session_cookie_name}=")),
+        (h for h in set_cookie_headers if h.startswith(f"{resolved_cookie_name}=")),
         "",
     )
     assert session_cookie_header
@@ -110,7 +112,7 @@ def test_preview_2fa_session_flow(client: TestClient, db: Session, monkeypatch) 
     assert "SameSite=lax" in trust_cookie_header or "SameSite=Lax" in trust_cookie_header
     session_token = _extract_session_token_from_set_cookie(
         session_cookie_header,
-        settings.session_cookie_name,
+        resolved_cookie_name,
     )
 
     # TestClient runs over HTTP, so Secure cookies are not sent automatically.
@@ -119,12 +121,12 @@ def test_preview_2fa_session_flow(client: TestClient, db: Session, monkeypatch) 
     assert me_response.status_code == 200
 
     logout_headers = _csrf_headers(client)
-    logout_headers["Cookie"] = f"{settings.session_cookie_name}={session_token}"
+    logout_headers["Cookie"] = f"{resolved_cookie_name}={session_token}"
     logout_response = client.post("/api/v1/public/logout", headers=logout_headers)
     assert logout_response.status_code == 204
     logout_cookies = logout_response.headers.get_list("set-cookie")
     logout_session_cookie = next(
-        (h for h in logout_cookies if h.startswith(f"{settings.session_cookie_name}=")),
+        (h for h in logout_cookies if h.startswith(f"{resolved_cookie_name}=")),
         "",
     )
     assert logout_session_cookie

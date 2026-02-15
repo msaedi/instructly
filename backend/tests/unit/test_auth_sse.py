@@ -12,6 +12,7 @@ from app.auth_sse import get_current_user_sse
 from app.core import auth_cache
 from app.core.config import settings
 from app.models.user import User
+from app.utils.cookies import session_cookie_base_name
 
 
 async def _empty_receive() -> dict[str, object]:
@@ -75,7 +76,8 @@ async def test_get_current_user_sse_accepts_configured_session_cookie(unit_db, m
     expected_id = user.id
     token = create_access_token({"sub": expected_id, "email": user.email})
 
-    request = _build_request(f"sid={token}")
+    cookie_name = session_cookie_base_name("preview")
+    request = _build_request(f"{cookie_name}={token}")
 
     resolved = await get_current_user_sse(
         request=request,

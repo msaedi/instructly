@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.core.enums import RoleName
 from app.models.user import User
 from app.services.permission_service import PermissionService
+from app.utils.cookies import session_cookie_base_name
 
 
 @pytest.mark.parametrize(
@@ -41,6 +42,10 @@ def test_login_cookie_name_matches_site_mode(client, db, test_password, monkeypa
     effective_mode = settings.site_mode
     secure_expected = effective_mode in {"preview", "prod"}
     monkeypatch.setattr(settings, "session_cookie_secure", secure_expected, raising=False)
+    if secure_expected:
+        monkeypatch.setattr(settings, "session_cookie_domain", ".instainstru.com", raising=False)
+    else:
+        monkeypatch.setattr(settings, "session_cookie_domain", None, raising=False)
 
     response = client.post(
         "/api/v1/auth/login",
@@ -53,21 +58,21 @@ def test_login_cookie_name_matches_site_mode(client, db, test_password, monkeypa
     set_cookies = response.headers.get_list("set-cookie")
     assert set_cookies, "login response must set at least one cookie"
 
-    primary_cookie_name = settings.session_cookie_name
+    primary_cookie_name = session_cookie_base_name(effective_mode)
     primary_header = next((c for c in set_cookies if c.startswith(f"{primary_cookie_name}=")), None)
     assert primary_header, f"expected session cookie {primary_cookie_name}"
     assert "HttpOnly" in primary_header
     assert "Path=/" in primary_header
-    assert ("Domain=" not in primary_header) or ("Domain=.instainstru.com" not in primary_header)
 
     if secure_expected:
         assert "Secure" in primary_header
+        assert "Domain=.instainstru.com" in primary_header
     else:
         assert "Secure" not in primary_header
 
     domain_headers = [c for c in set_cookies if "Domain=.instainstru.com" in c]
     if effective_mode != "local":
-        assert domain_headers, "expected domain-scoped cleanup cookie"
+        assert domain_headers, "expected domain-scoped cookie"
     else:
         assert not domain_headers
 
@@ -99,7 +104,8 @@ def test_preview_token_rejected_in_prod(client, db, test_password, monkeypatch):
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
     assert preview_login.status_code == 200
-    cookie_name = f"{settings.session_cookie_name}="
+    resolved_name = session_cookie_base_name("preview")
+    cookie_name = f"{resolved_name}="
     set_cookie = preview_login.headers.get("set-cookie", "")
     assert cookie_name in set_cookie
     token = set_cookie.split(cookie_name, 1)[1].split(";", 1)[0]

@@ -71,7 +71,7 @@ def session_and_token() -> tuple[requests.Session, str]:
     )
     resp.raise_for_status()
     token = None
-    preferred_cookie_names = ("__Host-sid", "preview_access_token", "access_token")
+    preferred_cookie_names = ("sid_preview", "sid", "preview_access_token", "access_token")
     for cookie_name in preferred_cookie_names:
         cookie_value = session.cookies.get(cookie_name)
         if cookie_value:

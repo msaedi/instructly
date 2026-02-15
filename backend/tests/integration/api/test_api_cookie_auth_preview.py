@@ -10,20 +10,22 @@ from app.auth import create_access_token
 from app.core.config import settings
 from app.models.user import User
 from app.services.stripe_service import StripeService
+from app.utils.cookies import session_cookie_base_name
 
 
 def _configure_preview_env(monkeypatch) -> None:
     monkeypatch.setenv("SITE_MODE", "preview", prepend=False)
-    monkeypatch.setattr(settings, "session_cookie_name", "__Host-sid", raising=False)
+    monkeypatch.setattr(settings, "session_cookie_name", "sid", raising=False)
     monkeypatch.setattr(settings, "session_cookie_secure", True, raising=False)
     monkeypatch.setattr(settings, "session_cookie_samesite", "lax", raising=False)
-    monkeypatch.setattr(settings, "session_cookie_domain", None, raising=False)
+    monkeypatch.setattr(settings, "session_cookie_domain", ".instainstru.com", raising=False)
     monkeypatch.setattr(settings, "preview_frontend_domain", "preview.instainstru.com", raising=False)
 
 
 def _set_session_cookie(client: TestClient, user: User) -> str:
     token = create_access_token({"sub": user.email})
-    client.cookies.set(settings.session_cookie_name, token)
+    resolved_name = session_cookie_base_name("preview")
+    client.cookies.set(resolved_name, token)
     return token
 
 

@@ -102,9 +102,16 @@ def secret_or_plain(value: SecretStr | str | None, default: str = "") -> str:
 
 
 def _default_session_cookie_name() -> str:
-    """Return default session cookie name."""
+    """Return default session cookie name.
 
-    return "__Host-sid"
+    Uses a plain name (no ``__Host-`` prefix) because the frontend mutation
+    proxy serves login responses from the *frontend* origin while GET requests
+    go directly to the *API* origin.  A parent-domain cookie
+    (``Domain=.instainstru.com``) is the only way to share the session across
+    both hosts.
+    """
+
+    return "sid"
 
 
 def resolve_referrals_step(
@@ -239,7 +246,7 @@ class Settings(BaseSettings):
     )
     session_cookie_domain: str | None = Field(
         default=None,
-        description="Optional Domain attribute for session cookies (omit for __Host- cookies)",
+        description="Domain attribute for session cookies (set to .instainstru.com for hosted envs)",
     )
     email_provider: Literal["console", "resend"] = Field(
         default="console",
@@ -692,8 +699,10 @@ class Settings(BaseSettings):
         if hosted:
             self.session_cookie_secure = True
             self.session_cookie_samesite = "lax"
-            # __Host- cookies require Domain omission
-            self.session_cookie_domain = None
+            # Parent-domain cookie so the session is shared between the
+            # frontend origin (preview.instainstru.com / instainstru.com) and
+            # the API origin (preview-api.instainstru.com / api.instainstru.com).
+            self.session_cookie_domain = ".instainstru.com"
         elif not is_prod and not is_non_prod:
             # Unknown modes default to secure cookies unless explicitly disabled
             self.session_cookie_secure = bool(self.session_cookie_secure)
@@ -704,7 +713,7 @@ class Settings(BaseSettings):
         ):
             logger.warning(
                 "SESSION_COOKIE_NAME %s uses __Host- prefix but SESSION_COOKIE_SECURE is false. "
-                "For local HTTP, set SESSION_COOKIE_NAME=sid_local (or similar) or enable HTTPS.",
+                "Set SESSION_COOKIE_NAME=sid_local (or similar) or enable HTTPS.",
                 self.session_cookie_name,
             )
         return self

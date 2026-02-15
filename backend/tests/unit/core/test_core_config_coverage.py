@@ -28,7 +28,7 @@ def test_classify_site_mode_variants():
 
 
 def test_default_session_cookie_name():
-    assert config_module._default_session_cookie_name() == "__Host-sid"
+    assert config_module._default_session_cookie_name() == "sid"
 
 
 def test_resolve_referrals_step_defaults():
@@ -75,7 +75,7 @@ def test_cookie_policy_hosted(monkeypatch):
     monkeypatch.setenv("SITE_MODE", "preview")
     cfg = Settings()
     assert cfg.session_cookie_secure is True
-    assert cfg.session_cookie_domain is None
+    assert cfg.session_cookie_domain == ".instainstru.com"
 
 
 def test_webhook_secrets_property():

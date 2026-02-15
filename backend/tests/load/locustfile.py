@@ -172,7 +172,7 @@ class SSEMessagingUser(HttpUser):
                     access_token = None
                     set_cookie = response.headers.get("Set-Cookie", "")
                     match = re.search(
-                        r"(?:__Host-sid|preview_access_token|access_token)=([^;]+)",
+                        r"(?:sid_preview|sid|preview_access_token|access_token)=([^;]+)",
                         set_cookie,
                     )
                     if match:

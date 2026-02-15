@@ -117,7 +117,7 @@ export default function HomePage() {
     if (!isAuthLoading && !isAuthenticated) return false;
     if (typeof document === 'undefined') return false;
     try {
-      return document.cookie.split('; ').some((cookie) => cookie.startsWith('__Host-sid'));
+      return document.cookie.split('; ').some((cookie) => cookie.startsWith('sid'));
     } catch {
       return false;
     }
