@@ -62,9 +62,9 @@ def _extract_request_token(request: Request) -> str | None:
             return token
     if hasattr(request, "cookies"):
         for cookie_name in session_cookie_candidates():
-            token = request.cookies.get(cookie_name)
-            if token:
-                return token
+            cookie_token: str | None = request.cookies.get(cookie_name)
+            if cookie_token:
+                return cookie_token
     return None
 
 

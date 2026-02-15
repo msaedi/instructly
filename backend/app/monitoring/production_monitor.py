@@ -294,6 +294,21 @@ class PerformanceMonitor:
 
         return cache_health
 
+    @staticmethod
+    def _is_redis_available() -> bool:
+        """Quick Redis broker health check before attempting Celery dispatch."""
+        try:
+            import redis as _redis
+
+            from app.core.config import secret_or_plain, settings as _settings
+
+            redis_url = secret_or_plain(_settings.redis_url)
+            r = _redis.from_url(redis_url, socket_connect_timeout=2, socket_timeout=2)
+            r.ping()
+            return True
+        except Exception:
+            return False
+
     def _send_alert(
         self, alert_type: str, message: str, details: Optional[Dict[str, Any]] = None
     ) -> None:
@@ -312,8 +327,8 @@ class PerformanceMonitor:
         # Determine severity based on alert type
         severity = "critical" if "extremely" in alert_type else "warning"
 
-        # Dispatch to Celery if available
-        if CELERY_AVAILABLE:
+        # Dispatch to Celery if broker (Redis) is reachable
+        if CELERY_AVAILABLE and self._is_redis_available():
             try:
                 enqueue_task(
                     "app.tasks.monitoring_tasks.process_monitoring_alert",
@@ -327,12 +342,13 @@ class PerformanceMonitor:
                 )
                 logger.info(f"Alert dispatched to Celery: {alert_type}")
             except Exception as e:
-                logger.error(f"Failed to dispatch alert to Celery: {str(e)}")
-                # Fall back to console logging
-                print(f"🚨 PRODUCTION ALERT [{alert_type}]: {message}")
+                logger.warning("Celery dispatch failed after Redis ping succeeded: %s", e)
         else:
-            # Fall back to console logging
-            print(f"🚨 PRODUCTION ALERT [{alert_type}]: {message}")
+            if CELERY_AVAILABLE:
+                logger.warning(
+                    "Redis broker unreachable — skipping Celery dispatch for alert [%s]",
+                    alert_type,
+                )
 
         # Update last alert time
         self._last_alert_time[alert_type] = now

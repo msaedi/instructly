@@ -168,6 +168,15 @@ CELERYBEAT_SCHEDULE = {
         },
         # Note: Calculate hourly search metrics and engagement
     },
+    # DB maintenance — refresh query-planner statistics on high-churn tables
+    "db-maintenance-analyze": {
+        "task": "db_maintenance.analyze_high_churn_tables",
+        "schedule": crontab(hour=4, minute=0),  # Daily at 4 AM UTC
+        "options": {
+            "queue": "celery",
+            "priority": 1,
+        },
+    },
     # Self-learning: promote unresolved location queries into trusted aliases
     "learn-location-aliases": {
         "task": "app.tasks.location_learning.process_location_learning",

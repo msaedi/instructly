@@ -97,11 +97,70 @@ def test_check_cache_health_recommendations(monkeypatch):
     assert called.get("alert") == 1
 
 
+def test_send_alert_dispatches_when_redis_available(monkeypatch):
+    """_send_alert dispatches to Celery when _is_redis_available returns True."""
+    monitor = monitor_module.PerformanceMonitor()
+    calls = {}
+
+    monkeypatch.setattr(monitor_module, "CELERY_AVAILABLE", True)
+    monkeypatch.setattr(monitor_module.PerformanceMonitor, "_is_redis_available", staticmethod(lambda: True))
+
+    def _enqueue(*_args, **_kwargs):
+        calls["count"] = calls.get("count", 0) + 1
+
+    monkeypatch.setattr(monitor_module, "enqueue_task", _enqueue)
+
+    monitor._send_alert("test_alert", "test message")
+
+    assert calls["count"] == 1
+
+
+def test_is_redis_available_returns_false_on_failure(monkeypatch):
+    """_is_redis_available returns False when Redis is unreachable."""
+
+    class _FakeRedis:
+        def ping(self):
+            raise ConnectionError("Connection refused")
+
+    class _FakeModule:
+        @staticmethod
+        def from_url(*_args, **_kwargs):
+            return _FakeRedis()
+
+    import sys
+
+    monkeypatch.setitem(sys.modules, "redis", _FakeModule())
+
+    result = monitor_module.PerformanceMonitor._is_redis_available()
+    assert result is False
+
+
+def test_send_alert_skips_celery_when_redis_unavailable(monkeypatch):
+    """_send_alert logs warning and skips Celery dispatch when Redis is down."""
+    monitor = monitor_module.PerformanceMonitor()
+    calls = {}
+
+    monkeypatch.setattr(monitor_module, "CELERY_AVAILABLE", True)
+    monkeypatch.setattr(monitor_module.PerformanceMonitor, "_is_redis_available", staticmethod(lambda: False))
+
+    def _enqueue(*_args, **_kwargs):
+        calls["count"] = calls.get("count", 0) + 1
+
+    monkeypatch.setattr(monitor_module, "enqueue_task", _enqueue)
+
+    monitor._send_alert("test_alert", "test message")
+
+    # enqueue_task should NOT be called when Redis is unavailable
+    assert "count" not in calls
+
+
 def test_send_alert_respects_cooldown(monkeypatch):
     monitor = monitor_module.PerformanceMonitor()
     calls = {}
 
     monkeypatch.setattr(monitor_module, "CELERY_AVAILABLE", True)
+    monkeypatch.setattr(monitor_module.PerformanceMonitor, "_is_redis_available", staticmethod(lambda: True))
+
     def _enqueue(*_args, **_kwargs):
         calls["count"] = calls.get("count", 0) + 1
 
