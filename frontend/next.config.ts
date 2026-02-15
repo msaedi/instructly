@@ -61,7 +61,7 @@ const cspPolicyValue = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
   "img-src 'self' data: blob: https://assets.instainstru.com https://*.cloudflare.com https://*.stripe.com https://*.tile.jawg.io https://*.basemaps.cartocdn.com",
   `connect-src ${Array.from(new Set(connectSrcOrigins.filter(Boolean))).join(' ')}`,
-  "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://verify.stripe.com https://challenges.cloudflare.com",
+  "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://verify.stripe.com https://challenges.cloudflare.com https://tag.trovo-tag.com",
   "font-src 'self' data: https://fonts.gstatic.com",
   "object-src 'none'",
   "base-uri 'self'",
