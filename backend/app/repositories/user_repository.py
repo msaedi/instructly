@@ -423,8 +423,9 @@ class UserRepository(BaseRepository[User]):
             from ..core.auth_cache import invalidate_cached_user_by_id_sync
 
             if not invalidate_cached_user_by_id_sync(user_id, self.db):
-                self.logger.warning(
-                    "[AUTH-CACHE] Failed to invalidate cache after token invalidation for user %s",
+                self.logger.error(
+                    "[AUTH-CACHE] Failed to invalidate cache after token invalidation for user %s"
+                    " — stale tokens_valid_after may be served until cache TTL expires",
                     user_id,
                 )
             return True

@@ -84,15 +84,28 @@ async def validate_mcp_service(
     return service_user
 
 
+def _extract_hostname(url: str) -> str:
+    """Extract the hostname from a URL, stripping port and path."""
+    from urllib.parse import urlparse
+
+    try:
+        parsed = urlparse(url if "://" in url else f"https://{url}")
+        return (parsed.hostname or "").lower()
+    except Exception:
+        return ""
+
+
 def _from_preview_origin(request: Request) -> bool:
-    origin = (request.headers.get("origin") or "").lower()
-    referer = (request.headers.get("referer") or "").lower()
+    origin = request.headers.get("origin") or ""
+    referer = request.headers.get("referer") or ""
     xfhost = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").lower()
     api_host = request.url.hostname.lower() if request.url and request.url.hostname else ""
+    expected_front = settings.preview_frontend_domain.lower()
+    expected_api = settings.preview_api_domain.lower()
     front_ok = (
-        settings.preview_frontend_domain in origin or settings.preview_frontend_domain in referer
+        _extract_hostname(origin) == expected_front or _extract_hostname(referer) == expected_front
     )
-    api_ok = settings.preview_api_domain in xfhost or settings.preview_api_domain in api_host
+    api_ok = _extract_hostname(xfhost) == expected_api or api_host == expected_api
     return bool(front_ok and api_ok)
 
 
