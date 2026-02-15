@@ -61,7 +61,7 @@ export function useAuth(): UseAuthReturn {
       setUser(data);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        logger.warn('Not authenticated');
+        logger.debug('No active session (anonymous user)');
         setUser(null);
       } else {
         logger.error('Authentication check error', err as Error);
