@@ -20,6 +20,11 @@ jest.mock('@/lib/logger', () => ({
   },
 }));
 
+const mockRefreshAuthSession = jest.fn();
+jest.mock('@/lib/auth/sessionRefresh', () => ({
+  refreshAuthSession: (...args: unknown[]) => mockRefreshAuthSession(...args),
+}));
+
 // Mock fetchWithAuth
 const mockFetchWithAuth = jest.fn();
 jest.mock('@/lib/api', () => ({
@@ -113,6 +118,7 @@ describe('useUserMessageStream', () => {
       user: { id: 'user1', email: 'test@example.com' },
       checkAuth: jest.fn(),
     });
+    mockRefreshAuthSession.mockResolvedValue(true);
 
     // Mock SSE token fetch with fetchWithAuth
     mockFetchWithAuth.mockResolvedValue({
@@ -915,6 +921,61 @@ describe('useUserMessageStream', () => {
       // Should have attempted to reconnect
       expect(global.EventSource).toHaveBeenCalledTimes(2);
     });
+
+    it('refreshes session before reconnecting after connection error', async () => {
+      renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+
+      act(() => {
+        mockEventSource.simulateConnected();
+      });
+
+      act(() => {
+        mockEventSource.simulateError();
+      });
+
+      act(() => {
+        jest.advanceTimersByTime(4000);
+      });
+
+      await waitForEventSource();
+
+      expect(mockRefreshAuthSession).toHaveBeenCalled();
+      expect(global.EventSource).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not reconnect when refresh fails after connection error', async () => {
+      const checkAuth = jest.fn();
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        user: { id: 'user1', email: 'test@example.com' },
+        checkAuth,
+      });
+      mockRefreshAuthSession.mockResolvedValue(false);
+
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+
+      act(() => {
+        mockEventSource.simulateConnected();
+      });
+      expect(result.current.isConnected).toBe(true);
+
+      act(() => {
+        mockEventSource.simulateError();
+      });
+
+      act(() => {
+        jest.advanceTimersByTime(4000);
+      });
+
+      await waitForEventSource();
+
+      expect(mockRefreshAuthSession).toHaveBeenCalled();
+      expect(checkAuth).toHaveBeenCalled();
+      expect(result.current.connectionError).toBe('Not authenticated');
+      expect(global.EventSource).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('event parsing error handling', () => {
@@ -1163,6 +1224,38 @@ describe('useUserMessageStream', () => {
 
       // Should attempt to create a new EventSource (reconnect)
       expect(global.EventSource).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not reconnect after heartbeat timeout when refresh fails', async () => {
+      const checkAuth = jest.fn();
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        user: { id: 'user1', email: 'test@example.com' },
+        checkAuth,
+      });
+      mockRefreshAuthSession.mockResolvedValue(false);
+
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+
+      act(() => {
+        mockEventSource.simulateConnected();
+      });
+
+      act(() => {
+        jest.advanceTimersByTime(46000);
+      });
+
+      act(() => {
+        jest.advanceTimersByTime(4000);
+      });
+
+      await waitForEventSource();
+
+      expect(mockRefreshAuthSession).toHaveBeenCalled();
+      expect(checkAuth).toHaveBeenCalled();
+      expect(result.current.connectionError).toBe('Not authenticated');
+      expect(global.EventSource).toHaveBeenCalledTimes(1);
     });
   });
 

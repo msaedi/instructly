@@ -12,6 +12,7 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { withApiBase } from '@/lib/apiBase';
 import { fetchWithAuth } from '@/lib/api';
+import { refreshAuthSession } from '@/lib/auth/sessionRefresh';
 import { logger } from '@/lib/logger';
 import type { SseTokenResponse } from '@/features/shared/api/types';
 import type {
@@ -216,6 +217,19 @@ export function useUserMessageStream() {
     }
   }, []);
 
+  const refreshBeforeReconnect = useCallback(async (): Promise<boolean> => {
+    const refreshed = await refreshAuthSession();
+    if (refreshed) {
+      return true;
+    }
+
+    authRejectedRef.current = true;
+    setIsConnected(false);
+    setConnectionError('Not authenticated');
+    void checkAuth();
+    return false;
+  }, [checkAuth]);
+
   // Ref to store connect function for use in heartbeat timeout
   const connectRef = useRef<(() => void) | null>(null);
 
@@ -244,12 +258,18 @@ export function useUserMessageStream() {
           timestamp: debugTimestamp(),
         });
         logger.info('[SSE] Attempting reconnect after heartbeat timeout...');
-        if (connectRef.current) {
-          connectRef.current();
-        }
+        void (async () => {
+          if (!(await refreshBeforeReconnect())) {
+            logger.warn('[SSE] Reconnect skipped after heartbeat timeout: refresh failed');
+            return;
+          }
+          if (connectRef.current) {
+            connectRef.current();
+          }
+        })();
       }, RECONNECT_DELAY);
     }, HEARTBEAT_TIMEOUT);
-  }, []);
+  }, [refreshBeforeReconnect]);
 
   // Connect to SSE
   const connect = useCallback(() => {
@@ -501,9 +521,15 @@ export function useUserMessageStream() {
         reconnectTimeoutRef.current = setTimeout(() => {
           logger.debug('[MSG-DEBUG] SSE: Attempting reconnect...', { timestamp: debugTimestamp() });
           logger.info('[SSE] Attempting reconnect...');
-          if (connectRef.current) {
-            connectRef.current();
-          }
+          void (async () => {
+            if (!(await refreshBeforeReconnect())) {
+              logger.warn('[SSE] Reconnect skipped after connection error: refresh failed');
+              return;
+            }
+            if (connectRef.current) {
+              connectRef.current();
+            }
+          })();
         }, RECONNECT_DELAY);
       };
 
@@ -513,7 +539,7 @@ export function useUserMessageStream() {
     void connectWithToken().finally(() => {
       isConnectingRef.current = false;
     });
-  }, [checkAuth, isAuthenticated, resetHeartbeat, routeEvent]);
+  }, [checkAuth, isAuthenticated, refreshBeforeReconnect, resetHeartbeat, routeEvent]);
 
   // Keep connectRef updated so heartbeat timeout can call it
   useEffect(() => {

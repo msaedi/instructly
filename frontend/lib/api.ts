@@ -18,6 +18,7 @@ import type {
 import { logger } from '@/lib/logger';
 import { formatDateForAPI } from '@/lib/availability/dateHelpers';
 import { getApiBase, withApiBaseForRequest } from '@/lib/apiBase';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 
 type FetchWithAuthOptions = RequestInit & {
   noCache?: boolean;
@@ -99,7 +100,7 @@ export const fetchWithAuth = async (endpoint: string, options: FetchWithAuthOpti
       fetchOptions.cache = cacheOption;
     }
 
-    const response = await fetch(url, fetchOptions);
+    const response = await fetchWithSessionRefresh(url, fetchOptions);
 
     // Log response details
     logger.timeEnd(timerLabel);
@@ -189,7 +190,7 @@ export const fetchAPI = async (endpoint: string, options: RequestInit = {}) => {
       ...options,
       credentials: options.credentials ?? 'include',
     };
-    const response = await fetch(resolvedUrl, requestInit);
+    const response = await fetchWithSessionRefresh(resolvedUrl, requestInit);
 
     logger.timeEnd(timerLabel);
 
