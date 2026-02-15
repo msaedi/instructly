@@ -495,7 +495,7 @@ async def test_get_current_user_optional_env_error_returns_none(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_get_current_user_optional_rejects_token_without_jti(monkeypatch):
+async def test_get_current_user_optional_returns_none_for_outdated_format_token(monkeypatch):
     monkeypatch.setenv("SITE_MODE", "local")
     token = jwt.encode(
         {"sub": TEST_USER_ULID, "exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
@@ -503,10 +503,7 @@ async def test_get_current_user_optional_rejects_token_without_jti(monkeypatch):
         algorithm=settings.algorithm,
     )
     request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
-    with pytest.raises(auth_module.HTTPException) as exc:
-        await get_current_user_optional(request, token=token)
-    assert exc.value.status_code == 401
-    assert exc.value.detail == "Token format outdated, please re-login"
+    assert await get_current_user_optional(request, token=token) is None
 
 
 @pytest.mark.asyncio
@@ -525,7 +522,7 @@ async def test_get_current_user_optional_returns_none_for_revoked_token(monkeypa
 
 
 @pytest.mark.asyncio
-async def test_get_current_user_optional_rejects_token_invalidated_by_user_timestamp(monkeypatch):
+async def test_get_current_user_optional_returns_none_for_invalidated_token(monkeypatch):
     monkeypatch.setenv("SITE_MODE", "local")
     monkeypatch.setattr(auth_module, "TokenBlacklistService", lambda: _NeverRevokedService())
 
@@ -544,10 +541,7 @@ async def test_get_current_user_optional_rejects_token_invalidated_by_user_times
     monkeypatch.setattr(auth_module, "lookup_user_by_id_nonblocking", _lookup_by_id)
     request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
 
-    with pytest.raises(auth_module.HTTPException) as exc:
-        await get_current_user_optional(request, token=token)
-    assert exc.value.status_code == 401
-    assert exc.value.detail == "Token has been invalidated"
+    assert await get_current_user_optional(request, token=token) is None
 
 
 @pytest.mark.parametrize(

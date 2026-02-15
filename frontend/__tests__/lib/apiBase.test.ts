@@ -191,6 +191,9 @@ describe('withApiBaseForRequest', () => {
     expect(withApiBaseForRequest('/api/v1/messages/mark-read', 'POST')).toBe(
       '/api/v1/messages/mark-read'
     );
+    expect(withApiBaseForRequest('/api/v1/account/logout-all-devices', 'POST')).toBe(
+      '/api/v1/account/logout-all-devices'
+    );
   });
 
   it('keeps protected GET requests direct when absolute URLs are used', () => {

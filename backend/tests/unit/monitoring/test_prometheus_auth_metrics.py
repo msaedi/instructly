@@ -16,6 +16,14 @@ def test_record_token_revocation_increments_allowed_trigger() -> None:
     assert after >= before + 1.0
 
 
+def test_record_token_revocation_increments_deactivation_trigger() -> None:
+    labels = {"trigger": "deactivation"}
+    before = _sample("instainstru_auth_token_revocation_total", labels)
+    prometheus_metrics.record_token_revocation("deactivation")
+    after = _sample("instainstru_auth_token_revocation_total", labels)
+    assert after >= before + 1.0
+
+
 def test_record_token_revocation_maps_unknown_trigger() -> None:
     labels = {"trigger": "unknown"}
     before = _sample("instainstru_auth_token_revocation_total", labels)

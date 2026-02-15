@@ -415,7 +415,7 @@ async def login(
     Rate limited to prevent brute force attacks.
 
     PERFORMANCE OPTIMIZATION: This endpoint releases the DB connection BEFORE
-    running bcrypt verification (~200ms). This reduces DB connection hold time
+    running Argon2id verification (~200ms). This reduces DB connection hold time
     from ~200ms to ~5-20ms, allowing 10x more concurrent logins.
 
     Args:
@@ -544,14 +544,7 @@ async def login(
 
     # Step 7: Create access token (no DB needed)
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
-    import os as _os_jwt
-
-    _site_mode_jwt = _os_jwt.getenv("SITE_MODE", "").lower().strip()
     _claims = {"sub": user_id, "email": user_email}
-    if _site_mode_jwt == "preview":
-        _claims.update({"aud": "preview", "iss": f"https://{settings.preview_api_domain}"})
-    elif _site_mode_jwt in {"prod", "production", "live"}:
-        _claims.update({"aud": "prod", "iss": f"https://{settings.prod_api_domain}"})
 
     access_token = create_access_token(
         data=_claims,
@@ -618,9 +611,9 @@ async def change_password(
     Verifies the current password, enforces minimal strength, and updates the hash.
     """
     # Get user object - run in thread pool to avoid blocking event loop
-    user = await asyncio.to_thread(auth_service.get_current_user, email=current_user)
+    user = await asyncio.to_thread(auth_service.get_current_user, current_user)
 
-    # Verify current password - use async version for bcrypt
+    # Verify current password - use async version for Argon2id
     from app.auth import get_password_hash
 
     if not await verify_password_async(payload.current_password, user.hashed_password):
@@ -706,7 +699,7 @@ async def login_with_session(
     This endpoint supports guest session conversion.
 
     PERFORMANCE OPTIMIZATION: This endpoint releases the DB connection BEFORE
-    running bcrypt verification (~200ms). This reduces DB connection hold time
+    running Argon2id verification (~200ms). This reduces DB connection hold time
     from ~200ms to ~5-20ms, allowing 10x more concurrent logins.
 
     Args:
@@ -997,7 +990,7 @@ async def update_current_user(
 
     Args:
         user_update: Fields to update
-        current_user: Current user email from JWT
+        current_user: Current user identifier from JWT
         auth_service: Authentication service
         db: Database session
 
@@ -1013,7 +1006,7 @@ async def update_current_user(
         # Wrap all sync DB operations in thread pool to avoid blocking event loop
         def _update_user_profile() -> tuple[Any, ...]:
             """Perform all DB ops in one thread."""
-            u = auth_service.get_current_user(email=current_user)
+            u = auth_service.get_current_user(current_user)
 
             # Use repository for updates
             from app.repositories import RepositoryFactory

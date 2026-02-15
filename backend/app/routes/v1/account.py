@@ -10,6 +10,7 @@ Endpoints:
     POST /deactivate                     → Permanently deactivate account
     POST /reactivate                     → Reactivate suspended account
     GET /status                          → Check account status
+    POST /logout-all-devices             → Invalidate all user sessions
 """
 
 import asyncio
@@ -283,6 +284,7 @@ async def logout_all_devices(
         trigger="logout_all_devices",
     )
     if not invalidated:
+        logger.error("Logout-all tokens_valid_after update failed for user_id=%s", current_user.id)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     token = _extract_request_access_token(request)
@@ -301,7 +303,7 @@ async def logout_all_devices(
                     emit_metric=False,
                 )
                 if not revoked:
-                    logger.warning("Logout-all blacklist write failed for jti=%s", jti)
+                    logger.error("Logout-all blacklist write failed for jti=%s", jti)
         except Exception:
             logger.debug("Failed to decode token during logout-all blacklist step", exc_info=True)
 

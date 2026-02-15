@@ -123,7 +123,18 @@ class TokenBlacklistService:
 
                 runner = partial(async_fn, *args, **kwargs)
                 return cast(T, anyio.from_thread.run(runner))
-            except RuntimeError:
+            except RuntimeError as exc:
+                exc_text = str(exc).lower()
+                if not any(
+                    marker in exc_text
+                    for marker in (
+                        "no current event loop",
+                        "no running",
+                        "anyio worker thread",
+                        "event loop token",
+                    )
+                ):
+                    raise
                 try:
                     return asyncio.run(async_fn(*args, **kwargs))
                 except _SYNC_BRIDGE_FALLBACK_ERRORS as exc:

@@ -197,20 +197,30 @@ class PasswordResetService(BaseService):
                     to_email=user.email,
                     user_name=user.first_name,
                 )
+        except ValidationException:
+            raise
+        except Exception as e:
+            self.logger.error(f"Error resetting password: {str(e)}")
+            raise ValidationException("An error occurred while resetting your password")
 
-            invalidation_repo = RepositoryFactory.create_user_repository(self.db)
+        # Password reset has committed successfully; token invalidation is best-effort
+        # and must not change the user-visible result.
+        invalidation_repo = RepositoryFactory.create_user_repository(self.db)
+        try:
             if not invalidation_repo.invalidate_all_tokens(user.id, trigger="password_change"):
                 self.logger.critical(
                     "Password reset succeeded but token invalidation helper returned false for user %s",
                     user.id,
                 )
-
-            self.logger.info(f"Password successfully reset for user {user.id}")
-            return True
-
         except Exception as e:
-            self.logger.error(f"Error resetting password: {str(e)}")
-            raise ValidationException("An error occurred while resetting your password")
+            self.logger.critical(
+                "Password reset succeeded but token invalidation raised for user %s: %s",
+                user.id,
+                e,
+            )
+
+        self.logger.info(f"Password successfully reset for user {user.id}")
+        return True
 
     def _generate_reset_token(self, user_id: str) -> str:
         """

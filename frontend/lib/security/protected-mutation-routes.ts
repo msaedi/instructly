@@ -8,6 +8,7 @@ export const PROTECTED_PATH_PREFIXES = [
   '/api/v1/public/referrals',
   '/api/v1/messages',
   '/api/v1/conversations',
+  '/api/v1/account',
 ] as const;
 
 export const PROTECTED_MUTATION_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'] as const;

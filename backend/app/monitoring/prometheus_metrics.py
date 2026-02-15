@@ -246,6 +246,7 @@ class PrometheusMetrics:
         "password_change",
         "2fa_change",
         "suspension",
+        "deactivation",
         "admin_force_logout",
         "logout_all_devices",
     }

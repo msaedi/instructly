@@ -55,7 +55,7 @@ class _StubAuthService:
     def release_connection(self):
         return None
 
-    def get_current_user(self, *, email):
+    def get_current_user(self, identifier=None, *, email=None):
         return self._user_obj
 
 

@@ -157,7 +157,21 @@ def invalidate_cached_user_by_id_sync(user_id: str, db_session: Any) -> bool:
             loop = asyncio.get_running_loop()
             # Event loop is running - schedule as task (fire-and-forget)
             # Cache invalidation is best-effort, so this is acceptable
-            loop.create_task(invalidate_cached_user(user_id))
+            task = loop.create_task(invalidate_cached_user(user_id))
+
+            def _on_done(t: asyncio.Task) -> None:
+                if t.cancelled():
+                    return
+                exc = t.exception()
+                if exc is not None:
+                    logger.error(
+                        "Fire-and-forget cache invalidation failed for user %s: %s",
+                        user_id,
+                        exc,
+                    )
+
+            if hasattr(task, "add_done_callback"):
+                task.add_done_callback(_on_done)
             logger.debug("[AUTH-CACHE] Scheduled async invalidation for %s", user_id)
             return True
         except RuntimeError:
@@ -202,8 +216,8 @@ def _user_to_dict(user: User, beta_access: Optional[Any] = None) -> Dict[str, An
         "profile_picture_version": getattr(user, "profile_picture_version", 0),
         "has_profile_picture": getattr(user, "has_profile_picture", False),
         # Keep this precomputed in cache so auth checks are integer comparisons.
-        # IMPORTANT: when tokens_valid_after is changed (Phase 3+), evict auth cache
-        # entries via invalidate_cached_user_by_id_sync() so this value refreshes.
+        # Cache eviction for tokens_valid_after updates is handled by
+        # invalidate_cached_user_by_id_sync().
         "tokens_valid_after_ts": (
             int(user.tokens_valid_after.timestamp())
             if getattr(user, "tokens_valid_after", None)

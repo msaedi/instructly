@@ -317,7 +317,12 @@ async def _enforce_revocation_and_user_invalidation(payload: Dict[str, Any], use
         return
 
     user_data = await lookup_user_by_id_nonblocking(user_id)
-    if not user_data:
+    if user_data is None:
+        logger.warning(
+            "User lookup returned None during revocation check for user_id=%s — "
+            "tokens_valid_after check skipped",
+            user_id,
+        )
         return
 
     tokens_valid_after_ts = user_data.get("tokens_valid_after_ts")
@@ -370,7 +375,7 @@ async def get_current_user(
                 site_mode = ""
 
             if hasattr(request, "cookies"):
-                # Legacy cookie fallback for __Host- migration compatibility.
+                # Cookie-based authentication via session cookies.
                 for cookie_name in session_cookie_candidates(site_mode):
                     cookie_token = request.cookies.get(cookie_name)
                     if cookie_token:
@@ -436,7 +441,7 @@ async def get_current_user_optional(
             site_mode = ""
 
         if hasattr(request, "cookies"):
-            # Legacy cookie fallback for __Host- migration compatibility.
+            # Cookie-based authentication via session cookies.
             for cookie_name in session_cookie_candidates(site_mode):
                 cookie_token = request.cookies.get(cookie_name)
                 if cookie_token:
@@ -459,11 +464,12 @@ async def get_current_user_optional(
         return user_id
 
     except HTTPException as exc:
-        if (
-            exc.status_code == status.HTTP_401_UNAUTHORIZED
-            and exc.detail == "Token has been revoked"
+        if exc.status_code == status.HTTP_401_UNAUTHORIZED and exc.detail in (
+            "Token has been revoked",
+            "Token has been invalidated",
+            "Token format outdated, please re-login",
         ):
-            logger.debug("Optional auth ignoring revoked token")
+            logger.debug("Optional auth ignoring auth rejection: %s", exc.detail)
             return None
         raise
     except PyJWTError as e:
