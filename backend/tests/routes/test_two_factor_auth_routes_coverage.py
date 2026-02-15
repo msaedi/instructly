@@ -17,7 +17,7 @@ class _AuthService:
     def __init__(self, user):
         self._user = user
 
-    def get_current_user(self, *, email):
+    def get_current_user(self, identifier=None, *, email=None):
         return self._user
 
 
