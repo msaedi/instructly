@@ -19,7 +19,7 @@ import re
 import secrets
 from typing import Any, Dict, Mapping, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from ...api.dependencies.auth import get_current_active_user
@@ -47,7 +47,7 @@ from ...services.audit_service import AuditService
 from ...services.cache_service import CacheService
 from ...services.sms_service import SMSService, SMSStatus
 from ...services.token_blacklist_service import TokenBlacklistService
-from ...utils.cookies import session_cookie_candidates
+from ...utils.cookies import delete_refresh_cookie, session_cookie_candidates
 
 logger = logging.getLogger(__name__)
 
@@ -273,6 +273,7 @@ async def check_account_status(
 )
 async def logout_all_devices(
     request: Request,
+    response: Response,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ) -> SessionInvalidationResponse:
@@ -307,6 +308,7 @@ async def logout_all_devices(
         except Exception:
             logger.warning("Failed to decode token during logout-all blacklist step", exc_info=True)
 
+    delete_refresh_cookie(response)
     return SessionInvalidationResponse(message="All sessions have been logged out")
 
 

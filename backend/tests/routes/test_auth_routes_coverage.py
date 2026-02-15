@@ -1774,3 +1774,36 @@ async def test_refresh_session_token_rejects_expired_token(monkeypatch):
         await auth_routes.refresh_session_token(request, response, db=object())
     assert exc.value.status_code == 401
     assert exc.value.detail == "Could not validate credentials"
+
+
+@pytest.mark.asyncio
+async def test_refresh_session_token_rejects_deleted_user(monkeypatch):
+    """Refresh rejected when user no longer exists (get_by_id returns None)."""
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    refresh_payload = {
+        "sub": "01HDELETEDUSER000000000000",
+        "email": "deleted@example.com",
+        "jti": "01HDELETEDJTI0000000000000",
+        "iat": now_ts,
+        "exp": now_ts + 3600,
+        "typ": "refresh",
+    }
+
+    class _Repo:
+        def get_by_id(self, user_id: str):
+            return None
+
+    monkeypatch.setattr(auth_routes, "decode_access_token", lambda _token: refresh_payload)
+    monkeypatch.setattr(
+        "app.repositories.RepositoryFactory.create_user_repository",
+        lambda _db: _Repo(),
+    )
+
+    cookie_name = auth_routes.refresh_cookie_base_name(auth_routes.settings.site_mode)
+    request = _DummyRequest(cookies={cookie_name: "old"})
+    response = Response()
+
+    with pytest.raises(HTTPException) as exc:
+        await auth_routes.refresh_session_token(request, response, db=object())
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Could not validate credentials"
