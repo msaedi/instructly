@@ -22,7 +22,7 @@ describe('next.config security headers', () => {
     jest.resetModules();
   });
 
-  it('includes CSP report-only header with required directives', async () => {
+  it('includes enforcing CSP header with required directives', async () => {
     process.env.NEXT_PUBLIC_SENTRY_DSN = '';
     jest.resetModules();
 
@@ -37,7 +37,7 @@ describe('next.config security headers', () => {
     expect(rootRule).toBeDefined();
 
     const cspHeader = rootRule!.headers.find(
-      (header) => header.key === 'Content-Security-Policy-Report-Only'
+      (header) => header.key === 'Content-Security-Policy'
     );
     expect(cspHeader).toBeDefined();
 

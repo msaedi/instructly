@@ -106,7 +106,7 @@ const nextConfig: NextConfig = {
       { key: 'X-Content-Type-Options', value: 'nosniff' },
       { key: 'Referrer-Policy', value: 'origin-when-cross-origin' },
       { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
-      { key: 'Content-Security-Policy-Report-Only', value: cspReportOnlyValue },
+      { key: 'Content-Security-Policy', value: cspReportOnlyValue },
       // Enable HSTS behind HTTPS; browsers will ignore if HTTP
       { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
     ];
