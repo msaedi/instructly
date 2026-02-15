@@ -928,6 +928,38 @@ SUBCATEGORY_FILTER_MAP: dict[str, dict[str, Any]] = _build_subcategory_filter_ma
 # ════════════════════════════════════════════════════════════════════
 
 
+def _bulk_insert(
+    session: Any,
+    table: str,
+    columns: list[str],
+    rows: list[dict[str, Any]],
+) -> int:
+    """Execute a single multi-row INSERT statement.
+
+    Reduces ~N network round-trips to 1 per table, which is critical
+    for remote databases (e.g. Supabase) where each round-trip costs ~30ms.
+    """
+    if not rows:
+        return 0
+    from sqlalchemy import text
+
+    value_clauses = []
+    params: dict[str, Any] = {}
+    for i, row in enumerate(rows):
+        placeholders = []
+        for col in columns:
+            param_name = f"{col}_{i}"
+            placeholders.append(f":{param_name}")
+            params[param_name] = row[col]
+        value_clauses.append(f"({', '.join(placeholders)})")
+
+    col_list = ", ".join(columns)
+    values_str = ",\n".join(value_clauses)
+    sql = f"INSERT INTO {table} ({col_list}) VALUES {values_str}"
+    session.execute(text(sql), params)
+    return len(rows)
+
+
 def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, int]:
     """
     Seed the complete 3-level taxonomy.
@@ -975,49 +1007,48 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
         session.execute(text("DELETE FROM service_categories"))
         session.flush()
 
-        # ── 1. Insert categories ──
+        # ── 1. Prepare categories ──
         if verbose:
             print("\n📂 Seeding categories...")
 
         cat_name_to_id: dict[str, str] = {}
         cat_name_to_slug: dict[str, str] = {}
+        category_rows: list[dict[str, Any]] = []
         for cat in CATEGORIES:
             cat_slug = cat["slug"]
             cat_id = deterministic_id("category", cat_slug)
             cat_name_to_id[cat["name"]] = cat_id
             cat_name_to_slug[cat["name"]] = cat_slug
             meta_title = f"{cat['name']} | InstaInstru"
-            session.execute(
-                text("""
-                    INSERT INTO service_categories
-                        (id, name, slug, subtitle, description, meta_title, meta_description,
-                         display_order, icon_name, created_at)
-                    VALUES
-                        (:id, :name, :slug, :subtitle, :description, :meta_title, :meta_description,
-                         :display_order, :icon_name, NOW())
-                """),
-                {
-                    "id": cat_id,
-                    "name": cat["name"],
-                    "slug": cat["slug"],
-                    "subtitle": cat.get("subtitle", ""),
-                    "description": cat.get("description", ""),
-                    "meta_title": meta_title,
-                    "meta_description": cat.get("description", ""),
-                    "display_order": cat["display_order"],
-                    "icon_name": cat["icon_name"],
-                },
-            )
-            stats["categories"] += 1
+            category_rows.append({
+                "id": cat_id,
+                "name": cat["name"],
+                "slug": cat["slug"],
+                "subtitle": cat.get("subtitle", ""),
+                "description": cat.get("description", ""),
+                "meta_title": meta_title,
+                "meta_description": cat.get("description", ""),
+                "display_order": cat["display_order"],
+                "icon_name": cat["icon_name"],
+            })
             if verbose:
                 print(f"  + {cat['name']}")
 
-        # ── 2. Insert subcategories + services ──
+        stats["categories"] = _bulk_insert(
+            session, "service_categories",
+            ["id", "name", "slug", "subtitle", "description",
+             "meta_title", "meta_description", "display_order", "icon_name"],
+            category_rows,
+        )
+
+        # ── 2. Prepare subcategories + services ──
         if verbose:
             print("\n📁 Seeding subcategories & services...")
 
         sub_key_to_id: dict[str, str] = {}  # "Category > Subcategory" → id
         svc_display_order = 0
+        subcategory_rows: list[dict[str, Any]] = []
+        service_rows: list[dict[str, Any]] = []
 
         for cat_name, subcats in TAXONOMY.items():
             cat_id = cat_name_to_id[cat_name]
@@ -1028,21 +1059,14 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
                 sub_key = f"{cat_name} > {sub_name}"
                 sub_key_to_id[sub_key] = sub_id
 
-                session.execute(
-                    text("""
-                        INSERT INTO service_subcategories
-                            (id, category_id, slug, name, display_order, is_active, created_at)
-                        VALUES (:id, :category_id, :slug, :name, :display_order, true, NOW())
-                    """),
-                    {
-                        "id": sub_id,
-                        "category_id": cat_id,
-                        "slug": sub_slug,
-                        "name": sub_name,
-                        "display_order": sub_order,
-                    },
-                )
-                stats["subcategories"] += 1
+                subcategory_rows.append({
+                    "id": sub_id,
+                    "category_id": cat_id,
+                    "slug": sub_slug,
+                    "name": sub_name,
+                    "display_order": sub_order,
+                    "is_active": True,
+                })
 
                 for svc_name in services:
                     svc_slug = slugify(svc_name)
@@ -1050,61 +1074,64 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
                     svc_display_order += 1
                     age_groups = AGE_GROUP_OVERRIDES.get(svc_name, DEFAULT_AGE_GROUPS)
 
-                    session.execute(
-                        text("""
-                            INSERT INTO service_catalog
-                                (id, subcategory_id, name, slug, eligible_age_groups,
-                                 default_duration_minutes, online_capable,
-                                 display_order, is_active, created_at)
-                            VALUES
-                                (:id, :subcategory_id, :name, :slug, :eligible_age_groups,
-                                 60, true,
-                                 :display_order, true, NOW())
-                        """),
-                        {
-                            "id": svc_id,
-                            "subcategory_id": sub_id,
-                            "name": svc_name,
-                            "slug": svc_slug,
-                            "eligible_age_groups": age_groups,
-                            "display_order": svc_display_order,
-                        },
-                    )
-                    stats["services"] += 1
+                    service_rows.append({
+                        "id": svc_id,
+                        "subcategory_id": sub_id,
+                        "name": svc_name,
+                        "slug": svc_slug,
+                        "eligible_age_groups": age_groups,
+                        "default_duration_minutes": 60,
+                        "online_capable": True,
+                        "display_order": svc_display_order,
+                        "is_active": True,
+                    })
 
                 if verbose:
                     print(f"  + {cat_name} > {sub_name} ({len(services)} services)")
 
-        # ── 3. Insert filter definitions ──
+        stats["subcategories"] = _bulk_insert(
+            session, "service_subcategories",
+            ["id", "category_id", "slug", "name", "display_order", "is_active"],
+            subcategory_rows,
+        )
+        stats["services"] = _bulk_insert(
+            session, "service_catalog",
+            ["id", "subcategory_id", "name", "slug", "eligible_age_groups",
+             "default_duration_minutes", "online_capable", "display_order", "is_active"],
+            service_rows,
+        )
+
+        # ── 3. Prepare filter definitions ──
         if verbose:
             print("\n🔧 Seeding filter definitions...")
 
         filter_key_to_id: dict[str, str] = {}
+        filter_def_rows: list[dict[str, Any]] = []
         for fd in FILTER_DEFINITIONS:
             fd_id = deterministic_id("filter", fd["key"])
             filter_key_to_id[fd["key"]] = fd_id
-            session.execute(
-                text("""
-                    INSERT INTO filter_definitions (id, key, display_name, filter_type, created_at)
-                    VALUES (:id, :key, :display_name, :filter_type, NOW())
-                """),
-                {
-                    "id": fd_id,
-                    "key": fd["key"],
-                    "display_name": fd["display_name"],
-                    "filter_type": fd["filter_type"],
-                },
-            )
-            stats["filter_definitions"] += 1
+            filter_def_rows.append({
+                "id": fd_id,
+                "key": fd["key"],
+                "display_name": fd["display_name"],
+                "filter_type": fd["filter_type"],
+            })
             if verbose:
                 print(f"  + {fd['key']} ({fd['filter_type']})")
 
-        # ── 4. Insert filter options ──
+        stats["filter_definitions"] = _bulk_insert(
+            session, "filter_definitions",
+            ["id", "key", "display_name", "filter_type"],
+            filter_def_rows,
+        )
+
+        # ── 4. Prepare filter options ──
         if verbose:
             print("\n🏷  Seeding filter options...")
 
         # filter_key → { option_value → option_id }
         option_lookup: dict[str, dict[str, str]] = {}
+        filter_opt_rows: list[dict[str, Any]] = []
 
         for filter_key, options in FILTER_OPTIONS.items():
             fd_id = filter_key_to_id[filter_key]
@@ -1112,28 +1139,29 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
             for order, (value, display_name) in enumerate(options):
                 opt_id = deterministic_id("option", f"{filter_key}:{value}")
                 option_lookup[filter_key][value] = opt_id
-                session.execute(
-                    text("""
-                        INSERT INTO filter_options
-                            (id, filter_definition_id, value, display_name, display_order, created_at)
-                        VALUES (:id, :fd_id, :value, :display_name, :display_order, NOW())
-                    """),
-                    {
-                        "id": opt_id,
-                        "fd_id": fd_id,
-                        "value": value,
-                        "display_name": display_name,
-                        "display_order": order,
-                    },
-                )
-                stats["filter_options"] += 1
+                filter_opt_rows.append({
+                    "id": opt_id,
+                    "filter_definition_id": fd_id,
+                    "value": value,
+                    "display_name": display_name,
+                    "display_order": order,
+                })
 
             if verbose:
                 print(f"  + {filter_key}: {len(options)} options")
 
-        # ── 5. Insert subcategory ↔ filter mappings ──
+        stats["filter_options"] = _bulk_insert(
+            session, "filter_options",
+            ["id", "filter_definition_id", "value", "display_name", "display_order"],
+            filter_opt_rows,
+        )
+
+        # ── 5. Prepare subcategory ↔ filter mappings ──
         if verbose:
             print("\n🔗 Seeding subcategory-filter mappings...")
+
+        sf_rows: list[dict[str, Any]] = []
+        sfo_rows: list[dict[str, Any]] = []
 
         for sub_key, filters in SUBCATEGORY_FILTER_MAP.items():
             sub_id = sub_key_to_id.get(sub_key)
@@ -1148,22 +1176,14 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
                     print(f"  ⚠ Filter key not found: {filter_key}")
                     continue
 
-                # Create subcategory_filters row
+                # Prepare subcategory_filters row
                 sf_id = deterministic_id("subcategory_filter", f"{sub_id}:{filter_key}")
-                session.execute(
-                    text("""
-                        INSERT INTO subcategory_filters
-                            (id, subcategory_id, filter_definition_id, display_order)
-                        VALUES (:id, :sub_id, :fd_id, :display_order)
-                    """),
-                    {
-                        "id": sf_id,
-                        "sub_id": sub_id,
-                        "fd_id": fd_id,
-                        "display_order": filter_order,
-                    },
-                )
-                stats["subcategory_filters"] += 1
+                sf_rows.append({
+                    "id": sf_id,
+                    "subcategory_id": sub_id,
+                    "filter_definition_id": fd_id,
+                    "display_order": filter_order,
+                })
                 filter_order += 1
 
                 # Resolve option values
@@ -1172,7 +1192,7 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
                 else:
                     resolved_values = option_values
 
-                # Create subcategory_filter_options rows
+                # Prepare subcategory_filter_options rows
                 opt_order = 0
                 for opt_value in resolved_values:
                     opt_id = option_lookup.get(filter_key, {}).get(opt_value)
@@ -1184,25 +1204,28 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
                         "subcategory_filter_option",
                         f"{sf_id}:{opt_value}",
                     )
-                    session.execute(
-                        text("""
-                            INSERT INTO subcategory_filter_options
-                                (id, subcategory_filter_id, filter_option_id, display_order)
-                            VALUES (:id, :sf_id, :opt_id, :display_order)
-                        """),
-                        {
-                            "id": sfo_id,
-                            "sf_id": sf_id,
-                            "opt_id": opt_id,
-                            "display_order": opt_order,
-                        },
-                    )
-                    stats["subcategory_filter_options"] += 1
+                    sfo_rows.append({
+                        "id": sfo_id,
+                        "subcategory_filter_id": sf_id,
+                        "filter_option_id": opt_id,
+                        "display_order": opt_order,
+                    })
                     opt_order += 1
 
             if verbose:
                 n_filters = len(filters)
                 print(f"  + {sub_key}: {n_filters} filters")
+
+        stats["subcategory_filters"] = _bulk_insert(
+            session, "subcategory_filters",
+            ["id", "subcategory_id", "filter_definition_id", "display_order"],
+            sf_rows,
+        )
+        stats["subcategory_filter_options"] = _bulk_insert(
+            session, "subcategory_filter_options",
+            ["id", "subcategory_filter_id", "filter_option_id", "display_order"],
+            sfo_rows,
+        )
 
         # ── 6. Generate instructor profile slugs ──
         if verbose:

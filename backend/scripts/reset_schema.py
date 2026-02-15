@@ -19,6 +19,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import create_engine, text
 
+from app.core.config import secret_or_plain
 from app.utils.env_logging import log_error, log_info, log_warn
 
 ALLOWED_ENVS = {"int", "stg", "preview", "prod"}
@@ -72,10 +73,10 @@ def resolve_db_url(env: str) -> str:
     if env == "int":
         return settings.database_url
     if env == "stg":
-        return settings.stg_database_url_raw or ""
+        return secret_or_plain(settings.stg_database_url_raw)
     if env == "preview":
-        return settings.preview_database_url_raw or ""
-    return settings.prod_database_url_raw or ""
+        return secret_or_plain(settings.preview_database_url_raw)
+    return secret_or_plain(settings.prod_database_url_raw)
 
 
 from app.core.config import settings
