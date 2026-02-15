@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 import logging
 import os
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, Mapping, Optional, cast
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerifyMismatchError
@@ -197,6 +197,35 @@ def decode_access_token(token: str, *, enforce_audience: bool | None = None) -> 
     return cast(Dict[str, Any], payload_raw)
 
 
+def _apply_environment_claims(to_encode: Dict[str, Any]) -> None:
+    """Attach issuer/audience claims based on site mode."""
+    try:
+        site_mode = os.getenv("SITE_MODE", "").lower().strip()
+    except Exception:
+        site_mode = ""
+    if site_mode == "preview":
+        to_encode.update({"iss": f"https://{settings.preview_api_domain}", "aud": "preview"})
+    elif site_mode in {"prod", "production", "live"}:
+        to_encode.update({"iss": f"https://{settings.prod_api_domain}", "aud": "prod"})
+
+
+def token_type(payload: Mapping[str, Any]) -> str | None:
+    """Return the token type claim when present and valid."""
+    token_type_claim = payload.get("typ")
+    return token_type_claim if isinstance(token_type_claim, str) else None
+
+
+def is_access_token_payload(payload: Mapping[str, Any]) -> bool:
+    """Access auth accepts typ=access and typ-less tokens for migration compatibility."""
+    token_typ = token_type(payload)
+    return token_typ in {None, "access"}
+
+
+def is_refresh_token_payload(payload: Mapping[str, Any]) -> bool:
+    """Refresh endpoint accepts only typ=refresh tokens."""
+    return token_type(payload) == "refresh"
+
+
 def create_access_token(
     data: Dict[str, Any],
     expires_delta: Optional[timedelta] = None,
@@ -226,6 +255,7 @@ def create_access_token(
             "exp": expire,
             "iat": int(now_utc.timestamp()),
             "jti": str(ulid.ULID()),
+            "typ": "access",
         }
     )
 
@@ -233,15 +263,7 @@ def create_access_token(
     if beta_claims:
         to_encode.update(beta_claims)
 
-    # Add iss/aud per environment
-    try:
-        site_mode = os.getenv("SITE_MODE", "").lower().strip()
-    except Exception:
-        site_mode = ""
-    if site_mode == "preview":
-        to_encode.update({"iss": f"https://{settings.preview_api_domain}", "aud": "preview"})
-    elif site_mode in {"prod", "production", "live"}:
-        to_encode.update({"iss": f"https://{settings.prod_api_domain}", "aud": "prod"})
+    _apply_environment_claims(to_encode)
 
     encoded_jwt = cast(
         str,
@@ -253,6 +275,46 @@ def create_access_token(
     )
 
     logger.debug("Created access token for user: %s", data.get("sub"))
+    return encoded_jwt
+
+
+def create_refresh_token(
+    data: Dict[str, Any],
+    expires_delta: Optional[timedelta] = None,
+) -> str:
+    """Create a JWT refresh token with minimal claims."""
+    now_utc = datetime.now(timezone.utc)
+    if expires_delta:
+        expire = now_utc + expires_delta
+    else:
+        expire = now_utc + timedelta(days=settings.refresh_token_lifetime_days)
+
+    to_encode: Dict[str, Any] = {}
+    sub = data.get("sub")
+    if isinstance(sub, str):
+        to_encode["sub"] = sub
+    email = data.get("email")
+    if isinstance(email, str):
+        to_encode["email"] = email
+    to_encode.update(
+        {
+            "exp": expire,
+            "iat": int(now_utc.timestamp()),
+            "jti": str(ulid.ULID()),
+            "typ": "refresh",
+        }
+    )
+    _apply_environment_claims(to_encode)
+
+    encoded_jwt = cast(
+        str,
+        jwt.encode(
+            to_encode,
+            secret_or_plain(settings.secret_key),
+            algorithm=settings.algorithm,
+        ),
+    )
+    logger.debug("Created refresh token for user: %s", to_encode.get("sub"))
     return encoded_jwt
 
 
@@ -416,6 +478,10 @@ async def get_current_user(
             )
             raise credentials_exception
 
+        if not is_access_token_payload(payload):
+            logger.warning("Rejected non-access token on access auth path")
+            raise invalid_credentials
+
         await _enforce_revocation_and_user_invalidation(payload, user_id)
 
         logger.debug(f"Successfully validated token for user: {user_id}")
@@ -472,6 +538,10 @@ async def get_current_user_optional(
         user_id: str | None = user_id_obj if isinstance(user_id_obj, str) else None
         if user_id is None:
             logger.warning("Token payload missing 'sub' field")
+            return None
+
+        if not is_access_token_payload(payload):
+            logger.debug("Optional auth ignoring non-access token type")
             return None
 
         await _enforce_revocation_and_user_invalidation(payload, user_id)

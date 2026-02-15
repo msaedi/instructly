@@ -72,3 +72,8 @@ class BackupCodesResponse(StrictModel):
 class SessionInvalidationResponse(StrictModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
     message: str
+
+
+class SessionRefreshResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    message: str

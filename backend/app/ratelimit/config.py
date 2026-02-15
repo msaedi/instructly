@@ -35,6 +35,7 @@ settings: RateLimitSettings = RateLimitSettings()
 # bucket policies (will be extended in PR-2)
 BUCKETS: Dict[str, Dict[str, Any]] = {
     "auth_bootstrap": dict(rate_per_min=100, burst=20, window_s=60),
+    "auth_refresh": dict(rate_per_min=10, burst=2, window_s=60),
     "read": dict(rate_per_min=120, burst=20, window_s=60),
     # Messaging uses the "write" bucket; relax to 30/min with a burst of 5 to prevent 429s during normal chat use
     "write": dict(rate_per_min=30, burst=10, window_s=60),

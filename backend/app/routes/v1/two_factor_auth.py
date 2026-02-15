@@ -14,7 +14,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 import jwt
 from sqlalchemy.orm import Session
 
-from app.auth import create_access_token, decode_access_token, get_current_user
+from app.auth import (
+    create_access_token,
+    create_refresh_token,
+    decode_access_token,
+    get_current_user,
+)
 from app.core.config import settings
 from app.database import get_db
 from app.middleware.rate_limiter import RateLimitKeyType, rate_limit
@@ -28,6 +33,7 @@ from app.services.two_factor_auth_service import TwoFactorAuthService
 from app.utils.cookies import (
     session_cookie_base_name,
     session_cookie_candidates,
+    set_refresh_cookie,
     set_session_cookie,
 )
 
@@ -313,6 +319,10 @@ def verify_login(
         data={"sub": user.id, "email": user.email},
         expires_delta=access_token_expires,
     )
+    refresh_token = create_refresh_token(
+        data={"sub": user.id, "email": user.email},
+        expires_delta=timedelta(days=settings.refresh_token_lifetime_days),
+    )
     # Write session cookie (API host only)
     site_mode = settings.site_mode
     base_cookie_name = session_cookie_base_name(site_mode)
@@ -322,6 +332,12 @@ def verify_login(
         base_cookie_name,
         access_token,
         max_age=settings.access_token_expire_minutes * 60,
+        domain=settings.session_cookie_domain,
+    )
+    set_refresh_cookie(
+        response,
+        refresh_token,
+        max_age=settings.refresh_token_lifetime_days * 24 * 60 * 60,
         domain=settings.session_cookie_domain,
     )
 

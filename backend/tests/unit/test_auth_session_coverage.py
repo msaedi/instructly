@@ -145,6 +145,24 @@ def test_decode_subject_rejects_non_string_subject(monkeypatch):
     assert auth_session._decode_subject("token") is None
 
 
+def test_decode_subject_rejects_refresh_token_type(monkeypatch):
+    monkeypatch.setattr(
+        auth_session,
+        "decode_access_token",
+        lambda token: {
+            "sub": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "jti": "test-jti",
+            "typ": "refresh",
+        },
+    )
+    monkeypatch.setattr(
+        auth_session.TokenBlacklistService,
+        "is_revoked_sync",
+        lambda self, _jti: False,
+    )
+    assert auth_session._decode_subject("token") is None
+
+
 @pytest.mark.parametrize(
     ("iat_value", "expected_iat"),
     [

@@ -11,6 +11,7 @@ import pytest
 import app.auth as auth_module
 from app.auth import (
     create_access_token,
+    create_refresh_token,
     decode_access_token,
     get_current_user,
     get_current_user_optional,
@@ -187,6 +188,7 @@ def test_create_access_token_includes_env_claims(monkeypatch):
     assert decoded["iss"] == f"https://{settings.preview_api_domain}"
     assert decoded["sub"] == TEST_USER_ULID
     assert decoded["email"] == "user@example.com"
+    assert decoded["typ"] == "access"
     assert isinstance(decoded.get("iat"), int)
     assert re.fullmatch(r"[0-9A-HJKMNP-TV-Z]{26}", decoded.get("jti", ""))
 
@@ -250,6 +252,22 @@ def test_create_access_token_jti_is_unique():
         options={"verify_aud": False},
     )
     assert decoded_1["jti"] != decoded_2["jti"]
+
+
+def test_create_refresh_token_uses_minimal_claims():
+    token = create_refresh_token(
+        {"sub": TEST_USER_ULID, "email": "user@example.com", "beta_access": True}
+    )
+    decoded = jwt.decode(
+        token,
+        secret_or_plain(settings.secret_key),
+        algorithms=[settings.algorithm],
+        options={"verify_aud": False},
+    )
+    assert decoded["sub"] == TEST_USER_ULID
+    assert decoded["email"] == "user@example.com"
+    assert decoded["typ"] == "refresh"
+    assert "beta_access" not in decoded
 
 
 def test_create_temp_token_uses_temp_secret(monkeypatch):
@@ -469,6 +487,25 @@ async def test_get_current_user_optional_invalid_token():
     request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
     result = await get_current_user_optional(request, token="bad-token")
     assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_rejects_refresh_token(monkeypatch):
+    monkeypatch.setenv("SITE_MODE", "local")
+    token = create_refresh_token({"sub": TEST_USER_ULID, "email": "user@example.com"})
+    request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
+
+    with pytest.raises(auth_module.HTTPException) as exc:
+        await get_current_user(request, token=token)
+    assert exc.value.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_optional_returns_none_for_refresh_token(monkeypatch):
+    monkeypatch.setenv("SITE_MODE", "local")
+    token = create_refresh_token({"sub": TEST_USER_ULID, "email": "user@example.com"})
+    request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
+    assert await get_current_user_optional(request, token=token) is None
 
 
 @pytest.mark.asyncio

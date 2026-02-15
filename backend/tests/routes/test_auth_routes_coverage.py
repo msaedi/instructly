@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 from fastapi import HTTPException, Response
@@ -1401,3 +1401,248 @@ async def test_maybe_send_recently_registered_registers_device_correctly():
     assert cache.last_ttl == auth_routes.KNOWN_DEVICE_TTL_SECONDS
     # Flag cleaned up
     assert "recently_registered:u2" not in cache._store
+
+
+@pytest.mark.asyncio
+async def test_login_sets_access_and_refresh_cookies(monkeypatch):
+    monkeypatch.setattr(auth_routes, "account_lockout", _StubLockout(locked=False))
+    monkeypatch.setattr(auth_routes, "captcha_verifier", _StubCaptcha(required=False))
+    monkeypatch.setattr(auth_routes, "account_rate_limiter", _StubRateLimiter(allowed=True))
+    monkeypatch.setattr(auth_routes, "login_slot", lambda: _noop_slot())
+
+    async def _true_password(*_args, **_kwargs):
+        return True
+
+    monkeypatch.setattr(auth_routes, "verify_password_async", _true_password)
+
+    user_obj = SimpleNamespace(email="user@example.com", totp_enabled=False)
+    user_data = {
+        "id": "user",
+        "email": "user@example.com",
+        "hashed_password": get_password_hash("pass"),
+        "account_status": None,
+        "totp_enabled": False,
+        "_user_obj": user_obj,
+        "_beta_claims": None,
+    }
+    auth_service = _StubAuthService(user_data=user_data)
+    request = _DummyRequest()
+    response = Response()
+    form = OAuth2PasswordRequestForm(
+        username="user@example.com",
+        password="pass",
+        scope="",
+        client_id=None,
+        client_secret=None,
+    )
+
+    result = await auth_routes.login(request, response, form, auth_service, cache_service=object())
+    assert result.requires_2fa is False
+
+    set_cookie_headers = response.headers.getlist("set-cookie")
+    assert any("Path=/api/v1/auth/refresh" in header for header in set_cookie_headers)
+    assert any("Path=/" in header and "sid" in header for header in set_cookie_headers)
+
+
+@pytest.mark.asyncio
+async def test_login_with_session_sets_access_and_refresh_cookies(monkeypatch, db):
+    monkeypatch.setattr(auth_routes, "account_lockout", _StubLockout(locked=False))
+    monkeypatch.setattr(auth_routes, "captcha_verifier", _StubCaptcha(required=False))
+    monkeypatch.setattr(auth_routes, "account_rate_limiter", _StubRateLimiter(allowed=True))
+    monkeypatch.setattr(auth_routes, "login_slot", lambda: _noop_slot())
+
+    async def _true_password(*_args, **_kwargs):
+        return True
+
+    monkeypatch.setattr(auth_routes, "verify_password_async", _true_password)
+
+    user_obj = SimpleNamespace(email="user@example.com", totp_enabled=False)
+    user_data = {
+        "id": "user",
+        "email": "user@example.com",
+        "hashed_password": get_password_hash("pass"),
+        "account_status": None,
+        "totp_enabled": False,
+        "_user_obj": user_obj,
+        "_beta_claims": None,
+    }
+    auth_service = _StubAuthService(user_data=user_data)
+    request = _DummyRequest()
+    response = Response()
+    login_data = auth_routes.UserLogin(email="user@example.com", password="pass")
+
+    result = await auth_routes.login_with_session(
+        request,
+        response,
+        login_data,
+        auth_service,
+        db,
+        cache_service=object(),
+    )
+    assert result.requires_2fa is False
+
+    set_cookie_headers = response.headers.getlist("set-cookie")
+    assert any("Path=/api/v1/auth/refresh" in header for header in set_cookie_headers)
+    assert any("Path=/" in header and "sid" in header for header in set_cookie_headers)
+
+
+@pytest.mark.asyncio
+async def test_refresh_session_token_rotates_tokens(monkeypatch):
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    refresh_payload = {
+        "sub": "01HREFRESHUSERID00000000000",
+        "email": "user@example.com",
+        "jti": "01HOLDREFRESHTOKENJTI000000",
+        "iat": now_ts,
+        "exp": now_ts + 3600,
+        "typ": "refresh",
+    }
+    blacklist_calls: dict[str, object] = {}
+
+    class _Blacklist:
+        async def is_revoked(self, _jti: str) -> bool:
+            return False
+
+        async def revoke_token(self, jti: str, exp: int, **kwargs) -> bool:
+            blacklist_calls["jti"] = jti
+            blacklist_calls["exp"] = exp
+            blacklist_calls["kwargs"] = kwargs
+            return True
+
+    class _Repo:
+        def get_by_id(self, user_id: str):
+            return SimpleNamespace(
+                id=user_id,
+                email="user@example.com",
+                is_active=True,
+                tokens_valid_after=None,
+            )
+
+    monkeypatch.setattr(auth_routes, "TokenBlacklistService", _Blacklist)
+    monkeypatch.setattr(auth_routes, "decode_access_token", lambda _token: refresh_payload)
+    monkeypatch.setattr(
+        "app.repositories.RepositoryFactory.create_user_repository",
+        lambda _db: _Repo(),
+    )
+    monkeypatch.setattr(auth_routes, "create_access_token", lambda *a, **k: "new-access-token")
+    monkeypatch.setattr(auth_routes, "create_refresh_token", lambda *a, **k: "new-refresh-token")
+
+    request = _DummyRequest(
+        cookies={auth_routes.refresh_cookie_base_name(auth_routes.settings.site_mode): "old"}
+    )
+    response = Response()
+
+    result = await auth_routes.refresh_session_token(request, response, db=object())
+    assert result.message == "Session refreshed"
+
+    set_cookie_headers = response.headers.getlist("set-cookie")
+    assert any("new-access-token" in header for header in set_cookie_headers)
+    assert any("new-refresh-token" in header for header in set_cookie_headers)
+    assert any("Path=/api/v1/auth/refresh" in header for header in set_cookie_headers)
+    assert blacklist_calls["jti"] == refresh_payload["jti"]
+    assert blacklist_calls["exp"] == refresh_payload["exp"]
+
+
+@pytest.mark.asyncio
+async def test_refresh_session_token_rejects_missing_cookie():
+    request = _DummyRequest(cookies={})
+    response = Response()
+
+    with pytest.raises(HTTPException) as exc:
+        await auth_routes.refresh_session_token(request, response, db=object())
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Not authenticated"
+
+
+@pytest.mark.asyncio
+async def test_refresh_session_token_rejects_wrong_token_type(monkeypatch):
+    wrong_type_payload = {"sub": "01HUSER000000000000000000", "jti": "jti", "typ": "access"}
+    monkeypatch.setattr(auth_routes, "decode_access_token", lambda _token: wrong_type_payload)
+
+    request = _DummyRequest(
+        cookies={auth_routes.refresh_cookie_base_name(auth_routes.settings.site_mode): "old"}
+    )
+    response = Response()
+
+    with pytest.raises(HTTPException) as exc:
+        await auth_routes.refresh_session_token(request, response, db=object())
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Could not validate credentials"
+
+
+@pytest.mark.asyncio
+async def test_refresh_session_token_rejects_revoked_token(monkeypatch):
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    refresh_payload = {
+        "sub": "01HUSER000000000000000000",
+        "jti": "01HOLDREFRESHTOKENJTI000000",
+        "iat": now_ts,
+        "exp": now_ts + 3600,
+        "typ": "refresh",
+    }
+
+    class _Blacklist:
+        async def is_revoked(self, _jti: str) -> bool:
+            return True
+
+        async def revoke_token(self, _jti: str, _exp: int, **_kwargs) -> bool:
+            return True
+
+    monkeypatch.setattr(auth_routes, "TokenBlacklistService", _Blacklist)
+    monkeypatch.setattr(auth_routes, "decode_access_token", lambda _token: refresh_payload)
+
+    request = _DummyRequest(
+        cookies={auth_routes.refresh_cookie_base_name(auth_routes.settings.site_mode): "old"}
+    )
+    response = Response()
+
+    with pytest.raises(HTTPException) as exc:
+        await auth_routes.refresh_session_token(request, response, db=object())
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Token has been revoked"
+
+
+@pytest.mark.asyncio
+async def test_refresh_session_token_rejects_invalidated_token(monkeypatch):
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    refresh_payload = {
+        "sub": "01HUSER000000000000000000",
+        "email": "user@example.com",
+        "jti": "01HOLDREFRESHTOKENJTI000000",
+        "iat": now_ts,
+        "exp": now_ts + 3600,
+        "typ": "refresh",
+    }
+
+    class _Blacklist:
+        async def is_revoked(self, _jti: str) -> bool:
+            return False
+
+        async def revoke_token(self, _jti: str, _exp: int, **_kwargs) -> bool:
+            return True
+
+    class _Repo:
+        def get_by_id(self, user_id: str):
+            return SimpleNamespace(
+                id=user_id,
+                email="user@example.com",
+                is_active=True,
+                tokens_valid_after=datetime.now(timezone.utc) + timedelta(minutes=5),
+            )
+
+    monkeypatch.setattr(auth_routes, "TokenBlacklistService", _Blacklist)
+    monkeypatch.setattr(auth_routes, "decode_access_token", lambda _token: refresh_payload)
+    monkeypatch.setattr(
+        "app.repositories.RepositoryFactory.create_user_repository",
+        lambda _db: _Repo(),
+    )
+
+    request = _DummyRequest(
+        cookies={auth_routes.refresh_cookie_base_name(auth_routes.settings.site_mode): "old"}
+    )
+    response = Response()
+
+    with pytest.raises(HTTPException) as exc:
+        await auth_routes.refresh_session_token(request, response, db=object())
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Token has been invalidated"

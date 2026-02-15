@@ -29,6 +29,7 @@ import type {
   LoginResponse,
   PasswordChangeRequest,
   PasswordChangeResponse,
+  SessionRefreshResponse,
   UserCreate,
   UserLogin,
   UserUpdate,
@@ -604,6 +605,91 @@ export const useUpdateCurrentUserApiV1AuthMePatch = <
   TContext
 > => {
   return useMutation(getUpdateCurrentUserApiV1AuthMePatchMutationOptions(options), queryClient);
+};
+/**
+ * Rotate refresh token and issue a new access token.
+ * @summary Refresh Session Token
+ */
+export const getRefreshSessionTokenApiV1AuthRefreshPostUrl = () => {
+  return `/api/v1/auth/refresh`;
+};
+
+export const refreshSessionTokenApiV1AuthRefreshPost = async (
+  options?: RequestInit
+): Promise<SessionRefreshResponse> => {
+  return customFetch<SessionRefreshResponse>(getRefreshSessionTokenApiV1AuthRefreshPostUrl(), {
+    ...options,
+    method: 'POST',
+  });
+};
+
+export const getRefreshSessionTokenApiV1AuthRefreshPostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshSessionTokenApiV1AuthRefreshPost>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof refreshSessionTokenApiV1AuthRefreshPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['refreshSessionTokenApiV1AuthRefreshPost'];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof refreshSessionTokenApiV1AuthRefreshPost>>,
+    void
+  > = () => {
+    return refreshSessionTokenApiV1AuthRefreshPost(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RefreshSessionTokenApiV1AuthRefreshPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof refreshSessionTokenApiV1AuthRefreshPost>>
+>;
+
+export type RefreshSessionTokenApiV1AuthRefreshPostMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Refresh Session Token
+ */
+export const useRefreshSessionTokenApiV1AuthRefreshPost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof refreshSessionTokenApiV1AuthRefreshPost>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof refreshSessionTokenApiV1AuthRefreshPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(
+    getRefreshSessionTokenApiV1AuthRefreshPostMutationOptions(options),
+    queryClient
+  );
 };
 /**
  * Register a new user.

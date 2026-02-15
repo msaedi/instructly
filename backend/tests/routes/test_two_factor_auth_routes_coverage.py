@@ -330,6 +330,6 @@ def test_verify_login_success_with_trust_and_guest_conversion_error(db, test_stu
     )
 
     assert result.model_dump() == {}
-    assert any(
-        "tfa_trusted" in cookie for cookie in response.headers.getlist("set-cookie")
-    )
+    set_cookie_headers = response.headers.getlist("set-cookie")
+    assert any("tfa_trusted" in cookie for cookie in set_cookie_headers)
+    assert any("Path=/api/v1/auth/refresh" in cookie for cookie in set_cookie_headers)
