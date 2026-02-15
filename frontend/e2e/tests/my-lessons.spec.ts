@@ -1169,7 +1169,12 @@ test.describe('Error Handling', () => {
     }
   });
 
-  test('should return to My Lessons after login', async ({ page }) => {
+  test.describe('Login redirect', () => {
+    // Login tests must start unauthenticated — clear inherited storage state
+    // so the refresh-token interceptor doesn't fire against the real backend.
+    test.use({ storageState: { cookies: [], origins: [] } });
+
+    test('should return to My Lessons after login', async ({ page }) => {
     await mockAuthenticatedPageBackgroundApis(page, { userId: '01J5TESTUSER00000000000001' });
     let loggedIn = false;
 
@@ -1311,5 +1316,6 @@ test.describe('Error Handling', () => {
     // Verify we're on My Lessons page
     await expect(page).toHaveURL('/student/lessons');
     await expect(page.getByRole('heading', { name: 'My Lessons' })).toBeVisible();
+    });
   });
 });

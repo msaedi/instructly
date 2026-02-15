@@ -187,6 +187,10 @@ const logDebug = (...args: unknown[]) => {
   }
 };
 
+// Login tests must start unauthenticated — clear any inherited storage state
+// (e.g. admin.json) so the refresh-token interceptor doesn't fire mid-mock.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 test.afterEach(async ({ page }, testInfo) => {
   if (testInfo.status !== testInfo.expectedStatus) {
     await testInfo.attach('login-2fa-screenshot', {
