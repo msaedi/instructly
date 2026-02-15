@@ -69,6 +69,83 @@ def test_with_db_retry_non_retryable(monkeypatch) -> None:
         db_module.with_db_retry("op", _op, max_attempts=2)
 
 
+def test_with_db_retry_calls_on_retry_before_retry(monkeypatch) -> None:
+    """on_retry callback is invoked before each retry attempt."""
+    monkeypatch.setattr(db_module.time, "sleep", lambda _delay: None)
+
+    calls: list[str] = []
+
+    def _op() -> str:
+        calls.append("op")
+        if len([c for c in calls if c == "op"]) == 1:
+            raise OperationalError("stmt", {}, Exception("server closed the connection"))
+        return "ok"
+
+    def _on_retry() -> None:
+        calls.append("rollback")
+
+    result = db_module.with_db_retry("op", _op, max_attempts=2, on_retry=_on_retry)
+    assert result == "ok"
+    assert calls == ["op", "rollback", "op"]
+
+
+def test_with_db_retry_on_retry_failure_does_not_prevent_retry(monkeypatch) -> None:
+    """If on_retry raises, the retry still proceeds."""
+    monkeypatch.setattr(db_module.time, "sleep", lambda _delay: None)
+
+    calls = {"count": 0}
+
+    def _op() -> str:
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise OperationalError("stmt", {}, Exception("server closed the connection"))
+        return "ok"
+
+    def _bad_on_retry() -> None:
+        raise RuntimeError("rollback failed")
+
+    result = db_module.with_db_retry("op", _op, max_attempts=2, on_retry=_bad_on_retry)
+    assert result == "ok"
+    assert calls["count"] == 2
+
+
+def test_with_db_retry_no_on_retry_when_no_retry(monkeypatch) -> None:
+    """on_retry is NOT called on success."""
+    called = False
+
+    def _op() -> str:
+        return "ok"
+
+    def _on_retry() -> None:
+        nonlocal called
+        called = True
+
+    result = db_module.with_db_retry("op", _op, on_retry=_on_retry)
+    assert result == "ok"
+    assert called is False
+
+
+@pytest.mark.asyncio
+async def test_with_db_retry_async_calls_on_retry(monkeypatch) -> None:
+    """Async variant also invokes on_retry before retry."""
+    monkeypatch.setattr(db_module.asyncio, "sleep", AsyncMock())
+
+    calls: list[str] = []
+
+    async def _op() -> str:
+        calls.append("op")
+        if len([c for c in calls if c == "op"]) == 1:
+            raise OperationalError("stmt", {}, Exception("server closed the connection"))
+        return "ok"
+
+    def _on_retry() -> None:
+        calls.append("rollback")
+
+    result = await db_module.with_db_retry_async("op", _op, max_attempts=2, on_retry=_on_retry)
+    assert result == "ok"
+    assert calls == ["op", "rollback", "op"]
+
+
 @pytest.mark.asyncio
 async def test_with_db_retry_async_success(monkeypatch) -> None:
     monkeypatch.setattr(db_module.asyncio, "sleep", AsyncMock())

@@ -64,6 +64,7 @@ def with_db_retry(
     func: Callable[[], T],
     *,
     max_attempts: int = ...,
+    on_retry: Callable[[], None] | None = ...,
 ) -> T: ...
 
 
@@ -72,6 +73,7 @@ async def with_db_retry_async(
     func: Callable[[], Awaitable[T]],
     *,
     max_attempts: int = ...,
+    on_retry: Callable[[], None] | None = ...,
 ) -> T: ...
 
 

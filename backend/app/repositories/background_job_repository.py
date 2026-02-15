@@ -79,9 +79,13 @@ class BackgroundJobRepository:
                 )
                 return cast(List[BackgroundJob], jobs)
 
-            return with_db_retry("background_jobs.fetch_due", _fetch)
+            return with_db_retry("background_jobs.fetch_due", _fetch, on_retry=self.db.rollback)
         except SQLAlchemyError as exc:
             self.logger.error("Failed to fetch due jobs: %s", str(exc))
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
             raise RepositoryException("Failed to fetch background jobs") from exc
 
     def mark_running(self, job_id: str) -> None:

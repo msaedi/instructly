@@ -336,7 +336,7 @@ class PersonalAssetService(BaseService):
                 short_timeout=True,
             )
 
-        owner = with_db_retry("profile_picture_lookup", _lookup_owner)
+        owner = with_db_retry("profile_picture_lookup", _lookup_owner, on_retry=self.db.rollback)
         if not owner or not owner.profile_picture_version:
             raise ValueError("No profile picture")
         view = self._get_presigned_view_for_user(
@@ -372,7 +372,9 @@ class PersonalAssetService(BaseService):
         def _batch_query() -> dict[str, Optional[int]]:
             return self.users.get_profile_picture_versions(normalized_ids)
 
-        version_map = with_db_retry("profile_picture_batch_lookup", _batch_query)
+        version_map = with_db_retry(
+            "profile_picture_batch_lookup", _batch_query, on_retry=self.db.rollback
+        )
 
         results: dict[str, Optional[PresignedView]] = {}
         for requested_id in normalized_ids:
