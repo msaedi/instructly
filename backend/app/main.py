@@ -35,7 +35,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from app.middleware.perf_counters import PerfCounterMiddleware, perf_counters_enabled
 
 from .api.dependencies.authz import public_guard
-from .core.config import assert_env, settings
+from .core.config import assert_env, secret_or_plain, settings
 from .core.constants import (
     ALLOWED_ORIGINS,
     API_DESCRIPTION,
@@ -156,6 +156,7 @@ from .routes.v1.admin import (
     location_learning as admin_location_learning_v1,
     refunds as admin_refunds_v1,
     search_config as admin_search_config_v1,
+    users as admin_users_v1,
 )
 from .routes.v1.admin.mcp import (
     analytics as admin_mcp_analytics_v1,
@@ -331,7 +332,7 @@ def _validate_startup_config() -> None:
 
         validate_bgc_encryption_key(getattr(runtime_settings, "bgc_encryption_key", None))
         logger.info("Background-check report encryption enabled for production")
-    elif getattr(runtime_settings, "bgc_encryption_key", None):
+    elif secret_or_plain(getattr(runtime_settings, "bgc_encryption_key", None)).strip():
         logger.info("Background-check report encryption enabled")
 
 
@@ -1133,6 +1134,7 @@ api_v1.include_router(admin_auth_blocks_v1.router, prefix="/admin/auth-blocks") 
 api_v1.include_router(admin_location_learning_v1.router, prefix="/admin/location-learning")  # type: ignore[attr-defined]
 api_v1.include_router(admin_bookings_v1.router, prefix="/admin")  # type: ignore[attr-defined]
 api_v1.include_router(admin_refunds_v1.router, prefix="/admin/bookings")  # type: ignore[attr-defined]
+api_v1.include_router(admin_users_v1.router, prefix="/admin")  # type: ignore[attr-defined]
 api_v1.include_router(  # type: ignore[attr-defined]
     admin_mcp_founding_v1.router,
     prefix="/admin/mcp/founding",

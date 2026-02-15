@@ -14,11 +14,20 @@ from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 
+from app.auth import create_access_token
 from app.models.search_history import SearchHistory
+from app.models.user import User
 from app.services.auth_service import AuthService
 
 # Mark all tests in this file as integration tests
 pytestmark = pytest.mark.integration
+
+
+@pytest.fixture
+def auth_headers_ulid(test_student: User) -> dict:
+    """Auth headers using ULID subject claim (current JWT contract)."""
+    token = create_access_token(data={"sub": test_student.id, "email": test_student.email})
+    return {"Authorization": f"Bearer {token}"}
 
 
 class TestGuestSearchEndpoints:
@@ -155,8 +164,8 @@ class TestAuthWithGuestSession:
 
         assert response.status_code == 200
         data = response.json()
-        assert "access_token" in data
-        assert data["token_type"] == "bearer"
+        assert data.get("requires_2fa") is False
+        assert "access_token" not in data
 
         # Verify searches were converted
         guest_searches = db.query(SearchHistory).filter_by(guest_session_id=guest_session_id).all()
@@ -244,19 +253,19 @@ class TestAuthWithGuestSession:
 
         assert response.status_code == 200
         data = response.json()
-        assert "access_token" in data
-        assert data["token_type"] == "bearer"
+        assert data.get("requires_2fa") is False
+        assert "access_token" not in data
 
 
 class TestAuthenticatedSearchEndpoints:
     """Test authenticated user search endpoints."""
 
-    def test_record_search_authenticated(self, client: TestClient, db: Session, auth_headers: dict):
+    def test_record_search_authenticated(self, client: TestClient, db: Session, auth_headers_ulid: dict):
         """Test recording search for authenticated user."""
         response = client.post(
             "/api/v1/search-history/",
             json={"search_query": "violin lessons", "search_type": "natural_language", "results_count": 3},
-            headers=auth_headers,
+            headers=auth_headers_ulid,
         )
 
         assert response.status_code == 201
@@ -264,18 +273,18 @@ class TestAuthenticatedSearchEndpoints:
         assert data["search_query"] == "violin lessons"
         assert "id" in data
 
-    def test_get_recent_searches_authenticated(self, client: TestClient, db: Session, auth_headers: dict):
+    def test_get_recent_searches_authenticated(self, client: TestClient, db: Session, auth_headers_ulid: dict):
         """Test getting recent searches for authenticated user."""
         # First record some searches
         for query in ["search1", "search2", "search3"]:
             client.post(
                 "/api/v1/search-history/",
                 json={"search_query": query, "search_type": "natural_language"},
-                headers=auth_headers,
+                headers=auth_headers_ulid,
             )
 
         # Get recent searches
-        response = client.get("/api/v1/search-history/?limit=2", headers=auth_headers)
+        response = client.get("/api/v1/search-history/?limit=2", headers=auth_headers_ulid)
 
         assert response.status_code == 200
         data = response.json()
@@ -284,18 +293,18 @@ class TestAuthenticatedSearchEndpoints:
         assert data[0]["search_query"] == "search3"
         assert data[1]["search_query"] == "search2"
 
-    def test_delete_search_authenticated(self, client: TestClient, db: Session, auth_headers: dict):
+    def test_delete_search_authenticated(self, client: TestClient, db: Session, auth_headers_ulid: dict):
         """Test soft deleting a search."""
         # Create a search
         response = client.post(
             "/api/v1/search-history/",
             json={"search_query": "to be deleted", "search_type": "natural_language"},
-            headers=auth_headers,
+            headers=auth_headers_ulid,
         )
         search_id = response.json()["id"]
 
         # Delete it
-        response = client.delete(f"/api/v1/search-history/{search_id}", headers=auth_headers)
+        response = client.delete(f"/api/v1/search-history/{search_id}", headers=auth_headers_ulid)
         assert response.status_code == 204
 
         # Verify it's soft deleted in DB
@@ -304,15 +313,15 @@ class TestAuthenticatedSearchEndpoints:
         assert search.deleted_at is not None
 
         # Verify it doesn't appear in recent searches
-        response = client.get("/api/v1/search-history/", headers=auth_headers)
+        response = client.get("/api/v1/search-history/", headers=auth_headers_ulid)
         searches = response.json()
         assert not any(s["id"] == search_id for s in searches)
 
-    def test_delete_nonexistent_search(self, client: TestClient, auth_headers: dict):
+    def test_delete_nonexistent_search(self, client: TestClient, auth_headers_ulid: dict):
         """Test deleting non-existent search returns 404."""
         # Use a valid ULID format that doesn't exist (exactly 26 chars)
         nonexistent_ulid = "01K2H999999999999999999999"
-        response = client.delete(f"/api/v1/search-history/{nonexistent_ulid}", headers=auth_headers)
+        response = client.delete(f"/api/v1/search-history/{nonexistent_ulid}", headers=auth_headers_ulid)
         assert response.status_code == 404
 
     def test_unauthorized_access(self, client: TestClient):

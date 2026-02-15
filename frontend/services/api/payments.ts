@@ -1,5 +1,5 @@
 import { logger } from '@/lib/logger';
-import { withApiBase } from '@/lib/apiBase';
+import { withApiBase, withApiBaseForRequest } from '@/lib/apiBase';
 import { httpGet, httpPost } from '@/lib/http';
 import type { CheckoutResponse } from '@/types/api/checkout';
 import type {
@@ -33,8 +33,8 @@ class PaymentService {
   private basePath = `/api/v1/payments`;
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const url = withApiBase(`${this.basePath}${endpoint}`);
     const method = (options.method || 'GET').toUpperCase();
+    const url = withApiBaseForRequest(`${this.basePath}${endpoint}`, method);
     if (method === 'GET') {
       return (await httpGet(url)) as T;
     }

@@ -36,7 +36,8 @@ CONVERSATIONS_FILE = Path(__file__).parent / "config" / "conversations.json"
 
 def login(email: str, password: str) -> str | None:
     """Login and return access token."""
-    response = requests.post(
+    session = requests.Session()
+    response = session.post(
         f"{BASE_URL}/api/v1/auth/login",
         data={"username": email, "password": password},
         headers={
@@ -47,7 +48,14 @@ def login(email: str, password: str) -> str | None:
         timeout=30,
     )
     if response.status_code == 200:
-        return response.json().get("access_token")
+        for cookie_name in ("__Host-sid", "preview_access_token", "access_token"):
+            cookie_value = session.cookies.get(cookie_name)
+            if cookie_value:
+                return cookie_value
+        for cookie in session.cookies:
+            if "token" in cookie.name or "sid" in cookie.name:
+                return cookie.value
+        return None
     print(f"  ERROR: Login failed for {email}: {response.status_code} - {response.text[:200]}")
     return None
 

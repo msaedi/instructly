@@ -55,7 +55,7 @@ class _StubAuthService:
     def release_connection(self):
         return None
 
-    def get_current_user(self, *, email):
+    def get_current_user(self, identifier=None, *, email=None):
         return self._user_obj
 
 
@@ -980,6 +980,9 @@ async def test_change_password_error_paths(monkeypatch, test_student, db):
         def update_password(self, *_args, **_kwargs):
             return False
 
+        def invalidate_all_tokens(self, *_args, **_kwargs):
+            return True
+
     monkeypatch.setattr(
         "app.repositories.RepositoryFactory.create_user_repository",
         lambda _db: _Repo(),
@@ -996,6 +999,80 @@ async def test_change_password_error_paths(monkeypatch, test_student, db):
 
 
 @pytest.mark.asyncio
+async def test_change_password_invalidation_failure_is_non_blocking(monkeypatch, test_student, db):
+    user = test_student
+
+    async def _true_password(*_args, **_kwargs):
+        return True
+
+    monkeypatch.setattr(auth_routes, "verify_password_async", _true_password)
+
+    class _Repo:
+        def update_password(self, *_args, **_kwargs):
+            return True
+
+        def invalidate_all_tokens(self, *_args, **_kwargs):
+            return False
+
+    monkeypatch.setattr(
+        "app.repositories.RepositoryFactory.create_user_repository",
+        lambda _db: _Repo(),
+    )
+
+    auth_service = _StubAuthService(user_obj=user)
+    request = PasswordChangeRequest(current_password="password", new_password="Strong123")
+
+    response = await auth_routes.change_password(
+        request,
+        _DummyRequest(),
+        user.email,
+        auth_service,
+        db,
+    )
+    assert response.message == "Password changed successfully"
+
+
+@pytest.mark.asyncio
+async def test_change_password_calls_invalidate_all_tokens(monkeypatch, test_student, db):
+    user = test_student
+    calls: list[str] = []
+    triggers: list[str | None] = []
+
+    async def _true_password(*_args, **_kwargs):
+        return True
+
+    monkeypatch.setattr(auth_routes, "verify_password_async", _true_password)
+
+    class _Repo:
+        def update_password(self, *_args, **_kwargs):
+            return True
+
+        def invalidate_all_tokens(self, user_id: str, **_kwargs):
+            calls.append(user_id)
+            triggers.append(_kwargs.get("trigger") if _kwargs else None)
+            return True
+
+    monkeypatch.setattr(
+        "app.repositories.RepositoryFactory.create_user_repository",
+        lambda _db: _Repo(),
+    )
+
+    auth_service = _StubAuthService(user_obj=user)
+    request = PasswordChangeRequest(current_password="password", new_password="Strong123")
+
+    response = await auth_routes.change_password(
+        request,
+        _DummyRequest(),
+        user.email,
+        auth_service,
+        db,
+    )
+    assert response.message == "Password changed successfully"
+    assert calls == [user.id]
+    assert triggers == ["password_change"]
+
+
+@pytest.mark.asyncio
 async def test_change_password_notification_failure(monkeypatch, test_student, db):
     user = test_student
 
@@ -1008,6 +1085,18 @@ async def test_change_password_notification_failure(monkeypatch, test_student, d
         raise RuntimeError("notify")
 
     monkeypatch.setattr(auth_routes, "_send_password_changed_notification_sync", _notify_boom)
+
+    class _Repo:
+        def update_password(self, *_args, **_kwargs):
+            return True
+
+        def invalidate_all_tokens(self, *_args, **_kwargs):
+            return True
+
+    monkeypatch.setattr(
+        "app.repositories.RepositoryFactory.create_user_repository",
+        lambda _db: _Repo(),
+    )
 
     auth_service = _StubAuthService(user_obj=user)
     request = PasswordChangeRequest(current_password="password", new_password="Strong123")
@@ -1035,6 +1124,18 @@ async def test_change_password_audit_failure(monkeypatch, test_student, db):
         raise RuntimeError("audit failed")
 
     monkeypatch.setattr(auth_routes.AuditService, "log", _audit_boom)
+
+    class _Repo:
+        def update_password(self, *_args, **_kwargs):
+            return True
+
+        def invalidate_all_tokens(self, *_args, **_kwargs):
+            return True
+
+    monkeypatch.setattr(
+        "app.repositories.RepositoryFactory.create_user_repository",
+        lambda _db: _Repo(),
+    )
 
     auth_service = _StubAuthService(user_obj=user)
     request = PasswordChangeRequest(current_password="password", new_password="Strong123")

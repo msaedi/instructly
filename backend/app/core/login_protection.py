@@ -13,7 +13,7 @@ from prometheus_client import Counter, Histogram
 from redis.asyncio import Redis
 
 from app.core.cache_redis import get_async_cache_redis_client
-from app.core.config import is_running_tests, settings
+from app.core.config import is_running_tests, secret_or_plain, settings
 from app.monitoring.prometheus_metrics import REGISTRY
 
 logger = logging.getLogger(__name__)
@@ -406,7 +406,11 @@ class CaptchaVerifier:
 
     def __init__(self, *, secret_key: Optional[str] = None, redis: Optional[Redis] = None) -> None:
         self._explicit_secret = secret_key is not None
-        self.secret_key = secret_key or settings.turnstile_secret_key
+        self.secret_key = (
+            secret_key
+            if secret_key is not None
+            else secret_or_plain(settings.turnstile_secret_key).strip()
+        )
         self.redis = redis
         self.failure_threshold = max(1, settings.captcha_failure_threshold or 3)
 

@@ -19,7 +19,7 @@ from typing import Any, Dict, Optional
 import resend
 from sqlalchemy.orm import Session
 
-from ..core.config import settings
+from ..core.config import secret_or_plain, settings
 from ..core.constants import BRAND_NAME, NOREPLY_EMAIL
 from ..core.exceptions import ServiceException
 from .base import BaseService, CacheInvalidationProtocol
@@ -50,7 +50,7 @@ class EmailService(BaseService):
         super().__init__(db, cache)
 
         # Initialize Resend with API key
-        api_key = settings.resend_api_key
+        api_key = secret_or_plain(settings.resend_api_key).strip()
         if not api_key:
             if bool(getattr(settings, "is_testing", False)) or settings.site_mode in {
                 "local",
@@ -300,7 +300,7 @@ class EmailService(BaseService):
         Raises:
             ServiceException: If configuration is invalid
         """
-        if not settings.resend_api_key:
+        if not secret_or_plain(settings.resend_api_key).strip():
             raise ServiceException("Resend API key not configured")
 
         if not self.default_sender:

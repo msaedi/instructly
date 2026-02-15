@@ -16,7 +16,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Chat } from './Chat';
 import { QueryErrorBoundary } from '@/components/errors/QueryErrorBoundary';
 import { cn } from '@/lib/utils';
-import { withApiBase } from '@/lib/apiBase';
+import { withApiBaseForRequest } from '@/lib/apiBase';
 import type { CreateConversationResponse } from '@/types/conversation';
 
 interface ChatModalProps {
@@ -74,7 +74,7 @@ export function ChatModal({
   const { data: conversationData, isLoading: isLoadingConversation } = useQuery({
     queryKey: ['conversation-for-instructor', instructorId],
     queryFn: async () => {
-      const response = await fetch(withApiBase('/api/v1/conversations'), {
+      const response = await fetch(withApiBaseForRequest('/api/v1/conversations', 'POST'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

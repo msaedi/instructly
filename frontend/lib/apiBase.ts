@@ -4,6 +4,7 @@
 
 import { logger } from '@/lib/logger';
 import { publicEnv, APP_URL, IS_DEVELOPMENT, USE_PROXY } from '@/lib/publicEnv';
+import { isProtectedMutationRequest } from '@/lib/security/protected-mutation-routes';
 
 type StorageLayer = {
   get(host: string): string | undefined;
@@ -296,6 +297,70 @@ export function withApiBase(path: string): string {
   const cleanPath = path.replace(/^\/+/, '');
   const normalizedBase = base.replace(/\/+$/, '');
   return `${normalizedBase}/${cleanPath}`;
+}
+
+function isKnownBackendOrigin(origin: string): boolean {
+  const origins = new Set<string>([
+    'https://preview-api.instainstru.com',
+    'https://api.instainstru.com',
+    'http://localhost:8000',
+    'https://localhost:8000',
+    'http://127.0.0.1:8000',
+    'https://127.0.0.1:8000',
+    'http://api.beta-local.instainstru.com:8000',
+    'https://api.beta-local.instainstru.com:8000',
+  ]);
+
+  const envBase = sanitize(publicEnv.NEXT_PUBLIC_API_BASE);
+  if (envBase) {
+    try {
+      origins.add(new URL(envBase).origin.toLowerCase());
+    } catch {
+      // ignore invalid env base values
+    }
+  }
+
+  return origins.has(origin.toLowerCase());
+}
+
+function normalizePathInput(path: string): string {
+  const trimmed = path.trim();
+  if (!trimmed) {
+    return '/';
+  }
+  if (trimmed.startsWith('/')) {
+    return trimmed;
+  }
+  return `/${trimmed}`;
+}
+
+export function withApiBaseForRequest(path: string, method: string = 'GET'): string {
+  if (path.startsWith('/api/proxy')) {
+    return path;
+  }
+
+  if (ABSOLUTE_URL_REGEX.test(path)) {
+    try {
+      const parsed = new URL(path);
+      const pathnameWithQuery = `${parsed.pathname}${parsed.search}`;
+      if (
+        isProtectedMutationRequest(pathnameWithQuery, method) &&
+        isKnownBackendOrigin(parsed.origin)
+      ) {
+        return pathnameWithQuery;
+      }
+      return path;
+    } catch {
+      return path;
+    }
+  }
+
+  const normalizedPath = normalizePathInput(path);
+  if (isProtectedMutationRequest(normalizedPath, method)) {
+    return normalizedPath;
+  }
+
+  return withApiBase(normalizedPath);
 }
 
 // Guard against deprecated NEXT_PUBLIC_API_URL usage

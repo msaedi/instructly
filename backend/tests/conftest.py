@@ -700,6 +700,19 @@ def _prepare_database() -> None:
     # Ensure outbox table exists (guarded to prevent conflicts)
     ensure_outbox_table()
 
+    # Keep users schema aligned with ORM models (tests reuse an existing DB).
+    with test_engine.connect() as conn:
+        if conn.dialect.name != "sqlite":
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE users
+                    ADD COLUMN IF NOT EXISTS tokens_valid_after TIMESTAMPTZ
+                    """
+                )
+            )
+            conn.commit()
+
     # Keep instructor_profiles schema aligned with ORM models (tests reuse an existing DB).
     with test_engine.connect() as conn:
         if conn.dialect.name != "sqlite":

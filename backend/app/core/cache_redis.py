@@ -19,7 +19,7 @@ import weakref
 
 from redis.asyncio import Redis as AsyncRedis
 
-from app.core.config import settings
+from app.core.config import secret_or_plain, settings
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,8 @@ async def get_async_cache_redis_client() -> Optional[AsyncRedis]:
     # In tests, default to in-memory cache unless Redis is explicitly configured.
     # This avoids background tasks attempting to connect to localhost Redis and
     # emitting teardown-time unawaited coroutine warnings when the event loop closes.
-    if settings.is_testing and not settings.redis_url:
+    redis_url = secret_or_plain(settings.redis_url).strip()
+    if settings.is_testing and not redis_url:
         existing = _clients_by_loop.pop(loop, None)
         if existing is not None:
             with contextlib.suppress(BaseException):
@@ -68,7 +69,7 @@ async def get_async_cache_redis_client() -> Optional[AsyncRedis]:
             if existing is not None:
                 return existing
 
-            redis_url = settings.redis_url or "redis://localhost:6379"
+            redis_url = redis_url or "redis://localhost:6379"
             client = AsyncRedis.from_url(
                 redis_url,
                 encoding="utf-8",

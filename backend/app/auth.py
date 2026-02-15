@@ -11,9 +11,14 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 import jwt
 from jwt import InvalidIssuerError, PyJWTError
+import ulid
 
-from .core.config import settings
+from .core.auth_cache import lookup_user_by_id_nonblocking
+from .core.config import secret_or_plain, settings
+from .monitoring.prometheus_metrics import prometheus_metrics
+from .services.token_blacklist_service import TokenBlacklistService
 from .utils.cookies import session_cookie_candidates
+from .utils.token_utils import parse_token_iat
 
 logger = logging.getLogger(__name__)
 
@@ -39,13 +44,6 @@ DUMMY_HASH_FOR_TIMING_ATTACK = "$argon2id$v=19$m=19456,t=2,p=1$2nLJrVFbOidsu8s0B
 _password_executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="argon2_")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
-
-
-def _secret_value(secret_obj: Any) -> str:
-    getter = getattr(secret_obj, "get_secret_value", None)
-    if callable(getter):
-        return cast(str, getter())
-    return cast(str, secret_obj)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -178,7 +176,7 @@ def decode_access_token(token: str, *, enforce_audience: bool | None = None) -> 
     else:
         enforce = enforce_default
 
-    secret = _secret_value(settings.secret_key)
+    secret = secret_or_plain(settings.secret_key)
     if enforce and expected_aud:
         payload_raw = jwt.decode(
             token,
@@ -217,14 +215,19 @@ def create_access_token(
         str: The encoded JWT token
     """
     to_encode = data.copy()
+    now_utc = datetime.now(timezone.utc)
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = now_utc + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(
-            minutes=settings.access_token_expire_minutes
-        )
+        expire = now_utc + timedelta(minutes=settings.access_token_expire_minutes)
 
-    to_encode.update({"exp": expire})
+    to_encode.update(
+        {
+            "exp": expire,
+            "iat": int(now_utc.timestamp()),
+            "jti": str(ulid.ULID()),
+        }
+    )
 
     # Include pre-fetched beta claims if provided (no DB lookup needed)
     if beta_claims:
@@ -240,17 +243,16 @@ def create_access_token(
     elif site_mode in {"prod", "production", "live"}:
         to_encode.update({"iss": f"https://{settings.prod_api_domain}", "aud": "prod"})
 
-    # Fix: Use get_secret_value() to get the actual string from SecretStr
     encoded_jwt = cast(
         str,
         jwt.encode(
             to_encode,
-            _secret_value(settings.secret_key),
+            secret_or_plain(settings.secret_key),
             algorithm=settings.algorithm,
         ),
     )
 
-    logger.info(f"Created access token for user: {data.get('sub')}")
+    logger.debug("Created access token for user: %s", data.get("sub"))
     return encoded_jwt
 
 
@@ -270,24 +272,101 @@ def create_temp_token(data: Dict[str, Any], expires_delta: Optional[timedelta] =
         str,
         jwt.encode(
             to_encode,
-            _secret_value(secret_source),
+            secret_or_plain(secret_source),
             algorithm=settings.algorithm,
         ),
     )
     return encoded_jwt
 
 
+# Revocation detail strings — used by _enforce_revocation_and_user_invalidation
+# and checked in get_current_user_optional to distinguish revocation from other 401s.
+REVOCATION_DETAIL_FORMAT_OUTDATED = "Token format outdated, please re-login"
+REVOCATION_DETAIL_REVOKED = "Token has been revoked"
+REVOCATION_DETAIL_INVALIDATED = "Token has been invalidated"
+REVOCATION_DETAILS: frozenset[str] = frozenset(
+    {REVOCATION_DETAIL_FORMAT_OUTDATED, REVOCATION_DETAIL_REVOKED, REVOCATION_DETAIL_INVALIDATED}
+)
+
+
+async def _enforce_revocation_and_user_invalidation(payload: Dict[str, Any], user_id: str) -> None:
+    """Enforce revocation and tokens_valid_after checks for a decoded JWT."""
+    jti_obj = payload.get("jti")
+    jti = jti_obj if isinstance(jti_obj, str) else None
+    if not jti:
+        try:
+            prometheus_metrics.record_token_rejection("format_outdated")
+        except Exception:
+            logger.debug("Non-fatal error ignored", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=REVOCATION_DETAIL_FORMAT_OUTDATED,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    blacklist = TokenBlacklistService()
+    try:
+        revoked = await blacklist.is_revoked(jti)
+    except Exception as exc:
+        logger.warning("Blacklist check failed for jti=%s (fail-closed): %s", jti, exc)
+        revoked = True
+
+    if revoked:
+        try:
+            prometheus_metrics.record_token_rejection("revoked")
+        except Exception:
+            logger.debug("Non-fatal error ignored", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=REVOCATION_DETAIL_REVOKED,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    iat_ts = parse_token_iat(payload)
+    if iat_ts is None:
+        return
+
+    user_data = await lookup_user_by_id_nonblocking(user_id)
+    if user_data is None:
+        # Fail-open here is intentional. The JTI blacklist check above is
+        # fail-closed (Redis error → token rejected). This tokens_valid_after
+        # check is a secondary defense layer. Failing closed here would 401
+        # all users during a cache-miss + DB connection-pool exhaustion,
+        # which is worse than the theoretical risk of missing a
+        # tokens_valid_after update for the duration of one request.
+        logger.warning(
+            "User lookup returned None during revocation check for user_id=%s — "
+            "tokens_valid_after check skipped",
+            user_id,
+        )
+        return
+
+    tokens_valid_after_ts = user_data.get("tokens_valid_after_ts")
+    if isinstance(tokens_valid_after_ts, float):
+        tokens_valid_after_ts = int(tokens_valid_after_ts)
+    if isinstance(tokens_valid_after_ts, int) and iat_ts < tokens_valid_after_ts:
+        try:
+            prometheus_metrics.record_token_rejection("invalidated")
+        except Exception:
+            logger.debug("Non-fatal error ignored", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=REVOCATION_DETAIL_INVALIDATED,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
 async def get_current_user(
     request: Request, token: Optional[str] = Depends(oauth2_scheme_optional)
 ) -> str:
     """
-    Dependency to get the current authenticated user email from JWT token.
+    Dependency to get the current authenticated user identifier from JWT token.
 
     Args:
         token: JWT token from the Authorization header
 
     Returns:
-        str: The user's email address
+        str: The user's identifier (ULID)
 
     Raises:
         HTTPException: If token is invalid or expired
@@ -312,7 +391,7 @@ async def get_current_user(
                 site_mode = ""
 
             if hasattr(request, "cookies"):
-                # Legacy cookie fallback for __Host- migration compatibility.
+                # Cookie-based authentication via session cookies.
                 for cookie_name in session_cookie_candidates(site_mode):
                     cookie_token = request.cookies.get(cookie_name)
                     if cookie_token:
@@ -323,12 +402,12 @@ async def get_current_user(
         if not token:
             raise not_authenticated
         payload = decode_access_token(token)
-        email_obj = payload.get("sub")
-        if not isinstance(email_obj, str):
-            email: str | None = None
+        user_id_obj = payload.get("sub")
+        if not isinstance(user_id_obj, str):
+            user_id: str | None = None
         else:
-            email = email_obj
-        if email is None:
+            user_id = user_id_obj
+        if user_id is None:
             logger.warning("Token payload missing 'sub' field")
             credentials_exception = HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -337,8 +416,10 @@ async def get_current_user(
             )
             raise credentials_exception
 
-        logger.debug(f"Successfully validated token for user: {email}")
-        return email
+        await _enforce_revocation_and_user_invalidation(payload, user_id)
+
+        logger.debug(f"Successfully validated token for user: {user_id}")
+        return user_id
 
     except HTTPException as http_exc:
         # Preserve explicit HTTPExceptions (e.g., Not authenticated)
@@ -347,7 +428,7 @@ async def get_current_user(
         logger.error(f"JWT validation error: {str(e)}")
         raise invalid_credentials
     except Exception as e:
-        logger.error(f"Unexpected error in token validation: {str(e)}")
+        logger.error("Unexpected error in token validation: %s", e, exc_info=True)
         raise invalid_credentials
 
 
@@ -355,7 +436,7 @@ async def get_current_user_optional(
     request: Request, token: Optional[str] = Depends(oauth2_scheme_optional)
 ) -> Optional[str]:
     """
-    Dependency to get the current authenticated user email from JWT token if present.
+    Dependency to get the current authenticated user identifier from JWT token if present.
 
     This function returns None if no token is provided or if the token is invalid,
     instead of raising an exception. Used for endpoints that support both
@@ -365,7 +446,7 @@ async def get_current_user_optional(
         token: Optional JWT token from the Authorization header
 
     Returns:
-        str: The user's email address if authenticated, None otherwise
+        str: The user's identifier (ULID) if authenticated, None otherwise
     """
     if not token:
         # Mirror cookie fallback behavior from get_current_user so optional
@@ -376,7 +457,7 @@ async def get_current_user_optional(
             site_mode = ""
 
         if hasattr(request, "cookies"):
-            # Legacy cookie fallback for __Host- migration compatibility.
+            # Cookie-based authentication via session cookies.
             for cookie_name in session_cookie_candidates(site_mode):
                 cookie_token = request.cookies.get(cookie_name)
                 if cookie_token:
@@ -387,15 +468,22 @@ async def get_current_user_optional(
 
     try:
         payload = decode_access_token(token)
-        email_obj = payload.get("sub")
-        email: str | None = email_obj if isinstance(email_obj, str) else None
-        if email is None:
+        user_id_obj = payload.get("sub")
+        user_id: str | None = user_id_obj if isinstance(user_id_obj, str) else None
+        if user_id is None:
             logger.warning("Token payload missing 'sub' field")
             return None
 
-        logger.debug(f"Successfully validated optional token for user: {email}")
-        return email
+        await _enforce_revocation_and_user_invalidation(payload, user_id)
 
+        logger.debug(f"Successfully validated optional token for user: {user_id}")
+        return user_id
+
+    except HTTPException as exc:
+        if exc.status_code == status.HTTP_401_UNAUTHORIZED and exc.detail in REVOCATION_DETAILS:
+            logger.debug("Optional auth ignoring auth rejection: %s", exc.detail)
+            return None
+        raise
     except PyJWTError as e:
         logger.debug(f"JWT validation error in optional auth: {str(e)}")
         return None

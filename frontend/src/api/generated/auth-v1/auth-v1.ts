@@ -137,7 +137,7 @@ export const useChangePasswordApiV1AuthChangePasswordPost = <
 Rate limited to prevent brute force attacks.
 
 PERFORMANCE OPTIMIZATION: This endpoint releases the DB connection BEFORE
-running bcrypt verification (~200ms). This reduces DB connection hold time
+running Argon2id verification (~200ms). This reduces DB connection hold time
 from ~200ms to ~5-20ms, allowing 10x more concurrent logins.
 
 Args:
@@ -145,7 +145,7 @@ Args:
     auth_service: Authentication service
 
 Returns:
-    LoginResponse: Access token metadata for the client
+    LoginResponse: Login result metadata for the client
 
 Raises:
     HTTPException: If credentials are invalid or rate limit exceeded
@@ -265,7 +265,7 @@ export const useLoginApiV1AuthLoginPost = <
 This endpoint supports guest session conversion.
 
 PERFORMANCE OPTIMIZATION: This endpoint releases the DB connection BEFORE
-running bcrypt verification (~200ms). This reduces DB connection hold time
+running Argon2id verification (~200ms). This reduces DB connection hold time
 from ~200ms to ~5-20ms, allowing 10x more concurrent logins.
 
 Args:
@@ -274,7 +274,7 @@ Args:
     db: Database session (used only for guest search conversion after auth)
 
 Returns:
-    LoginResponse: Access token metadata for the client
+    LoginResponse: Login result metadata for the client
 
 Raises:
     HTTPException: If credentials are invalid or rate limit exceeded
@@ -511,7 +511,7 @@ export function useReadUsersMeApiV1AuthMeGet<
 
 Args:
     user_update: Fields to update
-    current_user: Current user email from JWT
+    current_user: Current user identifier from JWT
     auth_service: Authentication service
     db: Database session
 

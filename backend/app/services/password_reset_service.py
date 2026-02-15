@@ -50,7 +50,7 @@ class PasswordResetService(BaseService):
             self.email_service = email_service
 
         # Initialize repositories using BaseRepository
-        self.user_repository = user_repository or RepositoryFactory.create_base_repository(db, User)
+        self.user_repository = user_repository or RepositoryFactory.create_user_repository(db)
         self.token_repository = token_repository or RepositoryFactory.create_base_repository(
             db, PasswordResetToken
         )
@@ -95,7 +95,7 @@ class PasswordResetService(BaseService):
                     self.logger.info(f"Password reset token created for user {user.id}")
 
             except Exception as e:
-                self.logger.error(f"Error creating password reset token: {str(e)}")
+                self.logger.error("Error creating password reset token: %s", e, exc_info=True)
                 # Still return True to prevent enumeration
         else:
             # Log that email doesn't exist but don't reveal this
@@ -197,13 +197,31 @@ class PasswordResetService(BaseService):
                     to_email=user.email,
                     user_name=user.first_name,
                 )
-
-                self.logger.info(f"Password successfully reset for user {user.id}")
-                return True
-
+        except ValidationException:
+            raise
         except Exception as e:
             self.logger.error(f"Error resetting password: {str(e)}")
             raise ValidationException("An error occurred while resetting your password")
+
+        # Password reset has committed successfully; token invalidation is best-effort
+        # and must not change the user-visible result.
+        invalidation_repo = RepositoryFactory.create_user_repository(self.db)
+        try:
+            if not invalidation_repo.invalidate_all_tokens(user.id, trigger="password_change"):
+                self.logger.critical(
+                    "Password reset succeeded but token invalidation helper returned false for user %s",
+                    user.id,
+                )
+        except Exception as e:
+            self.logger.critical(
+                "Password reset succeeded but token invalidation raised for user %s: %s",
+                user.id,
+                e,
+                exc_info=True,
+            )
+
+        self.logger.info(f"Password successfully reset for user {user.id}")
+        return True
 
     def _generate_reset_token(self, user_id: str) -> str:
         """

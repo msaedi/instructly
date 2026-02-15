@@ -19,6 +19,7 @@ import {
 // Mock withApiBase to return the path as-is
 jest.mock('@/lib/apiBase', () => ({
   withApiBase: (path: string) => `http://localhost${path}`,
+  withApiBaseForRequest: (path: string) => `http://localhost${path}`,
 }));
 
 const createTestQueryClient = () => {

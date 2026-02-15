@@ -402,8 +402,6 @@ async function setupMocksAndAuth(page: Page) {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        access_token: 'mock_access_token',
-        token_type: 'bearer',
         user: {
           id: 1,
           email: studentCredentials.email,
@@ -487,8 +485,6 @@ test.describe('My Lessons Page', () => {
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
-            access_token: 'mock_access_token',
-            token_type: 'bearer',
             user: {
               id: 1,
               email: studentCredentials.email,
@@ -508,8 +504,6 @@ test.describe('My Lessons Page', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          access_token: 'mock_jwt_token',
-          token_type: 'bearer',
           user: {
             id: 1,
             email: studentCredentials.email,
@@ -1216,8 +1210,6 @@ test.describe('Error Handling', () => {
             'Set-Cookie': 'access_token=mock_access_token; Path=/; HttpOnly; SameSite=Lax'
           },
           body: JSON.stringify({
-            access_token: 'mock_access_token',
-            token_type: 'bearer',
             user: {
               id: 1,
               email: studentCredentials.email,
@@ -1238,8 +1230,8 @@ test.describe('Error Handling', () => {
     };
 
     // Mock both possible login endpoints
-    await page.route('http://localhost:8000/api/v1/auth/login', loginHandler);
-    await page.route('http://localhost:8000/api/v1/auth/login-with-session', loginHandler);
+    await page.route('**/api/v1/auth/login', loginHandler);
+    await page.route('**/api/v1/auth/login-with-session', loginHandler);
 
     // Mock auth endpoint to success after we set the token
     await page.route('**/api/v1/auth/me', async (route) => {

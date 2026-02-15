@@ -7,7 +7,7 @@ import {
   sendReferralInvites,
 } from '../api';
 import { fetchAPI } from '@/lib/api';
-import { withApiBase } from '@/lib/apiBase';
+import { withApiBaseForRequest } from '@/lib/apiBase';
 import type { ReferralLedgerResponse, components } from '@/features/shared/api/types';
 
 jest.mock('@/lib/api', () => ({
@@ -16,6 +16,7 @@ jest.mock('@/lib/api', () => ({
 
 jest.mock('@/lib/apiBase', () => ({
   withApiBase: jest.fn((path: string) => `https://api.test${path}`),
+  withApiBaseForRequest: jest.fn((path: string) => `https://api.test${path}`),
 }));
 
 type MockResponse = {
@@ -33,7 +34,7 @@ const makeResponse = ({ ok, status, json, jsonThrows }: { ok: boolean; status?: 
 };
 
 const fetchApiMock = fetchAPI as jest.Mock;
-const withApiBaseMock = withApiBase as jest.Mock;
+const withApiBaseForRequestMock = withApiBaseForRequest as jest.Mock;
 
 type RewardOut = components['schemas']['RewardOut'];
 
@@ -63,7 +64,7 @@ describe('fetchReferralLedger', () => {
   beforeEach(() => {
     fetchMock = jest.fn();
     global.fetch = fetchMock as unknown as typeof global.fetch;
-    withApiBaseMock.mockClear();
+    withApiBaseForRequestMock.mockClear();
   });
 
   afterEach(() => {
@@ -77,7 +78,7 @@ describe('fetchReferralLedger', () => {
     const result = await fetchReferralLedger();
 
     expect(result).toEqual(payload);
-    expect(withApiBaseMock).toHaveBeenCalledWith(REFERRALS_ME_KEY);
+    expect(withApiBaseForRequestMock).toHaveBeenCalledWith(REFERRALS_ME_KEY, 'GET');
     expect(fetchMock).toHaveBeenCalledWith(
       `https://api.test${REFERRALS_ME_KEY}`,
       expect.objectContaining({
@@ -115,7 +116,7 @@ describe('fetchMyReferrals', () => {
   beforeEach(() => {
     fetchMock = jest.fn();
     global.fetch = fetchMock as unknown as typeof global.fetch;
-    withApiBaseMock.mockClear();
+    withApiBaseForRequestMock.mockClear();
   });
 
   afterEach(() => {
@@ -210,7 +211,7 @@ describe('applyReferralCredit', () => {
   beforeEach(() => {
     fetchMock = jest.fn();
     global.fetch = fetchMock as unknown as typeof global.fetch;
-    withApiBaseMock.mockClear();
+    withApiBaseForRequestMock.mockClear();
   });
 
   afterEach(() => {

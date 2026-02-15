@@ -1,6 +1,75 @@
 import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs';
 import { withAxiom } from 'next-axiom';
+import { withBotId } from 'botid/next/config';
+
+const cspReportUri = (() => {
+  const dsn = process.env['NEXT_PUBLIC_SENTRY_DSN'] || '';
+  if (!dsn) {
+    return '/monitoring';
+  }
+
+  try {
+    const parsed = new URL(dsn);
+    const projectId = parsed.pathname.replace(/^\/+/, '').split('/')[0];
+    const sentryKey = parsed.username;
+    if (!projectId || !sentryKey) {
+      return '/monitoring';
+    }
+    return `${parsed.protocol}//${parsed.host}/api/${projectId}/security/?sentry_key=${sentryKey}`;
+  } catch {
+    return '/monitoring';
+  }
+})();
+
+const cspApiOrigin = (() => {
+  const apiBase = process.env['NEXT_PUBLIC_API_BASE'] || process.env['NEXT_PUBLIC_API_URL'] || '';
+  if (!apiBase) {
+    const appEnv = (process.env['NEXT_PUBLIC_APP_ENV'] || '').toLowerCase();
+    const isDevLike =
+      process.env.NODE_ENV !== 'production' ||
+      appEnv === 'local' ||
+      appEnv === 'development' ||
+      appEnv === 'dev';
+    return isDevLike ? 'http://localhost:8000' : '';
+  }
+
+  try {
+    return new URL(apiBase).origin;
+  } catch {
+    return '';
+  }
+})();
+
+const connectSrcOrigins = [
+  "'self'",
+  cspApiOrigin,
+  'https://preview-api.instainstru.com',
+  'https://api.instainstru.com',
+  'https://*.sentry.io',
+  'https://*.stripe.com',
+  'https://challenges.cloudflare.com',
+  'https://r2.leadsy.ai',
+  'https://vitals.vercel-insights.com',
+  'https://*.axiom.co',
+  'https://*.onrender.com',
+];
+
+const cspReportOnlyValue = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://verify.stripe.com https://challenges.cloudflare.com https://r2.leadsy.ai https://va.vercel-scripts.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
+  "img-src 'self' data: blob: https://assets.instainstru.com https://*.cloudflare.com https://*.stripe.com https://*.tile.jawg.io https://*.basemaps.cartocdn.com",
+  `connect-src ${Array.from(new Set(connectSrcOrigins.filter(Boolean))).join(' ')}`,
+  "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://verify.stripe.com https://challenges.cloudflare.com",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  "worker-src 'self' blob:",
+  `report-uri ${cspReportUri}`,
+].join('; ');
 
 const nextConfig: NextConfig = {
   distDir: process.env['NEXT_DIST_DIR'] || '.next',
@@ -37,6 +106,7 @@ const nextConfig: NextConfig = {
       { key: 'X-Content-Type-Options', value: 'nosniff' },
       { key: 'Referrer-Policy', value: 'origin-when-cross-origin' },
       { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+      { key: 'Content-Security-Policy-Report-Only', value: cspReportOnlyValue },
       // Enable HSTS behind HTTPS; browsers will ignore if HTTP
       { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
     ];
@@ -90,4 +160,4 @@ const sentryBuildOptions = {
   },
 };
 
-export default withAxiom(withSentryConfig(nextConfig, sentryBuildOptions));
+export default withBotId(withAxiom(withSentryConfig(nextConfig, sentryBuildOptions)));

@@ -30,6 +30,7 @@ from ...auth import (
     DUMMY_HASH_FOR_TIMING_ATTACK,
     create_access_token,
     create_temp_token,
+    decode_access_token,
     get_current_user,
     verify_password_async,
 )
@@ -64,9 +65,11 @@ from ...services.beta_service import BetaService
 from ...services.cache_service import CacheService
 from ...services.permission_service import PermissionService
 from ...services.search_history_service import SearchHistoryService
+from ...services.token_blacklist_service import TokenBlacklistService
 from ...utils.cookies import (
     expire_parent_domain_cookie,
     session_cookie_base_name,
+    session_cookie_candidates,
     set_session_cookie,
 )
 from ...utils.invite_cookie import invite_cookie_name
@@ -78,11 +81,24 @@ logger = logging.getLogger(__name__)
 KNOWN_DEVICE_TTL_SECONDS = 60 * 60 * 24 * 90  # 90 days
 KNOWN_DEVICE_MAX = 10
 
-# OAuth2 token type constant (avoids B105 false positive for "bearer" string literal)
-OAUTH2_TOKEN_TYPE: str = "bearer"
-
 # V1 router - no prefix here, will be added when mounting in main.py
 router = APIRouter(tags=["auth-v1"])
+
+
+def _extract_request_token(request: Request) -> Optional[str]:
+    """Extract the access token from Authorization header or session cookie."""
+    auth_header = (request.headers.get("authorization") or "").strip()
+    if auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+        if token:
+            return token
+    if hasattr(request, "cookies"):
+        cookies = cast(dict[str, str], request.cookies)
+        for cookie_name in session_cookie_candidates():
+            token = cookies.get(cookie_name)
+            if token:
+                return token
+    return None
 
 
 async def _extract_captcha_token(request: Request) -> Optional[str]:
@@ -398,7 +414,7 @@ async def register(
         )
 
 
-@router.post("/login", response_model=LoginResponse)
+@router.post("/login", response_model=LoginResponse, response_model_exclude_none=True)
 @rate_limit(
     f"{settings.rate_limit_auth_per_minute}/minute",
     key_type=RateLimitKeyType.IP,
@@ -418,7 +434,7 @@ async def login(
     Rate limited to prevent brute force attacks.
 
     PERFORMANCE OPTIMIZATION: This endpoint releases the DB connection BEFORE
-    running bcrypt verification (~200ms). This reduces DB connection hold time
+    running Argon2id verification (~200ms). This reduces DB connection hold time
     from ~200ms to ~5-20ms, allowing 10x more concurrent logins.
 
     Args:
@@ -426,7 +442,7 @@ async def login(
         auth_service: Authentication service
 
     Returns:
-        LoginResponse: Access token metadata for the client
+        LoginResponse: Login result metadata for the client
 
     Raises:
         HTTPException: If credentials are invalid or rate limit exceeded
@@ -547,14 +563,7 @@ async def login(
 
     # Step 7: Create access token (no DB needed)
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
-    import os as _os_jwt
-
-    _site_mode_jwt = _os_jwt.getenv("SITE_MODE", "").lower().strip()
-    _claims = {"sub": user_email}
-    if _site_mode_jwt == "preview":
-        _claims.update({"aud": "preview", "iss": f"https://{settings.preview_api_domain}"})
-    elif _site_mode_jwt in {"prod", "production", "live"}:
-        _claims.update({"aud": "prod", "iss": f"https://{settings.prod_api_domain}"})
+    _claims = {"sub": user_id, "email": user_email}
 
     access_token = create_access_token(
         data=_claims,
@@ -589,8 +598,6 @@ async def login(
             cache_service=cache_service,
         )
 
-    from app.core.constants import BEARER_SCHEME
-
     try:
         if user_id:
             AuditService(db).log(
@@ -606,7 +613,7 @@ async def login(
     except Exception:
         logger.warning("Audit log write failed for user login", exc_info=True)
 
-    return LoginResponse(access_token=access_token, token_type=BEARER_SCHEME, requires_2fa=False)
+    return LoginResponse(requires_2fa=False)
 
 
 @router.post("/change-password", response_model=PasswordChangeResponse)
@@ -623,9 +630,9 @@ async def change_password(
     Verifies the current password, enforces minimal strength, and updates the hash.
     """
     # Get user object - run in thread pool to avoid blocking event loop
-    user = await asyncio.to_thread(auth_service.get_current_user, email=current_user)
+    user = await asyncio.to_thread(auth_service.get_current_user, current_user)
 
-    # Verify current password - use async version for bcrypt
+    # Verify current password - use async version for Argon2id
     from app.auth import get_password_hash
 
     if not await verify_password_async(payload.current_password, user.hashed_password):
@@ -650,6 +657,40 @@ async def change_password(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update password"
         )
+
+    invalidated = await asyncio.to_thread(
+        user_repository.invalidate_all_tokens,
+        user.id,
+        trigger="password_change",
+    )
+    if not invalidated:
+        logger.critical(
+            "Password changed but token invalidation failed for user %s — old tokens remain valid",
+            user.id,
+        )
+
+    # Belt-and-suspenders: also blacklist the current token's JTI for immediate
+    # Redis-based rejection (tokens_valid_after handles the rest on next cache refresh).
+    token = _extract_request_token(http_request)
+    if token:
+        try:
+            tok_payload = decode_access_token(token, enforce_audience=False)
+            jti = tok_payload.get("jti")
+            exp_raw = tok_payload.get("exp")
+            exp_ts = int(exp_raw) if isinstance(exp_raw, (int, float)) else None
+            if isinstance(jti, str) and jti and exp_ts is not None:
+                revoked = await TokenBlacklistService().revoke_token(
+                    jti,
+                    exp_ts,
+                    trigger="password_change",
+                    emit_metric=False,
+                )
+                if not revoked:
+                    logger.error("Password-change blacklist write failed for jti=%s", jti)
+        except Exception:
+            logger.warning(
+                "Failed to blacklist current token during password change", exc_info=True
+            )
 
     try:
         await asyncio.to_thread(
@@ -677,7 +718,11 @@ async def change_password(
     return PasswordChangeResponse(message="Password changed successfully")
 
 
-@router.post("/login-with-session", response_model=LoginResponse)
+@router.post(
+    "/login-with-session",
+    response_model=LoginResponse,
+    response_model_exclude_none=True,
+)
 @rate_limit(
     f"{settings.rate_limit_auth_per_minute}/minute",
     key_type=RateLimitKeyType.IP,
@@ -697,7 +742,7 @@ async def login_with_session(
     This endpoint supports guest session conversion.
 
     PERFORMANCE OPTIMIZATION: This endpoint releases the DB connection BEFORE
-    running bcrypt verification (~200ms). This reduces DB connection hold time
+    running Argon2id verification (~200ms). This reduces DB connection hold time
     from ~200ms to ~5-20ms, allowing 10x more concurrent logins.
 
     Args:
@@ -706,7 +751,7 @@ async def login_with_session(
         db: Database session (used only for guest search conversion after auth)
 
     Returns:
-        LoginResponse: Access token metadata for the client
+        LoginResponse: Login result metadata for the client
 
     Raises:
         HTTPException: If credentials are invalid or rate limit exceeded
@@ -823,7 +868,7 @@ async def login_with_session(
     # Step 7: Create access token (no DB needed)
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
     access_token = create_access_token(
-        data={"sub": user_email},
+        data={"sub": user_id, "email": user_email},
         expires_delta=access_token_expires,
         beta_claims=beta_claims,  # Pre-fetched in thread pool, no blocking DB call
     )
@@ -870,11 +915,6 @@ async def login_with_session(
             cache_service=cache_service,
         )
 
-    response_payload = {
-        "access_token": access_token,
-        "token_type": OAUTH2_TOKEN_TYPE,
-        "requires_2fa": False,
-    }
     try:
         if user_id:
             AuditService(db).log(
@@ -889,7 +929,7 @@ async def login_with_session(
             )
     except Exception:
         logger.warning("Audit log write failed for user login", exc_info=True)
-    return LoginResponse(**model_filter(LoginResponse, response_payload))
+    return LoginResponse(requires_2fa=False)
 
 
 @router.get("/me", response_model=AuthUserWithPermissionsResponse)
@@ -993,7 +1033,7 @@ async def update_current_user(
 
     Args:
         user_update: Fields to update
-        current_user: Current user email from JWT
+        current_user: Current user identifier from JWT
         auth_service: Authentication service
         db: Database session
 
@@ -1003,11 +1043,13 @@ async def update_current_user(
     Raises:
         HTTPException: If user not found or update fails
     """
+    # TODO(security): if email change is added to this endpoint, call
+    # UserRepository.invalidate_all_tokens(updated_user.id) after commit.
     try:
         # Wrap all sync DB operations in thread pool to avoid blocking event loop
         def _update_user_profile() -> tuple[Any, ...]:
             """Perform all DB ops in one thread."""
-            u = auth_service.get_current_user(email=current_user)
+            u = auth_service.get_current_user(current_user)
 
             # Use repository for updates
             from app.repositories import RepositoryFactory

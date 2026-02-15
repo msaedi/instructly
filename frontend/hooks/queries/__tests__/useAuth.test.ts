@@ -92,7 +92,7 @@ describe('useAuth', () => {
   it('logs in with guest session and transfers searches', async () => {
     queryFnMock.mockReturnValue(makeQueryFn(null));
     getGuestSessionIdMock.mockReturnValue('guest-123');
-    httpMock.mockResolvedValueOnce({ access_token: 'token', token_type: 'bearer' });
+    httpMock.mockResolvedValueOnce({});
     transferGuestSearchesMock.mockResolvedValueOnce(undefined);
 
     const { wrapper, queryClient } = createWrapper();
@@ -118,7 +118,7 @@ describe('useAuth', () => {
   it('logs in without guest session using urlencoded payload', async () => {
     queryFnMock.mockReturnValue(makeQueryFn(null));
     getGuestSessionIdMock.mockReturnValue(null);
-    httpMock.mockResolvedValueOnce({ access_token: 'token', token_type: 'bearer' });
+    httpMock.mockResolvedValueOnce({});
 
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useAuth(), { wrapper });

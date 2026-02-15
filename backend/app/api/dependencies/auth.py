@@ -18,7 +18,7 @@ import hmac
 import logging
 import os
 import secrets
-from typing import Any, Awaitable, Callable, Optional, cast
+from typing import Awaitable, Callable, Optional
 
 from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -30,24 +30,14 @@ from ...auth import (
 from ...core.auth_cache import (
     create_transient_user,
     lookup_user_by_id_nonblocking,
-    lookup_user_nonblocking,
 )
-from ...core.config import settings
+from ...core.config import secret_or_plain, settings
 from ...models.user import User
 from ...monitoring.prometheus_metrics import prometheus_metrics
 from ...repositories.beta_repository import BetaAccessRepository, BetaSettingsRepository
 from .database import get_db
 
 logger = logging.getLogger(__name__)
-
-
-def _secret_value(secret_obj: Any) -> str:
-    if secret_obj is None:
-        return ""
-    getter = getattr(secret_obj, "get_secret_value", None)
-    if callable(getter):
-        return cast(str, getter())
-    return str(secret_obj)
 
 
 def _get_bearer_token(authorization: str | None) -> str | None:
@@ -71,7 +61,7 @@ async def validate_mcp_service(
             detail="Invalid authorization header",
         )
 
-    expected = _secret_value(settings.mcp_service_token).strip()
+    expected = secret_or_plain(settings.mcp_service_token).strip()
     if not expected or not secrets.compare_digest(token, expected):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -94,15 +84,28 @@ async def validate_mcp_service(
     return service_user
 
 
+def _extract_hostname(url: str) -> str:
+    """Extract the hostname from a URL, stripping port and path."""
+    from urllib.parse import urlparse
+
+    try:
+        parsed = urlparse(url if "://" in url else f"https://{url}")
+        return (parsed.hostname or "").lower()
+    except Exception:
+        return ""
+
+
 def _from_preview_origin(request: Request) -> bool:
-    origin = (request.headers.get("origin") or "").lower()
-    referer = (request.headers.get("referer") or "").lower()
+    origin = request.headers.get("origin") or ""
+    referer = request.headers.get("referer") or ""
     xfhost = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").lower()
     api_host = request.url.hostname.lower() if request.url and request.url.hostname else ""
+    expected_front = settings.preview_frontend_domain.lower()
+    expected_api = settings.preview_api_domain.lower()
     front_ok = (
-        settings.preview_frontend_domain in origin or settings.preview_frontend_domain in referer
+        _extract_hostname(origin) == expected_front or _extract_hostname(referer) == expected_front
     )
-    api_ok = settings.preview_api_domain in xfhost or settings.preview_api_domain in api_host
+    api_ok = _extract_hostname(xfhost) == expected_api or api_host == expected_api
     return bool(front_ok and api_ok)
 
 
@@ -147,11 +150,8 @@ def _preview_bypass(request: Request, user: User | None) -> bool:
     # Optional header path (only if explicitly allowed) – must come from preview origins
     if settings.allow_preview_header and _from_preview_origin(request):
         token = request.headers.get("x-staff-preview-token", "")
-        if (
-            token
-            and settings.staff_preview_token
-            and hmac.compare_digest(token, settings.staff_preview_token)
-        ):
+        preview_token = secret_or_plain(settings.staff_preview_token).strip()
+        if token and preview_token and hmac.compare_digest(token, preview_token):
             try:
                 logger.info(
                     "preview_bypass",
@@ -194,7 +194,7 @@ def _testing_bypass(request: Request | None) -> bool:
 
 async def get_current_user(
     request: Request,
-    current_user_email: str = Depends(auth_get_current_user),
+    current_user_id: str = Depends(auth_get_current_user),
     db: Session = Depends(get_db),
 ) -> User:
     """
@@ -205,7 +205,7 @@ async def get_current_user(
 
     Args:
         request: The incoming request
-        current_user_email: Email from JWT token
+        current_user_id: User ID from JWT token
         db: Database session (kept for backward compatibility with tests)
 
     Returns:
@@ -219,22 +219,28 @@ async def get_current_user(
     if isinstance(state_obj, User) and getattr(state_obj, "is_active", True):
         return state_obj
 
-    # Backward-compat for tests that call get_current_user(email, db) positionally
-    # In that case, request is a string (email) and current_user_email is a Session/Mock
-    if not isinstance(current_user_email, str) and isinstance(request, str):
+    # Backward-compat for tests that call get_current_user(identifier, db) positionally
+    # In that case, request is a string and current_user_id is a Session/Mock.
+    if not isinstance(current_user_id, str) and isinstance(request, str):
         # This is a legacy test call pattern - use sync lookup for compatibility
         from ...repositories.user_repository import UserRepository
 
-        swap_db = current_user_email if hasattr(current_user_email, "query") else db
+        swap_db = current_user_id if hasattr(current_user_id, "query") else db
         if not hasattr(swap_db, "query"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid database session for current user lookup",
             )
-        current_user_email = request
+        current_user_id = request
         user_repo = UserRepository(swap_db)
-        # async-blocking-ignore: Test/legacy fallback path, not used in production
-        user = user_repo.get_by_email(current_user_email)  # async-blocking-ignore
+        if "@" in current_user_id:
+            # async-blocking-ignore: Test/legacy fallback path, not used in production
+            user = user_repo.get_by_email(current_user_id)  # async-blocking-ignore
+        else:
+            # async-blocking-ignore: Test/legacy fallback path, not used in production
+            user = user_repo.get_by_id(current_user_id, use_retry=False)  # async-blocking-ignore
+            if not user:
+                user = user_repo.get_by_email(current_user_id)  # async-blocking-ignore
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         return user
@@ -251,13 +257,19 @@ async def get_current_user(
         from ...repositories.user_repository import UserRepository
 
         user_repo = UserRepository(db)
-        # async-blocking-ignore: Test/legacy fallback path, not used in production
-        user = user_repo.get_by_email(current_user_email)  # async-blocking-ignore
+        if "@" in current_user_id:
+            # async-blocking-ignore: Test/legacy fallback path, not used in production
+            user = user_repo.get_by_email(current_user_id)  # async-blocking-ignore
+        else:
+            # async-blocking-ignore: Test/legacy fallback path, not used in production
+            user = user_repo.get_by_id(current_user_id, use_retry=False)  # async-blocking-ignore
+            if not user:
+                user = user_repo.get_by_email(current_user_id)  # async-blocking-ignore
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     else:
-        # Production: Non-blocking lookup with caching
-        user_data = await lookup_user_nonblocking(current_user_email)
+        # Production: Non-blocking lookup with caching (ID-first).
+        user_data = await lookup_user_by_id_nonblocking(current_user_id)
         if user_data is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         # Create a TRANSIENT User object (not session-bound) from the dict
@@ -360,7 +372,7 @@ async def get_current_student(
 
 async def get_current_active_user_optional(
     request: Request = None,
-    current_user_email: Optional[str] = Depends(auth_get_current_user_optional),
+    current_user_id: Optional[str] = Depends(auth_get_current_user_optional),
     db: Session = Depends(get_db),
 ) -> Optional[User]:
     """
@@ -371,7 +383,7 @@ async def get_current_active_user_optional(
 
     Args:
         request: The incoming request
-        current_user_email: Email from JWT token (if present)
+        current_user_id: User ID from JWT token (if present)
         db: Database session (kept for backward compatibility)
 
     Returns:
@@ -382,7 +394,7 @@ async def get_current_active_user_optional(
         if isinstance(state_user, User) and getattr(state_user, "is_active", False):
             return state_user
 
-    if not current_user_email:
+    if not current_user_id:
         return None
 
     # =========================================================================
@@ -395,14 +407,20 @@ async def get_current_active_user_optional(
         from ...repositories.user_repository import UserRepository
 
         user_repo = UserRepository(db)
-        # async-blocking-ignore: Test/legacy fallback path, not used in production
-        user = user_repo.get_by_email(current_user_email)  # async-blocking-ignore
+        if "@" in current_user_id:
+            # async-blocking-ignore: Test/legacy fallback path, not used in production
+            user = user_repo.get_by_email(current_user_id)  # async-blocking-ignore
+        else:
+            # async-blocking-ignore: Test/legacy fallback path, not used in production
+            user = user_repo.get_by_id(current_user_id, use_retry=False)  # async-blocking-ignore
+            if not user:
+                user = user_repo.get_by_email(current_user_id)  # async-blocking-ignore
         if user and user.is_active:
             return user
         return None
     else:
-        # Production: Non-blocking lookup with caching
-        user_data = await lookup_user_nonblocking(current_user_email)
+        # Production: Non-blocking lookup with caching (ID-first).
+        user_data = await lookup_user_by_id_nonblocking(current_user_id)
         if user_data and user_data.get("is_active", False):
             return create_transient_user(user_data)
         return None

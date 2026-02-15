@@ -7,9 +7,19 @@ jest.mock('@/lib/sessionTracking', () => ({
   refreshSession: jest.fn(),
 }));
 
-jest.mock('@/lib/apiBase', () => ({
-  withApiBase: jest.fn((endpoint: string) => `/api/proxy${endpoint}`),
-}));
+jest.mock('@/lib/apiBase', () => {
+  const withApiBase = jest.fn((endpoint: string) => `/api/proxy${endpoint}`);
+  const withApiBaseForRequest = jest.fn((endpoint: string) => {
+    if (/^https?:\/\//i.test(endpoint)) {
+      return endpoint;
+    }
+    if (endpoint.startsWith('/api/proxy')) {
+      return endpoint;
+    }
+    return withApiBase(endpoint);
+  });
+  return { withApiBase, withApiBaseForRequest };
+});
 
 describe('protectedApi.getBookings', () => {
   const originalFetch = global.fetch;

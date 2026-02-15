@@ -14,18 +14,21 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 import jwt
 from sqlalchemy.orm import Session
 
-from app.auth import create_access_token, get_current_user
+from app.auth import create_access_token, decode_access_token, get_current_user
 from app.core.config import settings
 from app.database import get_db
 from app.middleware.rate_limiter import RateLimitKeyType, rate_limit
+from app.repositories.factory import RepositoryFactory
 from app.services.audit_service import AuditService
 from app.services.auth_service import AuthService
 from app.services.notification_service import NotificationService
 from app.services.search_history_service import SearchHistoryService
+from app.services.token_blacklist_service import TokenBlacklistService
 from app.services.two_factor_auth_service import TwoFactorAuthService
 from app.utils.cookies import (
     expire_parent_domain_cookie,
     session_cookie_base_name,
+    session_cookie_candidates,
     set_session_cookie,
 )
 
@@ -47,6 +50,44 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["2fa"])
 
 
+def _extract_request_token(request: Request) -> str | None:
+    """Extract access token from Authorization header or session cookie."""
+    auth_header = (request.headers.get("authorization") or "").strip()
+    if auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+        if token:
+            return token
+    if hasattr(request, "cookies"):
+        for cookie_name in session_cookie_candidates():
+            token = request.cookies.get(cookie_name)
+            if token:
+                return token
+    return None
+
+
+def _blacklist_current_token(request: Request, trigger: str) -> None:
+    """Best-effort blacklist of the current request's token JTI."""
+    token = _extract_request_token(request)
+    if not token:
+        return
+    try:
+        payload = decode_access_token(token, enforce_audience=False)
+        jti = payload.get("jti")
+        exp_raw = payload.get("exp")
+        exp_ts = int(exp_raw) if isinstance(exp_raw, (int, float)) else None
+        if isinstance(jti, str) and jti and exp_ts is not None:
+            revoked = TokenBlacklistService().revoke_token_sync(
+                jti,
+                exp_ts,
+                trigger=trigger,
+                emit_metric=False,
+            )
+            if not revoked:
+                logger.error("2FA %s blacklist write failed for jti=%s", trigger, jti)
+    except Exception:
+        logger.warning("Failed to blacklist current token during 2FA %s", trigger, exc_info=True)
+
+
 def get_tfa_service(db: Session = Depends(get_db)) -> TwoFactorAuthService:
     return TwoFactorAuthService(db)
 
@@ -62,7 +103,7 @@ def setup_initiate(
     auth_service: AuthService = Depends(get_auth_service),
     tfa_service: TwoFactorAuthService = Depends(get_tfa_service),
 ) -> TFASetupInitiateResponse:
-    user = auth_service.get_current_user(email=current_user)
+    user = auth_service.get_current_user(current_user)
     data = tfa_service.setup_initiate(user)
     return TFASetupInitiateResponse(**data)
 
@@ -76,10 +117,18 @@ def setup_verify(
     auth_service: AuthService = Depends(get_auth_service),
     tfa_service: TwoFactorAuthService = Depends(get_tfa_service),
 ) -> TFASetupVerifyResponse:
-    user = auth_service.get_current_user(email=current_user)
+    user = auth_service.get_current_user(current_user)
     was_enabled = bool(getattr(user, "totp_enabled", False))
     try:
         backup_codes = tfa_service.setup_verify(user, req.code)
+        user_repo = RepositoryFactory.create_user_repository(tfa_service.db)
+        if not user_repo.invalidate_all_tokens(user.id, trigger="2fa_change"):
+            logger.critical(
+                "2FA enable succeeded but token invalidation returned false for %s — old tokens remain valid",
+                user.id,
+            )
+        # Belt-and-suspenders: blacklist current token JTI for immediate rejection
+        _blacklist_current_token(request, trigger="2fa_enable")
         # On successful re-setup, ensure trust cookie is cleared; user can re-trust on next verify
         response.delete_cookie(
             key="tfa_trusted",
@@ -129,10 +178,18 @@ def disable(
     auth_service: AuthService = Depends(get_auth_service),
     tfa_service: TwoFactorAuthService = Depends(get_tfa_service),
 ) -> TFADisableResponse:
-    user = auth_service.get_current_user(email=current_user)
+    user = auth_service.get_current_user(current_user)
     was_enabled = bool(getattr(user, "totp_enabled", False))
     try:
         tfa_service.disable(user, req.current_password)
+        user_repo = RepositoryFactory.create_user_repository(tfa_service.db)
+        if not user_repo.invalidate_all_tokens(user.id, trigger="2fa_change"):
+            logger.critical(
+                "2FA disable succeeded but token invalidation returned false for %s — old tokens remain valid",
+                user.id,
+            )
+        # Belt-and-suspenders: blacklist current token JTI for immediate rejection
+        _blacklist_current_token(request, trigger="2fa_disable")
         # Invalidate any trusted-browser cookie on disable
         response.delete_cookie(
             key="tfa_trusted",
@@ -175,7 +232,7 @@ def status_endpoint(
     auth_service: AuthService = Depends(get_auth_service),
     tfa_service: TwoFactorAuthService = Depends(get_tfa_service),
 ) -> TFAStatusResponse:
-    user = auth_service.get_current_user(email=current_user)
+    user = auth_service.get_current_user(current_user)
     data = tfa_service.status(user)
     return TFAStatusResponse(**data)
 
@@ -186,7 +243,7 @@ def regenerate_backup_codes(
     auth_service: AuthService = Depends(get_auth_service),
     tfa_service: TwoFactorAuthService = Depends(get_tfa_service),
 ) -> BackupCodesResponse:
-    user = auth_service.get_current_user(email=current_user)
+    user = auth_service.get_current_user(current_user)
     codes = tfa_service.generate_backup_codes()
     # Store hashed
     from app.auth import get_password_hash
@@ -198,7 +255,11 @@ def regenerate_backup_codes(
     return BackupCodesResponse(backup_codes=codes)
 
 
-@router.post("/verify-login", response_model=TFAVerifyLoginResponse)
+@router.post(
+    "/verify-login",
+    response_model=TFAVerifyLoginResponse,
+    response_model_exclude_none=True,
+)
 @rate_limit(
     f"{settings.rate_limit_auth_per_minute}/minute",
     key_type=RateLimitKeyType.IP,
@@ -236,7 +297,7 @@ def verify_login(
             logger.info("2FA verify temp-token reject: %s", reason)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid temp token")
 
-    user = auth_service.get_current_user(email=email)
+    user = auth_service.get_current_user(identifier=email)
     if not user or not user.totp_enabled:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="2FA not enabled")
 
@@ -249,7 +310,10 @@ def verify_login(
 
     # Issue final access token
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
-    access_token = create_access_token(data={"sub": user.email}, expires_delta=access_token_expires)
+    access_token = create_access_token(
+        data={"sub": user.id, "email": user.email},
+        expires_delta=access_token_expires,
+    )
     # Write session cookie (API host only)
     site_mode = settings.site_mode
     base_cookie_name = session_cookie_base_name(site_mode)
@@ -293,8 +357,6 @@ def verify_login(
             samesite=settings.session_cookie_samesite or "lax",
             path="/",
         )
-    from app.core.constants import BEARER_SCHEME
-
     try:
         AuditService(tfa_service.db).log(
             action="user.login",
@@ -309,4 +371,4 @@ def verify_login(
     except Exception:
         logger.warning("Audit log write failed for 2FA login", exc_info=True)
 
-    return TFAVerifyLoginResponse(access_token=access_token, token_type=BEARER_SCHEME)
+    return TFAVerifyLoginResponse()

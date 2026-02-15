@@ -173,9 +173,18 @@ def test_public_logout_handles_host_cookie(monkeypatch):
 def test_public_logout_logs_audit_when_session_token_present(monkeypatch):
     monkeypatch.setattr(public_routes, "session_cookie_candidates", lambda *_args, **_kwargs: ["session"])
     monkeypatch.setattr(
-        public_routes, "decode_access_token", lambda *_args, **_kwargs: {"sub": "user@example.com"}
+        public_routes,
+        "decode_access_token",
+        lambda *_args, **_kwargs: {"email": "user@example.com", "jti": "test-jti", "exp": 9999999999},
     )
     audit_calls = []
+    revoked = []
+    revoke_kwargs: list[dict[str, object]] = []
+
+    class DummyBlacklistService:
+        def revoke_token_sync(self, jti: str, exp: int, **_kwargs) -> None:
+            revoked.append((jti, exp))
+            revoke_kwargs.append(_kwargs)
 
     class DummyAuditService:
         def __init__(self, _db) -> None:
@@ -184,6 +193,7 @@ def test_public_logout_logs_audit_when_session_token_present(monkeypatch):
         def log(self, **kwargs):
             audit_calls.append(kwargs)
 
+    monkeypatch.setattr(public_routes, "TokenBlacklistService", lambda: DummyBlacklistService())
     monkeypatch.setattr(public_routes, "AuditService", DummyAuditService)
 
     response = public_routes.public_logout(
@@ -193,14 +203,51 @@ def test_public_logout_logs_audit_when_session_token_present(monkeypatch):
     )
 
     assert response.status_code == 204
+    assert revoked == [("test-jti", 9999999999)]
+    assert revoke_kwargs == [{"trigger": "logout"}]
     assert len(audit_calls) == 1
     assert audit_calls[0]["actor_email"] == "user@example.com"
+
+
+def test_public_logout_skips_blacklist_when_jti_missing(monkeypatch):
+    monkeypatch.setattr(public_routes, "session_cookie_candidates", lambda *_args, **_kwargs: ["session"])
+    monkeypatch.setattr(
+        public_routes,
+        "decode_access_token",
+        lambda *_args, **_kwargs: {"email": "user@example.com", "exp": 9999999999},
+    )
+    revoked = []
+
+    class DummyBlacklistService:
+        def revoke_token_sync(self, jti: str, exp: int, **_kwargs) -> None:
+            revoked.append((jti, exp))
+
+    class DummyAuditService:
+        def __init__(self, _db) -> None:
+            pass
+
+        def log(self, **_kwargs):
+            return None
+
+    monkeypatch.setattr(public_routes, "TokenBlacklistService", lambda: DummyBlacklistService())
+    monkeypatch.setattr(public_routes, "AuditService", DummyAuditService)
+
+    response = public_routes.public_logout(
+        Response(),
+        _make_request({"cookie": "session=token123"}),
+        db=SimpleNamespace(),
+    )
+
+    assert response.status_code == 204
+    assert revoked == []
 
 
 def test_public_logout_ignores_audit_errors(monkeypatch):
     monkeypatch.setattr(public_routes, "session_cookie_candidates", lambda *_args, **_kwargs: ["session"])
     monkeypatch.setattr(
-        public_routes, "decode_access_token", lambda *_args, **_kwargs: {"sub": "user@example.com"}
+        public_routes,
+        "decode_access_token",
+        lambda *_args, **_kwargs: {"email": "user@example.com", "jti": "test-jti", "exp": 9999999999},
     )
 
     class FailingAuditService:
@@ -210,6 +257,11 @@ def test_public_logout_ignores_audit_errors(monkeypatch):
         def log(self, **_kwargs):
             raise RuntimeError("audit write failed")
 
+    class DummyBlacklistService:
+        def revoke_token_sync(self, _jti: str, _exp: int, **_kwargs) -> bool:
+            return True
+
+    monkeypatch.setattr(public_routes, "TokenBlacklistService", lambda: DummyBlacklistService())
     monkeypatch.setattr(public_routes, "AuditService", FailingAuditService)
     warning_messages: list[str] = []
     monkeypatch.setattr(public_routes.logger, "warning", lambda message, *args, **kwargs: warning_messages.append(message))

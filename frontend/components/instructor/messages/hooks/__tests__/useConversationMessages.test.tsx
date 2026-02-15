@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 // Mock dependencies
 jest.mock('@/lib/apiBase', () => ({
   withApiBase: jest.fn((url: string) => `https://api.test.com${url}`),
+  withApiBaseForRequest: jest.fn((url: string) => `https://api.test.com${url}`),
 }));
 
 jest.mock('@/src/api/services/conversations', () => ({

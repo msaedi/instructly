@@ -7,7 +7,7 @@
  */
 
 import { getSessionId, refreshSession } from '@/lib/sessionTracking';
-import { withApiBase } from '@/lib/apiBase';
+import { withApiBaseForRequest } from '@/lib/apiBase';
 import { NEXT_PUBLIC_APP_URL as APP_URL } from '@/lib/env';
 import { logger } from '@/lib/logger';
 import type {
@@ -183,20 +183,23 @@ export async function cleanFetch<T>(
   options: FetchOptions = {}
 ): Promise<ApiResponse<T>> {
   const { params, ...fetchOptions } = options;
+  const resolvedEndpoint = withApiBaseForRequest(endpoint, fetchOptions.method ?? 'GET');
 
   // Build URL with query params (support relative endpoints in browser/SSR)
-  const isAbsolute = /^https?:\/\//i.test(endpoint);
+  const isAbsolute = /^https?:\/\//i.test(resolvedEndpoint);
   let url: URL;
   if (isAbsolute) {
-    url = new URL(endpoint);
+    url = new URL(resolvedEndpoint);
   } else if (typeof window !== 'undefined') {
     // Respect proxy toggle for browser requests
     // Don't double-apply proxy prefix if already present
-    const adjustedPath = endpoint.startsWith('/api/proxy') ? endpoint : withApiBase(endpoint);
+    const adjustedPath = resolvedEndpoint.startsWith('/api/proxy')
+      ? resolvedEndpoint
+      : withApiBaseForRequest(resolvedEndpoint, fetchOptions.method ?? 'GET');
     url = new URL(adjustedPath, window.location.origin);
   } else {
     const base = getRequestOrigin();
-    url = new URL(endpoint, base);
+    url = new URL(resolvedEndpoint, base);
   }
   if (params) {
     Object.entries(params).forEach(([key, value]) => {

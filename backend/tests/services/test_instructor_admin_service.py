@@ -391,10 +391,17 @@ def test_preview_suspend_warnings_and_ineligible_states(db, test_instructor_with
 
 
 @pytest.mark.asyncio
-async def test_execute_suspend_success_and_errors(db, test_instructor_with_bookings, test_student):
+async def test_execute_suspend_success_and_errors(db, test_instructor_with_bookings, test_student, monkeypatch):
     booking_service = StubBookingService(db)
     idempotency = FakeIdempotency()
     service = _service(db, booking_service=booking_service, idempotency=idempotency)
+    invalidation_calls: list[tuple[str, str | None]] = []
+
+    monkeypatch.setattr(
+        service.user_repo,
+        "invalidate_all_tokens",
+        lambda user_id, trigger=None: invalidation_calls.append((user_id, trigger)) or True,
+    )
 
     preview = service.preview_suspend(
         instructor_id=test_instructor_with_bookings.id,
@@ -414,6 +421,7 @@ async def test_execute_suspend_success_and_errors(db, test_instructor_with_booki
     assert response.bookings_cancelled == 1
     assert response.refunds_issued == 1
     assert response.total_refunded > Decimal("0.00")
+    assert invalidation_calls == [(test_instructor_with_bookings.id, "suspension")]
 
     with pytest.raises(ValidationException):
         await service.execute_suspend(

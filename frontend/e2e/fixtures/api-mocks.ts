@@ -200,8 +200,6 @@ export async function mockAuthentication(
             'Set-Cookie': 'access_token=mock_access_token_123456; Path=/; HttpOnly; SameSite=Lax'
           },
           body: JSON.stringify({
-            access_token: 'mock_access_token_123456',
-            token_type: 'bearer',
             user: {
               id: 1,
               email: 'john.smith@example.com',
@@ -263,8 +261,6 @@ export async function mockAuthentication(
               'Set-Cookie': 'access_token=mock_access_token_123456; Path=/; HttpOnly; SameSite=Lax'
             },
             body: JSON.stringify({
-              access_token: 'mock_access_token_123456',
-              token_type: 'bearer',
               user: {
                 id: 1,
                 email: 'john.smith@example.com',

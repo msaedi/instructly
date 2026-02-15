@@ -40,12 +40,14 @@ from .auth import decode_access_token, oauth2_scheme_optional
 from .core.auth_cache import (
     create_transient_user,
     lookup_user_by_id_nonblocking,
-    lookup_user_nonblocking,
 )
 from .core.cache_redis import get_async_cache_redis_client
 from .core.config import settings
 from .models.user import User
+from .monitoring.prometheus_metrics import prometheus_metrics
+from .services.token_blacklist_service import TokenBlacklistService
 from .utils.cookies import session_cookie_candidates
+from .utils.token_utils import parse_token_iat
 
 logger = logging.getLogger(__name__)
 
@@ -89,15 +91,13 @@ async def get_current_user_sse(
     """
     Get current user for SSE endpoints.
 
-    CRITICAL: This function uses manual DB session management to prevent holding
-    connections in "idle in transaction" state during long-running SSE streams.
-    FastAPI's Depends(get_db) cleanup only runs AFTER the response completes,
-    which for SSE can be 30+ seconds.
-
     Checks for authentication in this order:
-    1. Authorization header (for testing/non-browser clients)
-    2. Short-lived SSE token in query parameter (for EventSource)
-    3. Cookie (for browser-based EventSource with withCredentials)
+    1. Short-lived SSE token in query parameter (for browser EventSource clients)
+    2. Authorization header JWT (for non-browser clients/tests)
+    3. Session cookie JWT fallback (browser with credentials)
+
+    User resolution uses shared auth cache + non-blocking lookup to avoid
+    synchronous DB pressure during concurrent SSE connections.
 
     Args:
         token_header: Token from Authorization header
@@ -151,9 +151,40 @@ async def get_current_user_sse(
 
     try:
         payload = decode_access_token(token)
-        user_email = payload.get("sub")
+        jti_obj = payload.get("jti")
+        jti = jti_obj if isinstance(jti_obj, str) else None
+        if not jti:
+            try:
+                prometheus_metrics.record_token_rejection("format_outdated")
+            except Exception:
+                logger.debug("Non-fatal error ignored", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token format outdated, please re-login",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
-        if not isinstance(user_email, str):
+        blacklist = TokenBlacklistService()
+        try:
+            revoked = await blacklist.is_revoked(jti)
+        except Exception as exc:
+            logger.warning("SSE blacklist check failed for jti=%s (fail-closed): %s", jti, exc)
+            revoked = True
+        if revoked:
+            try:
+                prometheus_metrics.record_token_rejection("revoked")
+            except Exception:
+                logger.debug("Non-fatal error ignored", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        user_id_obj = payload.get("sub")
+        user_id = user_id_obj if isinstance(user_id_obj, str) else None
+
+        if user_id is None:
             raise credentials_exception
 
     except (PyJWTError, InvalidIssuerError) as e:
@@ -165,10 +196,27 @@ async def get_current_user_sse(
     # =========================================================================
     # This uses Redis cache + asyncio.to_thread for DB queries to avoid
     # blocking the event loop under load.
-    user_data = await lookup_user_nonblocking(user_email)
+    user_data = await lookup_user_by_id_nonblocking(user_id)
 
     if user_data is None:
         raise credentials_exception
+
+    iat_ts = parse_token_iat(payload)
+
+    if iat_ts is not None:
+        tokens_valid_after_ts = user_data.get("tokens_valid_after_ts")
+        if isinstance(tokens_valid_after_ts, float):
+            tokens_valid_after_ts = int(tokens_valid_after_ts)
+        if isinstance(tokens_valid_after_ts, int) and iat_ts < tokens_valid_after_ts:
+            try:
+                prometheus_metrics.record_token_rejection("invalidated")
+            except Exception:
+                logger.debug("Non-fatal error ignored", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been invalidated",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
     if not user_data.get("is_active", True):
         raise HTTPException(

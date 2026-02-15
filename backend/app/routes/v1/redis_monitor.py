@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from redis.asyncio import Redis as AsyncRedis
 
 from ...core.cache_redis import get_async_cache_redis_client
-from ...core.config import settings
+from ...core.config import secret_or_plain, settings
 from ...core.enums import PermissionName
 from ...dependencies.permissions import require_permission
 from ...models.user import User
@@ -251,8 +251,9 @@ async def redis_connection_audit(
 
     try:
         # Get current Redis URLs from settings
-        api_cache_url = settings.redis_url or "redis://localhost:6379/0"
-        celery_broker_url = settings.redis_url or "redis://localhost:6379/0"
+        redis_url = secret_or_plain(settings.redis_url).strip() or "redis://localhost:6379/0"
+        api_cache_url = redis_url
+        celery_broker_url = redis_url
 
         # All services now use single Redis instance
         upstash_detected = False  # Migration complete

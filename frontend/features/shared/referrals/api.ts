@@ -1,4 +1,4 @@
-import { withApiBase } from '@/lib/apiBase';
+import { withApiBaseForRequest } from '@/lib/apiBase';
 import { fetchAPI } from '@/lib/api';
 import type {
   components,
@@ -29,8 +29,8 @@ export interface ReferralSummary {
   expiry_notice_days?: ReferralLedgerResponse['expiry_notice_days'];
 }
 
-function buildUrl(path: string): string {
-  return withApiBase(path);
+function buildUrl(path: string, method: string = 'GET'): string {
+  return withApiBaseForRequest(path, method);
 }
 
 function isReferralError(data: unknown): data is ReferralErrorResponse {
@@ -90,7 +90,7 @@ export async function applyReferralCredit(orderId: string): Promise<ReferralChec
     return normalizeError('disabled', 'Order ID is required');
   }
 
-  const response = await fetch(buildUrl('/api/v1/referrals/checkout/apply-referral'), {
+  const response = await fetch(buildUrl('/api/v1/referrals/checkout/apply-referral', 'POST'), {
     method: 'POST',
     credentials: 'include',
     headers: {

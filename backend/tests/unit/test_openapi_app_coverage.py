@@ -9,10 +9,10 @@ import pytest
 
 @pytest.fixture(scope="module")
 def openapi_app():
-    """Build the OpenAPI app once for all tests in this module."""
-    from app.openapi_app import build_openapi_app
+    """Reuse the shared OpenAPI app instance for all tests in this module."""
+    from app.openapi_app import openapi_app as shared_openapi_app
 
-    return build_openapi_app()
+    return shared_openapi_app
 
 
 @pytest.fixture(scope="module")

@@ -8,14 +8,16 @@ broker settings, result backend, serialization, and beat schedules.
 
 import os
 
-from app.core.config import settings
+from app.core.config import secret_or_plain, settings
+
+_celery_redis_url = secret_or_plain(settings.redis_url).strip()
 
 
 class CeleryConfig:
     """Celery configuration class with all settings."""
 
     # Broker settings
-    broker_url = settings.redis_url or "redis://localhost:6379/0"
+    broker_url = _celery_redis_url or "redis://localhost:6379/0"
     broker_connection_retry = True
     broker_connection_retry_on_startup = True
     broker_connection_max_retries = 10
@@ -38,7 +40,7 @@ class CeleryConfig:
     # Disabled to reduce Redis operations unless we need task results
     # Uncomment if you need to track task results
     result_backend = None  # Saves significant Redis operations
-    # result_backend = settings.redis_url or "redis://localhost:6379/0"
+    # result_backend = _celery_redis_url or "redis://localhost:6379/0"
     # result_expires = 3600  # 1 hour
     # result_persistent = True
     # result_compression = "gzip"

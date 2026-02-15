@@ -34,7 +34,7 @@ from sqlalchemy import create_engine, select, text  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
 from app.auth import get_password_hash  # noqa: E402
-from app.core.config import settings  # noqa: E402
+from app.core.config import secret_or_plain, settings  # noqa: E402
 from app.core.enums import RoleName  # noqa: E402
 from app.core.ulid_helper import generate_ulid  # noqa: E402
 
@@ -321,7 +321,7 @@ def _get_admin_seed_credentials() -> Tuple[str, str, str]:
     site_mode = (settings.site_mode or "").strip().lower()
     email = (settings.admin_email or "admin@instainstru.com").strip().lower()
     name = settings.admin_name or "Instainstru Admin"
-    password = settings.admin_password or ""
+    password = secret_or_plain(settings.admin_password, "")
     if site_mode == "prod" and not password:
         raise RuntimeError("ADMIN_PASSWORD is required when seeding in production")
     if not password:

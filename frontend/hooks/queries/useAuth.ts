@@ -21,13 +21,11 @@ interface LoginRequest {
 }
 
 /**
- * Login response type
+ * Login response type — cookie-only auth, minimal body.
  */
 interface LoginResponse {
-  access_token: string;
-  token_type: string;
-  expires_in?: number;
-  user?: User;
+  requires_2fa?: boolean;
+  temp_token?: string | null;
 }
 
 /**

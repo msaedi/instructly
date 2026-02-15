@@ -28,6 +28,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import re
 import threading
 import time
 from typing import Any, Iterator
@@ -168,8 +169,16 @@ class SSEMessagingUser(HttpUser):
         ) as response:
             if response.status_code == 200:
                 try:
-                    data = response.json()
-                    access_token = data.get("access_token")
+                    access_token = None
+                    set_cookie = response.headers.get("Set-Cookie", "")
+                    match = re.search(
+                        r"(?:__Host-sid|preview_access_token|access_token)=([^;]+)",
+                        set_cookie,
+                    )
+                    if match:
+                        access_token = match.group(1)
+                    elif response.cookies:
+                        access_token = next(iter(response.cookies.values()), None)
 
                     if access_token:
                         self.token = access_token
@@ -178,8 +187,8 @@ class SSEMessagingUser(HttpUser):
                         response.success()
                         logger.info(f"Login successful for: {self.user_email}")
                     else:
-                        response.failure("Login response missing access_token")
-                        logger.error(f"Login response missing access_token for: {self.user_email}")
+                        response.failure("Login response missing session cookie token")
+                        logger.error(f"Login response missing session cookie token for: {self.user_email}")
                         self.token = None
                 except Exception as e:
                     response.failure(f"Failed to parse login response: {e}")

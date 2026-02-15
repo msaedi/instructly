@@ -94,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else if (userQuery.isError) {
       const err: unknown = userQuery.error as unknown;
       if (err instanceof ApiError && err.status === 401) {
-        logger.warn('Not authenticated');
+        logger.debug('No active session (anonymous user)');
         setUser(null);
         setError(null);
       } else if (err instanceof Error) {

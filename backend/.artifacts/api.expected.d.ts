@@ -111,6 +111,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/account/logout-all-devices": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["logout_all_devices_api_v1_account_logout_all_devices_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/account/phone": {
  parameters: {
  query?: never;
@@ -7933,10 +7949,8 @@ export type components = {
  ttl_seconds: number;
  };
  LoginResponse: {
- access_token?: string | null;
  requires_2fa: boolean;
  temp_token?: string | null;
- token_type?: string | null;
  };
  LowCacheHitRateDetails: {
  alert_type: "low_cache_hit_rate";
@@ -9921,6 +9935,9 @@ export type components = {
  query: string;
  search_type: "service";
  };
+ SessionInvalidationResponse: {
+ message: string;
+ };
  SignedUploadResponse: {
  expires_at: string;
  headers?: {
@@ -10097,10 +10114,7 @@ export type components = {
  code?: string | null;
  temp_token: string;
  };
- TFAVerifyLoginResponse: {
- access_token: string;
- token_type: string;
- };
+ TFAVerifyLoginResponse: Record<string, never>;
  TemplateInfo: {
  category: string;
  channels: string[];
@@ -10618,6 +10632,25 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["AccountStatusChangeResponse"];
+ };
+ };
+ };
+ };
+ logout_all_devices_api_v1_account_logout_all_devices_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SessionInvalidationResponse"];
  };
  };
  };

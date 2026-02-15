@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 
-from app.auth import get_password_hash
+from app.auth import create_access_token, get_password_hash
 from app.core.enums import RoleName
 from app.models.search_event import SearchEvent
 from app.models.search_history import SearchHistory
@@ -52,13 +52,9 @@ class TestAnalyticsResponseSchemas:
         return admin
 
     @pytest.fixture
-    def admin_headers(self, admin_user: User, client: TestClient, test_password: str) -> dict:
+    def admin_headers(self, admin_user: User) -> dict:
         """Get admin authentication headers."""
-        response = client.post(
-            "/api/v1/auth/login",
-            data={"username": admin_user.email, "password": test_password},
-        )
-        token = response.json()["access_token"]
+        token = create_access_token({"sub": admin_user.id, "email": admin_user.email})
         return {"Authorization": f"Bearer {token}"}
 
     @pytest.fixture

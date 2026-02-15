@@ -436,9 +436,8 @@ function SignUpForm() {
             password: formData.password,
           }).toString();
 
-      let authData: components['schemas']['LoginResponse'];
       try {
-        authData = await http<components['schemas']['LoginResponse']>('POST', loginPath, {
+        await http<components['schemas']['LoginResponse']>('POST', loginPath, {
           headers: loginHeaders,
           body: loginPayload,
         });
@@ -452,11 +451,6 @@ function SignUpForm() {
         throw err;
       } finally {
         logger.timeEnd('auto-login');
-      }
-
-      const accessToken = authData.access_token ?? null;
-      if (accessToken) {
-        localStorage.setItem('access_token', accessToken);
       }
 
       logger.info('Auto-login successful, fetching user data and updating auth context');
@@ -481,7 +475,6 @@ function SignUpForm() {
             await http('POST', '/api/v1/beta/invites/consume', {
               headers: {
                 'Content-Type': 'application/json',
-                ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
               },
               body: {
                 code: inviteCode,

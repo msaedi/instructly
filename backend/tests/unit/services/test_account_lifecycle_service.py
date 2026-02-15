@@ -178,6 +178,10 @@ class TestAccountLifecycleServiceUnit:
         assert result["new_status"] == "suspended"
 
         service.user_repository.update.assert_called_once_with(mock_instructor.id, account_status="suspended")
+        service.user_repository.invalidate_all_tokens.assert_called_once_with(
+            mock_instructor.id,
+            trigger="suspension",
+        )
         service.cache_service.delete_pattern.assert_any_call(f"instructor:{mock_instructor.id}:*")
         service.cache_service.delete_pattern.assert_any_call(f"availability:instructor:{mock_instructor.id}:*")
 
@@ -225,6 +229,10 @@ class TestAccountLifecycleServiceUnit:
         assert result["new_status"] == "deactivated"
 
         service.user_repository.update.assert_called_once_with(mock_instructor.id, account_status="deactivated")
+        service.user_repository.invalidate_all_tokens.assert_called_once_with(
+            mock_instructor.id,
+            trigger="deactivation",
+        )
         service.cache_service.delete_pattern.assert_any_call(f"instructor:{mock_instructor.id}:*")
         service.cache_service.delete_pattern.assert_any_call(f"availability:instructor:{mock_instructor.id}:*")
 

@@ -67,6 +67,35 @@ async def test_get_user_from_sse_token_success(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_get_user_from_sse_token_missing_entry(monkeypatch) -> None:
+    class DummyRedis:
+        async def get(self, _key):
+            return None
+
+        async def delete(self, _key):
+            return None
+
+    monkeypatch.setattr(auth_sse, "get_async_cache_redis_client", AsyncMock(return_value=DummyRedis()))
+
+    assert await auth_sse._get_user_from_sse_token("tok") is None
+
+
+@pytest.mark.asyncio
+async def test_get_user_from_sse_token_missing_user_data(monkeypatch) -> None:
+    class DummyRedis:
+        async def get(self, _key):
+            return "user-1"
+
+        async def delete(self, _key):
+            return None
+
+    monkeypatch.setattr(auth_sse, "get_async_cache_redis_client", AsyncMock(return_value=DummyRedis()))
+    monkeypatch.setattr(auth_sse, "lookup_user_by_id_nonblocking", AsyncMock(return_value=None))
+
+    assert await auth_sse._get_user_from_sse_token("tok") is None
+
+
+@pytest.mark.asyncio
 async def test_get_current_user_sse_with_invalid_token_query(monkeypatch) -> None:
     request = _make_request()
     monkeypatch.setattr(auth_sse, "_get_user_from_sse_token", AsyncMock(return_value=None))
@@ -112,8 +141,22 @@ async def test_get_current_user_sse_invalid_jwt(monkeypatch) -> None:
 @pytest.mark.asyncio
 async def test_get_current_user_sse_inactive_user(monkeypatch) -> None:
     request = _make_request()
-    monkeypatch.setattr(auth_sse, "decode_access_token", lambda _token: {"sub": "a@b.com"})
-    monkeypatch.setattr(auth_sse, "lookup_user_nonblocking", AsyncMock(return_value={"id": "u1", "is_active": False}))
+    monkeypatch.setattr(
+        auth_sse,
+        "decode_access_token",
+        lambda _token: {"sub": "01ARZ3NDEKTSV4RRFFQ69G5FAV", "jti": "test-jti", "iat": 123},
+    )
+
+    class _NeverRevoked:
+        async def is_revoked(self, _jti: str) -> bool:
+            return False
+
+    monkeypatch.setattr(auth_sse, "TokenBlacklistService", lambda: _NeverRevoked())
+    monkeypatch.setattr(
+        auth_sse,
+        "lookup_user_by_id_nonblocking",
+        AsyncMock(return_value={"id": "u1", "is_active": False}),
+    )
 
     with pytest.raises(HTTPException) as exc:
         await auth_sse.get_current_user_sse(request, token_header="token", token_query=None)
@@ -125,10 +168,182 @@ async def test_get_current_user_sse_inactive_user(monkeypatch) -> None:
 async def test_get_current_user_sse_cookie_flow(monkeypatch) -> None:
     request = _make_request("session=token")
     monkeypatch.setattr(auth_sse, "session_cookie_candidates", lambda _mode: ["session"])
-    monkeypatch.setattr(auth_sse, "decode_access_token", lambda _token: {"sub": "a@b.com"})
-    monkeypatch.setattr(auth_sse, "lookup_user_nonblocking", AsyncMock(return_value={"id": "u1", "is_active": True}))
+    monkeypatch.setattr(
+        auth_sse,
+        "decode_access_token",
+        lambda _token: {"sub": "01ARZ3NDEKTSV4RRFFQ69G5FAV", "jti": "test-jti", "iat": 123},
+    )
+
+    class _NeverRevoked:
+        async def is_revoked(self, _jti: str) -> bool:
+            return False
+
+    monkeypatch.setattr(auth_sse, "TokenBlacklistService", lambda: _NeverRevoked())
+    monkeypatch.setattr(
+        auth_sse,
+        "lookup_user_by_id_nonblocking",
+        AsyncMock(return_value={"id": "u1", "is_active": True}),
+    )
     monkeypatch.setattr(auth_sse, "create_transient_user", lambda data: data)
 
     result = await auth_sse.get_current_user_sse(request, token_header=None, token_query=None)
 
     assert result["id"] == "u1"
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_sse_site_mode_error_falls_back_to_local(monkeypatch) -> None:
+    captured_modes: list[str] = []
+    request = _make_request("session=token")
+
+    class _BadSettings:
+        @property
+        def site_mode(self) -> str:
+            raise RuntimeError("config unavailable")
+
+    monkeypatch.setattr(auth_sse, "settings", _BadSettings())
+    monkeypatch.setattr(
+        auth_sse,
+        "session_cookie_candidates",
+        lambda mode: captured_modes.append(mode) or ["session"],
+    )
+    monkeypatch.setattr(
+        auth_sse,
+        "decode_access_token",
+        lambda _token: {"sub": "u1", "jti": "test-jti", "iat": 123},
+    )
+
+    class _NeverRevoked:
+        async def is_revoked(self, _jti: str) -> bool:
+            return False
+
+    monkeypatch.setattr(auth_sse, "TokenBlacklistService", lambda: _NeverRevoked())
+    monkeypatch.setattr(
+        auth_sse,
+        "lookup_user_by_id_nonblocking",
+        AsyncMock(return_value={"id": "u1", "is_active": True}),
+    )
+    monkeypatch.setattr(auth_sse, "create_transient_user", lambda data: data)
+
+    result = await auth_sse.get_current_user_sse(request, token_header=None, token_query=None)
+    assert result["id"] == "u1"
+    assert captured_modes == ["local"]
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_sse_missing_jti_metric_error_is_non_fatal(monkeypatch) -> None:
+    request = _make_request()
+    monkeypatch.setattr(auth_sse, "decode_access_token", lambda _token: {"sub": "u1"})
+    monkeypatch.setattr(
+        auth_sse.prometheus_metrics,
+        "record_token_rejection",
+        lambda _reason: (_ for _ in ()).throw(RuntimeError("metrics down")),
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await auth_sse.get_current_user_sse(request, token_header="token", token_query=None)
+
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Token format outdated, please re-login"
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_sse_revoked_metric_error_is_non_fatal(monkeypatch) -> None:
+    request = _make_request()
+    monkeypatch.setattr(
+        auth_sse,
+        "decode_access_token",
+        lambda _token: {"sub": "u1", "jti": "test-jti", "iat": 123},
+    )
+
+    class _Revoked:
+        async def is_revoked(self, _jti: str) -> bool:
+            return True
+
+    monkeypatch.setattr(auth_sse, "TokenBlacklistService", lambda: _Revoked())
+    monkeypatch.setattr(
+        auth_sse.prometheus_metrics,
+        "record_token_rejection",
+        lambda _reason: (_ for _ in ()).throw(RuntimeError("metrics down")),
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await auth_sse.get_current_user_sse(request, token_header="token", token_query=None)
+
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Token has been revoked"
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_sse_rejects_non_string_sub(monkeypatch) -> None:
+    request = _make_request()
+    monkeypatch.setattr(auth_sse, "decode_access_token", lambda _token: {"sub": 123, "jti": "test-jti"})
+
+    class _NeverRevoked:
+        async def is_revoked(self, _jti: str) -> bool:
+            return False
+
+    monkeypatch.setattr(auth_sse, "TokenBlacklistService", lambda: _NeverRevoked())
+
+    with pytest.raises(HTTPException) as exc:
+        await auth_sse.get_current_user_sse(request, token_header="token", token_query=None)
+
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Could not validate credentials"
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_sse_ignores_invalid_string_iat(monkeypatch) -> None:
+    request = _make_request()
+    monkeypatch.setattr(
+        auth_sse,
+        "decode_access_token",
+        lambda _token: {"sub": "u1", "jti": "test-jti", "iat": "not-an-int"},
+    )
+
+    class _NeverRevoked:
+        async def is_revoked(self, _jti: str) -> bool:
+            return False
+
+    monkeypatch.setattr(auth_sse, "TokenBlacklistService", lambda: _NeverRevoked())
+    monkeypatch.setattr(
+        auth_sse,
+        "lookup_user_by_id_nonblocking",
+        AsyncMock(return_value={"id": "u1", "is_active": True, "tokens_valid_after_ts": 99999}),
+    )
+    monkeypatch.setattr(auth_sse, "create_transient_user", lambda data: data)
+
+    result = await auth_sse.get_current_user_sse(request, token_header="token", token_query=None)
+    assert result["id"] == "u1"
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_sse_casts_float_invalidation_timestamp(monkeypatch) -> None:
+    request = _make_request()
+    monkeypatch.setattr(
+        auth_sse,
+        "decode_access_token",
+        lambda _token: {"sub": "u1", "jti": "test-jti", "iat": 100},
+    )
+
+    class _NeverRevoked:
+        async def is_revoked(self, _jti: str) -> bool:
+            return False
+
+    monkeypatch.setattr(auth_sse, "TokenBlacklistService", lambda: _NeverRevoked())
+    monkeypatch.setattr(
+        auth_sse,
+        "lookup_user_by_id_nonblocking",
+        AsyncMock(return_value={"id": "u1", "is_active": True, "tokens_valid_after_ts": 101.9}),
+    )
+    monkeypatch.setattr(
+        auth_sse.prometheus_metrics,
+        "record_token_rejection",
+        lambda _reason: (_ for _ in ()).throw(RuntimeError("metrics down")),
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await auth_sse.get_current_user_sse(request, token_header="token", token_query=None)
+
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Token has been invalidated"

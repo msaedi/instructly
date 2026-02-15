@@ -296,7 +296,7 @@ def test_preview_suspend_generates_token_and_warnings(db, test_student, test_ins
 
 
 @pytest.mark.asyncio
-async def test_execute_suspend_success_and_forfeit(db, test_student, test_instructor):
+async def test_execute_suspend_success_and_forfeit(db, test_student, test_instructor, monkeypatch):
     payment_repo = RepositoryFactory.create_payment_repository(db)
     notification_service = StubNotificationService()
     booking_admin_service = StubBookingAdminService(db, refund_cents=0)
@@ -307,6 +307,12 @@ async def test_execute_suspend_success_and_forfeit(db, test_student, test_instru
         booking_admin_service=booking_admin_service,
         idempotency=idempotency,
         notification_service=notification_service,
+    )
+    invalidation_calls: list[tuple[str, str | None]] = []
+    monkeypatch.setattr(
+        service.user_repo,
+        "invalidate_all_tokens",
+        lambda user_id, trigger=None: invalidation_calls.append((user_id, trigger)) or True,
     )
 
     profile = test_instructor.instructor_profile
@@ -392,6 +398,7 @@ async def test_execute_suspend_success_and_forfeit(db, test_student, test_instru
     assert response.credits_forfeited == Decimal("20.00")
     assert test_student.account_status == "suspended"
     assert "conversations_archived" in response.notifications_sent
+    assert invalidation_calls == [(test_student.id, "suspension")]
 
     revoked_credit = (
         db.query(PlatformCredit)

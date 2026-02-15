@@ -131,6 +131,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/account/logout-all-devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Logout All Devices
+         * @description Invalidate all active sessions for the current user.
+         */
+        post: operations["logout_all_devices_api_v1_account_logout_all_devices_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/account/phone": {
         parameters: {
             query?: never;
@@ -2647,7 +2667,7 @@ export type paths = {
          *     Rate limited to prevent brute force attacks.
          *
          *     PERFORMANCE OPTIMIZATION: This endpoint releases the DB connection BEFORE
-         *     running bcrypt verification (~200ms). This reduces DB connection hold time
+         *     running Argon2id verification (~200ms). This reduces DB connection hold time
          *     from ~200ms to ~5-20ms, allowing 10x more concurrent logins.
          *
          *     Args:
@@ -2655,7 +2675,7 @@ export type paths = {
          *         auth_service: Authentication service
          *
          *     Returns:
-         *         LoginResponse: Access token metadata for the client
+         *         LoginResponse: Login result metadata for the client
          *
          *     Raises:
          *         HTTPException: If credentials are invalid or rate limit exceeded
@@ -2683,7 +2703,7 @@ export type paths = {
          *     This endpoint supports guest session conversion.
          *
          *     PERFORMANCE OPTIMIZATION: This endpoint releases the DB connection BEFORE
-         *     running bcrypt verification (~200ms). This reduces DB connection hold time
+         *     running Argon2id verification (~200ms). This reduces DB connection hold time
          *     from ~200ms to ~5-20ms, allowing 10x more concurrent logins.
          *
          *     Args:
@@ -2692,7 +2712,7 @@ export type paths = {
          *         db: Database session (used only for guest search conversion after auth)
          *
          *     Returns:
-         *         LoginResponse: Access token metadata for the client
+         *         LoginResponse: Login result metadata for the client
          *
          *     Raises:
          *         HTTPException: If credentials are invalid or rate limit exceeded
@@ -2739,7 +2759,7 @@ export type paths = {
          *
          *     Args:
          *         user_update: Fields to update
-         *         current_user: Current user email from JWT
+         *         current_user: Current user identifier from JWT
          *         auth_service: Authentication service
          *         db: Database session
          *
@@ -14087,8 +14107,6 @@ export type components = {
         };
         /** LoginResponse */
         LoginResponse: {
-            /** Access Token */
-            access_token?: string | null;
             /**
              * Requires 2Fa
              * @default false
@@ -14096,8 +14114,6 @@ export type components = {
             requires_2fa: boolean;
             /** Temp Token */
             temp_token?: string | null;
-            /** Token Type */
-            token_type?: string | null;
         };
         /**
          * LowCacheHitRateDetails
@@ -19653,6 +19669,11 @@ export type components = {
              */
             search_type: "service";
         };
+        /** SessionInvalidationResponse */
+        SessionInvalidationResponse: {
+            /** Message */
+            message: string;
+        };
         /**
          * SignedUploadResponse
          * @description Response payload for signed upload requests.
@@ -20145,12 +20166,7 @@ export type components = {
             temp_token: string;
         };
         /** TFAVerifyLoginResponse */
-        TFAVerifyLoginResponse: {
-            /** Access Token */
-            access_token: string;
-            /** Token Type */
-            token_type: string;
-        };
+        TFAVerifyLoginResponse: Record<string, never>;
         /** TemplateInfo */
         TemplateInfo: {
             /** Category */
@@ -21310,6 +21326,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccountStatusChangeResponse"];
+                };
+            };
+        };
+    };
+    logout_all_devices_api_v1_account_logout_all_devices_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionInvalidationResponse"];
                 };
             };
         };

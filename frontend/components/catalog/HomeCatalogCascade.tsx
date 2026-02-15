@@ -266,6 +266,11 @@ export function HomeCatalogCascade({ isAuthenticated }: { isAuthenticated: boole
       seen.add(subcategory.id);
     });
 
+    // Avoid false orphan warnings while subcategories query is still loading.
+    if (subcategoriesData === undefined) {
+      return next;
+    }
+
     grouped.forEach((subcategoryServices, subcategoryId) => {
       if (seen.has(subcategoryId) || subcategoryServices.length === 0) {
         return;

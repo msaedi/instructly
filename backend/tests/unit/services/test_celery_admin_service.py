@@ -7,33 +7,34 @@ import httpx
 import pytest
 import ulid
 
+from app.core.config import secret_or_plain
 from app.models.booking import BookingStatus, PaymentStatus
 from app.models.booking_payment import BookingPayment
-from app.services.celery_admin_service import CeleryAdminService, _secret_value
+from app.services.celery_admin_service import CeleryAdminService
 
 
 class TestSecretValueHelper:
-    """Tests for _secret_value helper function."""
+    """Tests for secret_or_plain helper function."""
 
     def test_secret_value_none(self):
-        """Test _secret_value returns empty string for None."""
-        assert _secret_value(None) == ""
+        """Test helper returns empty string for None."""
+        assert secret_or_plain(None) == ""
 
     def test_secret_value_with_get_secret_value(self):
-        """Test _secret_value calls get_secret_value if available."""
+        """Test helper calls get_secret_value if available."""
         mock_secret = MagicMock()
         mock_secret.get_secret_value.return_value = "secret123"
-        assert _secret_value(mock_secret) == "secret123"
+        assert secret_or_plain(mock_secret) == "secret123"
 
     def test_secret_value_plain_string(self):
-        """Test _secret_value returns string for plain value."""
-        assert _secret_value("plaintext") == "plaintext"
+        """Test helper returns string for plain value."""
+        assert secret_or_plain("plaintext") == "plaintext"
 
     def test_secret_value_non_callable_attribute(self):
-        """Test _secret_value handles non-callable get_secret_value."""
+        """Test helper handles non-callable get_secret_value."""
         mock_obj = MagicMock()
         mock_obj.get_secret_value = "not_callable"
-        assert _secret_value(mock_obj) == str(mock_obj)
+        assert secret_or_plain(mock_obj) == str(mock_obj)
 
 
 class TestCallFlower:

@@ -5,7 +5,7 @@ from typing import Any, List, Optional
 
 import httpx
 
-from ...core.config import settings
+from ...core.config import secret_or_plain, settings
 from .base import (
     AutocompleteResult,
     GeocodedAddress,
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class GoogleMapsProvider(GeocodingProvider):
     def __init__(self) -> None:
-        self.api_key = settings.google_maps_api_key
+        self.api_key = secret_or_plain(settings.google_maps_api_key).strip()
         self.base_url = "https://maps.googleapis.com/maps/api"
         self.provider_name = "google_geocode"
 
@@ -126,7 +126,7 @@ class GoogleMapsProvider(GeocodingProvider):
             logger.warning(
                 "Google Places autocomplete returned status %s; attempting Mapbox fallback", status
             )
-            if settings.mapbox_access_token:
+            if secret_or_plain(settings.mapbox_access_token).strip():
                 fallback = MapboxProvider()
                 return await fallback.autocomplete(
                     query,

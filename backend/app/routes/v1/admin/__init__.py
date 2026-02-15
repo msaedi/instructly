@@ -16,6 +16,7 @@ from . import (
     location_learning,
     refunds,
     search_config,
+    users,
 )
 
 __all__ = [
@@ -29,4 +30,5 @@ __all__ = [
     "location_learning",
     "refunds",
     "search_config",
+    "users",
 ]

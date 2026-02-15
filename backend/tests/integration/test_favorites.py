@@ -517,7 +517,9 @@ class TestFavoritesAPI:
             data={"username": test_student.email, "password": test_password},
         )
         assert login_response.status_code == 200
-        new_token = login_response.json()["access_token"]
+        from app.auth import create_access_token
+
+        new_token = create_access_token({"sub": test_student.id, "email": test_student.email})
         refreshed_headers = {"Authorization": f"Bearer {new_token}"}
 
         # Get profile after favoriting (patch favorites service to reflect new state)
