@@ -169,7 +169,7 @@ async def test_is_revoked_redis_none_is_fail_closed():
 async def test_is_revoked_fail_closed_when_redis_unavailable():
     class _BrokenService(TokenBlacklistService):
         async def _get_redis_client(self):
-            raise RuntimeError("redis unavailable")
+            raise ConnectionError("redis unavailable")
 
     service = _BrokenService()
     assert await service.is_revoked("jti-1") is True
@@ -177,7 +177,7 @@ async def test_is_revoked_fail_closed_when_redis_unavailable():
 
 @pytest.mark.asyncio
 async def test_revoke_token_logs_and_does_not_raise_on_redis_error(caplog):
-    redis = _FakeRedis(setex_error=RuntimeError("write failed"))
+    redis = _FakeRedis(setex_error=ConnectionError("write failed"))
     service = TokenBlacklistService(redis_client=redis)
 
     with caplog.at_level(logging.WARNING):

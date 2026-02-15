@@ -63,7 +63,7 @@ def setup_initiate(
     auth_service: AuthService = Depends(get_auth_service),
     tfa_service: TwoFactorAuthService = Depends(get_tfa_service),
 ) -> TFASetupInitiateResponse:
-    user = auth_service.get_current_user(email=current_user)
+    user = auth_service.get_current_user(current_user)
     data = tfa_service.setup_initiate(user)
     return TFASetupInitiateResponse(**data)
 
@@ -77,7 +77,7 @@ def setup_verify(
     auth_service: AuthService = Depends(get_auth_service),
     tfa_service: TwoFactorAuthService = Depends(get_tfa_service),
 ) -> TFASetupVerifyResponse:
-    user = auth_service.get_current_user(email=current_user)
+    user = auth_service.get_current_user(current_user)
     was_enabled = bool(getattr(user, "totp_enabled", False))
     try:
         backup_codes = tfa_service.setup_verify(user, req.code)
@@ -135,7 +135,7 @@ def disable(
     auth_service: AuthService = Depends(get_auth_service),
     tfa_service: TwoFactorAuthService = Depends(get_tfa_service),
 ) -> TFADisableResponse:
-    user = auth_service.get_current_user(email=current_user)
+    user = auth_service.get_current_user(current_user)
     was_enabled = bool(getattr(user, "totp_enabled", False))
     try:
         tfa_service.disable(user, req.current_password)
@@ -186,7 +186,7 @@ def status_endpoint(
     auth_service: AuthService = Depends(get_auth_service),
     tfa_service: TwoFactorAuthService = Depends(get_tfa_service),
 ) -> TFAStatusResponse:
-    user = auth_service.get_current_user(email=current_user)
+    user = auth_service.get_current_user(current_user)
     data = tfa_service.status(user)
     return TFAStatusResponse(**data)
 
@@ -197,7 +197,7 @@ def regenerate_backup_codes(
     auth_service: AuthService = Depends(get_auth_service),
     tfa_service: TwoFactorAuthService = Depends(get_tfa_service),
 ) -> BackupCodesResponse:
-    user = auth_service.get_current_user(email=current_user)
+    user = auth_service.get_current_user(current_user)
     codes = tfa_service.generate_backup_codes()
     # Store hashed
     from app.auth import get_password_hash

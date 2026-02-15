@@ -645,8 +645,9 @@ async def change_password(
         trigger="password_change",
     )
     if not invalidated:
-        logger.warning(
-            "Password updated but token invalidation helper returned false for %s", user.id
+        logger.critical(
+            "Password changed but token invalidation failed for user %s — old tokens remain valid",
+            user.id,
         )
 
     try:

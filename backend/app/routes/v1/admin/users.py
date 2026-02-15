@@ -39,6 +39,7 @@ async def force_logout_user(
         trigger="admin_force_logout",
     )
     if not invalidated:
+        logger.error("Admin force-logout: token invalidation failed for user_id=%s", user_id)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     try:
         AuditService(db).log(
