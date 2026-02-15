@@ -67,7 +67,6 @@ from ...services.permission_service import PermissionService
 from ...services.search_history_service import SearchHistoryService
 from ...services.token_blacklist_service import TokenBlacklistService
 from ...utils.cookies import (
-    expire_parent_domain_cookie,
     session_cookie_base_name,
     session_cookie_candidates,
     set_session_cookie,
@@ -588,9 +587,6 @@ async def login(
         domain=settings.session_cookie_domain,
     )
 
-    if site_mode != "local":
-        expire_parent_domain_cookie(response, base_cookie_name, ".instainstru.com")
-
     if hasattr(cache_service, "get") and hasattr(cache_service, "set"):
         await _maybe_send_new_device_login_notification(
             user_id=user_id,
@@ -889,9 +885,6 @@ async def login_with_session(
         max_age=settings.access_token_expire_minutes * 60,
         domain=settings.session_cookie_domain,
     )
-
-    if site_mode != "local":
-        expire_parent_domain_cookie(response, base_cookie_name, ".instainstru.com")
 
     # Step 9: Convert guest searches if guest_session_id provided
     # Uses the separate `db` session (not auth_service.db which is closed)

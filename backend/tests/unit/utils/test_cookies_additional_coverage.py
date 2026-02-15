@@ -104,24 +104,3 @@ def test_set_session_cookie_includes_domain(monkeypatch):
     assert name == "sid"
     kwargs = response.set_cookie.call_args.kwargs
     assert kwargs["domain"] == "example.com"
-
-
-def test_expire_parent_domain_cookie_uses_hosted_secure(monkeypatch):
-    response = MagicMock()
-    monkeypatch.setattr(
-        cookies,
-        "settings",
-        SimpleNamespace(
-            site_mode="preview",
-            session_cookie_name="access_token",
-            session_cookie_samesite="lax",
-            session_cookie_secure=True,
-            session_cookie_domain=None,
-        ),
-    )
-
-    cookies.expire_parent_domain_cookie(response, "legacy", ".example.com")
-
-    kwargs = response.set_cookie.call_args.kwargs
-    assert kwargs["domain"] == ".example.com"
-    assert kwargs["secure"] is True

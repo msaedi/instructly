@@ -8,19 +8,12 @@ from fastapi import Response
 
 from app.core.config import settings
 
-_HOSTED_SITE_MODES = {"preview", "prod", "beta", "production", "live"}
-
 
 def _current_site_mode() -> str:
     try:
         return settings.site_mode
     except Exception:
         return "local"
-
-
-def _is_hosted() -> bool:
-    """Return True when running in a hosted environment (preview/beta/prod)."""
-    return _current_site_mode() in _HOSTED_SITE_MODES
 
 
 def session_cookie_base_name(site_mode: Optional[str] = None) -> str:
@@ -110,18 +103,3 @@ def set_session_cookie(
 
     response.set_cookie(**cookie_kwargs)
     return cookie_name
-
-
-def expire_parent_domain_cookie(response: Response, legacy_name: str, parent_domain: str) -> None:
-    """Expire a legacy parent-domain cookie for gentle migrations."""
-    response.set_cookie(
-        key=legacy_name,
-        value="deleted",
-        domain=parent_domain,
-        path="/",
-        expires=0,
-        max_age=0,
-        httponly=True,
-        secure=_is_hosted(),
-        samesite="lax",
-    )

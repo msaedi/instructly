@@ -248,7 +248,7 @@ def public_logout(
     # Clear session cookies by env
     session_names = session_cookie_candidates(settings.site_mode)
     if session_names:
-        _delete_session_cookie(session_names[0])
+        _delete_session_cookie(session_names[0], domain=domain)
 
     if len(session_names) > 1:
         for legacy_name in session_names[1:]:

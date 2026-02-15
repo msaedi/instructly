@@ -26,7 +26,6 @@ from app.services.search_history_service import SearchHistoryService
 from app.services.token_blacklist_service import TokenBlacklistService
 from app.services.two_factor_auth_service import TwoFactorAuthService
 from app.utils.cookies import (
-    expire_parent_domain_cookie,
     session_cookie_base_name,
     session_cookie_candidates,
     set_session_cookie,
@@ -134,7 +133,7 @@ def setup_verify(
             key="tfa_trusted",
             path="/",
             domain=None,  # Keep None so it matches current host
-            secure=settings.environment == "production",
+            secure=bool(settings.session_cookie_secure),
             samesite="lax",
         )
         try:
@@ -195,7 +194,7 @@ def disable(
             key="tfa_trusted",
             path="/",
             domain=None,
-            secure=settings.environment == "production",
+            secure=bool(settings.session_cookie_secure),
             samesite="lax",
         )
         try:
@@ -325,9 +324,6 @@ def verify_login(
         max_age=settings.access_token_expire_minutes * 60,
         domain=settings.session_cookie_domain,
     )
-
-    if site_mode != "local":
-        expire_parent_domain_cookie(response, base_cookie_name, ".instainstru.com")
 
     guest_session_id = payload.get("guest_session_id")
     if guest_session_id:
