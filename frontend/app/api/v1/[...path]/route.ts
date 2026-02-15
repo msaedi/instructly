@@ -130,6 +130,7 @@ async function proxyMutationRequest(
     headers,
     cache: 'no-store',
     redirect: 'manual',
+    signal: AbortSignal.timeout(30_000),
   };
   if (bodyBuffer.byteLength > 0) {
     upstreamInit.body = bodyBuffer;

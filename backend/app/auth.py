@@ -318,6 +318,12 @@ async def _enforce_revocation_and_user_invalidation(payload: Dict[str, Any], use
 
     user_data = await lookup_user_by_id_nonblocking(user_id)
     if user_data is None:
+        # Fail-open here is intentional. The JTI blacklist check above is
+        # fail-closed (Redis error → token rejected). This tokens_valid_after
+        # check is a secondary defense layer. Failing closed here would 401
+        # all users during a cache-miss + DB connection-pool exhaustion,
+        # which is worse than the theoretical risk of missing a
+        # tokens_valid_after update for the duration of one request.
         logger.warning(
             "User lookup returned None during revocation check for user_id=%s — "
             "tokens_valid_after check skipped",

@@ -66,7 +66,12 @@ async def connect_broadcast() -> None:
     redis_url = secret_or_plain(settings.redis_url).strip() or "redis://localhost:6379"
     _broadcast = Broadcast(redis_url)
     await _broadcast.connect()
-    logger.info("[BROADCAST] Connected to Redis for SSE multiplexing: %s", redis_url)
+    from urllib.parse import urlparse
+
+    _parsed = urlparse(redis_url)
+    logger.info(
+        "[BROADCAST] Connected to Redis for SSE multiplexing: %s:%s", _parsed.hostname, _parsed.port
+    )
 
 
 async def disconnect_broadcast() -> None:

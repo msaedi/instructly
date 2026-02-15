@@ -159,7 +159,7 @@ def invalidate_cached_user_by_id_sync(user_id: str, db_session: Any) -> bool:
             # Cache invalidation is best-effort, so this is acceptable
             task = loop.create_task(invalidate_cached_user(user_id))
 
-            def _on_done(t: asyncio.Task) -> None:
+            def _on_done(t: "asyncio.Task[bool]") -> None:
                 if t.cancelled():
                     return
                 exc = t.exception()

@@ -21,7 +21,10 @@ try:
     from redis.exceptions import RedisError as _RedisError
 
     _REDIS_ERROR_TYPES = (_RedisError,)
-except Exception:
+except ImportError:
+    logger.warning(
+        "[TOKEN-BL] redis package not installed — Redis error types unavailable for catch narrowing"
+    )
     _REDIS_ERROR_TYPES = ()
 
 _SYNC_BRIDGE_FALLBACK_ERRORS: tuple[type[BaseException], ...] = (
@@ -87,7 +90,7 @@ class TokenBlacklistService:
                 except Exception:
                     logger.debug("Non-fatal error ignored", exc_info=True)
             return True
-        except Exception as exc:
+        except _SYNC_BRIDGE_FALLBACK_ERRORS as exc:
             logger.error("[TOKEN-BL] Failed to revoke token jti=%s: %s", jti, exc, exc_info=True)
             return False
 
@@ -103,7 +106,7 @@ class TokenBlacklistService:
                 return True
             exists = await redis.exists(self._key(jti))
             return bool(exists)
-        except Exception as exc:
+        except _SYNC_BRIDGE_FALLBACK_ERRORS as exc:
             logger.warning("[TOKEN-BL] Revoke check failed for jti=%s (fail-closed): %s", jti, exc)
             return True
 
