@@ -292,9 +292,7 @@ def create_refresh_token(
     sub = data.get("sub")
     if isinstance(sub, str):
         to_encode["sub"] = sub
-    email = data.get("email")
-    if isinstance(email, str):
-        to_encode["email"] = email
+    # email intentionally omitted — refresh flow looks up fresh email from DB
     to_encode.update(
         {
             "exp": expire,

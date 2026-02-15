@@ -265,8 +265,9 @@ def test_create_refresh_token_uses_minimal_claims():
         options={"verify_aud": False},
     )
     assert decoded["sub"] == TEST_USER_ULID
-    assert decoded["email"] == "user@example.com"
     assert decoded["typ"] == "refresh"
+    # email intentionally excluded — refresh flow pulls fresh email from DB
+    assert "email" not in decoded
     assert "beta_access" not in decoded
 
 

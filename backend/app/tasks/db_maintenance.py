@@ -15,7 +15,8 @@ from app.database import get_db_session
 
 logger = logging.getLogger(__name__)
 
-# Tables whose statistics go stale frequently due to high insert/delete churn.
+# SECURITY: Table names MUST be hardcoded — never populate from config or user input.
+# f"ANALYZE {table}" uses text() which does not parameterize table names.
 _HIGH_CHURN_TABLES = ("background_jobs",)
 
 

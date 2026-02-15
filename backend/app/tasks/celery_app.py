@@ -236,6 +236,8 @@ def create_celery_app() -> Celery:
             "app.tasks.notification_tasks",
             # NL Search embedding maintenance
             "app.tasks.embedding_migration",
+            # Periodic DB maintenance (ANALYZE on high-churn tables)
+            "app.tasks.db_maintenance",
         }
     )
 

@@ -81,7 +81,7 @@ from ...utils.cookies import (
 )
 from ...utils.invite_cookie import invite_cookie_name
 from ...utils.strict import model_filter
-from ...utils.token_utils import parse_token_iat
+from ...utils.token_utils import parse_epoch_claim, parse_token_iat
 
 logger = logging.getLogger(__name__)
 
@@ -117,19 +117,6 @@ async def _extract_captcha_token(request: Request) -> Optional[str]:
         return cast(Optional[str], raw_value)
     except Exception:
         return None
-
-
-def _parse_epoch_claim(value: object) -> int | None:
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float):
-        return int(value)
-    if isinstance(value, str):
-        try:
-            return int(value)
-        except ValueError:
-            return None
-    return None
 
 
 def _device_fingerprint(ip_address: str, user_agent: str) -> str:
@@ -692,7 +679,7 @@ async def refresh_session_token(
             )
 
     # --- Step 2: Atomic JTI claim (SETNX) — only one caller wins ---
-    old_exp_ts = _parse_epoch_claim(payload.get("exp"))
+    old_exp_ts = parse_epoch_claim(payload, "exp")
     if old_exp_ts is None:
         raise invalid_credentials
 
