@@ -252,7 +252,7 @@ def create_access_token(
         ),
     )
 
-    logger.info(f"Created access token for user: {data.get('sub')}")
+    logger.debug("Created access token for user: %s", data.get("sub"))
     return encoded_jwt
 
 
