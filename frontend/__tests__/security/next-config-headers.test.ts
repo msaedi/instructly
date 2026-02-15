@@ -45,7 +45,7 @@ describe('next.config security headers', () => {
     expect(cspValue).toContain("default-src 'self'");
     expect(cspValue).toContain('https://js.stripe.com');
     expect(cspValue).toContain('https://challenges.cloudflare.com');
-    expect(cspValue).toContain('https://r2.leadsy.ai');
+    expect(cspValue).toContain('https://*.leadsy.ai');
     expect(cspValue).toContain('https://preview-api.instainstru.com');
     expect(cspValue).toContain('https://api.instainstru.com');
     expect(cspValue).toContain('http://localhost:8000');

@@ -11,9 +11,14 @@ jest.mock('@sentry/nextjs', () => ({
 }));
 
 describe('BotID client instrumentation', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
   afterEach(() => {
     initBotIdMock.mockReset();
     jest.resetModules();
+    jest.useRealTimers();
   });
 
   it('initializes BotID with protected mutation routes', async () => {
@@ -22,6 +27,9 @@ describe('BotID client instrumentation', () => {
     env['NODE_ENV'] = 'production';
     const instrumentationClient = await import('../../instrumentation-client');
     env['NODE_ENV'] = originalEnv;
+
+    // initBotId is deferred via requestIdleCallback/setTimeout to reduce TBT
+    jest.runAllTimers();
 
     expect(initBotIdMock).toHaveBeenCalledTimes(1);
     expect(instrumentationClient.onRouterTransitionStart).toBeDefined();

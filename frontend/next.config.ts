@@ -49,15 +49,15 @@ const connectSrcOrigins = [
   'https://*.sentry.io',
   'https://*.stripe.com',
   'https://challenges.cloudflare.com',
-  'https://r2.leadsy.ai',
+  'https://*.leadsy.ai',
   'https://vitals.vercel-insights.com',
   'https://*.axiom.co',
   'https://*.onrender.com',
 ];
 
-const cspReportOnlyValue = [
+const cspPolicyValue = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://verify.stripe.com https://challenges.cloudflare.com https://r2.leadsy.ai https://va.vercel-scripts.com",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://verify.stripe.com https://challenges.cloudflare.com https://*.leadsy.ai https://tag.trovo-tag.com https://va.vercel-scripts.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
   "img-src 'self' data: blob: https://assets.instainstru.com https://*.cloudflare.com https://*.stripe.com https://*.tile.jawg.io https://*.basemaps.cartocdn.com",
   `connect-src ${Array.from(new Set(connectSrcOrigins.filter(Boolean))).join(' ')}`,
@@ -106,7 +106,7 @@ const nextConfig: NextConfig = {
       { key: 'X-Content-Type-Options', value: 'nosniff' },
       { key: 'Referrer-Policy', value: 'origin-when-cross-origin' },
       { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
-      { key: 'Content-Security-Policy', value: cspReportOnlyValue },
+      { key: 'Content-Security-Policy', value: cspPolicyValue },
       // Enable HSTS behind HTTPS; browsers will ignore if HTTP
       { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
     ];
