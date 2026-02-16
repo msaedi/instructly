@@ -195,7 +195,7 @@ class AuthService(BaseService):
                 return user
 
         except IntegrityError as e:
-            self.logger.info(f"Race condition on registration for {email}: {str(e)}")
+            self.logger.info(f"Race condition on registration: {str(e)}")
             # Timing normalization — same as existing-email case
             get_password_hash("dummy_timing_normalization_padding")
             return None

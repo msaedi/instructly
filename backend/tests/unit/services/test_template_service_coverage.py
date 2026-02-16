@@ -2,6 +2,7 @@ from datetime import datetime
 from unittest.mock import Mock
 
 from jinja2 import TemplateNotFound
+from jinja2.sandbox import SandboxedEnvironment
 import pytest
 
 from app.services.template_service import TemplateService
@@ -172,3 +173,22 @@ def test_invalidate_cache_and_stats(monkeypatch):
     cache_error.delete = lambda _key: (_ for _ in ()).throw(RuntimeError("boom"))
     service_error = TemplateService(db=Mock(), cache=cache_error)
     service_error.invalidate_cache()
+
+
+# ── SSTI regression tests (SSTI-VULN-01) ─────────────────────────────────
+
+
+def test_uses_sandboxed_environment():
+    """Regression: TemplateService must use SandboxedEnvironment, never plain Environment."""
+    service = TemplateService(db=Mock(), cache=None)
+    assert isinstance(service.env, SandboxedEnvironment)
+
+
+def test_template_syntax_in_context_vars_not_evaluated():
+    """Regression: user-controlled data containing {{ }} must NOT be evaluated as Jinja2 code."""
+    service = TemplateService(db=Mock(), cache=None)
+    result = service.render_string("Hello {{ name }}", name="{{ 7*7 }}")
+    # If the sandbox/autoescape is working, the output must NOT contain "49"
+    assert "49" not in result
+    # The template syntax should be escaped or rendered literally
+    assert "7*7" in result or "&" in result

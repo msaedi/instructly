@@ -1148,6 +1148,27 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.logger.error(f"Error getting booking details: {str(e)}")
             raise RepositoryException(f"Failed to get booking details: {str(e)}")
 
+    def _apply_full_eager_loading(self, query: Query) -> Query:
+        """
+        Apply comprehensive eager loading for detailed booking views.
+
+        Uses selectinload for one-to-one detail tables (avoids JOIN
+        multiplication) and includes rescheduled_from / cancelled_by.
+        """
+        return query.options(
+            joinedload(Booking.student),
+            joinedload(Booking.instructor),
+            joinedload(Booking.instructor_service),
+            joinedload(Booking.rescheduled_from),
+            joinedload(Booking.cancelled_by),
+            selectinload(Booking.payment_detail),
+            selectinload(Booking.no_show_detail),
+            selectinload(Booking.lock_detail),
+            selectinload(Booking.reschedule_detail),
+            selectinload(Booking.dispute),
+            selectinload(Booking.transfer),
+        )
+
     def get_booking_for_participant(self, booking_id: str, user_id: str) -> Optional[Booking]:
         """
         Get booking only if user is student or instructor on it.
@@ -1163,31 +1184,15 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             The booking with all relationships if user is a participant, None otherwise
         """
         try:
-            booking: Booking | None = (
-                self.db.query(Booking)
-                .options(
-                    joinedload(Booking.student),
-                    joinedload(Booking.instructor),
-                    joinedload(Booking.instructor_service),
-                    joinedload(Booking.rescheduled_from),
-                    joinedload(Booking.cancelled_by),
-                    selectinload(Booking.payment_detail),
-                    selectinload(Booking.no_show_detail),
-                    selectinload(Booking.lock_detail),
-                    selectinload(Booking.reschedule_detail),
-                    selectinload(Booking.dispute),
-                    selectinload(Booking.transfer),
-                )
-                .filter(
-                    Booking.id == booking_id,
-                    or_(
-                        Booking.student_id == user_id,
-                        Booking.instructor_id == user_id,
-                    ),
-                )
-                .first()
+            query = self.db.query(Booking).filter(
+                Booking.id == booking_id,
+                or_(
+                    Booking.student_id == user_id,
+                    Booking.instructor_id == user_id,
+                ),
             )
-            return booking
+            query = self._apply_full_eager_loading(query)
+            return cast(Optional[Booking], query.first())
         except Exception as e:
             self.logger.error(f"Error getting booking for participant: {str(e)}")
             raise RepositoryException(f"Failed to get booking for participant: {str(e)}")
@@ -1199,28 +1204,12 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         Defense-in-depth: filters by student at the DB level.
         """
         try:
-            booking: Booking | None = (
-                self.db.query(Booking)
-                .options(
-                    joinedload(Booking.student),
-                    joinedload(Booking.instructor),
-                    joinedload(Booking.instructor_service),
-                    joinedload(Booking.rescheduled_from),
-                    joinedload(Booking.cancelled_by),
-                    selectinload(Booking.payment_detail),
-                    selectinload(Booking.no_show_detail),
-                    selectinload(Booking.lock_detail),
-                    selectinload(Booking.reschedule_detail),
-                    selectinload(Booking.dispute),
-                    selectinload(Booking.transfer),
-                )
-                .filter(
-                    Booking.id == booking_id,
-                    Booking.student_id == student_id,
-                )
-                .first()
+            query = self.db.query(Booking).filter(
+                Booking.id == booking_id,
+                Booking.student_id == student_id,
             )
-            return booking
+            query = self._apply_full_eager_loading(query)
+            return cast(Optional[Booking], query.first())
         except Exception as e:
             self.logger.error(f"Error getting booking for student: {str(e)}")
             raise RepositoryException(f"Failed to get booking for student: {str(e)}")
@@ -1232,28 +1221,12 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         Defense-in-depth: filters by instructor at the DB level.
         """
         try:
-            booking: Booking | None = (
-                self.db.query(Booking)
-                .options(
-                    joinedload(Booking.student),
-                    joinedload(Booking.instructor),
-                    joinedload(Booking.instructor_service),
-                    joinedload(Booking.rescheduled_from),
-                    joinedload(Booking.cancelled_by),
-                    selectinload(Booking.payment_detail),
-                    selectinload(Booking.no_show_detail),
-                    selectinload(Booking.lock_detail),
-                    selectinload(Booking.reschedule_detail),
-                    selectinload(Booking.dispute),
-                    selectinload(Booking.transfer),
-                )
-                .filter(
-                    Booking.id == booking_id,
-                    Booking.instructor_id == instructor_id,
-                )
-                .first()
+            query = self.db.query(Booking).filter(
+                Booking.id == booking_id,
+                Booking.instructor_id == instructor_id,
             )
-            return booking
+            query = self._apply_full_eager_loading(query)
+            return cast(Optional[Booking], query.first())
         except Exception as e:
             self.logger.error(f"Error getting booking for instructor: {str(e)}")
             raise RepositoryException(f"Failed to get booking for instructor: {str(e)}")

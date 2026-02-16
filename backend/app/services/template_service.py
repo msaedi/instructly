@@ -297,8 +297,13 @@ class TemplateService(BaseService):
 
         String templates are not cached since they're typically unique.
 
+        SECURITY: ``template_string`` is parsed as Jinja2 source.  Never pass
+        user-controlled input as ``template_string`` — only use hardcoded or
+        developer-controlled strings.  User data must be passed via ``context``
+        or ``kwargs`` (rendered as context variables, not template source).
+
         Args:
-            template_string: Template content as string
+            template_string: Template content as string (must NOT be user-controlled)
             context: Dictionary of template variables
             **kwargs: Additional template variables
 
@@ -306,7 +311,8 @@ class TemplateService(BaseService):
             Rendered template as string
         """
         try:
-            # Create template from string (not cached)
+            # SECURITY: template_string is parsed as Jinja2 — must be developer-controlled.
+            # User-supplied data goes into context/kwargs only.
             template = self.env.from_string(template_string)
 
             # Merge contexts - get_common_context() uses caching
