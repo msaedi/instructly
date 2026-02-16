@@ -128,6 +128,7 @@ def test_setup_verify_invalid_code_raises(db, user):
     service = TwoFactorAuthService(db)
     secret = service.generate_totp_secret()
     user.totp_secret = service._encrypt(secret)
+    user.two_factor_setup_at = datetime.now(timezone.utc)
     with pytest.raises(ValueError, match="Invalid TOTP code"):
         service.setup_verify(user, "000000")
 
@@ -136,6 +137,7 @@ def test_setup_verify_sets_backup_codes(db, user):
     service = TwoFactorAuthService(db)
     secret = service.generate_totp_secret()
     user.totp_secret = service._encrypt(secret)
+    user.two_factor_setup_at = datetime.now(timezone.utc)
 
     code = pyotp.TOTP(secret).now()
     backup_codes = service.setup_verify(user, code)
@@ -219,6 +221,27 @@ def test_verify_login_backup_code_handles_verify_error(db, user, monkeypatch):
     monkeypatch.setattr("app.services.two_factor_auth_service.verify_password", _boom)
 
     assert service.verify_login(user, None, "ABCD-EFGH-2345") is False
+
+
+def test_setup_verify_rejects_if_2fa_already_enabled(db, user):
+    """setup_verify must not disable active 2FA when TTL expires."""
+    from app.core.exceptions import ValidationException
+
+    service = TwoFactorAuthService(db)
+    original_secret = service._encrypt("existing-secret")
+
+    # Simulate a user with active 2FA and an expired setup_at timestamp
+    user.totp_enabled = True
+    user.totp_secret = original_secret
+    user.two_factor_setup_at = datetime.now(timezone.utc) - timedelta(minutes=20)
+    db.flush()
+
+    with pytest.raises(ValidationException, match="already enabled"):
+        service.setup_verify(user, "000000")
+
+    # 2FA must remain intact
+    assert user.totp_enabled is True
+    assert user.totp_secret == original_secret
 
 
 def test_check_2fa_required(db, user):

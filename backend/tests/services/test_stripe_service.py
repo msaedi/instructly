@@ -3227,7 +3227,7 @@ class TestStripeService:
             save_payment_method=False,
         )
 
-        with pytest.raises(ServiceException, match="only pay for your own bookings"):
+        with pytest.raises(ServiceException, match="Booking not found"):
             stripe_service.create_booking_checkout(
                 current_user=other_user,
                 payload=payload,
@@ -3758,6 +3758,10 @@ class TestStripeService:
     def test_delete_payment_method_error(
         self, stripe_service: StripeService, test_user: User
     ) -> None:
+        # Ownership check must pass before reaching the delete call
+        stripe_service.payment_repository.get_payment_method_by_stripe_id = MagicMock(
+            return_value=MagicMock()
+        )
         stripe_service.payment_repository.delete_payment_method = MagicMock(
             side_effect=Exception("db down")
         )

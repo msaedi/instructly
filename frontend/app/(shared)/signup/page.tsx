@@ -368,7 +368,7 @@ function SignUpForm() {
       });
       logger.time('registration');
       try {
-        await httpPost<AuthUserResponse>(API_ENDPOINTS.REGISTER, registrationData);
+        await httpPost<{ message: string }>(API_ENDPOINTS.REGISTER, registrationData);
       } catch (err) {
         if (err instanceof ApiError) {
           const status = err.status;
@@ -394,12 +394,6 @@ function SignUpForm() {
               .map((e) => e.msg)
               .filter(Boolean)
               .join(', ');
-          } else if (
-            status === 400 &&
-            typeof errorData.detail === 'string' &&
-            errorData.detail.includes('already registered')
-          ) {
-            errorMessage = 'An account with this email already exists';
           } else if (typeof errorData.detail === 'string') {
             errorMessage = errorData.detail;
           } else {
@@ -568,16 +562,8 @@ function SignUpForm() {
           </div>
           {/* General error message */}
           {errors.general && (
-            <div role="alert" className={`rounded-md p-4 ${
-              errors.general === 'An account with this email already exists'
-                ? 'bg-yellow-50'
-                : 'bg-red-50 dark:bg-red-900/20'
-            }`}>
-              <p className={`text-sm ${
-                errors.general === 'An account with this email already exists'
-                  ? 'text-gray-700'
-                  : 'text-red-800 dark:text-red-400'
-              }`}>{errors.general}</p>
+            <div role="alert" className="rounded-md p-4 bg-red-50 dark:bg-red-900/20">
+              <p className="text-sm text-red-800 dark:text-red-400">{errors.general}</p>
             </div>
           )}
 

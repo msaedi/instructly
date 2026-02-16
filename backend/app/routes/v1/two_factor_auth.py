@@ -112,6 +112,11 @@ def setup_initiate(
 
 
 @router.post("/setup/verify", response_model=TFASetupVerifyResponse)
+@rate_limit(
+    f"{settings.rate_limit_auth_per_minute}/minute",
+    key_type=RateLimitKeyType.IP,
+    error_message="Too many 2FA verification attempts. Please try again later.",
+)
 def setup_verify(
     req: TFASetupVerifyRequest,
     response: Response,

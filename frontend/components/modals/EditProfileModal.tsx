@@ -29,7 +29,7 @@ import { toast } from 'sonner';
 import { queryKeys } from '@/src/api/queryKeys';
 
 type InstructorProfileResponse = components['schemas']['InstructorProfileResponse'];
-type AuthUserResponse = components['schemas']['AuthUserResponse'];
+type AuthUserResponse = components['schemas']['AuthUserWithPermissionsResponse'];
 type AddressListResponse = components['schemas']['AddressListResponse'];
 type AddressResponse = components['schemas']['AddressResponse'];
 type NeighborhoodsListResponse = components['schemas']['NeighborhoodsListResponse'];

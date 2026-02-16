@@ -1214,27 +1214,6 @@ export interface AuditSearchResponse {
 }
 
 /**
- * Minimal strict representation of a user for auth endpoints.
- */
-export interface AuthUserResponse {
-  email: string;
-  first_name: string;
-  /** True if founding instructor status was granted during registration */
-  founding_instructor_granted?: boolean | null;
-  has_profile_picture?: boolean | null;
-  id: string;
-  is_active?: boolean;
-  last_name: string;
-  permissions?: string[];
-  phone?: string | null;
-  phone_verified?: boolean | null;
-  profile_picture_version?: number | null;
-  roles?: string[];
-  timezone?: string | null;
-  zip_code?: string | null;
-}
-
-/**
  * Extends auth user response with optional beta metadata.
  */
 export interface AuthUserWithPermissionsResponse {
@@ -7411,6 +7390,13 @@ export interface RefundPreviewResponse {
   policy_basis: string;
   token_expires_at?: string | null;
   warnings?: string[];
+}
+
+/**
+ * Generic registration response that prevents email enumeration.
+ */
+export interface RegisterResponse {
+  message: string;
 }
 
 /**

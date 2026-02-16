@@ -37,12 +37,9 @@ test.describe('Working E2E Examples', () => {
   test('navigation flow', async ({ page }) => {
     await page.goto('/');
 
-    // Validate an auth entry link when present, but keep fallback robust across
-    // nav variants where the link text differs by viewport/auth shell.
-    const authLink = page.locator('a[href*="/login"]').first();
-    if ((await authLink.count()) > 0) {
-      await expect(authLink).toHaveAttribute('href', /\/login/);
-    }
+    // Navigate directly to login — the /me mock returns a user so the
+    // homepage renders an authenticated nav (no login link). Checking for
+    // a transient login link races against React hydration.
     await page.goto('/login');
     await expect(page).toHaveURL(/\/login(?:\?redirect=.*)?$/);
 

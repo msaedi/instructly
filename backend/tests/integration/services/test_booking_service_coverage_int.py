@@ -3666,7 +3666,7 @@ class TestInstructorCompletionIntegration:
         booking.booking_end_utc = datetime.now(timezone.utc) - timedelta(hours=2)
         db.commit()
 
-        with pytest.raises(ValidationException, match="only mark your own"):
+        with pytest.raises(NotFoundException):
             booking_service_integration.instructor_mark_complete(
                 booking_id=booking.id,
                 instructor=test_instructor_2,

@@ -2803,20 +2803,7 @@ export type paths = {
         put?: never;
         /**
          * Register
-         * @description Register a new user.
-         *
-         *     Rate limited to prevent spam registrations.
-         *
-         *     Args:
-         *         payload: User creation data (including optional guest_session_id)
-         *         auth_service: Authentication service
-         *         db: Database session
-         *
-         *     Returns:
-         *         AuthUserResponse: The created user
-         *
-         *     Raises:
-         *         HTTPException: If email already registered or rate limit exceeded
+         * @description Register a new user. Always returns a generic response to prevent email enumeration.
          */
         post: operations["register_api_v1_auth_register_post"];
         delete?: never;
@@ -9254,58 +9241,6 @@ export type components = {
             by_status: {
                 [key: string]: number;
             };
-        };
-        /**
-         * AuthUserResponse
-         * @description Minimal strict representation of a user for auth endpoints.
-         */
-        AuthUserResponse: {
-            /**
-             * Email
-             * Format: email
-             */
-            email: string;
-            /** First Name */
-            first_name: string;
-            /**
-             * Founding Instructor Granted
-             * @description True if founding instructor status was granted during registration
-             */
-            founding_instructor_granted?: boolean | null;
-            /**
-             * Has Profile Picture
-             * @default false
-             */
-            has_profile_picture: boolean | null;
-            /** Id */
-            id: string;
-            /**
-             * Is Active
-             * @default true
-             */
-            is_active: boolean;
-            /** Last Name */
-            last_name: string;
-            /** Permissions */
-            permissions?: string[];
-            /** Phone */
-            phone?: string | null;
-            /**
-             * Phone Verified
-             * @default false
-             */
-            phone_verified: boolean | null;
-            /**
-             * Profile Picture Version
-             * @default 0
-             */
-            profile_picture_version: number | null;
-            /** Roles */
-            roles?: string[];
-            /** Timezone */
-            timezone?: string | null;
-            /** Zip Code */
-            zip_code?: string | null;
         };
         /**
          * AuthUserWithPermissionsResponse
@@ -18268,6 +18203,14 @@ export type components = {
             /** Stripe Refund Id */
             stripe_refund_id: string | null;
         };
+        /**
+         * RegisterResponse
+         * @description Generic registration response that prevents email enumeration.
+         */
+        RegisterResponse: {
+            /** Message */
+            message: string;
+        };
         /** RenderedContent */
         RenderedContent: {
             /** Body */
@@ -25607,12 +25550,12 @@ export interface operations {
         };
         responses: {
             /** @description Successful Response */
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AuthUserResponse"];
+                    "application/json": components["schemas"]["RegisterResponse"];
                 };
             };
             /** @description Validation Error */

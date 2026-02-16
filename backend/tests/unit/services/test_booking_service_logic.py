@@ -818,7 +818,8 @@ class TestBookingServiceUnit:
         booking.instructor_service = None
         booking.booking_date = lesson_end.date()
 
-        booking_service.repository.get_by_id.return_value = booking
+        booking_service.repository.get_booking_for_instructor.return_value = booking
+        booking_service.repository.get_by_id.return_value = booking  # post-commit reload
         self._freeze_time(monkeypatch, now)
 
         mock_payment_repo = Mock()

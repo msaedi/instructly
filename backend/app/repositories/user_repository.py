@@ -80,7 +80,7 @@ class UserRepository(BaseRepository[User]):
 
         if not use_retry:
             return _query()
-        return with_db_retry("get_user", _query)
+        return with_db_retry("get_user", _query, on_retry=self.db.rollback)
 
     def get_by_email(self, email: str) -> Optional[User]:
         """

@@ -544,8 +544,7 @@ class TestPaymentRoutes:
             json={"booking_id": booking.id, "payment_method_id": "pm_test", "save_payment_method": False},
         )
 
-        assert response.status_code == status.HTTP_403_FORBIDDEN
-        assert "own bookings" in response.json()["detail"].lower()
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
 class TestWebhookEndpoints:

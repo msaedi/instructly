@@ -160,6 +160,22 @@ def test_cannot_tip_no_show_booking(client, db, test_booking, auth_headers):
     assert "no-show" in data["detail"].lower()
 
 
+def test_cannot_review_confirmed_booking(client, db, test_booking, auth_headers):
+    """Reviews cannot be submitted for CONFIRMED (not yet completed) bookings."""
+    # test_booking fixture creates a CONFIRMED booking by default
+    assert test_booking.status == "CONFIRMED"
+
+    payload = {
+        "booking_id": test_booking.id,
+        "rating": 4,
+        "review_text": "Good lesson.",
+    }
+    res = client.post("/api/v1/reviews", json=payload, headers=auth_headers)
+    assert res.status_code == 400
+    data = res.json()
+    assert "completed" in data["detail"].lower()
+
+
 def test_can_review_completed_booking(client, db, test_booking, auth_headers):
     """Students CAN review completed bookings (regression test)."""
     test_booking.status = "COMPLETED"

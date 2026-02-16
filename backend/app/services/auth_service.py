@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import DUMMY_HASH_FOR_TIMING_ATTACK, get_password_hash, verify_password
 from ..core.enums import RoleName
-from ..core.exceptions import ConflictException, NotFoundException, ValidationException
+from ..core.exceptions import NotFoundException, ValidationException
 from ..models.instructor import InstructorProfile
 from ..models.user import User
 from ..repositories.factory import RepositoryFactory
@@ -62,33 +62,25 @@ class AuthService(BaseService):
         zip_code: str,
         phone: Optional[str] = None,
         role: Optional[str] = None,
-    ) -> User:
+    ) -> Optional[User]:
         """
         Register a new user.
 
-        Args:
-            email: User's email address
-            password: Plain text password (will be hashed)
-            first_name: User's first name
-            last_name: User's last name
-            zip_code: User's zip code
-            phone: Optional phone number
-            role: Optional role name (defaults to 'student')
-
-        Returns:
-            Created user object
-
-        Raises:
-            ConflictException: If email already exists
-            ValidationException: If data is invalid
+        Returns None (without raising) when the email already exists,
+        to prevent email enumeration. The caller must return a generic
+        response regardless of the return value.
         """
         self.log_operation("register_user", email=email, role=role)
 
-        # Check if email already exists
+        # Check if email already exists — return None instead of raising
         existing_user = self.get_user_by_email(email)
         if existing_user:
-            self.logger.warning(f"Registration failed - email already exists: {email}")
-            raise ValidationException("Email already registered")
+            self.logger.info("Registration attempt for existing email")
+            # Timing normalization — match Argon2id hash cost of real registration
+            get_password_hash(
+                "dummy_timing_normalization_padding"
+            )  # Timing normalization — do not remove
+            return None
 
         # Hash the password
         hashed_password = get_password_hash(password)
@@ -205,8 +197,12 @@ class AuthService(BaseService):
                 return user
 
         except IntegrityError as e:
-            self.logger.error(f"Integrity error registering user {email}: {str(e)}")
-            raise ConflictException("Email already registered")
+            self.logger.info(f"Race condition on registration: {str(e)}")
+            # Timing normalization — same as existing-email case
+            get_password_hash(
+                "dummy_timing_normalization_padding"
+            )  # Timing normalization — do not remove
+            return None
         except Exception as e:
             self.logger.error(f"Error registering user {email}: {str(e)}")
             raise ValidationException(f"Error creating user: {str(e)}")

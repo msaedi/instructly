@@ -362,6 +362,8 @@ class TestResponseModelCoverage:
             "PerformanceMetrics",
             "ConversionBehavior",
             "SearchTotals",
+            # Auth base class (parent of AuthUserWithPermissionsResponse, used indirectly)
+            "AuthUserResponse",
             # Standard response models
             "ErrorResponse",
             "DeleteResponse",

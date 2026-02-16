@@ -6,7 +6,7 @@ import type { OnboardingStepKey, OnboardingStepStatus } from './OnboardingProgre
 export type OnboardingStepStatuses = Record<OnboardingStepKey, OnboardingStepStatus>;
 
 type ProfileData = components['schemas']['InstructorProfileResponse'];
-type UserData = components['schemas']['AuthUserResponse'];
+type UserData = components['schemas']['AuthUserWithPermissionsResponse'];
 type ConnectStatus = components['schemas']['OnboardingStatusResponse'];
 type ServiceAreaItem = components['schemas']['ServiceAreaItem'];
 type BackgroundCheckStatusResponse = components['schemas']['BackgroundCheckStatusResponse'];

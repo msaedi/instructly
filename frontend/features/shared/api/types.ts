@@ -144,8 +144,8 @@ export type PasswordResetVerifyResponse = components['schemas']['PasswordResetVe
 // Service types
 export type ServiceResponse = components['schemas']['ServiceResponse'];
 
-// Auth types
-export type AuthUserResponse = components['schemas']['AuthUserResponse'];
+// Auth types — register no longer returns user data; /me returns AuthUserWithPermissionsResponse
+export type AuthUserResponse = components['schemas']['AuthUserWithPermissionsResponse'];
 
 // Common error shape used by API endpoints
 export type ApiErrorResponse = {

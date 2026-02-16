@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models.beta import BetaInvite
 from app.models.instructor import InstructorProfile
+from app.models.user import User
 from app.services.config_service import ConfigService
 
 
@@ -37,8 +38,10 @@ def _register_instructor(
             "metadata": {"invite_code": invite_code},
         },
     )
-    assert response.status_code == 201
-    return response.json()
+    assert response.status_code == 200
+    body = response.json()
+    assert "check your email" in body["message"].lower()
+    return body
 
 
 def test_founding_status_set_on_signup_with_founding_invite(
@@ -48,9 +51,11 @@ def test_founding_status_set_on_signup_with_founding_invite(
     invite_code = f"FOUND{uuid.uuid4().hex[:4].upper()}"
     _create_invite(db, code=invite_code, email=email, grant_founding_status=True)
 
-    user_data = _register_instructor(client, email=email, invite_code=invite_code)
+    _register_instructor(client, email=email, invite_code=invite_code)
 
-    instructor = db.query(InstructorProfile).filter_by(user_id=user_data["id"]).first()
+    user = db.query(User).filter_by(email=email).first()
+    assert user is not None
+    instructor = db.query(InstructorProfile).filter_by(user_id=user.id).first()
     assert instructor is not None
     assert instructor.is_founding_instructor is True
     assert instructor.founding_granted_at is not None
@@ -63,9 +68,11 @@ def test_founding_status_not_set_when_invite_has_false(
     invite_code = f"REG{uuid.uuid4().hex[:5].upper()}"
     _create_invite(db, code=invite_code, email=email, grant_founding_status=False)
 
-    user_data = _register_instructor(client, email=email, invite_code=invite_code)
+    _register_instructor(client, email=email, invite_code=invite_code)
 
-    instructor = db.query(InstructorProfile).filter_by(user_id=user_data["id"]).first()
+    user = db.query(User).filter_by(email=email).first()
+    assert user is not None
+    instructor = db.query(InstructorProfile).filter_by(user_id=user.id).first()
     assert instructor is not None
     assert instructor.is_founding_instructor is False
 
@@ -88,48 +95,53 @@ def test_founding_cap_enforced(
     invite_code = f"SEC{uuid.uuid4().hex[:5].upper()}"
     _create_invite(db, code=invite_code, email=email, grant_founding_status=True)
 
-    user_data = _register_instructor(client, email=email, invite_code=invite_code)
+    _register_instructor(client, email=email, invite_code=invite_code)
 
-    instructor = db.query(InstructorProfile).filter_by(user_id=user_data["id"]).first()
+    user = db.query(User).filter_by(email=email).first()
+    assert user is not None
+    instructor = db.query(InstructorProfile).filter_by(user_id=user.id).first()
     assert instructor is not None
     assert instructor.is_founding_instructor is False
 
 
-def test_registration_response_includes_founding_status_when_granted(
+def test_founding_status_verified_in_db_when_granted(
     client: TestClient, db: Session
 ) -> None:
-    """Registration response should include founding_instructor_granted=True when granted."""
+    """Founding status should be persisted in DB when granted via invite."""
     email = f"response-founder-{uuid.uuid4().hex[:8]}@example.com"
     invite_code = f"RESP{uuid.uuid4().hex[:4].upper()}"
     _create_invite(db, code=invite_code, email=email, grant_founding_status=True)
 
-    user_data = _register_instructor(client, email=email, invite_code=invite_code)
+    _register_instructor(client, email=email, invite_code=invite_code)
 
-    # Response should include founding status field
-    assert "founding_instructor_granted" in user_data
-    assert user_data["founding_instructor_granted"] is True
+    user = db.query(User).filter_by(email=email).first()
+    assert user is not None
+    instructor = db.query(InstructorProfile).filter_by(user_id=user.id).first()
+    assert instructor is not None
+    assert instructor.is_founding_instructor is True
 
 
-def test_registration_response_includes_founding_status_none_when_not_attempted(
+def test_founding_status_not_granted_when_not_requested(
     client: TestClient, db: Session
 ) -> None:
-    """Registration response should include founding_instructor_granted=None when not attempted."""
+    """Founding status should not be granted when invite has grant_founding_status=False."""
     email = f"response-regular-{uuid.uuid4().hex[:8]}@example.com"
     invite_code = f"NOFND{uuid.uuid4().hex[:4].upper()}"
     _create_invite(db, code=invite_code, email=email, grant_founding_status=False)
 
-    user_data = _register_instructor(client, email=email, invite_code=invite_code)
+    _register_instructor(client, email=email, invite_code=invite_code)
 
-    # Response should include founding status field
-    assert "founding_instructor_granted" in user_data
-    assert user_data["founding_instructor_granted"] is None  # Not attempted
+    user = db.query(User).filter_by(email=email).first()
+    assert user is not None
+    instructor = db.query(InstructorProfile).filter_by(user_id=user.id).first()
+    assert instructor is not None
+    assert instructor.is_founding_instructor is False
 
 
-def test_registration_response_includes_founding_status_false_when_cap_reached(
+def test_founding_status_false_when_cap_reached(
     client: TestClient, db: Session, test_instructor
 ) -> None:
-    """When cap is reached, response should have founding_instructor_granted=False."""
-    # Set up existing founding instructor at cap
+    """When cap is reached, founding status should not be granted."""
     profile = test_instructor.instructor_profile
     profile.is_founding_instructor = True
     profile.founding_granted_at = datetime.now(timezone.utc)
@@ -145,17 +157,19 @@ def test_registration_response_includes_founding_status_false_when_cap_reached(
     invite_code = f"CAP{uuid.uuid4().hex[:5].upper()}"
     _create_invite(db, code=invite_code, email=email, grant_founding_status=True)
 
-    user_data = _register_instructor(client, email=email, invite_code=invite_code)
+    _register_instructor(client, email=email, invite_code=invite_code)
 
-    # Response should show founding status was not granted
-    assert "founding_instructor_granted" in user_data
-    assert user_data["founding_instructor_granted"] is False
+    user = db.query(User).filter_by(email=email).first()
+    assert user is not None
+    instructor = db.query(InstructorProfile).filter_by(user_id=user.id).first()
+    assert instructor is not None
+    assert instructor.is_founding_instructor is False
 
 
-def test_student_registration_response_has_null_founding_status(
+def test_student_registration_returns_generic_response(
     client: TestClient, db: Session
 ) -> None:
-    """Student registration should have founding_instructor_granted=None."""
+    """Student registration returns generic response (no user data exposed)."""
     email = f"student-{uuid.uuid4().hex[:8]}@example.com"
 
     response = client.post(
@@ -171,9 +185,10 @@ def test_student_registration_response_has_null_founding_status(
         },
     )
 
-    assert response.status_code == 201
-    user_data = response.json()
+    assert response.status_code == 200
+    body = response.json()
+    assert "check your email" in body["message"].lower()
 
-    # Students shouldn't have founding status (should be None)
-    assert "founding_instructor_granted" in user_data
-    assert user_data["founding_instructor_granted"] is None
+    # Verify user was actually created in DB
+    user = db.query(User).filter_by(email=email).first()
+    assert user is not None

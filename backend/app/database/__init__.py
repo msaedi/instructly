@@ -222,9 +222,19 @@ def _retry_delay(attempt: int) -> float:
     return base + jitter
 
 
-def with_db_retry(op_name: str, func: Callable[[], T], *, max_attempts: int = 3) -> T:
+def with_db_retry(
+    op_name: str,
+    func: Callable[[], T],
+    *,
+    max_attempts: int = 3,
+    on_retry: Callable[[], None] | None = None,
+) -> T:
     """
     Execute a DB operation with retries for transient Supabase/pooler disconnects.
+
+    Args:
+        on_retry: Optional callback invoked before each retry attempt.
+                  Use this to rollback the session so the retry starts clean.
     """
 
     attempt = 1
@@ -246,6 +256,11 @@ def with_db_retry(op_name: str, func: Callable[[], T], *, max_attempts: int = 3)
                     "error": str(exc),
                 },
             )
+            if on_retry is not None:
+                try:
+                    on_retry()
+                except Exception:
+                    logger.debug("on_retry callback failed for %s", op_name, exc_info=True)
             time.sleep(delay)
             attempt += 1
 
@@ -255,8 +270,14 @@ async def with_db_retry_async(
     func: Callable[[], Awaitable[T]],
     *,
     max_attempts: int = 3,
+    on_retry: Callable[[], None] | None = None,
 ) -> T:
-    """Async variant of with_db_retry for coroutine-based DB interactions."""
+    """Async variant of with_db_retry for coroutine-based DB interactions.
+
+    Args:
+        on_retry: Optional callback invoked before each retry attempt.
+                  Use this to rollback the session so the retry starts clean.
+    """
 
     attempt = 1
     while True:
@@ -276,6 +297,11 @@ async def with_db_retry_async(
                     "error": str(exc),
                 },
             )
+            if on_retry is not None:
+                try:
+                    on_retry()
+                except Exception:
+                    logger.debug("on_retry callback failed for %s", op_name, exc_info=True)
             await asyncio.sleep(delay)
             attempt += 1
 

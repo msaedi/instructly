@@ -662,7 +662,7 @@ def test_confirm_booking_payment_gaming_reschedule_immediate_auth_error(
     )
     student.id = booking.student_id
 
-    mock_repository.get_by_id.return_value = booking
+    mock_repository.get_booking_for_student.return_value = booking
     booking_service._get_booking_start_utc = Mock(return_value=datetime(2030, 1, 2, 10, 0, 0))
     booking_service._determine_auth_timing = Mock(
         return_value={
@@ -701,7 +701,7 @@ def test_confirm_booking_payment_system_message_fallback_and_cache_error(
     booking.instructor_service = SimpleNamespace(name="Piano")
     student.id = booking.student_id
 
-    mock_repository.get_by_id.return_value = booking
+    mock_repository.get_booking_for_student.return_value = booking
     booking_service._get_booking_start_utc = Mock(return_value=datetime(2030, 1, 2, 10, 0, 0))
     booking_service._determine_auth_timing = Mock(
         return_value={
@@ -848,7 +848,8 @@ def test_cancel_booking_locked_reschedule_student_lt12(
         booking_service._enqueue_booking_outbox_event = Mock()
         booking_service._post_cancellation_actions = Mock()
 
-        mock_repository.get_by_id_for_update.side_effect = [booking, booking]
+        mock_repository.get_booking_for_participant_for_update.return_value = booking
+        mock_repository.get_by_id_for_update.return_value = booking  # Phase 3 re-fetch
         mock_repository.transaction.return_value = _transaction_cm()
 
         booking_service.cancel_booking(booking.id, user)
@@ -869,7 +870,8 @@ def test_cancel_booking_not_found_after_stripe(
     })
     booking_service._execute_cancellation_stripe_calls = Mock(return_value={})
 
-    mock_repository.get_by_id_for_update.side_effect = [booking, None]
+    mock_repository.get_booking_for_participant_for_update.return_value = booking
+    mock_repository.get_by_id_for_update.return_value = None  # Phase 3 re-fetch returns None
     mock_repository.transaction.return_value = _transaction_cm()
 
     with pytest.raises(NotFoundException):
@@ -1577,15 +1579,15 @@ def test_send_booking_notifications_after_confirmation_missing_booking(
     booking_service.send_booking_notifications_after_confirmation(generate_ulid())
 
 
-def test_get_booking_pricing_preview_access_denied(
+def test_get_booking_pricing_preview_non_participant_returns_none(
     booking_service: BookingService, mock_repository: MagicMock
 ) -> None:
-    booking = make_booking()
-    mock_repository.get_by_id.return_value = booking
+    """Non-participant gets None (DB-level filter returns None)."""
+    mock_repository.get_booking_for_participant.return_value = None
 
-    result = booking_service.get_booking_pricing_preview(booking.id, generate_ulid())
+    result = booking_service.get_booking_pricing_preview(generate_ulid(), generate_ulid())
 
-    assert result == {"error": "access_denied"}
+    assert result is None
 
 
 def test_check_student_time_conflict_exception(
@@ -1773,7 +1775,8 @@ def test_cancel_booking_locked_payment_status_uses_lock_context_lt12(
     )
     user = make_user(RoleName.STUDENT.value, id=booking.student_id)
 
-    mock_repository.get_by_id_for_update.side_effect = [booking, booking]
+    mock_repository.get_booking_for_participant_for_update.return_value = booking
+    mock_repository.get_by_id_for_update.return_value = booking  # Phase 3 re-fetch
     booking_service.transaction = MagicMock(return_value=_transaction_cm())
     booking_service.resolve_lock_for_booking = Mock(return_value={"success": True})
     booking_service._snapshot_booking = Mock(return_value={})
@@ -2043,7 +2046,8 @@ def test_instructor_mark_complete_handles_category_chain_attribute_error(
         instructor_id=instructor.id,
         instructor_service=_BrokenInstructorService(),
     )
-    mock_repository.get_by_id.side_effect = [booking, booking]
+    mock_repository.get_booking_for_instructor.return_value = booking
+    mock_repository.get_by_id.return_value = booking  # post-commit reload
 
     now = datetime.now(timezone.utc)
     booking_service._get_booking_end_utc = Mock(return_value=now - timedelta(minutes=30))
@@ -2313,7 +2317,7 @@ def test_cancel_booking_rejects_non_cancellable_booking(
 ) -> None:
     booking = make_booking(is_cancellable=False, status=BookingStatus.CONFIRMED)
     user = make_user(RoleName.STUDENT.value, id=booking.student_id)
-    mock_repository.get_by_id_for_update.return_value = booking
+    mock_repository.get_booking_for_participant_for_update.return_value = booking
     booking_service.transaction = MagicMock(return_value=_transaction_cm())
 
     with pytest.raises(BusinessRuleException, match="cannot be cancelled"):
@@ -2341,11 +2345,13 @@ def test_cancel_booking_locked_context_instructor_and_ge12_resolution_paths(
     )
     student_user = make_user(RoleName.STUDENT.value, id=booking_locked_direct.student_id)
 
+    mock_repository.get_booking_for_participant_for_update.side_effect = [
+        booking_locked_reschedule,
+        booking_locked_direct,
+    ]
     mock_repository.get_by_id_for_update.side_effect = [
-        booking_locked_reschedule,
-        booking_locked_reschedule,
-        booking_locked_direct,
-        booking_locked_direct,
+        booking_locked_reschedule,  # Phase 3 re-fetch for first cancel
+        booking_locked_direct,      # Phase 3 re-fetch for second cancel
     ]
     booking_service.transaction = MagicMock(return_value=_transaction_cm())
     booking_service.resolve_lock_for_booking = Mock(return_value={"success": True})

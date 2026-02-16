@@ -1888,7 +1888,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
         return;
       }
 
-      void ((await res.json()) as components['schemas']['AuthUserResponse']);
+      void ((await res.json()) as components['schemas']['AuthUserWithPermissionsResponse']);
       logger.info('Profile update successful');
 
       toast.success('Profile updated successfully', {

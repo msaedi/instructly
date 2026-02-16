@@ -38,7 +38,7 @@ from ...auth import (
 )
 from ...core.config import settings
 from ...core.enums import RoleName
-from ...core.exceptions import ConflictException, NotFoundException, ValidationException
+from ...core.exceptions import NotFoundException, ValidationException
 from ...core.login_protection import (
     account_lockout,
     account_rate_limiter,
@@ -53,8 +53,8 @@ from ...models.user import User
 from ...ratelimit.dependency import rate_limit as bucket_rate_limit
 from ...repositories.instructor_profile_repository import InstructorProfileRepository
 from ...schemas.auth_responses import (
-    AuthUserResponse,
     AuthUserWithPermissionsResponse,
+    RegisterResponse,
 )
 from ...schemas.security import (
     LoginResponse,
@@ -239,7 +239,7 @@ def _issue_two_factor_challenge_if_needed(
     return LoginResponse(requires_2fa=True, temp_token=temp_token)
 
 
-@router.post("/register", response_model=AuthUserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=RegisterResponse)
 @rate_limit(
     f"{settings.rate_limit_register_per_hour}/hour",
     key_type=RateLimitKeyType.IP,
@@ -252,23 +252,10 @@ async def register(
     auth_service: AuthService = Depends(get_auth_service),
     db: Session = Depends(get_db),
     cache_service: CacheService = Depends(get_cache_service_dep),
-) -> AuthUserResponse:
-    """
-    Register a new user.
+) -> RegisterResponse:
+    """Register a new user. Always returns a generic response to prevent email enumeration."""
+    generic_response = RegisterResponse(message="Please check your email to verify your account.")
 
-    Rate limited to prevent spam registrations.
-
-    Args:
-        payload: User creation data (including optional guest_session_id)
-        auth_service: Authentication service
-        db: Database session
-
-    Returns:
-        AuthUserResponse: The created user
-
-    Raises:
-        HTTPException: If email already registered or rate limit exceeded
-    """
     try:
         db_user = await asyncio.to_thread(
             auth_service.register_user,
@@ -280,6 +267,12 @@ async def register(
             zip_code=payload.zip_code,
             role=payload.role,
         )
+
+        if db_user is None:
+            # Existing email or race condition — return generic response
+            return generic_response
+
+        # --- New user: post-registration work (not visible in response) ---
 
         # Convert guest searches if guest_session_id provided
         if payload.guest_session_id:
@@ -293,15 +286,12 @@ async def register(
                 logger.info(f"Converted {converted_count} guest searches for new user {db_user.id}")
             except Exception as e:
                 logger.error(f"Failed to convert guest searches during registration: {str(e)}")
-                # Don't fail registration if conversion fails
 
         # Beta invite consumption (server-side guarantee)
-        founding_instructor_granted: bool | None = None
         try:
             invite_code = None
             metadata_obj = getattr(payload, "metadata", None)
             if metadata_obj is not None:
-                # Handle both dict (legacy) and Pydantic model (typed)
                 if isinstance(metadata_obj, dict):
                     invite_code = metadata_obj.get("invite_code")
                 else:
@@ -330,7 +320,6 @@ async def register(
                             granted, message = await asyncio.to_thread(
                                 svc.try_grant_founding_status, profile.id
                             )
-                            founding_instructor_granted = granted
                             if granted:
                                 logger.info(
                                     "Granted founding status for user %s: %s",
@@ -344,25 +333,7 @@ async def register(
                                     message,
                                 )
         except Exception as e:
-            # Log only; do not block registration if invite handling fails
             logger.error(f"Error consuming invite on register for {db_user.id}: {e}")
-
-        response_data = {
-            "id": db_user.id,
-            "email": db_user.email,
-            "first_name": db_user.first_name,
-            "last_name": db_user.last_name,
-            "phone": getattr(db_user, "phone", None),
-            "zip_code": getattr(db_user, "zip_code", None),
-            "is_active": getattr(db_user, "is_active", True),
-            "timezone": getattr(db_user, "timezone", None),
-            "roles": [role.name for role in getattr(db_user, "roles", [])],
-            "permissions": [],
-            "profile_picture_version": getattr(db_user, "profile_picture_version", 0),
-            "has_profile_picture": getattr(db_user, "has_profile_picture", False),
-            "founding_instructor_granted": founding_instructor_granted,
-        }
-        user_payload = AuthUserResponse(**model_filter(AuthUserResponse, response_data))
 
         try:
             AuditService(db).log(
@@ -392,24 +363,20 @@ async def register(
         except Exception:
             logger.warning("Welcome email failed for user %s", db_user.id, exc_info=True)
 
-        # Flag this user as just-registered so the first login skips the
-        # new-device notification (they'll already have the welcome email).
         try:
             await cache_service.set(f"recently_registered:{db_user.id}", True, ttl=300)
         except Exception:
             logger.debug("Failed to set recently_registered cache flag", exc_info=True)
 
-        # Clear invite verification cookie after successful registration
         response.delete_cookie(
             key=invite_cookie_name(),
             path="/",
             domain=None,
         )
 
-        return user_payload
+        return generic_response
+
     except ValidationException as e:
-        raise e.to_http_exception()
-    except ConflictException as e:
         raise e.to_http_exception()
     except Exception as e:
         logger.error(f"Unexpected error during registration: {str(e)}")

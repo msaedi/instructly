@@ -18,7 +18,8 @@ import logging
 from pathlib import Path
 from typing import Any, Optional, cast
 
-from jinja2 import Environment, FileSystemLoader, TemplateNotFound
+from jinja2 import FileSystemLoader, TemplateNotFound
+from jinja2.sandbox import SandboxedEnvironment
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
@@ -93,7 +94,7 @@ class TemplateService(BaseService):
         # Create the Jinja2 environment
         # Note: Jinja2 has its own internal template compilation cache
         # Use utf-8-sig to gracefully handle potential BOMs in template files
-        self.env = Environment(
+        self.env = SandboxedEnvironment(
             loader=FileSystemLoader(template_dir, encoding="utf-8-sig"),
             autoescape=True,  # Enable autoescaping for security
             trim_blocks=True,  # Remove trailing newlines from blocks
@@ -296,8 +297,13 @@ class TemplateService(BaseService):
 
         String templates are not cached since they're typically unique.
 
+        SECURITY: ``template_string`` is parsed as Jinja2 source.  Never pass
+        user-controlled input as ``template_string`` — only use hardcoded or
+        developer-controlled strings.  User data must be passed via ``context``
+        or ``kwargs`` (rendered as context variables, not template source).
+
         Args:
-            template_string: Template content as string
+            template_string: Template content as string (must NOT be user-controlled)
             context: Dictionary of template variables
             **kwargs: Additional template variables
 
@@ -305,7 +311,8 @@ class TemplateService(BaseService):
             Rendered template as string
         """
         try:
-            # Create template from string (not cached)
+            # SECURITY: template_string is parsed as Jinja2 — must be developer-controlled.
+            # User-supplied data goes into context/kwargs only.
             template = self.env.from_string(template_string)
 
             # Merge contexts - get_common_context() uses caching
