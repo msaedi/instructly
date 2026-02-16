@@ -85,7 +85,7 @@ class BackgroundJobRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                self.logger.debug("Best-effort rollback failed", exc_info=True)
             raise RepositoryException("Failed to fetch background jobs") from exc
 
     def mark_running(self, job_id: str) -> None:
