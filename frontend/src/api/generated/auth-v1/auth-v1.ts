@@ -22,13 +22,13 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  AuthUserResponse,
   AuthUserWithPermissionsResponse,
   BodyLoginApiV1AuthLoginPost,
   HTTPValidationError,
   LoginResponse,
   PasswordChangeRequest,
   PasswordChangeResponse,
+  RegisterResponse,
   SessionRefreshResponse,
   UserCreate,
   UserLogin,
@@ -692,20 +692,7 @@ export const useRefreshSessionTokenApiV1AuthRefreshPost = <
   );
 };
 /**
- * Register a new user.
-
-Rate limited to prevent spam registrations.
-
-Args:
-    payload: User creation data (including optional guest_session_id)
-    auth_service: Authentication service
-    db: Database session
-
-Returns:
-    AuthUserResponse: The created user
-
-Raises:
-    HTTPException: If email already registered or rate limit exceeded
+ * Register a new user. Always returns a generic response to prevent email enumeration.
  * @summary Register
  */
 export const getRegisterApiV1AuthRegisterPostUrl = () => {
@@ -715,8 +702,8 @@ export const getRegisterApiV1AuthRegisterPostUrl = () => {
 export const registerApiV1AuthRegisterPost = async (
   userCreate: UserCreate,
   options?: RequestInit
-): Promise<AuthUserResponse> => {
-  return customFetch<AuthUserResponse>(getRegisterApiV1AuthRegisterPostUrl(), {
+): Promise<RegisterResponse> => {
+  return customFetch<RegisterResponse>(getRegisterApiV1AuthRegisterPostUrl(), {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },

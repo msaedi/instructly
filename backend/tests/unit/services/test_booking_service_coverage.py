@@ -1604,7 +1604,7 @@ class TestGetBookingForUserCoverage:
 
     def test_get_booking_for_user_not_found(self, booking_service, mock_repository):
         """Test returns None when booking not found."""
-        mock_repository.get_booking_with_details.return_value = None
+        mock_repository.get_booking_for_participant.return_value = None
         user = MagicMock(spec=User)
         user.id = generate_ulid()
 
@@ -1615,15 +1615,10 @@ class TestGetBookingForUserCoverage:
     def test_get_booking_for_user_unauthorized(self, booking_service, mock_repository):
         """Test returns None when user not authorized to view booking."""
         booking_id = generate_ulid()
-        student_id = generate_ulid()
-        instructor_id = generate_ulid()
         other_user_id = generate_ulid()
 
-        booking = MagicMock(spec=Booking)
-        booking.id = booking_id
-        booking.student_id = student_id
-        booking.instructor_id = instructor_id
-        mock_repository.get_booking_with_details.return_value = booking
+        # DB-level participant filter returns None for non-participant
+        mock_repository.get_booking_for_participant.return_value = None
 
         other_user = MagicMock(spec=User)
         other_user.id = other_user_id
@@ -1641,7 +1636,7 @@ class TestGetBookingForUserCoverage:
         booking.id = booking_id
         booking.student_id = student_id
         booking.instructor_id = generate_ulid()
-        mock_repository.get_booking_with_details.return_value = booking
+        mock_repository.get_booking_for_participant.return_value = booking
 
         student = MagicMock(spec=User)
         student.id = student_id
@@ -1660,7 +1655,7 @@ class TestGetBookingForUserCoverage:
         booking.id = booking_id
         booking.student_id = generate_ulid()
         booking.instructor_id = instructor_id
-        mock_repository.get_booking_with_details.return_value = booking
+        mock_repository.get_booking_for_participant.return_value = booking
 
         instructor = MagicMock(spec=User)
         instructor.id = instructor_id

@@ -1148,6 +1148,50 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.logger.error(f"Error getting booking details: {str(e)}")
             raise RepositoryException(f"Failed to get booking details: {str(e)}")
 
+    def get_booking_for_participant(self, booking_id: str, user_id: str) -> Optional[Booking]:
+        """
+        Get booking only if user is student or instructor on it.
+
+        Defense-in-depth: filters by participant at the DB level rather than
+        fetching first and checking ownership in the service layer.
+
+        Args:
+            booking_id: The booking ID
+            user_id: The requesting user's ID
+
+        Returns:
+            The booking with all relationships if user is a participant, None otherwise
+        """
+        try:
+            booking: Booking | None = (
+                self.db.query(Booking)
+                .options(
+                    joinedload(Booking.student),
+                    joinedload(Booking.instructor),
+                    joinedload(Booking.instructor_service),
+                    joinedload(Booking.rescheduled_from),
+                    joinedload(Booking.cancelled_by),
+                    selectinload(Booking.payment_detail),
+                    selectinload(Booking.no_show_detail),
+                    selectinload(Booking.lock_detail),
+                    selectinload(Booking.reschedule_detail),
+                    selectinload(Booking.dispute),
+                    selectinload(Booking.transfer),
+                )
+                .filter(
+                    Booking.id == booking_id,
+                    or_(
+                        Booking.student_id == user_id,
+                        Booking.instructor_id == user_id,
+                    ),
+                )
+                .first()
+            )
+            return booking
+        except Exception as e:
+            self.logger.error(f"Error getting booking for participant: {str(e)}")
+            raise RepositoryException(f"Failed to get booking for participant: {str(e)}")
+
     def get_by_id_for_update(
         self,
         booking_id: str,

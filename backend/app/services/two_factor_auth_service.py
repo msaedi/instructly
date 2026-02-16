@@ -1,5 +1,5 @@
 import base64
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import io
 import logging
@@ -145,6 +145,19 @@ class TwoFactorAuthService(BaseService):
 
     @BaseService.measure_operation("tfa_setup_verify")
     def setup_verify(self, user: User, code: str) -> list[str]:
+        # TTL check — reject if setup was never initiated or initiated >15 minutes ago
+        if user.two_factor_setup_at is None:
+            raise ValueError("2FA setup not initiated. Please start setup first.")
+
+        setup_age = datetime.now(timezone.utc) - user.two_factor_setup_at
+        if setup_age > timedelta(minutes=15):
+            # Clear dangling secret to prevent future brute-force attempts
+            with self.transaction():
+                user.totp_secret = None
+                user.totp_enabled = False
+                user.two_factor_setup_at = None
+            raise ValueError("2FA setup expired. Please initiate setup again.")
+
         if not self.verify_totp_code(user, code):
             raise ValueError("Invalid TOTP code")
         backup_codes_plain = self.generate_backup_codes()

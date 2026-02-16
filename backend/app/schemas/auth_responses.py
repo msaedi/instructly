@@ -38,7 +38,14 @@ class AuthUserWithPermissionsResponse(AuthUserResponse):
     beta_invited_by: Optional[str] = None
 
 
+class RegisterResponse(StrictModel):
+    """Generic registration response that prevents email enumeration."""
+
+    message: str
+
+
 __all__ = [
     "AuthUserResponse",
     "AuthUserWithPermissionsResponse",
+    "RegisterResponse",
 ]

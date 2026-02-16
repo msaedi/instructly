@@ -174,7 +174,7 @@ class TestBetaRoutes:
                 "metadata": {"invite_code": code},
             },
         )
-        assert res_register.status_code == 201
+        assert res_register.status_code == 200
         header_value = res_register.headers.get("set-cookie", "")
         assert "iv_local=" in header_value
         lowered_header = header_value.lower()

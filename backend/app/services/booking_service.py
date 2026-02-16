@@ -3497,6 +3497,9 @@ class BookingService(BaseService):
         """
         Get a booking if the user has access to it.
 
+        Defense-in-depth: filters by participant at the DB query level
+        rather than fetching first and checking ownership afterward.
+
         Args:
             booking_id: ID of the booking
             user: User requesting the booking
@@ -3504,12 +3507,7 @@ class BookingService(BaseService):
         Returns:
             Booking if user has access, None otherwise
         """
-        booking = self.repository.get_booking_with_details(booking_id)
-
-        if booking and user.id in [booking.student_id, booking.instructor_id]:
-            return booking
-
-        return None
+        return self.repository.get_booking_for_participant(booking_id, user.id)
 
     @BaseService.measure_operation("update_booking")
     def update_booking(self, booking_id: str, user: User, update_data: BookingUpdate) -> Booking:

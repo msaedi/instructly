@@ -7,7 +7,6 @@ from fastapi.security import OAuth2PasswordRequestForm
 import pytest
 
 from app.auth import get_password_hash
-from app.core.exceptions import ConflictException
 from app.routes.v1 import auth as auth_routes
 from app.schemas.security import PasswordChangeRequest
 
@@ -585,7 +584,7 @@ async def test_register_guest_conversion_error_and_invite_warning(monkeypatch, d
         _DummyRequest(), response, payload, auth_service, db, cache_service=_StubCache()
     )
 
-    assert result.email == "user@example.com"
+    assert "check your email" in result.message.lower()
 
 
 @pytest.mark.asyncio
@@ -624,11 +623,12 @@ async def test_register_invite_exception_is_logged(monkeypatch, db):
     result = await auth_routes.register(
         _DummyRequest(), response, payload, auth_service, db, cache_service=_StubCache()
     )
-    assert result.email == "user@example.com"
+    assert "check your email" in result.message.lower()
 
 
 @pytest.mark.asyncio
-async def test_register_conflict_and_unexpected_errors(db):
+async def test_register_existing_email_returns_generic_response(db):
+    """Registration with existing email (service returns None) gives same response as new email."""
     payload = auth_routes.UserCreate(
         email="user@example.com",
         password="Strong123",
@@ -639,12 +639,26 @@ async def test_register_conflict_and_unexpected_errors(db):
     )
     response = Response()
 
-    conflict_service = _StubRegisterService(exc=ConflictException("dup"))
-    with pytest.raises(HTTPException) as exc:
-        await auth_routes.register(
-            _DummyRequest(), response, payload, conflict_service, db, cache_service=_StubCache()
-        )
-    assert exc.value.status_code == 409
+    # Service returns None for existing email — route must return generic 200
+    none_service = _StubRegisterService(user=None)
+    result = await auth_routes.register(
+        _DummyRequest(), response, payload, none_service, db, cache_service=_StubCache()
+    )
+    assert "check your email" in result.message.lower()
+    assert "already" not in result.message.lower()
+
+
+@pytest.mark.asyncio
+async def test_register_unexpected_error(db):
+    payload = auth_routes.UserCreate(
+        email="user@example.com",
+        password="Strong123",
+        first_name="First",
+        last_name="Last",
+        zip_code="10001",
+        role="student",
+    )
+    response = Response()
 
     error_service = _StubRegisterService(exc=RuntimeError("boom"))
     with pytest.raises(HTTPException) as exc:
@@ -1310,7 +1324,7 @@ async def test_register_sends_welcome_email_and_sets_cache_flag(monkeypatch, db)
         _DummyRequest(), response, payload, auth_service, db, cache_service=cache
     )
 
-    assert result.email == "new@example.com"
+    assert "check your email" in result.message.lower()
     assert len(welcome_calls) == 1
     assert welcome_calls[0]["role"] == "instructor"
     assert cache._store.get(f"recently_registered:{user.id}") is True
@@ -1358,7 +1372,7 @@ async def test_register_welcome_email_failure_does_not_block(monkeypatch, db):
     )
 
     # Registration still succeeds even though welcome email failed
-    assert result.email == "fail@example.com"
+    assert "check your email" in result.message.lower()
     # Cache flag should still be set (separate try-block)
     assert cache._store.get(f"recently_registered:{user.id}") is True
 

@@ -117,19 +117,9 @@ def test_submit_review_confirmed_same_day_before_end_blocks(db, test_booking, mo
         )
 
 
-def test_submit_review_confirmed_after_end_allows_and_notifies(db, test_booking, monkeypatch):
-    tz = pytz.timezone("America/New_York")
-    fake_now = tz.localize(datetime.combine(date.today(), time(18, 0)))
-    monkeypatch.setattr(
-        "app.core.timezone_utils.get_user_now_by_id",
-        lambda user_id, db_session: fake_now,
-    )
-
-    test_booking.status = BookingStatus.CONFIRMED
-    test_booking.completed_at = None
-    test_booking.booking_date = date.today()
-    test_booking.end_time = time(10, 0)
-    db.flush()
+def test_submit_review_completed_booking_allows_and_notifies(db, test_booking, monkeypatch):
+    """Completed bookings can be reviewed — notifies instructor and invalidates cache."""
+    _complete_booking(db, test_booking)
 
     cache = DummyCache()
     notifier = MagicMock()
@@ -148,15 +138,13 @@ def test_submit_review_confirmed_after_end_allows_and_notifies(db, test_booking,
 
 
 def test_submit_review_falls_back_when_user_time_lookup_fails(db, test_booking, monkeypatch):
+    """Completed booking with a failing timezone lookup still allows review via UTC fallback."""
     def _raise(*args, **kwargs):
         raise RuntimeError("tz lookup failed")
 
     monkeypatch.setattr("app.core.timezone_utils.get_user_now_by_id", _raise)
 
-    test_booking.status = BookingStatus.CONFIRMED
-    test_booking.completed_at = None
-    test_booking.booking_date = date.today() - timedelta(days=1)
-    db.flush()
+    _complete_booking(db, test_booking)
 
     service = ReviewService(db)
     review = service.submit_review(

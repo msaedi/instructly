@@ -128,6 +128,7 @@ def test_setup_verify_invalid_code_raises(db, user):
     service = TwoFactorAuthService(db)
     secret = service.generate_totp_secret()
     user.totp_secret = service._encrypt(secret)
+    user.two_factor_setup_at = datetime.now(timezone.utc)
     with pytest.raises(ValueError, match="Invalid TOTP code"):
         service.setup_verify(user, "000000")
 
@@ -136,6 +137,7 @@ def test_setup_verify_sets_backup_codes(db, user):
     service = TwoFactorAuthService(db)
     secret = service.generate_totp_secret()
     user.totp_secret = service._encrypt(secret)
+    user.two_factor_setup_at = datetime.now(timezone.utc)
 
     code = pyotp.TOTP(secret).now()
     backup_codes = service.setup_verify(user, code)

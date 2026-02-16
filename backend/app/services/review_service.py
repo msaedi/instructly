@@ -162,17 +162,14 @@ class ReviewService(BaseService):
                 "This booking was marked as a no-show."
             )
 
-        if booking.status not in [BookingStatus.COMPLETED, BookingStatus.CONFIRMED]:
-            raise ValidationException("Only completed bookings can be reviewed")
+        if booking.status != BookingStatus.COMPLETED:
+            raise ValidationException("You can only review completed lessons")
 
         # Determine effective completion time to anchor review window
         effective_completed_at_utc: Optional[datetime] = booking.completed_at
 
-        # If completion timestamp is missing, derive it from scheduled end for CONFIRMED/COMPLETED
-        if effective_completed_at_utc is None and booking.status in [
-            BookingStatus.CONFIRMED,
-            BookingStatus.COMPLETED,
-        ]:
+        # If completion timestamp is missing, derive it from scheduled end as safety net
+        if effective_completed_at_utc is None and booking.status == BookingStatus.COMPLETED:
             from ..core.timezone_utils import get_user_now_by_id
 
             # Get user's current time with safe fallback to UTC
@@ -182,19 +179,6 @@ class ReviewService(BaseService):
                 user_now = datetime.now(timezone.utc)
 
             user_tz = user_now.tzinfo
-            today = user_now.date()
-            now_time = user_now.time()
-
-            # For CONFIRMED (not explicitly completed), block submission until after scheduled end time
-            if booking.status == BookingStatus.CONFIRMED:
-                if booking.booking_date > today:
-                    raise ValidationException("You can submit a review after the lesson ends")
-                if (
-                    booking.booking_date == today
-                    and booking.end_time
-                    and now_time < booking.end_time
-                ):
-                    raise ValidationException("You can submit a review after the lesson ends")
 
             # Compute the scheduled end datetime in user's timezone, then convert to UTC
             if booking.end_time is not None:

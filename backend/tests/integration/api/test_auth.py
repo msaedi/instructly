@@ -69,13 +69,9 @@ class TestAuth:
             },
         )
 
-        assert response.status_code == 201
+        assert response.status_code == 200
         data = response.json()
-        assert data["email"] == "newuser@example.com"
-        assert data["first_name"] == "New"
-        assert data["last_name"] == "User"
-        assert data["roles"] == ["student"]
-        assert "id" in data
+        assert "check your email" in data["message"].lower()
 
         # Verify user in database
         user = db.query(User).filter(User.email == "newuser@example.com").first()
@@ -124,15 +120,11 @@ class TestAuth:
             },
         )
 
-        assert response.status_code in (400, 409, 422), f"Expected 400/409/422, got {response.status_code}: {response.json()}"
-        response_data = response.json()
-        # Handle both dict and list response formats
-        if isinstance(response_data, dict):
-            detail = str(response_data.get("detail", "")).lower()
-        else:
-            detail = str(response_data).lower()
-        assert any(keyword in detail for keyword in ["duplicate", "already", "exists", "registered"]), \
-            f"Expected duplicate error message, got: {detail}"
+        # Anti-enumeration: duplicate email returns same generic 200 as new registration
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.json()}"
+        data = response.json()
+        assert "check your email" in data["message"].lower()
+        assert "already" not in data["message"].lower()
 
     def test_login_success(self, db: Session, client: TestClient, test_student: User, test_password: str):
         """Test successful login."""

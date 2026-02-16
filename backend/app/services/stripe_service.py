@@ -3379,7 +3379,7 @@ class StripeService(BaseService):
         Delete a payment method.
 
         Uses 3-phase pattern to avoid holding DB locks during Stripe calls:
-        - Phase 1: (none needed - no pre-read required)
+        - Phase 1: Ownership verification (BEFORE Stripe call)
         - Phase 2: Stripe detach (NO transaction)
         - Phase 3: Delete from database (quick transaction)
 
@@ -3394,6 +3394,17 @@ class StripeService(BaseService):
             ServiceException: If deletion fails
         """
         try:
+            # ========== PHASE 1: Ownership verification (BEFORE Stripe) ==========
+            # For Stripe pm_ IDs, we MUST verify ownership before calling
+            # stripe.PaymentMethod.detach to prevent attackers from detaching
+            # payment methods they don't own (AUTHZ-VULN-02).
+            if payment_method_id.startswith("pm_"):
+                existing = self.payment_repository.get_payment_method_by_stripe_id(
+                    payment_method_id, user_id
+                )
+                if not existing:
+                    return False  # Not owned by this user — abort before Stripe call
+
             # ========== PHASE 2: Stripe detach (NO transaction) ==========
             # Try to detach from Stripe if it's a Stripe payment method ID
             if payment_method_id.startswith("pm_"):
@@ -3406,7 +3417,6 @@ class StripeService(BaseService):
 
             # ========== PHASE 3: Delete from database (quick transaction) ==========
             with self.transaction():
-                # Delete from database (handles both database ID and Stripe ID)
                 success = self.payment_repository.delete_payment_method(payment_method_id, user_id)
 
             if success:

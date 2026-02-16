@@ -1422,3 +1422,80 @@ class TestVoidOrRefundAdditionalPaths:
             side_effect=stripe.StripeError("boom"),
         ):
             StripeService._void_or_refund_payment(service, "pi_error")
+
+
+class TestDeletePaymentMethodOwnership:
+    """AUTHZ-VULN-02: Verify ownership is checked BEFORE Stripe detach."""
+
+    def test_stripe_id_not_owned_skips_detach(self):
+        """Deleting a pm_ ID not owned by the user must NOT call Stripe detach."""
+        service = _make_service()
+        service.payment_repository.get_payment_method_by_stripe_id.return_value = None
+
+        with patch.object(
+            stripe_service.stripe.PaymentMethod, "detach"
+        ) as detach_mock:
+            result = StripeService.delete_payment_method(
+                service, "pm_not_mine", "user_attacker"
+            )
+
+        assert result is False
+        detach_mock.assert_not_called()
+        service.payment_repository.get_payment_method_by_stripe_id.assert_called_once_with(
+            "pm_not_mine", "user_attacker"
+        )
+
+    def test_db_id_not_owned_returns_false(self):
+        """Deleting a DB ID not owned by the user returns False via repo filter."""
+        service = _make_service()
+        # Non-pm_ IDs don't trigger Stripe detach, so the repo delete
+        # handles ownership (filtering by user_id). No pre-check needed.
+        service.payment_repository.delete_payment_method.return_value = False
+
+        result = StripeService.delete_payment_method(
+            service, "01ABCDEFGHIJKLMNOPQRSTUV", "user_attacker"
+        )
+
+        assert result is False
+        service.payment_repository.delete_payment_method.assert_called_once_with(
+            "01ABCDEFGHIJKLMNOPQRSTUV", "user_attacker"
+        )
+
+    def test_stripe_id_owned_calls_detach_and_deletes(self):
+        """Owned pm_ ID: ownership passes, Stripe detach called, DB delete called."""
+        service = _make_service()
+        existing = SimpleNamespace(id="pm_db_id", stripe_payment_method_id="pm_owned")
+        service.payment_repository.get_payment_method_by_stripe_id.return_value = existing
+        service.payment_repository.delete_payment_method.return_value = True
+
+        with patch.object(
+            stripe_service.stripe.PaymentMethod, "detach"
+        ) as detach_mock:
+            result = StripeService.delete_payment_method(
+                service, "pm_owned", "user_legit"
+            )
+
+        assert result is True
+        detach_mock.assert_called_once_with("pm_owned")
+        service.payment_repository.delete_payment_method.assert_called_once_with(
+            "pm_owned", "user_legit"
+        )
+
+    def test_stripe_detach_error_still_deletes_from_db(self):
+        """If Stripe detach fails, DB deletion should still proceed."""
+        service = _make_service()
+        existing = SimpleNamespace(id="pm_db_id", stripe_payment_method_id="pm_detach_fail")
+        service.payment_repository.get_payment_method_by_stripe_id.return_value = existing
+        service.payment_repository.delete_payment_method.return_value = True
+
+        with patch.object(
+            stripe_service.stripe.PaymentMethod,
+            "detach",
+            side_effect=stripe.StripeError("already detached"),
+        ):
+            result = StripeService.delete_payment_method(
+                service, "pm_detach_fail", "user_legit"
+            )
+
+        assert result is True
+        service.payment_repository.delete_payment_method.assert_called_once()

@@ -1,5 +1,6 @@
 import io
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 from PIL import Image
 import pytest
@@ -332,9 +333,9 @@ def test_get_profile_picture_view_errors(monkeypatch):
         def get_by_id(self, *args, **kwargs):
             return None
 
-    service = PersonalAssetService(db=None, users_repo=DummyUsers())
+    service = PersonalAssetService(db=MagicMock(), users_repo=DummyUsers())
 
-    monkeypatch.setattr(module, "with_db_retry", lambda name, fn: fn())
+    monkeypatch.setattr(module, "with_db_retry", lambda name, fn, **kw: fn())
     with pytest.raises(ValueError, match="No profile picture"):
         service.get_profile_picture_view("user5")
 
@@ -346,9 +347,9 @@ def test_get_profile_picture_view_missing_presigned(monkeypatch):
         def get_by_id(self, *args, **kwargs):
             return SimpleNamespace(id="user6", profile_picture_version=2)
 
-    service = PersonalAssetService(db=None, users_repo=DummyUsers())
+    service = PersonalAssetService(db=MagicMock(), users_repo=DummyUsers())
 
-    monkeypatch.setattr(module, "with_db_retry", lambda name, fn: fn())
+    monkeypatch.setattr(module, "with_db_retry", lambda name, fn, **kw: fn())
     monkeypatch.setattr(service, "_get_presigned_view_for_user", lambda *args, **kwargs: None)
     with pytest.raises(ValueError, match="No profile picture"):
         service.get_profile_picture_view("user6")
@@ -361,9 +362,9 @@ def test_get_profile_picture_urls_batch_normalizes(monkeypatch):
         def get_profile_picture_versions(self, user_ids):
             return {"user7": 2}
 
-    service = PersonalAssetService(db=None, users_repo=DummyUsers())
+    service = PersonalAssetService(db=MagicMock(), users_repo=DummyUsers())
 
-    monkeypatch.setattr(module, "with_db_retry", lambda name, fn: fn())
+    monkeypatch.setattr(module, "with_db_retry", lambda name, fn, **kw: fn())
     monkeypatch.setattr(
         service,
         "_get_presigned_view_for_user",

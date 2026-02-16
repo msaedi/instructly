@@ -222,14 +222,21 @@ class TestAuthWithGuestSession:
             },
         )
 
-        assert response.status_code == 201
-        user_data = response.json()
+        # Anti-enumeration: registration always returns generic 200
+        assert response.status_code == 200
+        assert "check your email" in response.json()["message"].lower()
+
+        # Look up the newly created user by email to verify guest conversion
+        from app.models.user import User as UserModel
+
+        new_user = db.query(UserModel).filter_by(email="newuser@example.com").first()
+        assert new_user is not None
 
         # Verify searches were converted
         guest_searches = db.query(SearchHistory).filter_by(guest_session_id=guest_session_id).all()
         for search in guest_searches:
             db.refresh(search)
-            assert search.converted_to_user_id == user_data["id"]
+            assert search.converted_to_user_id == new_user.id
             assert search.converted_at is not None
 
     def test_regular_login_still_works(self, client: TestClient, db: Session):

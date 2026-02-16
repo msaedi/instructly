@@ -6277,22 +6277,6 @@ export type components = {
  [key: string]: number;
  };
  };
- AuthUserResponse: {
- email: string;
- first_name: string;
- founding_instructor_granted?: boolean | null;
- has_profile_picture: boolean | null;
- id: string;
- is_active: boolean;
- last_name: string;
- permissions?: string[];
- phone?: string | null;
- phone_verified: boolean | null;
- profile_picture_version: number | null;
- roles?: string[];
- timezone?: string | null;
- zip_code?: string | null;
- };
  AuthUserWithPermissionsResponse: {
  beta_access?: boolean | null;
  beta_invited_by?: string | null;
@@ -9521,6 +9505,9 @@ export type components = {
  method: string;
  status: string;
  stripe_refund_id: string | null;
+ };
+ RegisterResponse: {
+ message: string;
  };
  RenderedContent: {
  body: string;
@@ -14623,12 +14610,12 @@ export interface operations {
  };
  };
  responses: {
- 201: {
+ 200: {
  headers: {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["AuthUserResponse"];
+ "application/json": components["schemas"]["RegisterResponse"];
  };
  };
  422: {

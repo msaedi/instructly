@@ -38,10 +38,10 @@ export interface User {
   credits_balance?: number;
   profile_picture_version?: number;
   has_profile_picture?: boolean;
-  beta_access?: boolean;
-  beta_invited_by?: string;
-  beta_phase?: string;
-  beta_role?: string;
+  beta_access?: boolean | null;
+  beta_invited_by?: string | null;
+  beta_phase?: string | null;
+  beta_role?: string | null;
 }
 
 interface AuthContextType {

@@ -150,6 +150,46 @@ def test_setup_verify_invalidates_all_tokens(db, test_student, monkeypatch):
     assert triggers == ["2fa_change"]
 
 
+def test_setup_verify_expired_ttl(db, test_student, monkeypatch):
+    """Route returns 400 when 2FA setup has expired (>15 minutes)."""
+    auth_service = _AuthService(test_student)
+
+    class _ExpiredTFAService(_TFAService):
+        def setup_verify(self, _user, _code):
+            raise ValueError("2FA setup expired. Please initiate setup again.")
+
+    with pytest.raises(HTTPException) as exc:
+        routes.setup_verify(
+            TFASetupVerifyRequest(code="123456"),
+            Response(),
+            _make_request(),
+            current_user=test_student.email,
+            auth_service=auth_service,
+            tfa_service=_ExpiredTFAService(db),
+        )
+    assert exc.value.status_code == 400
+
+
+def test_setup_verify_not_initiated(db, test_student, monkeypatch):
+    """Route returns 400 when 2FA setup was never initiated."""
+    auth_service = _AuthService(test_student)
+
+    class _NotInitiatedTFAService(_TFAService):
+        def setup_verify(self, _user, _code):
+            raise ValueError("2FA setup not initiated. Please start setup first.")
+
+    with pytest.raises(HTTPException) as exc:
+        routes.setup_verify(
+            TFASetupVerifyRequest(code="123456"),
+            Response(),
+            _make_request(),
+            current_user=test_student.email,
+            auth_service=auth_service,
+            tfa_service=_NotInitiatedTFAService(db),
+        )
+    assert exc.value.status_code == 400
+
+
 def test_disable_success_and_failure(db, test_student, monkeypatch):
     auth_service = _AuthService(test_student)
 

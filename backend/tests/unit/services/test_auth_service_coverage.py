@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.auth import DUMMY_HASH_FOR_TIMING_ATTACK
 from app.core.enums import RoleName
-from app.core.exceptions import ConflictException, NotFoundException, ValidationException
+from app.core.exceptions import NotFoundException, ValidationException
 import app.services.auth_service as auth_module
 from app.services.auth_service import AuthService
 
@@ -196,17 +196,19 @@ class TestAuthServiceCoverage:
             is_active=True,
         )
 
-    def test_register_user_existing_email_raises_validation(self, service, monkeypatch):
+    def test_register_user_existing_email_returns_none(self, service, monkeypatch):
         service.user_repository.find_one_by.return_value = SimpleNamespace(id="existing")
+        monkeypatch.setattr(auth_module, "get_password_hash", lambda pw: "hashed")
 
-        with pytest.raises(ValidationException):
-            service.register_user(
-                email="exists@example.com",
-                password="pw",
-                first_name="A",
-                last_name="B",
-                zip_code="10001",
-            )
+        result = service.register_user(
+            email="exists@example.com",
+            password="pw",
+            first_name="A",
+            last_name="B",
+            zip_code="10001",
+        )
+
+        assert result is None
 
     def test_register_user_student_skips_instructor_setup(
         self, service, mock_user_repo, mock_instructor_repo, mock_service_area_repo, monkeypatch
@@ -319,8 +321,9 @@ class TestAuthServiceCoverage:
         assert result is user
         mock_service_area_repo.upsert_area.assert_called_once()
 
-    def test_register_user_integrity_error_raises_conflict(self, service, monkeypatch):
+    def test_register_user_integrity_error_returns_none(self, service, monkeypatch):
         service.user_repository.find_one_by.return_value = None
+        monkeypatch.setattr(auth_module, "get_password_hash", lambda pw: "hashed")
 
         @contextmanager
         def _raise_integrity():
@@ -329,14 +332,15 @@ class TestAuthServiceCoverage:
 
         monkeypatch.setattr(service, "transaction", _raise_integrity)
 
-        with pytest.raises(ConflictException):
-            service.register_user(
-                email="conflict@example.com",
-                password="pw",
-                first_name="A",
-                last_name="B",
-                zip_code="10001",
-            )
+        result = service.register_user(
+            email="conflict@example.com",
+            password="pw",
+            first_name="A",
+            last_name="B",
+            zip_code="10001",
+        )
+
+        assert result is None
 
     def test_register_user_unexpected_error_raises_validation(self, service, monkeypatch):
         service.user_repository.find_one_by.return_value = None
