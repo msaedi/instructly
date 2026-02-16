@@ -3227,7 +3227,7 @@ class TestStripeService:
             save_payment_method=False,
         )
 
-        with pytest.raises(ServiceException, match="only pay for your own bookings"):
+        with pytest.raises(ServiceException, match="Booking not found"):
             stripe_service.create_booking_checkout(
                 current_user=other_user,
                 payload=payload,

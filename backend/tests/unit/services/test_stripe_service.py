@@ -1069,7 +1069,7 @@ class TestBookingCheckoutAndProcessing:
             student_id="student_1",
             status="PENDING",
         )
-        service.booking_repository.get_by_id.return_value = booking
+        service.booking_repository.get_booking_for_student.return_value = booking
         service.booking_repository.get_by_id_for_update.return_value = None
         service.payment_repository.get_payment_by_booking_id.return_value = None
         service.process_booking_payment = MagicMock(
@@ -1112,7 +1112,7 @@ class TestBookingCheckoutAndProcessing:
             student_id="student_2",
             status=BookingStatus.CANCELLED.value,
         )
-        service.booking_repository.get_by_id.return_value = booking
+        service.booking_repository.get_booking_for_student.return_value = booking
         service.booking_repository.get_by_id_for_update.return_value = cancelled
         service.payment_repository.get_payment_by_booking_id.return_value = None
         service.process_booking_payment = MagicMock(
@@ -1156,7 +1156,7 @@ class TestBookingCheckoutAndProcessing:
             instructor_id="inst_3",
         )
         bp_mock = MagicMock()
-        service.booking_repository.get_by_id.return_value = booking
+        service.booking_repository.get_booking_for_student.return_value = booking
         service.booking_repository.get_by_id_for_update.return_value = booking
         service.booking_repository.ensure_payment.return_value = bp_mock
         service.payment_repository.get_payment_by_booking_id.return_value = None

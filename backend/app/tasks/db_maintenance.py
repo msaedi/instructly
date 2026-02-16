@@ -4,8 +4,10 @@ Periodic database maintenance tasks.
 
 Keeps query-planner statistics fresh on high-churn tables so the
 optimizer chooses the right indexes (especially partial indexes).
+Also handles stale data cleanup (e.g. abandoned 2FA setup secrets).
 """
 
+from datetime import datetime, timedelta, timezone
 import logging
 
 from celery import shared_task
@@ -30,3 +32,27 @@ def analyze_high_churn_tables() -> None:
                 logger.info("[DB-MAINT] ANALYZE %s completed", table)
             except Exception:
                 logger.warning("[DB-MAINT] ANALYZE %s failed", table, exc_info=True)
+
+
+@shared_task(name="db_maintenance.cleanup_stale_2fa_setups", ignore_result=True)
+def cleanup_stale_2fa_setups() -> None:
+    """Purge 2FA secrets from abandoned setup flows (>1 hour old, not yet enabled)."""
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=1)
+    with get_db_session() as db:
+        try:
+            result = db.execute(  # repo-pattern-ignore: bulk maintenance SQL
+                text(
+                    "UPDATE users "
+                    "SET totp_secret = NULL, two_factor_setup_at = NULL "
+                    "WHERE totp_enabled = false "
+                    "AND totp_secret IS NOT NULL "
+                    "AND two_factor_setup_at < :cutoff"
+                ),
+                {"cutoff": cutoff},
+            )
+            db.commit()
+            count = result.rowcount
+            if count:
+                logger.info("[DB-MAINT] Cleared %d stale 2FA setups", count)
+        except Exception:
+            logger.warning("[DB-MAINT] cleanup_stale_2fa_setups failed", exc_info=True)

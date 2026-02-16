@@ -588,7 +588,8 @@ def test_instructor_mark_complete_category_attribute_error(
         instructor_id=instructor.id,
         instructor_service=SimpleNamespace(catalog_entry=None),
     )
-    mock_repository.get_by_id.side_effect = [booking, booking]
+    mock_repository.get_booking_for_instructor.return_value = booking
+    mock_repository.get_by_id.return_value = booking  # post-commit reload
 
     fixed_now = datetime(2030, 1, 1, 12, 0, tzinfo=timezone.utc)
     _freeze_time(monkeypatch, fixed_now)
@@ -612,7 +613,8 @@ def test_instructor_mark_complete_refresh_missing(
 ) -> None:
     instructor = make_user(RoleName.INSTRUCTOR)
     booking = make_booking(status=BookingStatus.CONFIRMED, instructor_id=instructor.id)
-    mock_repository.get_by_id.side_effect = [booking, None]
+    mock_repository.get_booking_for_instructor.return_value = booking
+    mock_repository.get_by_id.return_value = None  # post-commit reload returns None
     booking_service._get_booking_end_utc = Mock(
         return_value=datetime.now(timezone.utc) - timedelta(hours=1)
     )
@@ -634,7 +636,7 @@ def test_instructor_dispute_completion_not_found(
     booking_service: BookingService, mock_repository: MagicMock
 ) -> None:
     instructor = make_user(RoleName.INSTRUCTOR)
-    mock_repository.get_by_id.return_value = None
+    mock_repository.get_booking_for_instructor.return_value = None
 
     with pytest.raises(NotFoundException):
         booking_service.instructor_dispute_completion(booking_id=generate_ulid(), instructor=instructor, reason="x")
@@ -643,12 +645,12 @@ def test_instructor_dispute_completion_not_found(
 def test_instructor_dispute_completion_wrong_instructor(
     booking_service: BookingService, mock_repository: MagicMock
 ) -> None:
+    """Non-participant gets NotFoundException (DB-level filter returns None)."""
     instructor = make_user(RoleName.INSTRUCTOR)
-    booking = make_booking(instructor_id=generate_ulid())
-    mock_repository.get_by_id.return_value = booking
+    mock_repository.get_booking_for_instructor.return_value = None
 
-    with pytest.raises(ValidationException):
-        booking_service.instructor_dispute_completion(booking.id, instructor, reason="x")
+    with pytest.raises(NotFoundException):
+        booking_service.instructor_dispute_completion(generate_ulid(), instructor, reason="x")
 
 
 def test_instructor_dispute_completion_refresh_missing(
@@ -656,7 +658,8 @@ def test_instructor_dispute_completion_refresh_missing(
 ) -> None:
     instructor = make_user(RoleName.INSTRUCTOR)
     booking = make_booking(instructor_id=instructor.id)
-    mock_repository.get_by_id.side_effect = [booking, None]
+    mock_repository.get_booking_for_instructor.return_value = booking
+    mock_repository.get_by_id.return_value = None  # post-commit reload
 
     with patch("app.repositories.payment_repository.PaymentRepository") as payment_repo:
         payment_repo.return_value.create_payment_event = Mock()

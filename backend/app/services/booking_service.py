@@ -1267,12 +1267,9 @@ class BookingService(BaseService):
 
         self.log_operation("confirm_booking_payment", booking_id=booking_id, student_id=student.id)
 
-        # Get booking and validate ownership
-        booking = self.repository.get_by_id(booking_id)
+        # Defense-in-depth: filter by student at DB level (AUTHZ-VULN-01)
+        booking = self.repository.get_booking_for_student(booking_id, student.id)
         if not booking:
-            raise NotFoundException(f"Booking {booking_id} not found")
-
-        if booking.student_id != student.id:
             raise NotFoundException("Booking not found")
 
         if booking.status != BookingStatus.PENDING:
@@ -1720,12 +1717,10 @@ class BookingService(BaseService):
 
         # ========== PHASE 1: Read/validate (quick transaction) ==========
         with self.transaction():
-            booking = self.repository.get_by_id_for_update(booking_id)
+            # Defense-in-depth: filter by participant at DB level (AUTHZ-VULN-01)
+            booking = self.repository.get_booking_for_participant_for_update(booking_id, user.id)
             if not booking:
                 raise NotFoundException("Booking not found")
-
-            if user.id not in [booking.student_id, booking.instructor_id]:
-                raise ValidationException("You don't have permission to cancel this booking")
 
             if booking.status == BookingStatus.CANCELLED:
                 return booking
@@ -3716,12 +3711,10 @@ class BookingService(BaseService):
         payment_repo = PaymentRepository(self.db)
 
         with self.transaction():
-            booking = self.repository.get_by_id(booking_id)
+            # Defense-in-depth: filter by instructor at DB level (AUTHZ-VULN-01)
+            booking = self.repository.get_booking_for_instructor(booking_id, instructor.id)
             if not booking:
                 raise NotFoundException("Booking not found")
-
-            if booking.instructor_id != instructor.id:
-                raise ValidationException("You can only mark your own lessons as complete")
 
             if booking.status != BookingStatus.CONFIRMED:
                 raise BusinessRuleException(
@@ -3832,12 +3825,10 @@ class BookingService(BaseService):
         payment_repo = PaymentRepository(self.db)
 
         with self.transaction():
-            booking = self.repository.get_by_id(booking_id)
+            # Defense-in-depth: filter by instructor at DB level (AUTHZ-VULN-01)
+            booking = self.repository.get_booking_for_instructor(booking_id, instructor.id)
             if not booking:
                 raise NotFoundException("Booking not found")
-
-            if booking.instructor_id != instructor.id:
-                raise ValidationException("You can only dispute your own lessons")
 
             # Record dispute event
             payment_repo.create_payment_event(
@@ -5522,21 +5513,10 @@ class BookingService(BaseService):
         from ..schemas.pricing_preview import PricingPreviewData
         from ..services.pricing_service import PricingService
 
-        booking = self.repository.get_by_id(booking_id)
+        # Defense-in-depth: filter by participant at DB level (AUTHZ-VULN-01)
+        booking = self.repository.get_booking_for_participant(booking_id, current_user_id)
         if not booking:
             return None
-
-        # Access control
-        allowed_participants = {booking.student_id, booking.instructor_id}
-        if current_user_id not in allowed_participants:
-            logger.warning(
-                "pricing_preview.forbidden",
-                extra={
-                    "booking_id": booking_id,
-                    "requested_by": current_user_id,
-                },
-            )
-            return {"error": "access_denied"}
 
         pricing_service = PricingService(self.db)
         pricing_data: PricingPreviewData = pricing_service.compute_booking_pricing(

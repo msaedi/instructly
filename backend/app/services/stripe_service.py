@@ -464,11 +464,12 @@ class StripeService(BaseService):
         if not current_user.is_student:
             raise ServiceException("Only students can pay for bookings", code="forbidden")
 
-        booking = self.booking_repository.get_by_id(payload.booking_id)
+        # Defense-in-depth: filter by student at DB level (AUTHZ-VULN-01)
+        booking = self.booking_repository.get_booking_for_student(
+            payload.booking_id, current_user.id
+        )
         if not booking:
             raise ServiceException("Booking not found", code="not_found")
-        if booking.student_id != current_user.id:
-            raise ServiceException("You can only pay for your own bookings", code="forbidden")
         if booking.status not in ["CONFIRMED", "PENDING"]:
             raise ServiceException(
                 f"Cannot process payment for booking with status: {booking.status}",

@@ -642,25 +642,27 @@ def test_invalidate_booking_cache_object(booking_service: BookingService) -> Non
 
 
 def test_get_booking_pricing_preview_missing_booking(booking_service: BookingService) -> None:
-    booking_service.repository.get_by_id.return_value = None
+    booking_service.repository.get_booking_for_participant.return_value = None
 
     assert (
         booking_service.get_booking_pricing_preview(generate_ulid(), generate_ulid()) is None
     )
 
 
-def test_get_booking_pricing_preview_access_denied(booking_service: BookingService) -> None:
-    booking = make_booking(student_id="student", instructor_id="instructor")
-    booking_service.repository.get_by_id.return_value = booking
+def test_get_booking_pricing_preview_non_participant_returns_none(
+    booking_service: BookingService,
+) -> None:
+    """Non-participant gets None (DB-level filter returns None)."""
+    booking_service.repository.get_booking_for_participant.return_value = None
 
-    result = booking_service.get_booking_pricing_preview(booking.id, "other")
+    result = booking_service.get_booking_pricing_preview(generate_ulid(), "other")
 
-    assert result == {"error": "access_denied"}
+    assert result is None
 
 
 def test_get_booking_pricing_preview_success(booking_service: BookingService) -> None:
     booking = make_booking(student_id="student", instructor_id="instructor")
-    booking_service.repository.get_by_id.return_value = booking
+    booking_service.repository.get_booking_for_participant.return_value = booking
 
     with patch("app.services.pricing_service.PricingService") as pricing_cls:
         pricing_cls.return_value.compute_booking_pricing.return_value = {"total": 100}
@@ -822,7 +824,8 @@ def test_confirm_booking_payment_gaming_reschedule_success_fallback_message(
     booking.instructor_service = SimpleNamespace(name="Piano")
     student.id = booking.student_id
 
-    mock_repository.get_by_id.side_effect = [booking, booking, None]
+    mock_repository.get_booking_for_student.return_value = booking
+    mock_repository.get_by_id.side_effect = [booking, None]  # post-commit reloads
     mock_repository.get_reschedule_by_booking_id.return_value = SimpleNamespace(
         original_lesson_datetime=datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc)
     )
@@ -959,7 +962,8 @@ def test_instructor_mark_complete_sets_notes_and_category_name(
         catalog_entry=SimpleNamespace(category=SimpleNamespace(name="Piano"))
     )
 
-    mock_repository.get_by_id.side_effect = [booking, booking]
+    mock_repository.get_booking_for_instructor.return_value = booking
+    mock_repository.get_by_id.return_value = booking  # post-commit reload
     booking_service.transaction = MagicMock(return_value=_transaction_cm())
 
     fixed_now = datetime(2030, 1, 1, 12, 0, tzinfo=timezone.utc)

@@ -177,6 +177,15 @@ CELERYBEAT_SCHEDULE = {
             "priority": 1,
         },
     },
+    # DB maintenance — purge abandoned 2FA setup secrets (AUTHZ-VULN-04 defense-in-depth)
+    "cleanup-stale-2fa-setups": {
+        "task": "db_maintenance.cleanup_stale_2fa_setups",
+        "schedule": crontab(hour=5, minute=0),  # Daily at 5 AM UTC
+        "options": {
+            "queue": "celery",
+            "priority": 1,
+        },
+    },
     # Self-learning: promote unresolved location queries into trusted aliases
     "learn-location-aliases": {
         "task": "app.tasks.location_learning.process_location_learning",

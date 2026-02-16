@@ -75,7 +75,7 @@ class AuthService(BaseService):
         # Check if email already exists — return None instead of raising
         existing_user = self.get_user_by_email(email)
         if existing_user:
-            self.logger.info(f"Registration attempt for existing email: {email}")
+            self.logger.info("Registration attempt for existing email")
             # Timing normalization — match Argon2id hash cost of real registration
             get_password_hash("dummy_timing_normalization_padding")
             return None

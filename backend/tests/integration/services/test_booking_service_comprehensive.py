@@ -349,7 +349,7 @@ class TestBookingServiceCancellation:
     async def test_cancel_booking_unauthorized(
         self, db: Session, test_booking: Booking, mock_notification_service: Mock
     ):
-        """Test cancellation by unauthorized user fails."""
+        """Test cancellation by unauthorized user fails with 404 (don't reveal existence)."""
         # Create another user
         other_user = User(
             email="other@example.com",
@@ -364,7 +364,7 @@ class TestBookingServiceCancellation:
 
         booking_service = BookingService(db, mock_notification_service, event_publisher=Mock())
 
-        with pytest.raises(ValidationException, match="You don't have permission to cancel this booking"):
+        with pytest.raises(NotFoundException):
             await asyncio.to_thread(booking_service.cancel_booking, test_booking.id, other_user, "No reason")
 
     @pytest.mark.asyncio

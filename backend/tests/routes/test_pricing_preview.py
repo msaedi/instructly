@@ -142,7 +142,7 @@ def test_pricing_preview_rejects_unauthorized_users(
         headers=auth_headers_instructor_2,
     )
 
-    assert response.status_code == 403
+    assert response.status_code == 404  # Non-participant sees 404, not 403
 
 
 def test_pricing_preview_propagates_floor_validation(

@@ -1192,6 +1192,108 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.logger.error(f"Error getting booking for participant: {str(e)}")
             raise RepositoryException(f"Failed to get booking for participant: {str(e)}")
 
+    def get_booking_for_student(self, booking_id: str, student_id: str) -> Optional[Booking]:
+        """
+        Get booking only if user is the student on it.
+
+        Defense-in-depth: filters by student at the DB level.
+        """
+        try:
+            booking: Booking | None = (
+                self.db.query(Booking)
+                .options(
+                    joinedload(Booking.student),
+                    joinedload(Booking.instructor),
+                    joinedload(Booking.instructor_service),
+                    joinedload(Booking.rescheduled_from),
+                    joinedload(Booking.cancelled_by),
+                    selectinload(Booking.payment_detail),
+                    selectinload(Booking.no_show_detail),
+                    selectinload(Booking.lock_detail),
+                    selectinload(Booking.reschedule_detail),
+                    selectinload(Booking.dispute),
+                    selectinload(Booking.transfer),
+                )
+                .filter(
+                    Booking.id == booking_id,
+                    Booking.student_id == student_id,
+                )
+                .first()
+            )
+            return booking
+        except Exception as e:
+            self.logger.error(f"Error getting booking for student: {str(e)}")
+            raise RepositoryException(f"Failed to get booking for student: {str(e)}")
+
+    def get_booking_for_instructor(self, booking_id: str, instructor_id: str) -> Optional[Booking]:
+        """
+        Get booking only if user is the instructor on it.
+
+        Defense-in-depth: filters by instructor at the DB level.
+        """
+        try:
+            booking: Booking | None = (
+                self.db.query(Booking)
+                .options(
+                    joinedload(Booking.student),
+                    joinedload(Booking.instructor),
+                    joinedload(Booking.instructor_service),
+                    joinedload(Booking.rescheduled_from),
+                    joinedload(Booking.cancelled_by),
+                    selectinload(Booking.payment_detail),
+                    selectinload(Booking.no_show_detail),
+                    selectinload(Booking.lock_detail),
+                    selectinload(Booking.reschedule_detail),
+                    selectinload(Booking.dispute),
+                    selectinload(Booking.transfer),
+                )
+                .filter(
+                    Booking.id == booking_id,
+                    Booking.instructor_id == instructor_id,
+                )
+                .first()
+            )
+            return booking
+        except Exception as e:
+            self.logger.error(f"Error getting booking for instructor: {str(e)}")
+            raise RepositoryException(f"Failed to get booking for instructor: {str(e)}")
+
+    def get_booking_for_participant_for_update(
+        self,
+        booking_id: str,
+        user_id: str,
+        *,
+        load_relationships: bool = True,
+        populate_existing: bool = True,
+    ) -> Optional[Booking]:
+        """
+        Get booking with row-level lock, only if user is a participant.
+
+        Defense-in-depth: combines SELECT FOR UPDATE with participant filtering.
+        """
+        try:
+            query = (
+                self.db.query(Booking)
+                .filter(
+                    Booking.id == booking_id,
+                    or_(
+                        Booking.student_id == user_id,
+                        Booking.instructor_id == user_id,
+                    ),
+                )
+                .with_for_update(of=Booking)
+            )
+            if load_relationships:
+                query = self._apply_eager_loading(query)
+            if populate_existing:
+                query = query.populate_existing()
+            return cast(Optional[Booking], query.first())
+        except Exception as e:
+            self.logger.error(f"Error getting booking for participant (for update): {str(e)}")
+            raise RepositoryException(
+                f"Failed to get booking for participant (for update): {str(e)}"
+            )
+
     def get_by_id_for_update(
         self,
         booking_id: str,
