@@ -223,6 +223,27 @@ def test_verify_login_backup_code_handles_verify_error(db, user, monkeypatch):
     assert service.verify_login(user, None, "ABCD-EFGH-2345") is False
 
 
+def test_setup_verify_rejects_if_2fa_already_enabled(db, user):
+    """setup_verify must not disable active 2FA when TTL expires."""
+    from app.core.exceptions import ValidationException
+
+    service = TwoFactorAuthService(db)
+    original_secret = service._encrypt("existing-secret")
+
+    # Simulate a user with active 2FA and an expired setup_at timestamp
+    user.totp_enabled = True
+    user.totp_secret = original_secret
+    user.two_factor_setup_at = datetime.now(timezone.utc) - timedelta(minutes=20)
+    db.flush()
+
+    with pytest.raises(ValidationException, match="already enabled"):
+        service.setup_verify(user, "000000")
+
+    # 2FA must remain intact
+    assert user.totp_enabled is True
+    assert user.totp_secret == original_secret
+
+
 def test_check_2fa_required(db, user):
     service = TwoFactorAuthService(db)
     assert service.check_2fa_required(None) is False

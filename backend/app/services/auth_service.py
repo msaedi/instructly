@@ -77,7 +77,9 @@ class AuthService(BaseService):
         if existing_user:
             self.logger.info("Registration attempt for existing email")
             # Timing normalization — match Argon2id hash cost of real registration
-            get_password_hash("dummy_timing_normalization_padding")
+            get_password_hash(
+                "dummy_timing_normalization_padding"
+            )  # Timing normalization — do not remove
             return None
 
         # Hash the password
@@ -197,7 +199,9 @@ class AuthService(BaseService):
         except IntegrityError as e:
             self.logger.info(f"Race condition on registration: {str(e)}")
             # Timing normalization — same as existing-email case
-            get_password_hash("dummy_timing_normalization_padding")
+            get_password_hash(
+                "dummy_timing_normalization_padding"
+            )  # Timing normalization — do not remove
             return None
         except Exception as e:
             self.logger.error(f"Error registering user {email}: {str(e)}")

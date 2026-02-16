@@ -145,6 +145,11 @@ class TwoFactorAuthService(BaseService):
 
     @BaseService.measure_operation("tfa_setup_verify")
     def setup_verify(self, user: User, code: str) -> list[str]:
+        from app.core.exceptions import ValidationException
+
+        if user.totp_enabled:
+            raise ValidationException("2FA is already enabled. Disable it first to reconfigure.")
+
         # TTL check — reject if setup was never initiated or initiated >15 minutes ago
         if user.two_factor_setup_at is None:
             raise ValueError("2FA setup not initiated. Please start setup first.")
