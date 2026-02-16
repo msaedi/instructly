@@ -27,7 +27,7 @@ qrcode==8.2
 
 # Async & Background Tasks
 celery==5.6.2
-redis==6.4.0
+redis==7.2.0
 broadcaster[redis]==0.3.1
 anyio==4.12.1
 
