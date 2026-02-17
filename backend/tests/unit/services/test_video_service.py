@@ -312,3 +312,25 @@ class TestJoinLessonErrors:
 
         with pytest.raises(ServiceException, match="100ms"):
             service.join_lesson(booking.id, booking.student_id)
+
+    def test_auth_token_failure_wrapped_in_service_exception(self):
+        """Room created successfully but auth token generation fails.
+
+        This is a realistic production scenario (e.g. 100ms key rotation
+        mid-request, network timeout after room creation). Verifies the
+        error message distinguishes token failure from room failure.
+        """
+        from app.core.exceptions import ServiceException
+
+        booking = _make_booking()
+        vs = _make_video_session()
+        service, fake_client, _ = _make_service(booking=booking, video_session=vs)
+
+        # Room exists, but token generation fails
+        def failing_generate_auth_token(**kwargs):
+            raise HundredMsError("Token signing failed", status_code=500)
+
+        fake_client.generate_auth_token = failing_generate_auth_token
+
+        with pytest.raises(ServiceException, match="auth token generation failed"):
+            service.join_lesson(booking.id, booking.student_id)

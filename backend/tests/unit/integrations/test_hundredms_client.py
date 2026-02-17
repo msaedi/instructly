@@ -182,6 +182,31 @@ class TestGetRoom:
         assert "rooms/room_789" in call_args[0][1]
 
 
+class TestCreateRoomWithDescription:
+    @patch("app.integrations.hundredms_client.httpx.Client")
+    def test_create_room_includes_description_in_body(self, mock_client_cls):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"id": "room_999", "name": "lesson-desc"}
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.request.return_value = mock_response
+        mock_client_cls.return_value = mock_client
+
+        client = HundredMsClient(
+            access_key="test_access_key",
+            app_secret="test_secret_value_for_hmac_256bit",
+            template_id="tmpl_default",
+        )
+        result = client.create_room(name="lesson-desc", description="Piano lesson at 3pm")
+
+        body = mock_client.request.call_args[1]["json"]
+        assert body["name"] == "lesson-desc"
+        assert body["description"] == "Piano lesson at 3pm"
+        assert result["id"] == "room_999"
+
+
 class TestGetActiveSession:
     @patch("app.integrations.hundredms_client.httpx.Client")
     def test_returns_none_on_404(self, mock_client_cls):
@@ -199,6 +224,24 @@ class TestGetActiveSession:
         result = client.get_active_session("room_abc")
 
         assert result is None
+
+    @patch("app.integrations.hundredms_client.httpx.Client")
+    def test_reraises_non_404_error(self, mock_client_cls):
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        mock_response.json.return_value = {"message": "Internal Server Error"}
+        mock_response.text = "Internal Server Error"
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.request.return_value = mock_response
+        mock_client_cls.return_value = mock_client
+
+        client = HundredMsClient(access_key="k", app_secret="test_secret_value_for_hmac_256bit")
+        with pytest.raises(HundredMsError) as exc_info:
+            client.get_active_session("room_abc")
+
+        assert exc_info.value.status_code == 500
 
 
 # ── FakeHundredMsClient tests ──────────────────────────────────────────

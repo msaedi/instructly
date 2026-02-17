@@ -6,9 +6,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from app.core.exceptions import NotFoundException, ValidationException
+from app.core.exceptions import NotFoundException, ServiceException, ValidationException
 from app.main import fastapi_app as app
-from app.routes.v1.lessons import get_video_service
+from app.routes.v1.lessons import get_video_service, handle_domain_exception
 
 # ── Fixtures ──────────────────────────────────────────────────────────
 
@@ -150,3 +150,112 @@ class TestGetVideoSession:
         )
 
         assert response.status_code == 401
+
+    @patch("app.routes.v1.lessons.settings")
+    def test_returns_500_for_service_exception(
+        self, mock_settings, client_with_mock_service, mock_video_service, auth_headers
+    ):
+        """ServiceException (e.g. 100ms API down) maps to 500."""
+        mock_settings.hundredms_enabled = True
+        mock_video_service.get_video_session_status.side_effect = ServiceException(
+            "100ms API unreachable"
+        )
+
+        response = client_with_mock_service.get(
+            "/api/v1/lessons/01HF4G12ABCDEF3456789XYZAB/video-session",
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 500
+
+
+# ── DI factory tests ─────────────────────────────────────────────────
+
+
+class TestGetVideoServiceFactory:
+    """Tests for the get_video_service DI factory function.
+
+    Verifies that the correct 100ms client (real vs fake) is wired
+    based on settings. A bug here could silently use FakeHundredMsClient
+    in production.
+    """
+
+    @patch("app.routes.v1.lessons.settings")
+    def test_creates_real_client_when_enabled(self, mock_settings):
+        from app.integrations.hundredms_client import HundredMsClient
+        from app.services.video_service import VideoService
+
+        mock_settings.hundredms_enabled = True
+        mock_settings.hundredms_access_key = "real_key"
+        mock_settings.hundredms_app_secret = "real_secret_value_for_hmac_test"
+        mock_settings.hundredms_base_url = "https://api.100ms.live/v2"
+        mock_settings.hundredms_template_id = "tmpl_123"
+
+        mock_db = Mock()
+        service = get_video_service(db=mock_db)
+
+        assert isinstance(service, VideoService)
+        assert isinstance(service.hundredms_client, HundredMsClient)
+
+    @patch("app.routes.v1.lessons.settings")
+    def test_creates_fake_client_when_disabled(self, mock_settings):
+        from app.integrations.hundredms_client import FakeHundredMsClient
+        from app.services.video_service import VideoService
+
+        mock_settings.hundredms_enabled = False
+        mock_settings.hundredms_access_key = None
+
+        mock_db = Mock()
+        service = get_video_service(db=mock_db)
+
+        assert isinstance(service, VideoService)
+        assert isinstance(service.hundredms_client, FakeHundredMsClient)
+
+    @patch("app.routes.v1.lessons.settings")
+    def test_creates_fake_client_when_no_access_key(self, mock_settings):
+        """Enabled but no access key configured — falls back to fake client."""
+        from app.integrations.hundredms_client import FakeHundredMsClient
+
+        mock_settings.hundredms_enabled = True
+        mock_settings.hundredms_access_key = None
+
+        mock_db = Mock()
+        service = get_video_service(db=mock_db)
+
+        assert isinstance(service.hundredms_client, FakeHundredMsClient)
+
+
+# ── handle_domain_exception tests ────────────────────────────────────
+
+
+class TestHandleDomainException:
+    def test_converts_domain_exception_to_http(self):
+        """DomainException with to_http_exception is converted correctly."""
+        from fastapi import HTTPException
+
+        exc = NotFoundException("Booking not found")
+
+        with pytest.raises(HTTPException) as exc_info:
+            handle_domain_exception(exc)
+
+        assert exc_info.value.status_code == 404
+
+    def test_fallback_for_bare_domain_exception(self):
+        """DomainException without to_http_exception gets 500.
+
+        This covers the defensive fallback path — ensures bare
+        DomainException subclasses don't crash the route handler.
+        """
+        from fastapi import HTTPException
+
+        class BareException:
+            """Exception-like object that lacks to_http_exception."""
+
+            def __str__(self) -> str:
+                return "bare error"
+
+        with pytest.raises(HTTPException) as exc_info:
+            handle_domain_exception(BareException())  # type: ignore[arg-type]
+
+        assert exc_info.value.status_code == 500
+        assert "bare error" in exc_info.value.detail
