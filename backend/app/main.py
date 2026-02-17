@@ -119,6 +119,7 @@ from .routes.v1 import (
     instructor_referrals as instructor_referrals_v1,
     instructors as instructors_v1,
     internal as internal_v1,
+    lessons as lessons_v1,
     messages as messages_v1,
     metrics as metrics_v1,
     monitoring as monitoring_v1,
@@ -1099,6 +1100,7 @@ api_v1.include_router(reviews_v1.router, prefix="/reviews")  # type: ignore[attr
 api_v1.include_router(services_v1.router, prefix="/services")  # type: ignore[attr-defined]
 api_v1.include_router(catalog_v1.router, prefix="/catalog")  # type: ignore[attr-defined]
 api_v1.include_router(favorites_v1.router, prefix="/favorites")  # type: ignore[attr-defined]
+api_v1.include_router(lessons_v1.router, prefix="/lessons")  # type: ignore[attr-defined]
 api_v1.include_router(addresses_v1.router, prefix="/addresses")  # type: ignore[attr-defined]
 api_v1.include_router(search_v1.router, prefix="/search")  # type: ignore[attr-defined]
 api_v1.include_router(search_history_v1.router, prefix="/search-history")  # type: ignore[attr-defined]

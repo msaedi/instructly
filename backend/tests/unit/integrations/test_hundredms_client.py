@@ -234,3 +234,72 @@ class TestFakeHundredMsClient:
     def test_get_active_session_returns_none(self):
         client = FakeHundredMsClient()
         assert client.get_active_session("room_xyz") is None
+
+    def test_generate_auth_token_returns_fake_string(self):
+        client = FakeHundredMsClient()
+        token = client.generate_auth_token(room_id="room_abc", user_id="user_123", role="guest")
+        assert token == "fake_auth_token_room_abc_user_123"
+
+    def test_generate_auth_token_tracks_call(self):
+        client = FakeHundredMsClient()
+        client.generate_auth_token(room_id="room_abc", user_id="user_123", role="host")
+        assert len(client._calls) == 1
+        assert client._calls[0]["method"] == "generate_auth_token"
+        assert client._calls[0]["room_id"] == "room_abc"
+        assert client._calls[0]["user_id"] == "user_123"
+        assert client._calls[0]["role"] == "host"
+
+
+# ── Auth token tests ──────────────────────────────────────────────────
+
+
+class TestAuthToken:
+    def _make_client(self, **overrides):
+        defaults = {
+            "access_key": "test_access_key",
+            "app_secret": "test_secret_value_for_hmac_256bit",
+        }
+        defaults.update(overrides)
+        return HundredMsClient(**defaults)
+
+    def test_auth_token_is_valid_jwt(self):
+        client = self._make_client()
+        token = client.generate_auth_token(
+            room_id="room_abc", user_id="user_123", role="guest"
+        )
+        payload = jwt.decode(token, "test_secret_value_for_hmac_256bit", algorithms=["HS256"])
+        assert isinstance(payload, dict)
+
+    def test_auth_token_has_correct_payload(self):
+        client = self._make_client()
+        token = client.generate_auth_token(
+            room_id="room_abc", user_id="user_123", role="guest"
+        )
+        payload = jwt.decode(token, "test_secret_value_for_hmac_256bit", algorithms=["HS256"])
+        assert payload["access_key"] == "test_access_key"
+        assert payload["room_id"] == "room_abc"
+        assert payload["user_id"] == "user_123"
+        assert payload["role"] == "guest"
+        assert payload["type"] == "app"
+        assert payload["version"] == 2
+        assert "iat" in payload
+        assert "nbf" in payload
+        assert "exp" in payload
+
+    def test_auth_token_has_correct_expiry(self):
+        client = self._make_client()
+        token = client.generate_auth_token(
+            room_id="room_abc", user_id="user_123", role="host", validity_seconds=3600
+        )
+        payload = jwt.decode(token, "test_secret_value_for_hmac_256bit", algorithms=["HS256"])
+        assert payload["exp"] == payload["iat"] + 3600
+
+    def test_auth_token_header_has_jti(self):
+        client = self._make_client()
+        token = client.generate_auth_token(
+            room_id="room_abc", user_id="user_123", role="guest"
+        )
+        headers = jwt.get_unverified_header(token)
+        assert "jti" in headers
+        assert headers["alg"] == "HS256"
+        assert headers["typ"] == "JWT"

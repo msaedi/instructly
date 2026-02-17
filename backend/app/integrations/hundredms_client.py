@@ -1,11 +1,8 @@
 """100ms Video Platform Integration Client.
 
-Handles room creation and management token generation for server-to-server
-communication with the 100ms REST API.
-
-Auth tokens (per-participant JWTs for joining rooms) are NOT generated here —
-they are handled by the video service since they don't require HTTP calls,
-just JWT signing.
+Handles room creation, management token generation for server-to-server
+communication with the 100ms REST API, and per-participant auth token
+generation for joining rooms.
 """
 
 from __future__ import annotations
@@ -169,6 +166,39 @@ class HundredMsClient:
                 return None
             raise
 
+    def generate_auth_token(
+        self,
+        *,
+        room_id: str,
+        user_id: str,
+        role: str,
+        validity_seconds: int = 86400,
+    ) -> str:
+        """Generate a per-participant auth token for joining a 100ms room.
+
+        Unlike management tokens, auth tokens specify a room, user, and role.
+        The frontend SDK uses this token to authenticate and connect.
+        """
+        now = int(time.time())
+        payload = {
+            "access_key": self._access_key,
+            "room_id": room_id,
+            "user_id": user_id,
+            "role": role,
+            "type": "app",
+            "version": 2,
+            "iat": now,
+            "nbf": now,
+            "exp": now + validity_seconds,
+        }
+        token: str = jwt.encode(
+            payload,
+            self._app_secret,
+            algorithm="HS256",
+            headers={"alg": "HS256", "typ": "JWT", "jti": str(uuid.uuid4())},
+        )
+        return token
+
 
 class FakeHundredMsClient:
     """In-memory stub for testing/non-production environments."""
@@ -195,3 +225,9 @@ class FakeHundredMsClient:
     def get_active_session(self, room_id: str) -> dict[str, Any] | None:
         self._calls.append({"method": "get_active_session", "room_id": room_id})
         return None
+
+    def generate_auth_token(self, *, room_id: str, user_id: str, role: str, **kwargs: Any) -> str:
+        self._calls.append(
+            {"method": "generate_auth_token", "room_id": room_id, "user_id": user_id, "role": role}
+        )
+        return f"fake_auth_token_{room_id}_{user_id}"
