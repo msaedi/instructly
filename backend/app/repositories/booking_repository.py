@@ -815,6 +815,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     selectinload(Booking.reschedule_detail),
                     selectinload(Booking.dispute),
                     selectinload(Booking.transfer),
+                    selectinload(Booking.video_session),
                 )
                 .filter(Booking.student_id == student_id)
             )
@@ -950,6 +951,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     selectinload(Booking.reschedule_detail),
                     selectinload(Booking.dispute),
                     selectinload(Booking.transfer),
+                    selectinload(Booking.video_session),
                 )
                 .filter(Booking.instructor_id == instructor_id)
             )
@@ -1216,6 +1218,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     selectinload(Booking.reschedule_detail),
                     selectinload(Booking.dispute),
                     selectinload(Booking.transfer),
+                    selectinload(Booking.video_session),
                 )
                 .filter(Booking.id == booking_id)
                 .first()
@@ -1244,6 +1247,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             selectinload(Booking.reschedule_detail),
             selectinload(Booking.dispute),
             selectinload(Booking.transfer),
+            selectinload(Booking.video_session),
         )
 
     def get_booking_for_participant(self, booking_id: str, user_id: str) -> Optional[Booking]:
@@ -1403,6 +1407,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     selectinload(Booking.reschedule_detail),
                     selectinload(Booking.dispute),
                     selectinload(Booking.transfer),
+                    selectinload(Booking.video_session),
                 )
             )
 

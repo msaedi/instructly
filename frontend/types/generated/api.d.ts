@@ -10378,6 +10378,8 @@ export type components = {
             booking_end_utc?: string | null;
             /** Booking Start Utc */
             booking_start_utc?: string | null;
+            /** Can Join Lesson */
+            can_join_lesson?: boolean | null;
             /** Cancellation Reason */
             cancellation_reason: string | null;
             /** Cancelled At */
@@ -10420,6 +10422,10 @@ export type components = {
             instructor_service_id: string;
             /** Instructor Timezone */
             instructor_timezone?: string | null;
+            /** Join Closes At */
+            join_closes_at?: string | null;
+            /** Join Opens At */
+            join_opens_at?: string | null;
             /** Lesson Timezone */
             lesson_timezone?: string | null;
             /** Location Address */
@@ -10500,6 +10506,18 @@ export type components = {
             student_timezone?: string | null;
             /** Total Price */
             total_price: number;
+            /** Video Instructor Joined At */
+            video_instructor_joined_at?: string | null;
+            /** Video Room Id */
+            video_room_id?: string | null;
+            /** Video Session Duration Seconds */
+            video_session_duration_seconds?: number | null;
+            /** Video Session Ended At */
+            video_session_ended_at?: string | null;
+            /** Video Session Started At */
+            video_session_started_at?: string | null;
+            /** Video Student Joined At */
+            video_student_joined_at?: string | null;
         };
         /** BookingDetailMeta */
         BookingDetailMeta: {
@@ -10739,6 +10757,8 @@ export type components = {
             booking_end_utc?: string | null;
             /** Booking Start Utc */
             booking_start_utc?: string | null;
+            /** Can Join Lesson */
+            can_join_lesson?: boolean | null;
             /** Cancellation Reason */
             cancellation_reason: string | null;
             /** Cancelled At */
@@ -10781,6 +10801,10 @@ export type components = {
             instructor_service_id: string;
             /** Instructor Timezone */
             instructor_timezone?: string | null;
+            /** Join Closes At */
+            join_closes_at?: string | null;
+            /** Join Opens At */
+            join_opens_at?: string | null;
             /** Lesson Timezone */
             lesson_timezone?: string | null;
             /** Location Address */
@@ -10850,6 +10874,18 @@ export type components = {
             student_timezone?: string | null;
             /** Total Price */
             total_price: number;
+            /** Video Instructor Joined At */
+            video_instructor_joined_at?: string | null;
+            /** Video Room Id */
+            video_room_id?: string | null;
+            /** Video Session Duration Seconds */
+            video_session_duration_seconds?: number | null;
+            /** Video Session Ended At */
+            video_session_ended_at?: string | null;
+            /** Video Session Started At */
+            video_session_started_at?: string | null;
+            /** Video Student Joined At */
+            video_student_joined_at?: string | null;
         };
         /**
          * BookingServiceInfo

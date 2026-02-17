@@ -1980,6 +1980,7 @@ export interface BookingCreateResponse {
   booking_date: string;
   booking_end_utc?: string | null;
   booking_start_utc?: string | null;
+  can_join_lesson?: boolean | null;
   cancellation_reason: string | null;
   cancelled_at: string | null;
   cancelled_by_id: string | null;
@@ -1999,6 +2000,8 @@ export interface BookingCreateResponse {
   instructor_service: BookingServiceInfo;
   instructor_service_id: string;
   instructor_timezone?: string | null;
+  join_closes_at?: string | null;
+  join_opens_at?: string | null;
   lesson_timezone?: string | null;
   location_address?: string | null;
   location_lat?: number | null;
@@ -2038,6 +2041,12 @@ export interface BookingCreateResponse {
   student_note: string | null;
   student_timezone?: string | null;
   total_price: number;
+  video_instructor_joined_at?: string | null;
+  video_room_id?: string | null;
+  video_session_duration_seconds?: number | null;
+  video_session_ended_at?: string | null;
+  video_session_started_at?: string | null;
+  video_student_joined_at?: string | null;
 }
 
 export interface BookingDetailMeta {
@@ -2281,6 +2290,7 @@ export interface BookingResponse {
   booking_date: string;
   booking_end_utc?: string | null;
   booking_start_utc?: string | null;
+  can_join_lesson?: boolean | null;
   cancellation_reason: string | null;
   cancelled_at: string | null;
   cancelled_by_id: string | null;
@@ -2300,6 +2310,8 @@ export interface BookingResponse {
   instructor_service: BookingServiceInfo;
   instructor_service_id: string;
   instructor_timezone?: string | null;
+  join_closes_at?: string | null;
+  join_opens_at?: string | null;
   lesson_timezone?: string | null;
   location_address?: string | null;
   location_lat?: number | null;
@@ -2335,6 +2347,12 @@ export interface BookingResponse {
   student_note: string | null;
   student_timezone?: string | null;
   total_price: number;
+  video_instructor_joined_at?: string | null;
+  video_room_id?: string | null;
+  video_session_duration_seconds?: number | null;
+  video_session_ended_at?: string | null;
+  video_session_started_at?: string | null;
+  video_student_joined_at?: string | null;
 }
 
 /**

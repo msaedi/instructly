@@ -443,6 +443,17 @@ class BookingBase(StandardizedModel):
     locked_amount_cents: Optional[int] = None
     lock_resolved_at: Optional[datetime] = None
     lock_resolution: Optional[str] = None
+    # Video session fields (online bookings)
+    video_room_id: Optional[str] = None
+    video_session_started_at: Optional[datetime] = None
+    video_session_ended_at: Optional[datetime] = None
+    video_session_duration_seconds: Optional[int] = None
+    video_instructor_joined_at: Optional[datetime] = None
+    video_student_joined_at: Optional[datetime] = None
+    # Computed join window (online confirmed bookings only)
+    can_join_lesson: Optional[bool] = None
+    join_opens_at: Optional[datetime] = None
+    join_closes_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -574,11 +585,32 @@ def _extract_satellite_fields(booking: Any) -> dict[str, Any]:
     lock_detail = getattr(booking, "lock_detail", None)
     payment_detail = getattr(booking, "payment_detail", None)
     reschedule_detail = getattr(booking, "reschedule_detail", None)
+    video_session = getattr(booking, "video_session", None)
 
     def _payment_value(field_name: str) -> object:
         if payment_detail is not None:
             return getattr(payment_detail, field_name, None)
         return None
+
+    # Compute join window for online confirmed bookings
+    _can_join: bool | None = None
+    _opens_at: datetime | None = None
+    _closes_at: datetime | None = None
+    _location = getattr(booking, "location_type", None)
+    _status = getattr(booking, "status", None)
+    _start = getattr(booking, "booking_start_utc", None)
+    _duration = getattr(booking, "duration_minutes", None)
+    if (
+        _location == "online"
+        and _status == BookingStatus.CONFIRMED.value
+        and isinstance(_start, datetime)
+        and isinstance(_duration, (int, float))
+    ):
+        _opens_at = _start - timedelta(minutes=5)
+        _grace = min(_duration * 0.25, 15)
+        _closes_at = _start + timedelta(minutes=_grace)
+        _now = datetime.now(timezone.utc)
+        _can_join = _opens_at <= _now <= _closes_at
 
     rescheduled_from_booking_id_raw = getattr(booking, "rescheduled_from_booking_id", None)
 
@@ -635,6 +667,25 @@ def _extract_satellite_fields(booking: Any) -> dict[str, Any]:
         "locked_amount_cents": _safe_int(getattr(lock_detail, "locked_amount_cents", None)),
         "lock_resolved_at": _safe_datetime(getattr(lock_detail, "lock_resolved_at", None)),
         "lock_resolution": _safe_str(getattr(lock_detail, "lock_resolution", None)),
+        # Video session
+        "video_room_id": _safe_str(getattr(video_session, "room_id", None)),
+        "video_session_started_at": _safe_datetime(
+            getattr(video_session, "session_started_at", None)
+        ),
+        "video_session_ended_at": _safe_datetime(getattr(video_session, "session_ended_at", None)),
+        "video_session_duration_seconds": _safe_int(
+            getattr(video_session, "session_duration_seconds", None)
+        ),
+        "video_instructor_joined_at": _safe_datetime(
+            getattr(video_session, "instructor_joined_at", None)
+        ),
+        "video_student_joined_at": _safe_datetime(
+            getattr(video_session, "student_joined_at", None)
+        ),
+        # Computed join window
+        "can_join_lesson": _can_join,
+        "join_opens_at": _opens_at,
+        "join_closes_at": _closes_at,
     }
 
 
