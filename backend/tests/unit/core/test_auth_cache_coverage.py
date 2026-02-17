@@ -386,3 +386,188 @@ def test_user_has_cached_permission_false():
 
 def test_reset_redis_client_noop():
     auth_cache._reset_redis_client()
+
+
+# ── Coverage tests for empty-input guard branches ──
+
+
+@pytest.mark.asyncio
+async def test_get_cached_user_empty_user_id_returns_none():
+    """get_cached_user returns None immediately when user_id is empty (line 63)."""
+    result = await auth_cache.get_cached_user("")
+    assert result is None
+
+    result = await auth_cache.get_cached_user(None)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_set_cached_user_empty_cache_user_id_returns_early(monkeypatch):
+    """set_cached_user returns early when derived cache_user_id is empty (line 96-97)."""
+    redis = StubRedis()
+
+    async def fake_get_client():
+        return redis
+
+    monkeypatch.setattr(auth_cache, "_get_auth_redis_client", fake_get_client)
+
+    # user_data has no 'id' key and user_id is empty string → cache_user_id = ""
+    await auth_cache.set_cached_user("", {"email": "test@example.com"})
+    # Should not have set anything
+    assert redis.set_calls == []
+
+    # user_data has empty 'id' key
+    await auth_cache.set_cached_user("", {"id": "", "email": "test@example.com"})
+    assert redis.set_calls == []
+
+    # user_data has whitespace-only 'id'
+    await auth_cache.set_cached_user("", {"id": "   ", "email": "test@example.com"})
+    assert redis.set_calls == []
+
+
+@pytest.mark.asyncio
+async def test_invalidate_cached_user_empty_user_id_returns_false():
+    """invalidate_cached_user returns False when user_id is empty (line 120-121)."""
+    result = await auth_cache.invalidate_cached_user("")
+    assert result is False
+
+
+# ── Coverage tests for _on_done callback in invalidate_cached_user_by_id_sync (lines 163-167) ──
+
+
+def test_invalidate_sync_task_done_callback_with_exception(monkeypatch, caplog):
+    """The _on_done callback logs when task has an exception (lines 163-167)."""
+    import logging
+
+    callback_ref = [None]
+
+    class StubTask:
+        def __init__(self):
+            self._done_callbacks = []
+
+        def add_done_callback(self, fn):
+            self._done_callbacks.append(fn)
+            callback_ref[0] = fn
+
+        def cancelled(self):
+            return False
+
+        def exception(self):
+            return RuntimeError("cache invalidation failed")
+
+    class StubLoop:
+        def __init__(self):
+            self.tasks = []
+
+        def create_task(self, coro):
+            # Close the coroutine to prevent warnings
+            coro.close()
+            task = StubTask()
+            self.tasks.append(task)
+            return task
+
+    async def fake_invalidate(_user_id):
+        return True
+
+    loop = StubLoop()
+    monkeypatch.setattr(auth_cache, "invalidate_cached_user", fake_invalidate)
+    monkeypatch.setattr(asyncio, "get_running_loop", lambda: loop)
+
+    result = auth_cache.invalidate_cached_user_by_id_sync("user-id-123", object())
+    assert result is True
+
+    # Now trigger the done callback with the exception
+    assert len(loop.tasks) == 1
+    task = loop.tasks[0]
+    assert len(task._done_callbacks) == 1
+
+    with caplog.at_level(logging.ERROR):
+        task._done_callbacks[0](task)
+
+    assert any(
+        "Fire-and-forget cache invalidation failed" in rec.message for rec in caplog.records
+    )
+
+
+def test_invalidate_sync_task_done_callback_cancelled(monkeypatch):
+    """The _on_done callback returns early when task is cancelled (line 163-164)."""
+    callback_ref = [None]
+
+    class StubTask:
+        def add_done_callback(self, fn):
+            callback_ref[0] = fn
+
+        def cancelled(self):
+            return True
+
+        def exception(self):
+            raise AssertionError("should not be called if cancelled")
+
+    class StubLoop:
+        def create_task(self, coro):
+            coro.close()
+            return StubTask()
+
+    async def fake_invalidate(_user_id):
+        return True
+
+    loop = StubLoop()
+    monkeypatch.setattr(auth_cache, "invalidate_cached_user", fake_invalidate)
+    monkeypatch.setattr(asyncio, "get_running_loop", lambda: loop)
+
+    auth_cache.invalidate_cached_user_by_id_sync("user-id", object())
+    # Call the callback — should not raise since task is cancelled
+    callback_ref[0](StubTask())
+
+
+# ── Coverage tests for outer exception in invalidate_cached_user_by_id_sync (lines 180-182) ──
+
+
+def test_invalidate_sync_outer_exception_returns_false(monkeypatch, caplog):
+    """invalidate_cached_user_by_id_sync catches outer exceptions (lines 180-182)."""
+    import logging
+
+    # Make get_running_loop raise RuntimeError (no event loop)
+    monkeypatch.setattr(
+        asyncio, "get_running_loop", lambda: (_ for _ in ()).throw(RuntimeError("no loop"))
+    )
+    # Make asyncio.run raise an unexpected error
+    monkeypatch.setattr(
+        asyncio, "run", lambda coro: (_ for _ in ()).throw(Exception("unexpected outer failure"))
+    )
+
+    with caplog.at_level(logging.WARNING):
+        result = auth_cache.invalidate_cached_user_by_id_sync("user-id", object())
+
+    assert result is False
+    assert any("Sync invalidation failed" in rec.message for rec in caplog.records)
+
+
+# ── Coverage tests for user_has_cached_permission ORM fallback loop (lines 396-397) ──
+
+
+def test_user_has_cached_permission_orm_fallback_iterates_roles():
+    """user_has_cached_permission falls back to iterating role.permissions for ORM users (lines 395-398)."""
+    user = User(email="orm@example.com")
+    role1 = Role()
+    perm_a = Permission()
+    perm_a.name = "perm.a"
+    perm_b = Permission()
+    perm_b.name = "perm.b"
+    role1.permissions = [perm_a, perm_b]
+
+    role2 = Role()
+    perm_c = Permission()
+    perm_c.name = "perm.c"
+    role2.permissions = [perm_c]
+
+    user.roles = [role1, role2]
+
+    # Ensure no cached permissions
+    if hasattr(user, "_cached_permissions"):
+        delattr(user, "_cached_permissions")
+
+    # Should find perm.c in second role (full iteration of outer+inner loop)
+    assert auth_cache.user_has_cached_permission(user, "perm.c") is True
+    # Should not find a permission that doesn't exist
+    assert auth_cache.user_has_cached_permission(user, "perm.d") is False

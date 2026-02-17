@@ -233,3 +233,158 @@ def test_is_revoked_sync_timeout_is_fail_closed(monkeypatch):
 
     service = TokenBlacklistService(redis_client=_FakeRedis(exists_value=0))
     assert service.is_revoked_sync("sync-jti") is True
+
+
+# ── Tests for claim_and_revoke (lines 104-133) ──
+
+
+class _FakeRedisWithSet(_FakeRedis):
+    """Extended fake Redis that also supports the ``set`` method used by claim_and_revoke."""
+
+    def __init__(
+        self,
+        *,
+        exists_value: int = 0,
+        setex_error: Exception | None = None,
+        set_result: bool | None = True,
+        set_error: Exception | None = None,
+    ):
+        super().__init__(exists_value=exists_value, setex_error=setex_error)
+        self.set_result = set_result
+        self.set_error = set_error
+        self.set_calls: list[tuple[str, str, dict]] = []
+
+    async def set(self, key: str, value: str, *, nx: bool = False, ex: int | None = None) -> bool | None:
+        if self.set_error:
+            raise self.set_error
+        self.set_calls.append((key, value, {"nx": nx, "ex": ex}))
+        return self.set_result
+
+
+@pytest.mark.asyncio
+async def test_claim_and_revoke_empty_jti_returns_false():
+    """claim_and_revoke with empty jti should immediately return False (line 104-105)."""
+    redis = _FakeRedisWithSet()
+    service = TokenBlacklistService(redis_client=redis)
+    assert await service.claim_and_revoke("", 9999999999) is False
+    assert redis.set_calls == []
+
+
+@pytest.mark.asyncio
+async def test_claim_and_revoke_invalid_exp_returns_false(caplog):
+    """claim_and_revoke with non-numeric exp should return False (lines 108-111)."""
+    redis = _FakeRedisWithSet()
+    service = TokenBlacklistService(redis_client=redis)
+    with caplog.at_level(logging.WARNING):
+        result = await service.claim_and_revoke("jti-claim", "not-a-number")
+    assert result is False
+    assert any("Invalid exp claim for claim_and_revoke" in rec.message for rec in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_claim_and_revoke_expired_token_returns_false(monkeypatch):
+    """claim_and_revoke with expired TTL should return False (lines 113-115)."""
+    redis = _FakeRedisWithSet()
+    service = TokenBlacklistService(redis_client=redis)
+    monkeypatch.setattr("app.services.token_blacklist_service.time.time", lambda: 2000)
+    result = await service.claim_and_revoke("jti-claim", 1999)
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_claim_and_revoke_success_first_caller_wins(monkeypatch):
+    """claim_and_revoke succeeds (NX returns True) for first caller (lines 117-125)."""
+    redis = _FakeRedisWithSet(set_result=True)
+    service = TokenBlacklistService(redis_client=redis)
+    monkeypatch.setattr("app.services.token_blacklist_service.time.time", lambda: 1000)
+    result = await service.claim_and_revoke("jti-claim", 1060)
+    assert result is True
+    assert len(redis.set_calls) == 1
+    key, value, opts = redis.set_calls[0]
+    assert key == "auth:blacklist:jti:jti-claim"
+    assert value == "1"
+    assert opts["nx"] is True
+    assert opts["ex"] == 60
+
+
+@pytest.mark.asyncio
+async def test_claim_and_revoke_second_caller_rejected(monkeypatch):
+    """claim_and_revoke returns False when NX returns None (already claimed) (line 125)."""
+    redis = _FakeRedisWithSet(set_result=None)
+    service = TokenBlacklistService(redis_client=redis)
+    monkeypatch.setattr("app.services.token_blacklist_service.time.time", lambda: 1000)
+    result = await service.claim_and_revoke("jti-claim", 1060)
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_claim_and_revoke_redis_none_fail_closed(monkeypatch, caplog):
+    """claim_and_revoke returns False (fail-closed) when Redis is unavailable (lines 119-123)."""
+
+    class _NoRedisService(TokenBlacklistService):
+        async def _get_redis_client(self):
+            return None
+
+    service = _NoRedisService()
+    monkeypatch.setattr("app.services.token_blacklist_service.time.time", lambda: 1000)
+    with caplog.at_level(logging.WARNING):
+        result = await service.claim_and_revoke("jti-claim", 1060)
+    assert result is False
+    assert any("Redis unavailable, claim_and_revoke fail-closed" in rec.message for rec in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_claim_and_revoke_redis_error_fail_closed(monkeypatch, caplog):
+    """claim_and_revoke returns False on Redis error (fail-closed) (lines 126-133)."""
+    redis = _FakeRedisWithSet(set_error=ConnectionError("redis down"))
+    service = TokenBlacklistService(redis_client=redis)
+    monkeypatch.setattr("app.services.token_blacklist_service.time.time", lambda: 1000)
+    with caplog.at_level(logging.ERROR):
+        result = await service.claim_and_revoke("jti-claim", 1060)
+    assert result is False
+    assert any("claim_and_revoke failed" in rec.message for rec in caplog.records)
+
+
+# ── Tests for ImportError fallback (lines 24-28) ──
+
+
+def test_redis_import_error_fallback(monkeypatch):
+    """When redis package is missing, _REDIS_ERROR_TYPES should be empty tuple (lines 24-28)."""
+    import importlib
+    import sys
+
+    # Save original module state
+    module_name = "app.services.token_blacklist_service"
+    original_module = sys.modules.get(module_name)
+
+    # Remove the cached redis module to simulate ImportError
+    redis_mods = [k for k in sys.modules if k == "redis" or k.startswith("redis.")]
+    saved_redis = {}
+    for mod in redis_mods:
+        saved_redis[mod] = sys.modules.pop(mod)
+
+    # Also remove the token_blacklist_service module so it reimports
+    sys.modules.pop(module_name, None)
+
+    try:
+        # Patch the redis import to raise ImportError
+        import builtins
+
+        original_import = builtins.__import__
+
+        def patched_import(name, *args, **kwargs):
+            if name == "redis" or name.startswith("redis."):
+                raise ImportError("no redis")
+            return original_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", patched_import)
+
+        # Reimport the module
+        reloaded = importlib.import_module(module_name)
+        assert reloaded._REDIS_ERROR_TYPES == ()
+    finally:
+        # Restore everything
+        for mod_name, mod in saved_redis.items():
+            sys.modules[mod_name] = mod
+        if original_module is not None:
+            sys.modules[module_name] = original_module
