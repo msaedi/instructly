@@ -37,6 +37,7 @@ from ..models.booking_no_show import BookingNoShow
 from ..models.booking_payment import BookingPayment
 from ..models.booking_reschedule import BookingReschedule
 from ..models.booking_transfer import BookingTransfer
+from ..models.booking_video_session import BookingVideoSession
 from ..models.user import User
 from .base_repository import BaseRepository
 from .cached_repository_mixin import CachedRepositoryMixin, cached_method
@@ -284,6 +285,47 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 return payment
             raise RepositoryException(
                 f"Failed to ensure booking payment after retry for booking {booking_id}"
+            )
+        except Exception:
+            nested.rollback()
+            raise
+
+    def get_video_session_by_booking_id(self, booking_id: str) -> Optional[BookingVideoSession]:
+        """Return video session satellite row for a booking, if present."""
+        try:
+            video_session = cast(
+                Optional[BookingVideoSession],
+                self.db.query(BookingVideoSession)
+                .filter(BookingVideoSession.booking_id == booking_id)
+                .one_or_none(),
+            )
+            return video_session
+        except Exception as e:
+            self.logger.error(f"Error getting video session for booking {booking_id}: {str(e)}")
+            raise RepositoryException(f"Failed to get booking video session: {str(e)}")
+
+    def ensure_video_session(
+        self, booking_id: str, room_id: str, room_name: str | None = None
+    ) -> BookingVideoSession:
+        """Get or create video session satellite row for a booking."""
+        video_session = self.get_video_session_by_booking_id(booking_id)
+        if video_session is not None:
+            return video_session
+        try:
+            nested = self.db.begin_nested()
+            video_session = BookingVideoSession(
+                booking_id=booking_id, room_id=room_id, room_name=room_name
+            )
+            self.db.add(video_session)
+            self.db.flush()
+            return video_session
+        except IntegrityError:
+            nested.rollback()
+            video_session = self.get_video_session_by_booking_id(booking_id)
+            if video_session is not None:
+                return video_session
+            raise RepositoryException(
+                f"Failed to ensure booking video session after retry for booking {booking_id}"
             )
         except Exception:
             nested.rollback()

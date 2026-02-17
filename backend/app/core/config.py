@@ -504,6 +504,38 @@ class Settings(BaseSettings):
         default=None,
         description="Base64-encoded 32-byte key for encrypting background check data",
     )
+
+    # 100ms Video Configuration
+    hundredms_access_key: str | None = Field(
+        default=None,
+        alias="HUNDREDMS_ACCESS_KEY",
+        description="100ms app access key for management token generation",
+    )
+    hundredms_app_secret: SecretStr | None = Field(
+        default=None,
+        alias="HUNDREDMS_APP_SECRET",
+        description="100ms app secret for signing management and auth JWTs",
+    )
+    hundredms_template_id: str | None = Field(
+        default=None,
+        alias="HUNDREDMS_TEMPLATE_ID",
+        description="Default 100ms template ID for room creation",
+    )
+    hundredms_webhook_secret: SecretStr | None = Field(
+        default=None,
+        alias="HUNDREDMS_WEBHOOK_SECRET",
+        description="Shared secret for verifying 100ms webhook signatures",
+    )
+    hundredms_base_url: str = Field(
+        default="https://api.100ms.live/v2",
+        description="Base URL for 100ms REST API",
+    )
+    hundredms_enabled: bool = Field(
+        default=False,
+        alias="HUNDREDMS_ENABLED",
+        description="Enable 100ms video integration",
+    )
+
     scheduler_enabled: bool = Field(
         default=True,
         description="Enable background schedulers (disabled automatically during tests)",

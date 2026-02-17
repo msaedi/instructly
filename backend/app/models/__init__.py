@@ -29,6 +29,7 @@ from .booking_note import BookingNote
 from .booking_payment import BookingPayment
 from .booking_reschedule import BookingReschedule
 from .booking_transfer import BookingTransfer
+from .booking_video_session import BookingVideoSession
 from .conversation import Conversation
 from .conversation_user_state import ConversationUserState
 from .event_outbox import EventOutbox, EventOutboxStatus, NotificationDelivery
@@ -142,6 +143,7 @@ __all__ = [
     "BookingPayment",
     "BookingReschedule",
     "BookingTransfer",
+    "BookingVideoSession",
     "AuditLog",
     "AuditLogEntry",
     "PlatformConfig",
