@@ -88,6 +88,10 @@ export type AgeGroup = 'toddler' | 'kids' | 'teens' | 'adults';
 // Booking enums
 export type BookingStatus = components['schemas']['BookingStatus'];
 
+// Video lesson types (Phase 5)
+export type VideoJoinResponse = components['schemas']['VideoJoinResponse'];
+export type VideoSessionStatusResponse = components['schemas']['VideoSessionStatusResponse'];
+
 // Payment breakdown
 export type PaymentSummary = components['schemas']['PaymentSummary'];
 

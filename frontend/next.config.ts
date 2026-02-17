@@ -64,6 +64,9 @@ const connectSrcOrigins = [
   'https://vitals.vercel-insights.com',
   'https://*.axiom.co',
   'https://*.onrender.com',
+  // 100ms video (Phase 5) — WebSocket + API
+  'wss://*.100ms.live',
+  'https://*.100ms.live',
 ];
 
 const cspPolicyValue = [
@@ -78,11 +81,20 @@ const cspPolicyValue = [
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
+  "media-src 'self' blob:",
   "worker-src 'self' blob:",
   `report-uri ${cspReportUri}`,
 ].join('; ');
 
 const nextConfig: NextConfig = {
+  // Stub @mediapipe/selfie_segmentation — Closure Compiler CJS output that Turbopack
+  // cannot resolve as ESM. Virtual background is unused; stub prevents build failure
+  // while keeping @100mslive/roomkit-react functional.
+  turbopack: {
+    resolveAlias: {
+      '@mediapipe/selfie_segmentation': './stubs/mediapipe-selfie-segmentation.js',
+    },
+  },
   distDir: process.env['NEXT_DIST_DIR'] || '.next',
   env: {
     NEXT_PUBLIC_LH_CI: process.env['NEXT_PUBLIC_LH_CI'] || '',
@@ -116,7 +128,7 @@ const nextConfig: NextConfig = {
       { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
       { key: 'X-Content-Type-Options', value: 'nosniff' },
       { key: 'Referrer-Policy', value: 'origin-when-cross-origin' },
-      { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+      { key: 'Permissions-Policy', value: 'camera=(self), microphone=(self), geolocation=()' },
       { key: 'Content-Security-Policy', value: cspPolicyValue },
       // Enable HSTS behind HTTPS; browsers will ignore if HTTP
       { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
