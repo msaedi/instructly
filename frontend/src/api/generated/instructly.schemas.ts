@@ -8676,6 +8676,27 @@ export interface VapidPublicKeyResponse {
 }
 
 /**
+ * Response from POST /api/v1/lessons/{booking_id}/join.
+ */
+export interface VideoJoinResponse {
+  auth_token: string;
+  booking_id: string;
+  role: string;
+  room_id: string;
+}
+
+/**
+ * Response from GET /api/v1/lessons/{booking_id}/video-session.
+ */
+export interface VideoSessionStatusResponse {
+  instructor_joined_at?: string | null;
+  room_id: string;
+  session_ended_at?: string | null;
+  session_started_at?: string | null;
+  student_joined_at?: string | null;
+}
+
+/**
  * Standard acknowledgement payload returned by webhook endpoints.
  */
 export interface WebhookAckResponse {

@@ -238,6 +238,8 @@ def create_celery_app() -> Celery:
             "app.tasks.embedding_migration",
             # Periodic DB maintenance (ANALYZE on high-churn tables)
             "app.tasks.db_maintenance",
+            # Video session monitoring and no-show detection
+            "app.tasks.video_tasks",
         }
     )
 

@@ -3958,6 +3958,84 @@ class BookingService(BaseService):
             "dispute_window_ends": (now + timedelta(hours=24)).isoformat(),
         }
 
+    @BaseService.measure_operation("report_automated_no_show")
+    def report_automated_no_show(
+        self,
+        *,
+        booking_id: str,
+        no_show_type: str,
+        reason: str,
+    ) -> Dict[str, Any]:
+        """System-initiated no-show report from video attendance detection.
+
+        No User reporter needed — actor=None with default_role="system".
+        """
+        from ..repositories.payment_repository import PaymentRepository
+
+        now = datetime.now(timezone.utc)
+        with self.transaction():
+            booking = self.repository.get_booking_with_details(booking_id)
+            if not booking:
+                raise NotFoundException("Booking not found")
+
+            if booking.status != BookingStatus.CONFIRMED.value:
+                raise ValidationException(
+                    f"Cannot report no-show for booking in status {booking.status}"
+                )
+
+            no_show_record = self.repository.get_no_show_by_booking_id(booking.id)
+            if no_show_record is not None and no_show_record.no_show_reported_at is not None:
+                raise BusinessRuleException("No-show already reported for this booking")
+
+            audit_before = self._snapshot_booking(booking)
+            noshow_bp = self.repository.ensure_payment(booking.id)
+            previous_payment_status = noshow_bp.payment_status
+
+            noshow_bp.payment_status = PaymentStatus.MANUAL_REVIEW.value
+            no_show_record = self.repository.ensure_no_show(booking.id)
+            no_show_record.no_show_reported_by = None
+            no_show_record.no_show_reported_at = now
+            no_show_record.no_show_type = no_show_type
+            no_show_record.no_show_disputed = False
+            no_show_record.no_show_disputed_at = None
+            no_show_record.no_show_dispute_reason = None
+            no_show_record.no_show_resolved_at = None
+            no_show_record.no_show_resolution = None
+
+            payment_repo = PaymentRepository(self.db)
+            payment_repo.create_payment_event(
+                booking_id=booking.id,
+                event_type="no_show_reported",
+                event_data={
+                    "type": no_show_type,
+                    "reported_by": None,
+                    "reason": reason,
+                    "automated": True,
+                    "previous_payment_status": previous_payment_status,
+                    "dispute_window_ends": (now + timedelta(hours=24)).isoformat(),
+                },
+            )
+
+            audit_after = self._snapshot_booking(booking)
+            self._write_booking_audit(
+                booking,
+                "no_show_reported_automated",
+                actor=None,
+                before=audit_before,
+                after=audit_after,
+                default_role="system",
+            )
+
+        self._invalidate_booking_caches(booking)
+
+        return {
+            "success": True,
+            "booking_id": booking_id,
+            "no_show_type": no_show_type,
+            "payment_status": PaymentStatus.MANUAL_REVIEW.value,
+            "dispute_window_ends": (now + timedelta(hours=24)).isoformat(),
+        }
+
     @BaseService.measure_operation("dispute_no_show")
     def dispute_no_show(
         self,

@@ -531,10 +531,12 @@ def test_invalidate_sync_outer_exception_returns_false(monkeypatch, caplog):
     monkeypatch.setattr(
         asyncio, "get_running_loop", lambda: (_ for _ in ()).throw(RuntimeError("no loop"))
     )
-    # Make asyncio.run raise an unexpected error
-    monkeypatch.setattr(
-        asyncio, "run", lambda coro: (_ for _ in ()).throw(Exception("unexpected outer failure"))
-    )
+    # Make asyncio.run raise an unexpected error (close coroutine first to avoid warning)
+    def fake_run(coro):
+        coro.close()
+        raise OSError("unexpected outer failure")
+
+    monkeypatch.setattr(asyncio, "run", fake_run)
 
     with caplog.at_level(logging.WARNING):
         result = auth_cache.invalidate_cached_user_by_id_sync("user-id", object())

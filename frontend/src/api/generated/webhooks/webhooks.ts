@@ -105,3 +105,88 @@ export const useHandleCheckrWebhookApiV1WebhooksCheckrPost = <
     queryClient
   );
 };
+/**
+ * Process 100ms webhook events for video session tracking.
+ * @summary Handle Hundredms Webhook
+ */
+export const getHandleHundredmsWebhookApiV1WebhooksHundredmsPostUrl = () => {
+  return `/api/v1/webhooks/hundredms`;
+};
+
+export const handleHundredmsWebhookApiV1WebhooksHundredmsPost = async (
+  options?: RequestInit
+): Promise<WebhookAckResponse> => {
+  return customFetch<WebhookAckResponse>(getHandleHundredmsWebhookApiV1WebhooksHundredmsPostUrl(), {
+    ...options,
+    method: 'POST',
+  });
+};
+
+export const getHandleHundredmsWebhookApiV1WebhooksHundredmsPostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof handleHundredmsWebhookApiV1WebhooksHundredmsPost>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof handleHundredmsWebhookApiV1WebhooksHundredmsPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['handleHundredmsWebhookApiV1WebhooksHundredmsPost'];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof handleHundredmsWebhookApiV1WebhooksHundredmsPost>>,
+    void
+  > = () => {
+    return handleHundredmsWebhookApiV1WebhooksHundredmsPost(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type HandleHundredmsWebhookApiV1WebhooksHundredmsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof handleHundredmsWebhookApiV1WebhooksHundredmsPost>>
+>;
+
+export type HandleHundredmsWebhookApiV1WebhooksHundredmsPostMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Handle Hundredms Webhook
+ */
+export const useHandleHundredmsWebhookApiV1WebhooksHundredmsPost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof handleHundredmsWebhookApiV1WebhooksHundredmsPost>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof handleHundredmsWebhookApiV1WebhooksHundredmsPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(
+    getHandleHundredmsWebhookApiV1WebhooksHundredmsPostMutationOptions(options),
+    queryClient
+  );
+};

@@ -145,6 +145,7 @@ from .routes.v1 import (
     uploads as uploads_v1,
     users as users_v1,
     webhooks_checkr as webhooks_checkr_v1,
+    webhooks_hundredms as webhooks_hundredms_v1,
 )
 from .routes.v1.admin import (
     audit as admin_audit_v1,
@@ -1229,6 +1230,7 @@ api_v1.include_router(  # type: ignore[attr-defined]
 )
 # Phase 23 v1 webhooks router
 api_v1.include_router(webhooks_checkr_v1.router, prefix="/webhooks/checkr")  # type: ignore[attr-defined]
+api_v1.include_router(webhooks_hundredms_v1.router, prefix="/webhooks/hundredms")  # type: ignore[attr-defined]
 # Phase 24.5 v1 admin operations routers
 api_v1.include_router(analytics_v1.router, prefix="/analytics")  # type: ignore[attr-defined]
 api_v1.include_router(codebase_metrics_v1.router, prefix="/analytics/codebase")  # type: ignore[attr-defined]
@@ -1253,6 +1255,8 @@ PUBLIC_OPEN_PATHS = {
     "/api/v1/referrals/claim",
     # v1 payments webhook (signature-verified, no auth needed)
     "/api/v1/payments/webhooks/stripe",
+    # v1 100ms video webhook (secret-verified, no auth needed)
+    "/api/v1/webhooks/hundredms",
     # v1 prometheus metrics (public, no auth per Prometheus best practices)
     "/api/v1/metrics/prometheus",
 }

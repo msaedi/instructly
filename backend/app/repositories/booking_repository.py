@@ -331,6 +331,41 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             nested.rollback()
             raise
 
+    def get_video_no_show_candidates(
+        self, sql_cutoff: datetime
+    ) -> List[Tuple[Booking, BookingVideoSession]]:
+        """Find online CONFIRMED bookings with video sessions eligible for no-show check.
+
+        Uses MIN_GRACE_MINUTES (8min = ceil of shortest grace) as the SQL cutoff
+        to catch ALL candidates, including short 30-min lessons with 7.5-min grace.
+        The caller computes per-booking grace in Python.
+        """
+        try:
+            NoShowAlias = aliased(BookingNoShow)
+            rows = (
+                self.db.query(Booking, BookingVideoSession)
+                .join(
+                    BookingVideoSession,
+                    BookingVideoSession.booking_id == Booking.id,
+                )
+                .outerjoin(NoShowAlias, NoShowAlias.booking_id == Booking.id)
+                .filter(
+                    Booking.status == BookingStatus.CONFIRMED.value,
+                    Booking.location_type == "online",
+                    Booking.booking_start_utc <= sql_cutoff,
+                    or_(
+                        NoShowAlias.no_show_reported_at.is_(None),
+                        NoShowAlias.id.is_(None),
+                    ),
+                )
+                .order_by(Booking.booking_start_utc.asc())
+                .all()
+            )
+            return cast(List[Tuple[Booking, BookingVideoSession]], rows)
+        except Exception as exc:
+            self.logger.error("Failed to load video no-show candidates: %s", str(exc))
+            raise RepositoryException(f"Failed to load video no-show candidates: {exc}")
+
     # Time-based Booking Queries (NEW)
 
     def get_bookings_by_time_range(

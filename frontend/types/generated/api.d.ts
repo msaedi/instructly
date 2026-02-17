@@ -4665,6 +4665,51 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/lessons/{booking_id}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Join Lesson
+         * @description Join a video lesson.
+         *
+         *     Creates the 100ms room on-demand and returns an auth token
+         *     for the frontend video SDK.
+         */
+        post: operations["join_lesson_api_v1_lessons__booking_id__join_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/lessons/{booking_id}/video-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Video Session
+         * @description Get video session status for a booking.
+         *
+         *     Returns session timing data if a video session exists.
+         */
+        get: operations["get_video_session_api_v1_lessons__booking_id__video_session_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/messages/config": {
         parameters: {
             query?: never;
@@ -7620,6 +7665,26 @@ export type paths = {
          * @description Process Checkr webhook events for background check reports.
          */
         post: operations["handle_checkr_webhook_api_v1_webhooks_checkr_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/hundredms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handle Hundredms Webhook
+         * @description Process 100ms webhook events for video session tracking.
+         */
+        post: operations["handle_hundredms_webhook_api_v1_webhooks_hundredms_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -20924,6 +20989,36 @@ export type components = {
             public_key: string;
         };
         /**
+         * VideoJoinResponse
+         * @description Response from POST /api/v1/lessons/{booking_id}/join.
+         */
+        VideoJoinResponse: {
+            /** Auth Token */
+            auth_token: string;
+            /** Booking Id */
+            booking_id: string;
+            /** Role */
+            role: string;
+            /** Room Id */
+            room_id: string;
+        };
+        /**
+         * VideoSessionStatusResponse
+         * @description Response from GET /api/v1/lessons/{booking_id}/video-session.
+         */
+        VideoSessionStatusResponse: {
+            /** Instructor Joined At */
+            instructor_joined_at?: string | null;
+            /** Room Id */
+            room_id: string;
+            /** Session Ended At */
+            session_ended_at?: string | null;
+            /** Session Started At */
+            session_started_at?: string | null;
+            /** Student Joined At */
+            student_joined_at?: string | null;
+        };
+        /**
          * WebhookAckResponse
          * @description Standard acknowledgement payload returned by webhook endpoints.
          */
@@ -29121,6 +29216,70 @@ export interface operations {
             };
         };
     };
+    join_lesson_api_v1_lessons__booking_id__join_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Booking ULID */
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoJoinResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_video_session_api_v1_lessons__booking_id__video_session_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Booking ULID */
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoSessionStatusResponse"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_message_config_api_v1_messages_config_get: {
         parameters: {
             query?: never;
@@ -33140,6 +33299,26 @@ export interface operations {
         };
     };
     handle_checkr_webhook_api_v1_webhooks_checkr_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookAckResponse"];
+                };
+            };
+        };
+    };
+    handle_hundredms_webhook_api_v1_webhooks_hundredms_post: {
         parameters: {
             query?: never;
             header?: never;
