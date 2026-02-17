@@ -5,6 +5,9 @@ const createJestConfig = nextJest({
   dir: './',
 });
 
+// Lock timezone to UTC to prevent date-dependent test flakes across local machines
+process.env.TZ = 'UTC';
+
 // Add any custom config to be passed to Jest
 const customJestConfig = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
