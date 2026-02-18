@@ -73,7 +73,8 @@ function LessonRoomShell({ children }: { children: React.ReactNode }) {
 
 export default function LessonRoomPage() {
   const params = useParams();
-  const bookingId = params['bookingId'] as string;
+  const rawBookingId = params['bookingId'];
+  const bookingId = typeof rawBookingId === 'string' ? rawBookingId : '';
 
   // Auth
   const { user, isLoading: authLoading, isAuthenticated, redirectToLogin } = useAuth();
@@ -99,7 +100,7 @@ export default function LessonRoomPage() {
   const [joinError, setJoinError] = useState<string | null>(null);
 
   // Resolved phase: user override wins when set, otherwise derived from booking
-  const phase: RoomPhase = phaseOverride ?? bookingPhase.phase;
+  const rawPhase: RoomPhase = phaseOverride ?? bookingPhase.phase;
   const notJoinableReason = bookingPhase.notJoinableReason;
 
   // Join / leave handlers
@@ -114,10 +115,7 @@ export default function LessonRoomPage() {
       setPhaseOverride('active');
     } catch (err: unknown) {
       setPhaseOverride(null); // fall back to derived phase
-      const message =
-        err && typeof err === 'object' && 'message' in err
-          ? String((err as { message: string }).message)
-          : 'Failed to join lesson';
+      const message = err instanceof Error ? err.message : 'Failed to join lesson';
       setJoinError(message);
     }
   };
@@ -128,9 +126,13 @@ export default function LessonRoomPage() {
 
   // Video session polling (active + ended)
   const { sessionData } = useVideoSessionStatus(bookingId, {
-    enabled: phase === 'active' || phase === 'ended',
+    enabled: rawPhase === 'active' || rawPhase === 'ended',
     pollingIntervalMs: 10_000,
   });
+
+  // Final phase: transition active→ended when poll detects session close (derived, no effect)
+  const phase: RoomPhase =
+    rawPhase === 'active' && sessionData?.session_ended_at ? 'ended' : rawPhase;
 
   // Derived user info
   const userRole: 'student' | 'instructor' =
@@ -138,8 +140,8 @@ export default function LessonRoomPage() {
   const userName = user ? `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() : '';
   const otherPartyName =
     userRole === 'student'
-      ? (booking?.instructor as { first_name?: string } | null | undefined)?.first_name ?? 'Instructor'
-      : (booking?.student as { first_name?: string } | null | undefined)?.first_name ?? 'Student';
+      ? booking?.instructor?.first_name ?? 'Instructor'
+      : booking?.student?.first_name ?? 'Student';
   const otherPartyRole: 'student' | 'instructor' = userRole === 'student' ? 'instructor' : 'student';
 
   // ---- Render ----
@@ -168,6 +170,8 @@ export default function LessonRoomPage() {
   }
 
   if (bookingError || !booking) {
+    const isInstructor = user?.roles?.includes('INSTRUCTOR') ?? false;
+    const lessonsPath = isInstructor ? '/instructor/bookings' : '/student/lessons';
     return (
       <LessonRoomShell>
         <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
@@ -175,7 +179,7 @@ export default function LessonRoomPage() {
             {bookingError ? 'Failed to load lesson details.' : 'Lesson not found.'}
           </p>
           <Link
-            href="/student/lessons"
+            href={lessonsPath}
             className="text-sm text-primary underline"
           >
             Back to My Lessons

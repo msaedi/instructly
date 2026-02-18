@@ -41,7 +41,7 @@ export function PreLessonWaiting({
       {!opensCountdown.isExpired && (
         <div className="flex flex-col items-center gap-2">
           <p className="text-sm text-muted-foreground">Join opens in</p>
-          <p className="text-4xl font-mono font-bold tabular-nums">
+          <p className="text-4xl font-mono font-bold tabular-nums" aria-live="polite">
             {opensCountdown.formatted}
           </p>
         </div>
@@ -55,6 +55,7 @@ export function PreLessonWaiting({
           <button
             type="button"
             onClick={onJoin}
+            aria-label="Join video lesson"
             className="rounded-lg bg-primary px-8 py-3 text-lg font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
           >
             Join Lesson

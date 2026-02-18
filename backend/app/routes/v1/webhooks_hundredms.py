@@ -11,6 +11,7 @@ from collections import OrderedDict
 from datetime import datetime, timezone
 import json
 import logging
+import secrets as _secrets
 from time import monotonic
 from typing import Any
 
@@ -90,7 +91,7 @@ def _verify_hundredms_secret(request: Request) -> None:
             detail="Unauthorized",
         )
 
-    if provided != webhook_secret.get_secret_value():
+    if not _secrets.compare_digest(provided, webhook_secret.get_secret_value()):
         logger.warning(
             "100ms webhook secret mismatch",
             extra={"evt": "hundredms_webhook_invalid_secret"},
@@ -155,12 +156,26 @@ def _handle_peer_join(video_session: Any, data: dict[str, Any]) -> None:
     peer_id = data.get("peer_id") or ""
     joined_at = _parse_timestamp(data.get("joined_at"))
 
+    # Extract user_id from peer metadata (defense-in-depth)
+    raw_metadata = data.get("metadata") or "{}"
+    try:
+        metadata = (
+            json.loads(raw_metadata) if isinstance(raw_metadata, str) else (raw_metadata or {})
+        )
+        peer_user_id = metadata.get("user_id") if isinstance(metadata, dict) else None
+    except (json.JSONDecodeError, AttributeError):
+        peer_user_id = None
+
     if role == "host":
         video_session.instructor_peer_id = peer_id
         video_session.instructor_joined_at = joined_at
+        if peer_user_id:
+            logger.info("100ms host peer identified: user_id=%s", peer_user_id)
     elif role == "guest":
         video_session.student_peer_id = peer_id
         video_session.student_joined_at = joined_at
+        if peer_user_id:
+            logger.info("100ms guest peer identified: user_id=%s", peer_user_id)
     else:
         logger.info("100ms peer.join unknown role=%s peer_id=%s", role, peer_id)
 
@@ -248,6 +263,10 @@ async def handle_hundredms_webhook(
     booking_repo: BookingRepository = Depends(_get_booking_repository),
 ) -> WebhookAckResponse:
     """Process 100ms webhook events for video session tracking."""
+
+    # 0. Feature flag — skip all processing when video is disabled
+    if not settings.hundredms_enabled:
+        return WebhookAckResponse(ok=True)
 
     # 1. Verify secret header
     raw_body = await request.body()

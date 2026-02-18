@@ -7,6 +7,7 @@ generation for joining rooms.
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from typing import Any, cast
@@ -68,6 +69,7 @@ class HundredMsClient:
             "version": 2,
             "iat": now,
             "nbf": now,
+            "exp": now + 3600,
         }
         token: str = jwt.encode(
             payload,
@@ -93,14 +95,26 @@ class HundredMsClient:
             "Content-Type": "application/json",
         }
 
-        with httpx.Client(timeout=self._timeout) as client:
-            response = client.request(
+        try:
+            with httpx.Client(timeout=self._timeout) as client:
+                response = client.request(
+                    method,
+                    url,
+                    headers=headers,
+                    json=json_body,
+                    params=params,
+                )
+        except httpx.TransportError as exc:
+            logger.error(
+                "100ms API unreachable for %s %s: %s",
                 method,
-                url,
-                headers=headers,
-                json=json_body,
-                params=params,
+                path,
+                exc,
             )
+            raise HundredMsError(
+                message=f"100ms API unreachable: {exc}",
+                status_code=None,
+            ) from exc
 
         if response.status_code >= 400:
             error_body = None
@@ -172,7 +186,7 @@ class HundredMsClient:
         room_id: str,
         user_id: str,
         role: str,
-        validity_seconds: int = 86400,
+        validity_seconds: int = 3600,
     ) -> str:
         """Generate a per-participant auth token for joining a 100ms room.
 
@@ -190,6 +204,7 @@ class HundredMsClient:
             "iat": now,
             "nbf": now,
             "exp": now + validity_seconds,
+            "metadata": json.dumps({"user_id": user_id}),
         }
         token: str = jwt.encode(
             payload,

@@ -42,8 +42,10 @@ class VideoService(BaseService):
         Creates the 100ms room on-demand (first participant) and returns
         an auth token for the frontend SDK.
         """
-        # 1. Look up booking — participant-filtered at DB level
-        booking = self.booking_repository.get_booking_for_participant(booking_id, user_id)
+        # 1. Look up booking — participant-filtered at DB level, locked to prevent TOCTOU
+        booking = self.booking_repository.get_booking_for_participant_for_update(
+            booking_id, user_id
+        )
         if booking is None:
             raise NotFoundException("Booking not found")
 
@@ -81,6 +83,13 @@ class VideoService(BaseService):
                     booking_id, room_id=room_id, room_name=room_name
                 )
             except HundredMsError as e:
+                logger.error(
+                    "100ms room creation failed for booking %s user %s: %s",
+                    booking_id,
+                    user_id,
+                    e.message,
+                    extra={"status_code": e.status_code},
+                )
                 raise ServiceException(
                     f"100ms room creation failed: {e.message}",
                     details={"status_code": e.status_code},
@@ -94,6 +103,13 @@ class VideoService(BaseService):
                 role=role,
             )
         except HundredMsError as e:
+            logger.error(
+                "100ms auth token generation failed for booking %s user %s: %s",
+                booking_id,
+                user_id,
+                e.message,
+                extra={"status_code": e.status_code, "room_id": video_session.room_id},
+            )
             raise ServiceException(
                 f"100ms auth token generation failed: {e.message}",
                 details={"status_code": e.status_code},

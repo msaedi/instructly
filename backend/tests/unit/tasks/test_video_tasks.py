@@ -60,6 +60,14 @@ class TestDetermineNoShowType:
 class TestDetectVideoNoShows:
     """Tests for the Celery task that detects video no-shows."""
 
+    def setup_method(self) -> None:
+        self._settings_patcher = patch("app.tasks.video_tasks.settings")
+        mock_settings = self._settings_patcher.start()
+        mock_settings.hundredms_enabled = True
+
+    def teardown_method(self) -> None:
+        self._settings_patcher.stop()
+
     def _make_booking(
         self,
         booking_id: str = "01HYXZ5G6KFXJKZ9CHQM4E3P7G",

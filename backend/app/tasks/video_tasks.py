@@ -9,6 +9,7 @@ from typing import Any, Callable, Optional, ParamSpec, Protocol, TypedDict, Type
 from sqlalchemy.orm import Session
 
 from app.core.booking_lock import booking_lock_sync
+from app.core.config import settings
 from app.database import get_db
 from app.domain.video_utils import compute_grace_minutes
 from app.models.booking import BookingStatus
@@ -96,7 +97,6 @@ def detect_video_no_shows() -> VideoNoShowResults:
     1. SQL uses MIN_GRACE_MINUTES=8 as generous cutoff to catch ALL candidates
     2. Python computes exact per-booking grace and filters precisely
     """
-    db: Optional[Session] = None
     now = datetime.now(timezone.utc)
     results: VideoNoShowResults = {
         "processed": 0,
@@ -105,6 +105,11 @@ def detect_video_no_shows() -> VideoNoShowResults:
         "failed": 0,
         "processed_at": now.isoformat(),
     }
+
+    if not settings.hundredms_enabled:
+        return results
+
+    db: Optional[Session] = None
     try:
         db = cast(Session, next(get_db()))
         booking_repo = RepositoryFactory.get_booking_repository(db)

@@ -31,7 +31,7 @@ export function LessonEnded({ booking, sessionData, userRole }: LessonEndedProps
   const backHref = userRole === 'instructor' ? '/instructor/bookings' : '/student/lessons';
 
   return (
-    <div className="flex flex-col items-center justify-center gap-6 py-12 px-4 text-center">
+    <div role="status" aria-label="Lesson ended" className="flex flex-col items-center justify-center gap-6 py-12 px-4 text-center">
       <h1 className="text-2xl font-semibold">Lesson Complete</h1>
       <p className="text-muted-foreground">{booking.service_name}</p>
 

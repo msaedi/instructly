@@ -17,7 +17,7 @@ export function NotJoinable({ reason, userRole }: NotJoinableProps) {
   const backHref = userRole === 'instructor' ? '/instructor/bookings' : '/student/lessons';
 
   return (
-    <div className="flex flex-col items-center justify-center gap-6 py-16 px-4 text-center">
+    <div role="alert" className="flex flex-col items-center justify-center gap-6 py-16 px-4 text-center">
       <p className="text-lg text-muted-foreground">{MESSAGES[reason]}</p>
       <Link
         href={backHref}

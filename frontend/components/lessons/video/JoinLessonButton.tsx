@@ -27,6 +27,7 @@ export function JoinLessonButton({
     return (
       <Link
         href={`/lessons/${bookingId}`}
+        aria-label="Join video lesson"
         className={buttonVariants({ variant: 'success', size: 'sm' }) + (className ? ` ${className}` : '')}
         data-testid="join-lesson-button"
       >

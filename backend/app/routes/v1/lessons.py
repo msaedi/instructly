@@ -39,7 +39,11 @@ def get_video_service(db: Session = Depends(get_db)) -> VideoService:
     """Create VideoService with dependencies."""
     client: HundredMsClient | FakeHundredMsClient
     if settings.hundredms_enabled and settings.hundredms_access_key:
-        assert settings.hundredms_app_secret is not None
+        if settings.hundredms_app_secret is None:
+            raise ValueError(
+                "HUNDREDMS_ENABLED=True with access_key set but app_secret is missing. "
+                "Set HUNDREDMS_APP_SECRET environment variable."
+            )
         client = HundredMsClient(
             access_key=settings.hundredms_access_key,
             app_secret=settings.hundredms_app_secret,

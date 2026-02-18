@@ -23,7 +23,7 @@ interface ActiveLessonProps {
 
 export function ActiveLesson({ authToken, userName, userId, onLeave }: ActiveLessonProps) {
   return (
-    <div className="fixed inset-0 z-50 bg-background">
+    <div role="main" aria-label="Video lesson in progress" className="fixed inset-0 z-50 bg-background">
       <HMSPrebuilt
         authToken={authToken}
         options={{ userName, userId }}

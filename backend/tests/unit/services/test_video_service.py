@@ -44,6 +44,7 @@ def _make_service(
     # Patch the repository that was created in __init__
     mock_repo = Mock()
     mock_repo.get_booking_for_participant.return_value = booking
+    mock_repo.get_booking_for_participant_for_update.return_value = booking
     mock_repo.get_video_session_by_booking_id.return_value = video_session
     mock_repo.ensure_video_session.return_value = ensure_returns or video_session
     service.booking_repository = mock_repo

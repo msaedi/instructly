@@ -52,7 +52,7 @@ describe('PreLessonWaiting', () => {
 
     expect(screen.getByText('Join opens in')).toBeInTheDocument();
     expect(screen.getByText('05:00')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Join Lesson' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Join video lesson' })).not.toBeInTheDocument();
   });
 
   it('shows Join button when window is open', () => {
@@ -63,7 +63,7 @@ describe('PreLessonWaiting', () => {
 
     render(<PreLessonWaiting {...defaultProps} />);
 
-    expect(screen.getByRole('button', { name: 'Join Lesson' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Join video lesson' })).toBeInTheDocument();
     expect(screen.getByText(/Window closes in 10:00/)).toBeInTheDocument();
     expect(screen.queryByText('Join opens in')).not.toBeInTheDocument();
   });
@@ -77,7 +77,7 @@ describe('PreLessonWaiting', () => {
     render(<PreLessonWaiting {...defaultProps} />);
 
     expect(screen.getByText('Join window has closed.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Join Lesson' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Join video lesson' })).not.toBeInTheDocument();
   });
 
   it('calls onJoin when Join button is clicked', () => {
@@ -89,7 +89,7 @@ describe('PreLessonWaiting', () => {
 
     render(<PreLessonWaiting {...defaultProps} onJoin={onJoin} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Join Lesson' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Join video lesson' }));
     expect(onJoin).toHaveBeenCalledTimes(1);
   });
 
@@ -102,7 +102,7 @@ describe('PreLessonWaiting', () => {
     render(<PreLessonWaiting {...defaultProps} isJoining={true} />);
 
     expect(screen.getByText('Connecting...')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Join Lesson' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Join video lesson' })).not.toBeInTheDocument();
   });
 
   it('shows join error with alert role', () => {
