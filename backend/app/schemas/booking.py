@@ -24,6 +24,7 @@ from pydantic import (
 )
 import pytz
 
+from ..core.config import settings
 from ..domain.video_utils import compute_grace_minutes
 from ..models.booking import BookingStatus
 from ..schemas.base import STRICT_SCHEMAS, Money, StandardizedModel
@@ -594,14 +595,14 @@ def _extract_satellite_fields(booking: Any) -> dict[str, Any]:
         return None
 
     # Compute join window for online confirmed bookings
-    _can_join: bool | None = None
+    _can_join: bool | None = False if not settings.hundredms_enabled else None
     _opens_at: datetime | None = None
     _closes_at: datetime | None = None
     _location = getattr(booking, "location_type", None)
     _status = getattr(booking, "status", None)
     _start = getattr(booking, "booking_start_utc", None)
     _duration = getattr(booking, "duration_minutes", None)
-    if (
+    if settings.hundredms_enabled and (
         _location == "online"
         and _status == BookingStatus.CONFIRMED.value
         and isinstance(_start, datetime)

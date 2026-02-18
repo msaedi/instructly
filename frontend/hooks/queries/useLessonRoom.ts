@@ -12,7 +12,7 @@ import {
  */
 export function useJoinLesson() {
   const queryClient = useQueryClient();
-  const mutation = useJoinLessonApiV1LessonsBookingIdJoinPost({
+  const mutation = useJoinLessonApiV1LessonsBookingIdJoinPost<Error>({
     mutation: {
       onSuccess: (_data, variables) => {
         void queryClient.invalidateQueries({
@@ -24,10 +24,10 @@ export function useJoinLesson() {
 
   return {
     joinLesson: async (bookingId: string): Promise<VideoJoinResponse> => {
-      return mutation.mutateAsync({ bookingId }) as Promise<VideoJoinResponse>;
+      return mutation.mutateAsync({ bookingId });
     },
     isPending: mutation.isPending,
-    error: mutation.error as Error | null,
+    error: mutation.error ?? null,
   };
 }
 
@@ -37,20 +37,37 @@ export function useJoinLesson() {
  */
 export function useVideoSessionStatus(
   bookingId: string,
-  options?: { enabled?: boolean; pollingIntervalMs?: number },
+  options?: {
+    enabled?: boolean;
+    pollingIntervalMs?: number;
+    stopPollingWhenEnded?: boolean;
+  },
 ) {
-  const query = useGetVideoSessionApiV1LessonsBookingIdVideoSessionGet(bookingId, {
+  const refetchInterval =
+    options?.pollingIntervalMs !== undefined
+      ? (query: { state: { data?: VideoSessionStatusResponse | null } }) => {
+          if (options.stopPollingWhenEnded && query.state.data?.session_ended_at) {
+            return false;
+          }
+          return options.pollingIntervalMs;
+        }
+      : undefined;
+
+  const query = useGetVideoSessionApiV1LessonsBookingIdVideoSessionGet<
+    VideoSessionStatusResponse | null,
+    Error
+  >(bookingId, {
     query: {
       enabled: options?.enabled ?? true,
-      ...(options?.pollingIntervalMs !== undefined && { refetchInterval: options.pollingIntervalMs }),
+      ...(refetchInterval !== undefined && { refetchInterval }),
       queryKey: queryKeys.lessons.videoSession(bookingId),
     },
   });
 
   return {
-    sessionData: (query.data as VideoSessionStatusResponse | null | undefined) ?? null,
+    sessionData: query.data ?? null,
     isLoading: query.isLoading,
-    error: query.error as Error | null,
+    error: query.error ?? null,
     refetch: query.refetch,
   };
 }

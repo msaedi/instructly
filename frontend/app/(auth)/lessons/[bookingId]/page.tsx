@@ -123,10 +123,13 @@ export default function LessonRoomPage() {
     setPhaseOverride('ended');
   };
 
+  // Phase-0 determination (M5): polling keyed only to rawPhase can continue
+  // indefinitely after session_ended_at is observed.
   // Video session polling (active + ended; no continuous poll once ended)
   const { sessionData } = useVideoSessionStatus(bookingId, {
     enabled: rawPhase === 'active' || rawPhase === 'ended',
     ...(rawPhase === 'active' && { pollingIntervalMs: 10_000 }),
+    stopPollingWhenEnded: true,
   });
 
   // Final phase: transition active→ended when poll detects session close (derived, no effect)

@@ -299,4 +299,31 @@ describe('LessonRoomPage', () => {
       expect(screen.getByTestId('lesson-ended')).toBeInTheDocument();
     });
   });
+
+  it('enables ended-aware polling after session_ended_at is observed', async () => {
+    mockJoinLesson.mockResolvedValueOnce({ auth_token: 'tok_123' });
+    (useVideoSessionStatus as jest.Mock).mockReturnValue({
+      sessionData: { session_ended_at: '2025-01-01T10:30:00Z' },
+    });
+
+    render(<LessonRoomPage />);
+    fireEvent.click(screen.getByText('Join Lesson'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('lesson-ended')).toBeInTheDocument();
+    });
+
+    const calls = (useVideoSessionStatus as jest.Mock).mock.calls as Array<
+      [string, { enabled?: boolean; pollingIntervalMs?: number; stopPollingWhenEnded?: boolean }]
+    >;
+    expect(calls.some(([, options]) => options?.pollingIntervalMs === 10_000)).toBe(true);
+    const lastCall = calls[calls.length - 1];
+    expect(lastCall).toBeDefined();
+    const [, lastOptions] = lastCall as [
+      string,
+      { enabled?: boolean; pollingIntervalMs?: number; stopPollingWhenEnded?: boolean }
+    ];
+    expect(lastOptions.enabled).toBe(true);
+    expect(lastOptions.stopPollingWhenEnded).toBe(true);
+  });
 });

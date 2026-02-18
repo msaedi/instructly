@@ -38,20 +38,38 @@ ULID_PATH_PATTERN = r"^[0-9A-HJKMNP-TV-Z]{26}$"
 def get_video_service(db: Session = Depends(get_db)) -> VideoService:
     """Create VideoService with dependencies."""
     client: HundredMsClient | FakeHundredMsClient
-    if settings.hundredms_enabled and settings.hundredms_access_key:
-        if settings.hundredms_app_secret is None:
-            raise ValueError(
-                "HUNDREDMS_ENABLED=True with access_key set but app_secret is missing. "
-                "Set HUNDREDMS_APP_SECRET environment variable."
-            )
-        client = HundredMsClient(
-            access_key=settings.hundredms_access_key,
-            app_secret=settings.hundredms_app_secret,
-            base_url=settings.hundredms_base_url,
-            template_id=settings.hundredms_template_id,
-        )
-    else:
+    if not settings.hundredms_enabled:
         client = FakeHundredMsClient()
+    else:
+        access_key = (settings.hundredms_access_key or "").strip()
+        raw_secret = settings.hundredms_app_secret
+        if raw_secret is None:
+            app_secret = ""
+        elif hasattr(raw_secret, "get_secret_value"):
+            app_secret = str(raw_secret.get_secret_value()).strip()
+        else:
+            app_secret = str(raw_secret).strip()
+        template_id = (settings.hundredms_template_id or "").strip()
+        missing: list[str] = []
+        if not access_key:
+            missing.append("HUNDREDMS_ACCESS_KEY")
+        if not app_secret:
+            missing.append("HUNDREDMS_APP_SECRET")
+        if not template_id:
+            missing.append("HUNDREDMS_TEMPLATE_ID")
+        if missing:
+            missing_fields = ", ".join(missing)
+            raise ValueError(
+                "HUNDREDMS_ENABLED=True requires all 100ms credentials. "
+                f"Missing: {missing_fields}."
+            )
+
+        client = HundredMsClient(
+            access_key=access_key,
+            app_secret=app_secret,
+            base_url=settings.hundredms_base_url,
+            template_id=template_id,
+        )
 
     return VideoService(db=db, hundredms_client=client)
 
@@ -66,7 +84,7 @@ def handle_domain_exception(exc: DomainException) -> NoReturn:
 @router.post(
     "/{booking_id}/join",
     response_model=VideoJoinResponse,
-    dependencies=[Depends(new_rate_limit("write"))],
+    dependencies=[Depends(new_rate_limit("video"))],
 )
 async def join_lesson(
     booking_id: str = Path(
@@ -111,7 +129,7 @@ async def join_lesson(
 @router.get(
     "/{booking_id}/video-session",
     response_model=Optional[VideoSessionStatusResponse],
-    dependencies=[Depends(new_rate_limit("read"))],
+    dependencies=[Depends(new_rate_limit("video"))],
 )
 async def get_video_session(
     booking_id: str = Path(

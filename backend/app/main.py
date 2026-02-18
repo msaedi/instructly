@@ -337,6 +337,27 @@ def _validate_startup_config() -> None:
     elif secret_or_plain(getattr(runtime_settings, "bgc_encryption_key", None)).strip():
         logger.info("Background-check report encryption enabled")
 
+    if getattr(runtime_settings, "hundredms_enabled", False):
+        access_key = (getattr(runtime_settings, "hundredms_access_key", None) or "").strip()
+        app_secret = secret_or_plain(
+            getattr(runtime_settings, "hundredms_app_secret", None)
+        ).strip()
+        template_id = (getattr(runtime_settings, "hundredms_template_id", None) or "").strip()
+
+        missing: list[str] = []
+        if not access_key:
+            missing.append("HUNDREDMS_ACCESS_KEY")
+        if not app_secret:
+            missing.append("HUNDREDMS_APP_SECRET")
+        if not template_id:
+            missing.append("HUNDREDMS_TEMPLATE_ID")
+
+        if missing:
+            raise ValueError(
+                "HUNDREDMS_ENABLED=True but required configuration is missing: "
+                + ", ".join(missing)
+            )
+
 
 @asynccontextmanager
 async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:

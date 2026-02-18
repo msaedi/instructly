@@ -64,9 +64,15 @@ const connectSrcOrigins = [
   'https://vitals.vercel-insights.com',
   'https://*.axiom.co',
   'https://*.onrender.com',
-  // 100ms video (Phase 5) — WebSocket + API
-  'wss://*.100ms.live',
-  'https://*.100ms.live',
+  // 100ms video (Phase 5) — explicit allowlist (no wildcard).
+  // Add region-specific endpoints via NEXT_PUBLIC_100MS_CONNECT_ORIGINS.
+  ...(
+    process.env['NEXT_PUBLIC_100MS_CONNECT_ORIGINS'] ||
+    'https://api.100ms.live,wss://api.100ms.live'
+  )
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
 ];
 
 const cspPolicyValue = [

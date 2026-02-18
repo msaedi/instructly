@@ -9,6 +9,7 @@ Also handles stale data cleanup (e.g. abandoned 2FA setup secrets).
 
 from datetime import datetime, timedelta, timezone
 import logging
+from typing import Any, Callable, TypeVar, cast
 
 from celery import shared_task
 from sqlalchemy import text
@@ -21,8 +22,15 @@ logger = logging.getLogger(__name__)
 # f"ANALYZE {table}" uses text() which does not parameterize table names.
 _HIGH_CHURN_TABLES = ("background_jobs",)
 
+_TaskFunc = TypeVar("_TaskFunc", bound=Callable[..., Any])
 
-@shared_task(name="db_maintenance.analyze_high_churn_tables", ignore_result=True)
+
+def _typed_shared_task(*args: Any, **kwargs: Any) -> Callable[[_TaskFunc], _TaskFunc]:
+    """Typed wrapper for Celery's shared_task decorator."""
+    return cast(Callable[[_TaskFunc], _TaskFunc], shared_task(*args, **kwargs))
+
+
+@_typed_shared_task(name="db_maintenance.analyze_high_churn_tables", ignore_result=True)
 def analyze_high_churn_tables() -> None:
     """Run ANALYZE on high-churn tables to refresh query-planner statistics."""
     with get_db_session() as db:
@@ -34,7 +42,7 @@ def analyze_high_churn_tables() -> None:
                 logger.warning("[DB-MAINT] ANALYZE %s failed", table, exc_info=True)
 
 
-@shared_task(name="db_maintenance.cleanup_stale_2fa_setups", ignore_result=True)
+@_typed_shared_task(name="db_maintenance.cleanup_stale_2fa_setups", ignore_result=True)
 def cleanup_stale_2fa_setups() -> None:
     """Purge 2FA secrets from abandoned setup flows (>1 hour old, not yet enabled)."""
     cutoff = datetime.now(timezone.utc) - timedelta(hours=1)

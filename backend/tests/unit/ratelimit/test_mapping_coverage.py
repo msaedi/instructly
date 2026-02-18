@@ -47,7 +47,7 @@ class TestRouteBuckets:
         """Test that values are valid bucket name identifiers."""
         from app.ratelimit.mapping import ROUTE_BUCKETS
 
-        valid_buckets = {"auth_bootstrap", "read", "write", "financial"}
+        valid_buckets = {"auth_bootstrap", "read", "write", "video", "financial"}
 
         for key, value in ROUTE_BUCKETS.items():
             assert value in valid_buckets, f"Bucket {value} for route {key} not in valid buckets"
@@ -79,6 +79,13 @@ class TestRouteBuckets:
 
         assert "/api/v1/payments/checkout" in ROUTE_BUCKETS
         assert ROUTE_BUCKETS["/api/v1/payments/checkout"] == "financial"
+
+    def test_lessons_routes_use_video_bucket(self):
+        """Video lesson endpoints should use the video bucket."""
+        from app.ratelimit.mapping import ROUTE_BUCKETS
+
+        assert ROUTE_BUCKETS["/api/v1/lessons"] == "video"
+        assert ROUTE_BUCKETS["/api/v1/webhooks/hundredms"] == "video"
 
     def test_all_api_v1_routes_have_correct_prefix(self):
         """Test that API v1 routes have correct prefix."""

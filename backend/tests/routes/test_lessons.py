@@ -54,6 +54,8 @@ class TestJoinLesson:
         assert data["room_id"] == "room_123"
         assert data["role"] == "guest"
         assert data["booking_id"] == "01HF4G12ABCDEF3456789XYZAB"
+        assert response.headers.get("X-RateLimit-Policy") == "video"
+        assert response.headers.get("X-RateLimit-Limit") is not None
 
     def test_join_returns_401_without_auth(self, client_with_mock_service):
         response = client_with_mock_service.post(
@@ -212,17 +214,18 @@ class TestGetVideoServiceFactory:
         assert isinstance(service.hundredms_client, FakeHundredMsClient)
 
     @patch("app.routes.v1.lessons.settings")
-    def test_creates_fake_client_when_no_access_key(self, mock_settings):
-        """Enabled but no access key configured — falls back to fake client."""
-        from app.integrations.hundredms_client import FakeHundredMsClient
+    def test_raises_when_enabled_but_missing_credentials(self, mock_settings):
+        """Enabled mode must fail closed when credentials are incomplete."""
+        from pydantic import SecretStr
 
         mock_settings.hundredms_enabled = True
-        mock_settings.hundredms_access_key = None
+        mock_settings.hundredms_access_key = "key-present"
+        mock_settings.hundredms_app_secret = SecretStr("")
+        mock_settings.hundredms_template_id = None
 
         mock_db = Mock()
-        service = get_video_service(db=mock_db)
-
-        assert isinstance(service.hundredms_client, FakeHundredMsClient)
+        with pytest.raises(ValueError, match="HUNDREDMS"):
+            get_video_service(db=mock_db)
 
 
 # ── handle_domain_exception tests ────────────────────────────────────

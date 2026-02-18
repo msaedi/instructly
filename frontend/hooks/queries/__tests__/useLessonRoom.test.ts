@@ -72,7 +72,7 @@ describe('useJoinLesson', () => {
   });
 
   it('calls mutateAsync with the correct bookingId', async () => {
-    const mutateAsync = jest.fn().mockResolvedValue({ room_url: 'https://example.com/room', token: 'tok' });
+    const mutateAsync = jest.fn().mockResolvedValue({ auth_token: 'tok', room_id: 'room_123' });
     mockMutationHook.mockReturnValue({
       mutateAsync,
       isPending: false,
@@ -90,7 +90,7 @@ describe('useJoinLesson', () => {
   });
 
   it('returns the VideoJoinResponse from mutateAsync', async () => {
-    const response = { room_url: 'https://example.com/room', token: 'abc123' };
+    const response = { auth_token: 'abc123', room_id: 'room_123', role: 'guest', booking_id: '01BOOKING123456789012345' };
     const mutateAsync = jest.fn().mockResolvedValue(response);
     mockMutationHook.mockReturnValue({
       mutateAsync,
@@ -175,9 +175,11 @@ describe('useVideoSessionStatus', () => {
 
   it('returns sessionData when query has data', () => {
     const sessionData = {
-      status: 'active',
-      room_url: 'https://example.com/room',
-      participants: [],
+      room_id: 'room_123',
+      session_started_at: '2025-01-01T10:00:00Z',
+      session_ended_at: null,
+      instructor_joined_at: null,
+      student_joined_at: null,
     };
 
     mockQueryHook.mockReturnValue({
@@ -263,14 +265,30 @@ describe('useVideoSessionStatus', () => {
       { wrapper },
     );
 
-    expect(mockQueryHook).toHaveBeenCalledWith(
-      '01BOOKING_ABC',
-      expect.objectContaining({
-        query: expect.objectContaining({
-          refetchInterval: 3000,
-        }),
-      }),
+    const call = mockQueryHook.mock.calls[mockQueryHook.mock.calls.length - 1];
+    expect(call?.[0]).toBe('01BOOKING_ABC');
+    const refetchInterval = call?.[1]?.query?.refetchInterval;
+    expect(typeof refetchInterval).toBe('function');
+    expect(refetchInterval({ state: { data: null } })).toBe(3000);
+  });
+
+  it('stops polling when stopPollingWhenEnded is enabled and session has ended', () => {
+    mockQueryHook.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+
+    const { wrapper } = createWrapper();
+    renderHook(
+      () => useVideoSessionStatus('01BOOKING_ABC', { pollingIntervalMs: 3000, stopPollingWhenEnded: true }),
+      { wrapper },
     );
+
+    const call = mockQueryHook.mock.calls[mockQueryHook.mock.calls.length - 1];
+    const refetchInterval = call?.[1]?.query?.refetchInterval;
+    expect(refetchInterval({ state: { data: { session_ended_at: '2025-01-01T10:00:00Z' } } })).toBe(false);
   });
 
   it('passes enabled option to the query', () => {

@@ -148,10 +148,15 @@ def test_sanitize_headers_removes_secrets(db):
         source="stripe",
         event_type="payment_intent.succeeded",
         payload={"id": "evt_4"},
-        headers={"stripe-signature": "sig", "X-Test": "ok"},
+        headers={
+            "stripe-signature": "sig",
+            "x-hundredms-secret": "super-secret",
+            "X-Test": "ok",
+        },
     )
 
     assert event.headers["stripe-signature"] == "***"
+    assert event.headers["x-hundredms-secret"] == "***"
     assert event.headers["X-Test"] == "ok"
 
 

@@ -6,5 +6,7 @@ ROUTE_BUCKETS: dict[str, str] = {
     "/api/v1/instructors": "read",
     "/api/v1/bookings": "read",
     "/api/v1/bookings/create": "write",
+    "/api/v1/lessons": "video",
+    "/api/v1/webhooks/hundredms": "video",
     "/api/v1/payments/checkout": "financial",
 }

@@ -12,7 +12,12 @@ from app.models.webhook_event import WebhookEvent
 from app.repositories.webhook_event_repository import WebhookEventRepository
 from app.services.base import BaseService
 
-_SENSITIVE_HEADERS = {"authorization", "stripe-signature", "x-api-key"}
+_SENSITIVE_HEADERS = {
+    "authorization",
+    "stripe-signature",
+    "x-api-key",
+    "x-hundredms-secret",
+}
 
 
 def _now_utc() -> datetime:

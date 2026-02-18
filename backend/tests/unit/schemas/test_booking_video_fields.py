@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta, timezone
 from unittest.mock import MagicMock
 
+import pytest
+
 from app.schemas.booking import BookingResponse, _extract_satellite_fields
 
 # ---------------------------------------------------------------------------
@@ -142,6 +144,10 @@ class TestVideoFieldsInSatelliteExtraction:
 
 class TestJoinWindowComputation:
     """Tests for can_join_lesson, join_opens_at, join_closes_at."""
+
+    @pytest.fixture(autouse=True)
+    def _enable_hundredms(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("app.schemas.booking.settings.hundredms_enabled", True, raising=False)
 
     def test_can_join_true_within_window(self) -> None:
         """Inside join window → can_join_lesson=True."""
@@ -288,6 +294,22 @@ class TestJoinWindowComputation:
 
         expected_closes = booking_start + timedelta(minutes=15)
         assert result["join_closes_at"] == expected_closes
+
+    def test_join_window_suppressed_when_feature_disabled(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr("app.schemas.booking.settings.hundredms_enabled", False, raising=False)
+        booking = _make_booking(
+            booking_start_utc=datetime.now(timezone.utc) + timedelta(minutes=2),
+            duration_minutes=60,
+            location_type="online",
+            status="CONFIRMED",
+        )
+
+        result = _extract_satellite_fields(booking)
+        assert result["can_join_lesson"] is False
+        assert result["join_opens_at"] is None
+        assert result["join_closes_at"] is None
 
 
 # ---------------------------------------------------------------------------

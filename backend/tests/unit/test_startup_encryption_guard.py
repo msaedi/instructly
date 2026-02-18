@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import os
 
+from pydantic import SecretStr
 import pytest
 
 
@@ -64,4 +65,44 @@ def test_prod_startup_with_valid_key_succeeds(monkeypatch: pytest.MonkeyPatch) -
     from app.main import _validate_startup_config
 
     # Should not raise
+    _validate_startup_config()
+
+
+def test_hundredms_enabled_without_required_credentials_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Enabled 100ms integration must fail startup when credentials are incomplete."""
+    monkeypatch.setenv("SITE_MODE", "dev")
+
+    from app.core.config import settings as runtime_settings
+    from app.main import _validate_startup_config
+
+    monkeypatch.setattr(runtime_settings, "hundredms_enabled", True, raising=False)
+    monkeypatch.setattr(runtime_settings, "hundredms_access_key", "", raising=False)
+    monkeypatch.setattr(runtime_settings, "hundredms_app_secret", SecretStr(""), raising=False)
+    monkeypatch.setattr(runtime_settings, "hundredms_template_id", None, raising=False)
+
+    with pytest.raises(ValueError, match="HUNDREDMS_ACCESS_KEY"):
+        _validate_startup_config()
+
+
+def test_hundredms_enabled_with_required_credentials_passes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Enabled 100ms integration passes startup validation when fully configured."""
+    monkeypatch.setenv("SITE_MODE", "dev")
+
+    from app.core.config import settings as runtime_settings
+    from app.main import _validate_startup_config
+
+    monkeypatch.setattr(runtime_settings, "hundredms_enabled", True, raising=False)
+    monkeypatch.setattr(runtime_settings, "hundredms_access_key", "test_access_key", raising=False)
+    monkeypatch.setattr(
+        runtime_settings,
+        "hundredms_app_secret",
+        SecretStr("test_app_secret"),
+        raising=False,
+    )
+    monkeypatch.setattr(runtime_settings, "hundredms_template_id", "tpl_123", raising=False)
+
     _validate_startup_config()
