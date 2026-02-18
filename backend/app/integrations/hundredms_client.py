@@ -46,7 +46,7 @@ class HundredMsClient:
         app_secret: str | SecretStr,
         base_url: str = "https://api.100ms.live/v2",
         template_id: str | None = None,
-        timeout: float = 30.0,
+        timeout: float = 10.0,
     ) -> None:
         self._access_key = access_key
         self._app_secret = (

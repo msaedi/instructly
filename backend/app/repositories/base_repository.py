@@ -246,6 +246,10 @@ class BaseRepository(IRepository[T]):
         """Flush pending ORM changes."""
         self.db.flush()
 
+    def rollback(self) -> None:
+        """Rollback the current transaction."""
+        self.db.rollback()
+
     def update(self, id: int, **kwargs) -> Optional[T]:
         """
         Update an existing entity.

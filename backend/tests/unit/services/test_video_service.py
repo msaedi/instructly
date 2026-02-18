@@ -122,6 +122,36 @@ class TestJoinLessonHappyPath:
         create_calls = [c for c in fake_client._calls if c["method"] == "create_room"]
         assert len(create_calls) == 0
 
+    def test_releases_lock_before_external_room_creation(self):
+        booking = _make_booking()
+        new_vs = _make_video_session()
+        service, _, mock_repo = _make_service(
+            booking=booking,
+            video_session=None,
+            ensure_returns=new_vs,
+        )
+
+        service.join_lesson(booking.id, booking.student_id)
+
+        mock_repo.rollback.assert_called_once()
+
+    def test_reuses_session_created_while_unlocked(self):
+        booking = _make_booking()
+        concurrent_vs = _make_video_session(room_id="room_created_elsewhere")
+        service, fake_client, mock_repo = _make_service(
+            booking=booking,
+            video_session=None,
+        )
+        mock_repo.get_video_session_by_booking_id.side_effect = [None, concurrent_vs]
+
+        result = service.join_lesson(booking.id, booking.student_id)
+
+        assert result["room_id"] == "room_created_elsewhere"
+        mock_repo.ensure_video_session.assert_not_called()
+        mock_repo.rollback.assert_called_once()
+        create_calls = [c for c in fake_client._calls if c["method"] == "create_room"]
+        assert len(create_calls) == 1
+
 
 # ── Timing validation ─────────────────────────────────────────────────
 
@@ -224,6 +254,19 @@ class TestJoinLessonTiming:
 
         result = service.join_lesson(booking.id, booking.student_id)
         assert result["role"] == "guest"
+
+    def test_revalidates_after_unlock_when_booking_changes(self):
+        from app.core.exceptions import ValidationException
+
+        booking = _make_booking()
+        cancelled_booking = _make_booking(status="CANCELLED")
+        vs = _make_video_session()
+        service, _, mock_repo = _make_service(booking=booking, video_session=None, ensure_returns=vs)
+        mock_repo.get_booking_for_participant_for_update.side_effect = [booking, cancelled_booking]
+        mock_repo.get_video_session_by_booking_id.side_effect = [None, None]
+
+        with pytest.raises(ValidationException, match="not confirmed"):
+            service.join_lesson(booking.id, booking.student_id)
 
 
 # ── Booking validation ────────────────────────────────────────────────

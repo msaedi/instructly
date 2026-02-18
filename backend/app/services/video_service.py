@@ -35,6 +35,24 @@ class VideoService(BaseService):
         self.hundredms_client = hundredms_client
         self.booking_repository = RepositoryFactory.create_booking_repository(db)
 
+    def _validate_joinable_booking(self, booking: Any, now: datetime) -> None:
+        """Validate booking state and join window constraints."""
+        if booking.status != BookingStatus.CONFIRMED:
+            raise ValidationException("Booking is not confirmed")
+
+        if booking.location_type != LocationType.ONLINE:
+            raise ValidationException("This booking is not an online lesson")
+
+        booking_start = booking.booking_start_utc
+        join_opens_at = booking_start - timedelta(minutes=5)
+        grace_minutes = compute_grace_minutes(booking.duration_minutes)
+        join_closes_at = booking_start + timedelta(minutes=grace_minutes)
+
+        if now < join_opens_at:
+            raise ValidationException("Lesson join window has not opened yet")
+        if now > join_closes_at:
+            raise ValidationException("Lesson join window has closed")
+
     @BaseService.measure_operation("join_lesson")
     def join_lesson(self, booking_id: str, user_id: str) -> dict[str, Any]:
         """Join a video lesson.
@@ -49,39 +67,27 @@ class VideoService(BaseService):
         if booking is None:
             raise NotFoundException("Booking not found")
 
-        # 2. Validate booking state
-        if booking.status != BookingStatus.CONFIRMED:
-            raise ValidationException("Booking is not confirmed")
-
-        if booking.location_type != LocationType.ONLINE:
-            raise ValidationException("This booking is not an online lesson")
-
-        # 3. Validate timing
         now = datetime.now(timezone.utc)
-        booking_start = booking.booking_start_utc
-        join_opens_at = booking_start - timedelta(minutes=5)
-        grace_minutes = compute_grace_minutes(booking.duration_minutes)
-        join_closes_at = booking_start + timedelta(minutes=grace_minutes)
+        self._validate_joinable_booking(booking, now)
 
-        if now < join_opens_at:
-            raise ValidationException("Lesson join window has not opened yet")
-        if now > join_closes_at:
-            raise ValidationException("Lesson join window has closed")
-
-        # 4. Determine role
+        # 2. Determine role
         role = "host" if user_id == booking.instructor_id else "guest"
 
-        # 5. Create or get room
+        # 3. Create or get room
         video_session = self.booking_repository.get_video_session_by_booking_id(booking_id)
 
         if video_session is None or video_session.room_id is None:
+            room_name = f"lesson-{booking_id}"
+            # NF1 lock-unlock-lock: release row lock before outbound network call.
+            self.booking_repository.rollback()
+
             try:
-                room_name = f"lesson-{booking_id}"
+                # 100ms room names are idempotent; concurrent requests for the
+                # same booking converge on a single provider room.
                 room = self.hundredms_client.create_room(name=room_name)
-                room_id: str = room["id"]
-                video_session = self.booking_repository.ensure_video_session(
-                    booking_id, room_id=room_id, room_name=room_name
-                )
+                room_id = room.get("id")
+                if not isinstance(room_id, str) or not room_id:
+                    raise ServiceException("100ms room creation returned no room id")
             except HundredMsError as e:
                 logger.error(
                     "100ms room creation failed for booking %s user %s: %s",
@@ -95,7 +101,25 @@ class VideoService(BaseService):
                     details={"status_code": e.status_code},
                 )
 
-        # 6. Generate auth token
+            # Re-acquire lock and re-check to avoid duplicate DB session rows.
+            booking = self.booking_repository.get_booking_for_participant_for_update(
+                booking_id, user_id
+            )
+            if booking is None:
+                raise NotFoundException("Booking not found")
+
+            self._validate_joinable_booking(booking, datetime.now(timezone.utc))
+
+            video_session = self.booking_repository.get_video_session_by_booking_id(booking_id)
+            if video_session is None or video_session.room_id is None:
+                video_session = self.booking_repository.ensure_video_session(
+                    booking_id, room_id=room_id, room_name=room_name
+                )
+
+        if video_session is None or video_session.room_id is None:
+            raise ServiceException("Video session room is unavailable")
+
+        # 4. Generate auth token
         try:
             token = self.hundredms_client.generate_auth_token(
                 room_id=video_session.room_id,
