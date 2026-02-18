@@ -13,6 +13,7 @@ from typing import Any, Optional, Union
 from sqlalchemy.orm import Session
 
 from ..core.exceptions import NotFoundException, ServiceException, ValidationException
+from ..domain.video_utils import compute_grace_minutes
 from ..integrations.hundredms_client import FakeHundredMsClient, HundredMsClient, HundredMsError
 from ..models.booking import BookingStatus, LocationType
 from ..repositories.factory import RepositoryFactory
@@ -57,7 +58,7 @@ class VideoService(BaseService):
         now = datetime.now(timezone.utc)
         booking_start = booking.booking_start_utc
         join_opens_at = booking_start - timedelta(minutes=5)
-        grace_minutes = min(booking.duration_minutes * 0.25, 15)
+        grace_minutes = compute_grace_minutes(booking.duration_minutes)
         join_closes_at = booking_start + timedelta(minutes=grace_minutes)
 
         if now < join_opens_at:

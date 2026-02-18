@@ -1,5 +1,4 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
 import { queryKeys } from '@/lib/react-query/queryClient';
 import type { VideoJoinResponse, VideoSessionStatusResponse } from '@/features/shared/api/types';
 import {
@@ -19,13 +18,6 @@ export function useJoinLesson() {
         void queryClient.invalidateQueries({
           queryKey: queryKeys.bookings.detail(variables.bookingId),
         });
-      },
-      onError: (error: unknown) => {
-        const message =
-          error && typeof error === 'object' && 'message' in error
-            ? String((error as { message: string }).message)
-            : 'Failed to join lesson';
-        toast.error(message);
       },
     },
   });

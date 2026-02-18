@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.booking_lock import booking_lock_sync
 from app.database import get_db
+from app.domain.video_utils import compute_grace_minutes
 from app.models.booking import BookingStatus
 from app.monitoring.sentry_crons import monitor_if_configured
 from app.repositories.factory import RepositoryFactory
@@ -46,7 +47,6 @@ def typed_task(
 # ── Constants ────────────────────────────────────────────────────────────
 
 MIN_GRACE_MINUTES = 8  # ceil(30 * 0.25) — shortest possible grace (30-min lesson)
-MAX_GRACE_MINUTES = 15  # cap — used in per-booking Python computation
 
 
 class VideoNoShowResults(TypedDict):
@@ -58,11 +58,6 @@ class VideoNoShowResults(TypedDict):
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────
-
-
-def _compute_grace_minutes(duration_minutes: int) -> float:
-    """Compute per-booking grace period: min(duration * 0.25, 15)."""
-    return min(duration_minutes * 0.25, MAX_GRACE_MINUTES)
 
 
 def _determine_no_show_type(video_session: Any) -> str | None:
@@ -123,7 +118,7 @@ def detect_video_no_shows() -> VideoNoShowResults:
             booking_id = booking.id
             try:
                 # Per-booking grace period
-                grace = _compute_grace_minutes(booking.duration_minutes)
+                grace = compute_grace_minutes(booking.duration_minutes)
                 grace_deadline = booking.booking_start_utc + timedelta(minutes=grace)
                 if now < grace_deadline:
                     results["skipped"] += 1

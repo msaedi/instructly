@@ -6,35 +6,6 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 # ---------------------------------------------------------------------------
-# Helper: _compute_grace_minutes
-# ---------------------------------------------------------------------------
-
-
-class TestComputeGraceMinutes:
-    """Tests for per-booking grace period computation."""
-
-    def test_30min_lesson(self) -> None:
-        from app.tasks.video_tasks import _compute_grace_minutes
-
-        assert _compute_grace_minutes(30) == 7.5  # min(30*0.25, 15)
-
-    def test_60min_lesson(self) -> None:
-        from app.tasks.video_tasks import _compute_grace_minutes
-
-        assert _compute_grace_minutes(60) == 15.0  # min(60*0.25, 15) = capped
-
-    def test_90min_lesson(self) -> None:
-        from app.tasks.video_tasks import _compute_grace_minutes
-
-        assert _compute_grace_minutes(90) == 15.0  # min(90*0.25, 15) = capped
-
-    def test_120min_lesson(self) -> None:
-        from app.tasks.video_tasks import _compute_grace_minutes
-
-        assert _compute_grace_minutes(120) == 15.0  # capped at 15
-
-
-# ---------------------------------------------------------------------------
 # Helper: _determine_no_show_type
 # ---------------------------------------------------------------------------
 

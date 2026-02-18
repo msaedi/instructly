@@ -24,6 +24,7 @@ from pydantic import (
 )
 import pytz
 
+from ..domain.video_utils import compute_grace_minutes
 from ..models.booking import BookingStatus
 from ..schemas.base import STRICT_SCHEMAS, Money, StandardizedModel
 from ._strict_base import StrictModel, StrictRequestModel
@@ -607,7 +608,7 @@ def _extract_satellite_fields(booking: Any) -> dict[str, Any]:
         and isinstance(_duration, (int, float))
     ):
         _opens_at = _start - timedelta(minutes=5)
-        _grace = min(_duration * 0.25, 15)
+        _grace = compute_grace_minutes(int(_duration))
         _closes_at = _start + timedelta(minutes=_grace)
         _now = datetime.now(timezone.utc)
         _can_join = _opens_at <= _now <= _closes_at

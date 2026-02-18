@@ -1,7 +1,6 @@
 import React from 'react';
 import { renderHook, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { toast } from 'sonner';
 import { queryKeys } from '@/lib/react-query/queryClient';
 import { useJoinLesson, useVideoSessionStatus } from '../useLessonRoom';
 import {
@@ -16,10 +15,6 @@ import {
 jest.mock('@/src/api/generated/lessons-v1/lessons-v1', () => ({
   useJoinLessonApiV1LessonsBookingIdJoinPost: jest.fn(),
   useGetVideoSessionApiV1LessonsBookingIdVideoSessionGet: jest.fn(),
-}));
-
-jest.mock('sonner', () => ({
-  toast: { error: jest.fn(), success: jest.fn() },
 }));
 
 const mockMutationHook = useJoinLessonApiV1LessonsBookingIdJoinPost as jest.Mock;
@@ -133,74 +128,6 @@ describe('useJoinLesson', () => {
     expect(spy).toHaveBeenCalledWith({
       queryKey: queryKeys.bookings.detail('01BOOKING_ABC'),
     });
-  });
-
-  it('calls toast.error with the error message on mutation error', () => {
-    let capturedOnError: ((error: unknown) => void) | undefined;
-
-    mockMutationHook.mockImplementation((opts: { mutation: { onError: typeof capturedOnError } }) => {
-      capturedOnError = opts.mutation.onError;
-      return { mutateAsync: jest.fn(), isPending: false, error: null };
-    });
-
-    const { wrapper } = createWrapper();
-    renderHook(() => useJoinLesson(), { wrapper });
-
-    expect(capturedOnError).toBeDefined();
-    capturedOnError!(new Error('Lesson has not started yet'));
-
-    expect(toast.error).toHaveBeenCalledWith('Lesson has not started yet');
-  });
-
-  it('uses default message when error has no message property', () => {
-    let capturedOnError: ((error: unknown) => void) | undefined;
-
-    mockMutationHook.mockImplementation((opts: { mutation: { onError: typeof capturedOnError } }) => {
-      capturedOnError = opts.mutation.onError;
-      return { mutateAsync: jest.fn(), isPending: false, error: null };
-    });
-
-    const { wrapper } = createWrapper();
-    renderHook(() => useJoinLesson(), { wrapper });
-
-    expect(capturedOnError).toBeDefined();
-    capturedOnError!('some string error');
-
-    expect(toast.error).toHaveBeenCalledWith('Failed to join lesson');
-  });
-
-  it('uses default message when error is null', () => {
-    let capturedOnError: ((error: unknown) => void) | undefined;
-
-    mockMutationHook.mockImplementation((opts: { mutation: { onError: typeof capturedOnError } }) => {
-      capturedOnError = opts.mutation.onError;
-      return { mutateAsync: jest.fn(), isPending: false, error: null };
-    });
-
-    const { wrapper } = createWrapper();
-    renderHook(() => useJoinLesson(), { wrapper });
-
-    expect(capturedOnError).toBeDefined();
-    capturedOnError!(null);
-
-    expect(toast.error).toHaveBeenCalledWith('Failed to join lesson');
-  });
-
-  it('uses default message when error is a plain object without message', () => {
-    let capturedOnError: ((error: unknown) => void) | undefined;
-
-    mockMutationHook.mockImplementation((opts: { mutation: { onError: typeof capturedOnError } }) => {
-      capturedOnError = opts.mutation.onError;
-      return { mutateAsync: jest.fn(), isPending: false, error: null };
-    });
-
-    const { wrapper } = createWrapper();
-    renderHook(() => useJoinLesson(), { wrapper });
-
-    expect(capturedOnError).toBeDefined();
-    capturedOnError!({ code: 403 });
-
-    expect(toast.error).toHaveBeenCalledWith('Failed to join lesson');
   });
 
   it('exposes the mutation error', () => {

@@ -31,6 +31,7 @@ jest.mock('@/components/lessons/video/PreLessonWaiting', () => ({
   PreLessonWaiting: (props: Record<string, unknown>) => (
     <div data-testid="pre-lesson-waiting" data-join-error={props.joinError ?? ''}>
       <button onClick={props.onJoin as () => void}>Join Lesson</button>
+      {props.joinError ? <span role="alert">{String(props.joinError)}</span> : null}
     </div>
   ),
 }));
@@ -251,6 +252,27 @@ describe('LessonRoomPage', () => {
     render(<LessonRoomPage />);
 
     expect(screen.getByTestId('lesson-ended')).toBeInTheDocument();
+  });
+
+  it('shows join error and falls back to pre-lesson when join fails', async () => {
+    mockJoinLesson.mockRejectedValueOnce(new Error('Room creation failed'));
+
+    render(<LessonRoomPage />);
+
+    // Start in pre-lesson
+    expect(screen.getByTestId('pre-lesson-waiting')).toBeInTheDocument();
+
+    // Click Join
+    fireEvent.click(screen.getByText('Join Lesson'));
+
+    // Should fall back to pre-lesson with error message visible
+    await waitFor(() => {
+      expect(screen.getByTestId('pre-lesson-waiting')).toBeInTheDocument();
+      expect(screen.getByText(/room creation failed/i)).toBeInTheDocument();
+    });
+
+    // Should NOT transition to active
+    expect(screen.queryByTestId('active-lesson')).not.toBeInTheDocument();
   });
 
   it('transitions through join -> active -> leave -> ended', async () => {
