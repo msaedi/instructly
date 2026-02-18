@@ -112,7 +112,7 @@ export default function ForgotPasswordPage() {
       </div>
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white dark:bg-gray-800 p-8 shadow sm:rounded-lg">
-          <form className="space-y-6" onSubmit={handleSubmit} noValidate>
+          <form method="POST" className="space-y-6" onSubmit={handleSubmit} noValidate>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
               <div className="mt-1">

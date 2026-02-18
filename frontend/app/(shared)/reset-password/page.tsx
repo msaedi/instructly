@@ -109,7 +109,7 @@ function ResetPasswordForm() {
       </div>
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          <form className="space-y-6" onSubmit={handleSubmit} noValidate>
+          <form method="POST" className="space-y-6" onSubmit={handleSubmit} noValidate>
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">New Password</label>
               <div className="mt-1 relative">

@@ -341,7 +341,7 @@ function LoginForm({ redirect }: { redirect: string }) {
           </Link>
         </div>
         {!requires2FA ? (
-          <form className="space-y-6" onSubmit={handleSubmit} noValidate>
+          <form method="POST" className="space-y-6" onSubmit={handleSubmit} noValidate>
             {/* Email Field */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-200">Email</label>
@@ -425,7 +425,7 @@ function LoginForm({ redirect }: { redirect: string }) {
             </div>
           </form>
         ) : (
-          <form className="space-y-6" onSubmit={handleVerify2FA}>
+          <form method="POST" className="space-y-6" onSubmit={handleVerify2FA}>
             <div>
               <p className="text-sm text-gray-700">Enter your 6-digit authentication code or a backup code to continue.</p>
             </div>

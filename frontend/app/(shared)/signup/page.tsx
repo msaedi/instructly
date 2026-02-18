@@ -555,7 +555,7 @@ function SignUpForm() {
             <p className="text-gray-600 dark:text-gray-300 mt-0.5">Discover instructors and book lessons instantly.</p>
           </div>
         )}
-        <form className="space-y-5 md:space-y-6" onSubmit={handleSubmit} noValidate>
+        <form method="POST" className="space-y-5 md:space-y-6" onSubmit={handleSubmit} noValidate>
           {/* Screen reader live region for aggregated errors */}
           <div className="sr-only" role="status" aria-live="polite">
             {(Object.values(errors).filter(Boolean) as string[]).join('. ')}
