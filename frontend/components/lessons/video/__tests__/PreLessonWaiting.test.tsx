@@ -52,6 +52,7 @@ describe('PreLessonWaiting', () => {
 
     expect(screen.getByText('Join opens in')).toBeInTheDocument();
     expect(screen.getByText('05:00')).toBeInTheDocument();
+    expect(screen.getByRole('timer')).toHaveTextContent('05:00');
     expect(screen.queryByRole('button', { name: 'Join video lesson' })).not.toBeInTheDocument();
   });
 

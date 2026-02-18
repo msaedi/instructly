@@ -41,7 +41,7 @@ export function PreLessonWaiting({
       {!opensCountdown.isExpired && (
         <div className="flex flex-col items-center gap-2">
           <p className="text-sm text-muted-foreground">Join opens in</p>
-          <p className="text-4xl font-mono font-bold tabular-nums" aria-live="polite">
+          <p className="text-4xl font-mono font-bold tabular-nums" aria-live="polite" role="timer">
             {opensCountdown.formatted}
           </p>
         </div>
