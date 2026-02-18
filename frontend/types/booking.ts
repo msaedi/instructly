@@ -116,6 +116,11 @@ export interface Booking {
   join_opens_at?: string | null;
   join_closes_at?: string | null;
   video_session_ended_at?: string | null;
+  video_room_id?: string | null;
+  video_session_duration_seconds?: number | null;
+  video_session_started_at?: string | null;
+  video_instructor_joined_at?: string | null;
+  video_student_joined_at?: string | null;
 
   // Relations (populated in detailed views)
   student?: StudentInfo;

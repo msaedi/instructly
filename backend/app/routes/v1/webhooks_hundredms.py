@@ -168,12 +168,14 @@ def _handle_peer_join(video_session: Any, data: dict[str, Any]) -> None:
 
     if role == "host":
         video_session.instructor_peer_id = peer_id
-        video_session.instructor_joined_at = joined_at
+        if video_session.instructor_joined_at is None:
+            video_session.instructor_joined_at = joined_at
         if peer_user_id:
             logger.info("100ms host peer identified: user_id=%s", peer_user_id)
     elif role == "guest":
         video_session.student_peer_id = peer_id
-        video_session.student_joined_at = joined_at
+        if video_session.student_joined_at is None:
+            video_session.student_joined_at = joined_at
         if peer_user_id:
             logger.info("100ms guest peer identified: user_id=%s", peer_user_id)
     else:
@@ -186,9 +188,26 @@ def _handle_peer_leave(video_session: Any, data: dict[str, Any]) -> None:
     left_at = _parse_timestamp(data.get("left_at"))
 
     if role == "host":
-        video_session.instructor_left_at = left_at
+        if video_session.instructor_joined_at is None:
+            logger.warning(
+                "Ignoring peer.leave for instructor — no join recorded. "
+                "booking_id=%s room_id=%s",
+                video_session.booking_id,
+                video_session.room_id,
+            )
+            return
+        if video_session.instructor_left_at is None:
+            video_session.instructor_left_at = left_at
     elif role == "guest":
-        video_session.student_left_at = left_at
+        if video_session.student_joined_at is None:
+            logger.warning(
+                "Ignoring peer.leave for student — no join recorded. " "booking_id=%s room_id=%s",
+                video_session.booking_id,
+                video_session.room_id,
+            )
+            return
+        if video_session.student_left_at is None:
+            video_session.student_left_at = left_at
 
 
 def _process_hundredms_event(
@@ -224,10 +243,11 @@ def _process_hundredms_event(
         video_session.session_started_at = _parse_timestamp(data.get("session_started_at"))
 
     elif event_type == "session.close.success":
-        video_session.session_ended_at = _parse_timestamp(data.get("session_stopped_at"))
-        duration = data.get("session_duration")
-        if isinstance(duration, (int, float)):
-            video_session.session_duration_seconds = int(duration)
+        if video_session.session_ended_at is None:
+            video_session.session_ended_at = _parse_timestamp(data.get("session_stopped_at"))
+            duration = data.get("session_duration")
+            if isinstance(duration, (int, float)):
+                video_session.session_duration_seconds = int(duration)
 
     elif event_type == "peer.join.success":
         _handle_peer_join(video_session, data)
@@ -343,25 +363,31 @@ async def handle_hundredms_webhook(
             "100ms webhook processing failed",
             extra={"event_type": event_type},
         )
-
-    # 8. Update ledger
-    duration_ms = int((monotonic() - start_time) * 1000)
-    if ledger_service is not None and ledger_event is not None:
-        if processing_error:
+        # Mark ledger as failed before re-raising for retry
+        duration_ms = int((monotonic() - start_time) * 1000)
+        if ledger_service is not None and ledger_event is not None:
             await asyncio.to_thread(
                 ledger_service.mark_failed,
                 ledger_event,
                 error=processing_error,
                 duration_ms=duration_ms,
             )
-        else:
-            await asyncio.to_thread(
-                ledger_service.mark_processed,
-                ledger_event,
-                related_entity_type="booking_video_session",
-                related_entity_id=_extract_booking_id_from_room_name(data.get("room_name")),
-                duration_ms=duration_ms,
-            )
+        # Return 500 so 100ms retries on transient failures
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="processing_failed",
+        ) from exc
 
-    # 9. Always return 200
+    # 8. Update ledger (success path — exception path handled above)
+    duration_ms = int((monotonic() - start_time) * 1000)
+    if ledger_service is not None and ledger_event is not None:
+        await asyncio.to_thread(
+            ledger_service.mark_processed,
+            ledger_event,
+            related_entity_type="booking_video_session",
+            related_entity_id=_extract_booking_id_from_room_name(data.get("room_name")),
+            duration_ms=duration_ms,
+        )
+
+    # 9. Return 200 for successful processing
     return WebhookAckResponse(ok=True)

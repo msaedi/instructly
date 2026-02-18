@@ -22,8 +22,7 @@ type RoomPhase =
   | 'joining'
   | 'active'
   | 'ended'
-  | 'not-joinable'
-  | 'error';
+  | 'not-joinable';
 
 interface PhaseResult {
   phase: RoomPhase;
@@ -124,10 +123,10 @@ export default function LessonRoomPage() {
     setPhaseOverride('ended');
   };
 
-  // Video session polling (active + ended)
+  // Video session polling (active + ended; no continuous poll once ended)
   const { sessionData } = useVideoSessionStatus(bookingId, {
     enabled: rawPhase === 'active' || rawPhase === 'ended',
-    pollingIntervalMs: 10_000,
+    ...(rawPhase === 'active' && { pollingIntervalMs: 10_000 }),
   });
 
   // Final phase: transition active→ended when poll detects session close (derived, no effect)

@@ -47,7 +47,11 @@ def typed_task(
 
 # ── Constants ────────────────────────────────────────────────────────────
 
-MIN_GRACE_MINUTES = 8  # ceil(30 * 0.25) — shortest possible grace (30-min lesson)
+# SQL pre-filter: fetch bookings started >= 8 minutes ago.
+# Minimum grace = min(30 * 0.25, 15) = 7.5 min for a 30-min lesson.
+# 8 > 7.5, so this safely catches all expired-grace bookings.
+# The per-booking Python check computes exact grace.
+MIN_GRACE_MINUTES = 8
 
 
 class VideoNoShowResults(TypedDict):
@@ -61,14 +65,19 @@ class VideoNoShowResults(TypedDict):
 # ── Helpers ──────────────────────────────────────────────────────────────
 
 
-def _determine_no_show_type(video_session: Any) -> str | None:
+def _determine_no_show_type(video_session: Any | None) -> str | None:
     """Determine no-show type from video session join timestamps.
 
     Returns:
+        "mutual" if video_session is None (neither party clicked join),
+        "mutual" if both joined_at are None (both clicked join but neither connected),
         "instructor" if only student joined,
         "student" if only instructor joined,
-        None if both joined (lesson happened) or neither joined (ambiguous).
+        None if both joined (lesson happened).
     """
+    if video_session is None:
+        return "mutual"  # Neither party even attempted to join
+
     instructor_joined = video_session.instructor_joined_at is not None
     student_joined = video_session.student_joined_at is not None
 
@@ -78,8 +87,7 @@ def _determine_no_show_type(video_session: Any) -> str | None:
         return "instructor"
     if instructor_joined and not student_joined:
         return "student"
-    # Neither joined — ambiguous, skip for manual review
-    return None
+    return "mutual"  # Both clicked join but neither actually connected
 
 
 # ── Task ─────────────────────────────────────────────────────────────────
@@ -118,18 +126,18 @@ def detect_video_no_shows() -> VideoNoShowResults:
         sql_cutoff = now - timedelta(minutes=MIN_GRACE_MINUTES)
         candidates = booking_repo.get_video_no_show_candidates(sql_cutoff)
 
-        for booking, video_session in candidates:
+        for booking, video_session in candidates:  # video_session may be None
             results["processed"] += 1
             booking_id = booking.id
             try:
-                # Per-booking grace period
+                # Per-booking grace period (always available from booking)
                 grace = compute_grace_minutes(booking.duration_minutes)
                 grace_deadline = booking.booking_start_utc + timedelta(minutes=grace)
                 if now < grace_deadline:
                     results["skipped"] += 1
                     continue
 
-                # Determine no-show type
+                # Determine no-show type (handles None video_session → "mutual")
                 no_show_type = _determine_no_show_type(video_session)
                 if no_show_type is None:
                     results["skipped"] += 1
@@ -154,10 +162,14 @@ def detect_video_no_shows() -> VideoNoShowResults:
                         results["skipped"] += 1
                         continue
 
+                    if no_show_type == "mutual":
+                        reason = f"Automated: neither party joined video session within {grace:.1f} min grace period"
+                    else:
+                        reason = f"Automated: {no_show_type} did not join video session within {grace:.1f} min grace period"
                     booking_service.report_automated_no_show(
                         booking_id=booking_id,
                         no_show_type=no_show_type,
-                        reason=f"Automated: {no_show_type} did not join video session within {grace:.1f} min grace period",
+                        reason=reason,
                     )
                     results["reported"] += 1
 

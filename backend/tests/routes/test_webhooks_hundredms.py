@@ -127,7 +127,7 @@ class TestHundredmsWebhookEndpoint:
     @patch("app.routes.v1.webhooks_hundredms._process_hundredms_event")
     @patch("app.routes.v1.webhooks_hundredms.WebhookLedgerService")
     @patch("app.routes.v1.webhooks_hundredms.settings")
-    def test_returns_200_even_on_processing_error(
+    def test_transient_processing_exception_returns_500(
         self,
         mock_settings,
         mock_ledger_cls,
@@ -143,7 +143,7 @@ class TestHundredmsWebhookEndpoint:
 
         mock_process.side_effect = RuntimeError("boom")
 
-        payload = _webhook_payload()
+        payload = _webhook_payload(event_id="evt-transient-500")
         response = client_with_mock_repo.post(
             "/api/v1/webhooks/hundredms",
             content=json.dumps(payload),
@@ -153,6 +153,35 @@ class TestHundredmsWebhookEndpoint:
             },
         )
 
-        # Webhooks always return 200
+        # Transient failures return 500 so 100ms retries
+        assert response.status_code == 500
+
+    @patch("app.routes.v1.webhooks_hundredms.WebhookLedgerService")
+    @patch("app.routes.v1.webhooks_hundredms.settings")
+    def test_permanent_failure_skipped_event_returns_200(
+        self,
+        mock_settings,
+        mock_ledger_cls,
+        client_with_mock_repo,
+        mock_booking_repo,
+    ):
+        mock_settings.hundredms_webhook_secret = MagicMock()
+        mock_settings.hundredms_webhook_secret.get_secret_value.return_value = "test-secret"
+
+        mock_ledger = MagicMock()
+        mock_ledger.log_received.return_value = MagicMock(status="received", retry_count=0)
+        mock_ledger_cls.return_value = mock_ledger
+
+        # Unknown room name → skipped (permanent, non-retriable)
+        payload = _webhook_payload(event_id="evt-permanent-200", room_name="unknown-room-format")
+        response = client_with_mock_repo.post(
+            "/api/v1/webhooks/hundredms",
+            content=json.dumps(payload),
+            headers={
+                "Content-Type": "application/json",
+                "x-hundredms-secret": "test-secret",
+            },
+        )
+
         assert response.status_code == 200
         assert response.json()["ok"] is True

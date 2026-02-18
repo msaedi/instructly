@@ -45,11 +45,16 @@ class TestDetermineNoShowType:
         vs = self._make_vs(instructor_joined=True, student_joined=False)
         assert _determine_no_show_type(vs) == "student"
 
-    def test_neither_joined_returns_none(self) -> None:
+    def test_neither_joined_returns_mutual(self) -> None:
         from app.tasks.video_tasks import _determine_no_show_type
 
         vs = self._make_vs(instructor_joined=False, student_joined=False)
-        assert _determine_no_show_type(vs) is None
+        assert _determine_no_show_type(vs) == "mutual"
+
+    def test_no_video_session_returns_mutual(self) -> None:
+        from app.tasks.video_tasks import _determine_no_show_type
+
+        assert _determine_no_show_type(None) == "mutual"
 
 
 # ---------------------------------------------------------------------------
@@ -364,6 +369,75 @@ class TestDetectVideoNoShows:
 
         assert result["skipped"] >= 1
         mock_svc_cls.return_value.report_automated_no_show.assert_not_called()
+
+    @patch("app.tasks.video_tasks.booking_lock_sync")
+    @patch("app.tasks.video_tasks.BookingService")
+    @patch("app.tasks.video_tasks.RepositoryFactory")
+    @patch("app.tasks.video_tasks.get_db")
+    def test_mutual_no_show_no_video_session(
+        self, mock_get_db, mock_factory, mock_svc_cls, mock_lock
+    ) -> None:
+        """Neither participant clicked Join → no BookingVideoSession → mutual no-show."""
+        from app.tasks.video_tasks import detect_video_no_shows
+
+        mock_db = MagicMock()
+        mock_get_db.return_value = iter([mock_db])
+
+        booking = self._make_booking(start_minutes_ago=30, duration_minutes=60)
+
+        mock_repo = MagicMock()
+        mock_repo.get_video_no_show_candidates.return_value = [(booking, None)]
+        mock_repo.get_no_show_by_booking_id.return_value = None
+        mock_factory.get_booking_repository.return_value = mock_repo
+
+        mock_svc = MagicMock()
+        mock_svc.report_automated_no_show.return_value = {"success": True}
+        mock_svc_cls.return_value = mock_svc
+
+        mock_lock.return_value.__enter__ = MagicMock(return_value=True)
+        mock_lock.return_value.__exit__ = MagicMock(return_value=False)
+        mock_repo.get_by_id.return_value = booking
+
+        result = detect_video_no_shows()
+
+        assert result["reported"] == 1
+        call_kwargs = mock_svc.report_automated_no_show.call_args[1]
+        assert call_kwargs["no_show_type"] == "mutual"
+
+    @patch("app.tasks.video_tasks.booking_lock_sync")
+    @patch("app.tasks.video_tasks.BookingService")
+    @patch("app.tasks.video_tasks.RepositoryFactory")
+    @patch("app.tasks.video_tasks.get_db")
+    def test_mutual_no_show_both_clicked_neither_connected(
+        self, mock_get_db, mock_factory, mock_svc_cls, mock_lock
+    ) -> None:
+        """Video session exists but both joined_at are None → mutual no-show."""
+        from app.tasks.video_tasks import detect_video_no_shows
+
+        mock_db = MagicMock()
+        mock_get_db.return_value = iter([mock_db])
+
+        booking = self._make_booking(start_minutes_ago=30, duration_minutes=60)
+        vs = self._make_video_session(instructor_joined=False, student_joined=False)
+
+        mock_repo = MagicMock()
+        mock_repo.get_video_no_show_candidates.return_value = [(booking, vs)]
+        mock_repo.get_no_show_by_booking_id.return_value = None
+        mock_factory.get_booking_repository.return_value = mock_repo
+
+        mock_svc = MagicMock()
+        mock_svc.report_automated_no_show.return_value = {"success": True}
+        mock_svc_cls.return_value = mock_svc
+
+        mock_lock.return_value.__enter__ = MagicMock(return_value=True)
+        mock_lock.return_value.__exit__ = MagicMock(return_value=False)
+        mock_repo.get_by_id.return_value = booking
+
+        result = detect_video_no_shows()
+
+        assert result["reported"] == 1
+        call_kwargs = mock_svc.report_automated_no_show.call_args[1]
+        assert call_kwargs["no_show_type"] == "mutual"
 
     @patch("app.tasks.video_tasks.booking_lock_sync")
     @patch("app.tasks.video_tasks.BookingService")

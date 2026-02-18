@@ -55,8 +55,10 @@ export function PreLessonWaiting({
           <button
             type="button"
             onClick={onJoin}
+            disabled={isJoining}
             aria-label="Join video lesson"
-            className="rounded-lg bg-primary px-8 py-3 text-lg font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+            aria-busy={isJoining}
+            className="rounded-lg bg-primary px-8 py-3 text-lg font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
             Join Lesson
           </button>

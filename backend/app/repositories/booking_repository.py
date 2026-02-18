@@ -333,8 +333,11 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
     def get_video_no_show_candidates(
         self, sql_cutoff: datetime
-    ) -> List[Tuple[Booking, BookingVideoSession]]:
-        """Find online CONFIRMED bookings with video sessions eligible for no-show check.
+    ) -> List[Tuple[Booking, Optional[BookingVideoSession]]]:
+        """Find online CONFIRMED bookings eligible for no-show check.
+
+        Uses LEFT JOIN on video sessions so mutual no-shows (neither party
+        clicked join → no BookingVideoSession row) are also detected.
 
         Uses MIN_GRACE_MINUTES (8min = ceil of shortest grace) as the SQL cutoff
         to catch ALL candidates, including short 30-min lessons with 7.5-min grace.
@@ -344,7 +347,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             NoShowAlias = aliased(BookingNoShow)
             rows = (
                 self.db.query(Booking, BookingVideoSession)
-                .join(
+                .outerjoin(
                     BookingVideoSession,
                     BookingVideoSession.booking_id == Booking.id,
                 )
@@ -361,7 +364,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 .order_by(Booking.booking_start_utc.asc())
                 .all()
             )
-            return cast(List[Tuple[Booking, BookingVideoSession]], rows)
+            return cast(List[Tuple[Booking, Optional[BookingVideoSession]]], rows)
         except Exception as exc:
             self.logger.error("Failed to load video no-show candidates: %s", str(exc))
             raise RepositoryException(f"Failed to load video no-show candidates: {exc}")
@@ -1856,6 +1859,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             joinedload(Booking.lock_detail),
             joinedload(Booking.dispute),
             joinedload(Booking.transfer),
+            joinedload(Booking.video_session),
         )
 
     def count_old_bookings(self, cutoff_date: datetime) -> int:

@@ -286,9 +286,12 @@ class TestProcessHundredmsEvent:
         assert vs.instructor_peer_id is None
 
     def test_peer_leave_host_sets_instructor_left_at(self) -> None:
+        from datetime import datetime
+
         from app.routes.v1.webhooks_hundredms import _process_hundredms_event
 
         vs = self._make_video_session()
+        vs.instructor_joined_at = datetime(2024, 6, 15, 14, 0, 0, tzinfo=timezone.utc)
         repo = self._make_repo(vs)
 
         _process_hundredms_event(
@@ -305,9 +308,12 @@ class TestProcessHundredmsEvent:
         assert vs.student_left_at is None
 
     def test_peer_leave_guest_sets_student_left_at(self) -> None:
+        from datetime import datetime
+
         from app.routes.v1.webhooks_hundredms import _process_hundredms_event
 
         vs = self._make_video_session()
+        vs.student_joined_at = datetime(2024, 6, 15, 14, 0, 0, tzinfo=timezone.utc)
         repo = self._make_repo(vs)
 
         _process_hundredms_event(
@@ -394,3 +400,167 @@ class TestProcessHundredmsEvent:
         )
 
         assert len(vs.provider_metadata["events"]) == 2
+
+    # -- Idempotency tests -----------------------------------------------
+
+    def test_duplicate_peer_join_host_preserves_first_timestamp(self) -> None:
+        from datetime import datetime
+
+        from app.routes.v1.webhooks_hundredms import _process_hundredms_event
+
+        vs = self._make_video_session()
+        first_join = datetime(2024, 6, 15, 14, 0, 0, tzinfo=timezone.utc)
+        vs.instructor_joined_at = first_join
+        vs.instructor_peer_id = "peer-first"
+        repo = self._make_repo(vs)
+
+        _process_hundredms_event(
+            event_type="peer.join.success",
+            data={
+                "room_name": "lesson-01HYXZ5G6KFXJKZ9CHQM4E3P7G",
+                "peer_id": "peer-second",
+                "role": "host",
+                "joined_at": "2024-06-15T15:00:00Z",
+            },
+            booking_repo=repo,
+        )
+
+        assert vs.instructor_joined_at == first_join
+        assert vs.instructor_peer_id == "peer-second"  # peer_id always updates
+
+    def test_duplicate_peer_join_guest_preserves_first_timestamp(self) -> None:
+        from datetime import datetime
+
+        from app.routes.v1.webhooks_hundredms import _process_hundredms_event
+
+        vs = self._make_video_session()
+        first_join = datetime(2024, 6, 15, 14, 1, 0, tzinfo=timezone.utc)
+        vs.student_joined_at = first_join
+        vs.student_peer_id = "peer-first"
+        repo = self._make_repo(vs)
+
+        _process_hundredms_event(
+            event_type="peer.join.success",
+            data={
+                "room_name": "lesson-01HYXZ5G6KFXJKZ9CHQM4E3P7G",
+                "peer_id": "peer-second",
+                "role": "guest",
+                "joined_at": "2024-06-15T15:30:00Z",
+            },
+            booking_repo=repo,
+        )
+
+        assert vs.student_joined_at == first_join
+        assert vs.student_peer_id == "peer-second"
+
+    def test_duplicate_peer_leave_host_preserves_first_timestamp(self) -> None:
+        from datetime import datetime
+
+        from app.routes.v1.webhooks_hundredms import _process_hundredms_event
+
+        vs = self._make_video_session()
+        vs.instructor_joined_at = datetime(2024, 6, 15, 14, 0, 0, tzinfo=timezone.utc)
+        first_leave = datetime(2024, 6, 15, 15, 0, 0, tzinfo=timezone.utc)
+        vs.instructor_left_at = first_leave
+        repo = self._make_repo(vs)
+
+        _process_hundredms_event(
+            event_type="peer.leave.success",
+            data={
+                "room_name": "lesson-01HYXZ5G6KFXJKZ9CHQM4E3P7G",
+                "role": "host",
+                "left_at": "2024-06-15T16:00:00Z",
+            },
+            booking_repo=repo,
+        )
+
+        assert vs.instructor_left_at == first_leave
+
+    def test_duplicate_peer_leave_guest_preserves_first_timestamp(self) -> None:
+        from datetime import datetime
+
+        from app.routes.v1.webhooks_hundredms import _process_hundredms_event
+
+        vs = self._make_video_session()
+        vs.student_joined_at = datetime(2024, 6, 15, 14, 0, 0, tzinfo=timezone.utc)
+        first_leave = datetime(2024, 6, 15, 15, 0, 0, tzinfo=timezone.utc)
+        vs.student_left_at = first_leave
+        repo = self._make_repo(vs)
+
+        _process_hundredms_event(
+            event_type="peer.leave.success",
+            data={
+                "room_name": "lesson-01HYXZ5G6KFXJKZ9CHQM4E3P7G",
+                "role": "guest",
+                "left_at": "2024-06-15T16:00:00Z",
+            },
+            booking_repo=repo,
+        )
+
+        assert vs.student_left_at == first_leave
+
+    def test_duplicate_session_close_preserves_first_timestamp(self) -> None:
+        from datetime import datetime
+
+        from app.routes.v1.webhooks_hundredms import _process_hundredms_event
+
+        vs = self._make_video_session()
+        first_end = datetime(2024, 6, 15, 15, 0, 0, tzinfo=timezone.utc)
+        vs.session_ended_at = first_end
+        vs.session_duration_seconds = 3600
+        repo = self._make_repo(vs)
+
+        _process_hundredms_event(
+            event_type="session.close.success",
+            data={
+                "room_name": "lesson-01HYXZ5G6KFXJKZ9CHQM4E3P7G",
+                "session_duration": 7200,
+                "session_stopped_at": "2024-06-15T16:00:00Z",
+            },
+            booking_repo=repo,
+        )
+
+        assert vs.session_ended_at == first_end
+        assert vs.session_duration_seconds == 3600
+
+    # -- Out-of-order tests ----------------------------------------------
+
+    def test_peer_leave_host_without_join_is_ignored(self) -> None:
+        from app.routes.v1.webhooks_hundredms import _process_hundredms_event
+
+        vs = self._make_video_session()
+        vs.booking_id = "01HYXZ5G6KFXJKZ9CHQM4E3P7G"
+        vs.room_id = "room123"
+        repo = self._make_repo(vs)
+
+        _process_hundredms_event(
+            event_type="peer.leave.success",
+            data={
+                "room_name": "lesson-01HYXZ5G6KFXJKZ9CHQM4E3P7G",
+                "role": "host",
+                "left_at": "2024-06-15T15:00:00Z",
+            },
+            booking_repo=repo,
+        )
+
+        assert vs.instructor_left_at is None
+
+    def test_peer_leave_guest_without_join_is_ignored(self) -> None:
+        from app.routes.v1.webhooks_hundredms import _process_hundredms_event
+
+        vs = self._make_video_session()
+        vs.booking_id = "01HYXZ5G6KFXJKZ9CHQM4E3P7G"
+        vs.room_id = "room123"
+        repo = self._make_repo(vs)
+
+        _process_hundredms_event(
+            event_type="peer.leave.success",
+            data={
+                "room_name": "lesson-01HYXZ5G6KFXJKZ9CHQM4E3P7G",
+                "role": "guest",
+                "left_at": "2024-06-15T15:00:00Z",
+            },
+            booking_repo=repo,
+        )
+
+        assert vs.student_left_at is None
