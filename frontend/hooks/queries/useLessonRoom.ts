@@ -43,15 +43,8 @@ export function useVideoSessionStatus(
     stopPollingWhenEnded?: boolean;
   },
 ) {
-  const refetchInterval =
-    options?.pollingIntervalMs !== undefined
-      ? (query: { state: { data?: VideoSessionStatusResponse | null } }) => {
-          if (options.stopPollingWhenEnded && query.state.data?.session_ended_at) {
-            return false;
-          }
-          return options.pollingIntervalMs;
-        }
-      : undefined;
+  const pollingIntervalMs = options?.pollingIntervalMs;
+  const stopPollingWhenEnded = options?.stopPollingWhenEnded ?? false;
 
   const query = useGetVideoSessionApiV1LessonsBookingIdVideoSessionGet<
     VideoSessionStatusResponse | null,
@@ -59,7 +52,14 @@ export function useVideoSessionStatus(
   >(bookingId, {
     query: {
       enabled: options?.enabled ?? true,
-      ...(refetchInterval !== undefined && { refetchInterval }),
+      ...(pollingIntervalMs !== undefined && {
+        refetchInterval: (query) => {
+          if (stopPollingWhenEnded && query.state.data?.session_ended_at) {
+            return false;
+          }
+          return pollingIntervalMs;
+        },
+      }),
       queryKey: queryKeys.lessons.videoSession(bookingId),
     },
   });
