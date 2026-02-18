@@ -2,6 +2,7 @@ import { Card } from '@/components/ui/card';
 import { format } from 'date-fns';
 import { AlertTriangle, CalendarDays, CheckCircle, Clock, User } from 'lucide-react';
 import { Fragment } from 'react';
+import { JoinLessonButton } from '@/components/lessons/video/JoinLessonButton';
 
 export type BookingListItem = {
   id: string;
@@ -19,6 +20,8 @@ export type BookingListItem = {
     first_name?: string | null;
     last_initial?: string | null;
   };
+  join_opens_at?: string | null;
+  join_closes_at?: string | null;
 };
 
 type BookingListProps = {
@@ -179,6 +182,15 @@ export function BookingList({
                 <span>{instructorName}</span>
               </div>
             </div>
+            {booking.join_opens_at && (
+              <div className="mt-3">
+                <JoinLessonButton
+                  bookingId={booking.id}
+                  joinOpensAt={booking.join_opens_at}
+                  joinClosesAt={booking.join_closes_at}
+                />
+              </div>
+            )}
             {/* Action buttons for past CONFIRMED bookings */}
             {showActionButtons && (
               <div className="mt-4 border-t border-gray-100 pt-4">

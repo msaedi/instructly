@@ -17,6 +17,7 @@ import type { Booking } from '@/types/booking';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { useRatingsBatch, useExistingReviews } from '@/hooks/queries/useReviewsBatch';
 import { resolveBookingDateTimes } from '@/lib/timezone/formatBookingTime';
+import { JoinLessonButton } from '@/components/lessons/video/JoinLessonButton';
 
 function MyLessonsContent() {
   const router = useRouter();
@@ -326,7 +327,15 @@ function MyLessonsContent() {
                 prefetchedReviewed={!!reviewedMap[lesson.id]}
                 suppressFetchRating={true}
                 suppressFetchReviewed={true}
-              />
+              >
+                {lesson.join_opens_at && (
+                  <JoinLessonButton
+                    bookingId={lesson.id}
+                    joinOpensAt={lesson.join_opens_at}
+                    joinClosesAt={lesson.join_closes_at}
+                  />
+                )}
+              </LessonCard>
             );
           })
         ) : (

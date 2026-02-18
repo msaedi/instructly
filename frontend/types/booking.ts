@@ -111,6 +111,12 @@ export interface Booking {
   cancelled_by_id?: string;
   cancellation_reason?: string;
 
+  // Video lesson fields (Phase 4)
+  can_join_lesson?: boolean | null;
+  join_opens_at?: string | null;
+  join_closes_at?: string | null;
+  video_session_ended_at?: string | null;
+
   // Relations (populated in detailed views)
   student?: StudentInfo;
   instructor?: InstructorInfo;

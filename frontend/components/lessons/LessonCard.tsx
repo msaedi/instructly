@@ -23,6 +23,7 @@ interface LessonCardProps {
   prefetchedReviewed?: boolean;
   suppressFetchRating?: boolean;
   suppressFetchReviewed?: boolean;
+  children?: React.ReactNode;
 }
 
 export function LessonCard({
@@ -39,6 +40,7 @@ export function LessonCard({
   prefetchedReviewed,
   suppressFetchRating,
   suppressFetchReviewed,
+  children,
 }: LessonCardProps) {
   const formattedDate = formatBookingDate(lesson);
   const formattedTime = formatBookingTime(lesson);
@@ -173,6 +175,12 @@ export function LessonCard({
             </span>
           </div>
         </div>
+
+        {children && (
+          <div className="pt-2" onClick={e => e.stopPropagation()}>
+            {children}
+          </div>
+        )}
 
         {/* Instructor Info */}
         <div className="pt-4 border-t border-gray-300">
