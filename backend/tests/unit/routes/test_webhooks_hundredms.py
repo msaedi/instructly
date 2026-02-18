@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timezone
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -196,6 +196,12 @@ class TestProcessHundredmsEvent:
     def _make_repo(self, video_session: MagicMock | None = None) -> MagicMock:
         repo = MagicMock()
         repo.get_video_session_by_booking_id.return_value = video_session
+        repo.get_by_id.return_value = MagicMock(
+            student_id="student_123",
+            instructor_id="instructor_123",
+            booking_start_utc=datetime(2024, 6, 15, 14, 0, 0, tzinfo=timezone.utc),
+            duration_minutes=60,
+        )
         return repo
 
     def test_session_open_populates_session_id_and_started_at(self) -> None:
@@ -256,6 +262,7 @@ class TestProcessHundredmsEvent:
                 "peer_id": "peer-abc",
                 "role": "host",
                 "joined_at": "2024-06-15T14:00:00Z",
+                "metadata": '{"user_id":"instructor_123"}',
             },
             booking_repo=repo,
         )
@@ -277,6 +284,7 @@ class TestProcessHundredmsEvent:
                 "peer_id": "peer-xyz",
                 "role": "guest",
                 "joined_at": "2024-06-15T14:01:00Z",
+                "metadata": '{"user_id":"student_123"}',
             },
             booking_repo=repo,
         )
@@ -359,6 +367,50 @@ class TestProcessHundredmsEvent:
 
         assert outcome == "skipped"
 
+    def test_peer_join_mismatched_user_id_is_skipped(self) -> None:
+        from app.routes.v1.webhooks_hundredms import _process_hundredms_event
+
+        vs = self._make_video_session()
+        repo = self._make_repo(vs)
+
+        error, outcome = _process_hundredms_event(
+            event_type="peer.join.success",
+            data={
+                "room_name": "lesson-01HYXZ5G6KFXJKZ9CHQM4E3P7G",
+                "peer_id": "peer-xyz",
+                "role": "guest",
+                "joined_at": "2024-06-15T14:01:00Z",
+                "metadata": '{"user_id":"not-a-participant"}',
+            },
+            booking_repo=repo,
+        )
+
+        assert error is None
+        assert outcome == "skipped"
+        assert vs.student_joined_at is None
+
+    def test_peer_join_outside_attendance_window_is_skipped(self) -> None:
+        from app.routes.v1.webhooks_hundredms import _process_hundredms_event
+
+        vs = self._make_video_session()
+        repo = self._make_repo(vs)
+
+        error, outcome = _process_hundredms_event(
+            event_type="peer.join.success",
+            data={
+                "room_name": "lesson-01HYXZ5G6KFXJKZ9CHQM4E3P7G",
+                "peer_id": "peer-xyz",
+                "role": "guest",
+                "joined_at": "2024-06-15T15:30:00Z",
+                "metadata": '{"user_id":"student_123"}',
+            },
+            booking_repo=repo,
+        )
+
+        assert error is None
+        assert outcome == "skipped"
+        assert vs.student_joined_at is None
+
     def test_metadata_appended_to_provider_metadata(self) -> None:
         from app.routes.v1.webhooks_hundredms import _process_hundredms_event
 
@@ -395,6 +447,7 @@ class TestProcessHundredmsEvent:
                 "peer_id": "p1",
                 "role": "host",
                 "joined_at": "2024-06-15T14:00:00Z",
+                "metadata": '{"user_id":"instructor_123"}',
             },
             booking_repo=repo,
         )
@@ -420,7 +473,8 @@ class TestProcessHundredmsEvent:
                 "room_name": "lesson-01HYXZ5G6KFXJKZ9CHQM4E3P7G",
                 "peer_id": "peer-second",
                 "role": "host",
-                "joined_at": "2024-06-15T15:00:00Z",
+                "joined_at": "2024-06-15T14:05:00Z",
+                "metadata": '{"user_id":"instructor_123"}',
             },
             booking_repo=repo,
         )
@@ -445,7 +499,8 @@ class TestProcessHundredmsEvent:
                 "room_name": "lesson-01HYXZ5G6KFXJKZ9CHQM4E3P7G",
                 "peer_id": "peer-second",
                 "role": "guest",
-                "joined_at": "2024-06-15T15:30:00Z",
+                "joined_at": "2024-06-15T14:06:00Z",
+                "metadata": '{"user_id":"student_123"}',
             },
             booking_repo=repo,
         )
@@ -525,7 +580,7 @@ class TestProcessHundredmsEvent:
 
     # -- Out-of-order tests ----------------------------------------------
 
-    def test_peer_leave_host_without_join_is_ignored(self) -> None:
+    def test_peer_leave_host_without_join_is_ignored(self, caplog: pytest.LogCaptureFixture) -> None:
         from app.routes.v1.webhooks_hundredms import _process_hundredms_event
 
         vs = self._make_video_session()
@@ -544,6 +599,7 @@ class TestProcessHundredmsEvent:
         )
 
         assert vs.instructor_left_at is None
+        assert "Ignoring peer.leave for instructor" in caplog.text
 
     def test_peer_leave_guest_without_join_is_ignored(self) -> None:
         from app.routes.v1.webhooks_hundredms import _process_hundredms_event

@@ -4069,6 +4069,9 @@ class BookingService(BaseService):
             elif no_show_record.no_show_type == "student":
                 if disputer.id != booking.student_id:
                     raise ForbiddenException("Only the accused student can dispute")
+            elif no_show_record.no_show_type == "mutual":
+                if disputer.id not in {booking.student_id, booking.instructor_id}:
+                    raise ForbiddenException("Only lesson participants can dispute")
             else:
                 raise BusinessRuleException("Invalid no-show type")
 
@@ -4257,6 +4260,23 @@ class BookingService(BaseService):
                         payment_intent_id=payment_intent_id,
                         payment_status=payment_status,
                     )
+            elif no_show_type == "mutual":
+                if locked_booking_id:
+                    stripe_result = self.resolve_lock_for_booking(
+                        locked_booking_id, "instructor_cancelled"
+                    )
+                else:
+                    stripe_service = StripeService(
+                        self.db,
+                        config_service=ConfigService(self.db),
+                        pricing_service=PricingService(self.db),
+                    )
+                    stripe_result = self._refund_for_instructor_no_show(
+                        stripe_service=stripe_service,
+                        booking_id=booking_id,
+                        payment_intent_id=payment_intent_id,
+                        payment_status=payment_status,
+                    )
             elif no_show_type == "student":
                 if locked_booking_id:
                     stripe_result = self.resolve_lock_for_booking(
@@ -4314,7 +4334,7 @@ class BookingService(BaseService):
 
             if resolution in {"confirmed_no_dispute", "confirmed_after_review"}:
                 booking.status = BookingStatus.NO_SHOW
-                if no_show_type == "instructor":
+                if no_show_type in {"instructor", "mutual"}:
                     self._finalize_instructor_no_show(
                         booking=booking,
                         stripe_result=stripe_result,
@@ -4322,6 +4342,9 @@ class BookingService(BaseService):
                         refunded_cents=student_pay_cents,
                         locked_booking_id=locked_booking_id,
                     )
+                    if no_show_type == "mutual":
+                        mutual_bp = self.repository.ensure_payment(booking.id)
+                        mutual_bp.settlement_outcome = "mutual_no_show_full_refund"
                 else:
                     self._finalize_student_no_show(
                         booking=booking,

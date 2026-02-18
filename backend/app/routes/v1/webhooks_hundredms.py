@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import OrderedDict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 import logging
 import secrets as _secrets
@@ -20,7 +20,9 @@ from sqlalchemy.orm import Session
 
 from ...core.config import settings
 from ...database import get_db
+from ...domain.video_utils import compute_grace_minutes
 from ...models.webhook_event import WebhookEvent
+from ...ratelimit.dependency import rate_limit as new_rate_limit
 from ...repositories.booking_repository import BookingRepository
 from ...schemas.webhook_responses import WebhookAckResponse
 from ...services.webhook_ledger_service import WebhookLedgerService
@@ -66,6 +68,13 @@ def _mark_delivery(delivery_key: str | None) -> None:
     _delivery_cache[delivery_key] = monotonic()
     while len(_delivery_cache) > _WEBHOOK_CACHE_MAX_SIZE:
         _delivery_cache.popitem(last=False)
+
+
+def _unmark_delivery(delivery_key: str | None) -> None:
+    """Remove a delivery key from the in-memory cache."""
+    if not delivery_key:
+        return
+    _delivery_cache.pop(delivery_key, None)
 
 
 # ---------------------------------------------------------------------------
@@ -150,8 +159,11 @@ def _append_metadata(video_session: Any, event_type: str, data: dict[str, Any]) 
     video_session.provider_metadata = {**existing, "events": events}
 
 
-def _handle_peer_join(video_session: Any, data: dict[str, Any]) -> None:
-    """Update peer tracking columns on join."""
+def _handle_peer_join(video_session: Any, booking: Any, data: dict[str, Any]) -> bool:
+    """Update peer tracking columns on join.
+
+    Returns False when metadata identity checks fail.
+    """
     role = (data.get("role") or "").lower()
     peer_id = data.get("peer_id") or ""
     joined_at = _parse_timestamp(data.get("joined_at"))
@@ -166,20 +178,83 @@ def _handle_peer_join(video_session: Any, data: dict[str, Any]) -> None:
     except (json.JSONDecodeError, AttributeError):
         peer_user_id = None
 
+    booking_start_utc = getattr(booking, "booking_start_utc", None)
+    booking_duration = getattr(booking, "duration_minutes", None)
+    if (
+        joined_at is None
+        or not isinstance(booking_start_utc, datetime)
+        or not isinstance(booking_duration, (int, float))
+    ):
+        logger.warning(
+            "Skipping peer.join with invalid attendance window data booking_id=%s",
+            video_session.booking_id,
+        )
+        return False
+
+    grace_minutes = compute_grace_minutes(int(booking_duration))
+    join_opens_at = booking_start_utc - timedelta(minutes=5)
+    join_closes_at = booking_start_utc + timedelta(minutes=grace_minutes)
+    if joined_at < join_opens_at or joined_at > join_closes_at:
+        logger.warning(
+            "Skipping peer.join outside allowed window booking_id=%s joined_at=%s window=%s..%s",
+            video_session.booking_id,
+            joined_at.isoformat(),
+            join_opens_at.isoformat(),
+            join_closes_at.isoformat(),
+        )
+        return False
+
+    # Phase-0 determination (M1): prior logic parsed peer metadata but did not
+    # enforce identity. Reject mismatched/missing identities as permanent skips.
+    if not isinstance(peer_user_id, str) or not peer_user_id:
+        logger.warning(
+            "Skipping peer.join without user_id metadata booking_id=%s role=%s peer_id=%s",
+            video_session.booking_id,
+            role,
+            peer_id,
+        )
+        return False
+
+    allowed_users = {getattr(booking, "student_id", None), getattr(booking, "instructor_id", None)}
+    if peer_user_id not in allowed_users:
+        logger.warning(
+            "Skipping peer.join with non-participant user_id booking_id=%s peer_user_id=%s role=%s",
+            video_session.booking_id,
+            peer_user_id,
+            role,
+        )
+        return False
+
     if role == "host":
+        if peer_user_id != getattr(booking, "instructor_id", None):
+            logger.warning(
+                "Skipping peer.join host role mismatch booking_id=%s peer_user_id=%s expected=%s",
+                video_session.booking_id,
+                peer_user_id,
+                getattr(booking, "instructor_id", None),
+            )
+            return False
         video_session.instructor_peer_id = peer_id
         if video_session.instructor_joined_at is None:
             video_session.instructor_joined_at = joined_at
-        if peer_user_id:
-            logger.info("100ms host peer identified: user_id=%s", peer_user_id)
+        logger.info("100ms host peer identified: user_id=%s", peer_user_id)
     elif role == "guest":
+        if peer_user_id != getattr(booking, "student_id", None):
+            logger.warning(
+                "Skipping peer.join guest role mismatch booking_id=%s peer_user_id=%s expected=%s",
+                video_session.booking_id,
+                peer_user_id,
+                getattr(booking, "student_id", None),
+            )
+            return False
         video_session.student_peer_id = peer_id
         if video_session.student_joined_at is None:
             video_session.student_joined_at = joined_at
-        if peer_user_id:
-            logger.info("100ms guest peer identified: user_id=%s", peer_user_id)
+        logger.info("100ms guest peer identified: user_id=%s", peer_user_id)
     else:
         logger.info("100ms peer.join unknown role=%s peer_id=%s", role, peer_id)
+        return False
+    return True
 
 
 def _handle_peer_leave(video_session: Any, data: dict[str, Any]) -> None:
@@ -238,6 +313,11 @@ def _process_hundredms_event(
         )
         return None, "skipped"
 
+    booking = booking_repo.get_by_id(booking_id)
+    if booking is None:
+        logger.warning("100ms webhook: booking %s not found", booking_id)
+        return None, "skipped"
+
     if event_type == "session.open.success":
         video_session.session_id = data.get("session_id") or ""
         video_session.session_started_at = _parse_timestamp(data.get("session_started_at"))
@@ -250,7 +330,8 @@ def _process_hundredms_event(
                 video_session.session_duration_seconds = int(duration)
 
     elif event_type == "peer.join.success":
-        _handle_peer_join(video_session, data)
+        if not _handle_peer_join(video_session, booking, data):
+            return None, "skipped"
 
     elif event_type == "peer.leave.success":
         _handle_peer_leave(video_session, data)
@@ -277,7 +358,7 @@ def _get_booking_repository(db: Session = Depends(get_db)) -> BookingRepository:
 # ---------------------------------------------------------------------------
 
 
-@router.post("", response_model=WebhookAckResponse)
+@router.post("", response_model=WebhookAckResponse, dependencies=[Depends(new_rate_limit("video"))])
 async def handle_hundredms_webhook(
     request: Request,
     booking_repo: BookingRepository = Depends(_get_booking_repository),
@@ -289,8 +370,8 @@ async def handle_hundredms_webhook(
         return WebhookAckResponse(ok=True)
 
     # 1. Verify secret header
-    raw_body = await request.body()
     _verify_hundredms_secret(request)
+    raw_body = await request.body()
 
     # 2. Parse JSON
     try:
@@ -313,16 +394,10 @@ async def handle_hundredms_webhook(
         logger.debug("Ignoring 100ms event type=%s", event_type)
         return WebhookAckResponse(ok=True)
 
-    # 5. In-memory dedup
+    # 5. Delivery key used by cache dedup fallback
     delivery_key = event_id or f"{event_type}:{data.get('room_id')}:{data.get('session_id')}"
-    if _delivery_seen(delivery_key):
-        logger.info(
-            "Duplicate 100ms webhook ignored",
-            extra={"delivery_key": delivery_key},
-        )
-        return WebhookAckResponse(ok=True)
 
-    # 6. Persistent dedup via webhook ledger
+    # 6. Persistent dedup via webhook ledger (source of truth)
     ledger_db = getattr(booking_repo, "db", None)
     ledger_service = WebhookLedgerService(ledger_db) if ledger_db is not None else None
     ledger_event: WebhookEvent | None = None
@@ -344,21 +419,31 @@ async def handle_hundredms_webhook(
         )
         return WebhookAckResponse(ok=True)
 
+    # Phase-0 determination (C2): cache-only dedup after processing allowed
+    # concurrent duplicate deliveries. Keep the ledger as truth, then mark cache
+    # optimistically before processing and roll back the cache mark on failure.
+    if _delivery_seen(delivery_key):
+        logger.info(
+            "Duplicate 100ms webhook ignored",
+            extra={"delivery_key": delivery_key},
+        )
+        return WebhookAckResponse(ok=True)
+
+    _mark_delivery(delivery_key)
+
     # 7. Process event
     start_time = monotonic()
-    processing_error: str | None = None
 
     try:
-        error, _outcome = await asyncio.to_thread(
+        _error, _outcome = await asyncio.to_thread(
             _process_hundredms_event,
             event_type=event_type,
             data=data,
             booking_repo=booking_repo,
         )
-        processing_error = error
-        _mark_delivery(delivery_key)
     except Exception as exc:
         processing_error = str(exc)
+        _unmark_delivery(delivery_key)
         logger.exception(
             "100ms webhook processing failed",
             extra={"event_type": event_type},
