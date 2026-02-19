@@ -25,6 +25,7 @@ from pydantic import (
 import pytz
 
 from ..core.config import settings
+from ..core.constants import MIN_SESSION_DURATION
 from ..domain.video_utils import compute_grace_minutes
 from ..models.booking import BookingStatus
 from ..schemas.base import STRICT_SCHEMAS, Money, StandardizedModel
@@ -90,7 +91,7 @@ class BookingCreate(StrictRequestModel):
     start_time: time = Field(..., description="Start time")
     selected_duration: int = Field(
         ...,
-        ge=15,
+        ge=MIN_SESSION_DURATION,
         le=720,
         description="Selected duration in minutes from service's duration_options",
     )
@@ -144,8 +145,8 @@ class BookingCreate(StrictRequestModel):
     @classmethod
     def validate_duration(cls, v: int) -> int:
         """Ensure duration is within reasonable bounds."""
-        if v < 15:
-            raise ValueError("Duration must be at least 15 minutes")
+        if v < MIN_SESSION_DURATION:
+            raise ValueError(f"Duration must be at least {MIN_SESSION_DURATION} minutes")
         if v > 720:  # 12 hours
             raise ValueError("Duration cannot exceed 12 hours")
         return v
@@ -245,7 +246,10 @@ class BookingRescheduleRequest(StrictRequestModel):
     booking_date: date = Field(..., description="New date for the lesson")
     start_time: time = Field(..., description="New start time (HH:MM)")
     selected_duration: int = Field(
-        ..., ge=15, le=720, description="New selected duration in minutes"
+        ...,
+        ge=MIN_SESSION_DURATION,
+        le=720,
+        description="New selected duration in minutes",
     )
     instructor_service_id: Optional[str] = Field(
         None, description="Override service if needed (defaults to old)"
@@ -270,8 +274,8 @@ class BookingRescheduleRequest(StrictRequestModel):
     @field_validator("selected_duration")
     @classmethod
     def validate_duration(cls, v: int) -> int:
-        if v < 15:
-            raise ValueError("Duration must be at least 15 minutes")
+        if v < MIN_SESSION_DURATION:
+            raise ValueError(f"Duration must be at least {MIN_SESSION_DURATION} minutes")
         if v > 720:
             raise ValueError("Duration cannot exceed 12 hours")
         return v

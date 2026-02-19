@@ -55,6 +55,29 @@ def test_log_received_handles_duplicate_event_id(db):
     assert event2.last_retry_at is not None
 
 
+def test_log_received_handles_duplicate_idempotency_key_without_event_id(db):
+    service = WebhookLedgerService(db)
+
+    event1 = service.log_received(
+        source="hundredms",
+        event_type="peer.join.success",
+        payload={"type": "peer.join.success"},
+        event_id=None,
+        idempotency_key="peer.join.success:room_1:session_1:peer_1",
+    )
+    event2 = service.log_received(
+        source="hundredms",
+        event_type="peer.join.success",
+        payload={"type": "peer.join.success"},
+        event_id=None,
+        idempotency_key="peer.join.success:room_1:session_1:peer_1",
+    )
+
+    assert event2.id == event1.id
+    assert event2.retry_count == 1
+    assert event2.last_retry_at is not None
+
+
 def test_log_received_different_event_ids_create_separate_records(db):
     service = WebhookLedgerService(db)
     event1 = service.log_received(
@@ -124,6 +147,38 @@ def test_mark_failed_captures_error(db):
     assert event.status == "failed"
     assert event.processing_error == "boom"
     assert event.processing_duration_ms == 12
+
+
+def test_mark_processing_claims_received_event(db):
+    service = WebhookLedgerService(db)
+    event = service.log_received(
+        source="hundredms",
+        event_type="session.open.success",
+        payload={"id": "evt_processing"},
+        event_id="evt_processing",
+    )
+
+    claimed = service.mark_processing(event)
+
+    assert claimed is True
+    assert event.status == "processing"
+    assert event.processing_error is None
+
+
+def test_mark_processing_does_not_claim_processed_event(db):
+    service = WebhookLedgerService(db)
+    event = service.log_received(
+        source="hundredms",
+        event_type="session.open.success",
+        payload={"id": "evt_done"},
+        event_id="evt_done",
+    )
+    service.mark_processed(event)
+
+    claimed = service.mark_processing(event)
+
+    assert claimed is False
+    assert event.status == "processed"
 
 
 def test_replay_creates_new_event(db):

@@ -67,7 +67,7 @@ export function PreLessonWaiting({
             </div>
           )}
 
-          {windowOpen && !isJoining && (
+          {windowOpen && (
             <div className="flex flex-col items-center gap-3">
               <CountdownPill secondsLeft={closesCountdown.secondsLeft} formatted={closesCountdown.formatted} />
               <button
@@ -78,15 +78,16 @@ export function PreLessonWaiting({
                 aria-busy={isJoining}
                 className="animate-pulse-join rounded-lg bg-primary px-8 py-3 text-lg font-semibold text-primary-foreground hover:bg-purple-800 transition-colors disabled:opacity-50"
               >
-                Join Lesson
+                <span className="inline-flex items-center gap-2">
+                  {isJoining && (
+                    <span
+                      className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent"
+                      aria-hidden="true"
+                    />
+                  )}
+                  {isJoining ? 'Connecting...' : 'Join Lesson'}
+                </span>
               </button>
-            </div>
-          )}
-
-          {isJoining && (
-            <div className="flex flex-col items-center gap-2">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-              <p className="text-sm text-muted-foreground">Connecting...</p>
             </div>
           )}
 

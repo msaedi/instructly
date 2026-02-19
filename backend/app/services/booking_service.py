@@ -28,6 +28,7 @@ import stripe
 
 from ..constants.pricing_defaults import PRICING_DEFAULTS
 from ..core.bgc_policy import is_verified, must_be_verified_for_public
+from ..core.constants import MIN_SESSION_DURATION
 from ..core.enums import RoleName
 from ..core.exceptions import (
     BookingConflictException,
@@ -611,6 +612,12 @@ class BookingService(BaseService):
             ) from exc
         raise exc
 
+    @staticmethod
+    def _validate_min_session_duration_floor(selected_duration: int) -> None:
+        """Defense-in-depth minimum duration check for booking flows."""
+        if selected_duration < MIN_SESSION_DURATION:
+            raise ValidationException(f"Duration must be at least {MIN_SESSION_DURATION} minutes")
+
     @BaseService.measure_operation("create_booking")
     def create_booking(
         self, student: User, booking_data: BookingCreate, selected_duration: int
@@ -641,6 +648,7 @@ class BookingService(BaseService):
             date=booking_data.booking_date,
             selected_duration=selected_duration,
         )
+        self._validate_min_session_duration_floor(selected_duration)
 
         # 1. Validate and load required data
         service, instructor_profile = self._validate_booking_prerequisites(student, booking_data)
@@ -739,6 +747,7 @@ class BookingService(BaseService):
             instructor_id=booking_data.instructor_id,
             date=booking_data.booking_date,
         )
+        self._validate_min_session_duration_floor(selected_duration)
 
         # 1. Validate and load required data
         service, instructor_profile = self._validate_booking_prerequisites(student, booking_data)
@@ -943,6 +952,7 @@ class BookingService(BaseService):
             date=booking_data.booking_date,
             original_booking_id=original_booking_id,
         )
+        self._validate_min_session_duration_floor(selected_duration)
 
         existing_booking = self.repository.get_by_id(original_booking_id)
         if not existing_booking:
@@ -1102,6 +1112,7 @@ class BookingService(BaseService):
             date=booking_data.booking_date,
             original_booking_id=original_booking_id,
         )
+        self._validate_min_session_duration_floor(selected_duration)
 
         existing_booking = self.repository.get_by_id(original_booking_id)
         if not existing_booking:

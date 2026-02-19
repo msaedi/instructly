@@ -50,6 +50,7 @@ def typed_task(
 # SQL pre-filter: fetch bookings started >= 8 minutes ago.
 # Minimum grace = min(30 * 0.25, 15) = 7.5 min for a 30-min lesson.
 # 8 > 7.5, so this safely catches all expired-grace bookings.
+# MIN_GRACE_MINUTES is safe because business rules enforce a 30-min minimum session duration.
 # The per-booking Python check computes exact grace.
 MIN_GRACE_MINUTES = 8
 

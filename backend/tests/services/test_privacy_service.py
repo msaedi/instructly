@@ -362,7 +362,19 @@ class TestPrivacyService:
         self, privacy_service, sample_user_for_privacy, sample_booking, db
     ):
         """Account deletion should be blocked when future bookings exist."""
-        sample_booking.booking_date = datetime.now(timezone.utc).date() + timedelta(days=2)
+        future_start_utc = datetime.now(timezone.utc).replace(
+            hour=14,
+            minute=0,
+            second=0,
+            microsecond=0,
+        ) + timedelta(days=2)
+        future_end_utc = future_start_utc + timedelta(hours=1)
+
+        sample_booking.booking_date = future_start_utc.date()
+        sample_booking.start_time = future_start_utc.timetz().replace(tzinfo=None)
+        sample_booking.end_time = future_end_utc.timetz().replace(tzinfo=None)
+        sample_booking.booking_start_utc = future_start_utc
+        sample_booking.booking_end_utc = future_end_utc
         db.commit()
 
         with pytest.raises(ValueError, match="active bookings"):

@@ -108,7 +108,7 @@ def test_booking_create_duration_bounds() -> None:
             instructor_service_id="svc",
             booking_date="2024-01-01",
             start_time="10:00",
-            selected_duration=10,
+            selected_duration=29,
         )
 
     with pytest.raises(ValidationError):
@@ -184,7 +184,7 @@ def test_booking_reschedule_duration_bounds() -> None:
         BookingRescheduleRequest(
             booking_date="2024-01-01",
             start_time="10:00",
-            selected_duration=5,
+            selected_duration=29,
         )
 
     with pytest.raises(ValidationError):
@@ -329,16 +329,16 @@ def test_find_booking_opportunities_date_range_validation() -> None:
 
 
 def test_direct_validator_branches_for_duration_timezone_and_location_type() -> None:
-    with pytest.raises(ValueError, match="at least 15"):
-        BookingCreate.validate_duration(14)
+    with pytest.raises(ValueError, match="at least 30"):
+        BookingCreate.validate_duration(29)
     with pytest.raises(ValueError, match="cannot exceed 12 hours"):
         BookingCreate.validate_duration(721)
     assert BookingCreate.validate_timezone("UTC") == "UTC"
     with pytest.raises(ValueError, match="location_type must be one of"):
         BookingCreate.validate_location_type("legacy")
 
-    with pytest.raises(ValueError, match="at least 15"):
-        BookingRescheduleRequest.validate_duration(14)
+    with pytest.raises(ValueError, match="at least 30"):
+        BookingRescheduleRequest.validate_duration(29)
     with pytest.raises(ValueError, match="cannot exceed 12 hours"):
         BookingRescheduleRequest.validate_duration(721)
     assert BookingRescheduleRequest.parse_time_string(time(9, 30)) == time(9, 30)

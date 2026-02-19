@@ -273,6 +273,66 @@ def test_find_by_source_and_event_id(db):
     assert not_found is None
 
 
+def test_find_by_source_and_idempotency_key(db):
+    repo = WebhookEventRepository(db)
+    event = repo.create(
+        source="hundredms",
+        event_type="peer.join.success",
+        payload={"type": "peer.join.success"},
+        status="received",
+        idempotency_key="peer.join.success:room_1:session_1:peer_1",
+        received_at=datetime.now(timezone.utc),
+    )
+
+    found = repo.find_by_source_and_idempotency_key(
+        "hundredms",
+        "peer.join.success:room_1:session_1:peer_1",
+    )
+    assert found is not None
+    assert found.id == event.id
+
+    not_found = repo.find_by_source_and_idempotency_key("stripe", "peer.join.success:room_1:session_1:peer_1")
+    assert not_found is None
+
+
+def test_claim_for_processing_claims_received_and_failed_only(db):
+    repo = WebhookEventRepository(db)
+    received = repo.create(
+        source="hundredms",
+        event_type="session.open.success",
+        payload={"id": "evt_received"},
+        status="received",
+        received_at=datetime.now(timezone.utc),
+    )
+    failed = repo.create(
+        source="hundredms",
+        event_type="session.open.success",
+        payload={"id": "evt_failed"},
+        status="failed",
+        processing_error="boom",
+        received_at=datetime.now(timezone.utc),
+    )
+    processed = repo.create(
+        source="hundredms",
+        event_type="session.open.success",
+        payload={"id": "evt_processed"},
+        status="processed",
+        received_at=datetime.now(timezone.utc),
+    )
+
+    assert repo.claim_for_processing(received.id) is True
+    assert repo.claim_for_processing(failed.id) is True
+    assert repo.claim_for_processing(processed.id) is False
+
+    db.refresh(received)
+    db.refresh(failed)
+    db.refresh(processed)
+
+    assert received.status == "processing"
+    assert failed.status == "processing"
+    assert processed.status == "processed"
+
+
 def test_get_event_returns_none(db):
     repo = WebhookEventRepository(db)
     assert repo.get_event("01HZZZZZZZZZZZZZZZZZZZZZZ") is None

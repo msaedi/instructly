@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import httpx
 import jwt
 from pydantic import SecretStr
 import pytest
@@ -41,6 +42,12 @@ class TestManagementToken:
         assert payload["version"] == 2
         assert "iat" in payload
         assert "nbf" in payload
+
+    def test_management_token_expiry_is_one_hour(self):
+        client = self._make_client()
+        token = client._generate_management_token()
+        payload = jwt.decode(token, "test_secret_value_for_hmac_256bit", algorithms=["HS256"])
+        assert payload["exp"] - payload["iat"] == 3600
 
     def test_management_token_header_has_jti(self):
         client = self._make_client()
@@ -155,6 +162,43 @@ class TestCreateRoom:
 
         assert exc_info.value.status_code == 500
         assert exc_info.value.message == "Internal Server Error"
+
+    @patch("app.integrations.hundredms_client.httpx.Client")
+    def test_create_room_wraps_transport_error(self, mock_client_cls):
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.request.side_effect = httpx.TransportError("connection failed")
+        mock_client_cls.return_value = mock_client
+
+        client = self._make_client()
+        with pytest.raises(HundredMsError) as exc_info:
+            client.create_room(name="lesson-net")
+
+        assert exc_info.value.status_code is None
+        assert "unreachable" in exc_info.value.message
+
+
+class TestDisableRoom:
+    @patch("app.integrations.hundredms_client.httpx.Client")
+    def test_disable_room_sends_enabled_false(self, mock_client_cls):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"id": "room_123", "enabled": False}
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.request.return_value = mock_response
+        mock_client_cls.return_value = mock_client
+
+        client = HundredMsClient(access_key="k", app_secret="test_secret_value_for_hmac_256bit")
+        result = client.disable_room("room_123")
+
+        call_args = mock_client.request.call_args
+        assert call_args[0][0] == "POST"
+        assert "rooms/room_123" in call_args[0][1]
+        assert call_args[1]["json"] == {"enabled": False}
+        assert result["enabled"] is False
 
 
 class TestGetRoom:
@@ -278,6 +322,12 @@ class TestFakeHundredMsClient:
         client = FakeHundredMsClient()
         assert client.get_active_session("room_xyz") is None
 
+    def test_disable_room_returns_disabled(self):
+        client = FakeHundredMsClient()
+        result = client.disable_room("room_xyz")
+        assert result["id"] == "room_xyz"
+        assert result["enabled"] is False
+
     def test_generate_auth_token_returns_fake_string(self):
         client = FakeHundredMsClient()
         token = client.generate_auth_token(room_id="room_abc", user_id="user_123", role="guest")
@@ -285,12 +335,14 @@ class TestFakeHundredMsClient:
 
     def test_generate_auth_token_tracks_call(self):
         client = FakeHundredMsClient()
+        client.disable_room("room_abc")
         client.generate_auth_token(room_id="room_abc", user_id="user_123", role="host")
-        assert len(client._calls) == 1
-        assert client._calls[0]["method"] == "generate_auth_token"
-        assert client._calls[0]["room_id"] == "room_abc"
-        assert client._calls[0]["user_id"] == "user_123"
-        assert client._calls[0]["role"] == "host"
+        assert len(client._calls) == 2
+        assert client._calls[0]["method"] == "disable_room"
+        assert client._calls[1]["method"] == "generate_auth_token"
+        assert client._calls[1]["room_id"] == "room_abc"
+        assert client._calls[1]["user_id"] == "user_123"
+        assert client._calls[1]["role"] == "host"
 
 
 # ── Auth token tests ──────────────────────────────────────────────────

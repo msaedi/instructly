@@ -117,4 +117,26 @@ describe('useCountdown', () => {
     expect(result.current.isExpired).toBe(false);
     expect(result.current.formatted).toBe('01:30');
   });
+
+  it('shares one ticker across hook instances and tears down when idle', () => {
+    const setIntervalSpy = jest.spyOn(global, 'setInterval');
+    const clearIntervalSpy = jest.spyOn(global, 'clearInterval');
+    const setBaseline = setIntervalSpy.mock.calls.length;
+    const clearBaseline = clearIntervalSpy.mock.calls.length;
+
+    const target = new Date('2026-01-15T12:01:30Z');
+    const hookA = renderHook(() => useCountdown(target));
+    const hookB = renderHook(() => useCountdown(target));
+
+    expect(setIntervalSpy.mock.calls.length - setBaseline).toBe(1);
+
+    hookA.unmount();
+    expect(clearIntervalSpy.mock.calls.length - clearBaseline).toBe(0);
+
+    hookB.unmount();
+    expect(clearIntervalSpy.mock.calls.length - clearBaseline).toBe(1);
+
+    setIntervalSpy.mockRestore();
+    clearIntervalSpy.mockRestore();
+  });
 });

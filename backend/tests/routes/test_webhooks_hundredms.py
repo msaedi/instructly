@@ -70,6 +70,7 @@ class TestHundredmsWebhookEndpoint:
 
         mock_ledger = MagicMock()
         mock_ledger.log_received.return_value = MagicMock(status="received", retry_count=0)
+        mock_ledger.mark_processing.return_value = True
         mock_ledger_cls.return_value = mock_ledger
 
         payload = _webhook_payload()
@@ -141,6 +142,7 @@ class TestHundredmsWebhookEndpoint:
 
         mock_ledger = MagicMock()
         mock_ledger.log_received.return_value = MagicMock(status="received", retry_count=0)
+        mock_ledger.mark_processing.return_value = True
         mock_ledger_cls.return_value = mock_ledger
 
         mock_process.side_effect = [RuntimeError("transient"), (None, "processed")]
@@ -204,7 +206,7 @@ class TestHundredmsWebhookEndpoint:
     @patch("app.routes.v1.webhooks_hundredms._process_hundredms_event")
     @patch("app.routes.v1.webhooks_hundredms.WebhookLedgerService")
     @patch("app.routes.v1.webhooks_hundredms.settings")
-    def test_inflight_duplicate_hits_cache_and_skips_second_processing(
+    def test_inflight_duplicate_returns_503_with_retry_after(
         self,
         mock_settings,
         mock_ledger_cls,
@@ -216,10 +218,13 @@ class TestHundredmsWebhookEndpoint:
         mock_settings.hundredms_webhook_secret.get_secret_value.return_value = "test-secret"
 
         webhooks_module._delivery_cache.clear()
-        webhooks_module._mark_delivery("evt-inflight-dup")
 
         mock_ledger = MagicMock()
-        mock_ledger.log_received.return_value = MagicMock(status="received", retry_count=1)
+        mock_ledger.log_received.return_value = MagicMock(
+            status="received", retry_count=1, id="evt-ledger-inflight"
+        )
+        mock_ledger.mark_processing.return_value = False
+        mock_ledger.get_event.return_value = MagicMock(status="processing")
         mock_ledger_cls.return_value = mock_ledger
 
         response = client_with_mock_repo.post(
@@ -231,7 +236,9 @@ class TestHundredmsWebhookEndpoint:
             },
         )
 
-        assert response.status_code == 200
+        assert response.status_code == 503
+        assert response.json()["detail"] == "processing_in_progress"
+        assert response.headers.get("Retry-After") == "2"
         mock_process.assert_not_called()
 
     @patch("app.routes.v1.webhooks_hundredms.WebhookLedgerService")
@@ -249,6 +256,7 @@ class TestHundredmsWebhookEndpoint:
 
         mock_ledger = MagicMock()
         mock_ledger.log_received.return_value = MagicMock(status="received", retry_count=0)
+        mock_ledger.mark_processing.return_value = True
         mock_ledger_cls.return_value = mock_ledger
 
         video_session = MagicMock()
@@ -299,6 +307,7 @@ class TestHundredmsWebhookEndpoint:
 
         mock_ledger = MagicMock()
         mock_ledger.log_received.return_value = MagicMock(status="received", retry_count=0)
+        mock_ledger.mark_processing.return_value = True
         mock_ledger_cls.return_value = mock_ledger
 
         mock_process.side_effect = RuntimeError("boom")
@@ -332,6 +341,7 @@ class TestHundredmsWebhookEndpoint:
 
         mock_ledger = MagicMock()
         mock_ledger.log_received.return_value = MagicMock(status="received", retry_count=0)
+        mock_ledger.mark_processing.return_value = True
         mock_ledger.mark_processed.side_effect = [RuntimeError("ledger write failed"), None]
         mock_ledger_cls.return_value = mock_ledger
 
@@ -383,6 +393,7 @@ class TestHundredmsWebhookEndpoint:
 
         mock_ledger = MagicMock()
         mock_ledger.log_received.return_value = MagicMock(status="received", retry_count=0)
+        mock_ledger.mark_processing.return_value = True
         mock_ledger_cls.return_value = mock_ledger
 
         mock_process.return_value = (None, "processed")
@@ -419,6 +430,103 @@ class TestHundredmsWebhookEndpoint:
         assert first.status_code == 200
         assert second.status_code == 200
         assert mock_process.call_count == 2
+
+    @patch("app.routes.v1.webhooks_hundredms._process_hundredms_event")
+    @patch("app.routes.v1.webhooks_hundredms.WebhookLedgerService")
+    @patch("app.routes.v1.webhooks_hundredms.settings")
+    def test_missing_event_id_replay_after_cache_clear_dedupes_via_ledger(
+        self,
+        mock_settings,
+        mock_ledger_cls,
+        mock_process,
+        client_with_mock_repo,
+    ):
+        mock_settings.hundredms_enabled = True
+        mock_settings.hundredms_webhook_secret = MagicMock()
+        mock_settings.hundredms_webhook_secret.get_secret_value.return_value = "test-secret"
+
+        first_event = MagicMock(status="received", retry_count=0, id="01HZZZZZZZZZZZZZZZZZZZZZZ")
+        replay_event = MagicMock(status="processed", retry_count=1, id="01HZZZZZZZZZZZZZZZZZZZZZZ")
+        mock_ledger = MagicMock()
+        mock_ledger.log_received.side_effect = [first_event, replay_event]
+        mock_ledger.mark_processing.return_value = True
+        mock_ledger_cls.return_value = mock_ledger
+        mock_process.return_value = (None, "processed")
+
+        payload = _webhook_payload(
+            event_type="peer.join.success",
+            event_id=None,
+            peer_id="peer-student",
+        )
+
+        webhooks_module._delivery_cache.clear()
+        first = client_with_mock_repo.post(
+            "/api/v1/webhooks/hundredms",
+            content=json.dumps(payload),
+            headers={
+                "Content-Type": "application/json",
+                "x-hundredms-secret": "test-secret",
+            },
+        )
+        webhooks_module._delivery_cache.clear()
+        second = client_with_mock_repo.post(
+            "/api/v1/webhooks/hundredms",
+            content=json.dumps(payload),
+            headers={
+                "Content-Type": "application/json",
+                "x-hundredms-secret": "test-secret",
+            },
+        )
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert mock_process.call_count == 1
+        assert len(mock_ledger.log_received.call_args_list) == 2
+        first_call = mock_ledger.log_received.call_args_list[0].kwargs
+        second_call = mock_ledger.log_received.call_args_list[1].kwargs
+        assert first_call["idempotency_key"] is not None
+        assert second_call["idempotency_key"] == first_call["idempotency_key"]
+
+    @patch("app.routes.v1.webhooks_hundredms.settings")
+    def test_invalid_payload_encoding_returns_400(self, mock_settings, client_with_mock_repo):
+        mock_settings.hundredms_enabled = True
+        mock_settings.hundredms_webhook_secret = MagicMock()
+        mock_settings.hundredms_webhook_secret.get_secret_value.return_value = "test-secret"
+
+        response = client_with_mock_repo.post(
+            "/api/v1/webhooks/hundredms",
+            content=b"\xff\xfe\xfa",
+            headers={
+                "Content-Type": "application/json",
+                "x-hundredms-secret": "test-secret",
+            },
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Invalid payload encoding"
+
+    @patch("app.routes.v1.webhooks_hundredms._process_hundredms_event")
+    @patch("app.routes.v1.webhooks_hundredms.WebhookLedgerService")
+    @patch("app.routes.v1.webhooks_hundredms.settings")
+    def test_feature_flag_disabled_returns_200_without_processing(
+        self,
+        mock_settings,
+        mock_ledger_cls,
+        mock_process,
+        client_with_mock_repo,
+    ):
+        mock_settings.hundredms_enabled = False
+
+        response = client_with_mock_repo.post(
+            "/api/v1/webhooks/hundredms",
+            content=json.dumps(_webhook_payload()),
+            headers={"Content-Type": "application/json"},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["ok"] is True
+        mock_ledger_cls.assert_not_called()
+        mock_process.assert_not_called()
 
     @patch("app.routes.v1.webhooks_hundredms.WebhookLedgerService")
     @patch("app.routes.v1.webhooks_hundredms.settings")

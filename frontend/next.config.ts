@@ -64,7 +64,10 @@ const connectSrcOrigins = [
   'https://vitals.vercel-insights.com',
   'https://*.axiom.co',
   'https://*.onrender.com',
-  // 100ms video — wildcard to cover all signaling, init, and analytics subdomains.
+  // 100ms video uses region-specific signaling/init hosts that may change by account/region.
+  // Keeping wildcard for now to avoid production breakage.
+  // Docs: https://www.100ms.live/docs
+  // TODO: tighten to explicit subdomains once 100ms publishes a stable endpoint list.
   // Override via NEXT_PUBLIC_100MS_CONNECT_ORIGINS if needed.
   ...(
     process.env['NEXT_PUBLIC_100MS_CONNECT_ORIGINS'] ||

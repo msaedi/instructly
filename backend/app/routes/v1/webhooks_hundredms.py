@@ -38,6 +38,7 @@ router = APIRouter(tags=["webhooks"])
 _WEBHOOK_CACHE_TTL_SECONDS = 300
 _WEBHOOK_CACHE_MAX_SIZE = 1000
 _delivery_cache: OrderedDict[str, float] = OrderedDict()
+_PROCESSING_RETRY_AFTER_SECONDS = "2"
 
 _HANDLED_EVENT_TYPES = frozenset(
     {
@@ -398,7 +399,14 @@ async def handle_hundredms_webhook(
 
     # 2. Parse JSON
     try:
-        payload: dict[str, Any] = json.loads(raw_body.decode("utf-8"))
+        body_text = raw_body.decode("utf-8")
+    except UnicodeDecodeError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid payload encoding",
+        )
+    try:
+        payload: dict[str, Any] = json.loads(body_text)
     except json.JSONDecodeError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -419,6 +427,7 @@ async def handle_hundredms_webhook(
 
     # 5. Delivery key used by cache dedup fallback
     delivery_key = _build_delivery_key(event_id, event_type, data)
+    idempotency_key = None if event_id else delivery_key
 
     # 6. Persistent dedup via webhook ledger (source of truth)
     ledger_db = getattr(booking_repo, "db", None)
@@ -432,6 +441,7 @@ async def handle_hundredms_webhook(
             payload=payload,
             headers=dict(request.headers),
             event_id=event_id,
+            idempotency_key=idempotency_key,
         )
 
     if ledger_event is not None and ledger_event.status == "processed":
@@ -442,10 +452,25 @@ async def handle_hundredms_webhook(
         )
         return WebhookAckResponse(ok=True)
 
-    # Phase-0 determination (C2): cache-only dedup after processing allowed
-    # concurrent duplicate deliveries. Keep the ledger as truth, then mark cache
-    # optimistically before processing and roll back the cache mark on failure.
-    if _delivery_seen(delivery_key):
+    if ledger_service is not None and ledger_event is not None:
+        claimed = await asyncio.to_thread(ledger_service.mark_processing, ledger_event)
+        if not claimed:
+            latest = await asyncio.to_thread(ledger_service.get_event, ledger_event.id)
+            latest_status = latest.status if latest is not None else ledger_event.status
+            if latest_status == "processed":
+                logger.info(
+                    "100ms webhook already processed while duplicate was in flight: %s",
+                    ledger_event.id,
+                )
+                return WebhookAckResponse(ok=True)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="processing_in_progress",
+                headers={"Retry-After": _PROCESSING_RETRY_AFTER_SECONDS},
+            )
+
+    # Cache-only fallback when ledger storage is unavailable.
+    if ledger_event is None and _delivery_seen(delivery_key):
         logger.info(
             "Duplicate 100ms webhook ignored",
             extra={"delivery_key": delivery_key},

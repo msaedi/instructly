@@ -172,6 +172,10 @@ class HundredMsClient:
         """Get room details by 100ms room ID."""
         return self._request("GET", f"rooms/{room_id}")
 
+    def disable_room(self, room_id: str) -> dict[str, Any]:
+        """Disable a room so it cannot be joined."""
+        return self._request("POST", f"rooms/{room_id}", json_body={"enabled": False})
+
     def get_active_session(self, room_id: str) -> dict[str, Any] | None:
         """Get the active session for a room. Returns None if no active session."""
         try:
@@ -238,6 +242,10 @@ class FakeHundredMsClient:
     def get_room(self, room_id: str) -> dict[str, Any]:
         self._calls.append({"method": "get_room", "room_id": room_id})
         return {"id": room_id, "name": "fake-room", "enabled": True}
+
+    def disable_room(self, room_id: str) -> dict[str, Any]:
+        self._calls.append({"method": "disable_room", "room_id": room_id})
+        return {"id": room_id, "enabled": False}
 
     def get_active_session(self, room_id: str) -> dict[str, Any] | None:
         self._calls.append({"method": "get_active_session", "room_id": room_id})

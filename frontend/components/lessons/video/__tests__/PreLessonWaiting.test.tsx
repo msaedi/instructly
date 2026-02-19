@@ -94,7 +94,7 @@ describe('PreLessonWaiting', () => {
     expect(onJoin).toHaveBeenCalledTimes(1);
   });
 
-  it('shows spinner and hides Join button when isJoining is true', () => {
+  it('keeps Join button mounted and busy when isJoining is true', () => {
     mockCountdowns(
       { secondsLeft: 0, isExpired: true, formatted: '00:00' },
       { secondsLeft: 600, isExpired: false, formatted: '10:00' }
@@ -102,8 +102,11 @@ describe('PreLessonWaiting', () => {
 
     render(<PreLessonWaiting {...defaultProps} isJoining={true} />);
 
+    const joinButton = screen.getByRole('button', { name: 'Join video lesson' });
+    expect(joinButton).toBeInTheDocument();
+    expect(joinButton).toBeDisabled();
+    expect(joinButton).toHaveAttribute('aria-busy', 'true');
     expect(screen.getByText('Connecting...')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Join video lesson' })).not.toBeInTheDocument();
   });
 
   it('shows join error with alert role', () => {

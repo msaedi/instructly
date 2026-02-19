@@ -331,6 +331,14 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             nested.rollback()
             raise
 
+    def release_lock_for_external_call(self) -> None:
+        """Release SELECT FOR UPDATE lock before outbound API calls.
+
+        This performs a rollback to release row-level locks. Callers should
+        re-acquire the lock before mutating booking state again.
+        """
+        self.db.rollback()
+
     def get_video_no_show_candidates(
         self, sql_cutoff: datetime
     ) -> List[Tuple[Booking, Optional[BookingVideoSession]]]:

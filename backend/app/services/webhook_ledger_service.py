@@ -49,16 +49,20 @@ class WebhookLedgerService(BaseService):
         """
         safe_headers = self._sanitize_headers(headers) if headers else None
         now = _now_utc()
+        existing: WebhookEvent | None = None
 
         if event_id:
             existing = self.repository.find_by_source_and_event_id(source, event_id)
-            if existing:
-                existing.retry_count = (existing.retry_count or 0) + 1
-                existing.last_retry_at = now
-                if safe_headers is not None:
-                    existing.headers = safe_headers
-                self.repository.flush()
-                return existing
+        elif idempotency_key:
+            existing = self.repository.find_by_source_and_idempotency_key(source, idempotency_key)
+
+        if existing:
+            existing.retry_count = (existing.retry_count or 0) + 1
+            existing.last_retry_at = now
+            if safe_headers is not None:
+                existing.headers = safe_headers
+            self.repository.flush()
+            return existing
 
         return self.repository.create(
             source=source,
@@ -71,6 +75,16 @@ class WebhookLedgerService(BaseService):
             received_at=now,
             retry_count=0,
         )
+
+    @BaseService.measure_operation("webhook_ledger.mark_processing")
+    def mark_processing(self, event: WebhookEvent) -> bool:
+        """Attempt to claim an event for processing."""
+        claimed = self.repository.claim_for_processing(event.id)
+        if claimed:
+            event.status = "processing"
+            event.processing_error = None
+            event.processed_at = None
+        return claimed
 
     @BaseService.measure_operation("webhook_ledger.mark_processed")
     def mark_processed(

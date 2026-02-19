@@ -216,7 +216,7 @@ function getCancellationFeeDisplay(lesson: Booking): string {
   }
 
   const cancelledDate = new Date(lesson.cancelled_at);
-  const bookingStartUtc = (lesson as { booking_start_utc?: string | null }).booking_start_utc;
+  const bookingStartUtc = lesson.booking_start_utc;
   const lessonDateTime = bookingStartUtc
     ? new Date(bookingStartUtc)
     : new Date(`${lesson.booking_date}T${lesson.start_time}Z`);

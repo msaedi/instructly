@@ -103,6 +103,21 @@ class TestDetectVideoNoShows:
         )
         return vs
 
+    @patch("app.tasks.video_tasks.RepositoryFactory")
+    @patch("app.tasks.video_tasks.get_db")
+    def test_feature_flag_disabled_returns_early(self, mock_get_db, mock_factory) -> None:
+        from app.tasks import video_tasks
+
+        video_tasks.settings.hundredms_enabled = False
+        result = video_tasks.detect_video_no_shows()
+
+        assert result["processed"] == 0
+        assert result["reported"] == 0
+        assert result["skipped"] == 0
+        assert result["failed"] == 0
+        mock_get_db.assert_not_called()
+        mock_factory.get_booking_repository.assert_not_called()
+
     @patch("app.tasks.video_tasks.BookingService")
     @patch("app.tasks.video_tasks.RepositoryFactory")
     @patch("app.tasks.video_tasks.get_db")

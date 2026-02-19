@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { subscribeSharedTicker } from './useSharedTicker';
 
 function parseTarget(target: Date | string | null): number {
   if (target === null) return 0;
@@ -40,22 +41,18 @@ export function useCountdown(targetDate: Date | string | null): CountdownResult 
 
   const [secondsLeft, setSecondsLeft] = useState(() => calcSeconds(targetMs));
 
-  // Reset when target changes (React-recommended render-time sync pattern)
-  const [prevTargetMs, setPrevTargetMs] = useState(targetMs);
-  if (prevTargetMs !== targetMs) {
-    setPrevTargetMs(targetMs);
-    setSecondsLeft(calcSeconds(targetMs));
-  }
-
   useEffect(() => {
-    if (targetMs === 0) return;
+    const update = () => {
+      setSecondsLeft(calcSeconds(targetMs));
+    };
 
-    const id = setInterval(() => {
-      const next = calcSeconds(targetMs);
-      setSecondsLeft(next);
-      if (next <= 0) clearInterval(id);
-    }, 1000);
-    return () => clearInterval(id);
+    update();
+
+    if (targetMs === 0) {
+      return;
+    }
+
+    return subscribeSharedTicker(update);
   }, [targetMs]);
 
   return {

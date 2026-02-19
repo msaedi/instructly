@@ -80,8 +80,8 @@ class VideoService(BaseService):
 
         if video_session is None or video_session.room_id is None:
             room_name = f"lesson-{booking_id}"
-            # NF1 lock-unlock-lock: release row lock before outbound network call.
-            self.booking_repository.rollback()
+            # Release row lock before outbound provider call; re-acquire afterwards.
+            self.booking_repository.release_lock_for_external_call()
 
             try:
                 # 100ms room names are idempotent; concurrent requests for the
@@ -104,13 +104,27 @@ class VideoService(BaseService):
                 )
 
             # Re-acquire lock and re-check to avoid duplicate DB session rows.
-            booking = self.booking_repository.get_booking_for_participant_for_update(
-                booking_id, user_id
-            )
-            if booking is None:
-                raise NotFoundException("Booking not found")
+            try:
+                booking = self.booking_repository.get_booking_for_participant_for_update(
+                    booking_id, user_id
+                )
+                if booking is None:
+                    raise NotFoundException("Booking not found")
 
-            self._validate_joinable_booking(booking, datetime.now(timezone.utc))
+                self._validate_joinable_booking(booking, datetime.now(timezone.utc))
+            except Exception:
+                # Defense-in-depth: disable orphaned room if booking became invalid.
+                try:
+                    self.hundredms_client.disable_room(room_id)
+                except HundredMsError as cleanup_error:
+                    logger.warning(
+                        "Best-effort 100ms room disable failed for booking %s room %s: %s",
+                        booking_id,
+                        room_id,
+                        cleanup_error.message,
+                        extra={"status_code": cleanup_error.status_code},
+                    )
+                raise
 
             video_session = self.booking_repository.get_video_session_by_booking_id(booking_id)
             if video_session is None or video_session.room_id is None:
