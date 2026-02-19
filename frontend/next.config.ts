@@ -71,7 +71,7 @@ const connectSrcOrigins = [
   // Override via NEXT_PUBLIC_100MS_CONNECT_ORIGINS if needed.
   ...(
     process.env['NEXT_PUBLIC_100MS_CONNECT_ORIGINS'] ||
-    'https://*.100ms.live,wss://*.100ms.live'
+    'https://*.100ms.live,wss://*.100ms.live,https://storage.googleapis.com'
   )
     .split(',')
     .map((origin) => origin.trim())
@@ -82,7 +82,7 @@ const cspPolicyValue = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://verify.stripe.com https://challenges.cloudflare.com https://*.leadsy.ai https://tag.trovo-tag.com https://va.vercel-scripts.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
-  "img-src 'self' data: blob: https://assets.instainstru.com https://*.cloudflare.com https://*.stripe.com https://*.tile.jawg.io https://*.basemaps.cartocdn.com",
+  "img-src 'self' data: blob: https://assets.instainstru.com https://*.cloudflare.com https://*.stripe.com https://*.tile.jawg.io https://*.basemaps.cartocdn.com https://*.100ms.live",
   `connect-src ${Array.from(new Set(connectSrcOrigins.filter(Boolean))).join(' ')}`,
   "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://verify.stripe.com https://challenges.cloudflare.com https://tag.trovo-tag.com",
   "font-src 'self' data: https://fonts.gstatic.com",
@@ -90,7 +90,7 @@ const cspPolicyValue = [
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
-  "media-src 'self' blob:",
+  "media-src 'self' blob: https://*.100ms.live https://100ms.live",
   "worker-src 'self' blob:",
   `report-uri ${cspReportUri}`,
 ].join('; ');

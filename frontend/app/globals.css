@@ -488,8 +488,8 @@ select,
 /* Neutralize Tailwind hover color utilities for buttons (no color change)
    Exclude brand purple backgrounds so they remain solid on hover
    Also exclude .stat-card buttons which need their own hover behavior */
-button[class*="hover:bg-"]:not([class*="bg-[#7E22CE]"]):not([class*="bg-purple-600"]):not([class*="bg-white"]):not(.stat-card):not(:disabled):hover,
-[role="button"][class*="hover:bg-"]:not([class*="bg-[#7E22CE]"]):not([class*="bg-purple-600"]):not([class*="bg-white"]):not(.stat-card):not(:disabled):hover {
+button[class*="hover:bg-"]:not([class*="bg-[#7E22CE]"]):not([class*="bg-purple-600"]):not([class*="bg-primary"]):not([class*="bg-white"]):not(.stat-card):not(:disabled):hover,
+[role="button"][class*="hover:bg-"]:not([class*="bg-[#7E22CE]"]):not([class*="bg-purple-600"]):not([class*="bg-primary"]):not([class*="bg-white"]):not(.stat-card):not(:disabled):hover {
   /* keep original background (no color shift); only scale applies */
   background-color: inherit !important;
 }
@@ -506,7 +506,7 @@ button[class*="hover:border-"]:not([class*="border-transparent"]):not(.stat-card
 
 /* Anchor elements styled as buttons: keep base background/text/border on hover.
    Exclude brand purple so it stays solid on hover. */
-a[class*="bg-"][class*="hover:bg-"]:not([class*="bg-[#7E22CE]"]):not([class*="bg-purple-600"]):not([class*="bg-white"]):hover {
+a[class*="bg-"][class*="hover:bg-"]:not([class*="bg-[#7E22CE]"]):not([class*="bg-purple-600"]):not([class*="bg-primary"]):not([class*="bg-white"]):hover {
   background-color: revert !important;
 }
 
@@ -772,6 +772,15 @@ html {
   50% { box-shadow: 0 0 0 8px rgba(126, 34, 206, 0); }
 }
 .animate-pulse-join { animation: pulseJoin 2s ease-in-out infinite; }
+
+/* Hide 100ms SDK settings gear on preview screen.
+   The gear triggers a Radix UI DialogPortal crash (getComputedStyle on non-Element)
+   that is a known bug in the SDK's bundled Radix version.
+   We cannot patch the SDK, so we hide the crash trigger.
+   Device settings are not critical for our lesson platform — audio/video toggles remain visible. */
+[data-testid="preview_setting_btn"] {
+  display: none !important;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .animate-pulse-join { animation: none !important; }

@@ -137,4 +137,19 @@ describe('JoinLessonButton', () => {
 
     expect(screen.getByTestId('join-lesson-button')).toBeInTheDocument();
   });
+
+  it('has animate-pulse-join class for glow effect when window is open', () => {
+    mockCountdowns(expired, notExpired);
+
+    render(
+      <JoinLessonButton
+        bookingId="01ABC"
+        joinOpensAt="2025-01-01T10:00:00Z"
+        joinClosesAt="2025-01-01T10:30:00Z"
+      />
+    );
+
+    const link = screen.getByTestId('join-lesson-button');
+    expect(link.className).toContain('animate-pulse-join');
+  });
 });
