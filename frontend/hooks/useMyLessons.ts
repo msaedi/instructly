@@ -216,6 +216,8 @@ export function useCancelLesson() {
             await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() });
             await queryClient.invalidateQueries({ queryKey: ['bookings'] });
             await queryClient.invalidateQueries({ queryKey: ['bookings', 'student'] });
+            // Invalidate availability — cancelled slot should appear available immediately
+            await queryClient.invalidateQueries({ queryKey: queryKeys.availability.all });
             options?.onSuccess?.();
           },
           onError: (error) => {
@@ -232,6 +234,8 @@ export function useCancelLesson() {
       await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() });
       await queryClient.invalidateQueries({ queryKey: ['bookings'] });
       await queryClient.invalidateQueries({ queryKey: ['bookings', 'student'] });
+      // Invalidate availability — cancelled slot should appear available immediately
+      await queryClient.invalidateQueries({ queryKey: queryKeys.availability.all });
       return result;
     },
   };

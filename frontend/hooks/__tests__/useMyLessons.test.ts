@@ -273,3 +273,85 @@ describe('useMyLessons', () => {
    * - calculateDurationMinutes: startTotalMinutes === null || endTotalMinutes === null (line 268-270)
    */
 });
+
+import React from 'react';
+import { renderHook, act } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/react-query/queryClient';
+
+// Mock the bookings service — useCancelBooking returns an Orval mutation
+const mockMutate = jest.fn();
+jest.mock('@/src/api/services/bookings', () => ({
+  useCancelBooking: () => ({
+    mutate: mockMutate,
+    mutateAsync: jest.fn().mockResolvedValue({}),
+    isPending: false,
+    isError: false,
+    isSuccess: false,
+    error: null,
+    data: undefined,
+    reset: jest.fn(),
+  }),
+  useBookingsList: jest.fn(),
+  useBookingsHistory: jest.fn(),
+  useCancelledBookings: jest.fn(),
+  useBooking: jest.fn(),
+  useRescheduleBooking: jest.fn(),
+  useCompleteBooking: jest.fn(),
+  useMarkBookingNoShow: jest.fn(),
+  fetchBookingsList: jest.fn(),
+}));
+
+// Must import AFTER jest.mock
+import { useCancelLesson } from '../useMyLessons';
+
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const wrapper = ({ children }: { children: React.ReactNode }) =>
+    React.createElement(QueryClientProvider, { client: queryClient }, children);
+  return { queryClient, wrapper };
+}
+
+describe('useCancelLesson availability cache invalidation', () => {
+  beforeEach(() => {
+    mockMutate.mockReset();
+  });
+
+  it('invalidates availability queries after successful cancellation', async () => {
+    const { queryClient, wrapper } = createWrapper();
+
+    // Seed availability cache
+    queryClient.setQueryData(
+      [...queryKeys.availability.week('inst-1', '2025-05-06'), 7],
+      { instructor_id: 'inst-1', availability_by_date: {}, total_available_slots: 5 },
+    );
+
+    // Verify cache is populated
+    expect(
+      queryClient.getQueryData([...queryKeys.availability.week('inst-1', '2025-05-06'), 7]),
+    ).toBeTruthy();
+
+    // When useCancelBooking.mutate is called, immediately invoke onSuccess
+    mockMutate.mockImplementation(
+      (_args: unknown, options?: { onSuccess?: () => void }) => {
+        options?.onSuccess?.();
+      },
+    );
+
+    const { result } = renderHook(() => useCancelLesson(), { wrapper });
+
+    await act(async () => {
+      result.current.mutate(
+        { lessonId: 'booking-1', reason: 'Changed plans' },
+      );
+    });
+
+    // The availability cache should be invalidated (marked stale / removed)
+    const state = queryClient.getQueryState(
+      [...queryKeys.availability.week('inst-1', '2025-05-06'), 7],
+    );
+    expect(state?.isInvalidated).toBe(true);
+  });
+});
