@@ -67,6 +67,11 @@ def _make_online_booking(
         service_area="Manhattan",
     )
     db.flush()
+    # Persist setup data across service transaction boundaries.
+    # VideoService uses a lock-unlock-lock flow that ends the current DB
+    # transaction before calling the external provider.
+    db.commit()
+    db.refresh(booking)
     return booking.id
 
 
@@ -255,8 +260,8 @@ class TestJoinLessonIntegration:
         test_instructor,
         instructor_service_id,
     ):
-        """Booking started 30 min ago (grace expired for 60-min lesson) → 400."""
-        start_utc = dt.now(timezone.utc) - timedelta(minutes=30)
+        """Booking started 70 min ago (grace expired for TESTING-ONLY 60-min lesson) → 400."""
+        start_utc = dt.now(timezone.utc) - timedelta(minutes=70)
 
         booking_id = _make_online_booking(
             db,
