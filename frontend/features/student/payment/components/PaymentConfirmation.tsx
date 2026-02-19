@@ -77,7 +77,6 @@ type ConflictListItem = {
   status?: string;
 };
 
-const CONFLICT_CACHE_TTL_MS = 60_000;
 const CONFLICT_RELEVANT_STATUSES = new Set(['pending', 'confirmed', 'completed']);
 
 type AddressFields = {
@@ -198,7 +197,6 @@ function PaymentConfirmationInner({
   const [addressDetailsError, setAddressDetailsError] = useState<string | null>(null);
   const addressLine1Ref = useRef<HTMLInputElement>(null);
   const conflictAbortRef = useRef<AbortController | null>(null);
-  const conflictCacheRef = useRef<Map<string, { fetchedAt: number; items: ConflictListItem[] }>>(new Map());
   const addressDetailsAbortRef = useRef<AbortController | null>(null);
   const addressDetailsCacheRef = useRef<Map<string, AddressDetailsCacheEntry>>(new Map());
   const lastLocationRef = useRef('');
@@ -1548,31 +1546,20 @@ function PaymentConfirmationInner({
     }
 
     const timeoutId = window.setTimeout(async () => {
-      const cacheKey = `${conflictKey.studentId}|${conflictKey.bookingDate}`;
-      const cached = conflictCacheRef.current.get(cacheKey);
       let items: ConflictListItem[] | undefined;
 
-      if (cached && Date.now() - cached.fetchedAt < CONFLICT_CACHE_TTL_MS) {
-        items = cached.items;
-      } else {
-        try {
-          // Use v1 bookings service
-          const response = await fetchBookingsList({ upcoming_only: true });
-          items = (response.items as ConflictListItem[]) ?? [];
-          conflictCacheRef.current.set(cacheKey, {
-            fetchedAt: Date.now(),
-            items,
-          });
-        } catch (error) {
-          if ((error as Error).name === 'AbortError') {
-            return;
-          }
-          logger.error('Failed to check for booking conflicts', error as Error);
-          setHasConflict(false);
-          setConflictMessage('');
-          setIsCheckingConflict(false);
+      try {
+        const response = await fetchBookingsList({ upcoming_only: true });
+        items = (response.items as ConflictListItem[]) ?? [];
+      } catch (error) {
+        if ((error as Error).name === 'AbortError') {
           return;
         }
+        logger.error('Failed to check for booking conflicts', error as Error);
+        setHasConflict(false);
+        setConflictMessage('');
+        setIsCheckingConflict(false);
+        return;
       }
 
       if (controller.signal.aborted) {

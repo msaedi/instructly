@@ -8006,8 +8006,8 @@ describe('PaymentConfirmation', () => {
     });
   });
 
-  describe('conflict check cache hit branch', () => {
-    it('uses cached conflict data within TTL', async () => {
+  describe('conflict check always fetches fresh data', () => {
+    it('re-fetches bookings on every conflict check (no stale cache)', async () => {
       fetchBookingsListMock.mockResolvedValue({
         items: [
           {
@@ -8047,8 +8047,8 @@ describe('PaymentConfirmation', () => {
         jest.advanceTimersByTime(CONFLICT_CHECK_DELAY_MS + 1);
       });
 
-      // Should use cache - fetchBookingsList should NOT be called again
-      expect(fetchBookingsListMock).toHaveBeenCalledTimes(1);
+      // Should fetch fresh data every time (no manual cache)
+      expect(fetchBookingsListMock).toHaveBeenCalledTimes(2);
     });
   });
 

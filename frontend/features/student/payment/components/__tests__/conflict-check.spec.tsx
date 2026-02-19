@@ -224,4 +224,53 @@ describe('PaymentConfirmation conflict checks', () => {
     const button = await screen.findByRole('button', { name: /book now/i });
     expect(button).not.toBeDisabled();
   });
+
+  it('clears conflict after booking is cancelled (no stale cache)', async () => {
+    // Phase 1: confirmed booking overlaps → conflict detected
+    mockFetchBookingsList.mockImplementation(() =>
+      resolveBookings([
+        {
+          booking_date: '2025-05-06',
+          start_time: '13:00',
+          duration_minutes: 240,
+          status: 'confirmed',
+        },
+      ]),
+    );
+
+    const { rerender } = render(
+      <PaymentConfirmation
+        booking={createBooking({ startTime: '2:00pm', endTime: '3:00pm' })}
+        paymentMethod={PaymentMethod.CREDIT_CARD}
+        onConfirm={jest.fn()}
+        onBack={jest.fn()}
+      />,
+    );
+
+    await flushConflicts();
+
+    expect(mockFetchBookingsList).toHaveBeenCalledTimes(1);
+    const conflictButton = await screen.findByRole('button', { name: /conflict/i });
+    expect(conflictButton).toBeDisabled();
+
+    // Phase 2: booking was cancelled — mock returns empty
+    mockFetchBookingsList.mockImplementation(() => resolveBookings([]));
+
+    // Rerender with a different time to trigger conflictKey change
+    rerender(
+      <PaymentConfirmation
+        booking={createBooking({ startTime: '3:00pm', endTime: '4:00pm' })}
+        paymentMethod={PaymentMethod.CREDIT_CARD}
+        onConfirm={jest.fn()}
+        onBack={jest.fn()}
+      />,
+    );
+
+    await flushConflicts();
+
+    // The API should be called again (not served from stale cache)
+    expect(mockFetchBookingsList).toHaveBeenCalledTimes(2);
+    const bookButton = await screen.findByRole('button', { name: /book now/i });
+    expect(bookButton).not.toBeDisabled();
+  });
 });
