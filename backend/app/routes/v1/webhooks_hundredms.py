@@ -192,7 +192,9 @@ def _handle_peer_join(video_session: Any, booking: Any, data: dict[str, Any]) ->
         return False
 
     grace_minutes = compute_grace_minutes(int(booking_duration))
-    join_opens_at = booking_start_utc - timedelta(minutes=5)
+    join_opens_at = booking_start_utc - timedelta(
+        minutes=15
+    )  # TESTING-ONLY: revert before production (was 5)
     join_closes_at = booking_start_utc + timedelta(minutes=grace_minutes)
     if joined_at < join_opens_at or joined_at > join_closes_at:
         logger.warning(

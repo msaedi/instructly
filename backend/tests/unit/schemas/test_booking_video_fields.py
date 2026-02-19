@@ -152,7 +152,8 @@ class TestJoinWindowComputation:
     def test_can_join_true_within_window(self) -> None:
         """Inside join window → can_join_lesson=True."""
         now = datetime.now(timezone.utc)
-        # Booking starts in 2 minutes — inside [T-5, T+15] window
+        # TESTING-ONLY: revert before production (window was [T-5, T+15])
+        # Booking starts in 2 minutes — inside [T-15, T+55] window
         booking_start = now + timedelta(minutes=2)
 
         booking = _make_booking(
@@ -164,8 +165,8 @@ class TestJoinWindowComputation:
         result = _extract_satellite_fields(booking)
 
         assert result["can_join_lesson"] is True
-        assert result["join_opens_at"] == booking_start - timedelta(minutes=5)
-        assert result["join_closes_at"] == booking_start + timedelta(minutes=15)
+        assert result["join_opens_at"] == booking_start - timedelta(minutes=15)  # TESTING-ONLY (was 5)
+        assert result["join_closes_at"] == booking_start + timedelta(minutes=55)  # TESTING-ONLY (was 15)
 
     def test_can_join_false_before_window(self) -> None:
         """Before join window opens → can_join_lesson=False."""
@@ -262,7 +263,8 @@ class TestJoinWindowComputation:
         assert result["video_session_duration_seconds"] == 3600
 
     def test_join_window_30min_lesson(self) -> None:
-        """30-min lesson → grace = 7.5 min (shorter than default 15)."""
+        # TESTING-ONLY: revert before production (grace was 7.5 min, opens was T-5)
+        """30-min lesson → grace = max(30-5, 7.5) = 25 min."""
         now = datetime.now(timezone.utc)
         booking_start = now + timedelta(minutes=2)
 
@@ -274,13 +276,14 @@ class TestJoinWindowComputation:
         )
         result = _extract_satellite_fields(booking)
 
-        expected_opens = booking_start - timedelta(minutes=5)
-        expected_closes = booking_start + timedelta(minutes=7.5)
+        expected_opens = booking_start - timedelta(minutes=15)  # TESTING-ONLY (was 5)
+        expected_closes = booking_start + timedelta(minutes=25)  # TESTING-ONLY (was 7.5)
         assert result["join_opens_at"] == expected_opens
         assert result["join_closes_at"] == expected_closes
 
     def test_join_window_60min_lesson(self) -> None:
-        """60-min lesson → grace = 15 min (capped)."""
+        # TESTING-ONLY: revert before production (grace was 15 min capped)
+        """60-min lesson → grace = max(60-5, 15) = 55 min."""
         now = datetime.now(timezone.utc)
         booking_start = now + timedelta(minutes=2)
 
@@ -292,7 +295,7 @@ class TestJoinWindowComputation:
         )
         result = _extract_satellite_fields(booking)
 
-        expected_closes = booking_start + timedelta(minutes=15)
+        expected_closes = booking_start + timedelta(minutes=55)  # TESTING-ONLY (was 15)
         assert result["join_closes_at"] == expected_closes
 
     def test_join_window_suppressed_when_feature_disabled(

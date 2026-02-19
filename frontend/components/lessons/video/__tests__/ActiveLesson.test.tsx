@@ -1,7 +1,12 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
+
+let shouldThrow = false;
 
 jest.mock('@100mslive/roomkit-react', () => ({
   HMSPrebuilt: (props: Record<string, unknown>) => {
+    if (shouldThrow) {
+      throw new Error('Portal container not found');
+    }
     const options = props['options'] as Record<string, unknown> | undefined;
     return (
       <div
@@ -18,6 +23,10 @@ jest.mock('@100mslive/roomkit-react', () => ({
   },
 }));
 
+jest.mock('@/lib/logger', () => ({
+  logger: { error: jest.fn(), debug: jest.fn(), warn: jest.fn(), info: jest.fn() },
+}));
+
 import { ActiveLesson } from '../ActiveLesson';
 
 const defaultProps = {
@@ -30,6 +39,7 @@ const defaultProps = {
 describe('ActiveLesson', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    shouldThrow = false;
   });
 
   it('renders wrapper with role="main" and accessible label', () => {
@@ -64,5 +74,78 @@ describe('ActiveLesson', () => {
     expect(wrapper.className).toContain('fixed');
     expect(wrapper.className).toContain('inset-0');
     expect(wrapper.className).toContain('z-50');
+  });
+});
+
+describe('ActiveLesson error boundary', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    shouldThrow = false;
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    jest.useRealTimers();
+  });
+
+  it('shows error fallback with countdown when HMSPrebuilt crashes', () => {
+    shouldThrow = true;
+    render(<ActiveLesson {...defaultProps} />);
+
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.getByText(/video session encountered an error/i)).toBeInTheDocument();
+    expect(screen.getByText(/redirecting in 3 seconds/i)).toBeInTheDocument();
+  });
+
+  it('calls onLeave immediately when button is clicked', () => {
+    shouldThrow = true;
+    const onLeave = jest.fn();
+    render(<ActiveLesson {...defaultProps} onLeave={onLeave} />);
+
+    fireEvent.click(screen.getByText('Back to My Lessons'));
+    expect(onLeave).toHaveBeenCalledTimes(1);
+  });
+
+  it('counts down and auto-redirects via onLeave after 3 seconds', () => {
+    jest.useFakeTimers();
+    shouldThrow = true;
+    const onLeave = jest.fn();
+    render(<ActiveLesson {...defaultProps} onLeave={onLeave} />);
+
+    expect(screen.getByText(/redirecting in 3 seconds/i)).toBeInTheDocument();
+
+    act(() => { jest.advanceTimersByTime(1000); });
+    expect(screen.getByText(/redirecting in 2 seconds/i)).toBeInTheDocument();
+
+    act(() => { jest.advanceTimersByTime(1000); });
+    expect(screen.getByText(/redirecting in 1 second/i)).toBeInTheDocument();
+
+    act(() => { jest.advanceTimersByTime(1000); });
+    expect(onLeave).toHaveBeenCalledTimes(1);
+  });
+
+  it('catches onLeave failure without crashing (falls back to hard redirect)', () => {
+    shouldThrow = true;
+    const onLeave = jest.fn().mockImplementation(() => {
+      throw new Error('Navigation failed');
+    });
+    render(<ActiveLesson {...defaultProps} onLeave={onLeave} />);
+
+    // Click should not throw — _safeLeave catches and falls back to
+    // window.location.href = '/lessons' (not interceptable in jsdom)
+    fireEvent.click(screen.getByText('Back to My Lessons'));
+    expect(onLeave).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows missing token fallback when authToken is empty', () => {
+    const onLeave = jest.fn();
+    render(<ActiveLesson {...defaultProps} authToken="" onLeave={onLeave} />);
+
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.getByText(/unable to connect/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Back to My Lessons'));
+    expect(onLeave).toHaveBeenCalledTimes(1);
   });
 });

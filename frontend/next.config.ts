@@ -64,11 +64,11 @@ const connectSrcOrigins = [
   'https://vitals.vercel-insights.com',
   'https://*.axiom.co',
   'https://*.onrender.com',
-  // 100ms video (Phase 5) — explicit allowlist (no wildcard).
-  // Add region-specific endpoints via NEXT_PUBLIC_100MS_CONNECT_ORIGINS.
+  // 100ms video — wildcard to cover all signaling, init, and analytics subdomains.
+  // Override via NEXT_PUBLIC_100MS_CONNECT_ORIGINS if needed.
   ...(
     process.env['NEXT_PUBLIC_100MS_CONNECT_ORIGINS'] ||
-    'https://api.100ms.live,wss://api.100ms.live'
+    'https://*.100ms.live,wss://*.100ms.live'
   )
     .split(',')
     .map((origin) => origin.trim())

@@ -608,7 +608,7 @@ def _extract_satellite_fields(booking: Any) -> dict[str, Any]:
         and isinstance(_start, datetime)
         and isinstance(_duration, (int, float))
     ):
-        _opens_at = _start - timedelta(minutes=5)
+        _opens_at = _start - timedelta(minutes=15)  # TESTING-ONLY: revert before production (was 5)
         _grace = compute_grace_minutes(int(_duration))
         _closes_at = _start + timedelta(minutes=_grace)
         _now = datetime.now(timezone.utc)
