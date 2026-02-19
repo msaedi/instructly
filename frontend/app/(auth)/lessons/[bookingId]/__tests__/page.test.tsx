@@ -54,6 +54,11 @@ jest.mock('@/components/lessons/video/LessonEnded', () => ({
   LessonEnded: () => <div data-testid="lesson-ended" />,
 }));
 
+jest.mock('@/components/UserProfileDropdown', () => ({
+  __esModule: true,
+  default: () => <div data-testid="user-profile-dropdown" />,
+}));
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------

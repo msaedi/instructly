@@ -61,7 +61,7 @@ export function LessonEnded({ booking, sessionData, userRole }: LessonEndedProps
       <div className="flex gap-4">
         <Link
           href={backHref}
-          className="rounded-lg bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="rounded-lg bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-purple-800 transition-colors"
         >
           Back to My Lessons
         </Link>

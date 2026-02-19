@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { useLessonDetails } from '@/hooks/useMyLessons';
 import { useJoinLesson, useVideoSessionStatus } from '@/hooks/queries/useLessonRoom';
@@ -56,12 +57,19 @@ function determineInitialPhase(booking: Booking): PhaseResult {
 function LessonRoomShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background">
-      <header className="flex items-center justify-between border-b px-4 py-3">
-        <Link href="/" className="text-lg font-bold">
-          iNSTAiNSTRU
-        </Link>
+      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between max-w-full">
+          <Link href="/" className="inline-block">
+            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">
+              iNSTAiNSTRU
+            </h1>
+          </Link>
+          <div className="pr-4">
+            <UserProfileDropdown />
+          </div>
+        </div>
       </header>
-      <main className="mx-auto max-w-2xl">{children}</main>
+      <main className="mx-auto max-w-2xl px-4">{children}</main>
     </div>
   );
 }

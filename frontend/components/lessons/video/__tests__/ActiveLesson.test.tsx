@@ -1,9 +1,13 @@
 import { render, screen, fireEvent, act } from '@testing-library/react';
 
 let shouldThrow = false;
+let customThrowError: Error | null = null;
 
 jest.mock('@100mslive/roomkit-react', () => ({
   HMSPrebuilt: (props: Record<string, unknown>) => {
+    if (customThrowError) {
+      throw customThrowError;
+    }
     if (shouldThrow) {
       throw new Error('Portal container not found');
     }
@@ -36,10 +40,13 @@ const defaultProps = {
   onLeave: jest.fn(),
 };
 
+const PORTAL_ERROR_MSG = "Failed to execute 'getComputedStyle' on 'Window': parameter 1 is not of type 'Element'.";
+
 describe('ActiveLesson', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     shouldThrow = false;
+    customThrowError = null;
   });
 
   it('renders wrapper with role="main" and accessible label', () => {
@@ -81,6 +88,7 @@ describe('ActiveLesson error boundary', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     shouldThrow = false;
+    customThrowError = null;
     jest.spyOn(console, 'error').mockImplementation(() => {});
   });
 
@@ -169,5 +177,64 @@ describe('ActiveLesson error boundary', () => {
 
     fireEvent.click(screen.getByText('Back to My Lessons'));
     expect(onLeave).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ActiveLesson recoverable error boundary', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    shouldThrow = false;
+    customThrowError = null;
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    jest.useRealTimers();
+  });
+
+  it('recovers from known 100ms portal getComputedStyle error', () => {
+    jest.useFakeTimers();
+    customThrowError = new Error(PORTAL_ERROR_MSG);
+    render(<ActiveLesson {...defaultProps} />);
+
+    // Shows recovery overlay, NOT permanent fallback
+    expect(screen.getByText(/dialog crashed/i)).toBeInTheDocument();
+    expect(screen.queryByText(/redirecting in/i)).not.toBeInTheDocument();
+
+    // Clear the error so recovery re-render succeeds
+    customThrowError = null;
+
+    // After 1.5s, recovers — children re-render
+    act(() => { jest.advanceTimersByTime(1500); });
+    expect(screen.queryByText(/dialog crashed/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId('hms-prebuilt')).toBeInTheDocument();
+  });
+
+  it('falls back to permanent redirect after 3 rapid recoverable errors', () => {
+    jest.useFakeTimers();
+    customThrowError = new Error(PORTAL_ERROR_MSG);
+    render(<ActiveLesson {...defaultProps} />);
+
+    // 1st error → recovery overlay
+    expect(screen.getByText(/dialog crashed/i)).toBeInTheDocument();
+
+    // Recover from 1st → 2nd error → recovery overlay (error still active)
+    act(() => { jest.advanceTimersByTime(1500); });
+    expect(screen.getByText(/dialog crashed/i)).toBeInTheDocument();
+
+    // Recover from 2nd → 3rd error → crash loop → permanent fallback
+    act(() => { jest.advanceTimersByTime(1500); });
+    expect(screen.getByText(/video session encountered an error/i)).toBeInTheDocument();
+    expect(screen.getByText(/redirecting in 3 seconds/i)).toBeInTheDocument();
+  });
+
+  it('shows permanent fallback for non-getComputedStyle errors', () => {
+    customThrowError = new Error('Cannot read property of undefined');
+    render(<ActiveLesson {...defaultProps} />);
+
+    expect(screen.getByText(/video session encountered an error/i)).toBeInTheDocument();
+    expect(screen.getByText(/redirecting in 3 seconds/i)).toBeInTheDocument();
+    expect(screen.queryByText(/dialog crashed/i)).not.toBeInTheDocument();
   });
 });
