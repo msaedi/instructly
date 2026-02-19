@@ -39,6 +39,7 @@ import {
 } from '@/lib/pricing/studentFee';
 import { formatBookingDate, formatBookingTimeRange } from '@/lib/timezone/formatBookingTime';
 import type { ApiErrorResponse, components } from '@/features/shared/api/types';
+import { extractApiErrorMessage } from '@/lib/apiErrors';
 
 type CheckoutResponse = components['schemas']['CheckoutResponse'];
 
@@ -171,7 +172,7 @@ const PaymentForm: React.FC<{
 
       if (!response.ok) {
         const errorData = (await response.json()) as ApiErrorResponse;
-        throw new Error(errorData.detail || errorData.message || 'Payment failed');
+        throw new Error(extractApiErrorMessage(errorData, 'Payment failed'));
       }
 
       const result = (await response.json()) as CheckoutResponse;

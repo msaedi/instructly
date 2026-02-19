@@ -394,4 +394,130 @@ describe('InstructorInfo', () => {
       expect(screen.getByText('10000 lessons completed')).toBeInTheDocument();
     });
   });
+
+  describe('reviews link navigation fallback', () => {
+    it('falls back to window.location.href when onViewReviews is not provided', () => {
+      // We cannot directly observe window.location.href assignment in JSDOM.
+      // Instead, we verify the else branch is reached by confirming:
+      // 1. The button exists and is clickable
+      // 2. onViewReviews was NOT called (because it wasn't provided)
+      // 3. The click does not throw (the assignment to href succeeds silently)
+      // This exercises the else branch at line 88 in InstructorInfo.tsx
+
+      const mockOnViewReviews = jest.fn();
+
+      // First, verify WITH the callback (control test)
+      const { unmount } = renderWithQueryClient(
+        <InstructorInfo
+          instructor={mockInstructor}
+          rating={4.5}
+          reviewCount={10}
+          onChat={mockOnChat}
+          onViewReviews={mockOnViewReviews}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /see all reviews/i }));
+      expect(mockOnViewReviews).toHaveBeenCalledTimes(1);
+      unmount();
+
+      // Now, render WITHOUT onViewReviews to exercise the else branch
+      renderWithQueryClient(
+        <InstructorInfo
+          instructor={mockInstructor}
+          rating={4.5}
+          reviewCount={10}
+          onChat={mockOnChat}
+          // onViewReviews is intentionally NOT provided
+        />
+      );
+
+      // Suppress JSDOM "Not implemented: navigation" console error
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      // Click should not throw (exercises window.location.href = ... path)
+      const reviewsButton = screen.getByRole('button', { name: /see all reviews/i });
+      fireEvent.click(reviewsButton);
+
+      consoleSpy.mockRestore();
+
+      // onViewReviews should NOT have been called again (it's not provided)
+      expect(mockOnViewReviews).toHaveBeenCalledTimes(1); // still 1 from earlier
+    });
+  });
+
+  describe('avatar with full instructor data (last_name, profile picture)', () => {
+    it('passes last_name to UserAvatar when provided', () => {
+      const fullInstructor = {
+        ...mockInstructor,
+        last_name: 'Smith',
+      };
+
+      renderWithQueryClient(
+        <InstructorInfo
+          instructor={fullInstructor}
+          onChat={mockOnChat}
+        />
+      );
+
+      // The component should render without errors when last_name is present
+      expect(screen.getByText('Jane S.')).toBeInTheDocument();
+    });
+
+    it('passes has_profile_picture to UserAvatar when defined', () => {
+      const instructorWithPic = {
+        ...mockInstructor,
+        has_profile_picture: true,
+      };
+
+      renderWithQueryClient(
+        <InstructorInfo
+          instructor={instructorWithPic}
+          onChat={mockOnChat}
+        />
+      );
+
+      expect(screen.getByText('Jane S.')).toBeInTheDocument();
+    });
+
+    it('passes profile_picture_version to UserAvatar when truthy', () => {
+      const instructorWithVersion = {
+        ...mockInstructor,
+        has_profile_picture: true,
+        profile_picture_version: 3,
+      };
+
+      renderWithQueryClient(
+        <InstructorInfo
+          instructor={instructorWithVersion}
+          onChat={mockOnChat}
+        />
+      );
+
+      expect(screen.getByText('Jane S.')).toBeInTheDocument();
+    });
+
+    it('passes all optional fields to UserAvatar together', () => {
+      const fullInstructor = {
+        ...mockInstructor,
+        last_name: 'Smith',
+        has_profile_picture: true,
+        profile_picture_version: 5,
+      };
+
+      renderWithQueryClient(
+        <InstructorInfo
+          instructor={fullInstructor}
+          rating={4.8}
+          reviewCount={50}
+          lessonsCompleted={100}
+          onChat={mockOnChat}
+        />
+      );
+
+      expect(screen.getByText('Jane S.')).toBeInTheDocument();
+      expect(screen.getByText('4.8')).toBeInTheDocument();
+      expect(screen.getByText('100 lessons completed')).toBeInTheDocument();
+    });
+  });
 });

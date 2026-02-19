@@ -151,9 +151,11 @@ export type ServiceResponse = components['schemas']['ServiceResponse'];
 // Auth types — register no longer returns user data; /me returns AuthUserWithPermissionsResponse
 export type AuthUserResponse = components['schemas']['AuthUserWithPermissionsResponse'];
 
-// Common error shape used by API endpoints
+// Common error shape used by API endpoints.
+// `detail` can be a plain string (simple errors) or a structured object
+// (DomainException responses from the backend: { message, code, details }).
 export type ApiErrorResponse = {
-  detail?: string;
+  detail?: string | { message?: string; code?: string; details?: Record<string, unknown> };
   message?: string;
 };
 

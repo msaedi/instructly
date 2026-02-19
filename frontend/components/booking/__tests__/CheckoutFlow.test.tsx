@@ -1747,6 +1747,76 @@ describe('CheckoutFlow', () => {
     });
   });
 
+  describe('PaymentForm deriveBookingAmount edge cases', () => {
+    it('handles studentPayAmount as NaN (from undefined preview)', async () => {
+      // When pricingPreview has student_pay_cents as NaN-producing value,
+      // the PaymentForm receives NaN / 100 = NaN, which is still typeof number,
+      // so it goes through Number(NaN.toFixed(2)) = NaN path
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockResolvedValue({
+        base_price_cents: 6000,
+        student_pay_cents: NaN,
+        line_items: [],
+      });
+
+      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Booking Summary')).toBeInTheDocument();
+      });
+
+      // Pay button should still render even with NaN amount
+      const payButton = screen.getByRole('button', { name: /Pay/ });
+      expect(payButton).toBeInTheDocument();
+    });
+
+    it('handles booking with string total_price for fallback pay amount', async () => {
+      // Force pricingPreview to fail so fallback calculation is used
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockRejectedValue(
+        new Error('Pricing unavailable')
+      );
+
+      const bookingStringPrice = {
+        ...mockBooking,
+        total_price: '99.99' as unknown as number,
+      };
+
+      render(<CheckoutFlow booking={bookingStringPrice} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Booking Summary')).toBeInTheDocument();
+      });
+
+      // The normalizeAmount in the parent should parse the string price
+      // fallbackTotalCents = Math.round(normalizeAmount('99.99', baseLessonAmount) * 100)
+      const payButton = screen.getByRole('button', { name: /Pay/ });
+      expect(payButton).toBeInTheDocument();
+    });
+
+    it('handles booking with boolean total_price returning fallback 0', async () => {
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockRejectedValue(
+        new Error('Pricing unavailable')
+      );
+
+      const bookingBoolPrice = {
+        ...mockBooking,
+        total_price: true as unknown as number,
+        hourly_rate: true as unknown as number,
+      };
+
+      render(<CheckoutFlow booking={bookingBoolPrice} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Booking Summary')).toBeInTheDocument();
+      });
+    });
+  });
+
   describe('Pricing preview cancelled on unmount', () => {
     it('does not update state after component unmounts during pricing fetch', async () => {
       let resolvePreview: (value: unknown) => void;

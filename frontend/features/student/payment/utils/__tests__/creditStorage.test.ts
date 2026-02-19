@@ -223,4 +223,47 @@ describe('creditStorage helpers', () => {
     expect(typeof keyWithString).toBe('string');
   });
 
+  // SSR branches (typeof window === 'undefined') are covered by
+  // creditStorage.node.test.ts which uses @jest-environment node.
+
+  it('stableSerialize handles arrays with nested objects', () => {
+    // Test array serialization through computeCreditStorageKey
+    const keyA = computeCreditStorageKey({
+      quotePayloadBase: {
+        instructor_id: 'inst-1',
+        instructor_service_id: 'svc-1',
+        booking_date: '2025-06-01',
+        start_time: '10:00',
+        selected_duration: 60,
+        location_type: 'online',
+        meeting_location: 'Online',
+        metadata: { tags: ['a', 'b'], nested: { z: 1, a: 2 } },
+      } as PricingPreviewQuotePayloadBase,
+    });
+
+    // Same data with different key order in nested object
+    const keyB = computeCreditStorageKey({
+      quotePayloadBase: {
+        instructor_id: 'inst-1',
+        instructor_service_id: 'svc-1',
+        booking_date: '2025-06-01',
+        start_time: '10:00',
+        selected_duration: 60,
+        location_type: 'online',
+        meeting_location: 'Online',
+        metadata: { tags: ['a', 'b'], nested: { a: 2, z: 1 } },
+      } as PricingPreviewQuotePayloadBase,
+    });
+
+    expect(keyA).toBe(keyB);
+  });
+
+  it('computeCreditStorageKey returns null for null quotePayloadBase', () => {
+    const key = computeCreditStorageKey({
+      bookingId: null,
+      quotePayloadBase: null,
+    });
+    expect(key).toBeNull();
+  });
+
 });

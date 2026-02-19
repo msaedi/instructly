@@ -104,4 +104,99 @@ describe('DeleteAccountModal', () => {
 
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('shows generic error when deletion fails with non-400 status', async () => {
+    fetchApiMock.mockResolvedValueOnce({ ok: true });
+    fetchWithAuthMock.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      json: jest.fn().mockResolvedValue({ message: 'Internal server error' }),
+    });
+
+    renderModal();
+
+    await userEvent.type(screen.getByPlaceholderText('Type DELETE to confirm'), 'DELETE');
+    await userEvent.type(screen.getByPlaceholderText('Password'), 'password');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete My Account' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Failed to delete account. Please try again later.')).toBeInTheDocument();
+    });
+  });
+
+  it('shows generic error when deletion response json parsing fails', async () => {
+    fetchApiMock.mockResolvedValueOnce({ ok: true });
+    fetchWithAuthMock.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: jest.fn().mockRejectedValue(new Error('Invalid JSON')),
+    });
+
+    renderModal();
+
+    await userEvent.type(screen.getByPlaceholderText('Type DELETE to confirm'), 'DELETE');
+    await userEvent.type(screen.getByPlaceholderText('Password'), 'password');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete My Account' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Failed to delete account. Please try again later.')).toBeInTheDocument();
+    });
+  });
+
+  it('shows unexpected error when entire submission throws', async () => {
+    fetchApiMock.mockRejectedValueOnce(new Error('Network failure'));
+
+    renderModal();
+
+    await userEvent.type(screen.getByPlaceholderText('Type DELETE to confirm'), 'DELETE');
+    await userEvent.type(screen.getByPlaceholderText('Password'), 'password');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete My Account' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Unexpected error. Please try again.')).toBeInTheDocument();
+    });
+  });
+
+  it('enables submit button when DELETE typed in different case and password >= 6 chars', async () => {
+    renderModal();
+
+    await userEvent.type(screen.getByPlaceholderText('Type DELETE to confirm'), 'delete');
+    await userEvent.type(screen.getByPlaceholderText('Password'), 'password');
+
+    const deleteButton = screen.getByRole('button', { name: 'Delete My Account' });
+    expect(deleteButton).not.toBeDisabled();
+  });
+
+  it('keeps submit disabled when password is shorter than 6 characters', async () => {
+    renderModal();
+
+    await userEvent.type(screen.getByPlaceholderText('Type DELETE to confirm'), 'DELETE');
+    await userEvent.type(screen.getByPlaceholderText('Password'), '12345');
+
+    const deleteButton = screen.getByRole('button', { name: 'Delete My Account' });
+    expect(deleteButton).toBeDisabled();
+  });
+
+  it('shows generic error when deletion fails with 400 but no detail field', async () => {
+    fetchApiMock.mockResolvedValueOnce({ ok: true });
+    fetchWithAuthMock.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: jest.fn().mockResolvedValue({}),
+    });
+
+    renderModal();
+
+    await userEvent.type(screen.getByPlaceholderText('Type DELETE to confirm'), 'DELETE');
+    await userEvent.type(screen.getByPlaceholderText('Password'), 'password');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete My Account' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Failed to delete account. Please try again later.')).toBeInTheDocument();
+    });
+  });
 });

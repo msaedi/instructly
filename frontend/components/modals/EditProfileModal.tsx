@@ -25,6 +25,7 @@ import { formatPlatformFeeLabel, resolvePlatformFeeRate, resolveTakeHomePct } fr
 import { evaluatePriceFloorViolations, FloorViolation, formatCents } from '@/lib/pricing/priceFloors';
 import { usePlatformFees } from '@/hooks/usePlatformConfig';
 import type { ApiErrorResponse, components } from '@/features/shared/api/types';
+import { extractApiErrorMessage } from '@/lib/apiErrors';
 import { toast } from 'sonner';
 import { queryKeys } from '@/src/api/queryKeys';
 
@@ -898,7 +899,7 @@ export default function EditProfileModal({
 
       if (!res.ok) {
         const msg = await res.json().catch((): ApiErrorResponse => ({}));
-        throw new Error(msg.detail || 'Failed to save');
+        throw new Error(extractApiErrorMessage(msg, 'Failed to save'));
       }
 
       onSuccess();
@@ -1018,7 +1019,7 @@ export default function EditProfileModal({
 
       if (!response.ok) {
         const errorData = (await response.json()) as ApiErrorResponse;
-        throw new Error(errorData.detail || 'Failed to update profile');
+        throw new Error(extractApiErrorMessage(errorData, 'Failed to update profile'));
       }
 
       logger.info('Profile updated successfully');

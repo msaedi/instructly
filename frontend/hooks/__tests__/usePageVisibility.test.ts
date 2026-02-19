@@ -139,4 +139,31 @@ describe('usePageVisibility', () => {
     });
     expect(result.current).toBe(false);
   });
+
+  it('uses server snapshot (getServerSnapshot) returning true during SSR', () => {
+    // The third argument to useSyncExternalStore is getServerSnapshot,
+    // which returns true (assumes page is visible on server).
+    // In JSDOM, document exists so the server snapshot is not normally called.
+    // We test it by mocking useSyncExternalStore to invoke getServerSnapshot.
+    const useSyncExternalStoreSpy = jest.spyOn(
+      require('react'),
+      'useSyncExternalStore'
+    );
+
+    // Call the hook to register the spy
+    setVisibilityState('visible');
+    renderHook(() => usePageVisibility());
+
+    // The third argument should be the getServerSnapshot function
+    expect(useSyncExternalStoreSpy).toHaveBeenCalled();
+    const lastCall = useSyncExternalStoreSpy.mock.calls[useSyncExternalStoreSpy.mock.calls.length - 1];
+    expect(lastCall).toBeDefined();
+
+    // lastCall[2] is getServerSnapshot - it should return true
+    const getServerSnapshot = lastCall?.[2] as (() => boolean) | undefined;
+    expect(getServerSnapshot).toBeDefined();
+    expect(getServerSnapshot?.()).toBe(true);
+
+    useSyncExternalStoreSpy.mockRestore();
+  });
 });

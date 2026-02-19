@@ -17,6 +17,7 @@ import { fetchAPI } from '@/lib/api';
 import { BRAND } from '@/app/config/brand';
 import type { PasswordResetConfirm } from '@/types/user';
 import type { ApiErrorResponse, PasswordResetVerifyResponse } from '@/features/shared/api/types';
+import { extractApiErrorMessage } from '@/lib/apiErrors';
 import { RequestStatus } from '@/types/api';
 import { getErrorMessage } from '@/types/common';
 
@@ -63,10 +64,10 @@ function ResetPasswordForm() {
       const response = await fetchAPI('/api/v1/password-reset/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: resetData.token, new_password: resetData.new_password }) });
       if (!response.ok) {
         const data = (await response.json()) as ApiErrorResponse;
-        if (response.status === 400 && data.detail?.includes('expired')) {
+        if (response.status === 400 && typeof data.detail === 'string' && data.detail.includes('expired')) {
           throw new Error('This reset link has expired. Please request a new one.');
         }
-        throw new Error(data.detail || data.message || 'Failed to reset password');
+        throw new Error(extractApiErrorMessage(data, 'Failed to reset password'));
       }
       setRequestStatus(RequestStatus.SUCCESS); setIsSuccess(true);
     } catch (err) { setError(getErrorMessage(err)); setRequestStatus(RequestStatus.ERROR); }

@@ -258,4 +258,18 @@ describe('useMyLessons', () => {
       expect(result).toBe('Cancelled');
     });
   });
+
+  /**
+   * Tests for the internal parseTimeToMinutes and calculateDurationMinutes helpers.
+   * These are private functions but are exercised indirectly through useRescheduleLesson
+   * which calls calculateDurationMinutes(newStartTime, newEndTime).
+   * We test via calculateCancellationFee's timing paths + direct reschedule mock params.
+   *
+   * The following branches are uncovered:
+   * - parseTimeToMinutes: parts.length < 2 (line 245-247)
+   * - parseTimeToMinutes: !Number.isFinite(hours) || !Number.isFinite(minutes) (line 250-252)
+   * - parseTimeToMinutes: hours < 0 || minutes < 0 || minutes >= 60 (line 253-255)
+   * - calculateDurationMinutes: !startTime || !endTime (line 263-265)
+   * - calculateDurationMinutes: startTotalMinutes === null || endTotalMinutes === null (line 268-270)
+   */
 });

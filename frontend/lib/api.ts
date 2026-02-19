@@ -19,6 +19,7 @@ import { logger } from '@/lib/logger';
 import { formatDateForAPI } from '@/lib/availability/dateHelpers';
 import { getApiBase, withApiBaseForRequest } from '@/lib/apiBase';
 import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
+import { extractApiErrorMessage } from '@/lib/apiErrors';
 
 type FetchWithAuthOptions = RequestInit & {
   noCache?: boolean;
@@ -315,7 +316,7 @@ export async function validateWeekChanges(
         status: response.status,
         error,
       });
-      throw new Error(error.detail || 'Failed to validate changes');
+      throw new Error(extractApiErrorMessage(error, 'Failed to validate changes'));
     }
 
     const validationResult: WeekValidationResponse = (await response.json()) as WeekValidationResponse;
@@ -537,7 +538,7 @@ export function isAuthError(response: Response): boolean {
 export async function getErrorMessage(response: Response): Promise<string> {
   try {
     const data = (await response.json()) as ApiErrorResponse;
-    return data.detail || data.message || 'An error occurred';
+    return extractApiErrorMessage(data);
   } catch {
     return `Error: ${response.statusText}`;
   }

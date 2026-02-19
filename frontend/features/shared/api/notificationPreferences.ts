@@ -1,5 +1,6 @@
 import { fetchWithAuth } from '@/lib/api';
 import type { ApiErrorResponse, components } from '@/features/shared/api/types';
+import { extractApiErrorMessage } from '@/lib/apiErrors';
 
 export type PreferencesByCategory = components['schemas']['PreferencesByCategory'];
 export type PreferenceResponse = components['schemas']['PreferenceResponse'];
@@ -11,7 +12,7 @@ const BASE_PATH = '/api/v1/notification-preferences';
 async function parseErrorMessage(response: Response, fallback: string): Promise<string> {
   try {
     const payload = (await response.json()) as ApiErrorResponse;
-    return payload.detail ?? payload.message ?? fallback;
+    return extractApiErrorMessage(payload, fallback);
   } catch {
     return fallback;
   }

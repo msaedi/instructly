@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { useTfaStatus } from '@/hooks/queries/useTfaStatus';
 import Modal from '@/components/Modal';
 import type { ApiErrorResponse, components } from '@/features/shared/api/types';
+import { extractApiErrorMessage } from '@/lib/apiErrors';
 
 type TfaSetupInitiateResponse = components['schemas']['TFASetupInitiateResponse'];
 type TfaSetupVerifyResponse = components['schemas']['TFASetupVerifyResponse'];
@@ -80,7 +81,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
       });
       if (!res.ok) {
         const b = (await res.json().catch(() => ({}))) as ApiErrorResponse;
-        setError(b.detail || "That code didn't work. Please try again.");
+        setError(extractApiErrorMessage(b, "That code didn't work. Please try again."));
         setLoading(false);
         return;
       }
@@ -107,7 +108,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
       });
       if (!res.ok) {
         const b = (await res.json().catch(() => ({}))) as ApiErrorResponse;
-        setError(b.detail || 'Failed to disable');
+        setError(extractApiErrorMessage(b, 'Failed to disable'));
         setLoading(false);
         return;
       }

@@ -1,5 +1,6 @@
 import { fetchWithAuth } from '@/lib/api';
 import type { ApiErrorResponse } from '@/features/shared/api/types';
+import { extractApiErrorMessage } from '@/lib/apiErrors';
 import type { AdminAward, AdminAwardListResponse, StudentBadgeItem } from '@/types/badges';
 
 type BadgeApiError = Error & { status?: number; payload?: unknown };
@@ -11,9 +12,7 @@ async function parseError(response: Response): Promise<never> {
     payload = (await response.clone().json()) as ApiErrorResponse;
     if (payload && typeof payload === 'object') {
       const typedPayload = payload as ApiErrorResponse;
-      const detail = typedPayload.detail;
-      const msg = typedPayload.message;
-      message = detail || msg || message;
+      message = extractApiErrorMessage(typedPayload, message);
     }
   } catch {
     // Non-JSON body; keep default message

@@ -161,4 +161,66 @@ describe('WhereTheyTeach', () => {
     expect(screen.getByTestId('coverage-map')).toBeInTheDocument();
     expect(screen.queryByText(/approximate studio area/i)).not.toBeInTheDocument();
   });
+
+  it('renders all three legend items when all options are offered with studio pins', () => {
+    render(
+      <WhereTheyTeach
+        offersTravel={true}
+        offersAtLocation={true}
+        offersOnline={true}
+        coverage={{ type: 'FeatureCollection', features: [] }}
+        studioPins={[{ lat: 40.7128, lng: -74.006, label: 'Downtown' }]}
+      />
+    );
+
+    expect(screen.getByTestId('coverage-map')).toBeInTheDocument();
+    expect(screen.getByText(/travels to you/i)).toBeInTheDocument();
+    expect(screen.getByText(/at studio/i)).toBeInTheDocument();
+    expect(screen.getByText(/online/i)).toBeInTheDocument();
+    expect(screen.getByText(/approximate studio area: downtown/i)).toBeInTheDocument();
+  });
+
+  it('renders map with travel only (no studio pins, no online)', () => {
+    render(
+      <WhereTheyTeach
+        offersTravel={true}
+        offersAtLocation={false}
+        offersOnline={false}
+        coverage={{ type: 'FeatureCollection', features: [] }}
+      />
+    );
+
+    expect(screen.getByTestId('coverage-map')).toBeInTheDocument();
+    expect(screen.getByText(/travels to you/i)).toBeInTheDocument();
+    expect(screen.queryByText(/at studio/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/online lessons only/i)).not.toBeInTheDocument();
+  });
+
+  it('passes null coverage when coverage prop is undefined', () => {
+    render(
+      <WhereTheyTeach
+        offersTravel={true}
+        offersAtLocation={false}
+        offersOnline={false}
+      />
+    );
+
+    // Map should render (offersTravel is true which makes showMap true)
+    expect(screen.getByTestId('coverage-map')).toBeInTheDocument();
+  });
+
+  it('does not show map when offersAtLocation is true but studioPins is undefined (defaults to empty)', () => {
+    render(
+      <WhereTheyTeach
+        offersTravel={false}
+        offersAtLocation={true}
+        offersOnline={false}
+      />
+    );
+
+    // studioPins defaults to [] so effectiveOffersAtLocation = false
+    // showMap = false, hasLessonOptions = false
+    expect(screen.queryByTestId('coverage-map')).not.toBeInTheDocument();
+    expect(screen.getByText(/no lesson options configured yet/i)).toBeInTheDocument();
+  });
 });

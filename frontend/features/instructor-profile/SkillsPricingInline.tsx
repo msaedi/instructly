@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { DollarSign, ChevronDown, Lightbulb } from 'lucide-react';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
+import { extractApiErrorMessage } from '@/lib/apiErrors';
 import { logger } from '@/lib/logger';
 import { submitSkillRequest } from '@/lib/api/skillRequest';
 import { useAuth } from '@/features/shared/hooks/useAuth';
@@ -16,19 +17,31 @@ import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import { usePlatformFees } from '@/hooks/usePlatformConfig';
 import type { ApiErrorResponse, CategoryServiceDetail, InstructorProfileResponse, ServiceCategory } from '@/features/shared/api/types';
 import type { ServiceLocationType } from '@/types/instructor';
+import {
+  ALL_AUDIENCE_GROUPS,
+  AUDIENCE_LABELS,
+  DEFAULT_SKILL_LEVELS,
+  defaultFilterSelections,
+  normalizeAudienceGroups,
+  normalizeFilterSelections,
+  normalizeSkillLevels,
+} from '@/lib/taxonomy/filterHelpers';
+import type { AudienceGroup, FilterSelections } from '@/lib/taxonomy/filterHelpers';
+import { RefineFiltersSection } from '@/components/taxonomy/RefineFiltersSection';
 import { queryKeys } from '@/src/api/queryKeys';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { toast } from 'sonner';
 
 type SelectedService = {
   catalog_service_id: string;
+  subcategory_id: string;
   service_catalog_name?: string | null;
   name?: string | null;
   hourly_rate: string;
-  ageGroup: 'kids' | 'adults' | 'both';
+  eligible_age_groups: AudienceGroup[];
+  filter_selections: FilterSelections;
   description?: string;
   equipment?: string;
-  levels_taught: Array<'beginner' | 'intermediate' | 'advanced'>;
   duration_options: number[];
   offers_travel: boolean;
   offers_at_location: boolean;
@@ -71,6 +84,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [servicesByCategory, setServicesByCategory] = useState<Record<string, CategoryServiceDetail[]>>({});
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [refineExpandedByService, setRefineExpandedByService] = useState<Record<string, boolean>>({});
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
   const queryClient = useQueryClient();
   const [svcLoading, setSvcLoading] = useState(false);
@@ -113,6 +127,23 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
       : [];
     return teaching.length > 0;
   }, [profileData]);
+
+  // Build lookup map from allServicesData for catalog enrichment
+  const serviceCatalogById = useMemo(() => {
+    const map = new Map<string, { subcategory_id: string; eligible_age_groups: AudienceGroup[] }>();
+    if (!allServicesData) return map;
+    for (const cat of allServicesData.categories ?? []) {
+      for (const svc of cat.services ?? []) {
+        const eligible = normalizeAudienceGroups(
+          svc.eligible_age_groups,
+          ['kids', 'teens', 'adults']
+        );
+        map.set(svc.id, { subcategory_id: svc.subcategory_id, eligible_age_groups: eligible });
+      }
+    }
+    return map;
+  }, [allServicesData]);
+
   const [skillsFilter, setSkillsFilter] = useState('');
   const [requestedSkill, setRequestedSkill] = useState('');
   const [requestSubmitting, setRequestSubmitting] = useState(false);
@@ -231,8 +262,9 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
           offers_at_location: service.offers_at_location,
           offers_online: service.offers_online,
           duration_options: [...service.duration_options].sort((a, b) => a - b),
-          levels_taught: [...service.levels_taught].sort(),
-          ageGroup: service.ageGroup,
+          filter_selections: Object.fromEntries(
+            Object.entries(service.filter_selections).map(([k, v]) => [k, [...v].sort()])
+          ),
           description: (service.description ?? '').trim(),
           equipment: (service.equipment ?? '').trim(),
         }))
@@ -246,6 +278,49 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
     pendingSyncSignatureRef.current = null;
     setSelectedServices(updater);
   }, []);
+
+  const setServiceFilterValues = useCallback(
+    (serviceId: string, filterKey: string, values: string[]) => {
+      setSelectedServicesWithDirty((prev) =>
+        prev.map((s) =>
+          s.catalog_service_id === serviceId
+            ? { ...s, filter_selections: { ...s.filter_selections, [filterKey]: values } }
+            : s
+        )
+      );
+    },
+    [setSelectedServicesWithDirty]
+  );
+
+  const initializeMissingFilters = useCallback(
+    (serviceId: string, defaults: FilterSelections) => {
+      setSelectedServices((prev) =>
+        prev.map((s) => {
+          if (s.catalog_service_id !== serviceId) return s;
+          const merged = { ...s.filter_selections };
+          let changed = false;
+          for (const [key, values] of Object.entries(defaults)) {
+            if (!merged[key]) {
+              merged[key] = values;
+              changed = true;
+            }
+          }
+          return changed ? { ...s, filter_selections: merged } : s;
+        })
+      );
+    },
+    []
+  );
+
+  const toggleRefineExpanded = useCallback(
+    (serviceId: string) => {
+      setRefineExpandedByService((prev) => ({
+        ...prev,
+        [serviceId]: !prev[serviceId],
+      }));
+    },
+    []
+  );
 
   // FIX 1 (continued): Sync priceErrors ref when state changes
   useEffect(() => {
@@ -317,28 +392,37 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
           },
           hydrateCatalogNameById,
         );
+        const catalogEntry = serviceCatalogById.get(catalogId);
+        const eligibleAgeGroups = catalogEntry?.eligible_age_groups ?? ['kids', 'teens', 'adults'];
+
+        // Build filter_selections from API response
+        const rawFilterSelections = normalizeFilterSelections(s['filter_selections']);
+        // Populate age_groups from top-level API field into filter_selections
+        const ageGroupsFromApi = normalizeAudienceGroups(s['age_groups'], eligibleAgeGroups);
+        // Populate skill_level — read from filter_selections first, fallback to all levels
+        const skillLevels = normalizeSkillLevels(rawFilterSelections['skill_level']);
+
+        const mergedFilters: FilterSelections = {
+          ...rawFilterSelections,
+          age_groups: ageGroupsFromApi,
+          skill_level: skillLevels,
+        };
+
         return {
           catalog_service_id: catalogId,
+          subcategory_id: catalogEntry?.subcategory_id ?? '',
           service_catalog_name:
             typeof s['service_catalog_name'] === 'string'
               ? (s['service_catalog_name'] as string)
               : null,
           name: serviceName,
           hourly_rate: String(s['hourly_rate'] ?? ''),
-          ageGroup:
-            Array.isArray(s['age_groups']) && (s['age_groups'] as string[]).length === 2
-              ? 'both'
-              : ((s['age_groups'] as string[]) || []).includes('kids')
-              ? 'kids'
-              : 'adults',
+          eligible_age_groups: eligibleAgeGroups,
+          filter_selections: mergedFilters,
           description: (s['description'] as string) || '',
           equipment: Array.isArray(s['equipment_required'])
             ? (s['equipment_required'] as string[]).join(', ')
             : '',
-          levels_taught:
-            Array.isArray(s['levels_taught']) && (s['levels_taught'] as string[]).length
-              ? (s['levels_taught'] as Array<'beginner' | 'intermediate' | 'advanced'>)
-              : ['beginner', 'intermediate', 'advanced'],
           duration_options:
             Array.isArray(s['duration_options']) && (s['duration_options'] as number[]).length
               ? (s['duration_options'] as number[])
@@ -346,7 +430,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
           offers_travel: hasServiceAreas ? capabilities.offers_travel : false,
           offers_at_location: hasTeachingLocations ? capabilities.offers_at_location : false,
           offers_online: capabilities.offers_online,
-        } as SelectedService;
+        } satisfies SelectedService;
       })
       .filter((svc: SelectedService) => svc.catalog_service_id);
 
@@ -403,6 +487,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
     profileFromHook,
     resolveCapabilitiesFromService,
     serializeServices,
+    serviceCatalogById,
   ]);
 
   // FIX 3: Effect #5 - Capability cleanup when service areas/teaching locations removed
@@ -429,6 +514,40 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
       return mutated ? next : prev;
     });
   }, [hasServiceAreas, hasTeachingLocations]);
+
+  // Back-fill subcategory_id, eligible_age_groups, and default filter_selections
+  // from catalog when taxonomy data loads after profile hydration.
+  useEffect(() => {
+    if (serviceCatalogById.size === 0 || selectedServices.length === 0) return;
+    let changed = false;
+    const next = selectedServices.map((svc) => {
+      const entry = serviceCatalogById.get(svc.catalog_service_id);
+      if (!entry) return svc;
+      let updated = svc;
+      if (!updated.subcategory_id && entry.subcategory_id) {
+        updated = { ...updated, subcategory_id: entry.subcategory_id };
+        changed = true;
+      }
+      if (updated.eligible_age_groups.length === 0) {
+        updated = { ...updated, eligible_age_groups: entry.eligible_age_groups };
+        changed = true;
+      }
+      // Ensure skill_level and age_groups defaults exist in filter_selections
+      if (!updated.filter_selections['skill_level'] || !updated.filter_selections['age_groups']) {
+        const defaults = defaultFilterSelections(updated.eligible_age_groups);
+        const merged = { ...updated.filter_selections };
+        if (!merged['skill_level']) merged['skill_level'] = defaults['skill_level'] ?? [...DEFAULT_SKILL_LEVELS];
+        if (!merged['age_groups']) merged['age_groups'] = defaults['age_groups'] ?? [...ALL_AUDIENCE_GROUPS];
+        updated = { ...updated, filter_selections: merged };
+        changed = true;
+      }
+      return updated;
+    });
+    if (changed) {
+      isHydratingRef.current = true;
+      setSelectedServices(next);
+    }
+  }, [serviceCatalogById, selectedServices]);
 
   const toggleCategory = (slug: string) => {
     setCollapsed((prev) => ({ ...prev, [slug]: !prev[slug] }));
@@ -481,17 +600,20 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
         return prev.filter((s) => s.catalog_service_id !== svc.id);
       }
       const label = displayServiceName({ service_catalog_id: svc.id, service_catalog_name: svc.name }, hydrateCatalogNameById);
+      const catalogEntry = serviceCatalogById.get(svc.id);
+      const eligibleAgeGroups = catalogEntry?.eligible_age_groups ?? ['kids', 'teens', 'adults'] as AudienceGroup[];
       return [
         ...prev,
         {
           catalog_service_id: svc.id,
+          subcategory_id: catalogEntry?.subcategory_id ?? '',
           service_catalog_name: svc.name,
           name: label,
           hourly_rate: '',
-          ageGroup: 'adults',
+          eligible_age_groups: eligibleAgeGroups,
+          filter_selections: defaultFilterSelections(eligibleAgeGroups),
           description: '',
           equipment: '',
-          levels_taught: ['beginner', 'intermediate', 'advanced'],
           duration_options: [60],
           ...defaultCapabilities(),
         },
@@ -611,23 +733,27 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
       const payload = {
         services: selectedServices
           .filter((service) => service.hourly_rate.trim() !== '')
-          .map((service) => ({
-            service_catalog_id: service.catalog_service_id || undefined,
-            hourly_rate: Number(service.hourly_rate),
-            age_groups: service.ageGroup === 'both' ? ['kids', 'adults'] : [service.ageGroup],
-            ...(service.description?.trim() ? { description: service.description.trim() } : {}),
-            duration_options: (service.duration_options?.length ? service.duration_options : [60]).sort((a, b) => a - b),
-            levels_taught: service.levels_taught,
-            ...(service.equipment
-              ?.split(',')
-              .map((v) => v.trim())
-              .filter(Boolean)?.length
-              ? { equipment_required: service.equipment.split(',').map((v) => v.trim()).filter(Boolean) }
-              : {}),
-            offers_travel: hasServiceAreas ? service.offers_travel : false,
-            offers_at_location: hasTeachingLocations ? service.offers_at_location : false,
-            offers_online: service.offers_online,
-          })),
+          .map((service) => {
+            // Build filter_selections for backend (without age_groups — sent separately)
+            const { age_groups: _ageGroups, ...restFilters } = service.filter_selections;
+            return {
+              service_catalog_id: service.catalog_service_id || undefined,
+              hourly_rate: Number(service.hourly_rate),
+              age_groups: service.filter_selections['age_groups'] ?? [...service.eligible_age_groups],
+              filter_selections: restFilters,
+              ...(service.description?.trim() ? { description: service.description.trim() } : {}),
+              duration_options: (service.duration_options?.length ? service.duration_options : [60]).sort((a, b) => a - b),
+              ...(service.equipment
+                ?.split(',')
+                .map((v) => v.trim())
+                .filter(Boolean)?.length
+                ? { equipment_required: service.equipment.split(',').map((v) => v.trim()).filter(Boolean) }
+                : {}),
+              offers_travel: hasServiceAreas ? service.offers_travel : false,
+              offers_at_location: hasTeachingLocations ? service.offers_at_location : false,
+              offers_online: service.offers_online,
+            };
+          }),
       };
 
       const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, {
@@ -637,7 +763,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
       });
       if (!res.ok) {
         const msg = (await res.json().catch(() => ({}))) as ApiErrorResponse;
-        throw new Error(msg.detail || msg.message || 'Failed to save');
+        throw new Error(extractApiErrorMessage(msg, 'Failed to save'));
       }
       // FIX 6: Set pendingSyncSignatureRef BEFORE invalidation, and DON'T clear isEditingRef
       // The hydration effect will clear isEditingRef when it sees our save return
@@ -910,26 +1036,42 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                   <div className="bg-white rounded-lg p-3 border border-gray-200">
-                    <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Age Group</label>
-                    <div className="flex gap-1">
-                      {(['kids', 'adults'] as const).map((ageType) => {
-                        const isSel = s.ageGroup === 'both' ? true : s.ageGroup === ageType;
+                    <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Age Groups</label>
+                    <div className="grid grid-cols-2 gap-1">
+                      {ALL_AUDIENCE_GROUPS.map((group) => {
+                        const selectedAgeGroups = s.filter_selections['age_groups'] ?? [];
+                        const isSelected = selectedAgeGroups.includes(group);
+                        const isEligible = s.eligible_age_groups.includes(group);
                         return (
                           <button
-                            key={ageType}
-                            onClick={() => setSelectedServicesWithDirty((prev) => prev.map((x, i) => {
-                              if (i !== index) return x;
-                              const cur = x.ageGroup;
-                              let next: 'kids' | 'adults' | 'both';
-                              if (cur === 'both') next = ageType === 'kids' ? 'adults' : 'kids';
-                              else if (cur === ageType) next = ageType === 'kids' ? 'adults' : 'kids';
-                              else next = 'both';
-                              return { ...x, ageGroup: next };
-                            }))}
-                            className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${isSel ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                            key={group}
+                            disabled={!isEligible}
+                            onClick={() => {
+                              if (!isEligible) return;
+                              setSelectedServicesWithDirty((prev) => prev.map((x, i) => {
+                                if (i !== index) return x;
+                                const current = x.filter_selections['age_groups'] ?? [];
+                                const next = isSelected
+                                  ? current.filter((g) => g !== group)
+                                  : [...current, group];
+                                // Min-1 guard: can't deselect last age group
+                                if (next.length === 0) return x;
+                                return {
+                                  ...x,
+                                  filter_selections: { ...x.filter_selections, age_groups: next },
+                                };
+                              }));
+                            }}
+                            className={`px-2 py-2 text-sm rounded-md transition-colors ${
+                              !isEligible
+                                ? 'bg-gray-50 text-gray-300 cursor-not-allowed'
+                                : isSelected
+                                ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
                             type="button"
                           >
-                            {ageType === 'kids' ? 'Kids' : 'Adults'}
+                            {AUDIENCE_LABELS[group]}
                           </button>
                         );
                       })}
@@ -1045,18 +1187,34 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                   <div className="bg-white rounded-lg p-3 border border-gray-200">
                     <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Skill Levels</label>
                     <div className="flex gap-1">
-                      {(['beginner', 'intermediate', 'advanced'] as const).map((lvl) => (
-                        <button
-                          key={lvl}
-                          onClick={() => setSelectedServicesWithDirty((prev) => prev.map((x, i) => i === index ? { ...x, levels_taught: x.levels_taught.includes(lvl) ? x.levels_taught.filter((v) => v !== lvl) : [...x.levels_taught, lvl] } : x))}
-                          className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
-                            s.levels_taught.includes(lvl) ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                          type="button"
-                        >
-                          {lvl === 'beginner' ? 'Beginner' : lvl === 'intermediate' ? 'Intermediate' : 'Advanced'}
-                        </button>
-                      ))}
+                      {DEFAULT_SKILL_LEVELS.map((lvl) => {
+                        const selectedLevels = s.filter_selections['skill_level'] ?? [...DEFAULT_SKILL_LEVELS];
+                        const isLvlSelected = selectedLevels.includes(lvl);
+                        return (
+                          <button
+                            key={lvl}
+                            onClick={() => setSelectedServicesWithDirty((prev) => prev.map((x, i) => {
+                              if (i !== index) return x;
+                              const current = x.filter_selections['skill_level'] ?? [...DEFAULT_SKILL_LEVELS];
+                              const next = isLvlSelected
+                                ? current.filter((v) => v !== lvl)
+                                : [...current, lvl];
+                              // Min-1 guard: can't deselect last level
+                              if (next.length === 0) return x;
+                              return {
+                                ...x,
+                                filter_selections: { ...x.filter_selections, skill_level: next },
+                              };
+                            }))}
+                            className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
+                              isLvlSelected ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                            type="button"
+                          >
+                            {lvl === 'beginner' ? 'Beginner' : lvl === 'intermediate' ? 'Intermediate' : 'Advanced'}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                   <div className="bg-white rounded-lg p-3 border border-gray-200">
@@ -1083,7 +1241,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                   <div>
                     <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1 block">Description (Optional)</label>
                     <textarea
@@ -1105,6 +1263,14 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                     />
                   </div>
                 </div>
+
+                <RefineFiltersSection
+                  service={s}
+                  expanded={refineExpandedByService[s.catalog_service_id] ?? false}
+                  onToggleExpanded={toggleRefineExpanded}
+                  onInitializeMissingFilters={initializeMissingFilters}
+                  onSetFilterValues={setServiceFilterValues}
+                />
               </div>
               );
             })}
