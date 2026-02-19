@@ -102,6 +102,54 @@ class TestParseTimestamp:
 
 
 # ---------------------------------------------------------------------------
+# Helper: _build_delivery_key
+# ---------------------------------------------------------------------------
+
+
+class TestBuildDeliveryKey:
+    """Tests for webhook delivery key generation."""
+
+    def test_uses_event_id_when_present(self) -> None:
+        from app.routes.v1.webhooks_hundredms import _build_delivery_key
+
+        key = _build_delivery_key("evt_123", "peer.join.success", {"room_id": "r1", "session_id": "s1"})
+        assert key == "evt_123"
+
+    def test_fallback_key_includes_peer_id(self) -> None:
+        from app.routes.v1.webhooks_hundredms import _build_delivery_key
+
+        key_student = _build_delivery_key(
+            None,
+            "peer.join.success",
+            {"room_id": "r1", "session_id": "s1", "peer_id": "peer-student"},
+        )
+        key_instructor = _build_delivery_key(
+            None,
+            "peer.join.success",
+            {"room_id": "r1", "session_id": "s1", "peer_id": "peer-instructor"},
+        )
+        assert key_student != key_instructor
+        assert key_student.endswith(":peer-student")
+        assert key_instructor.endswith(":peer-instructor")
+
+    def test_fallback_key_uses_nested_peer_object(self) -> None:
+        from app.routes.v1.webhooks_hundredms import _build_delivery_key
+
+        key = _build_delivery_key(
+            None,
+            "peer.join.success",
+            {"room_id": "r1", "session_id": "s1", "peer": {"id": "peer-nested"}},
+        )
+        assert key == "peer.join.success:r1:s1:peer-nested"
+
+    def test_fallback_key_uses_no_peer_marker_when_missing(self) -> None:
+        from app.routes.v1.webhooks_hundredms import _build_delivery_key
+
+        key = _build_delivery_key(None, "session.open.success", {"room_id": "r1", "session_id": "s1"})
+        assert key == "session.open.success:r1:s1:no-peer"
+
+
+# ---------------------------------------------------------------------------
 # Signature verification: _verify_hundredms_secret
 # ---------------------------------------------------------------------------
 

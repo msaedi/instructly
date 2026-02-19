@@ -343,6 +343,9 @@ def _validate_startup_config() -> None:
             getattr(runtime_settings, "hundredms_app_secret", None)
         ).strip()
         template_id = (getattr(runtime_settings, "hundredms_template_id", None) or "").strip()
+        webhook_secret = secret_or_plain(
+            getattr(runtime_settings, "hundredms_webhook_secret", None)
+        ).strip()
 
         missing: list[str] = []
         if not access_key:
@@ -351,6 +354,8 @@ def _validate_startup_config() -> None:
             missing.append("HUNDREDMS_APP_SECRET")
         if not template_id:
             missing.append("HUNDREDMS_TEMPLATE_ID")
+        if not webhook_secret:
+            missing.append("HUNDREDMS_WEBHOOK_SECRET")
 
         if missing:
             raise ValueError(

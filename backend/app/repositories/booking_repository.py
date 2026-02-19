@@ -357,6 +357,11 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     Booking.location_type == "online",
                     Booking.booking_start_utc <= sql_cutoff,
                     or_(
+                        BookingVideoSession.id.is_(None),
+                        BookingVideoSession.instructor_joined_at.is_(None),
+                        BookingVideoSession.student_joined_at.is_(None),
+                    ),
+                    or_(
                         NoShowAlias.no_show_reported_at.is_(None),
                         NoShowAlias.id.is_(None),
                     ),

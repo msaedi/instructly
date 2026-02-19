@@ -19,6 +19,8 @@ const HMSPrebuilt = dynamic(
 
 interface VideoErrorBoundaryProps {
   onLeave: () => void;
+  fallbackPath?: string;
+  redirectToPath?: (path: string) => void;
   children: ReactNode;
 }
 
@@ -29,6 +31,7 @@ interface VideoErrorBoundaryState {
 }
 
 const AUTO_REDIRECT_SECONDS = 3;
+const DEFAULT_FALLBACK_PATH = '/student/lessons';
 
 class VideoErrorBoundary extends Component<VideoErrorBoundaryProps, VideoErrorBoundaryState> {
   private _timerId: ReturnType<typeof setInterval> | null = null;
@@ -89,7 +92,12 @@ class VideoErrorBoundary extends Component<VideoErrorBoundaryProps, VideoErrorBo
     try {
       this.props.onLeave();
     } catch {
-      window.location.href = '/lessons';
+      const path = this.props.fallbackPath ?? DEFAULT_FALLBACK_PATH;
+      if (this.props.redirectToPath) {
+        this.props.redirectToPath(path);
+        return;
+      }
+      window.location.href = path;
     }
   };
 
@@ -123,9 +131,31 @@ interface ActiveLessonProps {
   userName: string;
   userId: string;
   onLeave: () => void;
+  fallbackPath?: string;
+  redirectToPath?: (path: string) => void;
 }
 
-export function ActiveLesson({ authToken, userName, userId, onLeave }: ActiveLessonProps) {
+export function ActiveLesson({
+  authToken,
+  userName,
+  userId,
+  onLeave,
+  fallbackPath,
+  redirectToPath,
+}: ActiveLessonProps) {
+  const handleBackToLessons = () => {
+    try {
+      onLeave();
+    } catch {
+      const path = fallbackPath ?? DEFAULT_FALLBACK_PATH;
+      if (redirectToPath) {
+        redirectToPath(path);
+        return;
+      }
+      window.location.href = path;
+    }
+  };
+
   if (!authToken) {
     return (
       <div role="alert" className="flex flex-col items-center justify-center gap-6 py-16 px-4 text-center">
@@ -134,7 +164,7 @@ export function ActiveLesson({ authToken, userName, userId, onLeave }: ActiveLes
         </p>
         <button
           type="button"
-          onClick={onLeave}
+          onClick={handleBackToLessons}
           className="rounded-lg bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
         >
           Back to My Lessons
@@ -144,7 +174,11 @@ export function ActiveLesson({ authToken, userName, userId, onLeave }: ActiveLes
   }
 
   return (
-    <VideoErrorBoundary onLeave={onLeave}>
+    <VideoErrorBoundary
+      onLeave={onLeave}
+      {...(fallbackPath !== undefined ? { fallbackPath } : {})}
+      {...(redirectToPath !== undefined ? { redirectToPath } : {})}
+    >
       <div role="main" aria-label="Video lesson in progress" className="fixed inset-0 z-50 bg-background">
         <HMSPrebuilt
           authToken={authToken}

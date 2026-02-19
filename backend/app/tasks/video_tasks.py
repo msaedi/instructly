@@ -150,6 +150,8 @@ def detect_video_no_shows() -> VideoNoShowResults:
 
                     # Re-check under lock
                     refreshed = booking_repo.get_by_id(booking_id)
+                    if refreshed is not None:
+                        booking_repo.refresh(refreshed)
                     if refreshed is None or refreshed.status != BookingStatus.CONFIRMED.value:
                         results["skipped"] += 1
                         continue

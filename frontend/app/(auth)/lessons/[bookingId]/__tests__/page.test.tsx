@@ -38,7 +38,7 @@ jest.mock('@/components/lessons/video/PreLessonWaiting', () => ({
 
 jest.mock('@/components/lessons/video/ActiveLesson', () => ({
   ActiveLesson: (props: Record<string, unknown>) => (
-    <div data-testid="active-lesson">
+    <div data-testid="active-lesson" data-fallback-path={String(props.fallbackPath ?? '')}>
       <button onClick={props.onLeave as () => void}>Leave</button>
     </div>
   ),
@@ -290,6 +290,7 @@ describe('LessonRoomPage', () => {
     await waitFor(() => {
       expect(screen.getByTestId('active-lesson')).toBeInTheDocument();
     });
+    expect(screen.getByTestId('active-lesson')).toHaveAttribute('data-fallback-path', '/student/lessons');
 
     // Click Leave
     fireEvent.click(screen.getByText('Leave'));
@@ -298,6 +299,27 @@ describe('LessonRoomPage', () => {
     await waitFor(() => {
       expect(screen.getByTestId('lesson-ended')).toBeInTheDocument();
     });
+  });
+
+  it('passes instructor fallback path to ActiveLesson', async () => {
+    (useAuth as jest.Mock).mockReturnValue({
+      user: { id: 'inst_456', first_name: 'Sarah', last_name: 'Lee', roles: ['INSTRUCTOR'] },
+      isLoading: false,
+      isAuthenticated: true,
+      redirectToLogin: mockRedirectToLogin,
+    });
+    mockJoinLesson.mockResolvedValueOnce({ auth_token: 'tok_456' });
+
+    render(<LessonRoomPage />);
+    fireEvent.click(screen.getByText('Join Lesson'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('active-lesson')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('active-lesson')).toHaveAttribute(
+      'data-fallback-path',
+      '/instructor/bookings',
+    );
   });
 
   it('enables ended-aware polling after session_ended_at is observed', async () => {

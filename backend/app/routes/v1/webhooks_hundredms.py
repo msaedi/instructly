@@ -140,6 +140,23 @@ def _parse_timestamp(value: Any) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+def _build_delivery_key(event_id: str | None, event_type: str, data: dict[str, Any]) -> str | None:
+    """Build a delivery dedup key with peer disambiguation when event_id is absent."""
+    if event_id:
+        return event_id
+
+    room_id = data.get("room_id")
+    session_id = data.get("session_id")
+    peer_obj = data.get("peer")
+    peer_id: Any = None
+    if isinstance(peer_obj, dict):
+        peer_id = peer_obj.get("id")
+    if not peer_id:
+        peer_id = data.get("peer_id")
+    peer_key = str(peer_id).strip() if peer_id is not None else ""
+    return f"{event_type}:{room_id}:{session_id}:{peer_key or 'no-peer'}"
+
+
 # ---------------------------------------------------------------------------
 # Event processing
 # ---------------------------------------------------------------------------
@@ -360,7 +377,11 @@ def _get_booking_repository(db: Session = Depends(get_db)) -> BookingRepository:
 # ---------------------------------------------------------------------------
 
 
-@router.post("", response_model=WebhookAckResponse, dependencies=[Depends(new_rate_limit("video"))])
+@router.post(
+    "",
+    response_model=WebhookAckResponse,
+    dependencies=[Depends(new_rate_limit("webhook_hundredms"))],
+)
 async def handle_hundredms_webhook(
     request: Request,
     booking_repo: BookingRepository = Depends(_get_booking_repository),
@@ -397,7 +418,7 @@ async def handle_hundredms_webhook(
         return WebhookAckResponse(ok=True)
 
     # 5. Delivery key used by cache dedup fallback
-    delivery_key = event_id or f"{event_type}:{data.get('room_id')}:{data.get('session_id')}"
+    delivery_key = _build_delivery_key(event_id, event_type, data)
 
     # 6. Persistent dedup via webhook ledger (source of truth)
     ledger_db = getattr(booking_repo, "db", None)
@@ -443,6 +464,16 @@ async def handle_hundredms_webhook(
             data=data,
             booking_repo=booking_repo,
         )
+
+        duration_ms = int((monotonic() - start_time) * 1000)
+        if ledger_service is not None and ledger_event is not None:
+            await asyncio.to_thread(
+                ledger_service.mark_processed,
+                ledger_event,
+                related_entity_type="booking_video_session",
+                related_entity_id=_extract_booking_id_from_room_name(data.get("room_name")),
+                duration_ms=duration_ms,
+            )
     except Exception as exc:
         processing_error = str(exc)
         _unmark_delivery(delivery_key)
@@ -450,31 +481,24 @@ async def handle_hundredms_webhook(
             "100ms webhook processing failed",
             extra={"event_type": event_type},
         )
-        # Mark ledger as failed before re-raising for retry
         duration_ms = int((monotonic() - start_time) * 1000)
         if ledger_service is not None and ledger_event is not None:
-            await asyncio.to_thread(
-                ledger_service.mark_failed,
-                ledger_event,
-                error=processing_error,
-                duration_ms=duration_ms,
-            )
-        # Return 500 so 100ms retries on transient failures
+            try:
+                await asyncio.to_thread(
+                    ledger_service.mark_failed,
+                    ledger_event,
+                    error=processing_error,
+                    duration_ms=duration_ms,
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to mark 100ms webhook ledger event as failed",
+                    extra={"event_type": event_type},
+                )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="processing_failed",
         ) from exc
-
-    # 8. Update ledger (success path — exception path handled above)
-    duration_ms = int((monotonic() - start_time) * 1000)
-    if ledger_service is not None and ledger_event is not None:
-        await asyncio.to_thread(
-            ledger_service.mark_processed,
-            ledger_event,
-            related_entity_type="booking_video_session",
-            related_entity_id=_extract_booking_id_from_room_name(data.get("room_name")),
-            duration_ms=duration_ms,
-        )
 
     # 9. Return 200 for successful processing
     return WebhookAckResponse(ok=True)

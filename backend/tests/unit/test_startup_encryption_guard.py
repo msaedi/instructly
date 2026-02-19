@@ -81,6 +81,7 @@ def test_hundredms_enabled_without_required_credentials_raises(
     monkeypatch.setattr(runtime_settings, "hundredms_access_key", "", raising=False)
     monkeypatch.setattr(runtime_settings, "hundredms_app_secret", SecretStr(""), raising=False)
     monkeypatch.setattr(runtime_settings, "hundredms_template_id", None, raising=False)
+    monkeypatch.setattr(runtime_settings, "hundredms_webhook_secret", SecretStr(""), raising=False)
 
     with pytest.raises(ValueError, match="HUNDREDMS_ACCESS_KEY"):
         _validate_startup_config()
@@ -104,5 +105,35 @@ def test_hundredms_enabled_with_required_credentials_passes(
         raising=False,
     )
     monkeypatch.setattr(runtime_settings, "hundredms_template_id", "tpl_123", raising=False)
+    monkeypatch.setattr(
+        runtime_settings,
+        "hundredms_webhook_secret",
+        SecretStr("test_webhook_secret"),
+        raising=False,
+    )
 
     _validate_startup_config()
+
+
+def test_hundredms_enabled_missing_webhook_secret_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Enabled 100ms integration must fail startup when webhook secret is missing."""
+    monkeypatch.setenv("SITE_MODE", "dev")
+
+    from app.core.config import settings as runtime_settings
+    from app.main import _validate_startup_config
+
+    monkeypatch.setattr(runtime_settings, "hundredms_enabled", True, raising=False)
+    monkeypatch.setattr(runtime_settings, "hundredms_access_key", "test_access_key", raising=False)
+    monkeypatch.setattr(
+        runtime_settings,
+        "hundredms_app_secret",
+        SecretStr("test_app_secret"),
+        raising=False,
+    )
+    monkeypatch.setattr(runtime_settings, "hundredms_template_id", "tpl_123", raising=False)
+    monkeypatch.setattr(runtime_settings, "hundredms_webhook_secret", None, raising=False)
+
+    with pytest.raises(ValueError, match="HUNDREDMS_WEBHOOK_SECRET"):
+        _validate_startup_config()

@@ -125,17 +125,39 @@ describe('ActiveLesson error boundary', () => {
     expect(onLeave).toHaveBeenCalledTimes(1);
   });
 
-  it('catches onLeave failure without crashing (falls back to hard redirect)', () => {
+  it('catches onLeave failure without crashing (falls back to /student/lessons)', () => {
     shouldThrow = true;
+    const redirectToPath = jest.fn();
     const onLeave = jest.fn().mockImplementation(() => {
       throw new Error('Navigation failed');
     });
-    render(<ActiveLesson {...defaultProps} onLeave={onLeave} />);
+    render(<ActiveLesson {...defaultProps} onLeave={onLeave} redirectToPath={redirectToPath} />);
 
-    // Click should not throw — _safeLeave catches and falls back to
-    // window.location.href = '/lessons' (not interceptable in jsdom)
     fireEvent.click(screen.getByText('Back to My Lessons'));
     expect(onLeave).toHaveBeenCalledTimes(1);
+    expect(redirectToPath).toHaveBeenCalledTimes(1);
+    expect(redirectToPath).toHaveBeenCalledWith('/student/lessons');
+  });
+
+  it('uses custom fallbackPath when onLeave fails', () => {
+    shouldThrow = true;
+    const redirectToPath = jest.fn();
+    const onLeave = jest.fn().mockImplementation(() => {
+      throw new Error('Navigation failed');
+    });
+    render(
+      <ActiveLesson
+        {...defaultProps}
+        onLeave={onLeave}
+        fallbackPath="/instructor/bookings"
+        redirectToPath={redirectToPath}
+      />,
+    );
+
+    fireEvent.click(screen.getByText('Back to My Lessons'));
+    expect(onLeave).toHaveBeenCalledTimes(1);
+    expect(redirectToPath).toHaveBeenCalledTimes(1);
+    expect(redirectToPath).toHaveBeenCalledWith('/instructor/bookings');
   });
 
   it('shows missing token fallback when authToken is empty', () => {

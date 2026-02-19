@@ -145,6 +145,7 @@ export default function LessonRoomPage() {
       ? booking?.instructor?.first_name ?? 'Instructor'
       : booking?.student?.first_name ?? 'Student';
   const otherPartyRole: 'student' | 'instructor' = userRole === 'student' ? 'instructor' : 'student';
+  const fallbackPath = userRole === 'instructor' ? '/instructor/bookings' : '/student/lessons';
 
   // ---- Render ----
 
@@ -156,6 +157,7 @@ export default function LessonRoomPage() {
         userName={userName}
         userId={user.id}
         onLeave={handleLeave}
+        fallbackPath={fallbackPath}
       />
     );
   }

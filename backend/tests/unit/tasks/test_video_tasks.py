@@ -209,7 +209,8 @@ class TestDetectVideoNoShows:
         mock_db = MagicMock()
         mock_get_db.return_value = iter([mock_db])
 
-        booking = self._make_booking(start_minutes_ago=30, duration_minutes=60)
+        # TESTING-ONLY: revert before production (was start_minutes_ago=30)
+        booking = self._make_booking(start_minutes_ago=60, duration_minutes=60)
         vs = self._make_video_session(instructor_joined=True, student_joined=True)
 
         mock_repo = MagicMock()
@@ -292,7 +293,8 @@ class TestDetectVideoNoShows:
         mock_db = MagicMock()
         mock_get_db.return_value = iter([mock_db])
 
-        booking = self._make_booking(start_minutes_ago=30, duration_minutes=60)
+        # TESTING-ONLY: revert before production (was start_minutes_ago=30)
+        booking = self._make_booking(start_minutes_ago=60, duration_minutes=60)
         vs = self._make_video_session(instructor_joined=False, student_joined=True)
 
         mock_repo = MagicMock()
@@ -353,7 +355,8 @@ class TestDetectVideoNoShows:
         mock_db = MagicMock()
         mock_get_db.return_value = iter([mock_db])
 
-        booking = self._make_booking(start_minutes_ago=30, duration_minutes=60)
+        # TESTING-ONLY: revert before production (was start_minutes_ago=30)
+        booking = self._make_booking(start_minutes_ago=60, duration_minutes=60)
         vs = self._make_video_session(instructor_joined=False, student_joined=True)
 
         mock_repo = MagicMock()
@@ -371,6 +374,7 @@ class TestDetectVideoNoShows:
         result = detect_video_no_shows()
 
         assert result["skipped"] >= 1
+        mock_repo.refresh.assert_called_once_with(refreshed)
         mock_svc_cls.return_value.report_automated_no_show.assert_not_called()
 
     @patch("app.tasks.video_tasks.booking_lock_sync")

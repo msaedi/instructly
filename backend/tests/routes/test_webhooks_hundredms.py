@@ -85,7 +85,7 @@ class TestHundredmsWebhookEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["ok"] is True
-        assert response.headers.get("X-RateLimit-Policy") == "video"
+        assert response.headers.get("X-RateLimit-Policy") == "webhook_hundredms"
 
     @patch("app.routes.v1.webhooks_hundredms.settings")
     def test_returns_401_without_secret(self, mock_settings, client_with_mock_repo):
@@ -315,6 +315,110 @@ class TestHundredmsWebhookEndpoint:
 
         # Transient failures return 500 so 100ms retries
         assert response.status_code == 500
+
+    @patch("app.routes.v1.webhooks_hundredms._process_hundredms_event")
+    @patch("app.routes.v1.webhooks_hundredms.WebhookLedgerService")
+    @patch("app.routes.v1.webhooks_hundredms.settings")
+    def test_mark_processed_failure_returns_500_and_clears_cache(
+        self,
+        mock_settings,
+        mock_ledger_cls,
+        mock_process,
+        client_with_mock_repo,
+    ):
+        mock_settings.hundredms_enabled = True
+        mock_settings.hundredms_webhook_secret = MagicMock()
+        mock_settings.hundredms_webhook_secret.get_secret_value.return_value = "test-secret"
+
+        mock_ledger = MagicMock()
+        mock_ledger.log_received.return_value = MagicMock(status="received", retry_count=0)
+        mock_ledger.mark_processed.side_effect = [RuntimeError("ledger write failed"), None]
+        mock_ledger_cls.return_value = mock_ledger
+
+        mock_process.return_value = (None, "processed")
+        webhooks_module._delivery_cache.clear()
+        payload = _webhook_payload(event_id="evt-ledger-fail")
+
+        with patch(
+            "app.routes.v1.webhooks_hundredms._unmark_delivery",
+            wraps=webhooks_module._unmark_delivery,
+        ) as mock_unmark_delivery:
+            first = client_with_mock_repo.post(
+                "/api/v1/webhooks/hundredms",
+                content=json.dumps(payload),
+                headers={
+                    "Content-Type": "application/json",
+                    "x-hundredms-secret": "test-secret",
+                },
+            )
+            assert first.status_code == 500
+            mock_unmark_delivery.assert_called_with("evt-ledger-fail")
+            mock_ledger.mark_failed.assert_called_once()
+
+            # Retry should still process because failed attempt unmarked cache key
+            second = client_with_mock_repo.post(
+                "/api/v1/webhooks/hundredms",
+                content=json.dumps(payload),
+                headers={
+                    "Content-Type": "application/json",
+                    "x-hundredms-secret": "test-secret",
+                },
+            )
+            assert second.status_code == 200
+            assert mock_process.call_count == 2
+
+    @patch("app.routes.v1.webhooks_hundredms._process_hundredms_event")
+    @patch("app.routes.v1.webhooks_hundredms.WebhookLedgerService")
+    @patch("app.routes.v1.webhooks_hundredms.settings")
+    def test_missing_event_id_uses_peer_aware_fallback_key(
+        self,
+        mock_settings,
+        mock_ledger_cls,
+        mock_process,
+        client_with_mock_repo,
+    ):
+        mock_settings.hundredms_enabled = True
+        mock_settings.hundredms_webhook_secret = MagicMock()
+        mock_settings.hundredms_webhook_secret.get_secret_value.return_value = "test-secret"
+
+        mock_ledger = MagicMock()
+        mock_ledger.log_received.return_value = MagicMock(status="received", retry_count=0)
+        mock_ledger_cls.return_value = mock_ledger
+
+        mock_process.return_value = (None, "processed")
+        webhooks_module._delivery_cache.clear()
+
+        payload_a = _webhook_payload(
+            event_type="peer.join.success",
+            event_id=None,
+            peer_id="peer-student",
+        )
+        payload_b = _webhook_payload(
+            event_type="peer.join.success",
+            event_id=None,
+            peer_id="peer-instructor",
+        )
+
+        first = client_with_mock_repo.post(
+            "/api/v1/webhooks/hundredms",
+            content=json.dumps(payload_a),
+            headers={
+                "Content-Type": "application/json",
+                "x-hundredms-secret": "test-secret",
+            },
+        )
+        second = client_with_mock_repo.post(
+            "/api/v1/webhooks/hundredms",
+            content=json.dumps(payload_b),
+            headers={
+                "Content-Type": "application/json",
+                "x-hundredms-secret": "test-secret",
+            },
+        )
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert mock_process.call_count == 2
 
     @patch("app.routes.v1.webhooks_hundredms.WebhookLedgerService")
     @patch("app.routes.v1.webhooks_hundredms.settings")
