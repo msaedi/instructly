@@ -833,50 +833,27 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
             # Handle upcoming_only filter
             if upcoming_only:
-                # Get user's current datetime in their timezone
+                # Use UTC datetime to correctly handle midnight-crossing bookings
                 user_now = get_user_now_by_id(student_id, self.db)
-                today = user_now.date()
-                current_time = user_now.time()
+                now_utc = user_now.astimezone(timezone.utc)
 
-                # Filter for bookings that haven't ended yet (includes in-progress lessons)
                 query = query.filter(
-                    or_(
-                        Booking.booking_date > today,  # Future dates
-                        and_(
-                            Booking.booking_date == today,  # Today
-                            Booking.end_time > current_time.isoformat(),  # Lesson hasn't ended
-                        ),
-                    ),
+                    Booking.booking_end_utc > now_utc,
                     Booking.status == BookingStatus.CONFIRMED,
                 )
 
             # Handle exclude_future_confirmed (for History tab - past bookings + cancelled)
             elif exclude_future_confirmed:
-                # Include: past bookings (any status) + future cancelled/no-show bookings
-                # Exclude: future confirmed bookings (including in-progress)
-                # Get user's current datetime in their timezone
                 user_now = get_user_now_by_id(student_id, self.db)
-                today = user_now.date()
-                current_time = user_now.time()
+                now_utc = user_now.astimezone(timezone.utc)
 
                 query = query.filter(
                     or_(
-                        # Past dates (any status)
-                        Booking.booking_date < today,
-                        # Today's lessons that have ended (any status)
+                        # Bookings that have ended (any status)
+                        Booking.booking_end_utc <= now_utc,
+                        # Future bookings that are cancelled/no-show
                         and_(
-                            Booking.booking_date == today,
-                            Booking.end_time <= current_time.isoformat(),
-                        ),
-                        # Future bookings that are NOT confirmed (cancelled/no-show)
-                        and_(
-                            or_(
-                                Booking.booking_date > today,
-                                and_(
-                                    Booking.booking_date == today,
-                                    Booking.end_time > current_time.isoformat(),
-                                ),
-                            ),
+                            Booking.booking_end_utc > now_utc,
                             Booking.status.in_([BookingStatus.CANCELLED, BookingStatus.NO_SHOW]),
                             # Hide reschedule-driven cancellations from student History
                             Booking.cancellation_reason != "Rescheduled",
@@ -886,20 +863,11 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
             # Handle include_past_confirmed (for BookAgain - only completed past bookings)
             elif include_past_confirmed:
-                # Only past bookings with COMPLETED status
-                # Get student's current datetime in their timezone
                 user_now = get_user_now_by_id(student_id, self.db)
-                today = user_now.date()
-                current_time = user_now.time()
+                now_utc = user_now.astimezone(timezone.utc)
 
                 query = query.filter(
-                    or_(
-                        Booking.booking_date < today,
-                        and_(
-                            Booking.booking_date == today,
-                            Booking.start_time <= current_time.isoformat(),
-                        ),
-                    ),
+                    Booking.booking_start_utc <= now_utc,
                     Booking.status == BookingStatus.COMPLETED,
                 )
 
@@ -977,50 +945,27 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
             # Handle upcoming_only filter
             if upcoming_only:
-                # Get instructor's current datetime in their timezone
+                # Use UTC datetime to correctly handle midnight-crossing bookings
                 user_now = get_user_now_by_id(instructor_id, self.db)
-                today = user_now.date()
-                current_time = user_now.time()
+                now_utc = user_now.astimezone(timezone.utc)
 
-                # Filter for bookings that haven't ended yet (includes in-progress lessons)
                 query = query.filter(
-                    or_(
-                        Booking.booking_date > today,  # Future dates
-                        and_(
-                            Booking.booking_date == today,  # Today
-                            Booking.end_time > current_time.isoformat(),  # Lesson hasn't ended
-                        ),
-                    ),
+                    Booking.booking_end_utc > now_utc,
                     Booking.status == BookingStatus.CONFIRMED,
                 )
 
             # Handle exclude_future_confirmed (for History tab - past bookings + cancelled)
             elif exclude_future_confirmed:
-                # Include: past bookings (any status) + future cancelled/no-show bookings
-                # Exclude: future confirmed bookings (including in-progress)
-                # Get instructor's current datetime in their timezone
                 user_now = get_user_now_by_id(instructor_id, self.db)
-                today = user_now.date()
-                current_time = user_now.time()
+                now_utc = user_now.astimezone(timezone.utc)
 
                 query = query.filter(
                     or_(
-                        # Past dates (any status)
-                        Booking.booking_date < today,
-                        # Today's lessons that have ended (any status)
+                        # Bookings that have ended (any status)
+                        Booking.booking_end_utc <= now_utc,
+                        # Future bookings that are cancelled/no-show
                         and_(
-                            Booking.booking_date == today,
-                            Booking.end_time <= current_time.isoformat(),
-                        ),
-                        # Future bookings that are NOT confirmed (cancelled/no-show)
-                        and_(
-                            or_(
-                                Booking.booking_date > today,
-                                and_(
-                                    Booking.booking_date == today,
-                                    Booking.end_time > current_time.isoformat(),
-                                ),
-                            ),
+                            Booking.booking_end_utc > now_utc,
                             Booking.status.in_([BookingStatus.CANCELLED, BookingStatus.NO_SHOW]),
                         ),
                     )
@@ -1028,19 +973,11 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
             # Handle include_past_confirmed (for BookAgain - only completed past bookings)
             elif include_past_confirmed_mode:
-                # Include confirmed/completed lessons that have already finished
                 user_now = get_user_now_by_id(instructor_id, self.db)
-                today = user_now.date()
-                current_time = user_now.time()
+                now_utc = user_now.astimezone(timezone.utc)
 
                 query = query.filter(
-                    or_(
-                        Booking.booking_date < today,
-                        and_(
-                            Booking.booking_date == today,
-                            Booking.end_time <= current_time.isoformat(),
-                        ),
-                    ),
+                    Booking.booking_end_utc <= now_utc,
                     Booking.status.in_(
                         [
                             BookingStatus.CONFIRMED,
@@ -1479,15 +1416,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             if needs_action:
                 effective_now = now or datetime.now(timezone.utc)
                 query = query.filter(Booking.status == BookingStatus.CONFIRMED)
-                query = query.filter(
-                    or_(
-                        Booking.booking_date < effective_now.date(),
-                        and_(
-                            Booking.booking_date == effective_now.date(),
-                            Booking.end_time <= effective_now.time(),
-                        ),
-                    )
-                )
+                query = query.filter(Booking.booking_end_utc <= effective_now)
 
             total = int(query.count())
             offset = max(0, (page - 1) * per_page)
@@ -1529,17 +1458,12 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
     def count_pending_completion(self, now: datetime) -> int:
         """Count confirmed bookings that should be completed or no-show."""
         try:
-            today = now.date()
-            now_time = now.time()
             count = (
                 self.db.query(func.count())
                 .select_from(Booking)
                 .filter(
                     Booking.status == BookingStatus.CONFIRMED,
-                    or_(
-                        Booking.booking_date < today,
-                        and_(Booking.booking_date == today, Booking.end_time <= now_time),
-                    ),
+                    Booking.booking_end_utc <= now,
                 )
                 .scalar()
             )
