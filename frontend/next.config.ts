@@ -102,6 +102,10 @@ const nextConfig: NextConfig = {
   turbopack: {
     resolveAlias: {
       '@mediapipe/selfie_segmentation': './stubs/mediapipe-selfie-segmentation.js',
+      '@100mslive/hms-virtual-background': './stubs/hms-virtual-background.js',
+      '@100mslive/hms-virtual-background/hmsvbplugin': './stubs/hms-virtual-background.js',
+      '@100mslive/hms-virtual-background/hmseffectsplugin': './stubs/hms-virtual-background.js',
+      '@100mslive/hms-noise-cancellation': './stubs/hms-noise-cancellation.js',
     },
   },
   distDir: process.env['NEXT_DIST_DIR'] || '.next',
