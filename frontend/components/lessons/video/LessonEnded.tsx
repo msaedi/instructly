@@ -9,6 +9,7 @@ interface LessonEndedProps {
   userRole: 'student' | 'instructor';
   localJoinedAt?: string | null;
   localLeftAt?: string | null;
+  localDurationSeconds?: number | null;
 }
 
 function formatDuration(seconds: number | null | undefined): string {
@@ -38,13 +39,15 @@ function formatTime(iso: string | null | undefined): string {
   }
 }
 
-export function LessonEnded({ booking, sessionData, userRole, localJoinedAt, localLeftAt }: LessonEndedProps) {
+export function LessonEnded({ booking, sessionData, userRole, localJoinedAt, localLeftAt, localDurationSeconds }: LessonEndedProps) {
   const backHref = userRole === 'instructor' ? '/instructor/bookings' : '/student/lessons';
 
-  // Duration: prefer backend, fall back to client-side computation
+  // Duration: prefer backend, then pre-computed local, then compute from timestamps
   const duration = booking.video_session_duration_seconds
     ? formatDuration(booking.video_session_duration_seconds)
-    : computeLocalDuration(localJoinedAt, localLeftAt);
+    : localDurationSeconds
+      ? formatDuration(localDurationSeconds)
+      : computeLocalDuration(localJoinedAt, localLeftAt);
 
   // Join times: prefer backend webhook data, fall back to local timestamp for own role only
   const instructorJoinedDisplay = formatTime(

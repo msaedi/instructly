@@ -128,6 +128,32 @@ describe('LessonEnded', () => {
     expect(studentRow).not.toHaveTextContent('--');
   });
 
+  it('uses localDurationSeconds when backend duration is null', () => {
+    const booking = { ...baseBooking, video_session_duration_seconds: null } as unknown as Booking;
+    render(
+      <LessonEnded
+        booking={booking}
+        sessionData={null}
+        userRole="student"
+        localDurationSeconds={48}
+      />,
+    );
+    expect(screen.getByText('0m 48s')).toBeInTheDocument();
+  });
+
+  it('prefers backend duration over localDurationSeconds', () => {
+    render(
+      <LessonEnded
+        booking={baseBooking}
+        sessionData={sessionData}
+        userRole="student"
+        localDurationSeconds={48}
+      />,
+    );
+    // Backend has 1800s = "30m", not "0m 48s"
+    expect(screen.getByText('30m')).toBeInTheDocument();
+  });
+
   it('does not use local timestamps for other role join time', () => {
     render(
       <LessonEnded

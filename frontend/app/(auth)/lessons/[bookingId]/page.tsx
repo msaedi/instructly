@@ -107,6 +107,7 @@ export default function LessonRoomPage() {
   const [joinError, setJoinError] = useState<string | null>(null);
   const [localJoinedAt, setLocalJoinedAt] = useState<string | null>(null);
   const [localLeftAt, setLocalLeftAt] = useState<string | null>(null);
+  const [localDurationSeconds, setLocalDurationSeconds] = useState<number | null>(null);
 
   // Resolved phase: user override wins when set, otherwise derived from booking
   const rawPhase: RoomPhase = phaseOverride ?? bookingPhase.phase;
@@ -135,7 +136,14 @@ export default function LessonRoomPage() {
   }, []);
 
   const handleLeave = () => {
-    setLocalLeftAt(new Date().toISOString());
+    const leftAt = new Date().toISOString();
+    setLocalLeftAt(leftAt);
+    if (localJoinedAt) {
+      const durationSec = Math.round(
+        (new Date(leftAt).getTime() - new Date(localJoinedAt).getTime()) / 1000,
+      );
+      setLocalDurationSeconds(durationSec);
+    }
     setPhaseOverride('ended');
   };
 
@@ -221,7 +229,7 @@ export default function LessonRoomPage() {
   if (phase === 'ended') {
     return (
       <LessonRoomShell>
-        <LessonEnded booking={booking} sessionData={sessionData} userRole={userRole} localJoinedAt={localJoinedAt} localLeftAt={localLeftAt} />
+        <LessonEnded booking={booking} sessionData={sessionData} userRole={userRole} localJoinedAt={localJoinedAt} localLeftAt={localLeftAt} localDurationSeconds={localDurationSeconds} />
       </LessonRoomShell>
     );
   }
