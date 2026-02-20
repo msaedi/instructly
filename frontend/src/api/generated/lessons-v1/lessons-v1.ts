@@ -136,8 +136,8 @@ export const getGetVideoSessionApiV1LessonsBookingIdVideoSessionGetUrl = (bookin
 export const getVideoSessionApiV1LessonsBookingIdVideoSessionGet = async (
   bookingId: string,
   options?: RequestInit
-): Promise<VideoSessionStatusResponse | null> => {
-  return customFetch<VideoSessionStatusResponse | null>(
+): Promise<VideoSessionStatusResponse> => {
+  return customFetch<VideoSessionStatusResponse>(
     getGetVideoSessionApiV1LessonsBookingIdVideoSessionGetUrl(bookingId),
     {
       ...options,

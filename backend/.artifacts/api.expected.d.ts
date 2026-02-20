@@ -17987,7 +17987,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["VideoSessionStatusResponse"] | null;
+ "application/json": components["schemas"]["VideoSessionStatusResponse"];
  };
  };
  422: {

@@ -12,6 +12,7 @@ import {
 } from '@/lib/api/pricing';
 import type { PricingPreviewQuotePayloadBase } from '@/lib/api/pricing';
 import { ApiProblemError } from '@/lib/api/fetch';
+import type { Problem } from '@/lib/errors/problem';
 
 // Mock dependencies
 jest.mock('@/lib/api/pricing', () => ({
@@ -899,6 +900,78 @@ describe('ApiProblemError handling', () => {
     // Empty string detail is preserved (nullish coalescing ?? doesn't catch empty strings)
     await waitFor(() => {
       expect(result.current.error).toBe('');
+    });
+  });
+
+  it('handles ApiProblemError with undefined response status (line 422 else branch)', async () => {
+    fetchPricingPreviewMock.mockResolvedValueOnce({
+      ...mockPreviewResponse,
+      credit_applied_cents: 0,
+    });
+
+    const { result } = renderHook(() =>
+      usePricingPreviewController({ bookingId: 'booking-123' })
+    );
+
+    await waitFor(() => {
+      expect(result.current.preview).not.toBeNull();
+    });
+
+    // ApiProblemError where response has NO status property
+    // This forces err.response?.status === undefined -> else branch (line 422)
+    const apiError = new ApiProblemError(
+      { type: 'server_error', title: 'Server Error', detail: 'Mysterious failure', status: 500 },
+      {} as Response
+    );
+    fetchPricingPreviewMock.mockRejectedValueOnce(apiError);
+
+    let thrownError: Error | null = null;
+    await act(async () => {
+      try {
+        await result.current.applyCredit(4000);
+      } catch (err) {
+        thrownError = err as Error;
+      }
+    });
+
+    expect(thrownError).toBe(apiError);
+    await waitFor(() => {
+      expect(result.current.error).toBe('Mysterious failure');
+    });
+  });
+
+  it('handles ApiProblemError with null detail falling back to default message', async () => {
+    fetchPricingPreviewMock.mockResolvedValueOnce({
+      ...mockPreviewResponse,
+      credit_applied_cents: 0,
+    });
+
+    const { result } = renderHook(() =>
+      usePricingPreviewController({ bookingId: 'booking-123' })
+    );
+
+    await waitFor(() => {
+      expect(result.current.preview).not.toBeNull();
+    });
+
+    // problem.detail is missing at runtime -> ?? falls back to 'Unable to load...'
+    const problem = { type: 'server_error', title: 'Server Error', status: 500 } as unknown as Problem;
+    const apiError = new ApiProblemError(
+      problem,
+      { status: 400 } as Response
+    );
+    fetchPricingPreviewMock.mockRejectedValueOnce(apiError);
+
+    await act(async () => {
+      try {
+        await result.current.applyCredit(6000);
+      } catch {
+        // expected
+      }
+    });
+
+    await waitFor(() => {
+      expect(result.current.error).toBe('Unable to load pricing preview. Please try again.');
     });
   });
 });

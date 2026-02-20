@@ -55,7 +55,13 @@ export function useVideoSessionStatus(
       ...(pollingIntervalMs !== undefined && {
         refetchInterval: (query) => {
           if (stopPollingWhenEnded && query.state.data?.session_ended_at) {
-            return false;
+            const data = query.state.data;
+            const endedAt = new Date(data.session_ended_at as string).getTime();
+            const now = Date.now();
+            // Stop if both join times present, OR 30s elapsed since session ended
+            if ((data.instructor_joined_at && data.student_joined_at) || (now - endedAt > 30_000)) {
+              return false;
+            }
           }
           return pollingIntervalMs;
         },

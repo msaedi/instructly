@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
@@ -105,6 +105,8 @@ export default function LessonRoomPage() {
   const [phaseOverride, setPhaseOverride] = useState<RoomPhase | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [joinError, setJoinError] = useState<string | null>(null);
+  const [localJoinedAt, setLocalJoinedAt] = useState<string | null>(null);
+  const [localLeftAt, setLocalLeftAt] = useState<string | null>(null);
 
   // Resolved phase: user override wins when set, otherwise derived from booking
   const rawPhase: RoomPhase = phaseOverride ?? bookingPhase.phase;
@@ -119,6 +121,7 @@ export default function LessonRoomPage() {
     try {
       const response = await joinLesson(bookingId);
       setAuthToken(response.auth_token);
+      setLocalJoinedAt(new Date().toISOString());
       setPhaseOverride('active');
     } catch (err: unknown) {
       setPhaseOverride(null); // fall back to derived phase
@@ -127,7 +130,12 @@ export default function LessonRoomPage() {
     }
   };
 
+  const handleSdkJoin = useCallback(() => {
+    setLocalJoinedAt(new Date().toISOString());
+  }, []);
+
   const handleLeave = () => {
+    setLocalLeftAt(new Date().toISOString());
     setPhaseOverride('ended');
   };
 
@@ -136,7 +144,7 @@ export default function LessonRoomPage() {
   // Video session polling (active + ended; no continuous poll once ended)
   const { sessionData } = useVideoSessionStatus(bookingId, {
     enabled: rawPhase === 'active' || rawPhase === 'ended',
-    ...(rawPhase === 'active' && { pollingIntervalMs: 10_000 }),
+    pollingIntervalMs: rawPhase === 'active' ? 10_000 : 5_000,
     stopPollingWhenEnded: true,
   });
 
@@ -164,6 +172,7 @@ export default function LessonRoomPage() {
         authToken={authToken}
         userName={userName}
         userId={user.id}
+        onJoin={handleSdkJoin}
         onLeave={handleLeave}
         fallbackPath={fallbackPath}
       />
@@ -212,7 +221,7 @@ export default function LessonRoomPage() {
   if (phase === 'ended') {
     return (
       <LessonRoomShell>
-        <LessonEnded booking={booking} sessionData={sessionData} userRole={userRole} />
+        <LessonEnded booking={booking} sessionData={sessionData} userRole={userRole} localJoinedAt={localJoinedAt} localLeftAt={localLeftAt} />
       </LessonRoomShell>
     );
   }

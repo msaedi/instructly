@@ -11,7 +11,7 @@ Endpoints:
 
 import asyncio
 import logging
-from typing import NoReturn, Optional
+from typing import NoReturn
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.params import Path
@@ -128,7 +128,7 @@ async def join_lesson(
 
 @router.get(
     "/{booking_id}/video-session",
-    response_model=Optional[VideoSessionStatusResponse],
+    response_model=VideoSessionStatusResponse,
     dependencies=[Depends(new_rate_limit("video"))],
 )
 async def get_video_session(

@@ -1885,7 +1885,7 @@ export interface BookingCreate {
   meeting_location?: string | null;
   /**
    * Selected duration in minutes from service's duration_options
-   * @minimum 15
+   * @minimum 30
    * @maximum 720
    */
   selected_duration: number;
@@ -2267,7 +2267,7 @@ export interface BookingRescheduleRequest {
   instructor_service_id?: string | null;
   /**
    * New selected duration in minutes
-   * @minimum 15
+   * @minimum 30
    * @maximum 720
    */
   selected_duration: number;

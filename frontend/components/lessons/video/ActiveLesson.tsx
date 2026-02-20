@@ -189,6 +189,7 @@ interface ActiveLessonProps {
   authToken: string;
   userName: string;
   userId: string;
+  onJoin?: () => void;
   onLeave: () => void;
   fallbackPath?: string;
   redirectToPath?: (path: string) => void;
@@ -198,6 +199,7 @@ export function ActiveLesson({
   authToken,
   userName,
   userId,
+  onJoin,
   onLeave,
   fallbackPath,
   redirectToPath,
@@ -242,6 +244,7 @@ export function ActiveLesson({
         <HMSPrebuilt
           authToken={authToken}
           options={{ userName, userId }}
+          {...(onJoin !== undefined ? { onJoin } : {})}
           onLeave={onLeave}
         />
       </div>

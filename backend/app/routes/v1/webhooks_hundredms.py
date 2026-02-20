@@ -186,15 +186,29 @@ def _handle_peer_join(video_session: Any, booking: Any, data: dict[str, Any]) ->
     peer_id = data.get("peer_id") or ""
     joined_at = _parse_timestamp(data.get("joined_at"))
 
-    # Extract user_id from peer metadata (defense-in-depth)
-    raw_metadata = data.get("metadata") or "{}"
-    try:
-        metadata = (
-            json.loads(raw_metadata) if isinstance(raw_metadata, str) else (raw_metadata or {})
-        )
-        peer_user_id = metadata.get("user_id") if isinstance(metadata, dict) else None
-    except (json.JSONDecodeError, AttributeError):
-        peer_user_id = None
+    logger.info(
+        "peer.join.success processing: booking_id=%s role=%s peer_id=%s joined_at=%s "
+        "data_keys=%s direct_user_id=%s",
+        video_session.booking_id,
+        role,
+        peer_id,
+        joined_at,
+        list(data.keys()),
+        data.get("user_id"),
+    )
+
+    # Extract user_id: prefer direct field (always present from auth token),
+    # fall back to peer metadata JSON (defense-in-depth).
+    peer_user_id = data.get("user_id")
+    if not isinstance(peer_user_id, str) or not peer_user_id:
+        raw_metadata = data.get("metadata") or "{}"
+        try:
+            metadata = (
+                json.loads(raw_metadata) if isinstance(raw_metadata, str) else (raw_metadata or {})
+            )
+            peer_user_id = metadata.get("user_id") if isinstance(metadata, dict) else None
+        except (json.JSONDecodeError, AttributeError):
+            peer_user_id = None
 
     booking_start_utc = getattr(booking, "booking_start_utc", None)
     booking_duration = getattr(booking, "duration_minutes", None)
@@ -210,9 +224,7 @@ def _handle_peer_join(video_session: Any, booking: Any, data: dict[str, Any]) ->
         return False
 
     grace_minutes = compute_grace_minutes(int(booking_duration))
-    join_opens_at = booking_start_utc - timedelta(
-        minutes=15
-    )  # TESTING-ONLY: revert before production (was 5)
+    join_opens_at = booking_start_utc - timedelta(minutes=5)
     join_closes_at = booking_start_utc + timedelta(minutes=grace_minutes)
     if joined_at < join_opens_at or joined_at > join_closes_at:
         logger.warning(
@@ -343,11 +355,10 @@ def _process_hundredms_event(
         video_session.session_started_at = _parse_timestamp(data.get("session_started_at"))
 
     elif event_type == "session.close.success":
-        if video_session.session_ended_at is None:
-            video_session.session_ended_at = _parse_timestamp(data.get("session_stopped_at"))
-            duration = data.get("session_duration")
-            if isinstance(duration, (int, float)):
-                video_session.session_duration_seconds = int(duration)
+        video_session.session_ended_at = _parse_timestamp(data.get("session_stopped_at"))
+        duration = data.get("session_duration")
+        if isinstance(duration, (int, float)):
+            video_session.session_duration_seconds = int(duration)
 
     elif event_type == "peer.join.success":
         if not _handle_peer_join(video_session, booking, data):

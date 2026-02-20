@@ -27,14 +27,14 @@ describe('LessonEnded', () => {
   it('shows session details when sessionData is provided', () => {
     render(<LessonEnded booking={baseBooking} sessionData={sessionData} userRole="student" />);
     expect(screen.getByText('30m')).toBeInTheDocument();
-    expect(screen.getByText(/Instructor joined:/)).toBeInTheDocument();
-    expect(screen.getByText(/Student joined:/)).toBeInTheDocument();
+    expect(screen.getByText('Instructor joined')).toBeInTheDocument();
+    expect(screen.getByText('Student joined')).toBeInTheDocument();
   });
 
-  it('does NOT show session details when sessionData is null', () => {
+  it('always shows session summary section (with fallback values)', () => {
     render(<LessonEnded booking={baseBooking} sessionData={null} userRole="student" />);
-    expect(screen.queryByText(/Duration:/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Instructor joined:/)).not.toBeInTheDocument();
+    expect(screen.getByText('Duration')).toBeInTheDocument();
+    expect(screen.getByText('Instructor joined')).toBeInTheDocument();
   });
 
   it('student role: links to /student/lessons and shows Book Again', () => {
@@ -63,14 +63,13 @@ describe('LessonEnded', () => {
     expect(screen.getByText('1m 35s')).toBeInTheDocument();
   });
 
-  it('formats null duration as "--"', () => {
+  it('formats null duration as "--" when no local timestamps', () => {
     const booking = { ...baseBooking, video_session_duration_seconds: null } as unknown as Booking;
     render(<LessonEnded booking={booking} sessionData={sessionData} userRole="student" />);
     expect(screen.getByText('--')).toBeInTheDocument();
   });
 
   it('formats duration >= 3600s in hours and minutes', () => {
-    // 3660 seconds = 61 minutes = 1h 1m (exercises lines 15-16: m >= 60 branch)
     const booking = { ...baseBooking, video_session_duration_seconds: 3660 } as unknown as Booking;
     render(<LessonEnded booking={booking} sessionData={sessionData} userRole="student" />);
     expect(screen.getByText('1h 1m')).toBeInTheDocument();
@@ -83,14 +82,12 @@ describe('LessonEnded', () => {
   });
 
   it('formats multi-hour duration correctly', () => {
-    // 7380 seconds = 123 minutes = 2h 3m
     const booking = { ...baseBooking, video_session_duration_seconds: 7380 } as unknown as Booking;
     render(<LessonEnded booking={booking} sessionData={sessionData} userRole="student" />);
     expect(screen.getByText('2h 3m')).toBeInTheDocument();
   });
 
   it('returns "--" for formatTime when toLocaleTimeString throws', () => {
-    // Stub Date.prototype.toLocaleTimeString to throw, exercising line 26 (catch branch)
     const original = Date.prototype.toLocaleTimeString;
     Date.prototype.toLocaleTimeString = () => { throw new Error('locale not supported'); };
 
@@ -101,7 +98,6 @@ describe('LessonEnded', () => {
 
     render(<LessonEnded booking={baseBooking} sessionData={session} userRole="student" />);
 
-    // Both time fields should show "--" because toLocaleTimeString throws
     const dashes = screen.getAllByText('--');
     expect(dashes.length).toBeGreaterThanOrEqual(2);
 
@@ -112,5 +108,37 @@ describe('LessonEnded', () => {
     const bookingNoInstructor = { ...baseBooking, instructor_id: undefined } as unknown as Booking;
     render(<LessonEnded booking={bookingNoInstructor} userRole="student" />);
     expect(screen.queryByRole('link', { name: 'Book Again' })).not.toBeInTheDocument();
+  });
+
+  it('uses local timestamps as fallback for own role join time', () => {
+    const booking = { ...baseBooking, video_session_duration_seconds: null } as unknown as Booking;
+    render(
+      <LessonEnded
+        booking={booking}
+        sessionData={null}
+        userRole="student"
+        localJoinedAt="2025-06-01T14:30:00Z"
+        localLeftAt="2025-06-01T15:15:00Z"
+      />,
+    );
+    // Duration computed from local timestamps: 45 minutes
+    expect(screen.getByText('45m')).toBeInTheDocument();
+    // Own role (student) join time should show formatted time, not "--"
+    const studentRow = screen.getByText('Student joined').closest('div');
+    expect(studentRow).not.toHaveTextContent('--');
+  });
+
+  it('does not use local timestamps for other role join time', () => {
+    render(
+      <LessonEnded
+        booking={baseBooking}
+        sessionData={null}
+        userRole="student"
+        localJoinedAt="2025-06-01T14:30:00Z"
+      />,
+    );
+    // Instructor join time should be "--" (local timestamp only applies to student role)
+    const instructorRow = screen.getByText('Instructor joined').closest('div');
+    expect(instructorRow).toHaveTextContent('--');
   });
 });

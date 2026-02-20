@@ -44,9 +44,7 @@ class VideoService(BaseService):
             raise ValidationException("This booking is not an online lesson")
 
         booking_start = booking.booking_start_utc
-        join_opens_at = booking_start - timedelta(
-            minutes=15
-        )  # TESTING-ONLY: revert before production (was 5)
+        join_opens_at = booking_start - timedelta(minutes=5)
         grace_minutes = compute_grace_minutes(booking.duration_minutes)
         join_closes_at = booking_start + timedelta(minutes=grace_minutes)
 

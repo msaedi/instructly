@@ -415,6 +415,54 @@ class TestProcessHundredmsEvent:
 
         assert outcome == "skipped"
 
+    def test_peer_join_uses_direct_user_id_field(self) -> None:
+        """When data.user_id is present (from 100ms auth token), use it
+        instead of relying on metadata JSON parsing."""
+        from app.routes.v1.webhooks_hundredms import _process_hundredms_event
+
+        vs = self._make_video_session()
+        repo = self._make_repo(vs)
+
+        error, outcome = _process_hundredms_event(
+            event_type="peer.join.success",
+            data={
+                "room_name": "lesson-01HYXZ5G6KFXJKZ9CHQM4E3P7G",
+                "peer_id": "peer-direct",
+                "role": "host",
+                "joined_at": "2024-06-15T14:00:00Z",
+                "user_id": "instructor_123",
+                "metadata": "{}",  # no user_id in metadata
+            },
+            booking_repo=repo,
+        )
+
+        assert outcome == "processed"
+        assert vs.instructor_peer_id == "peer-direct"
+        assert vs.instructor_joined_at is not None
+
+    def test_peer_join_falls_back_to_metadata_when_no_direct_user_id(self) -> None:
+        """When data.user_id is absent, fall back to metadata JSON."""
+        from app.routes.v1.webhooks_hundredms import _process_hundredms_event
+
+        vs = self._make_video_session()
+        repo = self._make_repo(vs)
+
+        error, outcome = _process_hundredms_event(
+            event_type="peer.join.success",
+            data={
+                "room_name": "lesson-01HYXZ5G6KFXJKZ9CHQM4E3P7G",
+                "peer_id": "peer-meta",
+                "role": "guest",
+                "joined_at": "2024-06-15T14:01:00Z",
+                "metadata": '{"user_id":"student_123"}',
+            },
+            booking_repo=repo,
+        )
+
+        assert outcome == "processed"
+        assert vs.student_peer_id == "peer-meta"
+        assert vs.student_joined_at is not None
+
     def test_peer_join_mismatched_user_id_is_skipped(self) -> None:
         from app.routes.v1.webhooks_hundredms import _process_hundredms_event
 
@@ -602,7 +650,7 @@ class TestProcessHundredmsEvent:
 
         assert vs.student_left_at == first_leave
 
-    def test_duplicate_session_close_preserves_first_timestamp(self) -> None:
+    def test_later_session_close_overwrites_timestamp(self) -> None:
         from datetime import datetime
 
         from app.routes.v1.webhooks_hundredms import _process_hundredms_event
@@ -623,8 +671,8 @@ class TestProcessHundredmsEvent:
             booking_repo=repo,
         )
 
-        assert vs.session_ended_at == first_end
-        assert vs.session_duration_seconds == 3600
+        assert vs.session_ended_at != first_end
+        assert vs.session_duration_seconds == 7200
 
     # -- Out-of-order tests ----------------------------------------------
 
@@ -668,3 +716,124 @@ class TestProcessHundredmsEvent:
         )
 
         assert vs.student_left_at is None
+
+
+# ---------------------------------------------------------------------------
+# In-memory dedup cache: _delivery_seen, _mark_delivery, _unmark_delivery
+# ---------------------------------------------------------------------------
+
+
+class TestDeliveryCache:
+    """Tests for the in-memory webhook delivery dedup cache."""
+
+    def _clear_cache(self) -> None:
+        from app.routes.v1.webhooks_hundredms import _delivery_cache
+
+        _delivery_cache.clear()
+
+    def setup_method(self) -> None:
+        self._clear_cache()
+
+    def teardown_method(self) -> None:
+        self._clear_cache()
+
+    def test_unseen_key_returns_false(self) -> None:
+        from app.routes.v1.webhooks_hundredms import _delivery_seen
+
+        assert _delivery_seen("new-key") is False
+
+    def test_marked_key_is_seen(self) -> None:
+        from app.routes.v1.webhooks_hundredms import _delivery_seen, _mark_delivery
+
+        _mark_delivery("evt-123")
+        assert _delivery_seen("evt-123") is True
+
+    def test_unmarked_key_is_no_longer_seen(self) -> None:
+        from app.routes.v1.webhooks_hundredms import (
+            _delivery_seen,
+            _mark_delivery,
+            _unmark_delivery,
+        )
+
+        _mark_delivery("evt-456")
+        assert _delivery_seen("evt-456") is True
+
+        _unmark_delivery("evt-456")
+        assert _delivery_seen("evt-456") is False
+
+    def test_none_key_not_marked(self) -> None:
+        from app.routes.v1.webhooks_hundredms import _delivery_cache, _mark_delivery
+
+        _mark_delivery(None)
+        assert len(_delivery_cache) == 0
+
+    def test_none_key_never_seen(self) -> None:
+        from app.routes.v1.webhooks_hundredms import _delivery_seen
+
+        assert _delivery_seen(None) is False
+
+    def test_none_key_unmark_is_noop(self) -> None:
+        from app.routes.v1.webhooks_hundredms import _delivery_cache, _unmark_delivery
+
+        _unmark_delivery(None)
+        assert len(_delivery_cache) == 0
+
+    def test_empty_string_key_not_marked(self) -> None:
+        from app.routes.v1.webhooks_hundredms import _delivery_cache, _mark_delivery
+
+        _mark_delivery("")
+        assert len(_delivery_cache) == 0
+
+    def test_cache_evicts_oldest_when_full(self) -> None:
+        from app.routes.v1.webhooks_hundredms import (
+            _WEBHOOK_CACHE_MAX_SIZE,
+            _delivery_cache,
+            _delivery_seen,
+            _mark_delivery,
+        )
+
+        # Fill to max
+        for i in range(_WEBHOOK_CACHE_MAX_SIZE):
+            _mark_delivery(f"key-{i}")
+        assert len(_delivery_cache) == _WEBHOOK_CACHE_MAX_SIZE
+
+        # Add one more — oldest should be evicted
+        _mark_delivery("overflow-key")
+        assert len(_delivery_cache) == _WEBHOOK_CACHE_MAX_SIZE
+        assert _delivery_seen("key-0") is False
+        assert _delivery_seen("overflow-key") is True
+
+    @patch("app.routes.v1.webhooks_hundredms.monotonic")
+    def test_expired_entries_are_cleaned_on_seen_check(self, mock_monotonic: MagicMock) -> None:
+        from app.routes.v1.webhooks_hundredms import (
+            _WEBHOOK_CACHE_TTL_SECONDS,
+            _delivery_cache,
+            _delivery_seen,
+            _mark_delivery,
+        )
+
+        # Mark at time=0
+        mock_monotonic.return_value = 0.0
+        _mark_delivery("old-key")
+        assert len(_delivery_cache) == 1
+
+        # Check after TTL expires
+        mock_monotonic.return_value = float(_WEBHOOK_CACHE_TTL_SECONDS + 1)
+        assert _delivery_seen("old-key") is False
+        assert len(_delivery_cache) == 0
+
+    def test_multiple_keys_tracked_independently(self) -> None:
+        from app.routes.v1.webhooks_hundredms import (
+            _delivery_seen,
+            _mark_delivery,
+            _unmark_delivery,
+        )
+
+        _mark_delivery("key-a")
+        _mark_delivery("key-b")
+        assert _delivery_seen("key-a") is True
+        assert _delivery_seen("key-b") is True
+
+        _unmark_delivery("key-a")
+        assert _delivery_seen("key-a") is False
+        assert _delivery_seen("key-b") is True
