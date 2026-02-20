@@ -9,9 +9,10 @@ function run(cmd) {
   }
 }
 
-// Check Next.js client chunks for any reference to 'zod'
-// We scope to .next/static/chunks to avoid false positives in server/chunk traces
-const grepCmd = "grep -R -n --include='*.js' zod .next/static/chunks || true";
+// Check Next.js client chunks for any reference to 'zod' (the library).
+// We scope to .next/static/chunks to avoid false positives in server/chunk traces.
+// Use -w (word boundary) to avoid matching substrings like "zodiac" (emoji-mart data).
+const grepCmd = "grep -R -n -w --include='*.js' zod .next/static/chunks || true";
 const out = run(grepCmd);
 
 if (out && out.length > 0) {
