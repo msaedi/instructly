@@ -773,13 +773,18 @@ html {
 }
 .animate-pulse-join { animation: pulseJoin 2s ease-in-out infinite; }
 
-/* Hide 100ms SDK settings gear on preview screen.
-   The gear triggers a Radix UI DialogPortal crash (getComputedStyle on non-Element)
+/* Hide 100ms SDK settings buttons (preview + conference).
+   The settings dialog triggers a Radix UI DialogPortal crash (getComputedStyle on non-Element)
    that is a known bug in the SDK's bundled Radix version.
    We cannot patch the SDK, so we hide the crash trigger.
-   Device settings are not critical for our lesson platform — audio/video toggles remain visible. */
-[data-testid="preview_setting_btn"] {
+   Covers: preview gear, conference "more" menu, conference device-settings item.
+   Audio/video toggle buttons remain visible and functional. */
+[data-testid="preview_setting_btn"],
+[data-testid="device_settings_btn"],
+[data-testid="more_settings_btn"] {
   display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
