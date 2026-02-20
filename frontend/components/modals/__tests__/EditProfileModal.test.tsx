@@ -12178,4 +12178,93 @@ describe('EditProfileModal', () => {
       });
     });
   });
+
+  describe('handleServicesSave — floor violation .find() callback (line 854)', () => {
+    it('shows error message with service name when floor violation exists and save is invoked', async () => {
+      const { evaluatePriceFloorViolations } = jest.requireMock('@/lib/pricing/priceFloors');
+      evaluatePriceFloorViolations.mockReturnValue([
+        {
+          modalityLabel: 'in-person',
+          duration: 60,
+          floorCents: 8500,
+          baseCents: 5000,
+        },
+      ]);
+
+      usePricingConfigMock.mockReturnValue({
+        config: { price_floor_cents: { private_in_person: 8500, private_remote: 6500 } },
+        isLoading: false,
+        error: null,
+      });
+
+      useServiceCategoriesMock.mockReturnValue({
+        data: [{ id: 'cat-1', slug: 'music', name: 'Music' }],
+        isLoading: false,
+      });
+
+      useAllServicesWithInstructorsMock.mockReturnValue({
+        data: {
+          categories: [{
+            slug: 'music',
+            services: [{ id: 'svc-1', name: 'Piano' }],
+          }],
+        },
+        isLoading: false,
+      });
+
+      useInstructorProfileMeMock.mockReturnValue({
+        data: {
+          ...mockInstructorProfile,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            age_groups: ['adults'],
+            levels_taught: ['beginner'],
+            offers_travel: true,
+            offers_at_location: false,
+            offers_online: false,
+            duration_options: [60],
+          }],
+        },
+      });
+
+      render(
+        <EditProfileModal {...defaultProps} variant="services" />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+      });
+
+      // Wait for services to load
+      await waitFor(() => {
+        expect(screen.getByText('Service categories')).toBeInTheDocument();
+      });
+
+      // Defense-in-depth: both the button disabled prop AND the handler check
+      // guard against floor violations. React 18's event system uses fiber props
+      // (not DOM attributes) to block clicks on disabled buttons. To test the
+      // handler's own guard (lines 845-860), bypass React's check by overriding
+      // the fiber props — simulating a DOM manipulation attack.
+      const saveButton = screen.getByRole('button', { name: /save/i });
+      expect(saveButton).toBeDisabled();
+
+      // Override React's internal props so the click event isn't swallowed
+      const propsKey = Object.keys(saveButton).find(k => k.startsWith('__reactProps$'));
+      if (propsKey) {
+        const el = saveButton as unknown as Record<string, Record<string, unknown>>;
+        el[propsKey] = { ...el[propsKey], disabled: false };
+      }
+      fireEvent.click(saveButton);
+
+      // Bug hunt: line 854 uses .find() to look up the service name from
+      // selectedServices by catalog_service_id. The mock has 'svc-1' / 'Piano',
+      // so the message should include 'Piano', not the fallback 'this service'.
+      await waitFor(() => {
+        expect(screen.getByText(/adjust the rate for Piano/)).toBeInTheDocument();
+      });
+    });
+  });
 });

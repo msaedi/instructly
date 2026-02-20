@@ -9128,5 +9128,29 @@ describe('PaymentConfirmation', () => {
         expect(screen.getByText('Saved address')).toBeInTheDocument();
       });
     });
+
+    it('handleEnterNewAddress flushes requestAnimationFrame focus callback (line 278)', async () => {
+      const bookingNoLoc = { ...mockBooking, location: '' };
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingNoLoc} />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('address-selector')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId('enter-new-address-btn'));
+
+      // Flush the requestAnimationFrame callback that tries to focus addressLine1Ref.
+      // Bug hunt: if focus() throws on a null ref or stale element, the whole
+      // handler would crash. The ?. operator on line 279 should prevent this,
+      // but flushing the rAF confirms the callback runs safely.
+      await act(async () => {
+        jest.advanceTimersByTime(16);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('addr-street')).toBeInTheDocument();
+      });
+    });
   });
 });

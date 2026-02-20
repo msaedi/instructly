@@ -11725,4 +11725,38 @@ describe('PaymentSection', () => {
       expect(screen.queryByText('Cancel')).not.toBeInTheDocument();
     });
   });
+
+  describe('usePaymentFlow onSuccess/onError callbacks (covers lines 485, 488)', () => {
+    it('onSuccess callback logs payment details without throwing', () => {
+      render(
+        <PaymentSection {...defaultProps} />,
+        { wrapper: createWrapper() },
+      );
+
+      // Capture the callbacks passed to usePaymentFlow
+      const lastCall = usePaymentFlowMock.mock.calls.at(-1) as [{ onSuccess: (id: string) => void; onError: (err: unknown) => void }] | undefined;
+      expect(lastCall).toBeDefined();
+      const { onSuccess } = lastCall![0];
+
+      // Bug hunt: if onSuccess throws, payment completion silently breaks.
+      // Invoking the callback should not throw and should log the success.
+      expect(() => onSuccess('booking-abc')).not.toThrow();
+    });
+
+    it('onError callback logs the error without throwing', () => {
+      render(
+        <PaymentSection {...defaultProps} />,
+        { wrapper: createWrapper() },
+      );
+
+      const lastCall = usePaymentFlowMock.mock.calls.at(-1) as [{ onSuccess: (id: string) => void; onError: (err: unknown) => void }] | undefined;
+      expect(lastCall).toBeDefined();
+      const { onError } = lastCall![0];
+
+      // Bug hunt: if onError itself throws, the payment flow would crash
+      // instead of gracefully showing the error to the user.
+      const testError = new Error('Stripe declined');
+      expect(() => onError(testError)).not.toThrow();
+    });
+  });
 });

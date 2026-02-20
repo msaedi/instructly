@@ -411,6 +411,44 @@ describe('GlobalBackground', () => {
     });
   });
 
+  it('executes commit callback via setTimeout when image loads after mount (covers line 119)', async () => {
+    Object.defineProperty(window, 'innerWidth', { value: 1024, writable: true, configurable: true });
+
+    // Only fire onload for the 2nd Image (created when hasMounted=true).
+    // This ensures the setTimeout(commit, 80) path is taken and commit() runs.
+    let imageCount = 0;
+    class SelectiveImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      set src(_url: string) {
+        imageCount++;
+        if (imageCount >= 2) {
+          const img = this;
+          queueMicrotask(() => { img.onload?.(); });
+        }
+      }
+    }
+    global.Image = SelectiveImage as unknown as typeof Image;
+
+    mockUsePathname.mockReturnValue('/profile');
+    // Different URL each call ensures urlChanged=true after hasMounted re-render
+    let bgCallCount = 0;
+    (getActivityBackground as jest.Mock).mockImplementation(() => {
+      bgCallCount++;
+      return `/bg${bgCallCount}.jpg`;
+    });
+
+    const { container } = render(<GlobalBackground />);
+
+    // Image #2 fires onload with hasMounted=true → setTimeout(commit, 80).
+    // After 80ms, commit() calls setIsLoaded(true) → opacity becomes '1'.
+    await waitFor(() => {
+      const bgs = container.querySelectorAll('div[aria-hidden="true"]');
+      const actualBg = bgs[1] as HTMLDivElement | undefined;
+      expect(actualBg?.style.opacity).toBe('1');
+    }, { timeout: 3000 });
+  });
+
   it('triggers low-quality Image onload for blur-up layer', async () => {
     Object.defineProperty(window, 'innerWidth', { value: 1024, writable: true, configurable: true });
 

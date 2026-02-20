@@ -2,7 +2,9 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { WhereTheyTeach } from '../WhereTheyTeach';
 
-jest.mock('next/dynamic', () => () => {
+jest.mock('next/dynamic', () => (loadFn: () => Promise<unknown>) => {
+  try { Promise.resolve(loadFn()).catch(() => {}); } catch {}
+
   const MockCoverageMap = ({
     locationPins,
     showCoverage,

@@ -23,7 +23,9 @@ jest.mock('@/lib/logger', () => ({
   },
 }));
 
-jest.mock('next/dynamic', () => () => {
+jest.mock('next/dynamic', () => (loadFn: () => Promise<unknown>) => {
+  try { Promise.resolve(loadFn()).catch(() => {}); } catch {}
+
   const MockTimeSelectionModal = ({
     isOpen,
     onClose,

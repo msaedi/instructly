@@ -565,4 +565,47 @@ describe('InstructorHeader', () => {
       expect(screen.getByText(/Passionate instructor with several years of experience/)).toBeInTheDocument();
     });
   });
+
+  describe('handleShare — clipboard fallback (covers setTimeout callback at line 70)', () => {
+    it('copies link to clipboard and resets shareCopied after timeout', async () => {
+      jest.useFakeTimers();
+      const instructor = createInstructor();
+      const writeTextMock = jest.fn().mockResolvedValue(undefined);
+
+      // Ensure navigator.share is NOT available to force clipboard fallback
+      const originalShare = (navigator as { share?: unknown }).share;
+      delete (navigator as { share?: unknown }).share;
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText: writeTextMock },
+        writable: true,
+        configurable: true,
+      });
+
+      renderWithProviders(<InstructorHeader instructor={instructor} />);
+
+      const shareButton = screen.getByLabelText('Share profile');
+      await act(async () => {
+        fireEvent.click(shareButton);
+      });
+
+      expect(writeTextMock).toHaveBeenCalledWith(expect.any(String));
+
+      // The share button tooltip should temporarily show "Link copied"
+      expect(shareButton).toHaveAttribute('title', 'Link copied');
+
+      // Advance past the 1500ms setTimeout to trigger setShareCopied(false) (line 70)
+      await act(async () => {
+        jest.advanceTimersByTime(1500);
+      });
+
+      // After the timeout, the title should revert
+      expect(shareButton).toHaveAttribute('title', 'Share profile');
+
+      // Restore
+      if (originalShare) {
+        Object.defineProperty(navigator, 'share', { value: originalShare, writable: true, configurable: true });
+      }
+      jest.useRealTimers();
+    });
+  });
 });

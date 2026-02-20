@@ -1994,4 +1994,29 @@ describe('useAvailability', () => {
       expect(body.schedule[2]?.date).toBe('2025-01-19');
     });
   });
+
+  describe('copyFromPreviousWeek — JSON parse error on success response (covers .catch at line 345)', () => {
+    it('returns default message when response body is not valid JSON', async () => {
+      // Bug hunt: server returns 200 OK but with an empty or malformed body.
+      // The .catch(() => null) at line 345 swallows the parse error, and the
+      // fallback message "Copied previous week" is used instead of crashing.
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.reject(new SyntaxError('Unexpected end of JSON input')),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let copyResult: OperationResult;
+      await act(async () => {
+        copyResult = await result.current.copyFromPreviousWeek();
+      });
+
+      expect(copyResult).toEqual({
+        success: true,
+        message: 'Copied previous week', // fallback when payload is null
+      });
+      expect(mockWeekScheduleState.refreshSchedule).toHaveBeenCalled();
+    });
+  });
 });

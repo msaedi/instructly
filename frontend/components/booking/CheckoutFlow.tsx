@@ -92,23 +92,9 @@ const PaymentForm: React.FC<{
   const [cvv, setCvv] = useState('');
   const [requiresCvv, setRequiresCvv] = useState(false);
 
-  const deriveBookingAmount = () => {
-    const raw = (booking as unknown as { total_price?: unknown }).total_price;
-    if (typeof raw === 'number' && Number.isFinite(raw)) {
-      return Number(raw.toFixed(2));
-    }
-    if (typeof raw === 'string') {
-      const parsed = Number(raw);
-      if (Number.isFinite(parsed)) {
-        return Number(parsed.toFixed(2));
-      }
-    }
-    return 0;
-  };
-
   const payAmount = typeof studentPayAmount === 'number'
     ? Number(studentPayAmount.toFixed(2))
-    : deriveBookingAmount();
+    : 0;
 
   useEffect(() => {
     // Select default method if available

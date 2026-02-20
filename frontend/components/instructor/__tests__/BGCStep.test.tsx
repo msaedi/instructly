@@ -2737,4 +2737,36 @@ describe('BGCStep', () => {
       expect(screen.getByText(/Valid until:/).textContent).toContain('—');
     });
   });
+
+  describe('post-invite modal onClose via Escape', () => {
+    it('closes the post-invite modal when Escape key is pressed (bug hunt: onClose callback at line 629)', async () => {
+      bgcInviteMock.mockResolvedValue({ status: 'pending', report_id: 'rpt-new' });
+
+      render(<BGCStep instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /start background check/i })).toBeEnabled();
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /start background check/i }));
+      });
+
+      // Modal should appear
+      await waitFor(() => {
+        expect(screen.getAllByText('Check your email to continue').length).toBeGreaterThan(0);
+      });
+
+      // Close via Escape — this triggers the Modal's onClose prop (line 629)
+      // which is distinct from clicking the "Got it" button
+      await act(async () => {
+        fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' });
+      });
+
+      // Modal should be dismissed
+      await waitFor(() => {
+        expect(screen.queryByText('Thanks for authorizing your background check.')).not.toBeInTheDocument();
+      });
+    });
+  });
 });

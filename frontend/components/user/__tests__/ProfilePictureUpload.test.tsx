@@ -1133,4 +1133,33 @@ describe('ProfilePictureUpload', () => {
       expect(screen.queryByTestId('crop-modal')).not.toBeInTheDocument();
     });
   });
+
+  describe('onPick triggers file input click', () => {
+    it('clicking the camera button calls click() on the hidden file input (bug hunt: onPick at line 78)', () => {
+      (useAuth as jest.Mock).mockReturnValue({
+        checkAuth: jest.fn().mockReturnValue(true),
+        user: { id: '01K2TEST00000000000000001', has_profile_picture: false },
+      });
+      (useProfilePictureUrls as jest.Mock).mockReturnValue({});
+
+      const { Wrapper } = createWrapper();
+      const { container } = render(
+        <Wrapper>
+          <ProfilePictureUpload />
+        </Wrapper>,
+      );
+
+      // The hidden file input
+      const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+      const clickSpy = jest.spyOn(fileInput, 'click');
+
+      // Click the default camera button (no custom trigger)
+      const cameraButton = screen.getByTitle('Choose Image');
+      fireEvent.click(cameraButton);
+
+      // onPick should have triggered fileInput.click()
+      expect(clickSpy).toHaveBeenCalledTimes(1);
+      clickSpy.mockRestore();
+    });
+  });
 });
