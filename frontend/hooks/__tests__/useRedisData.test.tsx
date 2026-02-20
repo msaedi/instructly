@@ -122,4 +122,43 @@ describe('useRedisData', () => {
     expect(getHealthMock).toHaveBeenCalledTimes(2);
     expect(testConnectionMock).toHaveBeenCalledTimes(2);
   });
+
+  it('auto-refreshes on interval tick with authenticated data and handles rejection', async () => {
+    jest.useFakeTimers();
+
+    getHealthMock.mockResolvedValue({ status: 'ok' });
+    testConnectionMock.mockResolvedValue({ status: 'ok', ping: true, message: 'pong' });
+    getStatsMock.mockResolvedValue({ server: { redis_version: '7.0' } });
+    getCeleryQueuesMock.mockResolvedValue({ queues: { default: 2 }, total_pending: 2 });
+    getConnectionAuditMock.mockResolvedValue({ service_connections: {} });
+
+    const { result } = renderHook(() => useRedisData('token-123'));
+
+    // Wait for initial fetch (exercises the authenticated path)
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(getHealthMock).toHaveBeenCalledTimes(1);
+    expect(getStatsMock).toHaveBeenCalledTimes(1);
+    expect(getCeleryQueuesMock).toHaveBeenCalledTimes(1);
+    expect(getConnectionAuditMock).toHaveBeenCalledTimes(1);
+
+    // Make getStats reject on the next interval tick to verify error handling
+    getStatsMock.mockRejectedValueOnce(new Error('Redis connection lost'));
+
+    // Advance 30 seconds to trigger the interval callback
+    await act(async () => {
+      jest.advanceTimersByTime(30 * 1000);
+    });
+
+    // The interval should have triggered a second round of calls
+    await waitFor(() => expect(getHealthMock).toHaveBeenCalledTimes(2));
+
+    // Error should be captured in state, not thrown as an unhandled rejection
+    expect(result.current.error).toBe('Redis connection lost');
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'Failed to fetch Redis data',
+      expect.any(Error)
+    );
+
+    jest.useRealTimers();
+  });
 });

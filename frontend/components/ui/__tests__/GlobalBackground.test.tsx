@@ -524,4 +524,123 @@ describe('GlobalBackground', () => {
       expect(getLowQualityUrl).not.toHaveBeenCalled();
     });
   });
+
+  it('does not generate low-quality URL when resolvedUrl is null', async () => {
+    mockUsePathname.mockReturnValue('/');
+    // Home route with no background returns null
+    (getActivityBackground as jest.Mock).mockReturnValue(null);
+
+    render(<GlobalBackground />);
+
+    // generateLowQuality is only called when resolvedUrl is truthy and urlChanged
+    await waitFor(() => {
+      expect(getLowQualityUrl).not.toHaveBeenCalled();
+    });
+  });
+
+  it('uses ctxActivity for background on non-home routes', async () => {
+    mockUsePathname.mockReturnValue('/lessons');
+    mockUseBackgroundConfig.mockReturnValue({
+      activity: 'yoga',
+      overrides: null,
+      setActivity: jest.fn(),
+      setOverrides: jest.fn(),
+      clearOverrides: jest.fn(),
+    });
+    (getSmartBackgroundForService as jest.Mock).mockResolvedValue('/activities/yoga.jpg');
+    (hasMultipleVariantsForService as jest.Mock).mockResolvedValue(false);
+
+    const { container } = render(<GlobalBackground />);
+
+    await waitFor(() => {
+      const bg = container.querySelector('div[aria-hidden="true"]') as HTMLDivElement | null;
+      expect(bg?.style.backgroundImage).toContain('yoga.jpg');
+    });
+    // Verifies that ctxActivity='yoga' was passed to getSmartBackgroundForService
+    expect(getSmartBackgroundForService).toHaveBeenCalledWith(
+      'yoga',
+      undefined,
+      expect.objectContaining({ enableRotation: expect.any(Boolean) })
+    );
+  });
+
+  it('ignores ctxActivity on home route and uses direct activity prop instead', async () => {
+    mockUsePathname.mockReturnValue('/');
+    mockUseBackgroundConfig.mockReturnValue({
+      activity: 'ignored-ctx-activity',
+      overrides: null,
+      setActivity: jest.fn(),
+      setOverrides: jest.fn(),
+      clearOverrides: jest.fn(),
+    });
+    (getSmartBackgroundForService as jest.Mock).mockResolvedValue('/activities/piano.jpg');
+    (hasMultipleVariantsForService as jest.Mock).mockResolvedValue(false);
+
+    const { container } = render(<GlobalBackground activity="piano" />);
+
+    await waitFor(() => {
+      const bg = container.querySelector('div[aria-hidden="true"]') as HTMLDivElement | null;
+      expect(bg?.style.backgroundImage).toContain('piano.jpg');
+    });
+    // On home route, effectiveActivity should be the direct prop, not ctxActivity
+    expect(getSmartBackgroundForService).toHaveBeenCalledWith(
+      'piano',
+      undefined,
+      expect.objectContaining({ enableRotation: expect.any(Boolean) })
+    );
+  });
+
+  it('merges overrides prop with uiConfig backgrounds', async () => {
+    mockUsePathname.mockReturnValue('/lessons');
+    (getSmartBackgroundForService as jest.Mock).mockResolvedValue('/activities/guitar.jpg');
+    (hasMultipleVariantsForService as jest.Mock).mockResolvedValue(true);
+
+    render(
+      <GlobalBackground
+        activity="guitar"
+        overrides={{ enableRotation: false }}
+      />
+    );
+
+    await waitFor(() => {
+      expect(getSmartBackgroundForService).toHaveBeenCalled();
+    });
+
+    // The merged config should pass enableRotation: false to the smart background resolver
+    expect(getSmartBackgroundForService).toHaveBeenCalledWith(
+      'guitar',
+      undefined,
+      expect.objectContaining({ enableRotation: false })
+    );
+  });
+
+  it('suppresses background on mobile for onboarding skill-selection route', () => {
+    mockUsePathname.mockReturnValue('/instructor/onboarding/skill-selection');
+    Object.defineProperty(window, 'innerWidth', { value: 400, writable: true, configurable: true });
+    (getActivityBackground as jest.Mock).mockReturnValue('/home.jpg');
+
+    const { container } = render(<GlobalBackground />);
+
+    expect(container.querySelector('[aria-hidden="true"]')).not.toBeInTheDocument();
+  });
+
+  it('suppresses background on mobile for onboarding verification route', () => {
+    mockUsePathname.mockReturnValue('/instructor/onboarding/verification');
+    Object.defineProperty(window, 'innerWidth', { value: 500, writable: true, configurable: true });
+    (getActivityBackground as jest.Mock).mockReturnValue('/home.jpg');
+
+    const { container } = render(<GlobalBackground />);
+
+    expect(container.querySelector('[aria-hidden="true"]')).not.toBeInTheDocument();
+  });
+
+  it('suppresses background on mobile for onboarding payment-setup route', () => {
+    mockUsePathname.mockReturnValue('/instructor/onboarding/payment-setup');
+    Object.defineProperty(window, 'innerWidth', { value: 320, writable: true, configurable: true });
+    (getActivityBackground as jest.Mock).mockReturnValue('/home.jpg');
+
+    const { container } = render(<GlobalBackground />);
+
+    expect(container.querySelector('[aria-hidden="true"]')).not.toBeInTheDocument();
+  });
 });

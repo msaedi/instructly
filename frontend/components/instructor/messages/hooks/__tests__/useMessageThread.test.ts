@@ -3260,4 +3260,372 @@ describe('useMessageThread', () => {
       expect(result.current.threadMessages).toEqual([]);
     });
   });
+
+  // -----------------------------------------------------------------
+  // Branch-coverage: binary-expr, cond-expr, if-else paths
+  // -----------------------------------------------------------------
+  describe('branch coverage — nullish paths and fallbacks', () => {
+    it('handles SSE message with null createdAt (line 350/356 binary-expr)', () => {
+      const { Wrapper } = createWrapper();
+      const setConversations = jest.fn();
+      const conversation = makeConversation();
+      const { result } = renderHook(
+        () =>
+          useMessageThread({
+            currentUserId: 'instr-001',
+            conversations: [conversation],
+            setConversations,
+          }),
+        { wrapper: Wrapper }
+      );
+
+      // Send SSE message with missing created_at
+      act(() => {
+        result.current.handleSSEMessage(
+          {
+            id: 'msg-no-date',
+            content: 'No timestamp',
+            sender_id: 'student-001',
+            created_at: undefined,
+            is_mine: false,
+          } as unknown as SSEMessageWithOwnership,
+          'conv-001',
+          conversation
+        );
+      });
+
+      // Should still add the message without crashing
+      expect(result.current.threadMessages.length).toBe(1);
+    });
+
+    it('handles SSE message with is_mine false and sender_id matching currentUserId (line 321)', () => {
+      const { Wrapper } = createWrapper();
+      const setConversations = jest.fn();
+      const conversation = makeConversation();
+      const { result } = renderHook(
+        () =>
+          useMessageThread({
+            currentUserId: 'instr-001',
+            conversations: [conversation],
+            setConversations,
+          }),
+        { wrapper: Wrapper }
+      );
+
+      // is_mine=false but sender_id matches currentUserId — isOwnMessage should be true via sender_id check
+      act(() => {
+        result.current.handleSSEMessage(
+          {
+            id: 'msg-own-sender',
+            content: 'Own via sender_id',
+            sender_id: 'instr-001',
+            created_at: new Date().toISOString(),
+            is_mine: false,
+          } as SSEMessageWithOwnership,
+          'conv-001',
+          conversation
+        );
+      });
+
+      // Own messages that are not already in thread should NOT be added
+      expect(result.current.messagesByThread['conv-001'] ?? []).toEqual([]);
+    });
+
+    it('handles handleSendMessage with null selectedChat (compose without recipient)', async () => {
+      const { Wrapper } = createWrapper();
+      const setConversations = jest.fn();
+      const { result } = renderHook(
+        () =>
+          useMessageThread({
+            currentUserId: 'instr-001',
+            conversations: [],
+            setConversations,
+          }),
+        { wrapper: Wrapper }
+      );
+
+      const onSuccess = jest.fn();
+      await act(async () => {
+        await result.current.handleSendMessage({
+          selectedChat: null,
+          messageText: 'Hello',
+          pendingAttachments: [],
+          composeRecipient: null,
+          conversations: [],
+          getPrimaryBookingId: () => null,
+          onSuccess,
+        });
+      });
+
+      // Should return early because no selectedChat and no composeRecipient
+      expect(onSuccess).not.toHaveBeenCalled();
+    });
+
+    it('handles conversation list lastMessage fallback when trimmed is empty but has attachments (line 471-472)', async () => {
+      const { Wrapper } = createWrapper();
+      const conversation = makeConversation();
+      const capturedUpdates: ConversationEntry[][] = [];
+      const setConversations = jest.fn((updater) => {
+        if (typeof updater === 'function') {
+          const result = updater([conversation]) as ConversationEntry[];
+          capturedUpdates.push(result);
+        }
+      });
+      const { result } = renderHook(
+        () =>
+          useMessageThread({
+            currentUserId: 'instr-001',
+            conversations: [conversation],
+            setConversations,
+          }),
+        { wrapper: Wrapper }
+      );
+
+      const file = new File(['data'], 'report.pdf', { type: 'application/pdf' });
+      const onSuccess = jest.fn();
+
+      await act(async () => {
+        await result.current.handleSendMessage({
+          selectedChat: 'conv-001',
+          messageText: '',  // Empty text
+          pendingAttachments: [file],
+          composeRecipient: null,
+          conversations: [conversation],
+          getPrimaryBookingId: () => null,
+          onSuccess,
+        });
+      });
+
+      // Should have sent with attachment info
+      expect(onSuccess).toHaveBeenCalled();
+      // The conversation lastMessage should be "Sent 1 attachment(s)"
+      const updateWithAttachment = capturedUpdates.find(
+        (list) => list.some((c) => c.lastMessage?.includes('attachment'))
+      );
+      expect(updateWithAttachment).toBeDefined();
+    });
+
+    it('handles compose flow creating new conversation entry with fallback fields (lines 484-494)', async () => {
+      const { Wrapper } = createWrapper();
+      const recipient = makeConversation({
+        id: 'new-conv-2',
+        name: undefined as unknown as string,
+        avatar: undefined as unknown as string,
+        bookingIds: undefined as unknown as string[],
+        primaryBookingId: undefined as unknown as string | null,
+        studentId: undefined as unknown as string | null,
+        instructorId: undefined as unknown as string,
+      });
+      let capturedConvList: ConversationEntry[] = [];
+      const setConversations = jest.fn((updater) => {
+        if (typeof updater === 'function') {
+          capturedConvList = updater([]) as ConversationEntry[];
+        }
+      });
+      const { result } = renderHook(
+        () =>
+          useMessageThread({
+            currentUserId: 'instr-001',
+            conversations: [],
+            setConversations,
+          }),
+        { wrapper: Wrapper }
+      );
+
+      const onSuccess = jest.fn();
+      await act(async () => {
+        await result.current.handleSendMessage({
+          selectedChat: '__compose__',
+          messageText: 'Hello fallback fields',
+          pendingAttachments: [],
+          composeRecipient: recipient,
+          conversations: [],
+          getPrimaryBookingId: () => null,
+          onSuccess,
+        });
+      });
+
+      // New conversation entry should use fallback values
+      const newConv = capturedConvList.find((c) => c.id === 'new-conv-2');
+      expect(newConv).toBeDefined();
+    });
+
+    it('handles loadThreadMessages showing cached messages', () => {
+      const { Wrapper } = createWrapper();
+      const conversation = makeConversation();
+      const setConversations = jest.fn();
+      const { result } = renderHook(
+        () =>
+          useMessageThread({
+            currentUserId: 'instr-001',
+            conversations: [conversation],
+            setConversations,
+          }),
+        { wrapper: Wrapper }
+      );
+
+      // First, add some messages to cache via SSE
+      act(() => {
+        result.current.handleSSEMessage(
+          {
+            id: 'cached-msg',
+            content: 'Cached',
+            sender_id: 'student-001',
+            created_at: new Date().toISOString(),
+            is_mine: false,
+          } as SSEMessageWithOwnership,
+          'conv-001',
+          conversation
+        );
+      });
+
+      // Now load — should show cached messages immediately
+      act(() => {
+        result.current.loadThreadMessages('conv-001', conversation, 'inbox');
+      });
+
+      expect(result.current.threadMessages.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('handles loadThreadMessages with latestMessageAt of 0 (line 272 — initialTs <= 0)', () => {
+      const { Wrapper } = createWrapper();
+      const conversation = makeConversation({ latestMessageAt: 0 });
+      const setConversations = jest.fn();
+      const { result } = renderHook(
+        () =>
+          useMessageThread({
+            currentUserId: 'instr-001',
+            conversations: [conversation],
+            setConversations,
+          }),
+        { wrapper: Wrapper }
+      );
+
+      act(() => {
+        result.current.loadThreadMessages('conv-001', conversation, 'inbox');
+      });
+
+      // Should not crash, threadMessages may be empty
+      expect(result.current.threadMessages).toBeDefined();
+    });
+
+    it('handles SSE message where conversation id does not match selectedChat in setConversations', () => {
+      const { Wrapper } = createWrapper();
+      const conversation = makeConversation({ id: 'conv-001' });
+      const otherConv = makeConversation({ id: 'conv-other' });
+      const setConversations = jest.fn();
+      const { result } = renderHook(
+        () =>
+          useMessageThread({
+            currentUserId: 'instr-001',
+            conversations: [conversation, otherConv],
+            setConversations,
+          }),
+        { wrapper: Wrapper }
+      );
+
+      // SSE message for conv-001 while viewing conv-other
+      act(() => {
+        result.current.handleSSEMessage(
+          {
+            id: 'msg-other',
+            content: 'For other',
+            sender_id: 'student-001',
+            created_at: new Date().toISOString(),
+            is_mine: false,
+          } as SSEMessageWithOwnership,
+          'conv-other',
+          otherConv
+        );
+      });
+
+      // Messages should be added to conv-other thread
+      expect(result.current.messagesByThread['conv-other']?.length).toBe(1);
+    });
+
+    it('handles updateThreadMessage with non-existent messageId', () => {
+      const { Wrapper } = createWrapper();
+      const setConversations = jest.fn();
+      const { result } = renderHook(
+        () =>
+          useMessageThread({
+            currentUserId: 'instr-001',
+            conversations: [],
+            setConversations,
+          }),
+        { wrapper: Wrapper }
+      );
+
+      // Try to update a message that doesn't exist
+      act(() => {
+        result.current.updateThreadMessage('non-existent-id', (msg) => ({
+          ...msg,
+          text: 'Updated',
+        }));
+      });
+
+      // Should not crash
+      expect(result.current.threadMessages).toEqual([]);
+    });
+
+    it('handles handleSendMessage with attachments when text is empty (compose message format, line 511-513)', async () => {
+      const { Wrapper } = createWrapper();
+      const setConversations = jest.fn((updater) => {
+        if (typeof updater === 'function') updater([makeConversation()]);
+      });
+      const { result } = renderHook(
+        () =>
+          useMessageThread({
+            currentUserId: 'instr-001',
+            conversations: [makeConversation()],
+            setConversations,
+          }),
+        { wrapper: Wrapper }
+      );
+
+      const file1 = new File(['a'], 'doc.pdf', { type: 'application/pdf' });
+      const file2 = new File(['b'], 'img.png', { type: 'image/png' });
+      const onSuccess = jest.fn();
+
+      await act(async () => {
+        await result.current.handleSendMessage({
+          selectedChat: 'conv-001',
+          messageText: '',
+          pendingAttachments: [file1, file2],
+          composeRecipient: null,
+          conversations: [makeConversation()],
+          getPrimaryBookingId: () => 'bk-001',
+          onSuccess,
+        });
+      });
+
+      // Should compose attachment text with newlines
+      expect(mockSendConversationMessage).toHaveBeenCalledWith(
+        'conv-001',
+        '[Attachment] doc.pdf\n[Attachment] img.png',
+        'bk-001'
+      );
+    });
+
+    it('handles invalidateConversationCache call', () => {
+      const { Wrapper, queryClient } = createWrapper();
+      const spy = jest.spyOn(queryClient, 'invalidateQueries');
+      const setConversations = jest.fn();
+      const { result } = renderHook(
+        () =>
+          useMessageThread({
+            currentUserId: 'instr-001',
+            conversations: [],
+            setConversations,
+          }),
+        { wrapper: Wrapper }
+      );
+
+      act(() => {
+        result.current.invalidateConversationCache('conv-001');
+      });
+
+      expect(spy).toHaveBeenCalled();
+    });
+  });
 });

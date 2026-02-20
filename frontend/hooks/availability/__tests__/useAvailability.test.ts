@@ -1273,6 +1273,91 @@ describe('useAvailability', () => {
     });
   });
 
+  describe('optional fields omitted from return when empty', () => {
+    it('omits version when undefined', () => {
+      mockWeekScheduleState.version = undefined as unknown as string;
+      mockWeekScheduleState.etag = undefined as unknown as string;
+      mockWeekScheduleState.lastModified = undefined as unknown as string;
+      mockWeekScheduleState.allowPastEdits = undefined as unknown as boolean;
+
+      const { result } = renderHook(() => useAvailability());
+
+      expect(result.current.version).toBeUndefined();
+      expect(result.current.etag).toBeUndefined();
+      expect(result.current.lastModified).toBeUndefined();
+      expect(result.current.allowPastEdits).toBeUndefined();
+    });
+
+    it('omits version and etag when empty string (falsy)', () => {
+      mockWeekScheduleState.version = '';
+      mockWeekScheduleState.etag = '';
+      mockWeekScheduleState.lastModified = '';
+
+      const { result } = renderHook(() => useAvailability());
+
+      // Empty strings are falsy, so the spread doesn't include them
+      expect(result.current.version).toBeUndefined();
+      expect(result.current.etag).toBeUndefined();
+      expect(result.current.lastModified).toBeUndefined();
+    });
+  });
+
+  describe('computeBitsDelta edge cases', () => {
+    it('handles dates present only in previous (all removed)', async () => {
+      const prevBits = new Uint8Array([0b11111111, 0, 0, 0, 0, 0]);
+      mockWeekScheduleState.savedWeekBits = { '2025-01-13': prevBits } as unknown as WeekBits;
+      // Next has no bits at all - everything was removed
+      mockWeekScheduleState.weekBits = {} as WeekBits;
+
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: { success: boolean; message: string };
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      expect(saveResult!.success).toBe(true);
+      // The debug log should show removed bits
+      const { logger } = jest.requireMock('@/lib/logger');
+      expect(logger.debug).toHaveBeenCalledWith(
+        expect.stringContaining('bitsDelta')
+      );
+    });
+
+    it('handles dates present only in next (all added)', async () => {
+      mockWeekScheduleState.savedWeekBits = {} as WeekBits;
+      const nextBits = new Uint8Array([0b00001111, 0, 0, 0, 0, 0]);
+      mockWeekScheduleState.weekBits = { '2025-01-13': nextBits } as unknown as WeekBits;
+
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: { success: boolean; message: string };
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      expect(saveResult!.success).toBe(true);
+    });
+  });
+
   describe('saveWeek with non-empty weekBits', () => {
     it('computes bits delta and logs it', async () => {
       const bits = new Uint8Array([0b11110000, 0, 0, 0, 0, 0]);
@@ -1509,6 +1594,160 @@ describe('useAvailability', () => {
     });
   });
 
+  describe('extractErrorMessage — empty detail array with only non-message entries', () => {
+    it('falls through to JSON.stringify when detail array has no valid entries', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        status: 422,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({
+            // All entries filter to empty because they have no string value and no msg field
+            detail: [{ code: 1 }, { loc: ['x'] }, { type: 'error' }],
+          }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: OperationResult;
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      // msgs.length is 0, so falls through to JSON.stringify
+      expect(saveResult?.message).toContain('detail');
+    });
+
+    it('handles empty detail array that filters to zero valid entries', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        status: 422,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ detail: [] }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: OperationResult;
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      // Empty array -> msgs.length is 0 -> falls through to message check -> JSON.stringify
+      expect(saveResult?.message).toContain('detail');
+    });
+  });
+
+  describe('saveWeek — schedule slots with null/empty windows', () => {
+    it('handles null slot entries in schedule source gracefully', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      // Schedule with a date that has a falsy/undefined slots value
+      const customSchedule: WeekSchedule = {
+        '2025-01-15': [{ start_time: '09:00', end_time: '10:00' }],
+      };
+      // Manually add a date with undefined slots to exercise the `|| []` guard
+      (customSchedule as Record<string, unknown>)['2025-01-16'] = undefined;
+
+      await act(async () => {
+        await result.current.saveWeek({ scheduleOverride: customSchedule });
+      });
+
+      const body = JSON.parse(
+        (fetchWithAuth.mock.calls[0] as [string, { body: string }])[1].body
+      ) as { schedule: Array<{ date: string }> };
+
+      // Only '2025-01-15' should have entries since '2025-01-16' has undefined slots
+      expect(body.schedule.every((s) => s.date === '2025-01-15')).toBe(true);
+    });
+  });
+
+  describe('saveWeek — allowPastEdits on error with non-truthy value', () => {
+    it('sets allowPastEdits to false for X-Allow-Past "no" on error response', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        headers: {
+          get: (name: string) => (name === 'X-Allow-Past' ? 'no' : null),
+        },
+        clone: () => ({
+          json: () => Promise.resolve({ detail: 'Error' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      await act(async () => {
+        await result.current.saveWeek();
+      });
+
+      expect(mockWeekScheduleState.setAllowPastEdits).toHaveBeenCalledWith(false);
+    });
+  });
+
+  describe('saveWeek — no version on conflict when both serverVersion and etag are null', () => {
+    it('does not set serverVersion in result when no version sources are available', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ detail: 'Bad request' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: { success: boolean; serverVersion?: string };
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      // No serverVersion should be in the result
+      expect(saveResult!.serverVersion).toBeUndefined();
+      // setVersion should NOT have been called
+      expect(mockWeekScheduleState.setVersion).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('saveWeek — non-409 non-version-conflict error', () => {
+    it('returns generic error message for regular API errors', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ detail: 'Internal error' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: { success: boolean; message: string; code?: number };
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      expect(saveResult!.success).toBe(false);
+      expect(saveResult!.code).toBe(500);
+      expect(saveResult!.message).toContain('Internal error');
+      // Should NOT contain the version conflict message
+      expect(saveResult!.message).not.toContain('changed in another session');
+    });
+  });
+
   describe('saveWeek with scheduleOverride triggers scheduleToBits', () => {
     it('converts schedule override to bits and back', async () => {
       const { fromWindows, toWindows } = jest.requireMock('@/lib/calendar/bitset');
@@ -1576,6 +1815,83 @@ describe('useAvailability', () => {
     });
   });
 
+  describe('bitsRecordToSchedule', () => {
+    it('excludes days where toWindows returns empty array from the schedule', async () => {
+      const { toWindows } = jest.requireMock<{ toWindows: jest.Mock }>('@/lib/calendar/bitset');
+      // Day 1 has windows, Day 2 has bits set but toWindows returns [] (bug-hunting edge case)
+      const bitsDay1 = new Uint8Array([0b00000011, 0, 0, 0, 0, 0]);
+      const bitsDay2 = new Uint8Array([0b11000000, 0, 0, 0, 0, 0]);
+      mockWeekScheduleState.weekBits = {
+        '2025-01-13': bitsDay1,
+        '2025-01-14': bitsDay2,
+      } as unknown as WeekBits;
+
+      // toWindows returns slots for first call, empty for second
+      toWindows
+        .mockReturnValueOnce([{ start_time: '09:00', end_time: '10:00' }])
+        .mockReturnValueOnce([]);
+
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      await act(async () => {
+        await result.current.saveWeek();
+      });
+
+      const body = JSON.parse(
+        (fetchWithAuth.mock.calls[0] as [string, { body: string }])[1].body
+      ) as { schedule: Array<{ date: string }> };
+
+      // Only day 1 should appear because day 2 had empty windows from toWindows
+      expect(body.schedule).toHaveLength(1);
+      expect(body.schedule[0]?.date).toBe('2025-01-13');
+    });
+
+    it('includes all days that have non-empty windows from toWindows', async () => {
+      const { toWindows } = jest.requireMock<{ toWindows: jest.Mock }>('@/lib/calendar/bitset');
+      const bits = new Uint8Array([0b00000001, 0, 0, 0, 0, 0]);
+      mockWeekScheduleState.weekBits = {
+        '2025-01-13': bits,
+        '2025-01-14': bits,
+        '2025-01-15': bits,
+      } as unknown as WeekBits;
+
+      toWindows
+        .mockReturnValueOnce([{ start_time: '08:00', end_time: '08:30' }])
+        .mockReturnValueOnce([{ start_time: '09:00', end_time: '09:30' }])
+        .mockReturnValueOnce([{ start_time: '10:00', end_time: '10:30' }]);
+
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      await act(async () => {
+        await result.current.saveWeek();
+      });
+
+      const body = JSON.parse(
+        (fetchWithAuth.mock.calls[0] as [string, { body: string }])[1].body
+      ) as { schedule: Array<{ date: string }> };
+
+      expect(body.schedule).toHaveLength(3);
+    });
+  });
+
   describe('saveWeek schedule sorting', () => {
     it('sorts schedule entries by date then start_time then end_time', async () => {
       fetchWithAuth.mockResolvedValueOnce({
@@ -1611,6 +1927,71 @@ describe('useAvailability', () => {
       expect(body.schedule[1]?.date).toBe('2025-01-15');
       expect(body.schedule[1]?.start_time).toBe('10:00');
       expect(body.schedule[2]?.date).toBe('2025-01-16');
+    });
+
+    it('breaks ties on end_time when date and start_time are identical', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      // Two slots on same date with same start_time but different end_times
+      const customSchedule: WeekSchedule = {
+        '2025-01-15': [
+          { start_time: '09:00', end_time: '11:00' },
+          { start_time: '09:00', end_time: '10:00' },
+        ],
+      };
+
+      await act(async () => {
+        await result.current.saveWeek({ scheduleOverride: customSchedule });
+      });
+
+      const body = JSON.parse(
+        (fetchWithAuth.mock.calls[0] as [string, { body: string }])[1].body
+      ) as { schedule: Array<{ date: string; start_time: string; end_time: string }> };
+
+      // end_time '10:00' should sort before '11:00' via localeCompare
+      expect(body.schedule[0]?.end_time).toBe('10:00');
+      expect(body.schedule[1]?.end_time).toBe('11:00');
+    });
+
+    it('handles schedule with entries across many dates in reverse order', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      // Dates intentionally out of order to verify localeCompare sorts ISO dates correctly
+      const customSchedule: WeekSchedule = {
+        '2025-01-19': [{ start_time: '09:00', end_time: '10:00' }],
+        '2025-01-13': [{ start_time: '09:00', end_time: '10:00' }],
+        '2025-01-17': [{ start_time: '09:00', end_time: '10:00' }],
+      };
+
+      await act(async () => {
+        await result.current.saveWeek({ scheduleOverride: customSchedule });
+      });
+
+      const body = JSON.parse(
+        (fetchWithAuth.mock.calls[0] as [string, { body: string }])[1].body
+      ) as { schedule: Array<{ date: string }> };
+
+      expect(body.schedule[0]?.date).toBe('2025-01-13');
+      expect(body.schedule[1]?.date).toBe('2025-01-17');
+      expect(body.schedule[2]?.date).toBe('2025-01-19');
     });
   });
 });

@@ -809,4 +809,136 @@ describe('BookingModal', () => {
       expect(screen.getByRole('radio', { name: /90 minutes/i })).toBeInTheDocument();
     });
   });
+
+  describe('handleBookingSubmit defensive validation (lines 190-197)', () => {
+    // The button is disabled when fields are empty, so these alert branches
+    // are defensive code. We verify that the disabled state is correct.
+
+    it('button stays disabled when name is cleared after being filled', async () => {
+      useAuthMock.mockReturnValue({
+        user: { full_name: 'Jane Doe', email: 'jane@example.com' },
+        isAuthenticated: true,
+        redirectToLogin: jest.fn(),
+      });
+
+      renderModal();
+
+      const inputs = getTextInputs();
+      const nameInput = inputs[0]!;
+      const phoneInput = inputs[2]!;
+
+      await userEvent.type(phoneInput, '555-1111');
+      await userEvent.click(screen.getByRole('checkbox'));
+
+      // Now clear the name
+      await userEvent.clear(nameInput);
+
+      const continueButton = screen.getByRole('button', { name: 'Continue to Payment' });
+      expect(continueButton).toBeDisabled();
+    });
+  });
+
+  describe('handleContinue when selectedService is null (line 109)', () => {
+    it('returns early and does not redirect when no service selected', async () => {
+      const redirectToLogin = jest.fn();
+      useAuthMock.mockReturnValue({
+        user: null,
+        isAuthenticated: false,
+        redirectToLogin,
+      });
+
+      const instructorNoServices: Instructor = {
+        ...instructor,
+        services: [],
+      };
+
+      renderModal({ instructor: instructorNoServices });
+
+      // The continue button is disabled, use fireEvent to bypass
+      const { fireEvent } = await import('@testing-library/react');
+      const continueButton = screen.getByRole('button', { name: 'Continue to Booking' });
+      fireEvent.click(continueButton);
+
+      // Should not redirect since selectedService is null
+      expect(redirectToLogin).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('overlay click does not close when clicking inner content', () => {
+    it('does not call onClose when click target is not the overlay itself', async () => {
+      useAuthMock.mockReturnValue({
+        user: null,
+        isAuthenticated: false,
+        redirectToLogin: jest.fn(),
+      });
+
+      const { onClose } = renderModal();
+
+      // Click on inner content (heading), not the overlay backdrop
+      const heading = screen.getByText('Confirm Your Lesson');
+      await userEvent.click(heading);
+
+      // onClose should NOT be called since target !== currentTarget
+      expect(onClose).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('form checkbox handling', () => {
+    it('handles checkbox form change correctly via handleFormChange', async () => {
+      useAuthMock.mockReturnValue({
+        user: { full_name: 'Jane Doe', email: 'jane@example.com' },
+        isAuthenticated: true,
+        redirectToLogin: jest.fn(),
+      });
+
+      renderModal();
+
+      // Checkbox uses handleFormChange with type === 'checkbox'
+      const checkbox = screen.getByRole('checkbox');
+      expect(checkbox).not.toBeChecked();
+
+      await userEvent.click(checkbox);
+      expect(checkbox).toBeChecked();
+
+      await userEvent.click(checkbox);
+      expect(checkbox).not.toBeChecked();
+    });
+  });
+
+  describe('totalPrice with null selectedService', () => {
+    it('returns 0 when no services are available', () => {
+      useAuthMock.mockReturnValue({
+        user: null,
+        isAuthenticated: false,
+        redirectToLogin: jest.fn(),
+      });
+
+      const instructorNoServices: Instructor = {
+        ...instructor,
+        services: [],
+      };
+
+      renderModal({ instructor: instructorNoServices });
+
+      // With no selectedService, totalPrice should be $0
+      const priceElements = screen.getAllByText('$0');
+      expect(priceElements.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('user null/empty fields during resetState', () => {
+    it('resets form data with empty user fields', async () => {
+      useAuthMock.mockReturnValue({
+        user: { full_name: null, email: null },
+        isAuthenticated: true,
+        redirectToLogin: jest.fn(),
+      });
+
+      const { onClose } = renderModal();
+
+      // Close to trigger resetState - user.full_name || '' and user.email || '' branches
+      await userEvent.click(screen.getByRole('button', { name: 'Close modal' }));
+      expect(onClose).toHaveBeenCalled();
+    });
+  });
 });

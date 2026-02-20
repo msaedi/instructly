@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import type { AnchorHTMLAttributes, MouseEvent, ReactNode } from 'react';
 import userEvent from '@testing-library/user-event';
 import { StudentHeader } from '../StudentHeader';
@@ -182,5 +182,116 @@ describe('StudentHeader', () => {
 
     expect(logout).toHaveBeenCalled();
     expect(push).toHaveBeenCalledWith('/login');
+  });
+
+  it('does not close menu when clicking inside the menu ref', async () => {
+    usePathnameMock.mockReturnValue('/');
+    const user = userEvent.setup();
+
+    render(<StudentHeader />);
+
+    await user.click(screen.getByRole('button', { name: /open account menu/i }));
+    expect(screen.getByText(/my profile/i)).toBeInTheDocument();
+
+    // Click inside the dropdown (on the user's name text)
+    fireEvent.mouseDown(screen.getByText('Alex Lee'));
+
+    // Menu should remain open because click was inside the menu ref
+    await waitFor(() => {
+      expect(screen.getByText(/my profile/i)).toBeInTheDocument();
+    });
+  });
+
+  it('shows user full name and email in dropdown header', async () => {
+    usePathnameMock.mockReturnValue('/');
+    const user = userEvent.setup();
+
+    render(<StudentHeader />);
+
+    await user.click(screen.getByRole('button', { name: /open account menu/i }));
+
+    expect(screen.getByText('Alex Lee')).toBeInTheDocument();
+    expect(screen.getByText('alex@example.com')).toBeInTheDocument();
+  });
+
+  it('shows all nav items on non-lessons pages', () => {
+    usePathnameMock.mockReturnValue('/');
+
+    render(<StudentHeader />);
+
+    expect(screen.getByRole('link', { name: /home/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /search/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /my lessons/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /rewards/i })).toBeInTheDocument();
+  });
+
+  it('hides search on nested lessons pages like /student/lessons/123', () => {
+    usePathnameMock.mockReturnValue('/student/lessons/abc-123');
+
+    render(<StudentHeader />);
+
+    expect(screen.queryByRole('link', { name: /^search$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /my lessons/i })).toBeInTheDocument();
+  });
+
+  it('cleans up mousedown listener on unmount', async () => {
+    usePathnameMock.mockReturnValue('/');
+    const removeEventSpy = jest.spyOn(document, 'removeEventListener');
+
+    const { unmount } = render(<StudentHeader />);
+
+    removeEventSpy.mockClear();
+    unmount();
+
+    const mousedownRemovals = removeEventSpy.mock.calls.filter(
+      ([event]) => event === 'mousedown'
+    );
+    expect(mousedownRemovals.length).toBeGreaterThan(0);
+
+    removeEventSpy.mockRestore();
+  });
+
+  describe('SSR hydration (server snapshot path)', () => {
+    it('renders fallback placeholder when useSyncExternalStore returns server snapshot (false)', () => {
+      usePathnameMock.mockReturnValue('/');
+      const actualReact = jest.requireActual<typeof import('react')>('react');
+      const spy = jest.spyOn(actualReact, 'useSyncExternalStore').mockImplementation(
+        (_subscribe, _getSnapshot, getServerSnapshot) => {
+          return getServerSnapshot ? getServerSnapshot() : _getSnapshot();
+        }
+      );
+
+      render(<StudentHeader />);
+
+      // When isMounted is false (server snapshot), user info should NOT render.
+      // Instead, the fallback "Account" text and the generic user icon should show.
+      expect(screen.getByText('Account')).toBeInTheDocument();
+      // The UserAvatar should NOT be rendered since isMounted && user is false
+      expect(screen.queryByTestId('user-avatar')).not.toBeInTheDocument();
+
+      spy.mockRestore();
+    });
+
+    it('shows "User" in dropdown header when server snapshot is active', async () => {
+      usePathnameMock.mockReturnValue('/');
+      const actualReact = jest.requireActual<typeof import('react')>('react');
+      const spy = jest.spyOn(actualReact, 'useSyncExternalStore').mockImplementation(
+        (_subscribe, _getSnapshot, getServerSnapshot) => {
+          return getServerSnapshot ? getServerSnapshot() : _getSnapshot();
+        }
+      );
+      const user = userEvent.setup();
+
+      render(<StudentHeader />);
+
+      await user.click(screen.getByRole('button', { name: /open account menu/i }));
+
+      // When isMounted is false, the dropdown should show "User" instead of the actual name
+      expect(screen.getByText('User')).toBeInTheDocument();
+      // Email should be empty string so no email text visible
+      expect(screen.queryByText('alex@example.com')).not.toBeInTheDocument();
+
+      spy.mockRestore();
+    });
   });
 });

@@ -7244,4 +7244,408 @@ describe('SkillsPricingInline', () => {
       });
     });
   });
+
+  // -----------------------------------------------------------------
+  // Branch-coverage: nullish/falsy paths, else branches, ternary false
+  // -----------------------------------------------------------------
+  describe('branch coverage — nullish and falsy paths', () => {
+    it('handles service with null description and null equipment (binary-expr lines 268-269)', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            description: null,
+            equipment_required: null,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Description/equipment should be empty strings, not "null"
+      expect(screen.getByPlaceholderText(/brief description/i)).toHaveValue('');
+      expect(screen.getByPlaceholderText(/yoga mat/i)).toHaveValue('');
+    });
+
+    it('handles service with undefined description and undefined equipment', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            // No description or equipment_required fields at all
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      expect(screen.getByPlaceholderText(/brief description/i)).toHaveValue('');
+      expect(screen.getByPlaceholderText(/yoga mat/i)).toHaveValue('');
+    });
+
+    it('handles service with missing duration_options (line 222 fallback to [60])', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            duration_options: null, // Null duration_options
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Component should default to [60] and render 60m selected
+      const durationButtons = screen.getAllByRole('button', { name: /60m/i });
+      expect(durationButtons.length).toBeGreaterThan(0);
+    });
+
+    it('handles service with empty duration_options array', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            duration_options: [], // Empty array
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Should fall back to [60]
+      const durationButtons = screen.getAllByRole('button', { name: /60m/i });
+      expect(durationButtons.length).toBeGreaterThan(0);
+    });
+
+    it('renders $0 display when hourly_rate is empty string (line 967)', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: '',
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // The display shows "$0" when hourly_rate is empty
+      expect(screen.getByText(/\$0/)).toBeInTheDocument();
+    });
+
+    it('does not show earnings when hourly_rate is 0', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: '0',
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Earnings should NOT be shown when hourly_rate is 0
+      expect(screen.queryByText(/you'll earn/i)).not.toBeInTheDocument();
+    });
+
+    it('handles null service_catalog_name fallback to name in display (line 965)', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: null,
+            name: null,
+            hourly_rate: 50,
+            offers_online: true,
+          }],
+        },
+      });
+      mockDisplayServiceName.mockReturnValue(null);
+
+      render(<SkillsPricingInline />);
+
+      // Falls back to 'Service' display
+      expect(screen.getByText('Service')).toBeInTheDocument();
+    });
+
+    it('handles null hourly_rate from API response (line 419)', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: null,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // hourly_rate defaults to empty string via String(null ?? '')
+      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      expect(rateInput).toHaveValue(null);
+    });
+
+    it('handles profile with no service_area_boroughs and string service_area_summary', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          service_area_neighborhoods: [],
+          service_area_boroughs: [],
+          service_area_summary: 'Covers all of NYC',
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_travel: true,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // hasServiceAreas should be true because summary is non-empty
+      const travelSwitch = screen.getByRole('switch', { name: /i travel to students/i });
+      expect(travelSwitch).not.toBeDisabled();
+    });
+
+    it('handles profileData with non-array service_area_neighborhoods', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          service_area_neighborhoods: 'not-an-array',
+          service_area_boroughs: null,
+          service_area_summary: '',
+          preferred_teaching_locations: null,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Non-array neighborhoods should be treated as empty
+      const travelSwitch = screen.getByRole('switch', { name: /i travel to students/i });
+      expect(travelSwitch).toBeDisabled();
+    });
+
+    it('handles non-finite currentTierPct value (line 169)', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          current_tier_pct: Infinity,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 100,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Should handle Infinity gracefully (currentTierPct fallback to null)
+      expect(screen.getByText(/platform fee/i)).toBeInTheDocument();
+    });
+
+    it('handles non-number currentTierPct value (string)', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          current_tier_pct: 'not-a-number',
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 100,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Should handle string gracefully (currentTierPct fallback to null)
+      expect(screen.getByText(/platform fee/i)).toBeInTheDocument();
+    });
+
+    it('skips buildPriceFloorErrors when no pricingFloors (line 241 else)', () => {
+      mockUsePricingConfig.mockReturnValue({ config: { price_floor_cents: null }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // No price errors should appear without pricing floors
+      expect(screen.queryByText(/minimum price/i)).not.toBeInTheDocument();
+    });
+
+    it('skips violation when service has no location types (line 213 early return)', () => {
+      mockUsePricingConfig.mockReturnValue({
+        config: { price_floor_cents: { private: { '60': 5000 } } },
+        isLoading: false,
+      });
+      // Service has all location options disabled
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 10, // Very low rate but no location types
+            offers_travel: false,
+            offers_at_location: false,
+            offers_online: false,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // No pricing violations should be computed (skipped due to no location types)
+      // evaluatePriceFloorViolations should NOT have been called
+      expect(mockEvaluateViolations).not.toHaveBeenCalled();
+    });
+
+    it('handles empty requestedSkill for handleRequestSkill (line 625)', async () => {
+      const user = userEvent.setup();
+      render(<SkillsPricingInline instructorProfile={{ is_live: false, services: [] } as never} />);
+
+      // Input should be empty
+      expect(screen.getByPlaceholderText(/request a new skill/i)).toHaveValue('');
+
+      // Submit button should be disabled
+      expect(screen.getByRole('button', { name: /submit/i })).toBeDisabled();
+
+      // Even if we click it, nothing should happen
+      await user.click(screen.getByRole('button', { name: /submit/i }));
+      expect(screen.queryByText(/we'll review/i)).not.toBeInTheDocument();
+    });
+
+    it('handles initializeMissingFilters — no change when filters already exist (line 308 false path)', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            filter_selections: { skill_level: ['beginner'], age_groups: ['adults'] },
+            age_groups: ['adults'],
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Component should render without errors — filters already populated
+      const pianoElements = screen.getAllByText(/piano/i);
+      expect(pianoElements.length).toBeGreaterThan(0);
+    });
+
+    it('handles profile with non-string service_area_summary', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          service_area_neighborhoods: [],
+          service_area_boroughs: [],
+          service_area_summary: 12345, // Non-string
+          preferred_teaching_locations: [],
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Non-string summary should be treated as empty
+      const travelSwitch = screen.getByRole('switch', { name: /i travel to students/i });
+      expect(travelSwitch).toBeDisabled();
+    });
+
+    it('handles back-fill effect with empty eligible_age_groups (line 531 if branch)', () => {
+      // Service has empty eligible_age_groups, catalog has them
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            eligible_age_groups: [],
+            offers_online: true,
+          }],
+        },
+      });
+
+      // Catalog provides eligible_age_groups
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [{
+              id: 'svc-1',
+              name: 'Piano',
+              slug: 'piano',
+              subcategory_id: '01HABCTESTSUBCAT0000000001',
+              eligible_age_groups: ['kids', 'teens', 'adults'],
+            }],
+          }],
+        },
+        isLoading: false,
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Should backfill age groups from catalog
+      const pianoElements = screen.getAllByText(/piano/i);
+      expect(pianoElements.length).toBeGreaterThan(0);
+    });
+  });
 });

@@ -1176,6 +1176,105 @@ describe('useProfilePictureUrls', () => {
     });
   });
 
+  describe('fallback map is returned while query is still loading', () => {
+    it('returns fallbackMap (all nulls) before fetchedUrls resolve', async () => {
+      // Delay fetch resolution so useQuery has not resolved yet
+      let resolveResponse!: (value: Response) => void;
+      fetchMock.mockImplementation(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveResponse = resolve;
+          })
+      );
+
+      const { result } = renderHook(
+        () => useProfilePictureUrls(['user-pending-a', 'user-pending-b']),
+        { wrapper: createWrapper() }
+      );
+
+      act(() => {
+        jest.runOnlyPendingTimers();
+      });
+
+      // While query is loading, result should be the fallback map with null values
+      expect(result.current['user-pending-a']).toBeNull();
+      expect(result.current['user-pending-b']).toBeNull();
+
+      // Now resolve
+      resolveResponse({
+        ok: true,
+        json: async () => ({
+          urls: {
+            'user-pending-a': 'https://cdn/a',
+            'user-pending-b': 'https://cdn/b',
+          },
+        }),
+      } as Response);
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(result.current['user-pending-a']).toBe('https://cdn/a');
+      });
+    });
+  });
+
+  describe('version delimiter edge case with empty split segment', () => {
+    it('handles version delimiter where versionStr defaults to "0"', async () => {
+      // "user-test::v=" splits to ["user-test", ""] -> parseInt("", 10) = NaN -> fallback to 0
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          urls: { 'user-test': 'https://cdn/avatar/test' },
+        }),
+      } as Response);
+
+      const { result } = renderHook(
+        () => useProfilePictureUrls(['user-test::v=']),
+        { wrapper: createWrapper() }
+      );
+
+      act(() => {
+        jest.runOnlyPendingTimers();
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(result.current['user-test']).toBe('https://cdn/avatar/test');
+      });
+    });
+  });
+
+  describe('requestProfilePictureBatch empty ids guard', () => {
+    it('returns empty map immediately for empty ids array via internal path', async () => {
+      // This exercises the `if (!ids.length) return {}` in requestProfilePictureBatch.
+      // We test it indirectly by passing all empty-string ids that get filtered out.
+      const { result } = renderHook(
+        () => useProfilePictureUrls(['', '', '']),
+        { wrapper: createWrapper() }
+      );
+
+      act(() => {
+        jest.runOnlyPendingTimers();
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // No fetch should happen because all ids are filtered to empty
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(result.current).toEqual({});
+    });
+  });
+
   describe('cache value lookup during flush', () => {
     it('uses cached value from first chunk when processing second chunk with same id', async () => {
       // Create 55 unique ids where some overlap with cached entries

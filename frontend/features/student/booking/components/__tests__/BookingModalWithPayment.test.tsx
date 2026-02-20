@@ -600,4 +600,175 @@ describe('BookingModalWithPayment', () => {
     const parsed = JSON.parse(storedData![1] as string) as Record<string, unknown>;
     expect(parsed).toHaveProperty('freeCancellationUntil');
   });
+
+  it('handles service with null hourly_rate via nullish coalescing (line 53)', () => {
+    useAuthMock.mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      redirectToLogin: jest.fn(),
+    });
+
+    const instructorNullRate: Instructor = {
+      ...instructor,
+      services: [
+        {
+          id: 'service-1',
+          skill: 'Piano',
+          hourly_rate: null as unknown as number,
+          duration_options: [60],
+          duration: 60,
+        },
+      ],
+    };
+
+    renderModal({ instructor: instructorNullRate });
+
+    // rateRaw is null, typeof null !== 'number', String(null ?? '0') = '0', parseFloat('0') = 0
+    expect(screen.getByText(/\$0\.00 total/)).toBeInTheDocument();
+  });
+
+  it('handles service with undefined hourly_rate via nullish coalescing (line 53)', () => {
+    useAuthMock.mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      redirectToLogin: jest.fn(),
+    });
+
+    const instructorUndefinedRate: Instructor = {
+      ...instructor,
+      services: [
+        {
+          id: 'service-1',
+          skill: 'Piano',
+          hourly_rate: undefined as unknown as number,
+          duration_options: [60],
+          duration: 60,
+        },
+      ],
+    };
+
+    renderModal({ instructor: instructorUndefinedRate });
+
+    // rateRaw is undefined, ?? '0' triggers, parseFloat('0') = 0
+    expect(screen.getByText(/\$0\.00 total/)).toBeInTheDocument();
+  });
+
+  it('falls back to serviceAreaDisplayFull when no boroughs', () => {
+    useAuthMock.mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      redirectToLogin: jest.fn(),
+    });
+
+    const instructorNoArea: Instructor = {
+      ...instructor,
+      service_area_boroughs: [],
+      service_area_summary: 'Brooklyn Area',
+    };
+
+    renderModal({ instructor: instructorNoArea });
+
+    // serviceAreaBoroughs is empty, so primaryServiceArea = serviceAreaDisplayFull
+    expect(screen.getByText('Brooklyn Area')).toBeInTheDocument();
+  });
+
+  it('shows booking details when authenticated but user is null (line 147-150)', async () => {
+    useAuthMock.mockReturnValue({
+      user: null,
+      isAuthenticated: true,
+      redirectToLogin: jest.fn(),
+    });
+
+    renderModal();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Continue to Booking' }));
+
+    // Should show booking details form even when user is null (the if(user) block skipped)
+    expect(screen.getByText('Booking Details')).toBeInTheDocument();
+  });
+
+  it('does not change service when dropdown value does not match any service', async () => {
+    useAuthMock.mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      redirectToLogin: jest.fn(),
+    });
+
+    renderModal({ instructor: instructorMultipleServices });
+
+    const dropdown = screen.getByRole('combobox');
+
+    // Directly fire a change event with a non-existent service ID
+    // This exercises the `if (service)` guard at line 259
+    const event = { target: { value: 'non-existent-id' } };
+    // Use fireEvent to set a value that doesn't match any service
+    const { fireEvent } = await import('@testing-library/react');
+    fireEvent.change(dropdown, event);
+
+    // Price should remain the same as the initial service (Piano at $100/hr for 60 min)
+    expect(screen.getByText(/\$100\.00 total/)).toBeInTheDocument();
+  });
+
+  it('falls back to NYC when getServiceAreaDisplay returns empty string', () => {
+    useAuthMock.mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      redirectToLogin: jest.fn(),
+    });
+
+    const instructorEmptyArea: Instructor = {
+      ...instructor,
+      service_area_boroughs: [],
+      service_area_summary: '',
+    };
+
+    renderModal({ instructor: instructorEmptyArea });
+
+    // getServiceAreaDisplay returns '' -> || 'NYC' triggers
+    expect(screen.getByText('NYC')).toBeInTheDocument();
+  });
+
+  it('uses defaultDuration fallback of 60 when service has no duration', () => {
+    useAuthMock.mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      redirectToLogin: jest.fn(),
+    });
+
+    const instructorNoDuration: Instructor = {
+      ...instructor,
+      services: [
+        {
+          id: 'service-1',
+          skill: 'Piano',
+          hourly_rate: 120,
+          duration_options: [60],
+          duration: undefined as unknown as number,
+        },
+      ],
+    };
+
+    renderModal({ instructor: instructorNoDuration });
+
+    // defaultDuration = defaultService?.duration ?? 60 = 60
+    // totalPrice = 120 * (60/60) = 120
+    expect(screen.getByText(/\$120\.00 total/)).toBeInTheDocument();
+  });
+
+  it('resets form data with user email fallback during handleClose', async () => {
+    useAuthMock.mockReturnValue({
+      user: { full_name: 'Jane Doe', email: '' },
+      isAuthenticated: true,
+      redirectToLogin: jest.fn(),
+    });
+
+    const { onClose } = renderModal();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Continue to Booking' }));
+    expect(screen.getByText('Booking Details')).toBeInTheDocument();
+
+    // Close to trigger resetState
+    await userEvent.click(screen.getByRole('button', { name: 'Close booking modal' }));
+    expect(onClose).toHaveBeenCalled();
+  });
 });

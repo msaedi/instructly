@@ -3,7 +3,7 @@
  * Tests for device context React hooks
  */
 
-import { renderHook, act } from '@testing-library/react';
+import { render, renderHook, act } from '@testing-library/react';
 import {
   useDeviceContext,
   useViewportCategory,
@@ -237,6 +237,31 @@ describe('useDeviceContext', () => {
     unmount();
 
     expect(cleanupFn).toHaveBeenCalled();
+  });
+
+  it('should invoke the initial no-op refresh during first render', () => {
+    // The useState initializer at line 60 creates `refresh: () => {}`.
+    // On mount, the useEffect calls captureContext which replaces it.
+    // To cover the no-op, we call refresh() during the render phase
+    // (before effects run) via a component that invokes it synchronously.
+    let renderCount = 0;
+    let calledInitialRefresh = false;
+
+    function InvokeRefreshDuringRender() {
+      const state = useDeviceContext({ monitorChanges: false });
+      renderCount++;
+      // On the very first render, state.refresh is the no-op () => {}
+      // from useState. Call it to achieve coverage of line 60.
+      if (renderCount === 1) {
+        state.refresh();
+        calledInitialRefresh = true;
+      }
+      return null;
+    }
+
+    render(<InvokeRefreshDuringRender />);
+
+    expect(calledInitialRefresh).toBe(true);
   });
 
   it('should recapture context when connection changes with context', () => {

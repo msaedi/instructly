@@ -2103,4 +2103,227 @@ describe('InstructorCard', () => {
       expect(screen.getByText('· 1.2 mi')).toBeInTheDocument();
     });
   });
+
+  // -----------------------------------------------------------------
+  // Branch-coverage: nullish paths, ternary false paths, else branches
+  // -----------------------------------------------------------------
+  describe('branch coverage — nullish and conditional rendering', () => {
+    it('does not show distance when distanceMi is null (line 169 showDistance=false)', () => {
+      const instructor = { ...createInstructor(), distance_mi: null };
+      renderWithProviders(<InstructorCard instructor={instructor as unknown as Instructor} />);
+      expect(screen.queryByText(/mi$/)).not.toBeInTheDocument();
+    });
+
+    it('does not show distance when distanceMi is Infinity (line 169)', () => {
+      const instructor = { ...createInstructor(), distance_mi: Infinity };
+      renderWithProviders(<InstructorCard instructor={instructor as unknown as Instructor} />);
+      expect(screen.queryByText(/Infinity/)).not.toBeInTheDocument();
+    });
+
+    it('does not show founding badge when is_founding_instructor is false/undefined', () => {
+      const instructor = createInstructor();
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      expect(screen.queryByTestId('founding-badge')).not.toBeInTheDocument();
+    });
+
+    it('does not show BGC badge when bgc_status is absent and not live', () => {
+      const instructor = createInstructor();
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      expect(screen.queryByTestId('bgc-badge')).not.toBeInTheDocument();
+    });
+
+    it('shows BGC badge for bgc_status "passed" (line 179)', () => {
+      const instructor = { ...createInstructor(), bgc_status: 'passed' };
+      renderWithProviders(<InstructorCard instructor={instructor as Instructor} />);
+      expect(screen.getByTestId('bgc-badge')).toBeInTheDocument();
+    });
+
+    it('shows BGC badge for bgc_status "clear" (line 180)', () => {
+      const instructor = { ...createInstructor(), bgc_status: 'clear' };
+      renderWithProviders(<InstructorCard instructor={instructor as Instructor} />);
+      expect(screen.getByTestId('bgc-badge')).toBeInTheDocument();
+    });
+
+    it('shows BGC badge for bgc_status "verified" (line 181)', () => {
+      const instructor = { ...createInstructor(), bgc_status: 'verified' };
+      renderWithProviders(<InstructorCard instructor={instructor as Instructor} />);
+      expect(screen.getByTestId('bgc-badge')).toBeInTheDocument();
+    });
+
+    it('shows BGC badge when background_check_verified is true (line 183)', () => {
+      const instructor = { ...createInstructor(), background_check_verified: true };
+      renderWithProviders(<InstructorCard instructor={instructor as unknown as Instructor} />);
+      expect(screen.getByTestId('bgc-badge')).toBeInTheDocument();
+    });
+
+    it('shows BGC badge when background_check_completed is true (line 186)', () => {
+      const instructor = { ...createInstructor(), background_check_completed: true };
+      renderWithProviders(<InstructorCard instructor={instructor as unknown as Instructor} />);
+      expect(screen.getByTestId('bgc-badge')).toBeInTheDocument();
+    });
+
+    it('does not render review stars section when reviewCount is 0 (rating=null)', () => {
+      mockUseInstructorRatingsQuery.mockReturnValue({ data: null });
+      const instructor = createInstructor();
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      expect(screen.queryByLabelText('See all reviews')).not.toBeInTheDocument();
+    });
+
+    it('handles instructor with no services array (empty services, line 143 primaryService undefined)', () => {
+      const instructor = createInstructor({ services: [] });
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      // hourly rate defaults to 0
+      expect(screen.getByTestId('instructor-price')).toHaveTextContent('$0/hr');
+    });
+
+    it('handles rating being non-number (line 164-165)', () => {
+      mockUseInstructorRatingsQuery.mockReturnValue({
+        data: { overall: { rating: 'not-a-number', total_reviews: 10 } },
+      });
+      const instructor = createInstructor();
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      // rating is not number so showRating should be false
+      expect(screen.queryByLabelText('See all reviews')).not.toBeInTheDocument();
+    });
+
+    it('does not show years experience when years_experience is 0 (line 561)', () => {
+      const instructor = createInstructor({ years_experience: 0 });
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      expect(screen.queryByText(/years experience/)).not.toBeInTheDocument();
+    });
+
+    it('renders review without review_text (only star rating, line 808)', () => {
+      mockUseRecentReviews.mockReturnValue({
+        data: {
+          reviews: [
+            { id: 'r1', rating: 4, review_text: null, reviewer_display_name: 'Alice' },
+          ],
+        },
+      });
+      const instructor = createInstructor();
+      const { container } = renderWithProviders(<InstructorCard instructor={instructor} />);
+      // Review text paragraph (italic) should not be rendered when review_text is null
+      expect(container.querySelector('p.italic.line-clamp-3')).not.toBeInTheDocument();
+      // But reviewer name should be displayed
+      expect(screen.getByText(/Alice/)).toBeInTheDocument();
+    });
+
+    it('renders review without reviewer_display_name (line 811-812)', () => {
+      mockUseRecentReviews.mockReturnValue({
+        data: {
+          reviews: [
+            { id: 'r1', rating: 5, review_text: 'Amazing teacher', reviewer_display_name: null },
+          ],
+        },
+      });
+      const instructor = createInstructor();
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      expect(screen.getByText('"Amazing teacher"')).toBeInTheDocument();
+      // No reviewer name line
+      expect(screen.queryByText(/^-\s/)).not.toBeInTheDocument();
+    });
+
+    it('handles service without service_catalog_id in pill (returns null, line 442)', () => {
+      mockUseServicesCatalog.mockReturnValue({ data: [] });
+      const instructor = createInstructor({
+        services: [
+          {
+            id: 'svc-no-name',
+            service_catalog_id: 'cat-missing',
+            hourly_rate: 60,
+            duration_options: [60],
+          },
+        ],
+      });
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      // Service pill with empty name should not render
+      expect(screen.getByTestId('instructor-card')).toBeInTheDocument();
+    });
+
+    it('handles instructor with bgc_status as background_check_status field (line 173)', () => {
+      const instructor = {
+        ...createInstructor(),
+        bgc_status: undefined,
+        background_check_status: 'passed',
+      };
+      renderWithProviders(<InstructorCard instructor={instructor as unknown as Instructor} />);
+      expect(screen.getByTestId('bgc-badge')).toBeInTheDocument();
+    });
+
+    it('handles no highlightServiceCatalogId — uses first service for format (line 472)', () => {
+      const instructor = createInstructor({
+        services: [{
+          id: 'svc-1',
+          service_catalog_id: 'cat-1',
+          hourly_rate: 60,
+          duration_options: [60],
+          offers_travel: true,
+          offers_online: true,
+        }],
+      });
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      // Should still show format using first service
+      expect(screen.getByText(/format:/i)).toBeInTheDocument();
+    });
+
+    it('renders badge margin classes correctly with showRating but no founding badge (line 433)', () => {
+      mockUseInstructorRatingsQuery.mockReturnValue({
+        data: { overall: { rating: 4.5, total_reviews: 5 } },
+      });
+      const instructor = { ...createInstructor(), bgc_status: 'passed' };
+      renderWithProviders(<InstructorCard instructor={instructor as Instructor} />);
+      // Both rating and BGC badge should be shown
+      expect(screen.getByText('4.5')).toBeInTheDocument();
+      expect(screen.getByTestId('bgc-badge')).toBeInTheDocument();
+    });
+
+    it('handles empty availabilityByDate object', () => {
+      const instructor = createInstructor();
+      renderWithProviders(
+        <InstructorCard
+          instructor={instructor}
+          availabilityData={{ availabilityByDate: {} }}
+        />
+      );
+      expect(screen.getByText('No availability info')).toBeInTheDocument();
+    });
+
+    it('handles day with empty available_slots array', () => {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const dateStr = tomorrow.toISOString().split('T')[0] as string;
+
+      const instructor = createInstructor();
+      renderWithProviders(
+        <InstructorCard
+          instructor={instructor}
+          availabilityData={{
+            availabilityByDate: {
+              [dateStr]: { available_slots: [] },
+            },
+          }}
+        />
+      );
+      expect(screen.getByText('No availability info')).toBeInTheDocument();
+    });
+
+    it('handles preferred_teaching_locations for hasTeachingLocations (lines 474-478)', () => {
+      const instructor = {
+        ...createInstructor({
+          services: [{
+            id: 'svc-1',
+            service_catalog_id: 'cat-1',
+            hourly_rate: 60,
+            duration_options: [60],
+            offers_at_location: true,
+          }],
+        }),
+        preferred_teaching_locations: [{ id: 'loc-1', address: '123 St' }],
+      };
+      renderWithProviders(
+        <InstructorCard instructor={instructor as unknown as Instructor} highlightServiceCatalogId="cat-1" />
+      );
+      expect(screen.getByRole('img', { name: /at their studio/i })).toBeInTheDocument();
+    });
+  });
 });

@@ -82,4 +82,38 @@ describe('useDatabaseData', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.error).toBeNull();
   });
+
+  it('auto-refreshes on interval tick and handles a rejected fetch gracefully', async () => {
+    jest.useFakeTimers();
+
+    const stats = { status: 'ok', pool: { size: 10 } };
+    getStatsMock.mockResolvedValue(stats);
+
+    const { result } = renderHook(() => useDatabaseData('token-123'));
+
+    // Wait for initial fetch
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(getStatsMock).toHaveBeenCalledTimes(1);
+    expect(result.current.data).toEqual(stats);
+
+    // Make the next interval fetch reject to hunt for unhandled rejections
+    getStatsMock.mockRejectedValueOnce(new Error('Connection refused'));
+
+    // Advance 30 seconds to trigger the interval callback
+    await act(async () => {
+      jest.advanceTimersByTime(30 * 1000);
+    });
+
+    // Should have called getStats a second time via the interval
+    await waitFor(() => expect(getStatsMock).toHaveBeenCalledTimes(2));
+
+    // Error state should be set, not thrown
+    expect(result.current.error).toBe('Connection refused');
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'Failed to fetch database data',
+      expect.any(Error)
+    );
+
+    jest.useRealTimers();
+  });
 });

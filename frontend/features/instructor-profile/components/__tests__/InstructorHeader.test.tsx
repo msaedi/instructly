@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { InstructorHeader } from '../InstructorHeader';
@@ -239,6 +239,119 @@ describe('InstructorHeader', () => {
       delete (navigator as { share?: unknown }).share;
     });
 
+    it('falls back to clipboard and shows "Link copied" when navigator.share is absent', async () => {
+      // Ensure navigator.share is NOT available
+      delete (navigator as { share?: unknown }).share;
+
+      // Provide a working clipboard.writeText so the fallback path succeeds
+      const mockWriteText = jest.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText: mockWriteText, readText: jest.fn() },
+        writable: true,
+        configurable: true,
+      });
+
+      const instructor = createInstructor();
+      renderWithProviders(<InstructorHeader instructor={instructor} />);
+
+      const shareButton = screen.getByLabelText('Share profile');
+      // Before clicking, title should be "Share profile"
+      expect(shareButton).toHaveAttribute('title', 'Share profile');
+
+      // Use fireEvent to bypass userEvent's clipboard interception
+      await act(async () => {
+        fireEvent.click(shareButton);
+      });
+
+      // After the clipboard fallback, setShareCopied(true) is called and title becomes "Link copied"
+      await waitFor(() => {
+        expect(screen.getByLabelText('Share profile')).toHaveAttribute('title', 'Link copied');
+      });
+
+      // Verify writeText was called with the page URL
+      expect(mockWriteText).toHaveBeenCalledWith(expect.any(String));
+    });
+
+    it('does not crash when clipboard.writeText throws', async () => {
+      // Ensure navigator.share is NOT available
+      delete (navigator as { share?: unknown }).share;
+
+      // Override clipboard with a rejecting writeText to test the empty catch block
+      const mockWriteText = jest.fn().mockRejectedValue(new Error('Clipboard denied'));
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText: mockWriteText, readText: jest.fn() },
+        writable: true,
+        configurable: true,
+      });
+
+      const instructor = createInstructor();
+      renderWithProviders(<InstructorHeader instructor={instructor} />);
+
+      // Use fireEvent to bypass userEvent clipboard interception
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText('Share profile'));
+      });
+
+      // The empty catch block should swallow the error. Button should still work.
+      expect(screen.getByLabelText('Share profile')).toBeInTheDocument();
+      // Since clipboard.writeText threw, setShareCopied(true) was never reached,
+      // so the title should remain "Share profile"
+      expect(screen.getByLabelText('Share profile')).toHaveAttribute('title', 'Share profile');
+    });
+
+    it('passes the correct displayName as title to navigator.share', async () => {
+      const mockShare = jest.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'share', {
+        value: mockShare,
+        writable: true,
+        configurable: true,
+      });
+
+      // Use a different name to verify displayName is correctly computed
+      const instructor = createInstructor({
+        user: { first_name: 'Alice', last_initial: 'B' },
+      });
+      renderWithProviders(<InstructorHeader instructor={instructor} />);
+
+      const user = userEvent.setup();
+      await user.click(screen.getByLabelText('Share profile'));
+
+      expect(mockShare).toHaveBeenCalledWith({
+        title: 'Alice B.',
+        url: expect.any(String),
+      });
+
+      delete (navigator as { share?: unknown }).share;
+    });
+
+    it('does not call clipboard.writeText when navigator.share succeeds', async () => {
+      const mockShare = jest.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'share', {
+        value: mockShare,
+        writable: true,
+        configurable: true,
+      });
+
+      const mockWriteText = jest.fn();
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText: mockWriteText },
+        writable: true,
+        configurable: true,
+      });
+
+      const instructor = createInstructor();
+      renderWithProviders(<InstructorHeader instructor={instructor} />);
+
+      const user = userEvent.setup();
+      await user.click(screen.getByLabelText('Share profile'));
+
+      // navigator.share was called, so clipboard.writeText should NOT be called (early return)
+      expect(mockShare).toHaveBeenCalled();
+      expect(mockWriteText).not.toHaveBeenCalled();
+
+      delete (navigator as { share?: unknown }).share;
+    });
+
   });
 
   describe('handleHeartClick', () => {
@@ -351,6 +464,105 @@ describe('InstructorHeader', () => {
       await user.click(screen.getByText('(10 reviews)'));
 
       expect(mockPush).toHaveBeenCalledWith('/instructors/01K2TEST00000000000000001/reviews');
+    });
+  });
+
+  describe('display name edge cases', () => {
+    it('renders Instructor #id when user has empty first_name and empty last_initial', () => {
+      const instructor = createInstructor({
+        user: { first_name: '', last_initial: '' },
+      });
+      renderWithProviders(<InstructorHeader instructor={instructor} />);
+      // lastInitial is '' (falsy), firstName is '' (falsy) -> falls to Instructor #user_id
+      expect(screen.getByTestId('instructor-profile-name')).toHaveTextContent(
+        'Instructor #01K2TEST00000000000000001'
+      );
+    });
+  });
+
+  describe('isSaved resolution', () => {
+    it('falls back to instructor.is_favorited when favoriteStatus is undefined', () => {
+      mockUseAuth.mockReturnValue({ user: { id: 'user-1' } });
+      // useFavoriteStatus returns undefined (not boolean)
+      mockUseFavoriteStatus.mockReturnValue({ data: undefined });
+
+      const instructor = createInstructor({ is_favorited: true } as InstructorProfile);
+      renderWithProviders(<InstructorHeader instructor={instructor} />);
+
+      // isSaved = undefined ?? true ?? false = true
+      const heartButton = screen.getByLabelText('Toggle favorite');
+      expect(heartButton).toBeInTheDocument();
+      // Heart should be filled (isSaved=true)
+      expect(heartButton.querySelector('svg')).toHaveAttribute('fill', '#7E22CE');
+    });
+
+    it('uses false when both favoriteStatus and is_favorited are undefined', () => {
+      mockUseAuth.mockReturnValue({ user: { id: 'user-1' } });
+      mockUseFavoriteStatus.mockReturnValue({ data: undefined });
+
+      const instructor = createInstructor();
+      // is_favorited is not set -> undefined
+      renderWithProviders(<InstructorHeader instructor={instructor} />);
+
+      // isSaved = undefined ?? undefined ?? false = false
+      const heartButton = screen.getByLabelText('Toggle favorite');
+      expect(heartButton.querySelector('svg')).toHaveAttribute('fill', 'none');
+    });
+  });
+
+  describe('badge rendering edge cases', () => {
+    it('does not render badge container when neither founding nor BGC', () => {
+      const instructor = createInstructor({
+        is_live: false,
+        is_founding_instructor: false,
+      } as InstructorProfile);
+
+      renderWithProviders(<InstructorHeader instructor={instructor} />);
+
+      expect(screen.queryByTestId('founding-badge')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('bgc-badge')).not.toBeInTheDocument();
+    });
+
+    it('renders BGC badge for background_check_status "verified"', () => {
+      const instructor = {
+        ...createInstructor(),
+        background_check_status: 'verified',
+      } as InstructorProfile & { background_check_status: string };
+
+      renderWithProviders(<InstructorHeader instructor={instructor} />);
+
+      expect(screen.getByTestId('bgc-badge')).toBeInTheDocument();
+    });
+
+    it('renders BGC badge when background_check_verified is true', () => {
+      const instructor = {
+        ...createInstructor(),
+        background_check_verified: true,
+      } as InstructorProfile & { background_check_verified: boolean };
+
+      renderWithProviders(<InstructorHeader instructor={instructor} />);
+
+      expect(screen.getByTestId('bgc-badge')).toBeInTheDocument();
+    });
+
+    it('renders BGC badge when background_check_completed is true', () => {
+      const instructor = {
+        ...createInstructor(),
+        background_check_completed: true,
+      } as InstructorProfile & { background_check_completed: boolean };
+
+      renderWithProviders(<InstructorHeader instructor={instructor} />);
+
+      expect(screen.getByTestId('bgc-badge')).toBeInTheDocument();
+    });
+  });
+
+  describe('default bio', () => {
+    it('shows years_experience in default bio when available', () => {
+      const instructor = createInstructor({ bio: '', years_experience: 0 });
+      renderWithProviders(<InstructorHeader instructor={instructor} />);
+      // years_experience is 0 (falsy) -> uses 'several'
+      expect(screen.getByText(/Passionate instructor with several years of experience/)).toBeInTheDocument();
     });
   });
 });

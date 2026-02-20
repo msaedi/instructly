@@ -316,4 +316,118 @@ describe('sendReferralInvites', () => {
       sendReferralInvites({ emails: ['one@example.com'], shareUrl: 'https://share' })
     ).rejects.toThrow('Failed to send invites');
   });
+
+  it('throws fallback when response fails and json parse also fails (null payload)', async () => {
+    // response.ok = false AND json throws -> payload stays null
+    // errorPayload = null -> extractApiErrorMessage({}, 'Failed to send invites')
+    fetchApiMock.mockResolvedValueOnce(makeResponse({ ok: false, jsonThrows: true }));
+
+    await expect(
+      sendReferralInvites({ emails: ['one@example.com'], shareUrl: 'https://share' })
+    ).rejects.toThrow('Failed to send invites');
+  });
+
+  it('omits from_name when not provided', async () => {
+    fetchApiMock.mockResolvedValueOnce(makeResponse({ ok: true, json: { sent: 1 } }));
+
+    await sendReferralInvites({
+      emails: ['test@example.com'],
+      shareUrl: 'https://share',
+      // fromName is not provided
+    });
+
+    const body = JSON.parse(fetchApiMock.mock.calls[0][1].body as string);
+    expect(body).not.toHaveProperty('from_name');
+  });
+});
+
+describe('applyReferralCredit edge cases', () => {
+  const originalFetch = global.fetch;
+  let fetchMock: jest.Mock;
+
+  beforeEach(() => {
+    fetchMock = jest.fn();
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+    withApiBaseForRequestMock.mockClear();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('returns normalized error when payload is a ReferralError with known reason', async () => {
+    // response.ok = false AND isReferralError(payload) = true
+    // This exercises lines 115-117 where payload IS a referral error
+    fetchMock.mockResolvedValueOnce(
+      makeResponse({
+        ok: false,
+        status: 400,
+        json: { reason: 'no_unlocked_credit', message: 'No unlocked credit available' },
+      })
+    );
+
+    const result = await applyReferralCredit('order-100');
+
+    expect(result).toEqual({ type: 'no_unlocked_credit', message: 'No unlocked credit available' });
+  });
+
+  it('returns normalized error when payload is a ReferralError with below_min_basket', async () => {
+    fetchMock.mockResolvedValueOnce(
+      makeResponse({
+        ok: false,
+        status: 422,
+        json: { reason: 'below_min_basket' },
+      })
+    );
+
+    const result = await applyReferralCredit('order-101');
+
+    expect(result).toEqual({ type: 'below_min_basket' });
+  });
+
+  it('normalizes unknown reason to disabled', async () => {
+    // isReferralError true with an unrecognized reason -> normalizeError maps to 'disabled'
+    fetchMock.mockResolvedValueOnce(
+      makeResponse({
+        ok: false,
+        status: 400,
+        json: { reason: 'totally_unknown_reason' },
+      })
+    );
+
+    const result = await applyReferralCredit('order-102');
+
+    expect(result).toEqual({ type: 'disabled' });
+  });
+
+  it('rethrows non-Error when response.ok but json parse fails with non-Error', async () => {
+    // response.ok = true AND json throws something that is NOT an Error instance
+    // This exercises line 110: `throw ... new Error('Unexpected response...')`
+    const customJsonMock = jest.fn().mockRejectedValue('string-error');
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: customJsonMock,
+    });
+
+    await expect(applyReferralCredit('order-103')).rejects.toThrow(
+      'Unexpected response when applying referral credit'
+    );
+  });
+
+  it('returns disabled error with message from ApiErrorResponse when not a referral error', async () => {
+    // response.ok = false, payload is NOT a referral error (no reason field)
+    // status is NOT 409 -> reason = 'disabled', message from payload.message
+    fetchMock.mockResolvedValueOnce(
+      makeResponse({
+        ok: false,
+        status: 500,
+        json: { message: 'Internal server error' },
+      })
+    );
+
+    const result = await applyReferralCredit('order-104');
+
+    expect(result).toEqual({ type: 'disabled', message: 'Internal server error' });
+  });
 });

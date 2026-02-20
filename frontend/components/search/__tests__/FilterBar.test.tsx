@@ -210,6 +210,27 @@ describe('FilterBar', () => {
     expect(dialog.closest('body')).toBe(document.body);
   });
 
+  it('does not portal MoreFiltersModal when server snapshot returns false for isClient', async () => {
+    const actualReact = jest.requireActual<typeof import('react')>('react');
+    const spy = jest.spyOn(actualReact, 'useSyncExternalStore').mockImplementation(
+      (_subscribe, _getSnapshot, getServerSnapshot) => {
+        return getServerSnapshot ? getServerSnapshot() : _getSnapshot();
+      }
+    );
+
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    // Open more filters - the modal should NOT render via portal since isClient is false
+    await user.click(screen.getByRole('button', { name: /more filters/i }));
+
+    // The MoreFiltersModal requires isClient && isMoreFiltersOpen to portal.
+    // With server snapshot (false), the portal condition fails, so no dialog appears.
+    expect(screen.queryByRole('dialog', { name: /more filters/i })).not.toBeInTheDocument();
+
+    spy.mockRestore();
+  });
+
   it('clears active filters from dropdowns and modal', async () => {
     const user = userEvent.setup();
     render(
