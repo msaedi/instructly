@@ -4,7 +4,8 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Dict, List
 
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth import get_password_hash
@@ -22,10 +23,16 @@ TEST_PASSWORD = "TestPassword123!"
 
 def ensure_user(db: Session, email: str, role: str) -> User:
     """Ensure a user exists with the given email and role."""
-    u = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+    normalized_email = (email or "").strip().lower()
+    if not normalized_email:
+        raise ValueError("email is required")
+
+    u = db.execute(
+        select(User).where(func.lower(User.email) == normalized_email)
+    ).scalar_one_or_none()
     if not u:
         u = User(
-            email=email,
+            email=normalized_email,
             hashed_password=get_password_hash(TEST_PASSWORD),
             first_name="Test",
             last_name=role.capitalize(),
@@ -36,17 +43,27 @@ def ensure_user(db: Session, email: str, role: str) -> User:
             timezone=TZ,
         )
         db.add(u)
-        db.flush()
+        try:
+            db.flush()
+        except IntegrityError:
+            # Another test session may have inserted the same fixed account concurrently.
+            db.rollback()
+            u = db.execute(
+                select(User).where(func.lower(User.email) == normalized_email)
+            ).scalar_one_or_none()
+            if not u:
+                raise
 
-        # Assign role using PermissionService
-        permission_service = PermissionService(db)
-        role_name = RoleName.STUDENT if role.lower() == "student" else RoleName.INSTRUCTOR
-        permission_service.assign_role(u.id, role_name)
-        if role.lower() == "student":
-            from app.core.enums import PermissionName
-            permission_service.grant_permission(u.id, PermissionName.CREATE_BOOKINGS.value)
-        db.refresh(u)
-        db.commit()
+    # Ensure role using PermissionService (idempotent if already assigned).
+    permission_service = PermissionService(db)
+    role_name = RoleName.STUDENT if role.lower() == "student" else RoleName.INSTRUCTOR
+    permission_service.assign_role(u.id, role_name)
+    if role.lower() == "student":
+        from app.core.enums import PermissionName
+
+        permission_service.grant_permission(u.id, PermissionName.CREATE_BOOKINGS.value)
+    db.refresh(u)
+    db.commit()
 
     return u
 

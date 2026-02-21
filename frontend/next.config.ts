@@ -51,6 +51,35 @@ const cspBetaLocalOrigin = (() => {
   return isDevLike ? 'http://api.beta-local.instainstru.com:8000' : '';
 })();
 
+const appEnv = (process.env['NEXT_PUBLIC_APP_ENV'] || '').toLowerCase();
+const vercelEnv = (process.env['VERCEL_ENV'] || '').toLowerCase();
+const isStrictProductionRuntime =
+  appEnv === 'production' || appEnv === 'prod' || vercelEnv === 'production';
+const raw100msConnectOrigins = (process.env['NEXT_PUBLIC_100MS_CONNECT_ORIGINS'] || '').trim();
+const default100msDevOrigins = 'https://*.100ms.live,wss://*.100ms.live,https://storage.googleapis.com';
+
+if (isStrictProductionRuntime && !raw100msConnectOrigins) {
+  throw new Error(
+    'NEXT_PUBLIC_100MS_CONNECT_ORIGINS must be set in production (comma-separated explicit origins).',
+  );
+}
+
+const hundredMsConnectOrigins = (
+  raw100msConnectOrigins || (isStrictProductionRuntime ? '' : default100msDevOrigins)
+)
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+if (isStrictProductionRuntime && hundredMsConnectOrigins.some((origin) => origin.includes('*'))) {
+  throw new Error('NEXT_PUBLIC_100MS_CONNECT_ORIGINS cannot contain wildcard origins in production.');
+}
+
+const hundredMsMediaOrigins = hundredMsConnectOrigins.filter(
+  (origin) => origin.startsWith('https://') || origin.startsWith('http://'),
+);
+const hundredMsImageOrigins = Array.from(new Set(hundredMsMediaOrigins));
+
 const connectSrcOrigins = [
   "'self'",
   cspApiOrigin,
@@ -64,25 +93,16 @@ const connectSrcOrigins = [
   'https://vitals.vercel-insights.com',
   'https://*.axiom.co',
   'https://*.onrender.com',
-  // 100ms video uses region-specific signaling/init hosts that may change by account/region.
-  // Keeping wildcard for now to avoid production breakage.
-  // Docs: https://www.100ms.live/docs
-  // TODO: tighten to explicit subdomains once 100ms publishes a stable endpoint list.
-  // Override via NEXT_PUBLIC_100MS_CONNECT_ORIGINS if needed.
-  ...(
-    process.env['NEXT_PUBLIC_100MS_CONNECT_ORIGINS'] ||
-    'https://*.100ms.live,wss://*.100ms.live,https://storage.googleapis.com'
-  )
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean),
+  ...hundredMsConnectOrigins,
 ];
+
+const mediaSrcOrigins = ["'self'", 'blob:', ...Array.from(new Set(hundredMsMediaOrigins))];
 
 const cspPolicyValue = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://verify.stripe.com https://challenges.cloudflare.com https://*.leadsy.ai https://tag.trovo-tag.com https://va.vercel-scripts.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
-  "img-src 'self' data: blob: https://assets.instainstru.com https://*.cloudflare.com https://*.stripe.com https://*.tile.jawg.io https://*.basemaps.cartocdn.com https://*.100ms.live",
+  `img-src 'self' data: blob: https://assets.instainstru.com https://*.cloudflare.com https://*.stripe.com https://*.tile.jawg.io https://*.basemaps.cartocdn.com ${hundredMsImageOrigins.join(' ')}`,
   `connect-src ${Array.from(new Set(connectSrcOrigins.filter(Boolean))).join(' ')}`,
   "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://verify.stripe.com https://challenges.cloudflare.com https://tag.trovo-tag.com",
   "font-src 'self' data: https://fonts.gstatic.com",
@@ -90,7 +110,7 @@ const cspPolicyValue = [
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
-  "media-src 'self' blob: https://*.100ms.live https://100ms.live",
+  `media-src ${mediaSrcOrigins.join(' ')}`,
   "worker-src 'self' blob:",
   `report-uri ${cspReportUri}`,
 ].join('; ');

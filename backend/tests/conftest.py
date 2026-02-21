@@ -616,6 +616,25 @@ _DB_PREPARED = False
 _DB_PREPARE_LOCK = threading.Lock()
 _CATALOG_SEEDED = False
 _RBAC_SEEDED = False
+_TEST_RUN_LOCK_KEY = 987654322
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _serialize_test_database_sessions():
+    """Prevent concurrent pytest sessions from mutating the shared test DB."""
+    if test_engine.dialect.name == "sqlite":
+        yield
+        return
+
+    conn = test_engine.connect()
+    conn.execute(text("SELECT pg_advisory_lock(:key)"), {"key": _TEST_RUN_LOCK_KEY})
+    conn.commit()
+    try:
+        yield
+    finally:
+        conn.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": _TEST_RUN_LOCK_KEY})
+        conn.commit()
+        conn.close()
 
 
 def ensure_outbox_table() -> None:

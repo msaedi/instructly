@@ -116,7 +116,8 @@ export function AvailabilityCalendar({ instructorId, onSelectSlot }: Availabilit
         variant="ghost"
         className="w-full mt-4 justify-between"
         onClick={() => {
-          // TODO: Open full calendar view
+          // Tracking: FE-3322 (owner: @frontend-platform, target: 2026-03-31)
+          // Full calendar route is pending; keep analytics signal until navigation lands.
           logger.info('View full calendar clicked');
         }}
       >

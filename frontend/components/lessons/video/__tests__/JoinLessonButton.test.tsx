@@ -124,6 +124,21 @@ describe('JoinLessonButton', () => {
     expect(link).toHaveAttribute('href', '/lessons/01BOOKING123');
   });
 
+  it('exposes an accessible link name for keyboard/screen reader navigation', () => {
+    mockCountdowns(expired, notExpired);
+
+    render(
+      <JoinLessonButton
+        bookingId="01BOOKING123"
+        joinOpensAt="2025-01-01T10:00:00Z"
+        joinClosesAt="2025-01-01T10:30:00Z"
+      />
+    );
+
+    const link = screen.getByRole('link', { name: 'Join video lesson' });
+    expect(link).toHaveAttribute('href', '/lessons/01BOOKING123');
+  });
+
   it('has data-testid="join-lesson-button"', () => {
     mockCountdowns(expired, notExpired);
 

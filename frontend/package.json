@@ -155,7 +155,7 @@
     {
       "name": "chunks-total-js",
       "path": ".next/static/chunks/*.js",
-      "limit": "4 MB",
+      "limit": "2.7 MB",
       "running": false
     },
     {

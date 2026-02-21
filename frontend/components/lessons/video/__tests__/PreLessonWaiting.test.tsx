@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { Booking } from '@/features/shared/api/types';
 
 jest.mock('@/hooks/useCountdown', () => ({
@@ -91,6 +92,23 @@ describe('PreLessonWaiting', () => {
     render(<PreLessonWaiting {...defaultProps} onJoin={onJoin} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Join video lesson' }));
+    expect(onJoin).toHaveBeenCalledTimes(1);
+  });
+
+  it('supports keyboard activation for the Join button', async () => {
+    const user = userEvent.setup();
+    const onJoin = jest.fn();
+    mockCountdowns(
+      { secondsLeft: 0, isExpired: true, formatted: '00:00' },
+      { secondsLeft: 600, isExpired: false, formatted: '10:00' }
+    );
+
+    render(<PreLessonWaiting {...defaultProps} onJoin={onJoin} />);
+
+    const joinButton = screen.getByRole('button', { name: 'Join video lesson' });
+    joinButton.focus();
+    await user.keyboard('{Enter}');
+
     expect(onJoin).toHaveBeenCalledTimes(1);
   });
 

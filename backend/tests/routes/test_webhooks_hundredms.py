@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 from unittest.mock import MagicMock, patch
 
@@ -35,15 +35,18 @@ def client_with_mock_repo(client, mock_booking_repo):
 
 def _webhook_payload(
     event_type: str = "session.open.success",
-    event_id: str = "evt-001",
+    event_id: str | None = "evt-001",
     room_name: str = "lesson-01HYXZ5G6KFXJKZ9CHQM4E3P7G",
+    timestamp: str | None = None,
     **extra_data: object,
 ) -> dict:
+    if timestamp is None:
+        timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     return {
         "version": "2.0",
         "id": event_id,
         "type": event_type,
-        "timestamp": "2024-06-15T14:00:00Z",
+        "timestamp": timestamp,
         "data": {
             "room_id": "room-123",
             "room_name": room_name,
@@ -402,11 +405,13 @@ class TestHundredmsWebhookEndpoint:
         payload_a = _webhook_payload(
             event_type="peer.join.success",
             event_id=None,
+            role="guest",
             peer_id="peer-student",
         )
         payload_b = _webhook_payload(
             event_type="peer.join.success",
             event_id=None,
+            role="host",
             peer_id="peer-instructor",
         )
 
@@ -456,6 +461,7 @@ class TestHundredmsWebhookEndpoint:
         payload = _webhook_payload(
             event_type="peer.join.success",
             event_id=None,
+            role="guest",
             peer_id="peer-student",
         )
 
@@ -505,6 +511,84 @@ class TestHundredmsWebhookEndpoint:
         assert response.status_code == 400
         assert response.json()["detail"] == "Invalid payload encoding"
 
+    @patch("app.routes.v1.webhooks_hundredms.settings")
+    def test_invalid_json_payload_returns_400(self, mock_settings, client_with_mock_repo):
+        mock_settings.hundredms_enabled = True
+        mock_settings.hundredms_webhook_secret = MagicMock()
+        mock_settings.hundredms_webhook_secret.get_secret_value.return_value = "test-secret"
+
+        response = client_with_mock_repo.post(
+            "/api/v1/webhooks/hundredms",
+            content='{"type":"session.open.success","data":',
+            headers={
+                "Content-Type": "application/json",
+                "x-hundredms-secret": "test-secret",
+            },
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Invalid JSON payload"
+
+    @patch("app.routes.v1.webhooks_hundredms.settings")
+    def test_stale_timestamp_returns_400(self, mock_settings, client_with_mock_repo):
+        mock_settings.hundredms_enabled = True
+        mock_settings.hundredms_webhook_secret = MagicMock()
+        mock_settings.hundredms_webhook_secret.get_secret_value.return_value = "test-secret"
+
+        stale_timestamp = (datetime.now(timezone.utc) - timedelta(hours=7)).isoformat().replace(
+            "+00:00", "Z"
+        )
+        payload = _webhook_payload(timestamp=stale_timestamp)
+        response = client_with_mock_repo.post(
+            "/api/v1/webhooks/hundredms",
+            content=json.dumps(payload),
+            headers={
+                "Content-Type": "application/json",
+                "x-hundredms-secret": "test-secret",
+            },
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Stale webhook timestamp"
+
+    @patch("app.routes.v1.webhooks_hundredms.settings")
+    def test_invalid_room_name_shape_returns_400(self, mock_settings, client_with_mock_repo):
+        mock_settings.hundredms_enabled = True
+        mock_settings.hundredms_webhook_secret = MagicMock()
+        mock_settings.hundredms_webhook_secret.get_secret_value.return_value = "test-secret"
+
+        payload = _webhook_payload(room_name="lesson-not-a-ulid")
+        response = client_with_mock_repo.post(
+            "/api/v1/webhooks/hundredms",
+            content=json.dumps(payload),
+            headers={
+                "Content-Type": "application/json",
+                "x-hundredms-secret": "test-secret",
+            },
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Invalid webhook payload"
+
+    @patch("app.routes.v1.webhooks_hundredms.settings")
+    def test_invalid_session_id_type_returns_400(self, mock_settings, client_with_mock_repo):
+        mock_settings.hundredms_enabled = True
+        mock_settings.hundredms_webhook_secret = MagicMock()
+        mock_settings.hundredms_webhook_secret.get_secret_value.return_value = "test-secret"
+
+        payload = _webhook_payload(session_id=123)
+        response = client_with_mock_repo.post(
+            "/api/v1/webhooks/hundredms",
+            content=json.dumps(payload),
+            headers={
+                "Content-Type": "application/json",
+                "x-hundredms-secret": "test-secret",
+            },
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Invalid webhook payload"
+
     @patch("app.routes.v1.webhooks_hundredms._process_hundredms_event")
     @patch("app.routes.v1.webhooks_hundredms.WebhookLedgerService")
     @patch("app.routes.v1.webhooks_hundredms.settings")
@@ -530,7 +614,7 @@ class TestHundredmsWebhookEndpoint:
 
     @patch("app.routes.v1.webhooks_hundredms.WebhookLedgerService")
     @patch("app.routes.v1.webhooks_hundredms.settings")
-    def test_permanent_failure_skipped_event_returns_200(
+    def test_invalid_room_name_returns_400_before_processing(
         self,
         mock_settings,
         mock_ledger_cls,
@@ -544,7 +628,7 @@ class TestHundredmsWebhookEndpoint:
         mock_ledger.log_received.return_value = MagicMock(status="received", retry_count=0)
         mock_ledger_cls.return_value = mock_ledger
 
-        # Unknown room name → skipped (permanent, non-retriable)
+        # Invalid room name now fails schema validation before processing.
         payload = _webhook_payload(event_id="evt-permanent-200", room_name="unknown-room-format")
         response = client_with_mock_repo.post(
             "/api/v1/webhooks/hundredms",
@@ -555,5 +639,5 @@ class TestHundredmsWebhookEndpoint:
             },
         )
 
-        assert response.status_code == 200
-        assert response.json()["ok"] is True
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Invalid webhook payload"

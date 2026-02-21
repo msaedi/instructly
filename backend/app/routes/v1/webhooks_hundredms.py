@@ -11,11 +11,13 @@ from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
 import json
 import logging
+import re
 import secrets as _secrets
 from time import monotonic
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from sqlalchemy.orm import Session
 
 from ...core.config import settings
@@ -39,6 +41,10 @@ _WEBHOOK_CACHE_TTL_SECONDS = 300
 _WEBHOOK_CACHE_MAX_SIZE = 1000
 _delivery_cache: OrderedDict[str, float] = OrderedDict()
 _PROCESSING_RETRY_AFTER_SECONDS = "2"
+_WEBHOOK_EVENT_MAX_AGE = timedelta(hours=6)
+_WEBHOOK_EVENT_MAX_FUTURE_SKEW = timedelta(minutes=2)
+_ULID_PATTERN = r"[0-9A-HJKMNP-TV-Z]{26}"
+_ROOM_NAME_RE = re.compile(rf"^lesson-(?P<booking_id>{_ULID_PATTERN})$")
 
 _HANDLED_EVENT_TYPES = frozenset(
     {
@@ -48,6 +54,85 @@ _HANDLED_EVENT_TYPES = frozenset(
         "peer.leave.success",
     }
 )
+
+
+class _WebhookBaseModel(BaseModel):
+    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
+
+
+class _HandledEventData(_WebhookBaseModel):
+    room_id: str = Field(min_length=1, max_length=100)
+    room_name: str = Field(min_length=1, max_length=255)
+
+    @field_validator("room_name")
+    @classmethod
+    def _validate_room_name(cls, value: str) -> str:
+        if _extract_booking_id_from_room_name(value) is None:
+            raise ValueError("room_name must follow lesson-{ULID} format")
+        return value
+
+
+class _SessionOpenData(_HandledEventData):
+    session_id: str = Field(min_length=1, max_length=100)
+
+
+class _SessionCloseData(_HandledEventData):
+    session_id: str = Field(min_length=1, max_length=100)
+
+
+class _PeerJoinData(_HandledEventData):
+    session_id: str | None = Field(default=None, min_length=1, max_length=100)
+    role: Literal["host", "guest"]
+    peer_id: str | None = Field(default=None, min_length=1, max_length=100)
+    user_id: str | None = Field(default=None, min_length=1, max_length=100)
+    metadata: dict[str, Any] | str | None = None
+
+
+class _PeerLeaveData(_HandledEventData):
+    session_id: str | None = Field(default=None, min_length=1, max_length=100)
+    role: Literal["host", "guest"]
+    peer_id: str | None = Field(default=None, min_length=1, max_length=100)
+    user_id: str | None = Field(default=None, min_length=1, max_length=100)
+
+
+class _HandledEventEnvelope(_WebhookBaseModel):
+    id: str | None = Field(default=None, min_length=1, max_length=255)
+    timestamp: datetime
+
+    @field_validator("timestamp")
+    @classmethod
+    def _normalize_timestamp(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+
+class _SessionOpenEnvelope(_HandledEventEnvelope):
+    type: Literal["session.open.success"]
+    data: _SessionOpenData
+
+
+class _SessionCloseEnvelope(_HandledEventEnvelope):
+    type: Literal["session.close.success"]
+    data: _SessionCloseData
+
+
+class _PeerJoinEnvelope(_HandledEventEnvelope):
+    type: Literal["peer.join.success"]
+    data: _PeerJoinData
+
+
+class _PeerLeaveEnvelope(_HandledEventEnvelope):
+    type: Literal["peer.leave.success"]
+    data: _PeerLeaveData
+
+
+_EVENT_SCHEMAS: dict[str, type[_HandledEventEnvelope]] = {
+    "session.open.success": _SessionOpenEnvelope,
+    "session.close.success": _SessionCloseEnvelope,
+    "peer.join.success": _PeerJoinEnvelope,
+    "peer.leave.success": _PeerLeaveEnvelope,
+}
 
 
 def _delivery_seen(delivery_key: str | None) -> bool:
@@ -112,16 +197,64 @@ def _verify_hundredms_secret(request: Request) -> None:
         )
 
 
+def _validate_replay_window(event_timestamp: datetime) -> None:
+    now = datetime.now(timezone.utc)
+    if event_timestamp < now - _WEBHOOK_EVENT_MAX_AGE:
+        logger.warning(
+            "Rejecting stale 100ms webhook timestamp=%s now=%s",
+            event_timestamp.isoformat(),
+            now.isoformat(),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Stale webhook timestamp",
+        )
+    if event_timestamp > now + _WEBHOOK_EVENT_MAX_FUTURE_SKEW:
+        logger.warning(
+            "Rejecting future-dated 100ms webhook timestamp=%s now=%s",
+            event_timestamp.isoformat(),
+            now.isoformat(),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid webhook timestamp",
+        )
+
+
+def _validate_handled_event_payload(
+    payload: dict[str, Any], event_type: str
+) -> tuple[str | None, dict[str, Any], datetime]:
+    schema = _EVENT_SCHEMAS.get(event_type)
+    if schema is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported event type",
+        )
+    try:
+        parsed = schema.model_validate(payload)
+    except ValidationError as exc:
+        logger.warning(
+            "Invalid 100ms webhook payload type=%s errors=%s",
+            event_type,
+            exc.errors(),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid webhook payload",
+        ) from exc
+
+    _validate_replay_window(parsed.timestamp)
+    return parsed.id, parsed.data.model_dump(), parsed.timestamp
+
+
 def _extract_booking_id_from_room_name(room_name: str | None) -> str | None:
     """Extract booking_id from 100ms room name ``lesson-{booking_id}``."""
     if not room_name or not isinstance(room_name, str):
         return None
-    prefix = "lesson-"
-    if room_name.startswith(prefix):
-        booking_id = room_name[len(prefix) :]
-        if len(booking_id) == 26:
-            return booking_id
-    return None
+    match = _ROOM_NAME_RE.match(room_name)
+    if not match:
+        return None
+    return match.group("booking_id")
 
 
 def _parse_timestamp(value: Any) -> datetime | None:
@@ -480,22 +613,22 @@ async def handle_hundredms_webhook(
         )
 
     # 3. Extract event metadata
-    event_type = (payload.get("type") or "").strip()
-    event_id: str | None = payload.get("id")
-    data: dict[str, Any] = payload.get("data") or {}
-    if not isinstance(data, dict):
-        data = {}
+    event_type_raw = payload.get("type")
+    event_type = event_type_raw.strip() if isinstance(event_type_raw, str) else ""
 
     # 4. Skip unhandled event types early
     if event_type not in _HANDLED_EVENT_TYPES:
         logger.debug("Ignoring 100ms event type=%s", event_type)
         return WebhookAckResponse(ok=True)
 
-    # 5. Delivery key used by cache dedup fallback
+    # 5. Validate handled payload shape and replay window.
+    event_id, data, _ = _validate_handled_event_payload(payload, event_type)
+
+    # 6. Delivery key used by cache dedup fallback
     delivery_key = _build_delivery_key(event_id, event_type, data)
     idempotency_key = None if event_id else delivery_key
 
-    # 6. Persistent dedup via webhook ledger (source of truth)
+    # 7. Persistent dedup via webhook ledger (source of truth)
     ledger_db = getattr(booking_repo, "db", None)
     ledger_service = WebhookLedgerService(ledger_db) if ledger_db is not None else None
     ledger_event: WebhookEvent | None = None
@@ -545,7 +678,7 @@ async def handle_hundredms_webhook(
 
     _mark_delivery(delivery_key)
 
-    # 7. Process event
+    # 8. Process event
     start_time = monotonic()
 
     try:

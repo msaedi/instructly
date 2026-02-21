@@ -399,3 +399,33 @@ class TestGetVideoSessionIntegration:
 
         assert response.status_code == 404
         assert "No video session found" in response.json()["detail"]
+
+    def test_non_participant_cannot_view_video_session(
+        self,
+        video_client_student,
+        db,
+        test_student,
+        test_instructor,
+        test_instructor_2,
+        instructor_service_id,
+    ):
+        """Third user cannot read another lesson's video session → 404."""
+        start_utc = dt.now(timezone.utc) - timedelta(minutes=1)
+
+        booking_id = _make_online_booking(
+            db,
+            student_id=test_student.id,
+            instructor_id=test_instructor.id,
+            instructor_service_id=instructor_service_id,
+            start_utc=start_utc,
+        )
+
+        join_resp = video_client_student.post(f"/api/v1/lessons/{booking_id}/join")
+        assert join_resp.status_code == 200
+
+        app.dependency_overrides[get_current_active_user] = lambda: test_instructor_2
+        try:
+            response = video_client_student.get(f"/api/v1/lessons/{booking_id}/video-session")
+        finally:
+            app.dependency_overrides[get_current_active_user] = lambda: test_student
+        assert response.status_code == 404

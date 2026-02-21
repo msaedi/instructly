@@ -924,7 +924,8 @@ function NotificationsTab() {
 
   const handleSave = async () => {
     setSaving(true);
-    // TODO: Implement API call to save preferences
+    // Tracking: FE-3321 (owner: @frontend-platform, target: 2026-03-31)
+    // Keep simulated save until notification preferences API integration is finalized.
     await new Promise(resolve => setTimeout(resolve, 1000));
     toast.success('Notification preferences saved', {
       style: {

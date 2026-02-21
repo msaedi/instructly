@@ -44,6 +44,11 @@ class TestExtractBookingIdFromRoomName:
 
         assert _extract_booking_id_from_room_name("lesson-short") is None
 
+    def test_non_ulid_characters_rejected(self) -> None:
+        from app.routes.v1.webhooks_hundredms import _extract_booking_id_from_room_name
+
+        assert _extract_booking_id_from_room_name("lesson-01HYXZ5G6KFXJKZ9CHQM4E3PII") is None
+
     def test_bare_prefix(self) -> None:
         from app.routes.v1.webhooks_hundredms import _extract_booking_id_from_room_name
 
