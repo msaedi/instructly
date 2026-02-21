@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy.exc import IntegrityError
+
+from app.core.exceptions import RepositoryException
 from app.models.webhook_event import WebhookEvent
 from app.services.webhook_ledger_service import WebhookLedgerService
 
@@ -76,6 +79,51 @@ def test_log_received_handles_duplicate_idempotency_key_without_event_id(db):
     assert event2.id == event1.id
     assert event2.retry_count == 1
     assert event2.last_retry_at is not None
+
+
+def test_log_received_recovers_from_integrity_error_race(db, monkeypatch):
+    service = WebhookLedgerService(db)
+    existing = service.log_received(
+        source="hundredms",
+        event_type="peer.join.success",
+        payload={"type": "peer.join.success"},
+        event_id=None,
+        idempotency_key="peer.join.success:room_1:session_1:peer_1",
+    )
+
+    lookup_calls = {"count": 0}
+
+    def _find_existing(source: str, idempotency_key: str):
+        lookup_calls["count"] += 1
+        if lookup_calls["count"] == 1:
+            return None
+        return existing
+
+    def _raise_integrity(**kwargs):
+        raise RepositoryException("Integrity constraint violated") from IntegrityError(
+            statement="INSERT INTO webhook_events ...",
+            params=kwargs,
+            orig=Exception("duplicate key value violates unique constraint"),
+        )
+
+    monkeypatch.setattr(
+        service.repository,
+        "find_by_source_and_idempotency_key",
+        _find_existing,
+    )
+    monkeypatch.setattr(service.repository, "create", _raise_integrity)
+
+    recovered = service.log_received(
+        source="hundredms",
+        event_type="peer.join.success",
+        payload={"type": "peer.join.success"},
+        event_id=None,
+        idempotency_key="peer.join.success:room_1:session_1:peer_1",
+    )
+
+    assert recovered.id == existing.id
+    assert recovered.retry_count == 1
+    assert recovered.last_retry_at is not None
 
 
 def test_log_received_different_event_ids_create_separate_records(db):

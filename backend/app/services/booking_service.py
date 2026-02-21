@@ -28,6 +28,7 @@ import stripe
 
 from ..constants.pricing_defaults import PRICING_DEFAULTS
 from ..core.bgc_policy import is_verified, must_be_verified_for_public
+from ..core.config import settings
 from ..core.constants import MIN_SESSION_DURATION
 from ..core.enums import RoleName
 from ..core.exceptions import (
@@ -40,6 +41,7 @@ from ..core.exceptions import (
     ValidationException,
 )
 from ..events import BookingCancelled, BookingCreated, BookingReminder, EventPublisher
+from ..integrations.hundredms_client import HundredMsClient, HundredMsError
 from ..models.audit_log import AuditLog
 from ..models.booking import Booking, BookingStatus, PaymentStatus
 from ..models.instructor import InstructorProfile
@@ -1832,6 +1834,7 @@ class BookingService(BaseService):
 
             # Cancel the booking
             booking.cancel(user.id, reason)
+            self._mark_video_session_terminal_on_cancellation(booking)
             self._enqueue_booking_outbox_event(booking, "booking.cancelled")
             audit_after = self._snapshot_booking(booking)
             self._write_booking_audit(
@@ -1884,6 +1887,7 @@ class BookingService(BaseService):
                 bp.payment_intent_id = None
 
             booking.cancel(user.id, reason)
+            self._mark_video_session_terminal_on_cancellation(booking)
             self._enqueue_booking_outbox_event(booking, "booking.cancelled")
             audit_after = self._snapshot_booking(booking)
             default_role = (
@@ -1904,6 +1908,82 @@ class BookingService(BaseService):
         self._post_cancellation_actions(booking, cancelled_by_role)
 
         return booking
+
+    def _mark_video_session_terminal_on_cancellation(self, booking: Booking) -> None:
+        """Mark booking video session state as terminal on cancellation."""
+        video_session = getattr(booking, "video_session", None)
+        if video_session is None:
+            return
+
+        ended_at = booking.cancelled_at or datetime.now(timezone.utc)
+        if video_session.session_ended_at is None:
+            video_session.session_ended_at = ended_at
+
+        if (
+            video_session.session_duration_seconds is None
+            and isinstance(video_session.session_started_at, datetime)
+            and isinstance(video_session.session_ended_at, datetime)
+        ):
+            duration_seconds = int(
+                (video_session.session_ended_at - video_session.session_started_at).total_seconds()
+            )
+            video_session.session_duration_seconds = max(duration_seconds, 0)
+
+    def _build_hundredms_client_for_cleanup(self) -> HundredMsClient | None:
+        """Create a 100ms client for post-cancellation cleanup, when configured."""
+        if not settings.hundredms_enabled:
+            return None
+
+        access_key = (settings.hundredms_access_key or "").strip()
+        raw_secret = settings.hundredms_app_secret
+        if raw_secret is None:
+            app_secret = ""
+        elif hasattr(raw_secret, "get_secret_value"):
+            app_secret = str(raw_secret.get_secret_value()).strip()
+        else:
+            app_secret = str(raw_secret).strip()
+
+        if not access_key or not app_secret:
+            logger.warning(
+                "Skipping 100ms room disable for cancellation cleanup due to missing credentials"
+            )
+            return None
+
+        return HundredMsClient(
+            access_key=access_key,
+            app_secret=app_secret,
+            base_url=settings.hundredms_base_url,
+            template_id=(settings.hundredms_template_id or "").strip() or None,
+        )
+
+    def _disable_video_room_after_cancellation(self, booking: Booking) -> None:
+        """Best-effort 100ms room disable after cancellation commit."""
+        video_session = getattr(booking, "video_session", None)
+        room_id = getattr(video_session, "room_id", None)
+        if not room_id:
+            return
+
+        client = self._build_hundredms_client_for_cleanup()
+        if client is None:
+            return
+
+        try:
+            client.disable_room(room_id)
+        except HundredMsError as exc:
+            logger.warning(
+                "Best-effort 100ms room disable failed for booking %s room %s: %s",
+                booking.id,
+                room_id,
+                exc.message,
+                extra={"status_code": exc.status_code},
+            )
+        except Exception as exc:
+            logger.warning(
+                "Unexpected error during 100ms room disable for booking %s room %s: %s",
+                booking.id,
+                room_id,
+                exc,
+            )
 
     @BaseService.measure_operation("should_trigger_lock")
     def should_trigger_lock(self, booking: Booking, initiated_by: str) -> bool:
@@ -3385,6 +3465,8 @@ class BookingService(BaseService):
                     booking.id,
                     exc,
                 )
+
+        self._disable_video_room_after_cancellation(booking)
 
     @BaseService.measure_operation("get_bookings_for_user")
     def get_bookings_for_user(

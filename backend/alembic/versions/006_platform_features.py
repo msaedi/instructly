@@ -805,6 +805,22 @@ def upgrade() -> None:
     op.create_index("ix_webhook_events_status", "webhook_events", ["status"])
     op.create_index("ix_webhook_events_received_at", "webhook_events", ["received_at"])
     op.create_index("ix_webhook_events_event_id", "webhook_events", ["event_id"])
+    if is_postgres:
+        op.create_index(
+            "ix_webhook_events_source_idempotency",
+            "webhook_events",
+            ["source", "idempotency_key"],
+            unique=True,
+            postgresql_where=sa.text("idempotency_key IS NOT NULL"),
+        )
+    else:
+        op.create_index(
+            "ix_webhook_events_source_idempotency",
+            "webhook_events",
+            ["source", "idempotency_key"],
+            unique=True,
+            sqlite_where=sa.text("idempotency_key IS NOT NULL"),
+        )
     op.create_index(
         "ix_webhook_events_related_entity",
         "webhook_events",
@@ -1523,6 +1539,7 @@ def downgrade() -> None:
     op.drop_table("alert_history")
 
     op.drop_index("ix_webhook_events_related_entity", table_name="webhook_events")
+    op.drop_index("ix_webhook_events_source_idempotency", table_name="webhook_events")
     op.drop_index("ix_webhook_events_event_id", table_name="webhook_events")
     op.drop_index("ix_webhook_events_received_at", table_name="webhook_events")
     op.drop_index("ix_webhook_events_status", table_name="webhook_events")

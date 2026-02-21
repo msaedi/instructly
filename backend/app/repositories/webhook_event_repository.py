@@ -147,7 +147,6 @@ class WebhookEventRepository(BaseRepository[WebhookEvent]):
         idempotency_key: str,
     ) -> WebhookEvent | None:
         """Find webhook event by source and idempotency key."""
-        # TODO: add an index on webhook_events.idempotency_key if webhook volume exceeds ~1k/day.
         result = (
             self.db.query(WebhookEvent)
             .filter(
