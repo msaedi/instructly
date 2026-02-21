@@ -272,7 +272,7 @@ describe('StripeOnboarding', () => {
       });
     });
 
-    it('invokes reload handler when Try Again button is clicked', async () => {
+    it('retries fetching status when Try Again button is clicked', async () => {
       paymentServiceMock.getOnboardingStatus.mockImplementation(() =>
         Promise.reject(new Error('Network error'))
       );
@@ -283,18 +283,16 @@ describe('StripeOnboarding', () => {
         expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
       });
 
-      // The onClick handler calls window.location.reload(). In JSDOM, this is
-      // a no-op that throws "Not implemented". We verify the button's onClick
-      // fires by checking that the button is present and clickable in the error state.
-      // The function coverage for the inline () => window.location.reload()
-      // handler is exercised by the click event.
+      // First call was the initial load
+      expect(paymentServiceMock.getOnboardingStatus).toHaveBeenCalledTimes(1);
+
       const tryAgainButton = screen.getByRole('button', { name: /try again/i });
-      expect(tryAgainButton).toBeEnabled();
       fireEvent.click(tryAgainButton);
 
-      // After clicking, component does not change state (reload would navigate away),
-      // so the error screen remains
-      expect(screen.getByText('Connection Error')).toBeInTheDocument();
+      // Clicking Try Again re-invokes checkStatus
+      await waitFor(() => {
+        expect(paymentServiceMock.getOnboardingStatus).toHaveBeenCalledTimes(2);
+      });
     });
 
     it('handles startOnboarding error', async () => {

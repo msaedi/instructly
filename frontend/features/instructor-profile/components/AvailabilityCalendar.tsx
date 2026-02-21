@@ -15,7 +15,7 @@ interface AvailabilityCalendarProps {
 export function AvailabilityCalendar({ instructorId, onSelectSlot }: AvailabilityCalendarProps) {
   const weekStart = useMemo(() => new Date(), []);
 
-  const { data, isLoading, error } = useInstructorAvailability(
+  const { data, isLoading, error, refetch } = useInstructorAvailability(
     instructorId.toString(),
     weekStart ? format(weekStart, 'yyyy-MM-dd') : undefined
   );
@@ -49,7 +49,7 @@ export function AvailabilityCalendar({ instructorId, onSelectSlot }: Availabilit
             variant="outline"
             size="sm"
             className="mt-2"
-            onClick={() => window.location.reload()}
+            onClick={() => void refetch()}
           >
             Try Again
           </Button>
