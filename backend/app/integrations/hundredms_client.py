@@ -118,17 +118,20 @@ class HundredMsClient:
             ) from exc
 
         if response.status_code >= 400:
-            error_body = None
+            error_body: dict[str, Any] = {}
             try:
-                error_body = response.json()
+                parsed_body = response.json()
+                if isinstance(parsed_body, dict):
+                    error_body = parsed_body
+                else:
+                    error_body = {"raw": response.text[:500]}
             except Exception:
-                pass
+                error_body = {"raw": response.text[:500]}
 
             message = response.text
             details = None
-            if isinstance(error_body, dict):
-                message = error_body.get("message", response.text)
-                details = error_body.get("details")
+            message = error_body.get("message", response.text)
+            details = error_body.get("details")
 
             logger.error(
                 "100ms API error %s for %s %s: %s",

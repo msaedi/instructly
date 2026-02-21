@@ -1937,7 +1937,9 @@ class BookingService(BaseService):
         access_key = (settings.hundredms_access_key or "").strip()
         raw_secret = settings.hundredms_app_secret
         if raw_secret is None:
-            app_secret = ""
+            if settings.site_mode == "prod":
+                raise RuntimeError("HUNDREDMS_APP_SECRET is required in production")
+            app_secret = str()
         elif hasattr(raw_secret, "get_secret_value"):
             app_secret = str(raw_secret.get_secret_value()).strip()
         else:

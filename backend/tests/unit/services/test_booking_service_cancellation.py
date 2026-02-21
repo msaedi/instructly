@@ -496,3 +496,34 @@ def test_build_hundredms_client_for_cleanup_returns_none_when_disabled(
         client = booking_service._build_hundredms_client_for_cleanup()
 
     assert client is None
+
+
+def test_build_hundredms_client_for_cleanup_raises_in_prod_when_secret_missing(
+    booking_service: BookingService,
+) -> None:
+    with patch("app.services.booking_service.settings") as mock_settings:
+        mock_settings.hundredms_enabled = True
+        mock_settings.site_mode = "prod"
+        mock_settings.hundredms_access_key = "ak_test"
+        mock_settings.hundredms_app_secret = None
+        mock_settings.hundredms_base_url = "https://api.100ms.live/v2"
+        mock_settings.hundredms_template_id = "tmpl_123"
+
+        with pytest.raises(RuntimeError, match="HUNDREDMS_APP_SECRET is required in production"):
+            booking_service._build_hundredms_client_for_cleanup()
+
+
+def test_build_hundredms_client_for_cleanup_missing_secret_allowed_non_prod(
+    booking_service: BookingService,
+) -> None:
+    with patch("app.services.booking_service.settings") as mock_settings:
+        mock_settings.hundredms_enabled = True
+        mock_settings.site_mode = "local"
+        mock_settings.hundredms_access_key = "ak_test"
+        mock_settings.hundredms_app_secret = None
+        mock_settings.hundredms_base_url = "https://api.100ms.live/v2"
+        mock_settings.hundredms_template_id = "tmpl_123"
+
+        client = booking_service._build_hundredms_client_for_cleanup()
+
+    assert client is None

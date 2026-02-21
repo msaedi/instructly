@@ -230,6 +230,22 @@ class TestGetVideoServiceFactory:
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "Video service is temporarily unavailable"
 
+    @patch("app.routes.v1.lessons.settings")
+    def test_missing_hundredms_secret_in_prod_returns_503(self, mock_settings):
+        from fastapi import HTTPException
+
+        mock_settings.hundredms_enabled = True
+        mock_settings.site_mode = "prod"
+        mock_settings.hundredms_access_key = "key-present"
+        mock_settings.hundredms_app_secret = None
+        mock_settings.hundredms_template_id = "tmpl_123"
+
+        mock_db = Mock()
+        with pytest.raises(HTTPException) as exc_info:
+            get_video_service(db=mock_db)
+        assert exc_info.value.status_code == 503
+        assert exc_info.value.detail == "Video service is temporarily unavailable"
+
 
 # ── handle_domain_exception tests ────────────────────────────────────
 

@@ -44,7 +44,13 @@ def get_video_service(db: Session = Depends(get_db)) -> VideoService:
         access_key = (settings.hundredms_access_key or "").strip()
         raw_secret = settings.hundredms_app_secret
         if raw_secret is None:
-            app_secret = ""
+            if settings.site_mode == "prod":
+                logger.error("Missing HUNDREDMS_APP_SECRET in production")
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Video service is temporarily unavailable",
+                )
+            app_secret = str()
         elif hasattr(raw_secret, "get_secret_value"):
             app_secret = str(raw_secret.get_secret_value()).strip()
         else:
