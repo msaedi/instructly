@@ -295,6 +295,58 @@ class TestHundredmsWebhookEndpoint:
         assert response.status_code == 200
         assert video_session.instructor_joined_at is None
 
+    @patch("app.routes.v1.webhooks_hundredms.WebhookLedgerService")
+    @patch("app.routes.v1.webhooks_hundredms.settings")
+    def test_session_close_timing_fields_survive_validation_and_update_session(
+        self,
+        mock_settings,
+        mock_ledger_cls,
+        client_with_mock_repo,
+        mock_booking_repo,
+    ):
+        mock_settings.hundredms_enabled = True
+        mock_settings.hundredms_webhook_secret = MagicMock()
+        mock_settings.hundredms_webhook_secret.get_secret_value.return_value = "test-secret"
+
+        mock_ledger = MagicMock()
+        mock_ledger.log_received.return_value = MagicMock(status="received", retry_count=0)
+        mock_ledger.mark_processing.return_value = True
+        mock_ledger_cls.return_value = mock_ledger
+
+        video_session = MagicMock()
+        video_session.session_started_at = None
+        video_session.session_ended_at = None
+        video_session.session_duration_seconds = None
+        video_session.provider_metadata = {}
+        mock_booking_repo.get_video_session_by_booking_id.return_value = video_session
+        mock_booking_repo.get_by_id.return_value = MagicMock(
+            student_id="student_1",
+            instructor_id="instructor_1",
+            booking_start_utc=datetime(2024, 6, 15, 14, 0, tzinfo=timezone.utc),
+            duration_minutes=60,
+        )
+
+        payload = _webhook_payload(
+            event_type="session.close.success",
+            event_id="evt-session-close-preserve",
+            session_duration=3600,
+            session_started_at="2024-06-15T14:00:00Z",
+            session_stopped_at="2024-06-15T15:00:00Z",
+        )
+        response = client_with_mock_repo.post(
+            "/api/v1/webhooks/hundredms",
+            content=json.dumps(payload),
+            headers={
+                "Content-Type": "application/json",
+                "x-hundredms-secret": "test-secret",
+            },
+        )
+
+        assert response.status_code == 200
+        assert video_session.session_started_at is not None
+        assert video_session.session_ended_at is not None
+        assert video_session.session_duration_seconds == 3600
+
     @patch("app.routes.v1.webhooks_hundredms._process_hundredms_event")
     @patch("app.routes.v1.webhooks_hundredms.WebhookLedgerService")
     @patch("app.routes.v1.webhooks_hundredms.settings")
@@ -528,6 +580,25 @@ class TestHundredmsWebhookEndpoint:
 
         assert response.status_code == 400
         assert response.json()["detail"] == "Invalid JSON payload"
+
+    @patch("app.routes.v1.webhooks_hundredms.settings")
+    def test_payload_too_large_returns_413(self, mock_settings, client_with_mock_repo):
+        mock_settings.hundredms_enabled = True
+        mock_settings.hundredms_webhook_secret = MagicMock()
+        mock_settings.hundredms_webhook_secret.get_secret_value.return_value = "test-secret"
+
+        with patch("app.routes.v1.webhooks_hundredms._MAX_WEBHOOK_BODY_BYTES", 64):
+            response = client_with_mock_repo.post(
+                "/api/v1/webhooks/hundredms",
+                content=json.dumps(_webhook_payload()),
+                headers={
+                    "Content-Type": "application/json",
+                    "x-hundredms-secret": "test-secret",
+                },
+            )
+
+        assert response.status_code == 413
+        assert response.json()["detail"] == "Webhook payload too large"
 
     @patch("app.routes.v1.webhooks_hundredms.settings")
     def test_stale_timestamp_returns_400(self, mock_settings, client_with_mock_repo):

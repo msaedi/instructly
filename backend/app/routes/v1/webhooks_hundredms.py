@@ -43,6 +43,7 @@ _delivery_cache: OrderedDict[str, float] = OrderedDict()
 _PROCESSING_RETRY_AFTER_SECONDS = "2"
 _WEBHOOK_EVENT_MAX_AGE = timedelta(hours=6)
 _WEBHOOK_EVENT_MAX_FUTURE_SKEW = timedelta(minutes=2)
+_MAX_WEBHOOK_BODY_BYTES = 1_048_576
 _ULID_PATTERN = r"[0-9A-HJKMNP-TV-Z]{26}"
 _ROOM_NAME_RE = re.compile(rf"^lesson-(?P<booking_id>{_ULID_PATTERN})$")
 
@@ -74,10 +75,14 @@ class _HandledEventData(_WebhookBaseModel):
 
 class _SessionOpenData(_HandledEventData):
     session_id: str = Field(min_length=1, max_length=100)
+    session_started_at: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 class _SessionCloseData(_HandledEventData):
     session_id: str = Field(min_length=1, max_length=100)
+    session_started_at: str | None = Field(default=None, min_length=1, max_length=64)
+    session_stopped_at: str | None = Field(default=None, min_length=1, max_length=64)
+    session_duration: int | float | None = None
 
 
 class _PeerJoinData(_HandledEventData):
@@ -85,7 +90,9 @@ class _PeerJoinData(_HandledEventData):
     role: Literal["host", "guest"]
     peer_id: str | None = Field(default=None, min_length=1, max_length=100)
     user_id: str | None = Field(default=None, min_length=1, max_length=100)
+    joined_at: str | None = Field(default=None, min_length=1, max_length=64)
     metadata: dict[str, Any] | str | None = None
+    peer: dict[str, Any] | None = None
 
 
 class _PeerLeaveData(_HandledEventData):
@@ -93,6 +100,9 @@ class _PeerLeaveData(_HandledEventData):
     role: Literal["host", "guest"]
     peer_id: str | None = Field(default=None, min_length=1, max_length=100)
     user_id: str | None = Field(default=None, min_length=1, max_length=100)
+    joined_at: str | None = Field(default=None, min_length=1, max_length=64)
+    left_at: str | None = Field(default=None, min_length=1, max_length=64)
+    peer: dict[str, Any] | None = None
 
 
 class _HandledEventEnvelope(_WebhookBaseModel):
@@ -245,6 +255,39 @@ def _validate_handled_event_payload(
 
     _validate_replay_window(parsed.timestamp)
     return parsed.id, parsed.data.model_dump(), parsed.timestamp
+
+
+def _validate_webhook_body_size(
+    *,
+    content_length_header: str | None = None,
+    raw_body: bytes | None = None,
+) -> None:
+    if content_length_header is not None:
+        trimmed = content_length_header.strip()
+        if trimmed:
+            try:
+                declared_size = int(trimmed)
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid Content-Length header",
+                ) from exc
+            if declared_size < 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid Content-Length header",
+                )
+            if declared_size > _MAX_WEBHOOK_BODY_BYTES:
+                raise HTTPException(
+                    status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                    detail="Webhook payload too large",
+                )
+
+    if raw_body is not None and len(raw_body) > _MAX_WEBHOOK_BODY_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail="Webhook payload too large",
+        )
 
 
 def _extract_booking_id_from_room_name(room_name: str | None) -> str | None:
@@ -584,6 +627,7 @@ def _get_booking_repository(db: Session = Depends(get_db)) -> BookingRepository:
 )
 async def handle_hundredms_webhook(
     request: Request,
+    db: Session = Depends(get_db),
     booking_repo: BookingRepository = Depends(_get_booking_repository),
 ) -> WebhookAckResponse:
     """Process 100ms webhook events for video session tracking."""
@@ -594,7 +638,9 @@ async def handle_hundredms_webhook(
 
     # 1. Verify secret header
     _verify_hundredms_secret(request)
+    _validate_webhook_body_size(content_length_header=request.headers.get("content-length"))
     raw_body = await request.body()
+    _validate_webhook_body_size(raw_body=raw_body)
 
     # 2. Parse JSON
     try:
@@ -629,21 +675,18 @@ async def handle_hundredms_webhook(
     idempotency_key = None if event_id else delivery_key
 
     # 7. Persistent dedup via webhook ledger (source of truth)
-    ledger_db = getattr(booking_repo, "db", None)
-    ledger_service = WebhookLedgerService(ledger_db) if ledger_db is not None else None
-    ledger_event: WebhookEvent | None = None
-    if ledger_service is not None:
-        ledger_event = await asyncio.to_thread(
-            ledger_service.log_received,
-            source="hundredms",
-            event_type=event_type,
-            payload=payload,
-            headers=dict(request.headers),
-            event_id=event_id,
-            idempotency_key=idempotency_key,
-        )
+    ledger_service = WebhookLedgerService(db)
+    ledger_event: WebhookEvent = await asyncio.to_thread(
+        ledger_service.log_received,
+        source="hundredms",
+        event_type=event_type,
+        payload=payload,
+        headers=dict(request.headers),
+        event_id=event_id,
+        idempotency_key=idempotency_key,
+    )
 
-    if ledger_event is not None and ledger_event.status == "processed":
+    if ledger_event.status == "processed":
         logger.info(
             "100ms webhook retry for already-processed event %s (retry_count=%s)",
             ledger_event.id,
@@ -651,31 +694,23 @@ async def handle_hundredms_webhook(
         )
         return WebhookAckResponse(ok=True)
 
-    if ledger_service is not None and ledger_event is not None:
-        claimed = await asyncio.to_thread(ledger_service.mark_processing, ledger_event)
-        if not claimed:
-            latest = await asyncio.to_thread(ledger_service.get_event, ledger_event.id)
-            latest_status = latest.status if latest is not None else ledger_event.status
-            if latest_status == "processed":
-                logger.info(
-                    "100ms webhook already processed while duplicate was in flight: %s",
-                    ledger_event.id,
-                )
-                return WebhookAckResponse(ok=True)
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="processing_in_progress",
-                headers={"Retry-After": _PROCESSING_RETRY_AFTER_SECONDS},
+    claimed = await asyncio.to_thread(ledger_service.mark_processing, ledger_event)
+    if not claimed:
+        latest = await asyncio.to_thread(ledger_service.get_event, ledger_event.id)
+        latest_status = latest.status if latest is not None else ledger_event.status
+        if latest_status == "processed":
+            logger.info(
+                "100ms webhook already processed while duplicate was in flight: %s",
+                ledger_event.id,
             )
-
-    # Cache-only fallback when ledger storage is unavailable.
-    if ledger_event is None and _delivery_seen(delivery_key):
-        logger.info(
-            "Duplicate 100ms webhook ignored",
-            extra={"delivery_key": delivery_key},
+            return WebhookAckResponse(ok=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="processing_in_progress",
+            headers={"Retry-After": _PROCESSING_RETRY_AFTER_SECONDS},
         )
-        return WebhookAckResponse(ok=True)
 
+    # In-memory dedup protects against immediate retries between ledger transitions.
     _mark_delivery(delivery_key)
 
     # 8. Process event
@@ -690,14 +725,13 @@ async def handle_hundredms_webhook(
         )
 
         duration_ms = int((monotonic() - start_time) * 1000)
-        if ledger_service is not None and ledger_event is not None:
-            await asyncio.to_thread(
-                ledger_service.mark_processed,
-                ledger_event,
-                related_entity_type="booking_video_session",
-                related_entity_id=_extract_booking_id_from_room_name(data.get("room_name")),
-                duration_ms=duration_ms,
-            )
+        await asyncio.to_thread(
+            ledger_service.mark_processed,
+            ledger_event,
+            related_entity_type="booking_video_session",
+            related_entity_id=_extract_booking_id_from_room_name(data.get("room_name")),
+            duration_ms=duration_ms,
+        )
     except Exception as exc:
         processing_error = str(exc)
         _unmark_delivery(delivery_key)
@@ -706,19 +740,18 @@ async def handle_hundredms_webhook(
             extra={"event_type": event_type},
         )
         duration_ms = int((monotonic() - start_time) * 1000)
-        if ledger_service is not None and ledger_event is not None:
-            try:
-                await asyncio.to_thread(
-                    ledger_service.mark_failed,
-                    ledger_event,
-                    error=processing_error,
-                    duration_ms=duration_ms,
-                )
-            except Exception:
-                logger.exception(
-                    "Failed to mark 100ms webhook ledger event as failed",
-                    extra={"event_type": event_type},
-                )
+        try:
+            await asyncio.to_thread(
+                ledger_service.mark_failed,
+                ledger_event,
+                error=processing_error,
+                duration_ms=duration_ms,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to mark 100ms webhook ledger event as failed",
+                extra={"event_type": event_type},
+            )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="processing_failed",

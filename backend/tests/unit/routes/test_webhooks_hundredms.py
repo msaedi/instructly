@@ -107,6 +107,118 @@ class TestParseTimestamp:
 
 
 # ---------------------------------------------------------------------------
+# Helper: _validate_handled_event_payload
+# ---------------------------------------------------------------------------
+
+
+class TestValidateHandledEventPayload:
+    """Ensure schema validation preserves required timing fields."""
+
+    def test_session_close_keeps_timing_fields(self) -> None:
+        from app.routes.v1.webhooks_hundredms import _validate_handled_event_payload
+
+        payload = {
+            "id": "evt-session-close",
+            "type": "session.close.success",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "data": {
+                "room_id": "room_123",
+                "room_name": "lesson-01HYXZ5G6KFXJKZ9CHQM4E3P7G",
+                "session_id": "sess_123",
+                "session_started_at": "2024-06-15T14:00:00Z",
+                "session_stopped_at": "2024-06-15T15:00:00Z",
+                "session_duration": 3600,
+            },
+        }
+
+        event_id, data, _timestamp = _validate_handled_event_payload(
+            payload,
+            "session.close.success",
+        )
+
+        assert event_id == "evt-session-close"
+        assert data["session_started_at"] == "2024-06-15T14:00:00Z"
+        assert data["session_stopped_at"] == "2024-06-15T15:00:00Z"
+        assert data["session_duration"] == 3600
+
+    def test_peer_leave_keeps_join_and_leave_timestamps(self) -> None:
+        from app.routes.v1.webhooks_hundredms import _validate_handled_event_payload
+
+        payload = {
+            "id": "evt-peer-leave",
+            "type": "peer.leave.success",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "data": {
+                "room_id": "room_123",
+                "room_name": "lesson-01HYXZ5G6KFXJKZ9CHQM4E3P7G",
+                "session_id": "sess_123",
+                "role": "guest",
+                "peer_id": "peer_123",
+                "joined_at": "2024-06-15T14:00:00Z",
+                "left_at": "2024-06-15T15:00:00Z",
+            },
+        }
+
+        _event_id, data, _timestamp = _validate_handled_event_payload(
+            payload,
+            "peer.leave.success",
+        )
+
+        assert data["joined_at"] == "2024-06-15T14:00:00Z"
+        assert data["left_at"] == "2024-06-15T15:00:00Z"
+
+
+# ---------------------------------------------------------------------------
+# Helper: _validate_webhook_body_size
+# ---------------------------------------------------------------------------
+
+
+class TestValidateWebhookBodySize:
+    """Tests for webhook body size guards."""
+
+    def test_rejects_invalid_content_length(self) -> None:
+        from fastapi import HTTPException
+
+        from app.routes.v1.webhooks_hundredms import _validate_webhook_body_size
+
+        with pytest.raises(HTTPException) as exc_info:
+            _validate_webhook_body_size(content_length_header="abc")
+
+        assert exc_info.value.status_code == 400
+        assert exc_info.value.detail == "Invalid Content-Length header"
+
+    def test_rejects_declared_body_over_limit(self) -> None:
+        from fastapi import HTTPException
+
+        from app.routes.v1.webhooks_hundredms import (
+            _MAX_WEBHOOK_BODY_BYTES,
+            _validate_webhook_body_size,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            _validate_webhook_body_size(
+                content_length_header=str(_MAX_WEBHOOK_BODY_BYTES + 1),
+            )
+
+        assert exc_info.value.status_code == 413
+        assert exc_info.value.detail == "Webhook payload too large"
+
+    def test_rejects_actual_body_over_limit(self) -> None:
+        from fastapi import HTTPException
+
+        from app.routes.v1.webhooks_hundredms import (
+            _MAX_WEBHOOK_BODY_BYTES,
+            _validate_webhook_body_size,
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            _validate_webhook_body_size(raw_body=b"x" * (_MAX_WEBHOOK_BODY_BYTES + 1))
+
+        assert exc_info.value.status_code == 413
+        assert exc_info.value.detail == "Webhook payload too large"
+
+
+# ---------------------------------------------------------------------------
 # Helper: _build_delivery_key
 # ---------------------------------------------------------------------------
 

@@ -59,9 +59,14 @@ def get_video_service(db: Session = Depends(get_db)) -> VideoService:
             missing.append("HUNDREDMS_TEMPLATE_ID")
         if missing:
             missing_fields = ", ".join(missing)
-            raise ValueError(
-                "HUNDREDMS_ENABLED=True requires all 100ms credentials. "
-                f"Missing: {missing_fields}."
+            logger.error(
+                "Video service unavailable due to missing 100ms configuration: %s",
+                missing_fields,
+                extra={"missing_fields": missing},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Video service is temporarily unavailable",
             )
 
         client = HundredMsClient(

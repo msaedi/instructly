@@ -214,8 +214,9 @@ class TestGetVideoServiceFactory:
         assert isinstance(service.hundredms_client, FakeHundredMsClient)
 
     @patch("app.routes.v1.lessons.settings")
-    def test_raises_when_enabled_but_missing_credentials(self, mock_settings):
-        """Enabled mode must fail closed when credentials are incomplete."""
+    def test_returns_503_when_enabled_but_missing_credentials(self, mock_settings):
+        """Enabled mode must fail closed without leaking missing field names."""
+        from fastapi import HTTPException
         from pydantic import SecretStr
 
         mock_settings.hundredms_enabled = True
@@ -224,8 +225,10 @@ class TestGetVideoServiceFactory:
         mock_settings.hundredms_template_id = None
 
         mock_db = Mock()
-        with pytest.raises(ValueError, match="HUNDREDMS"):
+        with pytest.raises(HTTPException) as exc_info:
             get_video_service(db=mock_db)
+        assert exc_info.value.status_code == 503
+        assert exc_info.value.detail == "Video service is temporarily unavailable"
 
 
 # ── handle_domain_exception tests ────────────────────────────────────

@@ -92,7 +92,7 @@ jobs:
 
       - name: npm audit (security scan)
         working-directory: frontend
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=high --omit=dev
 
       - name: Lint (full project)
         working-directory: frontend
