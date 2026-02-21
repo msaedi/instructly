@@ -151,8 +151,7 @@ class TestDetectVideoNoShows:
         mock_db = MagicMock()
         mock_get_db.return_value = iter([mock_db])
 
-        # TESTING-ONLY: revert before production (was start_minutes_ago=30)
-        booking = self._make_booking(start_minutes_ago=60, duration_minutes=60)
+        booking = self._make_booking(start_minutes_ago=30, duration_minutes=60)
         vs = self._make_video_session(instructor_joined=False, student_joined=True)
 
         mock_repo = MagicMock()
@@ -189,8 +188,7 @@ class TestDetectVideoNoShows:
         mock_db = MagicMock()
         mock_get_db.return_value = iter([mock_db])
 
-        # TESTING-ONLY: revert before production (was start_minutes_ago=30)
-        booking = self._make_booking(start_minutes_ago=60, duration_minutes=60)
+        booking = self._make_booking(start_minutes_ago=30, duration_minutes=60)
         vs = self._make_video_session(instructor_joined=True, student_joined=False)
 
         mock_repo = MagicMock()
@@ -224,8 +222,7 @@ class TestDetectVideoNoShows:
         mock_db = MagicMock()
         mock_get_db.return_value = iter([mock_db])
 
-        # TESTING-ONLY: revert before production (was start_minutes_ago=30)
-        booking = self._make_booking(start_minutes_ago=60, duration_minutes=60)
+        booking = self._make_booking(start_minutes_ago=30, duration_minutes=60)
         vs = self._make_video_session(instructor_joined=True, student_joined=True)
 
         mock_repo = MagicMock()
@@ -272,9 +269,8 @@ class TestDetectVideoNoShows:
         mock_db = MagicMock()
         mock_get_db.return_value = iter([mock_db])
 
-        # TESTING-ONLY: revert before production (was start_minutes_ago=10, grace was 7.5min)
-        # 30-min lesson → grace = max(30-5, 7.5) = 25min → need >25 min ago
-        booking = self._make_booking(start_minutes_ago=30, duration_minutes=30)
+        # 30-min lesson → grace = min(30*0.25, 15) = 7.5min → need >7.5 min ago
+        booking = self._make_booking(start_minutes_ago=10, duration_minutes=30)
         vs = self._make_video_session(instructor_joined=False, student_joined=True)
 
         mock_repo = MagicMock()
@@ -308,8 +304,7 @@ class TestDetectVideoNoShows:
         mock_db = MagicMock()
         mock_get_db.return_value = iter([mock_db])
 
-        # TESTING-ONLY: revert before production (was start_minutes_ago=30)
-        booking = self._make_booking(start_minutes_ago=60, duration_minutes=60)
+        booking = self._make_booking(start_minutes_ago=30, duration_minutes=60)
         vs = self._make_video_session(instructor_joined=False, student_joined=True)
 
         mock_repo = MagicMock()
@@ -370,8 +365,7 @@ class TestDetectVideoNoShows:
         mock_db = MagicMock()
         mock_get_db.return_value = iter([mock_db])
 
-        # TESTING-ONLY: revert before production (was start_minutes_ago=30)
-        booking = self._make_booking(start_minutes_ago=60, duration_minutes=60)
+        booking = self._make_booking(start_minutes_ago=30, duration_minutes=60)
         vs = self._make_video_session(instructor_joined=False, student_joined=True)
 
         mock_repo = MagicMock()
@@ -405,8 +399,7 @@ class TestDetectVideoNoShows:
         mock_db = MagicMock()
         mock_get_db.return_value = iter([mock_db])
 
-        # TESTING-ONLY: revert before production (was start_minutes_ago=30)
-        booking = self._make_booking(start_minutes_ago=60, duration_minutes=60)
+        booking = self._make_booking(start_minutes_ago=30, duration_minutes=60)
 
         mock_repo = MagicMock()
         mock_repo.get_video_no_show_candidates.return_value = [(booking, None)]
@@ -440,8 +433,7 @@ class TestDetectVideoNoShows:
         mock_db = MagicMock()
         mock_get_db.return_value = iter([mock_db])
 
-        # TESTING-ONLY: revert before production (was start_minutes_ago=30)
-        booking = self._make_booking(start_minutes_ago=60, duration_minutes=60)
+        booking = self._make_booking(start_minutes_ago=30, duration_minutes=60)
         vs = self._make_video_session(instructor_joined=False, student_joined=False)
 
         mock_repo = MagicMock()
@@ -475,8 +467,7 @@ class TestDetectVideoNoShows:
         mock_db = MagicMock()
         mock_get_db.return_value = iter([mock_db])
 
-        # TESTING-ONLY: revert before production (was start_minutes_ago=30)
-        booking = self._make_booking(start_minutes_ago=60, duration_minutes=60)
+        booking = self._make_booking(start_minutes_ago=30, duration_minutes=60)
         vs = self._make_video_session(instructor_joined=False, student_joined=True)
 
         mock_repo = MagicMock()

@@ -160,9 +160,8 @@ class TestJoinLessonTiming:
     def test_rejects_too_early(self):
         from app.core.exceptions import ValidationException
 
-        # TESTING-ONLY: revert before production (was minutes=10)
         booking = _make_booking(
-            booking_start_utc=datetime.now(timezone.utc) + timedelta(minutes=20),
+            booking_start_utc=datetime.now(timezone.utc) + timedelta(minutes=10),
         )
         vs = _make_video_session()
         service, _, _ = _make_service(booking=booking, video_session=vs)
@@ -205,10 +204,9 @@ class TestJoinLessonTiming:
     def test_rejects_after_grace_period(self):
         from app.core.exceptions import ValidationException
 
-        # TESTING-ONLY: revert before production (was minutes=20, grace was 15min)
-        # 60min lesson → grace = max(60-5, 15) = 55min, start was 60min ago → expired
+        # 60min lesson → grace = min(60*0.25, 15) = 15min, start was 20min ago → expired
         booking = _make_booking(
-            booking_start_utc=datetime.now(timezone.utc) - timedelta(minutes=60),
+            booking_start_utc=datetime.now(timezone.utc) - timedelta(minutes=20),
             duration_minutes=60,
         )
         vs = _make_video_session()
@@ -233,10 +231,9 @@ class TestJoinLessonTiming:
     def test_grace_period_30min_lesson_expired(self):
         from app.core.exceptions import ValidationException
 
-        # TESTING-ONLY: revert before production (was minutes=8, grace was 7.5min)
-        # 30min lesson → grace = max(30-5, 7.5) = 25min, start was 30min ago → expired
+        # 30min lesson → grace = min(30*0.25, 15) = 7.5min, start was 8min ago → expired
         booking = _make_booking(
-            booking_start_utc=datetime.now(timezone.utc) - timedelta(minutes=30),
+            booking_start_utc=datetime.now(timezone.utc) - timedelta(minutes=8),
             duration_minutes=30,
         )
         vs = _make_video_session()

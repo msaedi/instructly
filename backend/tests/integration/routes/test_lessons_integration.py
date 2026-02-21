@@ -260,7 +260,7 @@ class TestJoinLessonIntegration:
         test_instructor,
         instructor_service_id,
     ):
-        """Booking started 70 min ago (grace expired for TESTING-ONLY 60-min lesson) → 400."""
+        """Booking started 70 min ago (grace of 15 min for 60-min lesson expired) → 400."""
         start_utc = dt.now(timezone.utc) - timedelta(minutes=70)
 
         booking_id = _make_online_booking(

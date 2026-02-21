@@ -8,10 +8,6 @@ MAX_GRACE_MINUTES: float = 15
 def compute_grace_minutes(duration_minutes: int) -> float:
     """Compute the join-window grace period for a video lesson.
 
-    TESTING-ONLY: revert before production.
-    Original formula: min(duration * 0.25, 15).
-    Testing formula: max(duration - 5, duration * 0.25) — joinable until 5 min before lesson end.
+    Returns min(25% of lesson duration, 15 minutes).
     """
-    return max(
-        duration_minutes - 5, duration_minutes * 0.25
-    )  # TESTING-ONLY: revert before production
+    return min(duration_minutes * 0.25, MAX_GRACE_MINUTES)

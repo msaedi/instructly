@@ -650,6 +650,128 @@ class TestProcessHundredmsEvent:
 
         assert vs.student_left_at == first_leave
 
+    def test_session_close_backfills_session_started_at(self) -> None:
+        """When session.open.success was missed, session.close.success backfills session_started_at."""
+        from app.routes.v1.webhooks_hundredms import _process_hundredms_event
+
+        vs = self._make_video_session()
+        assert vs.session_started_at is None
+        repo = self._make_repo(vs)
+
+        _process_hundredms_event(
+            event_type="session.close.success",
+            data={
+                "room_name": "lesson-01HYXZ5G6KFXJKZ9CHQM4E3P7G",
+                "session_duration": 3600,
+                "session_stopped_at": "2024-06-15T15:00:00Z",
+                "session_started_at": "2024-06-15T14:00:00Z",
+            },
+            booking_repo=repo,
+        )
+
+        assert vs.session_started_at is not None
+        assert vs.session_started_at.hour == 14
+        assert vs.session_ended_at is not None
+        assert vs.session_ended_at.hour == 15
+
+    def test_session_close_does_not_overwrite_existing_session_started_at(self) -> None:
+        from datetime import datetime
+
+        from app.routes.v1.webhooks_hundredms import _process_hundredms_event
+
+        vs = self._make_video_session()
+        original_start = datetime(2024, 6, 15, 13, 58, 0, tzinfo=timezone.utc)
+        vs.session_started_at = original_start
+        repo = self._make_repo(vs)
+
+        _process_hundredms_event(
+            event_type="session.close.success",
+            data={
+                "room_name": "lesson-01HYXZ5G6KFXJKZ9CHQM4E3P7G",
+                "session_duration": 3600,
+                "session_stopped_at": "2024-06-15T15:00:00Z",
+                "session_started_at": "2024-06-15T14:00:00Z",
+            },
+            booking_repo=repo,
+        )
+
+        assert vs.session_started_at == original_start
+
+    def test_peer_leave_host_backfills_join_when_no_prior_join(self) -> None:
+        """When peer.join.success was missed, peer.leave.success backfills joined_at."""
+        from app.routes.v1.webhooks_hundredms import _process_hundredms_event
+
+        vs = self._make_video_session()
+        vs.booking_id = "01HYXZ5G6KFXJKZ9CHQM4E3P7G"
+        assert vs.instructor_joined_at is None
+        repo = self._make_repo(vs)
+
+        _process_hundredms_event(
+            event_type="peer.leave.success",
+            data={
+                "room_name": "lesson-01HYXZ5G6KFXJKZ9CHQM4E3P7G",
+                "role": "host",
+                "peer_id": "peer-instructor",
+                "user_id": "instructor_123",
+                "joined_at": "2024-06-15T14:00:00Z",
+                "left_at": "2024-06-15T15:00:00Z",
+            },
+            booking_repo=repo,
+        )
+
+        assert vs.instructor_joined_at is not None
+        assert vs.instructor_peer_id == "peer-instructor"
+        assert vs.instructor_left_at is not None
+
+    def test_peer_leave_guest_backfills_join_when_no_prior_join(self) -> None:
+        from app.routes.v1.webhooks_hundredms import _process_hundredms_event
+
+        vs = self._make_video_session()
+        vs.booking_id = "01HYXZ5G6KFXJKZ9CHQM4E3P7G"
+        assert vs.student_joined_at is None
+        repo = self._make_repo(vs)
+
+        _process_hundredms_event(
+            event_type="peer.leave.success",
+            data={
+                "room_name": "lesson-01HYXZ5G6KFXJKZ9CHQM4E3P7G",
+                "role": "guest",
+                "peer_id": "peer-student",
+                "user_id": "student_123",
+                "joined_at": "2024-06-15T14:01:00Z",
+                "left_at": "2024-06-15T15:00:00Z",
+            },
+            booking_repo=repo,
+        )
+
+        assert vs.student_joined_at is not None
+        assert vs.student_peer_id == "peer-student"
+        assert vs.student_left_at is not None
+
+    def test_peer_leave_host_backfill_rejected_for_mismatched_user_id(self) -> None:
+        from app.routes.v1.webhooks_hundredms import _process_hundredms_event
+
+        vs = self._make_video_session()
+        vs.booking_id = "01HYXZ5G6KFXJKZ9CHQM4E3P7G"
+        vs.room_id = "room123"
+        repo = self._make_repo(vs)
+
+        _process_hundredms_event(
+            event_type="peer.leave.success",
+            data={
+                "room_name": "lesson-01HYXZ5G6KFXJKZ9CHQM4E3P7G",
+                "role": "host",
+                "peer_id": "peer-attacker",
+                "user_id": "not_the_instructor",
+                "joined_at": "2024-06-15T14:00:00Z",
+                "left_at": "2024-06-15T15:00:00Z",
+            },
+            booking_repo=repo,
+        )
+
+        assert vs.instructor_joined_at is None
+        assert vs.instructor_left_at is None
+
     def test_later_session_close_overwrites_timestamp(self) -> None:
         from datetime import datetime
 

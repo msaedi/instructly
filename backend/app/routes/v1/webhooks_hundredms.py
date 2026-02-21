@@ -289,16 +289,46 @@ def _handle_peer_join(video_session: Any, booking: Any, data: dict[str, Any]) ->
     return True
 
 
-def _handle_peer_leave(video_session: Any, data: dict[str, Any]) -> None:
-    """Update peer tracking columns on leave."""
+def _handle_peer_leave(video_session: Any, booking: Any, data: dict[str, Any]) -> None:
+    """Update peer tracking columns on leave.
+
+    100ms peer.leave.success payloads include ``joined_at`` and ``user_id``.
+    When no prior peer.join.success was recorded (e.g. event not enabled in
+    the dashboard), we backfill ``joined_at`` and ``peer_id`` from the leave
+    event as defense-in-depth.
+    """
     role = (data.get("role") or "").lower()
     left_at = _parse_timestamp(data.get("left_at"))
+    joined_at = _parse_timestamp(data.get("joined_at"))
+    peer_id = data.get("peer_id") or ""
+    peer_user_id = data.get("user_id")
 
     if role == "host":
-        if video_session.instructor_joined_at is None:
+        # Backfill join time from leave event when peer.join.success was missed
+        if video_session.instructor_joined_at is None and joined_at is not None:
+            if isinstance(peer_user_id, str) and peer_user_id == getattr(
+                booking, "instructor_id", None
+            ):
+                video_session.instructor_joined_at = joined_at
+                video_session.instructor_peer_id = peer_id
+                logger.info(
+                    "Backfilled instructor join from peer.leave: booking_id=%s joined_at=%s",
+                    video_session.booking_id,
+                    joined_at.isoformat(),
+                )
+            else:
+                logger.warning(
+                    "Ignoring peer.leave for instructor — no join recorded and "
+                    "user_id mismatch. booking_id=%s room_id=%s peer_user_id=%s",
+                    video_session.booking_id,
+                    video_session.room_id,
+                    peer_user_id,
+                )
+                return
+        elif video_session.instructor_joined_at is None:
             logger.warning(
-                "Ignoring peer.leave for instructor — no join recorded. "
-                "booking_id=%s room_id=%s",
+                "Ignoring peer.leave for instructor — no join recorded and "
+                "no joined_at in leave event. booking_id=%s room_id=%s",
                 video_session.booking_id,
                 video_session.room_id,
             )
@@ -306,9 +336,31 @@ def _handle_peer_leave(video_session: Any, data: dict[str, Any]) -> None:
         if video_session.instructor_left_at is None:
             video_session.instructor_left_at = left_at
     elif role == "guest":
-        if video_session.student_joined_at is None:
+        # Backfill join time from leave event when peer.join.success was missed
+        if video_session.student_joined_at is None and joined_at is not None:
+            if isinstance(peer_user_id, str) and peer_user_id == getattr(
+                booking, "student_id", None
+            ):
+                video_session.student_joined_at = joined_at
+                video_session.student_peer_id = peer_id
+                logger.info(
+                    "Backfilled student join from peer.leave: booking_id=%s joined_at=%s",
+                    video_session.booking_id,
+                    joined_at.isoformat(),
+                )
+            else:
+                logger.warning(
+                    "Ignoring peer.leave for student — no join recorded and "
+                    "user_id mismatch. booking_id=%s room_id=%s peer_user_id=%s",
+                    video_session.booking_id,
+                    video_session.room_id,
+                    peer_user_id,
+                )
+                return
+        elif video_session.student_joined_at is None:
             logger.warning(
-                "Ignoring peer.leave for student — no join recorded. " "booking_id=%s room_id=%s",
+                "Ignoring peer.leave for student — no join recorded and "
+                "no joined_at in leave event. booking_id=%s room_id=%s",
                 video_session.booking_id,
                 video_session.room_id,
             )
@@ -359,13 +411,16 @@ def _process_hundredms_event(
         duration = data.get("session_duration")
         if isinstance(duration, (int, float)):
             video_session.session_duration_seconds = int(duration)
+        # Backfill session_started_at when session.open.success was missed
+        if video_session.session_started_at is None:
+            video_session.session_started_at = _parse_timestamp(data.get("session_started_at"))
 
     elif event_type == "peer.join.success":
         if not _handle_peer_join(video_session, booking, data):
             return None, "skipped"
 
     elif event_type == "peer.leave.success":
-        _handle_peer_leave(video_session, data)
+        _handle_peer_leave(video_session, booking, data)
 
     else:
         return None, "skipped"
