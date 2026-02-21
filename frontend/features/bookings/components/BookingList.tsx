@@ -1,6 +1,6 @@
 import { Card } from '@/components/ui/card';
 import { format } from 'date-fns';
-import { AlertTriangle, CalendarDays, CheckCircle, Clock, User } from 'lucide-react';
+import { AlertTriangle, CalendarDays, CheckCircle, ChevronRight, Clock, User } from 'lucide-react';
 import { Fragment } from 'react';
 import { JoinLessonButton } from '@/components/lessons/video/JoinLessonButton';
 
@@ -30,6 +30,8 @@ type BookingListProps = {
   emptyTitle: string;
   emptyDescription: string;
   'data-testid'?: string;
+  /** Optional callback when a booking card is clicked to view details */
+  onViewDetails?: (bookingId: string) => void;
   /** Optional callback when "Mark Complete" is clicked on a past CONFIRMED booking */
   onComplete?: (bookingId: string) => void;
   /** Optional callback when "Report No-Show" is clicked on a past CONFIRMED booking */
@@ -91,6 +93,7 @@ export function BookingList({
   emptyDescription,
   emptyTitle,
   'data-testid': dataTestId = 'booking-list',
+  onViewDetails,
   onComplete,
   onNoShow,
   isActionPending = false,
@@ -142,11 +145,14 @@ export function BookingList({
           : 'You';
         const showActionButtons = needsAction(booking) && (onComplete !== undefined || onNoShow !== undefined);
 
+        const isClickable = onViewDetails !== undefined;
+
         return (
           <Card
             key={booking.id}
-            className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+            className={`rounded-xl border border-gray-200 bg-white p-4 shadow-sm${isClickable ? ' cursor-pointer transition-shadow hover:shadow-lg' : ''}`}
             data-testid="booking-card"
+            {...(isClickable ? { onClick: () => onViewDetails(booking.id) } : {})}
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -160,11 +166,16 @@ export function BookingList({
                   {studentName}
                 </p>
               </div>
-              <div className="text-right text-sm font-medium text-gray-900">
-                {booking.total_price ? (
-                  <Fragment>${Number(booking.total_price).toFixed(2)}</Fragment>
-                ) : (
-                  <span className="text-gray-500">Pending rate</span>
+              <div className="flex items-start gap-3">
+                <div className="text-right text-sm font-medium text-gray-900">
+                  {booking.total_price ? (
+                    <Fragment>${Number(booking.total_price).toFixed(2)}</Fragment>
+                  ) : (
+                    <span className="text-gray-500">Pending rate</span>
+                  )}
+                </div>
+                {isClickable && (
+                  <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" />
                 )}
               </div>
             </div>
@@ -183,7 +194,7 @@ export function BookingList({
               </div>
             </div>
             {booking.join_opens_at && (
-              <div className="mt-3">
+              <div className="mt-3" onClick={(e) => e.stopPropagation()}>
                 <JoinLessonButton
                   bookingId={booking.id}
                   joinOpensAt={booking.join_opens_at}
@@ -193,7 +204,7 @@ export function BookingList({
             )}
             {/* Action buttons for past CONFIRMED bookings */}
             {showActionButtons && (
-              <div className="mt-4 border-t border-gray-100 pt-4">
+              <div className="mt-4 border-t border-gray-100 pt-4" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-amber-700">
                     <AlertTriangle className="h-4 w-4" />

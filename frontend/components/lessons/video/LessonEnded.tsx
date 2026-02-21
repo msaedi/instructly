@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { CheckCircle2, Clock, User as UserIcon } from 'lucide-react';
+import { formatSessionDuration, formatSessionTime } from '@/lib/time/videoSession';
 import type { Booking, VideoSessionStatusResponse } from '@/features/shared/api/types';
 
 interface LessonEndedProps {
@@ -12,31 +13,11 @@ interface LessonEndedProps {
   localDurationSeconds?: number | null;
 }
 
-function formatDuration(seconds: number | null | undefined): string {
-  if (seconds == null || seconds <= 0) return '--';
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  if (m >= 60) {
-    const h = Math.floor(m / 60);
-    return `${h}h ${m % 60}m`;
-  }
-  return s > 0 ? `${m}m ${s}s` : `${m}m`;
-}
-
 function computeLocalDuration(joinedAt: string | null | undefined, leftAt: string | null | undefined): string {
   if (!joinedAt || !leftAt) return '--';
   const ms = new Date(leftAt).getTime() - new Date(joinedAt).getTime();
   if (!Number.isFinite(ms) || ms <= 0) return '--';
-  return formatDuration(Math.floor(ms / 1000));
-}
-
-function formatTime(iso: string | null | undefined): string {
-  if (!iso) return '--';
-  try {
-    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return '--';
-  }
+  return formatSessionDuration(Math.floor(ms / 1000));
 }
 
 export function LessonEnded({ booking, sessionData, userRole, localJoinedAt, localLeftAt, localDurationSeconds }: LessonEndedProps) {
@@ -44,16 +25,16 @@ export function LessonEnded({ booking, sessionData, userRole, localJoinedAt, loc
 
   // Duration: prefer backend, then pre-computed local, then compute from timestamps
   const duration = booking.video_session_duration_seconds
-    ? formatDuration(booking.video_session_duration_seconds)
+    ? formatSessionDuration(booking.video_session_duration_seconds)
     : localDurationSeconds
-      ? formatDuration(localDurationSeconds)
+      ? formatSessionDuration(localDurationSeconds)
       : computeLocalDuration(localJoinedAt, localLeftAt);
 
   // Join times: prefer backend webhook data, fall back to local timestamp for own role only
-  const instructorJoinedDisplay = formatTime(
+  const instructorJoinedDisplay = formatSessionTime(
     sessionData?.instructor_joined_at ?? (userRole === 'instructor' ? localJoinedAt : null),
   );
-  const studentJoinedDisplay = formatTime(
+  const studentJoinedDisplay = formatSessionTime(
     sessionData?.student_joined_at ?? (userRole === 'student' ? localJoinedAt : null),
   );
 

@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useLessonDetails } from '@/hooks/useMyLessons';
 import { format } from 'date-fns';
-import { ArrowLeft, Calendar, Clock, DollarSign, MapPin, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, DollarSign, MapPin, MessageCircle, User as UserIcon } from 'lucide-react';
 import { logger } from '@/lib/logger';
+import { formatSessionDuration, formatSessionTime } from '@/lib/time/videoSession';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -370,6 +371,33 @@ export default function LessonDetailsPage() {
             )}
           </div>
         </div>
+
+        {/* Video Session Section */}
+        {lesson.video_session_duration_seconds != null && (
+          <>
+            <Separator className="my-8" />
+            <div>
+              <h2 className="text-xl font-semibold mb-4 text-gray-700">Video Session</h2>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 text-sm">
+                  <Clock className="h-4 w-4 shrink-0 text-gray-500" />
+                  <span className="text-gray-500">Duration</span>
+                  <span className="ml-auto font-medium text-gray-700">{formatSessionDuration(lesson.video_session_duration_seconds)}</span>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <UserIcon className="h-4 w-4 shrink-0 text-gray-500" />
+                  <span className="text-gray-500">You joined</span>
+                  <span className="ml-auto font-medium text-gray-700">{formatSessionTime(lesson.video_student_joined_at)}</span>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <UserIcon className="h-4 w-4 shrink-0 text-gray-500" />
+                  <span className="text-gray-500">Instructor joined</span>
+                  <span className="ml-auto font-medium text-gray-700">{formatSessionTime(lesson.video_instructor_joined_at)}</span>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
         {/* Manage Booking Section for Upcoming */}
         {isUpcoming && (

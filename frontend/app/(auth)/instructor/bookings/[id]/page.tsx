@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { getLocationTypeIcon, type LocationType } from '@/types/booking';
 import { at } from '@/lib/ts/safe';
 import { useBooking, useCompleteBooking, useMarkBookingNoShow } from '@/src/api/services/bookings';
+import { formatSessionDuration, formatSessionTime } from '@/lib/time/videoSession';
 import { queryKeys } from '@/src/api/queryKeys';
 
 export default function BookingDetailsPage() {
@@ -99,9 +100,9 @@ export default function BookingDetailsPage() {
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="text-center">
           <p className="text-red-600 mb-4">{error || 'Booking not found'}</p>
-          <Link href="/instructor/availability" className="inline-flex items-center text-blue-600 hover:text-blue-800">
+          <Link href="/instructor/dashboard?panel=bookings" className="inline-flex items-center text-blue-600 hover:text-blue-800">
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Schedule
+            Back to Bookings
           </Link>
         </div>
       </div>
@@ -110,9 +111,9 @@ export default function BookingDetailsPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      <Link href="/instructor/availability" className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-6">
+      <Link href={`/instructor/dashboard?panel=bookings&tab=${isPastLesson() ? 'past' : 'upcoming'}`} className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-6">
         <ArrowLeft className="w-4 h-4 mr-2" />
-        Back to Schedule
+        Back to Bookings
       </Link>
 
       <div className="bg-white rounded-lg shadow">
@@ -197,6 +198,30 @@ export default function BookingDetailsPage() {
               {booking.student?.email && (<a href={`mailto:${booking.student.email}`} className="text-blue-600 hover:text-blue-800 text-sm">{booking.student.email}</a>)}
             </div>
           </div>
+
+          {/* Video Session Section */}
+          {booking.video_session_duration_seconds != null && (
+            <div className="border-t pt-6">
+              <div className="flex items-center gap-2 mb-3">
+                <Clock className="w-4 h-4 text-gray-400" />
+                <h3 className="font-medium text-gray-900">Video Session</h3>
+              </div>
+              <div className="ml-6 space-y-2">
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="text-gray-500">Duration</span>
+                  <span className="ml-auto font-medium text-gray-800">{formatSessionDuration(booking.video_session_duration_seconds)}</span>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="text-gray-500">You joined</span>
+                  <span className="ml-auto font-medium text-gray-800">{formatSessionTime(booking.video_instructor_joined_at)}</span>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="text-gray-500">Student joined</span>
+                  <span className="ml-auto font-medium text-gray-800">{formatSessionTime(booking.video_student_joined_at)}</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {(booking.student_note || booking.instructor_note) && (
             <div className="border-t pt-6 space-y-4">
