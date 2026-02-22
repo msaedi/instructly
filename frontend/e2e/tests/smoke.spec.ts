@@ -18,30 +18,32 @@ test.describe('Smoke Tests', () => {
     const heading = page.getByRole('heading', { name: /Instant Learning with iNSTAiNSTRU/i });
     await expect(heading).toBeVisible();
 
-    // Check for search input
-    const searchInput = page.getByPlaceholder(/Ready to learn something new/i);
+    // Check for search input; placeholder varies by auth shell.
+    const searchInput = page.getByPlaceholder(
+      /Ready to learn something new|What do you want to learn\?/i
+    );
     await expect(searchInput).toBeVisible();
   });
 
   test('navigation links are visible', async ({ page }) => {
     await page.goto('/');
 
-    // Validate auth entry link by href to avoid copy/variant mismatch across shells.
-    const authLink = page.locator('a[href*="/login"]').first();
-    await expect(authLink).toHaveAttribute('href', /\/login/);
+    const header = page.getByRole('banner');
 
-    // Check for become instructor link
-    const instructorLink = page.getByRole('link', { name: /Become an Instructor/i });
-    await expect(instructorLink).toBeVisible();
+    // Auth shell can be guest (login CTA) or authenticated (user menu).
+    const authControl = header.locator('button[aria-label="Open user menu"], a[href*="/login"]');
+    await expect(authControl.first()).toBeVisible();
+
+    const primaryAction = header.getByRole('link', {
+      name: /Finish Onboarding|My Dashboard|My Lessons|Become an Instructor|Sign up \/ Log in/i,
+    });
+    await expect(primaryAction.first()).toBeVisible();
   });
 
   test('can navigate to login page', async ({ page }) => {
     await page.goto('/');
 
-    const authLink = page.locator('a[href*="/login"]').first();
-    if ((await authLink.count()) > 0) {
-      await expect(authLink).toHaveAttribute('href', /\/login/);
-    }
+    // Some shells render no login link (already authenticated); direct navigation is stable.
     await page.goto('/login');
 
     // Verify we're on the login page
