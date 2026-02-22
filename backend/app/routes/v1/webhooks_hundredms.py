@@ -22,7 +22,9 @@ from sqlalchemy.orm import Session
 
 from ...core.config import settings
 from ...database import get_db
-from ...domain.video_utils import compute_grace_minutes
+from ...domain.video_utils import JOIN_WINDOW_EARLY_MINUTES, compute_grace_minutes
+from ...models.booking import Booking
+from ...models.booking_video_session import BookingVideoSession
 from ...models.webhook_event import WebhookEvent
 from ...ratelimit.dependency import rate_limit as new_rate_limit
 from ...repositories.booking_repository import BookingRepository
@@ -351,7 +353,11 @@ def _build_delivery_key(event_id: str | None, event_type: str, data: dict[str, A
 # ---------------------------------------------------------------------------
 
 
-def _append_metadata(video_session: Any, event_type: str, data: dict[str, Any]) -> None:
+def _append_metadata(
+    video_session: BookingVideoSession,
+    event_type: str,
+    data: dict[str, Any],
+) -> None:
     """Append event to provider_metadata JSONB for debugging."""
     existing = video_session.provider_metadata or {}
     events = existing.get("events", [])
@@ -365,7 +371,11 @@ def _append_metadata(video_session: Any, event_type: str, data: dict[str, Any]) 
     video_session.provider_metadata = {**existing, "events": events}
 
 
-def _handle_peer_join(video_session: Any, booking: Any, data: dict[str, Any]) -> bool:
+def _handle_peer_join(
+    video_session: BookingVideoSession,
+    booking: Booking,
+    data: dict[str, Any],
+) -> bool:
     """Update peer tracking columns on join.
 
     Returns False when metadata identity checks fail.
@@ -412,7 +422,7 @@ def _handle_peer_join(video_session: Any, booking: Any, data: dict[str, Any]) ->
         return False
 
     grace_minutes = compute_grace_minutes(int(booking_duration))
-    join_opens_at = booking_start_utc - timedelta(minutes=5)
+    join_opens_at = booking_start_utc - timedelta(minutes=JOIN_WINDOW_EARLY_MINUTES)
     join_closes_at = booking_start_utc + timedelta(minutes=grace_minutes)
     if joined_at < join_opens_at or joined_at > join_closes_at:
         logger.warning(
@@ -477,7 +487,11 @@ def _handle_peer_join(video_session: Any, booking: Any, data: dict[str, Any]) ->
     return True
 
 
-def _handle_peer_leave(video_session: Any, booking: Any, data: dict[str, Any]) -> None:
+def _handle_peer_leave(
+    video_session: BookingVideoSession,
+    booking: Booking,
+    data: dict[str, Any],
+) -> None:
     """Update peer tracking columns on leave.
 
     100ms peer.leave.success payloads include ``joined_at`` and ``user_id``.

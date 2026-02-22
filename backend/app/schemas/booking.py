@@ -26,7 +26,7 @@ import pytz
 
 from ..core.config import settings
 from ..core.constants import MIN_SESSION_DURATION
-from ..domain.video_utils import compute_grace_minutes
+from ..domain.video_utils import JOIN_WINDOW_EARLY_MINUTES, compute_grace_minutes
 from ..models.booking import BookingStatus
 from ..schemas.base import STRICT_SCHEMAS, Money, StandardizedModel
 from ._strict_base import StrictModel, StrictRequestModel
@@ -612,7 +612,7 @@ def _extract_satellite_fields(booking: Any) -> dict[str, Any]:
         and isinstance(_start, datetime)
         and isinstance(_duration, (int, float))
     ):
-        _opens_at = _start - timedelta(minutes=5)
+        _opens_at = _start - timedelta(minutes=JOIN_WINDOW_EARLY_MINUTES)
         _grace = compute_grace_minutes(int(_duration))
         # join_closes_at is the last moment participants are allowed to join.
         # It does not represent room shutdown time; the provider room may remain

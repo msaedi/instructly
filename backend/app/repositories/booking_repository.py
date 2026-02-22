@@ -58,6 +58,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         super().__init__(db, Booking)
         self.logger = logging.getLogger(__name__)
         self.init_cache(cache_service)
+        # Savepoint used to release row locks before outbound API calls
+        # without rolling back unrelated staged work on the session.
+        self._external_call_lock_savepoint: Any | None = None
 
     def create(self, **kwargs: Any) -> Booking:
         """Create a booking, exposing integrity errors for conflict handling."""
@@ -332,12 +335,19 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             raise
 
     def release_lock_for_external_call(self) -> None:
-        """Release SELECT FOR UPDATE lock before outbound API calls.
+        """Release row-level lock before outbound API calls.
 
-        This performs a rollback to release row-level locks. Callers should
-        re-acquire the lock before mutating booking state again.
+        Uses a SAVEPOINT created by ``get_booking_for_participant_for_update``
+        when ``lock_scope_for_external_call=True``. This avoids a full session
+        rollback so unrelated staged changes are preserved.
         """
-        self.db.rollback()
+        savepoint = self._external_call_lock_savepoint
+        self._external_call_lock_savepoint = None
+        if savepoint is None:
+            return
+        if not getattr(savepoint, "is_active", True):
+            return
+        savepoint.rollback()
 
     def get_video_no_show_candidates(
         self, sql_cutoff: datetime
@@ -1272,6 +1282,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         *,
         load_relationships: bool = True,
         populate_existing: bool = True,
+        lock_scope_for_external_call: bool = False,
     ) -> Optional[Booking]:
         """
         Get booking with row-level lock, only if user is a participant.
@@ -1279,6 +1290,14 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         Defense-in-depth: combines SELECT FOR UPDATE with participant filtering.
         """
         try:
+            if lock_scope_for_external_call:
+                existing_savepoint = self._external_call_lock_savepoint
+                if existing_savepoint is not None and getattr(
+                    existing_savepoint, "is_active", True
+                ):
+                    existing_savepoint.rollback()
+                self._external_call_lock_savepoint = self.db.begin_nested()
+
             query = (
                 self.db.query(Booking)
                 .filter(
@@ -1296,6 +1315,11 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 query = query.populate_existing()
             return cast(Optional[Booking], query.first())
         except Exception as e:
+            if lock_scope_for_external_call:
+                savepoint = self._external_call_lock_savepoint
+                self._external_call_lock_savepoint = None
+                if savepoint is not None and getattr(savepoint, "is_active", True):
+                    savepoint.rollback()
             self.logger.error(f"Error getting booking for participant (for update): {str(e)}")
             raise RepositoryException(
                 f"Failed to get booking for participant (for update): {str(e)}"

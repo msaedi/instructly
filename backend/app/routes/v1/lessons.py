@@ -50,6 +50,9 @@ def get_video_service(db: Session = Depends(get_db)) -> VideoService:
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail="Video service is temporarily unavailable",
                 )
+            logger.warning(
+                "HUNDREDMS_APP_SECRET not configured; non-production video auth tokens will use an empty secret"
+            )
             app_secret = str()
         elif hasattr(raw_secret, "get_secret_value"):
             app_secret = str(raw_secret.get_secret_value()).strip()

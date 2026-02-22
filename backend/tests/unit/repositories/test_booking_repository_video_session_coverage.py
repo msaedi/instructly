@@ -29,6 +29,7 @@ def _make_repo() -> tuple[BookingRepository, MagicMock]:
     repo.model = MagicMock()
     repo.logger = MagicMock()
     repo.invalidate_entity_cache = MagicMock()
+    repo._external_call_lock_savepoint = None
     return repo, mock_db
 
 
@@ -149,6 +150,45 @@ class TestEnsureVideoSession:
             repo.ensure_video_session("bk_1", "room_1")
 
         nested.rollback.assert_called_once()
+
+
+# ------------------------------------------------------------------
+# release_lock_for_external_call / lock savepoint scope
+# ------------------------------------------------------------------
+
+
+class TestReleaseLockForExternalCall:
+    """Ensure lock release uses savepoint rollback, not full session rollback."""
+
+    def test_release_uses_savepoint_not_session_rollback(self) -> None:
+        repo, mock_db = _make_repo()
+        savepoint = MagicMock()
+        savepoint.is_active = True
+        mock_db.begin_nested.return_value = savepoint
+
+        query_chain = (
+            mock_db.query.return_value
+            .filter.return_value
+            .with_for_update.return_value
+        )
+        query_chain.populate_existing.return_value.first.return_value = SimpleNamespace(id="bk_1")
+
+        repo.get_booking_for_participant_for_update(
+            "bk_1",
+            "user_1",
+            lock_scope_for_external_call=True,
+        )
+        repo.release_lock_for_external_call()
+
+        savepoint.rollback.assert_called_once()
+        mock_db.rollback.assert_not_called()
+
+    def test_release_is_noop_when_no_savepoint_scope_exists(self) -> None:
+        repo, mock_db = _make_repo()
+
+        repo.release_lock_for_external_call()
+
+        mock_db.rollback.assert_not_called()
 
 
 # ------------------------------------------------------------------

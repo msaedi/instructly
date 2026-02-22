@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 MAX_GRACE_MINUTES: float = 15
+# Minutes before scheduled start that participants can join the video room.
+JOIN_WINDOW_EARLY_MINUTES: int = 5
 
 
 def compute_grace_minutes(duration_minutes: int) -> float:

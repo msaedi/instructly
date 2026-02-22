@@ -64,6 +64,31 @@ class TestManagementToken:
         payload = jwt.decode(token, "my_secret_value_for_hmac_256bits", algorithms=["HS256"])
         assert payload["access_key"] == "key123"
 
+    def test_management_token_cache_reuses_token_before_refresh(self):
+        client = self._make_client()
+        with (
+            patch.object(client, "_generate_management_token", side_effect=["token-1"]) as gen,
+            patch("app.integrations.hundredms_client.time.monotonic", side_effect=[100.0, 200.0]),
+        ):
+            assert client._get_management_token() == "token-1"
+            assert client._get_management_token() == "token-1"
+        assert gen.call_count == 1
+
+    def test_management_token_cache_refreshes_after_window(self):
+        client = self._make_client()
+        with (
+            patch.object(
+                client, "_generate_management_token", side_effect=["token-1", "token-2"]
+            ) as gen,
+            patch(
+                "app.integrations.hundredms_client.time.monotonic",
+                side_effect=[100.0, 3205.0],
+            ),
+        ):
+            assert client._get_management_token() == "token-1"
+            assert client._get_management_token() == "token-2"
+        assert gen.call_count == 2
+
 
 # ── HTTP request tests (mocked) ────────────────────────────────────────
 

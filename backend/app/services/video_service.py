@@ -13,7 +13,7 @@ from typing import Any, Optional, Union
 from sqlalchemy.orm import Session
 
 from ..core.exceptions import NotFoundException, ServiceException, ValidationException
-from ..domain.video_utils import compute_grace_minutes
+from ..domain.video_utils import JOIN_WINDOW_EARLY_MINUTES, compute_grace_minutes
 from ..integrations.hundredms_client import FakeHundredMsClient, HundredMsClient, HundredMsError
 from ..models.booking import BookingStatus, LocationType
 from ..repositories.factory import RepositoryFactory
@@ -44,7 +44,7 @@ class VideoService(BaseService):
             raise ValidationException("This booking is not an online lesson")
 
         booking_start = booking.booking_start_utc
-        join_opens_at = booking_start - timedelta(minutes=5)
+        join_opens_at = booking_start - timedelta(minutes=JOIN_WINDOW_EARLY_MINUTES)
         grace_minutes = compute_grace_minutes(booking.duration_minutes)
         join_closes_at = booking_start + timedelta(minutes=grace_minutes)
 
@@ -61,24 +61,30 @@ class VideoService(BaseService):
         an auth token for the frontend SDK.
         """
         # 1. Look up booking — participant-filtered at DB level, locked to prevent TOCTOU
-        booking = self.booking_repository.get_booking_for_participant_for_update(
-            booking_id, user_id
-        )
-        if booking is None:
-            raise NotFoundException("Booking not found")
+        try:
+            booking = self.booking_repository.get_booking_for_participant_for_update(
+                booking_id,
+                user_id,
+                lock_scope_for_external_call=True,
+            )
+            if booking is None:
+                raise NotFoundException("Booking not found")
 
-        now = datetime.now(timezone.utc)
-        self._validate_joinable_booking(booking, now)
+            now = datetime.now(timezone.utc)
+            self._validate_joinable_booking(booking, now)
 
-        # 2. Determine role
-        role = "host" if user_id == booking.instructor_id else "guest"
+            # 2. Determine role
+            role = "host" if user_id == booking.instructor_id else "guest"
 
-        # 3. Create or get room
-        video_session = self.booking_repository.get_video_session_by_booking_id(booking_id)
+            # 3. Create or get room
+            video_session = self.booking_repository.get_video_session_by_booking_id(booking_id)
+        except Exception:
+            self.booking_repository.release_lock_for_external_call()
+            raise
 
         if video_session is None or video_session.room_id is None:
             room_name = f"lesson-{booking_id}"
-            # Release row lock before outbound provider call; re-acquire afterwards.
+            # Release row lock before outbound provider call.
             self.booking_repository.release_lock_for_external_call()
 
             try:
@@ -103,13 +109,22 @@ class VideoService(BaseService):
 
             # Re-acquire lock and re-check to avoid duplicate DB session rows.
             try:
-                booking = self.booking_repository.get_booking_for_participant_for_update(
-                    booking_id, user_id
-                )
-                if booking is None:
-                    raise NotFoundException("Booking not found")
+                with self.transaction():
+                    booking = self.booking_repository.get_booking_for_participant_for_update(
+                        booking_id, user_id
+                    )
+                    if booking is None:
+                        raise NotFoundException("Booking not found")
 
-                self._validate_joinable_booking(booking, datetime.now(timezone.utc))
+                    self._validate_joinable_booking(booking, datetime.now(timezone.utc))
+
+                    video_session = self.booking_repository.get_video_session_by_booking_id(
+                        booking_id
+                    )
+                    if video_session is None or video_session.room_id is None:
+                        video_session = self.booking_repository.ensure_video_session(
+                            booking_id, room_id=room_id, room_name=room_name
+                        )
             except Exception:
                 # Defense-in-depth: disable orphaned room if booking became invalid.
                 try:
@@ -123,12 +138,9 @@ class VideoService(BaseService):
                         extra={"status_code": cleanup_error.status_code},
                     )
                 raise
-
-            video_session = self.booking_repository.get_video_session_by_booking_id(booking_id)
-            if video_session is None or video_session.room_id is None:
-                video_session = self.booking_repository.ensure_video_session(
-                    booking_id, room_id=room_id, room_name=room_name
-                )
+        else:
+            # Existing room path: release the initial lock before outbound token generation.
+            self.booking_repository.release_lock_for_external_call()
 
         if video_session is None or video_session.room_id is None:
             raise ServiceException("Video session room is unavailable")

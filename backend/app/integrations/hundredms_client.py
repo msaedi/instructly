@@ -55,6 +55,8 @@ class HundredMsClient:
         self._base_url = base_url.rstrip("/")
         self._template_id = template_id
         self._timeout = timeout
+        self._mgmt_token: str | None = None
+        self._mgmt_token_refresh_at: float = 0.0
 
     def _generate_management_token(self) -> str:
         """Generate a management token for server-to-server API calls.
@@ -80,6 +82,15 @@ class HundredMsClient:
         )
         return token
 
+    def _get_management_token(self) -> str:
+        """Return a cached management token, refreshing before expiry."""
+        now = time.monotonic()
+        if self._mgmt_token is None or now >= self._mgmt_token_refresh_at:
+            self._mgmt_token = self._generate_management_token()
+            # Token lifetime is 60 minutes; rotate after 50 as safety margin.
+            self._mgmt_token_refresh_at = now + (50 * 60)
+        return self._mgmt_token
+
     def _request(
         self,
         method: str,
@@ -90,7 +101,7 @@ class HundredMsClient:
     ) -> dict[str, Any]:
         """Make an authenticated request to the 100ms API."""
         url = f"{self._base_url}/{path.lstrip('/')}"
-        token = self._generate_management_token()
+        token = self._get_management_token()
         headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
