@@ -137,7 +137,11 @@ class _PeerLeaveEnvelope(_HandledEventEnvelope):
     data: _PeerLeaveData
 
 
-_EVENT_SCHEMAS: dict[str, type[_HandledEventEnvelope]] = {
+_ParsedHandledEvent = (
+    _SessionOpenEnvelope | _SessionCloseEnvelope | _PeerJoinEnvelope | _PeerLeaveEnvelope
+)
+
+_EVENT_SCHEMAS: dict[str, type[_ParsedHandledEvent]] = {
     "session.open.success": _SessionOpenEnvelope,
     "session.close.success": _SessionCloseEnvelope,
     "peer.join.success": _PeerJoinEnvelope,

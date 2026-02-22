@@ -2222,9 +2222,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
     # Additional Repository Methods (from BaseRepository)
     # The following are inherited from BaseRepository:
     # - create(**kwargs) -> Booking
-    # - update(id: int, **kwargs) -> Optional[Booking]
-    # - delete(id: int) -> bool
-    # - get_by_id(id: int, load_relationships: bool = True) -> Optional[Booking]
+    # - update(id: str, **kwargs) -> Optional[Booking]
+    # - delete(id: str) -> bool
+    # - get_by_id(id: str, load_relationships: bool = True) -> Optional[Booking]
     # - exists(**kwargs) -> bool
     # - count(**kwargs) -> int
     # - find_by(**kwargs) -> List[Booking]

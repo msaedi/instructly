@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
     bind=True,
     max_retries=3,
 )
-def process_search_event(self: "Task[Any, Any]", event_id: int) -> Dict[str, Any]:
+def process_search_event(self: "Task[Any, Any]", event_id: str | int) -> Dict[str, Any]:
     """
     Process a single search event asynchronously.
 
@@ -46,14 +46,16 @@ def process_search_event(self: "Task[Any, Any]", event_id: int) -> Dict[str, Any
         db = next(get_db())
         search_repo = SearchEventRepository(db)
 
+        event_key = str(event_id)
+
         # Get the search event
-        event = search_repo.get_by_id(event_id)
+        event = search_repo.get_by_id(event_key)
         if not event:
             logger.warning(f"Search event {event_id} not found")
             return {"status": "error", "message": f"Event {event_id} not found"}
 
         # Calculate search quality score using repository method
-        quality_score = search_repo.calculate_search_quality_score(event_id)
+        quality_score = search_repo.calculate_search_quality_score(event_key)
 
         # Update event with calculated data (attribute may be added dynamically)
         setattr(event, "quality_score", quality_score)

@@ -421,6 +421,63 @@ class TestBookingPaymentService:
         assert payment_events[0].event_type == "setup_intent_created"
         assert payment_events[0].event_data["setup_intent_id"] == "seti_test123"
 
+    @patch("stripe.SetupIntent.create", side_effect=RuntimeError("stripe down"))
+    @patch("app.services.stripe_service.StripeService.get_or_create_customer")
+    async def test_create_booking_with_payment_setup_reraises_in_production(
+        self,
+        mock_get_customer,
+        _mock_setup_intent,
+        booking_service: BookingService,
+        student_user: User,
+        booking_data: BookingCreate,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """Production should not return a fake setup intent when Stripe fails."""
+        monkeypatch.setenv("SITE_MODE", "prod")
+
+        mock_customer = MagicMock()
+        mock_customer.stripe_customer_id = "cus_test123"
+        mock_get_customer.return_value = mock_customer
+
+        with patch("app.services.booking_service.must_be_verified_for_public", return_value=False):
+            with pytest.raises(RuntimeError, match="stripe down"):
+                await run_sync(
+                    booking_service.create_booking_with_payment_setup,
+                    student_user,
+                    booking_data,
+                    60,
+                )
+
+    @patch("stripe.SetupIntent.create", side_effect=RuntimeError("stripe down"))
+    @patch("app.services.stripe_service.StripeService.get_or_create_customer")
+    async def test_create_booking_with_payment_setup_falls_back_in_non_production(
+        self,
+        mock_get_customer,
+        _mock_setup_intent,
+        booking_service: BookingService,
+        student_user: User,
+        booking_data: BookingCreate,
+        db: Session,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """Non-production keeps mock setup intent fallback for local/test flows."""
+        monkeypatch.setenv("SITE_MODE", "local")
+
+        mock_customer = MagicMock()
+        mock_customer.stripe_customer_id = "cus_test123"
+        mock_get_customer.return_value = mock_customer
+
+        booking = await run_sync(
+            booking_service.create_booking_with_payment_setup,
+            student_user,
+            booking_data,
+            60,
+        )
+
+        assert booking.setup_intent_client_secret == f"seti_mock_secret_{booking.id}"
+        payment_event = db.query(PaymentEvent).filter_by(booking_id=booking.id).one()
+        assert payment_event.event_data["setup_intent_id"] == f"seti_mock_{booking.id}"
+
     async def test_create_booking_with_invalid_duration(
         self,
         booking_service: BookingService,

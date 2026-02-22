@@ -229,7 +229,7 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
             )
         return popular
 
-    def calculate_search_quality_score(self, event_id: int) -> float:
+    def calculate_search_quality_score(self, event_id: str | int) -> float:
         """
         Calculate quality score for a search event.
 
@@ -240,7 +240,8 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
         """
         from ..models.search_interaction import SearchInteraction
 
-        event = self.get_by_id(event_id)
+        event_key = str(event_id)
+        event = self.get_by_id(event_key)
         if not event:
             return 0.0
 
@@ -265,7 +266,7 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
         # Check for interactions (clicks, bookings, etc.)
         interaction = (
             self.db.query(SearchInteraction)
-            .filter(SearchInteraction.search_event_id == event_id)
+            .filter(SearchInteraction.search_event_id == event_key)
             .first()
         )
 

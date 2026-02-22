@@ -887,9 +887,22 @@ class BookingService(BaseService):
                 },
             )
         except Exception as e:
-            # Any Stripe error – fall back to mock (non-network CI path)
+            is_test_or_ci = bool(os.getenv("PYTEST_CURRENT_TEST") or os.getenv("CI"))
+            if settings.site_mode == "prod" or not is_test_or_ci:
+                logger.error(
+                    "SetupIntent creation failed for booking %s (site_mode=%s, test_or_ci=%s)",
+                    booking.id,
+                    settings.site_mode,
+                    is_test_or_ci,
+                    exc_info=True,
+                )
+                raise
+
+            # Test/CI fallback to keep deterministic fixtures when Stripe is unavailable.
             logger.warning(
-                f"SetupIntent creation failed for booking {booking.id}: {e}. Falling back to mock.",
+                "SetupIntent creation failed for booking %s in test/CI: %s. Falling back to mock.",
+                booking.id,
+                e,
             )
             setup_intent = SimpleNamespace(
                 id=f"seti_mock_{booking.id}",
@@ -2188,8 +2201,15 @@ class BookingService(BaseService):
 
     @BaseService.measure_operation("resolve_reschedule_lock")
     def resolve_lock_for_booking(self, locked_booking_id: str, resolution: str) -> Dict[str, Any]:
-        """Resolve a LOCK based on the new lesson outcome."""
+        """Resolve a LOCK based on the new lesson outcome.
+
+        Uses a 3-phase flow to avoid holding booking row locks during Stripe API calls:
+        1) Read/validate and collect context under SELECT ... FOR UPDATE
+        2) Execute outbound Stripe calls with no DB transaction held
+        3) Re-lock, re-validate state, and persist final lock resolution
+        """
         from ..repositories.payment_repository import PaymentRepository
+        from ..services.credit_service import CreditService
 
         stripe_service = StripeService(
             self.db,
@@ -2206,13 +2226,15 @@ class BookingService(BaseService):
             "error": None,
         }
 
+        resolution_ctx: Dict[str, Any]
+
+        # ========== PHASE 1: Read/validate (quick transaction) ==========
         with self.transaction():
             locked_booking = self.repository.get_by_id_for_update(locked_booking_id)
             if not locked_booking:
                 raise NotFoundException("Locked booking not found")
 
             lock_record = self.repository.get_lock_by_booking_id(locked_booking.id)
-
             if lock_record is not None and lock_record.lock_resolved_at is not None:
                 return {"success": True, "skipped": True, "reason": "already_resolved"}
 
@@ -2220,7 +2242,6 @@ class BookingService(BaseService):
             locked_ps = locked_pd.payment_status if locked_pd is not None else None
             if locked_ps == PaymentStatus.SETTLED.value:
                 return {"success": True, "skipped": True, "reason": "already_settled"}
-
             if locked_ps != PaymentStatus.LOCKED.value:
                 return {"success": False, "skipped": True, "reason": "not_locked"}
 
@@ -2267,60 +2288,105 @@ class BookingService(BaseService):
                 )
                 payout_full_cents = int(pricing.get("target_instructor_payout_cents", 0))
 
-            if resolution == "new_lesson_completed":
+            resolution_ctx = {
+                "booking_id": locked_booking.id,
+                "student_id": locked_booking.student_id,
+                "payment_intent_id": payment_intent_id,
+                "locked_amount_cents": locked_amount_cents,
+                "lesson_price_cents": lesson_price_cents,
+                "instructor_stripe_account_id": instructor_stripe_account_id,
+                "payout_full_cents": int(payout_full_cents or 0),
+            }
+
+        # ========== PHASE 2: Stripe calls (NO transaction) ==========
+        if resolution == "new_lesson_completed":
+            try:
+                instructor_account_id = resolution_ctx.get("instructor_stripe_account_id")
+                if not instructor_account_id:
+                    raise ServiceException("missing_instructor_account")
+                payout_amount_cents = int(resolution_ctx.get("payout_full_cents") or 0)
+                transfer_result = stripe_service.create_manual_transfer(
+                    booking_id=locked_booking_id,
+                    destination_account_id=instructor_account_id,
+                    amount_cents=payout_amount_cents,
+                    idempotency_key=f"lock_resolve_payout_{locked_booking_id}",
+                    metadata={"resolution": resolution},
+                )
+                stripe_result["payout_success"] = True
+                stripe_result["payout_transfer_id"] = transfer_result.get("transfer_id")
+                stripe_result["payout_amount_cents"] = payout_amount_cents
+            except Exception as exc:
+                stripe_result["error"] = str(exc)
+
+        elif resolution == "new_lesson_cancelled_lt12":
+            try:
+                instructor_account_id = resolution_ctx.get("instructor_stripe_account_id")
+                if not instructor_account_id:
+                    raise ServiceException("missing_instructor_account")
+                payout_amount_cents = int(
+                    round((resolution_ctx.get("payout_full_cents") or 0) * 0.5)
+                )
+                transfer_result = stripe_service.create_manual_transfer(
+                    booking_id=locked_booking_id,
+                    destination_account_id=instructor_account_id,
+                    amount_cents=payout_amount_cents,
+                    idempotency_key=f"lock_resolve_split_{locked_booking_id}",
+                    metadata={"resolution": resolution},
+                )
+                stripe_result["payout_success"] = True
+                stripe_result["payout_transfer_id"] = transfer_result.get("transfer_id")
+                stripe_result["payout_amount_cents"] = payout_amount_cents
+            except Exception as exc:
+                stripe_result["error"] = str(exc)
+
+        elif resolution == "instructor_cancelled":
+            payment_intent_id = resolution_ctx.get("payment_intent_id")
+            if payment_intent_id:
                 try:
-                    if not instructor_stripe_account_id:
-                        raise ServiceException("missing_instructor_account")
-                    payout_amount_cents = int(payout_full_cents or 0)
-                    transfer_result = stripe_service.create_manual_transfer(
-                        booking_id=locked_booking_id,
-                        destination_account_id=instructor_stripe_account_id,
-                        amount_cents=payout_amount_cents,
-                        idempotency_key=f"lock_resolve_payout_{locked_booking_id}",
-                        metadata={"resolution": resolution},
+                    refund = stripe_service.refund_payment(
+                        payment_intent_id,
+                        reverse_transfer=True,
+                        refund_application_fee=True,
+                        idempotency_key=f"lock_resolve_refund_{locked_booking_id}",
                     )
-                    stripe_result["payout_success"] = True
-                    stripe_result["payout_transfer_id"] = transfer_result.get("transfer_id")
-                    stripe_result["payout_amount_cents"] = payout_amount_cents
+                    stripe_result["refund_success"] = True
+                    stripe_result["refund_data"] = refund
                 except Exception as exc:
                     stripe_result["error"] = str(exc)
+            else:
+                stripe_result["error"] = "missing_payment_intent"
 
-            elif resolution == "new_lesson_cancelled_lt12":
-                try:
-                    if not instructor_stripe_account_id:
-                        raise ServiceException("missing_instructor_account")
-                    payout_amount_cents = int(round((payout_full_cents or 0) * 0.5))
-                    transfer_result = stripe_service.create_manual_transfer(
-                        booking_id=locked_booking_id,
-                        destination_account_id=instructor_stripe_account_id,
-                        amount_cents=payout_amount_cents,
-                        idempotency_key=f"lock_resolve_split_{locked_booking_id}",
-                        metadata={"resolution": resolution},
-                    )
-                    stripe_result["payout_success"] = True
-                    stripe_result["payout_transfer_id"] = transfer_result.get("transfer_id")
-                    stripe_result["payout_amount_cents"] = payout_amount_cents
-                except Exception as exc:
-                    stripe_result["error"] = str(exc)
+        # ========== PHASE 3: Re-lock/re-validate and persist ==========
+        with self.transaction():
+            locked_booking = self.repository.get_by_id_for_update(locked_booking_id)
+            if not locked_booking:
+                raise NotFoundException("Locked booking not found")
 
-            elif resolution == "instructor_cancelled":
-                if payment_intent_id:
-                    try:
-                        refund = stripe_service.refund_payment(
-                            payment_intent_id,
-                            reverse_transfer=True,
-                            refund_application_fee=True,
-                            idempotency_key=f"lock_resolve_refund_{locked_booking_id}",
-                        )
-                        stripe_result["refund_success"] = True
-                        stripe_result["refund_data"] = refund
-                    except Exception as exc:
-                        stripe_result["error"] = str(exc)
-                else:
-                    stripe_result["error"] = "missing_payment_intent"
+            lock_record = self.repository.get_lock_by_booking_id(locked_booking.id)
+            if lock_record is not None and lock_record.lock_resolved_at is not None:
+                logger.info(
+                    "Skipping stale lock resolution for booking %s after external call: already resolved",
+                    locked_booking.id,
+                )
+                return {"success": True, "skipped": True, "reason": "already_resolved"}
 
-            from ..services.credit_service import CreditService
+            locked_pd = locked_booking.payment_detail
+            locked_ps = locked_pd.payment_status if locked_pd is not None else None
+            if locked_ps == PaymentStatus.SETTLED.value:
+                logger.info(
+                    "Skipping stale lock resolution for booking %s after external call: already settled",
+                    locked_booking.id,
+                )
+                return {"success": True, "skipped": True, "reason": "already_settled"}
+            if locked_ps != PaymentStatus.LOCKED.value:
+                logger.warning(
+                    "Skipping stale lock resolution for booking %s after external call: payment status=%s",
+                    locked_booking.id,
+                    locked_ps,
+                )
+                return {"success": False, "skipped": True, "reason": "not_locked"}
 
+            payment_repo = PaymentRepository(self.db)
             credit_service = CreditService(self.db)
 
             def _credit_already_issued() -> bool:
@@ -2341,6 +2407,9 @@ class BookingService(BaseService):
 
             def _locked_transfer() -> BookingTransfer:
                 return self._ensure_transfer_record(locked_booking.id)
+
+            lesson_price_cents = int(resolution_ctx.get("lesson_price_cents") or 0)
+            locked_amount_cents = resolution_ctx.get("locked_amount_cents")
 
             locked_bp = self.repository.ensure_payment(locked_booking.id)
             if resolution == "new_lesson_completed":
