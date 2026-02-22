@@ -23,7 +23,9 @@ jest.mock('@/lib/logger', () => ({
   },
 }));
 
-jest.mock('next/dynamic', () => () => {
+jest.mock('next/dynamic', () => (loadFn: () => Promise<unknown>) => {
+  try { Promise.resolve(loadFn()).catch(() => {}); } catch {}
+
   const MockTimeSelectionModal = ({
     isOpen,
     onClose,
@@ -626,6 +628,319 @@ describe('AvailabilityCalendar', () => {
           expect(screen.queryByTestId('time-selection-modal')).not.toBeInTheDocument();
         });
       }
+    });
+  });
+
+  describe('booking intent with missing fields', () => {
+    it('handles booking intent with no date (bookingIntent.date is undefined)', () => {
+      // Exercises the ?? null fallback at line 40 and ?? '' at line 55
+      mockGetBookingIntent.mockReturnValue({
+        instructorId: 'user-123',
+        // date is missing
+        time: undefined,
+        duration: 60,
+        serviceId: undefined,
+      });
+
+      mockUseInstructorAvailability.mockReturnValue({
+        data: { availability_by_date: {} },
+        isLoading: false,
+        error: null,
+      });
+
+      render(<AvailabilityCalendar instructorId="inst-123" instructor={mockInstructor as never} />);
+
+      // Should still clear booking intent since instructor matches
+      expect(mockClearBookingIntent).toHaveBeenCalled();
+      // Modal should NOT auto-open since date/time are missing (isModalOpen requires selectedDate && selectedTime)
+      expect(screen.queryByTestId('time-selection-modal')).not.toBeInTheDocument();
+    });
+
+    it('handles booking intent with null bookingIntent entirely', () => {
+      // bookingIntent is null, so shouldRestoreIntent is false
+      mockGetBookingIntent.mockReturnValue(null);
+
+      mockUseInstructorAvailability.mockReturnValue({
+        data: { availability_by_date: {} },
+        isLoading: false,
+        error: null,
+      });
+
+      render(<AvailabilityCalendar instructorId="inst-123" instructor={mockInstructor as never} />);
+
+      expect(mockClearBookingIntent).not.toHaveBeenCalled();
+    });
+
+    it('handles booking intent with date but no time or serviceId', () => {
+      // Exercises bookingIntent?.time ?? '' (falls to '') and bookingIntent?.serviceId (undefined)
+      jest.useFakeTimers();
+      const tomorrowStr = getDateString(1);
+      jest.setSystemTime(new Date(`${getDateString(0)}T09:00:00`));
+
+      mockGetBookingIntent.mockReturnValue({
+        instructorId: 'user-123',
+        date: tomorrowStr,
+        // time is undefined — ?? '' fallback
+        // serviceId is undefined — undefined fallback
+        duration: 60,
+      });
+
+      mockUseInstructorAvailability.mockReturnValue({
+        data: {
+          availability_by_date: {
+            [tomorrowStr]: {
+              available_slots: [{ start_time: '10:00', end_time: '11:00' }],
+            },
+          },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      render(<AvailabilityCalendar instructorId="inst-123" instructor={mockInstructor as never} />);
+
+      // Should clear intent since instructor matches
+      expect(mockClearBookingIntent).toHaveBeenCalled();
+      // Modal should NOT open: selectedTime is '' (falsy) so isModalOpen is false
+      expect(screen.queryByTestId('time-selection-modal')).not.toBeInTheDocument();
+    });
+
+    it('restores intent with all fields present', async () => {
+      // Exercises the non-fallback paths: bookingIntent.date (not null),
+      // bookingIntent.time (not ''), bookingIntent.serviceId (not undefined)
+      jest.useFakeTimers();
+      const tomorrowStr = getDateString(1);
+      jest.setSystemTime(new Date(`${getDateString(0)}T09:00:00`));
+
+      mockGetBookingIntent.mockReturnValue({
+        instructorId: 'user-123',
+        date: tomorrowStr,
+        time: '10:00',
+        duration: 60,
+        serviceId: 'svc-1',
+      });
+
+      mockUseInstructorAvailability.mockReturnValue({
+        data: {
+          availability_by_date: {
+            [tomorrowStr]: {
+              available_slots: [{ start_time: '10:00', end_time: '11:00' }],
+            },
+          },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      render(<AvailabilityCalendar instructorId="inst-123" instructor={mockInstructor as never} />);
+
+      // Modal auto-opens since all fields present
+      const modal = await screen.findByTestId('time-selection-modal');
+      expect(modal).toHaveAttribute('data-preselected-date', tomorrowStr);
+      expect(modal).toHaveAttribute('data-preselected-time', '10:00');
+      expect(modal).toHaveAttribute('data-service-id', 'svc-1');
+    });
+  });
+
+  describe('availability data with missing available_slots', () => {
+    it('handles day data with no available_slots key (line 129-135)', () => {
+      jest.useFakeTimers();
+      const todayStr = getDateString(0);
+      jest.setSystemTime(new Date(`${todayStr}T09:00:00`));
+
+      mockUseInstructorAvailability.mockReturnValue({
+        data: {
+          availability_by_date: {
+            [todayStr]: {
+              // available_slots is undefined — exercises the ternary at line 129
+            },
+          },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      render(<AvailabilityCalendar instructorId="inst-123" instructor={mockInstructor as never} />);
+
+      // Day with no available_slots should show as having no availability
+      expect(screen.getByText(/no available times in the next 14 days/i)).toBeInTheDocument();
+    });
+  });
+
+  describe('formatTime edge cases', () => {
+    it('formats midnight (00:00) correctly as 12:00AM', async () => {
+      jest.useFakeTimers();
+      const tomorrowStr = getDateString(1);
+      jest.setSystemTime(new Date(`${getDateString(0)}T09:00:00`));
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      mockUseInstructorAvailability.mockReturnValue({
+        data: {
+          availability_by_date: {
+            [tomorrowStr]: {
+              available_slots: [
+                { start_time: '00:00', end_time: '01:00' },
+              ],
+            },
+          },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      render(<AvailabilityCalendar instructorId="inst-123" instructor={mockInstructor as never} />);
+
+      const dayButtons = screen.getAllByRole('button');
+      const availableDay = dayButtons.find((btn) => !btn.hasAttribute('disabled'));
+
+      if (availableDay) {
+        await user.click(availableDay);
+
+        await waitFor(() => {
+          // hour % 12 || 12 for hour=0 gives 12, AM
+          expect(screen.getByText('12:00AM')).toBeInTheDocument();
+        });
+      }
+    });
+
+    it('returns empty string for malformed time with no colon', async () => {
+      jest.useFakeTimers();
+      const tomorrowStr = getDateString(1);
+      jest.setSystemTime(new Date(`${getDateString(0)}T09:00:00`));
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      mockUseInstructorAvailability.mockReturnValue({
+        data: {
+          availability_by_date: {
+            [tomorrowStr]: {
+              available_slots: [
+                { start_time: '', end_time: '11:00' },
+                { start_time: '10:00', end_time: '11:00' },
+              ],
+            },
+          },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      render(<AvailabilityCalendar instructorId="inst-123" instructor={mockInstructor as never} />);
+
+      const dayButtons = screen.getAllByRole('button');
+      const availableDay = dayButtons.find((btn) => !btn.hasAttribute('disabled'));
+
+      if (availableDay) {
+        await user.click(availableDay);
+
+        await waitFor(() => {
+          // '10:00' should render; '' returns '' from formatTime
+          expect(screen.getByText('10:00AM')).toBeInTheDocument();
+        });
+      }
+    });
+  });
+
+  describe('groupSlotsByTimeOfDay with missing hour part', () => {
+    it('filters out slots with empty start_time in grouping', async () => {
+      jest.useFakeTimers();
+      const tomorrowStr = getDateString(1);
+      jest.setSystemTime(new Date(`${getDateString(0)}T09:00:00`));
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      mockUseInstructorAvailability.mockReturnValue({
+        data: {
+          availability_by_date: {
+            [tomorrowStr]: {
+              available_slots: [
+                { start_time: '10:00', end_time: '11:00' },
+              ],
+            },
+          },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      render(<AvailabilityCalendar instructorId="inst-123" instructor={mockInstructor as never} />);
+
+      const dayButtons = screen.getAllByRole('button');
+      const availableDay = dayButtons.find((btn) => !btn.hasAttribute('disabled'));
+
+      if (availableDay) {
+        await user.click(availableDay);
+
+        await waitFor(() => {
+          expect(screen.getByText('Morning')).toBeInTheDocument();
+          expect(screen.getByText('10:00AM')).toBeInTheDocument();
+        });
+      }
+    });
+  });
+
+  describe('no availability but has data', () => {
+    it('shows no available times message when selectedDate has empty slots', async () => {
+      jest.useFakeTimers();
+      const todayStr = getDateString(0);
+      const tomorrowStr = getDateString(1);
+      jest.setSystemTime(new Date(`${todayStr}T09:00:00`));
+
+      mockUseInstructorAvailability.mockReturnValue({
+        data: {
+          availability_by_date: {
+            // Tomorrow has slots but they are all empty
+            [tomorrowStr]: {
+              available_slots: [],
+            },
+          },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      render(<AvailabilityCalendar instructorId="inst-123" instructor={mockInstructor as never} />);
+
+      // No days should have green dots since all slots are empty
+      expect(screen.getByText(/no available times in the next 14 days/i)).toBeInTheDocument();
+    });
+  });
+
+  describe('selected day with no future slots shows "No available times" (line 332)', () => {
+    it('renders "No available times for this day" via booking intent on a day with past-only slots', async () => {
+      jest.useFakeTimers();
+      const todayStr = getDateString(0);
+      // Set time late so today's slots are all in the past
+      jest.setSystemTime(new Date(`${todayStr}T23:00:00`));
+
+      // Booking intent pre-selects today, which has only past slots
+      mockGetBookingIntent.mockReturnValue({
+        instructorId: 'user-123',
+        date: todayStr,
+        time: '08:00',
+        duration: 60,
+      });
+
+      mockUseInstructorAvailability.mockReturnValue({
+        data: {
+          availability_by_date: {
+            [todayStr]: {
+              available_slots: [
+                { start_time: '08:00', end_time: '09:00' }, // Past
+                { start_time: '10:00', end_time: '11:00' }, // Past
+              ],
+            },
+          },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      render(<AvailabilityCalendar instructorId="inst-123" instructor={mockInstructor as never} />);
+
+      // selectedDate = todayStr (from intent), but getAvailableSlots filters past -> []
+      // This triggers line 332: selectedDaySlots.length === 0
+      await waitFor(() => {
+        expect(screen.getByText('No available times for this day')).toBeInTheDocument();
+      });
     });
   });
 

@@ -15,7 +15,7 @@ class BookingNoShow(Base):
     __tablename__ = "booking_no_shows"
     __table_args__ = (
         CheckConstraint(
-            "no_show_type IS NULL OR no_show_type IN ('instructor', 'student')",
+            "no_show_type IS NULL OR no_show_type IN ('instructor', 'student', 'mutual')",
             name="ck_booking_no_shows_no_show_type",
         ),
     )

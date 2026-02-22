@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 from typing import cast
 
-from sqlalchemy import func
+from sqlalchemy import func, update as sa_update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -140,6 +140,46 @@ class WebhookEventRepository(BaseRepository[WebhookEvent]):
             .first()
         )
         return cast(WebhookEvent | None, result)
+
+    def find_by_source_and_idempotency_key(
+        self,
+        source: str,
+        idempotency_key: str,
+    ) -> WebhookEvent | None:
+        """Find webhook event by source and idempotency key."""
+        result = (
+            self.db.query(WebhookEvent)
+            .filter(
+                WebhookEvent.source == source,
+                WebhookEvent.idempotency_key == idempotency_key,
+            )
+            .first()
+        )
+        return cast(WebhookEvent | None, result)
+
+    def claim_for_processing(self, event_id: str) -> bool:
+        """Atomically claim an event for processing."""
+        try:
+            stmt = (
+                sa_update(WebhookEvent)
+                .where(
+                    WebhookEvent.id == event_id,
+                    WebhookEvent.status.in_(("received", "failed")),
+                )
+                .values(
+                    status="processing",
+                    processing_error=None,
+                    processed_at=None,
+                )
+                .returning(WebhookEvent.id)
+            )
+            row = self.db.execute(stmt).first()
+            return row is not None
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to claim webhook event %s for processing: %s", event_id, str(exc)
+            )
+            raise RepositoryException("Failed to claim webhook event for processing") from exc
 
     def get_failed_events(
         self,

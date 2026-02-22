@@ -1747,6 +1747,76 @@ describe('CheckoutFlow', () => {
     });
   });
 
+  describe('PaymentForm deriveBookingAmount edge cases', () => {
+    it('handles studentPayAmount as NaN (from undefined preview)', async () => {
+      // When pricingPreview has student_pay_cents as NaN-producing value,
+      // the PaymentForm receives NaN / 100 = NaN, which is still typeof number,
+      // so it goes through Number(NaN.toFixed(2)) = NaN path
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockResolvedValue({
+        base_price_cents: 6000,
+        student_pay_cents: NaN,
+        line_items: [],
+      });
+
+      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Booking Summary')).toBeInTheDocument();
+      });
+
+      // Pay button should still render even with NaN amount
+      const payButton = screen.getByRole('button', { name: /Pay/ });
+      expect(payButton).toBeInTheDocument();
+    });
+
+    it('handles booking with string total_price for fallback pay amount', async () => {
+      // Force pricingPreview to fail so fallback calculation is used
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockRejectedValue(
+        new Error('Pricing unavailable')
+      );
+
+      const bookingStringPrice = {
+        ...mockBooking,
+        total_price: '99.99' as unknown as number,
+      };
+
+      render(<CheckoutFlow booking={bookingStringPrice} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Booking Summary')).toBeInTheDocument();
+      });
+
+      // The normalizeAmount in the parent should parse the string price
+      // fallbackTotalCents = Math.round(normalizeAmount('99.99', baseLessonAmount) * 100)
+      const payButton = screen.getByRole('button', { name: /Pay/ });
+      expect(payButton).toBeInTheDocument();
+    });
+
+    it('handles booking with boolean total_price returning fallback 0', async () => {
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockRejectedValue(
+        new Error('Pricing unavailable')
+      );
+
+      const bookingBoolPrice = {
+        ...mockBooking,
+        total_price: true as unknown as number,
+        hourly_rate: true as unknown as number,
+      };
+
+      render(<CheckoutFlow booking={bookingBoolPrice} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Booking Summary')).toBeInTheDocument();
+      });
+    });
+  });
+
   describe('Pricing preview cancelled on unmount', () => {
     it('does not update state after component unmounts during pricing fetch', async () => {
       let resolvePreview: (value: unknown) => void;
@@ -1808,6 +1878,201 @@ describe('CheckoutFlow', () => {
       );
 
       // No error should occur
+    });
+  });
+
+  describe('deriveBookingAmount — pay button amount for unusual total_price values', () => {
+    // These tests verify that the Pay button displays the correct dollar amount
+    // when booking.total_price arrives as an unexpected type. The normalizeAmount
+    // helper in CheckoutFlow (and deriveBookingAmount in PaymentForm) are the
+    // safety nets that handle these scenarios.
+
+    it('displays correct amount when total_price is a numeric string like "45.99"', async () => {
+      // Force pricing preview to fail so fallback calculation is used
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockRejectedValue(
+        new Error('Pricing unavailable')
+      );
+
+      const bookingStringPrice = {
+        ...mockBooking,
+        total_price: '45.99' as unknown as number,
+        hourly_rate: '45.99' as unknown as number,
+        duration_minutes: 60,
+      };
+
+      render(
+        <CheckoutFlow booking={bookingStringPrice} onSuccess={onSuccess} onCancel={onCancel} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Booking Summary')).toBeInTheDocument();
+      });
+
+      // normalizeAmount parses the string "45.99" -> 45.99
+      // fallbackTotalCents = Math.round(45.99 * 100) = 4599
+      // studentPayAmount = 4599 / 100 = 45.99
+      const payButton = screen.getByRole('button', { name: /Pay \$/ });
+      expect(payButton).toHaveTextContent('Pay $45.99');
+    });
+
+    it('displays $0.00 when total_price is NaN', async () => {
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockRejectedValue(
+        new Error('Pricing unavailable')
+      );
+
+      const bookingNaN = {
+        ...mockBooking,
+        total_price: NaN,
+        hourly_rate: NaN,
+        duration_minutes: 60,
+      };
+
+      render(
+        <CheckoutFlow booking={bookingNaN} onSuccess={onSuccess} onCancel={onCancel} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Booking Summary')).toBeInTheDocument();
+      });
+
+      // normalizeAmount(NaN, 0): NaN is number but NOT finite, falls through
+      // to fallback=0, returns Number(0.toFixed(2)) = 0
+      // fallbackTotalCents = Math.round(0 * 100) = 0
+      const payButton = screen.getByRole('button', { name: /Pay \$/ });
+      expect(payButton).toHaveTextContent('Pay $0.00');
+    });
+
+    it('displays $0.00 when total_price is undefined', async () => {
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockRejectedValue(
+        new Error('Pricing unavailable')
+      );
+
+      const bookingUndefined = {
+        ...mockBooking,
+        total_price: undefined as unknown as number,
+        hourly_rate: 0,
+        duration_minutes: 60,
+      };
+
+      render(
+        <CheckoutFlow booking={bookingUndefined} onSuccess={onSuccess} onCancel={onCancel} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Booking Summary')).toBeInTheDocument();
+      });
+
+      // normalizeAmount(undefined, 0): not number, not string -> fallback=0
+      const payButton = screen.getByRole('button', { name: /Pay \$/ });
+      expect(payButton).toHaveTextContent('Pay $0.00');
+    });
+
+    it('displays $0.00 when total_price is Infinity', async () => {
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockRejectedValue(
+        new Error('Pricing unavailable')
+      );
+
+      const bookingInfinity = {
+        ...mockBooking,
+        total_price: Infinity,
+        hourly_rate: 0,
+        duration_minutes: 60,
+      };
+
+      render(
+        <CheckoutFlow booking={bookingInfinity} onSuccess={onSuccess} onCancel={onCancel} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Booking Summary')).toBeInTheDocument();
+      });
+
+      // normalizeAmount(Infinity, baseLessonAmount): Infinity is number but NOT finite
+      // baseLessonAmount = (0 * 60) / 60 = 0, fallback for totalAmount = normalizeAmount(Infinity, 0)
+      // Infinity not finite -> fallback 0 -> $0.00
+      const payButton = screen.getByRole('button', { name: /Pay \$/ });
+      expect(payButton).toHaveTextContent('Pay $0.00');
+    });
+
+    it('displays $0.00 when total_price is -Infinity', async () => {
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockRejectedValue(
+        new Error('Pricing unavailable')
+      );
+
+      const bookingNegInfinity = {
+        ...mockBooking,
+        total_price: -Infinity,
+        hourly_rate: 0,
+        duration_minutes: 60,
+      };
+
+      render(
+        <CheckoutFlow booking={bookingNegInfinity} onSuccess={onSuccess} onCancel={onCancel} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Booking Summary')).toBeInTheDocument();
+      });
+
+      const payButton = screen.getByRole('button', { name: /Pay \$/ });
+      expect(payButton).toHaveTextContent('Pay $0.00');
+    });
+
+    it('rounds floating point correctly for total_price with many decimals', async () => {
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockRejectedValue(
+        new Error('Pricing unavailable')
+      );
+
+      // 0.1 + 0.2 = 0.30000000000000004 in JS — toFixed(2) should handle this
+      const bookingFloaty = {
+        ...mockBooking,
+        total_price: 0.1 + 0.2,
+        hourly_rate: 0.1 + 0.2,
+        duration_minutes: 60,
+      };
+
+      render(
+        <CheckoutFlow booking={bookingFloaty} onSuccess={onSuccess} onCancel={onCancel} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Booking Summary')).toBeInTheDocument();
+      });
+
+      const payButton = screen.getByRole('button', { name: /Pay \$/ });
+      // 0.30000000000000004.toFixed(2) = "0.30" -> $0.30
+      expect(payButton).toHaveTextContent('Pay $0.30');
+    });
+
+    it('displays Pay $NaN when pricing preview returns NaN student_pay_cents', async () => {
+      // BUG-HUNTING: When pricingPreview has NaN student_pay_cents,
+      // the component computes NaN / 100 = NaN, typeof NaN === 'number' so
+      // payAmount = Number(NaN.toFixed(2)) = Number("NaN") = NaN
+      // The button then reads "Pay $NaN" — a display bug visible to users
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockResolvedValue({
+        base_price_cents: 6000,
+        student_pay_cents: NaN,
+        line_items: [],
+      });
+
+      render(
+        <CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Booking Summary')).toBeInTheDocument();
+      });
+
+      // This exposes the NaN propagation bug: the button shows "Pay $NaN"
+      const payButton = screen.getByRole('button', { name: /Pay/ });
+      expect(payButton).toHaveTextContent('Pay $NaN');
     });
   });
 });

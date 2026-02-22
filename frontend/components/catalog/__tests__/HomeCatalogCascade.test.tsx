@@ -805,6 +805,40 @@ describe('HomeCatalogCascade', () => {
     expect(await screen.findByRole('button', { name: /numeric/i })).toBeInTheDocument();
   });
 
+  it('early-returns from filteredSubcategories when subcategoriesData is undefined (line 271)', async () => {
+    // When subcategoriesData is undefined (still loading), the orphan-check loop is skipped.
+    // This prevents false warnings during the loading window.
+    setupCatalogMocks();
+    useSubcategoriesByCategoryMock.mockReturnValue({ data: undefined });
+
+    render(<HomeCatalogCascade isAuthenticated={false} />);
+
+    // The subcategories should not render any orphan "Other" labels
+    // because we short-circuit when subcategoriesData is undefined.
+    await screen.findByRole('button', { name: /^music$/i });
+    expect(screen.queryByText('Other')).not.toBeInTheDocument();
+  });
+
+  it('persists activeCategory in sessionStorage when clicking service pill link (line 479)', async () => {
+    // Exercises the persistNavContext(activeCategory) call on service pill click.
+    // Since activeCategory is always non-empty due to fallback categories,
+    // this always takes the `if (categoryId)` branch (line 311-313).
+    setupCatalogMocks();
+
+    render(<HomeCatalogCascade isAuthenticated={false} />);
+
+    // Click the subcategory with multiple services to reveal service pills
+    fireEvent.click(await screen.findByRole('button', { name: /^piano/i }));
+
+    // Click a service pill link
+    const pianoLink = await screen.findByRole('link', { name: 'Piano' });
+    clickWithoutNavigation(pianoLink);
+
+    // Verify the session storage was set (line 312)
+    expect(sessionStorage.getItem('homeSelectedCategory')).toBe('cat-music');
+    expect(sessionStorage.getItem('navigationFrom')).toBe('/');
+  });
+
   it('handles services with null category services array', async () => {
     useServiceCategoriesMock.mockReturnValue({ data: CATEGORY_DATA });
     useAllServicesWithInstructorsMock.mockReturnValue({

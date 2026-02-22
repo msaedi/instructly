@@ -198,6 +198,201 @@ describe('StudentBadgesPanel', () => {
     // No progress bar should be rendered
     expect(screen.queryByText(/%/)).not.toBeInTheDocument();
   });
+
+  describe('isBadgeProgress type guard edge cases', () => {
+    it('renders progress bar for valid progress {goal: 5, current: 2, percent: 40}', () => {
+      const badges: StudentBadgeItem[] = [
+        {
+          slug: 'valid_progress',
+          name: 'Valid Progress',
+          earned: false,
+          description: 'Standard progress.',
+          progress: { current: 2, goal: 5, percent: 40 },
+        },
+      ];
+
+      renderPanel(badges);
+
+      expect(screen.getByText('40%')).toBeInTheDocument();
+      expect(screen.getByText('2 / 5')).toBeInTheDocument();
+    });
+
+    it('hides progress bar when percent field is missing', () => {
+      // isBadgeProgress checks typeof progress['percent'] === 'number'
+      // Missing field returns undefined, typeof undefined !== 'number' -> fails guard
+      const badges: StudentBadgeItem[] = [
+        {
+          slug: 'no_percent',
+          name: 'No Percent',
+          earned: false,
+          description: 'Missing percent field.',
+          progress: { current: 2, goal: 5 } as unknown as null,
+        },
+      ];
+
+      renderPanel(badges);
+
+      expect(screen.getByText('No Percent')).toBeInTheDocument();
+      expect(screen.queryByText(/%/)).not.toBeInTheDocument();
+    });
+
+    it('renders NaN% when percent is NaN (typeof NaN === "number" passes the guard)', () => {
+      // BUG-HUNTING: The isBadgeProgress type guard uses typeof checks.
+      // typeof NaN === 'number' is true, so NaN passes the guard.
+      // Math.round(NaN) = NaN, Math.min(100, NaN) = NaN, Math.max(0, NaN) = NaN
+      // progressPercent = NaN, and NaN !== null is true, so hasProgress = true
+      // The component renders "NaN%" text and width: NaN% style — a display bug.
+      const badges: StudentBadgeItem[] = [
+        {
+          slug: 'nan_percent',
+          name: 'NaN Percent',
+          earned: false,
+          description: 'NaN percent sneaks past type guard.',
+          progress: { current: 2, goal: 5, percent: NaN },
+        },
+      ];
+
+      renderPanel(badges);
+
+      expect(screen.getByText('NaN Percent')).toBeInTheDocument();
+      // NaN passes the type guard and the hasProgress check (NaN !== null)
+      // so the progress bar renders with broken display
+      expect(screen.getByText('NaN%')).toBeInTheDocument();
+      expect(screen.getByText('2 / 5')).toBeInTheDocument();
+    });
+
+    it('hides progress bar when progress is null', () => {
+      const badges: StudentBadgeItem[] = [
+        {
+          slug: 'null_progress',
+          name: 'Null Progress',
+          earned: false,
+          description: 'Null progress from backend.',
+          progress: null,
+        },
+      ];
+
+      renderPanel(badges);
+
+      expect(screen.getByText('Null Progress')).toBeInTheDocument();
+      expect(screen.queryByText(/%/)).not.toBeInTheDocument();
+    });
+
+    it('hides progress bar when progress is a string', () => {
+      // isBadgeProgress: typeof "string" !== 'object' -> returns false
+      const badges: StudentBadgeItem[] = [
+        {
+          slug: 'string_progress',
+          name: 'String Progress',
+          earned: false,
+          description: 'String progress value.',
+          progress: 'some string' as unknown as null,
+        },
+      ];
+
+      renderPanel(badges);
+
+      expect(screen.getByText('String Progress')).toBeInTheDocument();
+      expect(screen.queryByText(/%/)).not.toBeInTheDocument();
+    });
+
+    it('hides progress bar when goal is zero (even with valid type guard pass)', () => {
+      // isBadgeProgress passes (all fields are numbers), but the
+      // progressPercent calculation has a guard: progress.goal > 0
+      // With goal=0, progressPercent becomes null
+      const badges: StudentBadgeItem[] = [
+        {
+          slug: 'zero_goal',
+          name: 'Zero Goal',
+          earned: false,
+          description: 'Goal is zero — division guard.',
+          progress: { current: 0, goal: 0, percent: 0 },
+        },
+      ];
+
+      renderPanel(badges);
+
+      expect(screen.getByText('Zero Goal')).toBeInTheDocument();
+      expect(screen.queryByText(/%/)).not.toBeInTheDocument();
+    });
+
+    it('hides progress bar when goal field is missing but current and percent exist', () => {
+      // isBadgeProgress: typeof progress['goal'] must be 'number'
+      // Missing goal -> undefined -> typeof undefined !== 'number' -> fails
+      const badges: StudentBadgeItem[] = [
+        {
+          slug: 'no_goal',
+          name: 'No Goal',
+          earned: false,
+          description: 'Missing goal field.',
+          progress: { current: 3, percent: 75 } as unknown as null,
+        },
+      ];
+
+      renderPanel(badges);
+
+      expect(screen.getByText('No Goal')).toBeInTheDocument();
+      expect(screen.queryByText(/%/)).not.toBeInTheDocument();
+    });
+
+    it('hides progress bar when current field is missing', () => {
+      const badges: StudentBadgeItem[] = [
+        {
+          slug: 'no_current',
+          name: 'No Current',
+          earned: false,
+          description: 'Missing current field.',
+          progress: { goal: 5, percent: 0 } as unknown as null,
+        },
+      ];
+
+      renderPanel(badges);
+
+      expect(screen.getByText('No Current')).toBeInTheDocument();
+      expect(screen.queryByText(/%/)).not.toBeInTheDocument();
+    });
+
+    it('renders progress bar when all fields are NaN (all pass typeof number check)', () => {
+      // BUG-HUNTING: Every field is NaN, all pass typeof === 'number'
+      // goal: NaN > 0 is false, so progressPercent = null, no progress bar
+      // This is actually safe — the goal > 0 guard catches NaN goal
+      const badges: StudentBadgeItem[] = [
+        {
+          slug: 'all_nan',
+          name: 'All NaN',
+          earned: false,
+          description: 'All fields NaN.',
+          progress: { current: NaN, goal: NaN, percent: NaN },
+        },
+      ];
+
+      renderPanel(badges);
+
+      expect(screen.getByText('All NaN')).toBeInTheDocument();
+      // NaN > 0 is false, so progressPercent = null, no progress bar
+      expect(screen.queryByText('NaN%')).not.toBeInTheDocument();
+    });
+
+    it('renders broken display when goal is valid but current and percent are NaN', () => {
+      // BUG-HUNTING: goal > 0 passes, but percent is NaN
+      // Math.round(NaN) = NaN -> Math.min(100, NaN) = NaN -> Math.max(0, NaN) = NaN
+      // progressPercent = NaN, NaN !== null = true -> renders progress bar with NaN%
+      const badges: StudentBadgeItem[] = [
+        {
+          slug: 'nan_current_percent',
+          name: 'NaN Current Percent',
+          earned: false,
+          description: 'Goal is valid but current/percent are NaN.',
+          progress: { current: NaN, goal: 5, percent: NaN },
+        },
+      ];
+
+      renderPanel(badges);
+
+      expect(screen.getByText('NaN Current Percent')).toBeInTheDocument();
+      expect(screen.getByText('NaN%')).toBeInTheDocument();
+    });
+  });
 });
 
 describe('StudentBadgesSection (wrapper)', () => {
@@ -234,5 +429,30 @@ describe('StudentBadgesSection (wrapper)', () => {
     render(<StudentBadgesSection />);
 
     expect(screen.getByText('Badge service unavailable')).toBeInTheDocument();
+  });
+
+  it('calls refetch when the retry button is clicked in error state', async () => {
+    const user = userEvent.setup();
+    const mockRefetch = jest.fn();
+    const { useStudentBadges } = require('../useStudentBadges') as {
+      useStudentBadges: jest.Mock;
+    };
+    useStudentBadges.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new Error('Network failure'),
+      refetch: mockRefetch,
+    });
+
+    render(<StudentBadgesSection />);
+
+    // The error message should be rendered
+    expect(screen.getByText('Network failure')).toBeInTheDocument();
+
+    // Click the retry button -- this exercises the onRetry={() => void refetch()} callback
+    await user.click(screen.getByRole('button', { name: /retry/i }));
+
+    expect(mockRefetch).toHaveBeenCalledTimes(1);
   });
 });

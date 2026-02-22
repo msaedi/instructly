@@ -16,6 +16,7 @@ import type {
   LocationLearningPendingAliasesResponse,
   LocationLearningUnresolvedQueriesResponse,
 } from '@/features/shared/api/types';
+import { extractApiErrorMessage } from '@/lib/apiErrors';
 
 type UnresolvedQueriesResponse = LocationLearningUnresolvedQueriesResponse;
 type PendingAliasesResponse = LocationLearningPendingAliasesResponse;
@@ -66,7 +67,7 @@ async function createManualAlias(payload: {
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as ApiErrorResponse;
-    throw new Error(body.detail || body.message || 'Failed to create alias');
+    throw new Error(extractApiErrorMessage(body, 'Failed to create alias'));
   }
 }
 

@@ -17,6 +17,7 @@ import { fetchAPI } from '@/lib/api';
 import { BRAND } from '@/app/config/brand';
 import type { PasswordResetConfirm } from '@/types/user';
 import type { ApiErrorResponse, PasswordResetVerifyResponse } from '@/features/shared/api/types';
+import { extractApiErrorMessage } from '@/lib/apiErrors';
 import { RequestStatus } from '@/types/api';
 import { getErrorMessage } from '@/types/common';
 
@@ -63,10 +64,10 @@ function ResetPasswordForm() {
       const response = await fetchAPI('/api/v1/password-reset/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: resetData.token, new_password: resetData.new_password }) });
       if (!response.ok) {
         const data = (await response.json()) as ApiErrorResponse;
-        if (response.status === 400 && data.detail?.includes('expired')) {
+        if (response.status === 400 && typeof data.detail === 'string' && data.detail.includes('expired')) {
           throw new Error('This reset link has expired. Please request a new one.');
         }
-        throw new Error(data.detail || data.message || 'Failed to reset password');
+        throw new Error(extractApiErrorMessage(data, 'Failed to reset password'));
       }
       setRequestStatus(RequestStatus.SUCCESS); setIsSuccess(true);
     } catch (err) { setError(getErrorMessage(err)); setRequestStatus(RequestStatus.ERROR); }
@@ -109,7 +110,7 @@ function ResetPasswordForm() {
       </div>
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          <form className="space-y-6" onSubmit={handleSubmit} noValidate>
+          <form method="POST" className="space-y-6" onSubmit={handleSubmit} noValidate>
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">New Password</label>
               <div className="mt-1 relative">

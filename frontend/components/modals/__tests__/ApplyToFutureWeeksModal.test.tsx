@@ -183,4 +183,95 @@ describe('ApplyToFutureWeeksModal', () => {
 
     expect(defaultProps.onConfirm).toHaveBeenCalledWith('2025-06-15');
   });
+
+  it('triggers end-of-year onChange when switching back from another option', async () => {
+    const user = userEvent.setup();
+    render(<ApplyToFutureWeeksModal {...defaultProps} />);
+
+    // First switch away from end-of-year to indefinitely
+    const indefinitelyRadio = screen.getByLabelText(/apply indefinitely/i);
+    await user.click(indefinitelyRadio);
+    expect(indefinitelyRadio).toBeChecked();
+
+    // Now explicitly click back to end-of-year, triggering the onChange handler
+    const endOfYearRadio = screen.getByLabelText(/until end of this year/i);
+    await user.click(endOfYearRadio);
+    expect(endOfYearRadio).toBeChecked();
+
+    // Verify the option was applied by confirming with the end-of-year date
+    await user.click(screen.getByRole('button', { name: /apply & save/i }));
+    expect(defaultProps.onConfirm).toHaveBeenCalledWith('2025-12-31');
+  });
+
+  describe('getMinDate', () => {
+    it('sets date picker min to 7 days after currentWeekStart', async () => {
+      const user = userEvent.setup();
+      // currentWeekStart is Jan 15
+      render(<ApplyToFutureWeeksModal {...defaultProps} />);
+
+      await user.click(screen.getByLabelText(/until specific date/i));
+
+      const dateInput = screen.getByLabelText(/select end date/i);
+      // min should be Jan 15 + 7 days = Jan 22, formatted as 2025-01-22
+      expect(dateInput).toHaveAttribute('min', '2025-01-22');
+    });
+
+    it('handles month boundary crossing (Jan 28 -> Feb 4)', async () => {
+      const user = userEvent.setup();
+      const weekStart = new Date('2025-01-28');
+      render(
+        <ApplyToFutureWeeksModal {...defaultProps} currentWeekStart={weekStart} />
+      );
+
+      await user.click(screen.getByLabelText(/until specific date/i));
+
+      const dateInput = screen.getByLabelText(/select end date/i);
+      // Jan 28 + 7 = Feb 4
+      expect(dateInput).toHaveAttribute('min', '2025-02-04');
+    });
+
+    it('handles year boundary crossing (Dec 29 -> Jan 5)', async () => {
+      const user = userEvent.setup();
+      const weekStart = new Date('2025-12-29');
+      render(
+        <ApplyToFutureWeeksModal {...defaultProps} currentWeekStart={weekStart} />
+      );
+
+      await user.click(screen.getByLabelText(/until specific date/i));
+
+      const dateInput = screen.getByLabelText(/select end date/i);
+      // Dec 29 + 7 = Jan 5 next year
+      expect(dateInput).toHaveAttribute('min', '2026-01-05');
+    });
+
+    it('handles leap year boundary (Feb 22 -> Mar 1 in non-leap year)', async () => {
+      const user = userEvent.setup();
+      // 2025 is not a leap year, so Feb has 28 days
+      const weekStart = new Date('2025-02-22');
+      render(
+        <ApplyToFutureWeeksModal {...defaultProps} currentWeekStart={weekStart} />
+      );
+
+      await user.click(screen.getByLabelText(/until specific date/i));
+
+      const dateInput = screen.getByLabelText(/select end date/i);
+      // Feb 22 + 7 = Mar 1 (in non-leap year)
+      expect(dateInput).toHaveAttribute('min', '2025-03-01');
+    });
+
+    it('handles leap year correctly (Feb 22 -> Feb 29 in leap year)', async () => {
+      const user = userEvent.setup();
+      // 2024 is a leap year
+      const weekStart = new Date('2024-02-22');
+      render(
+        <ApplyToFutureWeeksModal {...defaultProps} currentWeekStart={weekStart} />
+      );
+
+      await user.click(screen.getByLabelText(/until specific date/i));
+
+      const dateInput = screen.getByLabelText(/select end date/i);
+      // Feb 22 + 7 = Feb 29 (leap year)
+      expect(dateInput).toHaveAttribute('min', '2024-02-29');
+    });
+  });
 });

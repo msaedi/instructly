@@ -2,13 +2,12 @@
 Concurrency coverage for LOCK resolution.
 """
 
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 import threading
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import pytest
 from sqlalchemy.orm import Session, sessionmaker
 import ulid
 
@@ -153,13 +152,23 @@ def test_concurrent_lock_resolution_only_one_payout(db: Session) -> None:
         autoflush=False,
         expire_on_commit=False,
     )
-    start_event = threading.Event()
+    first_transfer_started = threading.Event()
+    second_transfer_started = threading.Event()
     release_event = threading.Event()
+    transfer_call_count = 0
+    transfer_call_lock = threading.Lock()
 
     def _slow_transfer(*_args, **_kwargs):
-        start_event.set()
-        release_event.wait(timeout=5)
-        return {"transfer_id": "tr_payout"}
+        nonlocal transfer_call_count
+        with transfer_call_lock:
+            transfer_call_count += 1
+            call_no = transfer_call_count
+        if call_no == 1:
+            first_transfer_started.set()
+            release_event.wait(timeout=5)
+            return {"transfer_id": "tr_payout_1"}
+        second_transfer_started.set()
+        return {"transfer_id": f"tr_payout_{call_no}"}
 
     def _resolve() -> dict:
         session = SessionMaker()
@@ -178,23 +187,19 @@ def test_concurrent_lock_resolution_only_one_payout(db: Session) -> None:
     ):
         with ThreadPoolExecutor(max_workers=2) as executor:
             first_future = executor.submit(_resolve)
-            assert start_event.wait(timeout=5)
+            assert first_transfer_started.wait(timeout=5)
             second_future = executor.submit(_resolve)
-            with pytest.raises(FuturesTimeoutError):
-                second_future.result(timeout=0.3)
+            # If phase 2 no longer holds the DB lock, second resolution should
+            # reach Stripe while the first transfer call is still blocked.
+            assert second_transfer_started.wait(timeout=1.0)
             release_event.set()
             first_result = first_future.result(timeout=5)
             second_result = second_future.result(timeout=5)
 
     assert first_result.get("success") is True
-    # After the booking-payments satellite refactor, SELECT FOR UPDATE
-    # on the bookings row no longer blocks concurrent readers of
-    # booking_payments data obtained via joinedload.  Both threads may
-    # therefore complete the resolution path.  The real production guard
-    # is the Stripe idempotency key, so we verify that:
-    #   1. At least one thread reported success.
-    #   2. Both threads used the same idempotency key (verified by mock).
-    #   3. The final DB state is correct (settled + lock resolved).
+    assert transfer_call_count >= 2
+    # External Stripe calls run without holding a booking row lock; concurrent
+    # executions may race, but idempotency and final state guards keep data safe.
     assert second_result.get("success") is True or second_result.get("skipped") is True
 
     db.expire_all()

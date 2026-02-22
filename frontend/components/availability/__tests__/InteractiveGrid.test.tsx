@@ -1179,6 +1179,104 @@ describe('InteractiveGrid', () => {
     });
   });
 
+  describe('hour-24 label and edge cases', () => {
+    it('renders the midnight next-day label when endHour exceeds 24', () => {
+      // HOURS_LABEL(24) returns '12:00 AM (+1d)' — exercises line 29
+      render(
+        <InteractiveGrid
+          {...defaultProps}
+          startHour={23}
+          endHour={25}
+          allowPastEditing={true}
+        />
+      );
+
+      const label = screen.getByText((content) => content.includes('+1d'));
+      expect(label).toBeInTheDocument();
+    });
+
+    it('does not crash when weekDates is empty', () => {
+      render(
+        <InteractiveGrid
+          {...defaultProps}
+          weekDates={[]}
+          startHour={9}
+          endHour={10}
+        />
+      );
+
+      // No cells rendered for empty week
+      expect(screen.queryAllByTestId('availability-cell')).toHaveLength(0);
+    });
+
+    it('handles mobile view with out-of-range activeDayIndex', () => {
+      // activeDayIndex=99 is beyond weekDates.length; falls back to weekDates[0]
+      // exercises lines 248-249: weekDates[activeDayIndex] ?? weekDates[0]
+      render(
+        <InteractiveGrid
+          {...defaultProps}
+          isMobile={true}
+          activeDayIndex={99}
+          startHour={9}
+          endHour={10}
+        />
+      );
+
+      // Should render the first day as fallback
+      const cells = screen.getAllByTestId('availability-cell');
+      expect(cells.length).toBe(2); // 1 hour * 2 half-hours * 1 day
+    });
+  });
+
+  describe('mouseLeave does not finish drag when buttons > 0', () => {
+    it('keeps drag active when mouse leaves with button still held (line 466)', () => {
+      const onBitsChange = jest.fn();
+      render(
+        <InteractiveGrid
+          {...defaultProps}
+          onBitsChange={onBitsChange}
+          startHour={9}
+          endHour={11}
+        />
+      );
+
+      const cells = screen.getAllByTestId('availability-cell');
+      const firstCell = cells[0];
+      const secondCell = cells[1];
+
+      if (firstCell && secondCell) {
+        // Start drag
+        fireEvent.mouseDown(firstCell, { buttons: 1 });
+        // Leave with button still held — should NOT finish drag
+        fireEvent.mouseLeave(firstCell, { buttons: 1 });
+        // Enter next cell — drag should still be active
+        fireEvent.mouseEnter(secondCell, { buttons: 1 });
+        fireEvent.mouseUp(secondCell);
+      }
+
+      // onBitsChange called for initial click + drag, proving drag was not ended
+      expect(onBitsChange).toHaveBeenCalled();
+    });
+  });
+
+  describe('getNowInTimezone without timezone prop (line 62-66)', () => {
+    it('uses local time when no timezone is provided', () => {
+      jest.setSystemTime(new Date('2030-01-08T15:30:00'));
+
+      render(
+        <InteractiveGrid
+          {...defaultProps}
+          startHour={9}
+          endHour={22}
+          // No timezone prop — exercises the !tz branch at line 62
+        />
+      );
+
+      const cells = screen.getAllByTestId('availability-cell');
+      expect(cells.length).toBeGreaterThan(0);
+    });
+  });
+
   describe('applyImmediate early return (line 118)', () => {
     it('triggers early return when state already matches desired via callback manipulation', () => {
       // The early return (line 118) happens when the callback is called with prev state

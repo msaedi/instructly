@@ -229,4 +229,93 @@ describe('AddressSelector', () => {
     fireEvent.click(screen.getByText('+ Use a different address'));
     expect(onEnterNewAddress).toHaveBeenCalledTimes(1);
   });
+
+  it('calls onSelectAddress when clicking a covered address', () => {
+    const onSelectAddress = jest.fn();
+    useSavedAddressesMock.mockReturnValue({ addresses: sampleAddresses, isLoading: false });
+    useServiceAreaCheckMock.mockReturnValue({ data: { is_covered: true }, isLoading: false });
+
+    render(
+      <AddressSelector
+        instructorId="inst-1"
+        locationType="student_location"
+        selectedAddress={null}
+        onSelectAddress={onSelectAddress}
+        onEnterNewAddress={jest.fn()}
+      />
+    );
+
+    const homeButton = screen.getByText('Home').closest('button')!;
+    fireEvent.click(homeButton);
+
+    expect(onSelectAddress).toHaveBeenCalledTimes(1);
+    expect(onSelectAddress).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'addr-1', label: 'home' })
+    );
+  });
+
+  it('calls onEnterNewAddress when clicking "Enter address" with no saved addresses', () => {
+    const onEnterNewAddress = jest.fn();
+    useSavedAddressesMock.mockReturnValue({ addresses: [], isLoading: false });
+    useServiceAreaCheckMock.mockReturnValue({ data: null, isLoading: false });
+
+    render(
+      <AddressSelector
+        instructorId="inst-1"
+        locationType="student_location"
+        selectedAddress={null}
+        onSelectAddress={jest.fn()}
+        onEnterNewAddress={onEnterNewAddress}
+      />
+    );
+
+    fireEvent.click(screen.getByText('Enter address'));
+    expect(onEnterNewAddress).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows Default badge for default addresses', () => {
+    useSavedAddressesMock.mockReturnValue({ addresses: sampleAddresses, isLoading: false });
+    useServiceAreaCheckMock.mockReturnValue({ data: { is_covered: true }, isLoading: false });
+
+    render(
+      <AddressSelector
+        instructorId="inst-1"
+        locationType="student_location"
+        selectedAddress={null}
+        onSelectAddress={jest.fn()}
+        onEnterNewAddress={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText('Default')).toBeInTheDocument();
+  });
+
+  it('handles address with custom_label for Other type', () => {
+    const customAddress = {
+      id: 'addr-4',
+      label: 'other',
+      custom_label: 'Gym',
+      street_line1: '789 Fitness Ave',
+      locality: 'New York',
+      administrative_area: 'NY',
+      postal_code: '10002',
+      latitude: 40.71,
+      longitude: -73.91,
+      is_active: true,
+    };
+    useSavedAddressesMock.mockReturnValue({ addresses: [customAddress], isLoading: false });
+    useServiceAreaCheckMock.mockReturnValue({ data: { is_covered: true }, isLoading: false });
+
+    render(
+      <AddressSelector
+        instructorId="inst-1"
+        locationType="student_location"
+        selectedAddress={null}
+        onSelectAddress={jest.fn()}
+        onEnterNewAddress={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText('Gym')).toBeInTheDocument();
+  });
 });

@@ -805,6 +805,22 @@ def upgrade() -> None:
     op.create_index("ix_webhook_events_status", "webhook_events", ["status"])
     op.create_index("ix_webhook_events_received_at", "webhook_events", ["received_at"])
     op.create_index("ix_webhook_events_event_id", "webhook_events", ["event_id"])
+    if is_postgres:
+        op.create_index(
+            "ix_webhook_events_source_idempotency",
+            "webhook_events",
+            ["source", "idempotency_key"],
+            unique=True,
+            postgresql_where=sa.text("idempotency_key IS NOT NULL"),
+        )
+    else:
+        op.create_index(
+            "ix_webhook_events_source_idempotency",
+            "webhook_events",
+            ["source", "idempotency_key"],
+            unique=True,
+            sqlite_where=sa.text("idempotency_key IS NOT NULL"),
+        )
     op.create_index(
         "ix_webhook_events_related_entity",
         "webhook_events",
@@ -1245,6 +1261,63 @@ def upgrade() -> None:
     op.create_index("idx_booking_notes_created_by_id", "booking_notes", ["created_by_id"])
     op.create_index("idx_booking_notes_created_at", "booking_notes", ["created_at"])
 
+    # ── Booking Video Sessions (100ms) ──────────────────────────────────
+    op.create_table(
+        "booking_video_sessions",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("booking_id", sa.String(26), nullable=False),
+        sa.Column("room_id", sa.String(100), nullable=False),
+        sa.Column("room_name", sa.String(255), nullable=True),
+        sa.Column("session_id", sa.String(100), nullable=True),
+        sa.Column("session_started_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("session_ended_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("session_duration_seconds", sa.Integer(), nullable=True),
+        sa.Column("instructor_peer_id", sa.String(100), nullable=True),
+        sa.Column("student_peer_id", sa.String(100), nullable=True),
+        sa.Column("instructor_joined_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("student_joined_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("instructor_left_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("student_left_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("provider_metadata", json_type, nullable=True),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("booking_id", name="uq_booking_video_sessions_booking_id"),
+        comment="100ms video session state for bookings",
+    )
+    op.create_index(
+        "idx_booking_video_sessions_booking_id",
+        "booking_video_sessions",
+        ["booking_id"],
+    )
+    op.create_index(
+        "idx_booking_video_sessions_room_id",
+        "booking_video_sessions",
+        ["room_id"],
+    )
+    op.create_index(
+        "ix_booking_video_sessions_session_id",
+        "booking_video_sessions",
+        ["session_id"],
+    )
+    op.create_index(
+        "ix_bookings_video_noshow_candidates",
+        "bookings",
+        ["status", "location_type", "booking_start_utc"],
+        postgresql_where=sa.text("location_type = 'online' AND status = 'CONFIRMED'"),
+    )
+
     if is_postgres:
         exclude_tables = [
             "alembic_version",
@@ -1380,6 +1453,13 @@ def downgrade() -> None:
         for table_name in tables:
             _drop_permissive_policy_and_disable_rls(table_name)
 
+    op.drop_index("ix_bookings_video_noshow_candidates", table_name="bookings")
+    op.drop_index("ix_booking_video_sessions_session_id", table_name="booking_video_sessions")
+    op.drop_index("idx_booking_video_sessions_room_id", table_name="booking_video_sessions")
+    op.drop_index("idx_booking_video_sessions_booking_id", table_name="booking_video_sessions")
+    op.drop_constraint("uq_booking_video_sessions_booking_id", "booking_video_sessions", type_="unique")
+    op.drop_table("booking_video_sessions")
+
     op.drop_index("idx_booking_notes_created_at", table_name="booking_notes")
     op.drop_index("idx_booking_notes_created_by_id", table_name="booking_notes")
     op.drop_index("idx_booking_notes_booking_id", table_name="booking_notes")
@@ -1465,6 +1545,7 @@ def downgrade() -> None:
     op.drop_table("alert_history")
 
     op.drop_index("ix_webhook_events_related_entity", table_name="webhook_events")
+    op.drop_index("ix_webhook_events_source_idempotency", table_name="webhook_events")
     op.drop_index("ix_webhook_events_event_id", table_name="webhook_events")
     op.drop_index("ix_webhook_events_received_at", table_name="webhook_events")
     op.drop_index("ix_webhook_events_status", table_name="webhook_events")

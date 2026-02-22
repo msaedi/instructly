@@ -7,14 +7,17 @@ from types import SimpleNamespace
 from typing import Optional
 from unittest.mock import patch
 
+from pydantic import SecretStr
 import pytest
 from sqlalchemy.orm import Session
 import ulid
 
 from app.core.exceptions import BusinessRuleException
+from app.integrations.hundredms_client import HundredMsError
 from app.models.booking import Booking, BookingStatus
 from app.models.booking_payment import BookingPayment
 from app.models.booking_reschedule import BookingReschedule
+from app.models.booking_video_session import BookingVideoSession
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.subcategory import ServiceSubcategory
@@ -171,6 +174,108 @@ def test_cancel_over_24h_releases_auth(db: Session):
     assert result.refunded_to_card_amount == 0
     mock_cancel.assert_called_once()
     mock_event.assert_called()
+
+
+def test_cancel_marks_video_session_terminal_and_disables_room(db: Session, monkeypatch: pytest.MonkeyPatch):
+    instructor, profile, svc = _create_instructor_with_service(db)
+    student = _create_student(db)
+    when = datetime.combine(date.today() + timedelta(days=2), time(14, 0))
+    bk = _create_booking(db, student, instructor, svc, when)
+
+    video_session = BookingVideoSession(
+        booking_id=bk.id,
+        room_id="room_123",
+        room_name=f"lesson-{bk.id}",
+        session_started_at=datetime.now(timezone.utc) - timedelta(minutes=8),
+    )
+    db.add(video_session)
+    db.flush()
+
+    monkeypatch.setattr("app.services.booking_service.settings.hundredms_enabled", True, raising=False)
+    monkeypatch.setattr(
+        "app.services.booking_service.settings.hundredms_access_key",
+        "access_key",
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "app.services.booking_service.settings.hundredms_app_secret",
+        SecretStr("app_secret"),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "app.services.booking_service.settings.hundredms_template_id",
+        "template_123",
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "app.services.booking_service.settings.hundredms_base_url",
+        "https://api.100ms.live/v2",
+        raising=False,
+    )
+
+    service = BookingService(db)
+
+    with patch("app.services.stripe_service.StripeService.cancel_payment_intent"), patch(
+        "app.repositories.payment_repository.PaymentRepository.create_payment_event"
+    ), patch("app.services.booking_service.HundredMsClient.disable_room") as mock_disable:
+        result = service.cancel_booking(bk.id, user=student, reason="test")
+
+    assert result.video_session is not None
+    assert result.video_session.session_ended_at is not None
+    assert result.video_session.session_duration_seconds is not None
+    assert result.video_session.session_duration_seconds >= 0
+    mock_disable.assert_called_once_with("room_123")
+
+
+def test_cancel_room_disable_is_best_effort(db: Session, monkeypatch: pytest.MonkeyPatch):
+    instructor, profile, svc = _create_instructor_with_service(db)
+    student = _create_student(db)
+    when = datetime.combine(date.today() + timedelta(days=2), time(14, 0))
+    bk = _create_booking(db, student, instructor, svc, when)
+
+    video_session = BookingVideoSession(
+        booking_id=bk.id,
+        room_id="room_456",
+        room_name=f"lesson-{bk.id}",
+    )
+    db.add(video_session)
+    db.flush()
+
+    monkeypatch.setattr("app.services.booking_service.settings.hundredms_enabled", True, raising=False)
+    monkeypatch.setattr(
+        "app.services.booking_service.settings.hundredms_access_key",
+        "access_key",
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "app.services.booking_service.settings.hundredms_app_secret",
+        SecretStr("app_secret"),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "app.services.booking_service.settings.hundredms_template_id",
+        "template_123",
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "app.services.booking_service.settings.hundredms_base_url",
+        "https://api.100ms.live/v2",
+        raising=False,
+    )
+
+    service = BookingService(db)
+
+    with patch("app.services.stripe_service.StripeService.cancel_payment_intent"), patch(
+        "app.repositories.payment_repository.PaymentRepository.create_payment_event"
+    ), patch(
+        "app.services.booking_service.HundredMsClient.disable_room",
+        side_effect=HundredMsError("provider unavailable", status_code=503),
+    ):
+        result = service.cancel_booking(bk.id, user=student, reason="test")
+
+    assert result.status == BookingStatus.CANCELLED
+    assert result.video_session is not None
+    assert result.video_session.session_ended_at is not None
 
 
 def test_cancel_12_24h_capture_reverse_credit(db: Session):

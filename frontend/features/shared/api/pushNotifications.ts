@@ -1,6 +1,7 @@
 import { withApiBase } from '@/lib/apiBase';
 import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import type { ApiErrorResponse, components } from '@/features/shared/api/types';
+import { extractApiErrorMessage } from '@/lib/apiErrors';
 
 type PushSubscribeRequest = components['schemas']['PushSubscribeRequest'];
 type PushUnsubscribeRequest = components['schemas']['PushUnsubscribeRequest'];
@@ -16,7 +17,7 @@ const SUBSCRIPTIONS_PATH = '/api/v1/push/subscriptions';
 async function parseErrorMessage(response: Response, fallback: string): Promise<string> {
   try {
     const payload = (await response.json()) as ApiErrorResponse;
-    return payload.detail ?? payload.message ?? fallback;
+    return extractApiErrorMessage(payload, fallback);
   } catch {
     return fallback;
   }

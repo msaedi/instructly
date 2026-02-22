@@ -7,6 +7,7 @@ import { CheckCircle } from 'lucide-react';
 import { fetchAPI } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import type { ApiErrorResponse, PasswordResetRequest } from '@/features/shared/api/types';
+import { extractApiErrorMessage } from '@/lib/apiErrors';
 import { RequestStatus } from '@/types/api';
 import { getErrorMessage } from '@/types/common';
 
@@ -53,7 +54,7 @@ export default function ForgotPasswordPage() {
         const data = (await response.json()) as ApiErrorResponse;
         if (response.status === 404) throw new Error('No account found with this email address');
         if (response.status === 429) throw new Error('Too many reset attempts. Please try again later');
-        throw new Error(data.detail || data.message || 'Failed to send reset email');
+        throw new Error(extractApiErrorMessage(data, 'Failed to send reset email'));
       }
 
       logger.info('Password reset email sent successfully', { email: trimmedEmail });
@@ -112,7 +113,7 @@ export default function ForgotPasswordPage() {
       </div>
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white dark:bg-gray-800 p-8 shadow sm:rounded-lg">
-          <form className="space-y-6" onSubmit={handleSubmit} noValidate>
+          <form method="POST" className="space-y-6" onSubmit={handleSubmit} noValidate>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
               <div className="mt-1">

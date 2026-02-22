@@ -40,7 +40,7 @@ class IRepository(ABC, Generic[T]):
     """
 
     @abstractmethod
-    def get_by_id(self, id: int, load_relationships: bool = True) -> Optional[T]:
+    def get_by_id(self, id: str, load_relationships: bool = True) -> Optional[T]:
         """
         Retrieve an entity by its primary key.
 
@@ -81,7 +81,7 @@ class IRepository(ABC, Generic[T]):
         """
 
     @abstractmethod
-    def update(self, id: int, **kwargs) -> Optional[T]:
+    def update(self, id: str, **kwargs) -> Optional[T]:
         """
         Update an existing entity.
 
@@ -97,7 +97,7 @@ class IRepository(ABC, Generic[T]):
         """
 
     @abstractmethod
-    def delete(self, id: int) -> bool:
+    def delete(self, id: str) -> bool:
         """
         Delete an entity by its primary key.
 
@@ -178,7 +178,7 @@ class BaseRepository(IRepository[T]):
             self.db.rollback()
             raise
 
-    def get_by_id(self, id: int, load_relationships: bool = True) -> Optional[T]:
+    def get_by_id(self, id: str, load_relationships: bool = True) -> Optional[T]:
         """
         Retrieve an entity by its primary key.
 
@@ -246,7 +246,11 @@ class BaseRepository(IRepository[T]):
         """Flush pending ORM changes."""
         self.db.flush()
 
-    def update(self, id: int, **kwargs) -> Optional[T]:
+    def rollback(self) -> None:
+        """Rollback the current transaction."""
+        self.db.rollback()
+
+    def update(self, id: str, **kwargs) -> Optional[T]:
         """
         Update an existing entity.
 
@@ -269,7 +273,7 @@ class BaseRepository(IRepository[T]):
             self.db.rollback()
             raise RepositoryException(f"Failed to update {self.model.__name__}: {str(e)}")
 
-    def delete(self, id: int) -> bool:
+    def delete(self, id: str) -> bool:
         """
         Delete an entity by its primary key.
 

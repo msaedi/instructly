@@ -272,6 +272,29 @@ describe('StripeOnboarding', () => {
       });
     });
 
+    it('retries fetching status when Try Again button is clicked', async () => {
+      paymentServiceMock.getOnboardingStatus.mockImplementation(() =>
+        Promise.reject(new Error('Network error'))
+      );
+
+      render(<StripeOnboarding instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
+      });
+
+      // First call was the initial load
+      expect(paymentServiceMock.getOnboardingStatus).toHaveBeenCalledTimes(1);
+
+      const tryAgainButton = screen.getByRole('button', { name: /try again/i });
+      fireEvent.click(tryAgainButton);
+
+      // Clicking Try Again re-invokes checkStatus
+      await waitFor(() => {
+        expect(paymentServiceMock.getOnboardingStatus).toHaveBeenCalledTimes(2);
+      });
+    });
+
     it('handles startOnboarding error', async () => {
       paymentServiceMock.getOnboardingStatus.mockResolvedValue({
         has_account: false,

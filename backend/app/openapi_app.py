@@ -32,6 +32,7 @@ from app.routes.v1 import (
     instructor_referrals as instructor_referrals_v1,
     instructors as instructors_v1,
     internal as internal_v1,
+    lessons as lessons_v1,
     messages as messages_v1,
     metrics as metrics_v1,
     monitoring as monitoring_v1,
@@ -57,6 +58,7 @@ from app.routes.v1 import (
     uploads as uploads_v1,
     users as users_v1,
     webhooks_checkr as webhooks_checkr_v1,
+    webhooks_hundredms as webhooks_hundredms_v1,
 )
 from app.routes.v1.admin import (
     audit as admin_audit_v1,
@@ -125,6 +127,7 @@ def build_openapi_app() -> FastAPI:
     api_v1.include_router(services_v1.router, prefix="/services")  # type: ignore[attr-defined]
     api_v1.include_router(catalog_v1.router, prefix="/catalog")  # type: ignore[attr-defined]
     api_v1.include_router(favorites_v1.router, prefix="/favorites")  # type: ignore[attr-defined]
+    api_v1.include_router(lessons_v1.router, prefix="/lessons")  # type: ignore[attr-defined]
     api_v1.include_router(addresses_v1.router, prefix="/addresses")  # type: ignore[attr-defined]
     api_v1.include_router(search_v1.router, prefix="/search")  # type: ignore[attr-defined]
     api_v1.include_router(search_history_v1.router, prefix="/search-history")  # type: ignore[attr-defined]
@@ -186,6 +189,7 @@ def build_openapi_app() -> FastAPI:
 
     # Webhook routes
     api_v1.include_router(webhooks_checkr_v1.router, prefix="/webhooks/checkr")  # type: ignore[attr-defined]
+    api_v1.include_router(webhooks_hundredms_v1.router, prefix="/webhooks/hundredms")  # type: ignore[attr-defined]
 
     # Monitoring/analytics routes
     api_v1.include_router(analytics_v1.router, prefix="/analytics")  # type: ignore[attr-defined]

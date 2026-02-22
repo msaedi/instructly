@@ -91,7 +91,8 @@ def _patch_celery_redis_pubsub() -> None:
     Celery's Redis result consumer calls the deprecated redis-py get_connection
     signature with args. This shim uses the new get_connection() API directly.
 
-    TODO: Remove when Celery fixes this upstream (track: https://github.com/celery/celery/issues/XXXX)
+    Tracking: OPS-1274 (owner: @platform-infra, target: 2026-04-15)
+    Remove after Celery ships an upstream fix for Redis pubsub reconnect compatibility.
     """
     try:
         from celery.backends.redis import ResultConsumer
@@ -238,6 +239,8 @@ def create_celery_app() -> Celery:
             "app.tasks.embedding_migration",
             # Periodic DB maintenance (ANALYZE on high-churn tables)
             "app.tasks.db_maintenance",
+            # Video session monitoring and no-show detection
+            "app.tasks.video_tasks",
         }
     )
 

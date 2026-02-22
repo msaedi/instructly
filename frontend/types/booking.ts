@@ -87,29 +87,40 @@ export interface Booking {
   duration_minutes: number;
 
   // Location fields
-  service_area?: string;
-  meeting_location?: string;
-  location_type?: LocationType;
-  location_address?: string;
+  service_area?: string | null;
+  meeting_location?: string | null;
+  location_type?: LocationType | null;
+  location_address?: string | null;
   location_lat?: number | null;
   location_lng?: number | null;
   location_place_id?: string | null;
 
   // Notes
-  student_note?: string;
-  instructor_note?: string;
+  student_note?: string | null;
+  instructor_note?: string | null;
 
   // Timestamps
   created_at: string; // ISO datetime string
   updated_at: string; // ISO datetime string
-  confirmed_at?: string;
-  completed_at?: string;
-  cancelled_at?: string; // ISO datetime string
+  confirmed_at?: string | null;
+  completed_at?: string | null;
+  cancelled_at?: string | null; // ISO datetime string
 
   // Cancellation fields
   cancelled_by?: 'STUDENT' | 'INSTRUCTOR';
-  cancelled_by_id?: string;
-  cancellation_reason?: string;
+  cancelled_by_id?: string | null;
+  cancellation_reason?: string | null;
+
+  // Video lesson fields (Phase 4)
+  can_join_lesson?: boolean | null;
+  join_opens_at?: string | null;
+  join_closes_at?: string | null;
+  video_session_ended_at?: string | null;
+  video_room_id?: string | null;
+  video_session_duration_seconds?: number | null;
+  video_session_started_at?: string | null;
+  video_instructor_joined_at?: string | null;
+  video_student_joined_at?: string | null;
 
   // Relations (populated in detailed views)
   student?: StudentInfo;

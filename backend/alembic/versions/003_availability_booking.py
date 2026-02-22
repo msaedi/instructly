@@ -346,7 +346,7 @@ def upgrade() -> None:
     op.create_check_constraint(
         "ck_booking_no_shows_no_show_type",
         "booking_no_shows",
-        "no_show_type IS NULL OR no_show_type IN ('instructor', 'student')",
+        "no_show_type IS NULL OR no_show_type IN ('instructor', 'student', 'mutual')",
     )
     op.create_check_constraint(
         "ck_booking_locks_lock_resolution",

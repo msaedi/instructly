@@ -42,6 +42,7 @@ import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import type { ConversationListResponse } from '@/types/conversation';
 import { FoundingBadge } from '@/components/ui/FoundingBadge';
 import type { ApiErrorResponse, components } from '@/features/shared/api/types';
+import { extractApiErrorMessage } from '@/lib/apiErrors';
 
 type DashboardLinkResponse = components['schemas']['DashboardLinkResponse'];
 type InstantPayoutResponse = components['schemas']['InstantPayoutResponse'];
@@ -1299,7 +1300,7 @@ export default function InstructorDashboardNew() {
                           window.open(data.dashboard_url, '_blank');
                         } else {
                           const err = (await dl.json().catch(() => ({}))) as ApiErrorResponse;
-                          alert(`Unable to open Stripe dashboard: ${err.detail || err.message || dl.statusText}`);
+                          alert(`Unable to open Stripe dashboard: ${extractApiErrorMessage(err, dl.statusText)}`);
                         }
                       } catch {
                         alert('Unable to open Stripe dashboard right now.');
@@ -1315,7 +1316,7 @@ export default function InstructorDashboardNew() {
                         const res = await fetchWithAuth('/api/v1/payments/connect/instant-payout', { method: 'POST' });
                         if (!res.ok) {
                           const err = (await res.json().catch(() => ({}))) as ApiErrorResponse;
-                          alert(`Instant payout failed: ${err.detail || err.message || res.statusText}`);
+                          alert(`Instant payout failed: ${extractApiErrorMessage(err, res.statusText)}`);
                           return;
                         }
                         const data = (await res.json()) as InstantPayoutResponse;

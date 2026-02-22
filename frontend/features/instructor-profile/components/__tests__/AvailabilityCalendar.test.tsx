@@ -39,6 +39,17 @@ describe('AvailabilityCalendar', () => {
     expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
   });
 
+  it('calls refetch when Try Again is clicked', async () => {
+    const mockRefetch = jest.fn();
+    mockUseInstructorAvailability.mockReturnValue({ data: null, isLoading: false, error: new Error('fail'), refetch: mockRefetch });
+    const user = userEvent.setup();
+    render(<AvailabilityCalendar instructorId="1" />);
+
+    const tryAgainButton = screen.getByRole('button', { name: /try again/i });
+    await user.click(tryAgainButton);
+    expect(mockRefetch).toHaveBeenCalledTimes(1);
+  });
+
   it('renders slots and handles selection', async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date(2025, 0, 6, 9, 0, 0));

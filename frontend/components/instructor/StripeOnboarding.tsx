@@ -23,7 +23,6 @@ interface StripeOnboardingProps {
 }
 
 const StripeOnboarding: React.FC<StripeOnboardingProps> = ({ instructorId }) => {
-  // Router hook removed - navigation handled by window.location
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatusResponse | null>(null);
@@ -174,7 +173,7 @@ const StripeOnboarding: React.FC<StripeOnboardingProps> = ({ instructorId }) => 
           <AlertCircle className="h-12 w-12 mx-auto mb-4 text-red-500" />
           <h3 className="text-lg font-semibold mb-2">Connection Error</h3>
           <p className="text-gray-600 mb-4">{error}</p>
-          <Button onClick={() => window.location.reload()}>
+          <Button onClick={() => { setError(null); setLoading(true); void checkStatus(); }}>
             Try Again
           </Button>
         </div>

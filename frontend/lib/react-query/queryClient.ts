@@ -173,4 +173,9 @@ export const queryKeys = {
     student: ['badges', 'student'] as const,
     admin: (params: Record<string, unknown>) => ['badges', 'admin', params] as const,
   },
+
+  // Lesson / video session queries (Phase 5)
+  lessons: {
+    videoSession: (bookingId: string) => ['lessons', 'video-session', bookingId] as const,
+  },
 } as const;

@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from app.core.ulid_helper import generate_ulid
+from app.integrations.hundredms_client import HundredMsError
 from app.models.booking import BookingStatus, PaymentStatus
 from app.services.booking_service import BookingService
 
@@ -400,3 +401,129 @@ def test_resolve_no_show_default_tier_and_student_fee_fallback(
 
     assert result["success"] is True
     booking_service._cancel_no_show_report.assert_called_once_with(booking)
+
+
+def test_mark_video_session_terminal_on_cancellation_backfills_duration(
+    booking_service: BookingService,
+) -> None:
+    started_at = datetime(2030, 1, 1, 9, 0, tzinfo=timezone.utc)
+    cancelled_at = datetime(2030, 1, 1, 10, 30, tzinfo=timezone.utc)
+    video_session = SimpleNamespace(
+        session_started_at=started_at,
+        session_ended_at=None,
+        session_duration_seconds=None,
+    )
+    booking = make_booking(
+        cancelled_at=cancelled_at,
+        video_session=video_session,
+    )
+
+    booking_service._mark_video_session_terminal_on_cancellation(booking)
+
+    assert video_session.session_ended_at == cancelled_at
+    assert video_session.session_duration_seconds == 5400
+
+
+def test_disable_video_room_after_cancellation_is_best_effort_on_hundredms_error(
+    booking_service: BookingService, caplog: pytest.LogCaptureFixture
+) -> None:
+    booking = make_booking(
+        id="bk_cleanup",
+        video_session=SimpleNamespace(room_id="room_cleanup"),
+    )
+    mock_client = MagicMock()
+    mock_client.disable_room.side_effect = HundredMsError("api down", status_code=502)
+    booking_service._build_hundredms_client_for_cleanup = MagicMock(return_value=mock_client)
+
+    booking_service._disable_video_room_after_cancellation(booking)
+
+    mock_client.disable_room.assert_called_once_with("room_cleanup")
+    assert "Best-effort 100ms room disable failed" in caplog.text
+
+
+def test_disable_video_room_after_cancellation_no_video_session_is_noop(
+    booking_service: BookingService,
+) -> None:
+    booking = make_booking(video_session=None)
+    booking_service._build_hundredms_client_for_cleanup = MagicMock()
+
+    booking_service._disable_video_room_after_cancellation(booking)
+
+    booking_service._build_hundredms_client_for_cleanup.assert_not_called()
+
+
+def test_disable_video_room_after_cancellation_skips_when_feature_disabled(
+    booking_service: BookingService,
+) -> None:
+    booking = make_booking(video_session=SimpleNamespace(room_id="room_disabled"))
+    booking_service._build_hundredms_client_for_cleanup = MagicMock(return_value=None)
+
+    booking_service._disable_video_room_after_cancellation(booking)
+
+    booking_service._build_hundredms_client_for_cleanup.assert_called_once()
+
+
+def test_build_hundredms_client_for_cleanup_builds_from_settings(
+    booking_service: BookingService,
+) -> None:
+    with patch("app.services.booking_service.settings") as mock_settings:
+        mock_settings.hundredms_enabled = True
+        mock_settings.hundredms_access_key = "ak_test"
+        secret = MagicMock()
+        secret.get_secret_value.return_value = "as_test"
+        mock_settings.hundredms_app_secret = secret
+        mock_settings.hundredms_base_url = "https://api.100ms.live/v2"
+        mock_settings.hundredms_template_id = "tmpl_123"
+
+        client = booking_service._build_hundredms_client_for_cleanup()
+
+    assert client is not None
+    assert client._access_key == "ak_test"
+    assert client._app_secret == "as_test"
+    assert client._base_url == "https://api.100ms.live/v2"
+    assert client._template_id == "tmpl_123"
+
+
+def test_build_hundredms_client_for_cleanup_returns_none_when_disabled(
+    booking_service: BookingService,
+) -> None:
+    with patch("app.services.booking_service.settings") as mock_settings:
+        mock_settings.hundredms_enabled = False
+        mock_settings.hundredms_access_key = "ak_test"
+        mock_settings.hundredms_app_secret = "as_test"
+        mock_settings.hundredms_template_id = "tmpl_123"
+
+        client = booking_service._build_hundredms_client_for_cleanup()
+
+    assert client is None
+
+
+def test_build_hundredms_client_for_cleanup_raises_in_prod_when_secret_missing(
+    booking_service: BookingService,
+) -> None:
+    with patch("app.services.booking_service.settings") as mock_settings:
+        mock_settings.hundredms_enabled = True
+        mock_settings.site_mode = "prod"
+        mock_settings.hundredms_access_key = "ak_test"
+        mock_settings.hundredms_app_secret = None
+        mock_settings.hundredms_base_url = "https://api.100ms.live/v2"
+        mock_settings.hundredms_template_id = "tmpl_123"
+
+        with pytest.raises(RuntimeError, match="HUNDREDMS_APP_SECRET is required in production"):
+            booking_service._build_hundredms_client_for_cleanup()
+
+
+def test_build_hundredms_client_for_cleanup_missing_secret_allowed_non_prod(
+    booking_service: BookingService,
+) -> None:
+    with patch("app.services.booking_service.settings") as mock_settings:
+        mock_settings.hundredms_enabled = True
+        mock_settings.site_mode = "local"
+        mock_settings.hundredms_access_key = "ak_test"
+        mock_settings.hundredms_app_secret = None
+        mock_settings.hundredms_base_url = "https://api.100ms.live/v2"
+        mock_settings.hundredms_template_id = "tmpl_123"
+
+        client = booking_service._build_hundredms_client_for_cleanup()
+
+    assert client is None

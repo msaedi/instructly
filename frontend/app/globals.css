@@ -488,8 +488,8 @@ select,
 /* Neutralize Tailwind hover color utilities for buttons (no color change)
    Exclude brand purple backgrounds so they remain solid on hover
    Also exclude .stat-card buttons which need their own hover behavior */
-button[class*="hover:bg-"]:not([class*="bg-[#7E22CE]"]):not([class*="bg-purple-600"]):not([class*="bg-white"]):not(.stat-card):not(:disabled):hover,
-[role="button"][class*="hover:bg-"]:not([class*="bg-[#7E22CE]"]):not([class*="bg-purple-600"]):not([class*="bg-white"]):not(.stat-card):not(:disabled):hover {
+button[class*="hover:bg-"]:not([class*="bg-[#7E22CE]"]):not([class*="bg-purple-600"]):not([class*="bg-primary"]):not([class*="bg-white"]):not(.stat-card):not(:disabled):hover,
+[role="button"][class*="hover:bg-"]:not([class*="bg-[#7E22CE]"]):not([class*="bg-purple-600"]):not([class*="bg-primary"]):not([class*="bg-white"]):not(.stat-card):not(:disabled):hover {
   /* keep original background (no color shift); only scale applies */
   background-color: inherit !important;
 }
@@ -506,7 +506,7 @@ button[class*="hover:border-"]:not([class*="border-transparent"]):not(.stat-card
 
 /* Anchor elements styled as buttons: keep base background/text/border on hover.
    Exclude brand purple so it stays solid on hover. */
-a[class*="bg-"][class*="hover:bg-"]:not([class*="bg-[#7E22CE]"]):not([class*="bg-purple-600"]):not([class*="bg-white"]):hover {
+a[class*="bg-"][class*="hover:bg-"]:not([class*="bg-[#7E22CE]"]):not([class*="bg-purple-600"]):not([class*="bg-primary"]):not([class*="bg-white"]):hover {
   background-color: revert !important;
 }
 
@@ -551,11 +551,11 @@ a.bg-primary {
   color: var(--primary) !important;
 }
 
-/* Hover treatment for primary tokens */
+/* Hover treatment for primary tokens — darken to purple-800 (#6B21A8) */
 button.bg-primary:not(:disabled):hover,
 [role="button"].bg-primary:not(:disabled):hover,
 a.bg-primary:hover {
-  background-color: var(--primary) !important;
+  background-color: #6B21A8 !important;
   color: var(--primary-foreground) !important;
 }
 
@@ -764,6 +764,17 @@ html {
 
 .blink-card {
   animation: blinkSoft 1.8s ease-in-out infinite;
+}
+
+/* Subtle pulse for join-ready buttons */
+@keyframes pulseJoin {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(126, 34, 206, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(126, 34, 206, 0); }
+}
+.animate-pulse-join { animation: pulseJoin 2s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse-join { animation: none !important; }
 }
 
 /* Fade In Up Animation for Service Capsules */

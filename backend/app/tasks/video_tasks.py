@@ -1,0 +1,194 @@
+"""Celery tasks for video session monitoring and no-show detection."""
+
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+import logging
+from typing import Any, Callable, Optional, ParamSpec, Protocol, TypedDict, TypeVar, cast
+
+from sqlalchemy.orm import Session
+
+from app.core.booking_lock import booking_lock_sync
+from app.core.config import settings
+from app.database import get_db
+from app.domain.video_utils import compute_grace_minutes
+from app.models.booking import BookingStatus
+from app.monitoring.sentry_crons import monitor_if_configured
+from app.repositories.factory import RepositoryFactory
+from app.services.booking_service import BookingService
+from app.tasks.celery_app import celery_app
+
+logger = logging.getLogger(__name__)
+
+P = ParamSpec("P")
+R = TypeVar("R", covariant=True)
+
+
+class TaskWrapper(Protocol[P, R]):
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
+        ...
+
+    def delay(self, *args: P.args, **kwargs: P.kwargs) -> Any:
+        ...
+
+    def apply_async(self, *args: Any, **kwargs: Any) -> Any:
+        ...
+
+
+def typed_task(
+    *task_args: Any, **task_kwargs: Any
+) -> Callable[[Callable[P, R]], TaskWrapper[P, R]]:
+    """Return a typed Celery task decorator for mypy."""
+    return cast(
+        Callable[[Callable[P, R]], TaskWrapper[P, R]],
+        celery_app.task(*task_args, **task_kwargs),
+    )
+
+
+# ── Constants ────────────────────────────────────────────────────────────
+
+# SQL pre-filter: fetch bookings started >= 8 minutes ago.
+# Minimum grace = min(30 * 0.25, 15) = 7.5 min for a 30-min lesson.
+# 8 > 7.5, so this safely catches all expired-grace bookings.
+# MIN_GRACE_MINUTES is safe because business rules enforce a 30-min minimum session duration.
+# The per-booking Python check computes exact grace.
+MIN_GRACE_MINUTES = 8
+
+
+class VideoNoShowResults(TypedDict):
+    processed: int
+    reported: int
+    skipped: int
+    failed: int
+    processed_at: str
+
+
+# ── Helpers ──────────────────────────────────────────────────────────────
+
+
+def _determine_no_show_type(video_session: Any | None) -> str | None:
+    """Determine no-show type from video session join timestamps.
+
+    Returns:
+        "mutual" if video_session is None (neither party clicked join),
+        "mutual" if both joined_at are None (both clicked join but neither connected),
+        "instructor" if only student joined,
+        "student" if only instructor joined,
+        None if both joined (lesson happened).
+    """
+    if video_session is None:
+        # No video session row exists. This is usually a true mutual no-show
+        # (neither participant clicked join), but it can also happen when room
+        # creation fails before attendance is recorded. We classify as "mutual"
+        # and rely on the dispute workflow for edge-case correction.
+        return "mutual"
+
+    instructor_joined = video_session.instructor_joined_at is not None
+    student_joined = video_session.student_joined_at is not None
+
+    if instructor_joined and student_joined:
+        return None  # lesson happened
+    if not instructor_joined and student_joined:
+        return "instructor"
+    if instructor_joined and not student_joined:
+        return "student"
+    return "mutual"  # Both clicked join but neither actually connected
+
+
+# ── Task ─────────────────────────────────────────────────────────────────
+
+
+@typed_task(name="app.tasks.video_tasks.detect_video_no_shows")
+@monitor_if_configured("detect-video-no-shows")
+def detect_video_no_shows() -> VideoNoShowResults:
+    """Detect no-shows for online bookings based on video session attendance.
+
+    Grace period runs from lesson START (not end). A no-show means a participant
+    didn't join within the first min(duration_minutes * 0.25, 15) minutes.
+
+    Two-stage filtering:
+    1. SQL uses MIN_GRACE_MINUTES=8 as generous cutoff to catch ALL candidates
+    2. Python computes exact per-booking grace and filters precisely
+    """
+    now = datetime.now(timezone.utc)
+    results: VideoNoShowResults = {
+        "processed": 0,
+        "reported": 0,
+        "skipped": 0,
+        "failed": 0,
+        "processed_at": now.isoformat(),
+    }
+
+    if not settings.hundredms_enabled:
+        return results
+
+    db: Optional[Session] = None
+    try:
+        db = cast(Session, next(get_db()))
+        booking_repo = RepositoryFactory.get_booking_repository(db)
+        booking_service = BookingService(db)
+
+        sql_cutoff = now - timedelta(minutes=MIN_GRACE_MINUTES)
+        candidates = booking_repo.get_video_no_show_candidates(sql_cutoff)
+
+        for booking, video_session in candidates:  # video_session may be None
+            results["processed"] += 1
+            booking_id = booking.id
+            try:
+                # Per-booking grace period (always available from booking)
+                grace = compute_grace_minutes(booking.duration_minutes)
+                grace_deadline = booking.booking_start_utc + timedelta(minutes=grace)
+                if now < grace_deadline:
+                    results["skipped"] += 1
+                    continue
+
+                # Determine no-show type (handles None video_session → "mutual")
+                no_show_type = _determine_no_show_type(video_session)
+                if no_show_type is None:
+                    results["skipped"] += 1
+                    continue
+
+                with booking_lock_sync(str(booking_id)) as acquired:
+                    if not acquired:
+                        results["skipped"] += 1
+                        continue
+
+                    # Re-check under lock
+                    refreshed = booking_repo.get_by_id(booking_id)
+                    if refreshed is not None:
+                        booking_repo.refresh(refreshed)
+                    if refreshed is None or refreshed.status != BookingStatus.CONFIRMED.value:
+                        results["skipped"] += 1
+                        continue
+
+                    existing_no_show = booking_repo.get_no_show_by_booking_id(booking_id)
+                    if (
+                        existing_no_show is not None
+                        and existing_no_show.no_show_reported_at is not None
+                    ):
+                        results["skipped"] += 1
+                        continue
+
+                    if no_show_type == "mutual":
+                        reason = f"Automated: neither party joined video session within {grace:.1f} min grace period"
+                    else:
+                        reason = f"Automated: {no_show_type} did not join video session within {grace:.1f} min grace period"
+                    booking_service.report_automated_no_show(
+                        booking_id=booking_id,
+                        no_show_type=no_show_type,
+                        reason=reason,
+                    )
+                    results["reported"] += 1
+
+            except Exception as exc:
+                logger.error(
+                    "Failed to process video no-show for booking %s: %s",
+                    booking_id,
+                    exc,
+                )
+                results["failed"] += 1
+
+        return results
+    finally:
+        if db is not None:
+            db.close()

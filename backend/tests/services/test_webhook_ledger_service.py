@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy.exc import IntegrityError
+
+from app.core.exceptions import RepositoryException
 from app.models.webhook_event import WebhookEvent
 from app.services.webhook_ledger_service import WebhookLedgerService
 
@@ -53,6 +56,74 @@ def test_log_received_handles_duplicate_event_id(db):
     assert event2.id == event1.id
     assert event2.retry_count == 1
     assert event2.last_retry_at is not None
+
+
+def test_log_received_handles_duplicate_idempotency_key_without_event_id(db):
+    service = WebhookLedgerService(db)
+
+    event1 = service.log_received(
+        source="hundredms",
+        event_type="peer.join.success",
+        payload={"type": "peer.join.success"},
+        event_id=None,
+        idempotency_key="peer.join.success:room_1:session_1:peer_1",
+    )
+    event2 = service.log_received(
+        source="hundredms",
+        event_type="peer.join.success",
+        payload={"type": "peer.join.success"},
+        event_id=None,
+        idempotency_key="peer.join.success:room_1:session_1:peer_1",
+    )
+
+    assert event2.id == event1.id
+    assert event2.retry_count == 1
+    assert event2.last_retry_at is not None
+
+
+def test_log_received_recovers_from_integrity_error_race(db, monkeypatch):
+    service = WebhookLedgerService(db)
+    existing = service.log_received(
+        source="hundredms",
+        event_type="peer.join.success",
+        payload={"type": "peer.join.success"},
+        event_id=None,
+        idempotency_key="peer.join.success:room_1:session_1:peer_1",
+    )
+
+    lookup_calls = {"count": 0}
+
+    def _find_existing(source: str, idempotency_key: str):
+        lookup_calls["count"] += 1
+        if lookup_calls["count"] == 1:
+            return None
+        return existing
+
+    def _raise_integrity(**kwargs):
+        raise RepositoryException("Integrity constraint violated") from IntegrityError(
+            statement="INSERT INTO webhook_events ...",
+            params=kwargs,
+            orig=Exception("duplicate key value violates unique constraint"),
+        )
+
+    monkeypatch.setattr(
+        service.repository,
+        "find_by_source_and_idempotency_key",
+        _find_existing,
+    )
+    monkeypatch.setattr(service.repository, "create", _raise_integrity)
+
+    recovered = service.log_received(
+        source="hundredms",
+        event_type="peer.join.success",
+        payload={"type": "peer.join.success"},
+        event_id=None,
+        idempotency_key="peer.join.success:room_1:session_1:peer_1",
+    )
+
+    assert recovered.id == existing.id
+    assert recovered.retry_count == 1
+    assert recovered.last_retry_at is not None
 
 
 def test_log_received_different_event_ids_create_separate_records(db):
@@ -126,6 +197,38 @@ def test_mark_failed_captures_error(db):
     assert event.processing_duration_ms == 12
 
 
+def test_mark_processing_claims_received_event(db):
+    service = WebhookLedgerService(db)
+    event = service.log_received(
+        source="hundredms",
+        event_type="session.open.success",
+        payload={"id": "evt_processing"},
+        event_id="evt_processing",
+    )
+
+    claimed = service.mark_processing(event)
+
+    assert claimed is True
+    assert event.status == "processing"
+    assert event.processing_error is None
+
+
+def test_mark_processing_does_not_claim_processed_event(db):
+    service = WebhookLedgerService(db)
+    event = service.log_received(
+        source="hundredms",
+        event_type="session.open.success",
+        payload={"id": "evt_done"},
+        event_id="evt_done",
+    )
+    service.mark_processed(event)
+
+    claimed = service.mark_processing(event)
+
+    assert claimed is False
+    assert event.status == "processed"
+
+
 def test_replay_creates_new_event(db):
     service = WebhookLedgerService(db)
     original = service.log_received(
@@ -148,10 +251,15 @@ def test_sanitize_headers_removes_secrets(db):
         source="stripe",
         event_type="payment_intent.succeeded",
         payload={"id": "evt_4"},
-        headers={"stripe-signature": "sig", "X-Test": "ok"},
+        headers={
+            "stripe-signature": "sig",
+            "x-hundredms-secret": "super-secret",
+            "X-Test": "ok",
+        },
     )
 
     assert event.headers["stripe-signature"] == "***"
+    assert event.headers["x-hundredms-secret"] == "***"
     assert event.headers["X-Test"] == "ok"
 
 

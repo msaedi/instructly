@@ -28,6 +28,8 @@ import stripe
 
 from ..constants.pricing_defaults import PRICING_DEFAULTS
 from ..core.bgc_policy import is_verified, must_be_verified_for_public
+from ..core.config import settings
+from ..core.constants import MIN_SESSION_DURATION
 from ..core.enums import RoleName
 from ..core.exceptions import (
     BookingConflictException,
@@ -39,6 +41,7 @@ from ..core.exceptions import (
     ValidationException,
 )
 from ..events import BookingCancelled, BookingCreated, BookingReminder, EventPublisher
+from ..integrations.hundredms_client import HundredMsClient, HundredMsError
 from ..models.audit_log import AuditLog
 from ..models.booking import Booking, BookingStatus, PaymentStatus
 from ..models.instructor import InstructorProfile
@@ -611,6 +614,12 @@ class BookingService(BaseService):
             ) from exc
         raise exc
 
+    @staticmethod
+    def _validate_min_session_duration_floor(selected_duration: int) -> None:
+        """Defense-in-depth minimum duration check for booking flows."""
+        if selected_duration < MIN_SESSION_DURATION:
+            raise ValidationException(f"Duration must be at least {MIN_SESSION_DURATION} minutes")
+
     @BaseService.measure_operation("create_booking")
     def create_booking(
         self, student: User, booking_data: BookingCreate, selected_duration: int
@@ -641,6 +650,7 @@ class BookingService(BaseService):
             date=booking_data.booking_date,
             selected_duration=selected_duration,
         )
+        self._validate_min_session_duration_floor(selected_duration)
 
         # 1. Validate and load required data
         service, instructor_profile = self._validate_booking_prerequisites(student, booking_data)
@@ -739,6 +749,7 @@ class BookingService(BaseService):
             instructor_id=booking_data.instructor_id,
             date=booking_data.booking_date,
         )
+        self._validate_min_session_duration_floor(selected_duration)
 
         # 1. Validate and load required data
         service, instructor_profile = self._validate_booking_prerequisites(student, booking_data)
@@ -876,9 +887,22 @@ class BookingService(BaseService):
                 },
             )
         except Exception as e:
-            # Any Stripe error – fall back to mock (non-network CI path)
+            is_test_or_ci = bool(os.getenv("PYTEST_CURRENT_TEST") or os.getenv("CI"))
+            if settings.site_mode == "prod" or not is_test_or_ci:
+                logger.error(
+                    "SetupIntent creation failed for booking %s (site_mode=%s, test_or_ci=%s)",
+                    booking.id,
+                    settings.site_mode,
+                    is_test_or_ci,
+                    exc_info=True,
+                )
+                raise
+
+            # Test/CI fallback to keep deterministic fixtures when Stripe is unavailable.
             logger.warning(
-                f"SetupIntent creation failed for booking {booking.id}: {e}. Falling back to mock.",
+                "SetupIntent creation failed for booking %s in test/CI: %s. Falling back to mock.",
+                booking.id,
+                e,
             )
             setup_intent = SimpleNamespace(
                 id=f"seti_mock_{booking.id}",
@@ -943,6 +967,7 @@ class BookingService(BaseService):
             date=booking_data.booking_date,
             original_booking_id=original_booking_id,
         )
+        self._validate_min_session_duration_floor(selected_duration)
 
         existing_booking = self.repository.get_by_id(original_booking_id)
         if not existing_booking:
@@ -1102,6 +1127,7 @@ class BookingService(BaseService):
             date=booking_data.booking_date,
             original_booking_id=original_booking_id,
         )
+        self._validate_min_session_duration_floor(selected_duration)
 
         existing_booking = self.repository.get_by_id(original_booking_id)
         if not existing_booking:
@@ -1821,6 +1847,7 @@ class BookingService(BaseService):
 
             # Cancel the booking
             booking.cancel(user.id, reason)
+            self._mark_video_session_terminal_on_cancellation(booking)
             self._enqueue_booking_outbox_event(booking, "booking.cancelled")
             audit_after = self._snapshot_booking(booking)
             self._write_booking_audit(
@@ -1873,6 +1900,7 @@ class BookingService(BaseService):
                 bp.payment_intent_id = None
 
             booking.cancel(user.id, reason)
+            self._mark_video_session_terminal_on_cancellation(booking)
             self._enqueue_booking_outbox_event(booking, "booking.cancelled")
             audit_after = self._snapshot_booking(booking)
             default_role = (
@@ -1893,6 +1921,84 @@ class BookingService(BaseService):
         self._post_cancellation_actions(booking, cancelled_by_role)
 
         return booking
+
+    def _mark_video_session_terminal_on_cancellation(self, booking: Booking) -> None:
+        """Mark booking video session state as terminal on cancellation."""
+        video_session = getattr(booking, "video_session", None)
+        if video_session is None:
+            return
+
+        ended_at = booking.cancelled_at or datetime.now(timezone.utc)
+        if video_session.session_ended_at is None:
+            video_session.session_ended_at = ended_at
+
+        if (
+            video_session.session_duration_seconds is None
+            and isinstance(video_session.session_started_at, datetime)
+            and isinstance(video_session.session_ended_at, datetime)
+        ):
+            duration_seconds = int(
+                (video_session.session_ended_at - video_session.session_started_at).total_seconds()
+            )
+            video_session.session_duration_seconds = max(duration_seconds, 0)
+
+    def _build_hundredms_client_for_cleanup(self) -> HundredMsClient | None:
+        """Create a 100ms client for post-cancellation cleanup, when configured."""
+        if not settings.hundredms_enabled:
+            return None
+
+        access_key = (settings.hundredms_access_key or "").strip()
+        raw_secret = settings.hundredms_app_secret
+        if raw_secret is None:
+            if settings.site_mode == "prod":
+                raise RuntimeError("HUNDREDMS_APP_SECRET is required in production")
+            app_secret = str()
+        elif hasattr(raw_secret, "get_secret_value"):
+            app_secret = str(raw_secret.get_secret_value()).strip()
+        else:
+            app_secret = str(raw_secret).strip()
+
+        if not access_key or not app_secret:
+            logger.warning(
+                "Skipping 100ms room disable for cancellation cleanup due to missing credentials"
+            )
+            return None
+
+        return HundredMsClient(
+            access_key=access_key,
+            app_secret=app_secret,
+            base_url=settings.hundredms_base_url,
+            template_id=(settings.hundredms_template_id or "").strip() or None,
+        )
+
+    def _disable_video_room_after_cancellation(self, booking: Booking) -> None:
+        """Best-effort 100ms room disable after cancellation commit."""
+        video_session = getattr(booking, "video_session", None)
+        room_id = getattr(video_session, "room_id", None)
+        if not room_id:
+            return
+
+        client = self._build_hundredms_client_for_cleanup()
+        if client is None:
+            return
+
+        try:
+            client.disable_room(room_id)
+        except HundredMsError as exc:
+            logger.warning(
+                "Best-effort 100ms room disable failed for booking %s room %s: %s",
+                booking.id,
+                room_id,
+                exc.message,
+                extra={"status_code": exc.status_code},
+            )
+        except Exception as exc:
+            logger.warning(
+                "Unexpected error during 100ms room disable for booking %s room %s: %s",
+                booking.id,
+                room_id,
+                exc,
+            )
 
     @BaseService.measure_operation("should_trigger_lock")
     def should_trigger_lock(self, booking: Booking, initiated_by: str) -> bool:
@@ -2095,8 +2201,15 @@ class BookingService(BaseService):
 
     @BaseService.measure_operation("resolve_reschedule_lock")
     def resolve_lock_for_booking(self, locked_booking_id: str, resolution: str) -> Dict[str, Any]:
-        """Resolve a LOCK based on the new lesson outcome."""
+        """Resolve a LOCK based on the new lesson outcome.
+
+        Uses a 3-phase flow to avoid holding booking row locks during Stripe API calls:
+        1) Read/validate and collect context under SELECT ... FOR UPDATE
+        2) Execute outbound Stripe calls with no DB transaction held
+        3) Re-lock, re-validate state, and persist final lock resolution
+        """
         from ..repositories.payment_repository import PaymentRepository
+        from ..services.credit_service import CreditService
 
         stripe_service = StripeService(
             self.db,
@@ -2113,13 +2226,15 @@ class BookingService(BaseService):
             "error": None,
         }
 
+        resolution_ctx: Dict[str, Any]
+
+        # ========== PHASE 1: Read/validate (quick transaction) ==========
         with self.transaction():
             locked_booking = self.repository.get_by_id_for_update(locked_booking_id)
             if not locked_booking:
                 raise NotFoundException("Locked booking not found")
 
             lock_record = self.repository.get_lock_by_booking_id(locked_booking.id)
-
             if lock_record is not None and lock_record.lock_resolved_at is not None:
                 return {"success": True, "skipped": True, "reason": "already_resolved"}
 
@@ -2127,7 +2242,6 @@ class BookingService(BaseService):
             locked_ps = locked_pd.payment_status if locked_pd is not None else None
             if locked_ps == PaymentStatus.SETTLED.value:
                 return {"success": True, "skipped": True, "reason": "already_settled"}
-
             if locked_ps != PaymentStatus.LOCKED.value:
                 return {"success": False, "skipped": True, "reason": "not_locked"}
 
@@ -2174,60 +2288,105 @@ class BookingService(BaseService):
                 )
                 payout_full_cents = int(pricing.get("target_instructor_payout_cents", 0))
 
-            if resolution == "new_lesson_completed":
+            resolution_ctx = {
+                "booking_id": locked_booking.id,
+                "student_id": locked_booking.student_id,
+                "payment_intent_id": payment_intent_id,
+                "locked_amount_cents": locked_amount_cents,
+                "lesson_price_cents": lesson_price_cents,
+                "instructor_stripe_account_id": instructor_stripe_account_id,
+                "payout_full_cents": int(payout_full_cents or 0),
+            }
+
+        # ========== PHASE 2: Stripe calls (NO transaction) ==========
+        if resolution == "new_lesson_completed":
+            try:
+                instructor_account_id = resolution_ctx.get("instructor_stripe_account_id")
+                if not instructor_account_id:
+                    raise ServiceException("missing_instructor_account")
+                payout_amount_cents = int(resolution_ctx.get("payout_full_cents") or 0)
+                transfer_result = stripe_service.create_manual_transfer(
+                    booking_id=locked_booking_id,
+                    destination_account_id=instructor_account_id,
+                    amount_cents=payout_amount_cents,
+                    idempotency_key=f"lock_resolve_payout_{locked_booking_id}",
+                    metadata={"resolution": resolution},
+                )
+                stripe_result["payout_success"] = True
+                stripe_result["payout_transfer_id"] = transfer_result.get("transfer_id")
+                stripe_result["payout_amount_cents"] = payout_amount_cents
+            except Exception as exc:
+                stripe_result["error"] = str(exc)
+
+        elif resolution == "new_lesson_cancelled_lt12":
+            try:
+                instructor_account_id = resolution_ctx.get("instructor_stripe_account_id")
+                if not instructor_account_id:
+                    raise ServiceException("missing_instructor_account")
+                payout_amount_cents = int(
+                    round((resolution_ctx.get("payout_full_cents") or 0) * 0.5)
+                )
+                transfer_result = stripe_service.create_manual_transfer(
+                    booking_id=locked_booking_id,
+                    destination_account_id=instructor_account_id,
+                    amount_cents=payout_amount_cents,
+                    idempotency_key=f"lock_resolve_split_{locked_booking_id}",
+                    metadata={"resolution": resolution},
+                )
+                stripe_result["payout_success"] = True
+                stripe_result["payout_transfer_id"] = transfer_result.get("transfer_id")
+                stripe_result["payout_amount_cents"] = payout_amount_cents
+            except Exception as exc:
+                stripe_result["error"] = str(exc)
+
+        elif resolution == "instructor_cancelled":
+            payment_intent_id = resolution_ctx.get("payment_intent_id")
+            if payment_intent_id:
                 try:
-                    if not instructor_stripe_account_id:
-                        raise ServiceException("missing_instructor_account")
-                    payout_amount_cents = int(payout_full_cents or 0)
-                    transfer_result = stripe_service.create_manual_transfer(
-                        booking_id=locked_booking_id,
-                        destination_account_id=instructor_stripe_account_id,
-                        amount_cents=payout_amount_cents,
-                        idempotency_key=f"lock_resolve_payout_{locked_booking_id}",
-                        metadata={"resolution": resolution},
+                    refund = stripe_service.refund_payment(
+                        payment_intent_id,
+                        reverse_transfer=True,
+                        refund_application_fee=True,
+                        idempotency_key=f"lock_resolve_refund_{locked_booking_id}",
                     )
-                    stripe_result["payout_success"] = True
-                    stripe_result["payout_transfer_id"] = transfer_result.get("transfer_id")
-                    stripe_result["payout_amount_cents"] = payout_amount_cents
+                    stripe_result["refund_success"] = True
+                    stripe_result["refund_data"] = refund
                 except Exception as exc:
                     stripe_result["error"] = str(exc)
+            else:
+                stripe_result["error"] = "missing_payment_intent"
 
-            elif resolution == "new_lesson_cancelled_lt12":
-                try:
-                    if not instructor_stripe_account_id:
-                        raise ServiceException("missing_instructor_account")
-                    payout_amount_cents = int(round((payout_full_cents or 0) * 0.5))
-                    transfer_result = stripe_service.create_manual_transfer(
-                        booking_id=locked_booking_id,
-                        destination_account_id=instructor_stripe_account_id,
-                        amount_cents=payout_amount_cents,
-                        idempotency_key=f"lock_resolve_split_{locked_booking_id}",
-                        metadata={"resolution": resolution},
-                    )
-                    stripe_result["payout_success"] = True
-                    stripe_result["payout_transfer_id"] = transfer_result.get("transfer_id")
-                    stripe_result["payout_amount_cents"] = payout_amount_cents
-                except Exception as exc:
-                    stripe_result["error"] = str(exc)
+        # ========== PHASE 3: Re-lock/re-validate and persist ==========
+        with self.transaction():
+            locked_booking = self.repository.get_by_id_for_update(locked_booking_id)
+            if not locked_booking:
+                raise NotFoundException("Locked booking not found")
 
-            elif resolution == "instructor_cancelled":
-                if payment_intent_id:
-                    try:
-                        refund = stripe_service.refund_payment(
-                            payment_intent_id,
-                            reverse_transfer=True,
-                            refund_application_fee=True,
-                            idempotency_key=f"lock_resolve_refund_{locked_booking_id}",
-                        )
-                        stripe_result["refund_success"] = True
-                        stripe_result["refund_data"] = refund
-                    except Exception as exc:
-                        stripe_result["error"] = str(exc)
-                else:
-                    stripe_result["error"] = "missing_payment_intent"
+            lock_record = self.repository.get_lock_by_booking_id(locked_booking.id)
+            if lock_record is not None and lock_record.lock_resolved_at is not None:
+                logger.info(
+                    "Skipping stale lock resolution for booking %s after external call: already resolved",
+                    locked_booking.id,
+                )
+                return {"success": True, "skipped": True, "reason": "already_resolved"}
 
-            from ..services.credit_service import CreditService
+            locked_pd = locked_booking.payment_detail
+            locked_ps = locked_pd.payment_status if locked_pd is not None else None
+            if locked_ps == PaymentStatus.SETTLED.value:
+                logger.info(
+                    "Skipping stale lock resolution for booking %s after external call: already settled",
+                    locked_booking.id,
+                )
+                return {"success": True, "skipped": True, "reason": "already_settled"}
+            if locked_ps != PaymentStatus.LOCKED.value:
+                logger.warning(
+                    "Skipping stale lock resolution for booking %s after external call: payment status=%s",
+                    locked_booking.id,
+                    locked_ps,
+                )
+                return {"success": False, "skipped": True, "reason": "not_locked"}
 
+            payment_repo = PaymentRepository(self.db)
             credit_service = CreditService(self.db)
 
             def _credit_already_issued() -> bool:
@@ -2248,6 +2407,9 @@ class BookingService(BaseService):
 
             def _locked_transfer() -> BookingTransfer:
                 return self._ensure_transfer_record(locked_booking.id)
+
+            lesson_price_cents = int(resolution_ctx.get("lesson_price_cents") or 0)
+            locked_amount_cents = resolution_ctx.get("locked_amount_cents")
 
             locked_bp = self.repository.ensure_payment(locked_booking.id)
             if resolution == "new_lesson_completed":
@@ -3375,6 +3537,8 @@ class BookingService(BaseService):
                     exc,
                 )
 
+        self._disable_video_room_after_cancellation(booking)
+
     @BaseService.measure_operation("get_bookings_for_user")
     def get_bookings_for_user(
         self,
@@ -3958,6 +4122,84 @@ class BookingService(BaseService):
             "dispute_window_ends": (now + timedelta(hours=24)).isoformat(),
         }
 
+    @BaseService.measure_operation("report_automated_no_show")
+    def report_automated_no_show(
+        self,
+        *,
+        booking_id: str,
+        no_show_type: str,
+        reason: str,
+    ) -> Dict[str, Any]:
+        """System-initiated no-show report from video attendance detection.
+
+        No User reporter needed — actor=None with default_role="system".
+        """
+        from ..repositories.payment_repository import PaymentRepository
+
+        now = datetime.now(timezone.utc)
+        with self.transaction():
+            booking = self.repository.get_booking_with_details(booking_id)
+            if not booking:
+                raise NotFoundException("Booking not found")
+
+            if booking.status != BookingStatus.CONFIRMED.value:
+                raise ValidationException(
+                    f"Cannot report no-show for booking in status {booking.status}"
+                )
+
+            no_show_record = self.repository.get_no_show_by_booking_id(booking.id)
+            if no_show_record is not None and no_show_record.no_show_reported_at is not None:
+                raise BusinessRuleException("No-show already reported for this booking")
+
+            audit_before = self._snapshot_booking(booking)
+            noshow_bp = self.repository.ensure_payment(booking.id)
+            previous_payment_status = noshow_bp.payment_status
+
+            noshow_bp.payment_status = PaymentStatus.MANUAL_REVIEW.value
+            no_show_record = self.repository.ensure_no_show(booking.id)
+            no_show_record.no_show_reported_by = None
+            no_show_record.no_show_reported_at = now
+            no_show_record.no_show_type = no_show_type
+            no_show_record.no_show_disputed = False
+            no_show_record.no_show_disputed_at = None
+            no_show_record.no_show_dispute_reason = None
+            no_show_record.no_show_resolved_at = None
+            no_show_record.no_show_resolution = None
+
+            payment_repo = PaymentRepository(self.db)
+            payment_repo.create_payment_event(
+                booking_id=booking.id,
+                event_type="no_show_reported",
+                event_data={
+                    "type": no_show_type,
+                    "reported_by": None,
+                    "reason": reason,
+                    "automated": True,
+                    "previous_payment_status": previous_payment_status,
+                    "dispute_window_ends": (now + timedelta(hours=24)).isoformat(),
+                },
+            )
+
+            audit_after = self._snapshot_booking(booking)
+            self._write_booking_audit(
+                booking,
+                "no_show_reported_automated",
+                actor=None,
+                before=audit_before,
+                after=audit_after,
+                default_role="system",
+            )
+
+        self._invalidate_booking_caches(booking)
+
+        return {
+            "success": True,
+            "booking_id": booking_id,
+            "no_show_type": no_show_type,
+            "payment_status": PaymentStatus.MANUAL_REVIEW.value,
+            "dispute_window_ends": (now + timedelta(hours=24)).isoformat(),
+        }
+
     @BaseService.measure_operation("dispute_no_show")
     def dispute_no_show(
         self,
@@ -3991,6 +4233,9 @@ class BookingService(BaseService):
             elif no_show_record.no_show_type == "student":
                 if disputer.id != booking.student_id:
                     raise ForbiddenException("Only the accused student can dispute")
+            elif no_show_record.no_show_type == "mutual":
+                if disputer.id not in {booking.student_id, booking.instructor_id}:
+                    raise ForbiddenException("Only lesson participants can dispute")
             else:
                 raise BusinessRuleException("Invalid no-show type")
 
@@ -4179,6 +4424,23 @@ class BookingService(BaseService):
                         payment_intent_id=payment_intent_id,
                         payment_status=payment_status,
                     )
+            elif no_show_type == "mutual":
+                if locked_booking_id:
+                    stripe_result = self.resolve_lock_for_booking(
+                        locked_booking_id, "instructor_cancelled"
+                    )
+                else:
+                    stripe_service = StripeService(
+                        self.db,
+                        config_service=ConfigService(self.db),
+                        pricing_service=PricingService(self.db),
+                    )
+                    stripe_result = self._refund_for_instructor_no_show(
+                        stripe_service=stripe_service,
+                        booking_id=booking_id,
+                        payment_intent_id=payment_intent_id,
+                        payment_status=payment_status,
+                    )
             elif no_show_type == "student":
                 if locked_booking_id:
                     stripe_result = self.resolve_lock_for_booking(
@@ -4236,7 +4498,7 @@ class BookingService(BaseService):
 
             if resolution in {"confirmed_no_dispute", "confirmed_after_review"}:
                 booking.status = BookingStatus.NO_SHOW
-                if no_show_type == "instructor":
+                if no_show_type in {"instructor", "mutual"}:
                     self._finalize_instructor_no_show(
                         booking=booking,
                         stripe_result=stripe_result,
@@ -4244,6 +4506,9 @@ class BookingService(BaseService):
                         refunded_cents=student_pay_cents,
                         locked_booking_id=locked_booking_id,
                     )
+                    if no_show_type == "mutual":
+                        mutual_bp = self.repository.ensure_payment(booking.id)
+                        mutual_bp.settlement_outcome = "mutual_no_show_full_refund"
                 else:
                     self._finalize_student_no_show(
                         booking=booking,

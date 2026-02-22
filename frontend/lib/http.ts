@@ -17,6 +17,7 @@ import { APP_URL } from '@/lib/publicEnv';
 import { captureFetchError } from '@/lib/sentry';
 import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import type { ApiErrorResponse } from '@/features/shared/api/types';
+import { extractApiErrorMessage } from '@/lib/apiErrors';
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 export class ApiError extends Error {
@@ -129,7 +130,7 @@ export async function http<T = unknown>(method: HttpMethod, url: string, options
   if (!resp.ok) {
     const status = resp.status;
     const errorData = data as ApiErrorResponse;
-    const message = errorData?.detail || errorData?.message || `HTTP ${status}`;
+    const message = extractApiErrorMessage(errorData, `HTTP ${status}`);
     const requestIdFromBody =
       typeof (errorData as Record<string, unknown> | null)?.['request_id'] === 'string'
         ? (errorData as Record<string, unknown>)['request_id']

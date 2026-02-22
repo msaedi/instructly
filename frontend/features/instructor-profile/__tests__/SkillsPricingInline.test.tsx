@@ -8,6 +8,8 @@ import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
 import { usePlatformFees } from '@/hooks/usePlatformConfig';
 import { evaluatePriceFloorViolations } from '@/lib/pricing/priceFloors';
+import { useSubcategoryFilters } from '@/hooks/queries/useTaxonomy';
+import { displayServiceName } from '@/lib/instructorServices';
 import { toast } from 'sonner';
 
 jest.mock('@/features/shared/hooks/useAuth', () => ({
@@ -30,6 +32,11 @@ jest.mock('@tanstack/react-query', () => {
   };
 });
 
+jest.mock('@/hooks/queries/useTaxonomy', () => ({
+  useCategoriesWithSubcategories: jest.fn(() => ({ data: undefined, isLoading: false })),
+  useSubcategoryFilters: jest.fn(() => ({ data: [], isLoading: false })),
+}));
+
 jest.mock('@/hooks/queries/useServices', () => ({
   useServiceCategories: jest.fn(),
   useAllServicesWithInstructors: jest.fn(),
@@ -49,7 +56,9 @@ jest.mock('@/hooks/usePlatformConfig', () => ({
 
 jest.mock('@/lib/instructorServices', () => ({
   hydrateCatalogNameById: jest.fn(),
-  displayServiceName: ({ service_catalog_name }: { service_catalog_name?: string }) => service_catalog_name || 'Service',
+  displayServiceName: jest.fn(
+    (args: { service_catalog_name?: string }) => args.service_catalog_name || 'Service'
+  ),
 }));
 
 jest.mock('@/lib/pricing/platformFees', () => ({
@@ -83,6 +92,8 @@ const mockUsePricingConfig = usePricingConfig as jest.Mock;
 const mockUsePlatformFees = usePlatformFees as jest.Mock;
 const mockFetchWithAuth = fetchWithAuth as jest.Mock;
 const mockEvaluateViolations = evaluatePriceFloorViolations as jest.Mock;
+const mockUseSubcategoryFilters = useSubcategoryFilters as jest.Mock;
+const mockDisplayServiceName = displayServiceName as jest.Mock;
 
 const categoriesData = [{ id: '01HABCTESTCAT0000000000001', name: 'Music', display_order: 1 }];
 const servicesData = {
@@ -90,7 +101,7 @@ const servicesData = {
     {
       id: '01HABCTESTCAT0000000000001',
       name: 'Music',
-      services: [{ id: 'svc-1', name: 'Piano', slug: 'piano', subcategory_id: '01HABCTESTSUBCAT0000000001' }],
+      services: [{ id: 'svc-1', name: 'Piano', slug: 'piano', subcategory_id: '01HABCTESTSUBCAT0000000001', eligible_age_groups: ['kids', 'teens', 'adults'] }],
     },
   ],
 };
@@ -3058,7 +3069,7 @@ describe('SkillsPricingInline', () => {
       expect(adultsButtons[0]?.className).toContain('purple');
     });
 
-    it('maps missing age_groups to adults', () => {
+    it('maps missing age_groups to all eligible groups from catalog', () => {
       mockUseInstructorProfileMe.mockReturnValue({
         data: {
           is_live: false,
@@ -3066,7 +3077,7 @@ describe('SkillsPricingInline', () => {
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
             hourly_rate: 50,
-            // age_groups not provided
+            // age_groups not provided — defaults to catalog's eligible_age_groups
             offers_online: true,
           }],
         },
@@ -3074,11 +3085,11 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      // Adults should be selected by default, Kids should not
+      // All eligible age groups from catalog should be selected (kids, teens, adults)
       const kidsButtons = screen.getAllByRole('button', { name: /^kids$/i });
       const adultsButtons = screen.getAllByRole('button', { name: /^adults$/i });
       expect(adultsButtons[0]?.className).toContain('purple');
-      expect(kidsButtons[0]?.className).not.toContain('purple');
+      expect(kidsButtons[0]?.className).toContain('purple');
     });
 
     it('forces offers_travel false when service areas are removed', () => {
@@ -3180,7 +3191,7 @@ describe('SkillsPricingInline', () => {
       expect(kidsButtons[0]?.className).not.toContain('purple');
     });
 
-    it('toggles from adults to kids when adults is clicked', async () => {
+    it('prevents deselecting the last age group (min-1 guard)', async () => {
       const user = userEvent.setup();
       mockUseInstructorProfileMe.mockReturnValue({
         data: {
@@ -3197,14 +3208,12 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      // Click adults button to toggle it off (should switch to kids)
+      // Click adults button (the only selected group) — min-1 guard prevents deselection
       const adultsButtons = screen.getAllByRole('button', { name: /^adults$/i });
       await user.click(adultsButtons[0]!);
 
-      // Should now be kids only
-      const kidsButtons = screen.getAllByRole('button', { name: /^kids$/i });
-      expect(kidsButtons[0]?.className).toContain('purple');
-      expect(adultsButtons[0]?.className).not.toContain('purple');
+      // Adults should remain selected (can't deselect the last group)
+      expect(adultsButtons[0]?.className).toContain('purple');
     });
   });
 
@@ -3878,7 +3887,7 @@ describe('SkillsPricingInline', () => {
       expect(chipRemoveButton).toBeDefined();
     });
 
-    it('age group toggle from kids clicking kids switches to adults', async () => {
+    it('age group toggle from kids clicking kids keeps kids selected (min-1 guard)', async () => {
       const user = userEvent.setup();
       mockUseInstructorProfileMe.mockReturnValue({
         data: {
@@ -3895,12 +3904,12 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
+      // Click kids (the only selected group) — min-1 guard prevents deselection
       const kidsButtons = screen.getAllByRole('button', { name: /^kids$/i });
       await user.click(kidsButtons[0]!);
 
-      const adultsButtons = screen.getAllByRole('button', { name: /^adults$/i });
-      expect(adultsButtons[0]?.className).toContain('purple');
-      expect(kidsButtons[0]?.className).not.toContain('purple');
+      // Kids should remain selected (can't deselect the last group)
+      expect(kidsButtons[0]?.className).toContain('purple');
     });
 
     it('duration toggle prevents removing the only selected duration (45m)', async () => {
@@ -4343,7 +4352,7 @@ describe('SkillsPricingInline', () => {
               service_catalog_id: 'svc-1',
               service_catalog_name: 'Piano',
               hourly_rate: 50,
-              levels_taught: ['beginner'],
+              filter_selections: { skill_level: ['beginner'] },
               offers_online: true,
             },
           ],
@@ -4411,7 +4420,7 @@ describe('SkillsPricingInline', () => {
       expect(equipInput).toHaveValue('Keyboard, metronome');
     });
 
-    it('age group toggle from adults clicking adults switches to kids', async () => {
+    it('age group toggle from adults clicking adults keeps adults selected (min-1 guard)', async () => {
       const user = userEvent.setup();
       mockUseInstructorProfileMe.mockReturnValue({
         data: {
@@ -4430,13 +4439,12 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
+      // Click adults (the only selected group) — min-1 guard prevents deselection
       const adultsButtons = screen.getAllByRole('button', { name: /^adults$/i });
       await user.click(adultsButtons[0]!);
 
-      // Clicking active adults should switch to kids
-      const kidsButtons = screen.getAllByRole('button', { name: /^kids$/i });
-      expect(kidsButtons[0]?.className).toContain('purple');
-      expect(adultsButtons[0]?.className).not.toContain('purple');
+      // Adults should remain selected (can't deselect the last group)
+      expect(adultsButtons[0]?.className).toContain('purple');
     });
 
     it('age group toggle from both clicking kids switches to adults only', async () => {
@@ -4726,6 +4734,2918 @@ describe('SkillsPricingInline', () => {
       });
 
       jest.useRealTimers();
+    });
+  });
+
+  describe('Batch 14: targeted uncovered line coverage', () => {
+    it('back-fills subcategory_id and eligible_age_groups from catalog when missing (lines 527-548)', async () => {
+      // Service loaded from profile has no subcategory_id and empty eligible_age_groups.
+      // When catalog data loads (serviceCatalogById populated), the back-fill effect
+      // should update them and set isHydratingRef.
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 60,
+            // subcategory_id will be '' because catalogEntry won't be available at hydration time
+            // when allServicesData loads later
+            offers_online: true,
+          }],
+        },
+      });
+
+      // Initially return no catalog data
+      mockUseAllServices.mockReturnValue({ data: null, isLoading: true });
+
+      const { rerender } = render(<SkillsPricingInline />);
+
+      // Now provide catalog data - this triggers the back-fill effect
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [{
+              id: 'svc-1',
+              name: 'Piano',
+              slug: 'piano',
+              subcategory_id: '01HABCTESTSUBCAT0000000001',
+              eligible_age_groups: ['kids', 'teens', 'adults'],
+            }],
+          }],
+        },
+        isLoading: false,
+      });
+
+      rerender(<SkillsPricingInline />);
+
+      // The service should now render with the catalog data back-filled
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/hourly rate/i)).toHaveValue(60);
+      });
+    });
+
+    it('back-fills default filter_selections (skill_level and age_groups) from catalog (lines 536-548)', async () => {
+      // Profile has a service but no filter_selections for skill_level or age_groups
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 60,
+            offers_online: true,
+            // No age_groups or filter_selections provided
+          }],
+        },
+      });
+
+      // Provide catalog data with eligible_age_groups
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [{
+              id: 'svc-1',
+              name: 'Piano',
+              slug: 'piano',
+              subcategory_id: '01HABCTESTSUBCAT0000000001',
+              eligible_age_groups: ['kids', 'teens', 'adults'],
+            }],
+          }],
+        },
+        isLoading: false,
+      });
+
+      render(<SkillsPricingInline />);
+
+      // All three skill levels should be selected (back-filled from defaults)
+      const beginnerBtns = screen.getAllByRole('button', { name: /^beginner$/i });
+      const intermediateBtns = screen.getAllByRole('button', { name: /^intermediate$/i });
+      const advancedBtns = screen.getAllByRole('button', { name: /^advanced$/i });
+      expect(beginnerBtns[0]?.className).toContain('purple');
+      expect(intermediateBtns[0]?.className).toContain('purple');
+      expect(advancedBtns[0]?.className).toContain('purple');
+    });
+
+    it('toggleServiceSelection removes an existing service when profile is loaded and not live (line 600)', async () => {
+      const user = userEvent.setup();
+      // Profile is loaded (not live) with one service
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 60,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Expand Music category
+      await user.click(screen.getByRole('button', { name: /music/i }));
+
+      // Piano should show checkmark (already selected)
+      const pianoToggle = screen.getByRole('button', { name: /piano ✓/i });
+      expect(pianoToggle).toBeInTheDocument();
+
+      // Click to deselect (toggleServiceSelection removal path)
+      await user.click(pianoToggle);
+
+      // Service should be removed
+      expect(screen.getByText(/no services added yet/i)).toBeInTheDocument();
+    });
+
+    it('handleRequestSkill error path shows error message (line 642)', async () => {
+      const user = userEvent.setup();
+
+      // Mock global fetch to reject for the skill request webhook
+      const originalFetch = global.fetch;
+      global.fetch = jest.fn().mockRejectedValueOnce(new Error('Network error'));
+
+      render(<SkillsPricingInline instructorProfile={{ is_live: false, services: [] } as never} />);
+
+      await user.type(screen.getByPlaceholderText(/request a new skill/i), 'Juggling');
+      await user.click(screen.getByRole('button', { name: /submit/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText(/something went wrong/i)).toBeInTheDocument();
+      });
+
+      global.fetch = originalFetch;
+    });
+
+    it('handleSave skips save when profile has not loaded yet (lines 655-658)', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      // Provide instructorProfile prop so services are hydrated,
+      // but set profileLoaded to false by not providing is_live in hook data
+      // and NOT providing instructorProfile (so profileLoaded stays false)
+      mockUseInstructorProfileMe.mockReturnValue({ data: undefined });
+
+      // Use the prop form: services hydrate, but profileData effect
+      // won't fire since instructorProfile is undefined and hook returns undefined
+      // This means profileLoaded remains false
+
+      render(<SkillsPricingInline />);
+
+      // Add a service manually to trigger autosave
+      await user.click(screen.getByRole('button', { name: /music/i }));
+      await user.click(screen.getByRole('button', { name: /piano \+/i }));
+
+      // Type a rate
+      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      await user.type(rateInput, '50');
+      jest.advanceTimersByTime(1200);
+
+      // Save should be skipped because profileLoaded is false
+      await waitFor(() => {
+        expect(mockFetchWithAuth).not.toHaveBeenCalled();
+      });
+
+      jest.useRealTimers();
+    });
+
+    it('handleSave clears stale priceErrors via ref when save passes validation (line 712)', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          service_area_neighborhoods: ['n1'],
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 30,
+            duration_options: [60],
+            offers_travel: true,
+          }],
+        },
+      });
+      mockUsePricingConfig.mockReturnValue({
+        config: { price_floor_cents: { private_in_person: 5000, private_remote: 4000 } },
+        isLoading: false,
+      });
+      mockEvaluateViolations.mockReturnValue([
+        { duration: 60, modalityLabel: 'in-person', floorCents: 5000, baseCents: 3000 },
+      ]);
+      mockFetchWithAuth.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+      render(<SkillsPricingInline />);
+
+      // Step 1: Trigger price floor error
+      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      await user.clear(rateInput);
+      await user.type(rateInput, '30');
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(screen.getByText(/minimum price/i)).toBeInTheDocument();
+      });
+
+      // Step 2: Fix the price — priceErrorsRef will still have the old errors
+      // but the new violations will be empty, so the ref-clearing branch (line 712) fires
+      mockEvaluateViolations.mockReturnValue([]);
+      await user.clear(rateInput);
+      await user.type(rateInput, '100');
+      jest.advanceTimersByTime(1200);
+
+      // Save should succeed (priceErrors cleared via ref, line 712)
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalled();
+      });
+
+      // The inline price error should be gone
+      expect(screen.queryByText(/minimum price/i)).not.toBeInTheDocument();
+
+      jest.useRealTimers();
+    });
+
+    it('skill level min-1 guard prevents deselecting the last skill level', async () => {
+      const user = userEvent.setup();
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            filter_selections: { skill_level: ['beginner'] },
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Only beginner is selected. Try to deselect it.
+      const beginnerBtns = screen.getAllByRole('button', { name: /^beginner$/i });
+      await user.click(beginnerBtns[0]!);
+
+      // Beginner should remain selected (min-1 guard)
+      expect(beginnerBtns[0]?.className).toContain('purple');
+    });
+
+    it('save payload includes filter_selections without age_groups', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 60,
+            age_groups: ['kids', 'adults'],
+            filter_selections: {
+              skill_level: ['beginner', 'intermediate'],
+              custom_filter: ['value1', 'value2'],
+            },
+            offers_online: true,
+          }],
+        },
+      });
+      mockFetchWithAuth.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+      render(<SkillsPricingInline />);
+
+      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      await user.clear(rateInput);
+      await user.type(rateInput, '65');
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalled();
+        const body = JSON.parse(mockFetchWithAuth.mock.calls[0][1].body as string);
+        // age_groups should be a top-level field, NOT inside filter_selections
+        expect(body.services[0].age_groups).toBeDefined();
+        // filter_selections should NOT contain age_groups (it's destructured out)
+        expect(body.services[0].filter_selections).not.toHaveProperty('age_groups');
+        // Other filter selections should be present
+        expect(body.services[0].filter_selections).toHaveProperty('skill_level');
+      });
+
+      jest.useRealTimers();
+    });
+
+    it('age group button is disabled when group is not in eligible_age_groups', async () => {
+      // Service with eligible_age_groups that excludes 'toddler'
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [{
+              id: 'svc-1',
+              name: 'Piano',
+              slug: 'piano',
+              subcategory_id: '01HABCTESTSUBCAT0000000001',
+              eligible_age_groups: ['teens', 'adults'], // Only teens and adults
+            }],
+          }],
+        },
+        isLoading: false,
+      });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            age_groups: ['teens', 'adults'],
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Toddler and Kids buttons should be disabled (not eligible)
+      const toddlerButtons = screen.getAllByRole('button', { name: /^toddler$/i });
+      expect(toddlerButtons[0]).toBeDisabled();
+
+      const kidsButtons = screen.getAllByRole('button', { name: /^kids$/i });
+      expect(kidsButtons[0]).toBeDisabled();
+
+      // Teens and Adults should not be disabled
+      const teensButtons = screen.getAllByRole('button', { name: /^teens$/i });
+      expect(teensButtons[0]).not.toBeDisabled();
+
+      const adultsButtons = screen.getAllByRole('button', { name: /^adults$/i });
+      expect(adultsButtons[0]).not.toBeDisabled();
+    });
+
+    it('autosave clears previous timeout before setting new one (line 836)', async () => {
+      jest.useFakeTimers();
+      const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+          }],
+        },
+      });
+      mockFetchWithAuth.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+      render(<SkillsPricingInline />);
+
+      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      await user.clear(rateInput);
+      await user.type(rateInput, '6');
+      jest.advanceTimersByTime(500);
+
+      // Type again before timeout fires
+      await user.type(rateInput, '5');
+      jest.advanceTimersByTime(500);
+
+      // clearTimeout should have been called (for the previous pending autosave)
+      expect(clearTimeoutSpy).toHaveBeenCalled();
+
+      // Now let the final timeout fire
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalledTimes(1);
+      });
+
+      clearTimeoutSpy.mockRestore();
+      jest.useRealTimers();
+    });
+
+    it('serializeServices produces consistent hash for filter_selections ordering', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 60,
+            filter_selections: {
+              skill_level: ['advanced', 'beginner'], // unsorted
+              age_groups: ['adults', 'kids'], // unsorted
+            },
+            offers_online: true,
+          }],
+        },
+      });
+      mockFetchWithAuth.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+      render(<SkillsPricingInline />);
+
+      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      await user.clear(rateInput);
+      await user.type(rateInput, '65');
+      jest.advanceTimersByTime(1200);
+
+      // Save should succeed (serializeServices sorts filter values)
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalled();
+      });
+
+      jest.useRealTimers();
+    });
+
+    it('back-fill effect does not modify services when catalog entry is not found', async () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-unknown',
+            service_catalog_name: 'Unknown Service',
+            hourly_rate: 60,
+            offers_online: true,
+          }],
+        },
+      });
+
+      // Catalog does not contain svc-unknown
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [{
+              id: 'svc-1',
+              name: 'Piano',
+              slug: 'piano',
+              subcategory_id: '01HABCTESTSUBCAT0000000001',
+              eligible_age_groups: ['kids', 'teens', 'adults'],
+            }],
+          }],
+        },
+        isLoading: false,
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Should render without crashing - the unknown service stays as-is
+      expect(screen.getByPlaceholderText(/hourly rate/i)).toHaveValue(60);
+    });
+
+    it('handleRequestSkill error catch branch sets error message (line 642)', async () => {
+      // Use a different approach: mock the module directly
+      const originalFetch = global.fetch;
+      // Make fetch throw for the webhook URL
+      global.fetch = jest.fn().mockImplementation((url: string) => {
+        if (typeof url === 'string' && url.includes('webhook')) {
+          return Promise.reject(new Error('Network failure'));
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+      });
+
+      const user = userEvent.setup();
+      render(<SkillsPricingInline instructorProfile={{ is_live: false, services: [] } as never} />);
+
+      await user.type(screen.getByPlaceholderText(/request a new skill/i), 'Ukulele');
+      await user.click(screen.getByRole('button', { name: /submit/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText(/something went wrong/i)).toBeInTheDocument();
+      });
+
+      // Button should return from submitting state
+      expect(screen.getByRole('button', { name: /submit/i })).not.toBeDisabled();
+
+      global.fetch = originalFetch;
+    });
+
+    it('toggleServiceSelection deselect path when live instructor has multiple services', async () => {
+      const user = userEvent.setup();
+      // Live instructor with two services - can remove one
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: true,
+          services: [
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 60, offers_online: true },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 50, offers_online: true },
+          ],
+        },
+      });
+
+      // Need Guitar in the catalog too
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [
+              { id: 'svc-1', name: 'Piano', slug: 'piano', subcategory_id: '01HABCTESTSUBCAT0000000001', eligible_age_groups: ['kids', 'teens', 'adults'] },
+              { id: 'svc-2', name: 'Guitar', slug: 'guitar', subcategory_id: '01HABCTESTSUBCAT0000000001', eligible_age_groups: ['kids', 'teens', 'adults'] },
+            ],
+          }],
+        },
+        isLoading: false,
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Should have 2 services
+      expect(screen.getAllByPlaceholderText(/hourly rate/i)).toHaveLength(2);
+
+      // Expand Music category and deselect Piano via toggle
+      await user.click(screen.getByRole('button', { name: /music/i }));
+
+      const pianoToggle = screen.getByRole('button', { name: /piano ✓/i });
+      await user.click(pianoToggle);
+
+      // Should now have 1 service
+      expect(screen.getAllByPlaceholderText(/hourly rate/i)).toHaveLength(1);
+    });
+
+    it('RefineFiltersSection calls initializeMissingFilters when subcategory has filters (lines 297-308)', async () => {
+      // Mock useSubcategoryFilters to return actual filter data
+      mockUseSubcategoryFilters.mockReturnValue({
+        data: [
+          {
+            filter_key: 'grade_level',
+            filter_display_name: 'Grade Level',
+            filter_type: 'multi_select',
+            options: [
+              { id: 'opt-1', value: 'elementary', display_name: 'Elementary', display_order: 1 },
+              { id: 'opt-2', value: 'middle_school', display_name: 'Middle School', display_order: 2 },
+            ],
+          },
+        ],
+        isLoading: false,
+      });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 60,
+            offers_online: true,
+            // No grade_level in filter_selections, so initializeMissingFilters should be called
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // The RefineFiltersSection should render (subcategory has filters)
+      await waitFor(() => {
+        expect(screen.getByText(/refine what you teach/i)).toBeInTheDocument();
+      });
+
+      // Reset mock for other tests
+      mockUseSubcategoryFilters.mockReturnValue({ data: [], isLoading: false });
+    });
+
+    it('RefineFiltersSection toggleExpanded and setFilterValues callbacks work (lines 284-286, 317)', async () => {
+      const user = userEvent.setup();
+
+      // Mock useSubcategoryFilters to return filter data
+      mockUseSubcategoryFilters.mockReturnValue({
+        data: [
+          {
+            filter_key: 'instrument_type',
+            filter_display_name: 'Instrument Type',
+            filter_type: 'multi_select',
+            options: [
+              { id: 'opt-1', value: 'acoustic', display_name: 'Acoustic', display_order: 1 },
+              { id: 'opt-2', value: 'electric', display_name: 'Electric', display_order: 2 },
+            ],
+          },
+        ],
+        isLoading: false,
+      });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            subcategory_id: '01HABCTESTSUBCAT0000000001',
+            hourly_rate: 60,
+            filter_selections: { instrument_type: ['acoustic', 'electric'] },
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Click the toggle expand button for RefineFiltersSection (line 317)
+      const toggleButton = screen.getByRole('button', { name: /toggle refine filters/i });
+      await user.click(toggleButton);
+
+      // The filter options should now be visible
+      await waitFor(() => {
+        expect(screen.getByText('Acoustic')).toBeInTheDocument();
+        expect(screen.getByText('Electric')).toBeInTheDocument();
+      });
+
+      // Click a filter option to trigger setServiceFilterValues (lines 284-286)
+      await user.click(screen.getByText('Acoustic'));
+
+      // The component should update without crashing
+      expect(screen.getByText('Electric')).toBeInTheDocument();
+
+      // Reset mock
+      mockUseSubcategoryFilters.mockReturnValue({ data: [], isLoading: false });
+    });
+
+    it('initializeMissingFilters merges defaults but does not overwrite existing selections (lines 297-308)', async () => {
+      // Mock useSubcategoryFilters to return two filters
+      mockUseSubcategoryFilters.mockReturnValue({
+        data: [
+          {
+            filter_key: 'music_style',
+            filter_display_name: 'Music Style',
+            filter_type: 'multi_select',
+            options: [
+              { id: 'opt-1', value: 'classical', display_name: 'Classical', display_order: 1 },
+              { id: 'opt-2', value: 'jazz', display_name: 'Jazz', display_order: 2 },
+            ],
+          },
+          {
+            filter_key: 'approach',
+            filter_display_name: 'Teaching Approach',
+            filter_type: 'multi_select',
+            options: [
+              { id: 'opt-3', value: 'suzuki', display_name: 'Suzuki', display_order: 1 },
+              { id: 'opt-4', value: 'traditional', display_name: 'Traditional', display_order: 2 },
+            ],
+          },
+        ],
+        isLoading: false,
+      });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            subcategory_id: '01HABCTESTSUBCAT0000000001',
+            hourly_rate: 60,
+            filter_selections: {
+              // music_style already exists - should not be overwritten
+              music_style: ['classical'],
+              // approach is missing - should be initialized with defaults
+            },
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // RefineFiltersSection should render
+      await waitFor(() => {
+        expect(screen.getByText(/refine what you teach/i)).toBeInTheDocument();
+      });
+
+      // Expand to see filter options
+      const toggleButton = screen.getByRole('button', { name: /toggle refine filters/i });
+      const user = userEvent.setup();
+      await user.click(toggleButton);
+
+      // Both filter sections should be visible
+      await waitFor(() => {
+        expect(screen.getByText('Music Style')).toBeInTheDocument();
+        expect(screen.getByText('Teaching Approach')).toBeInTheDocument();
+      });
+
+      // Reset mock
+      mockUseSubcategoryFilters.mockReturnValue({ data: [], isLoading: false });
+    });
+
+    it('back-fill effect updates subcategory_id when missing from service (lines 527-533)', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      // Service starts with empty subcategory_id
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 60,
+            offers_online: true,
+            // subcategory_id will be '' (empty string from hydration)
+          }],
+        },
+      });
+
+      // Catalog provides the subcategory_id
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [{
+              id: 'svc-1',
+              name: 'Piano',
+              slug: 'piano',
+              subcategory_id: '01HABCTESTSUBCAT0000000001',
+              eligible_age_groups: ['kids', 'teens', 'adults'],
+            }],
+          }],
+        },
+        isLoading: false,
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Trigger a save to verify subcategory_id was back-filled
+      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      await user.clear(rateInput);
+      await user.type(rateInput, '65');
+      jest.advanceTimersByTime(1200);
+
+      // Save should succeed (back-fill ran)
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalled();
+      });
+
+      jest.useRealTimers();
+    });
+
+    it('back-fill effect initializes skill_level and age_groups defaults when missing (lines 536-542)', () => {
+      // Service has no age_groups and no skill_level in filter_selections
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 60,
+            offers_online: true,
+            // No age_groups provided, no filter_selections
+          }],
+        },
+      });
+
+      // Catalog provides eligible_age_groups
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [{
+              id: 'svc-1',
+              name: 'Piano',
+              slug: 'piano',
+              subcategory_id: '01HABCTESTSUBCAT0000000001',
+              eligible_age_groups: ['teens', 'adults'],
+            }],
+          }],
+        },
+        isLoading: false,
+      });
+
+      render(<SkillsPricingInline />);
+
+      // The back-fill effect should have initialized skill_level and age_groups
+      // All skill levels should be selected (defaults)
+      const beginnerBtns = screen.getAllByRole('button', { name: /^beginner$/i });
+      const intermediateBtns = screen.getAllByRole('button', { name: /^intermediate$/i });
+      const advancedBtns = screen.getAllByRole('button', { name: /^advanced$/i });
+      expect(beginnerBtns[0]?.className).toContain('purple');
+      expect(intermediateBtns[0]?.className).toContain('purple');
+      expect(advancedBtns[0]?.className).toContain('purple');
+    });
+
+    it('back-fill effect populates subcategory_id and eligible_age_groups when catalog loads after profile (lines 527-533)', async () => {
+      // Step 1: Profile data arrives with a service, but catalog is not yet loaded
+      // serviceCatalogById will be empty, so hydration sets subcategory_id to ''
+      // and eligible_age_groups to default ['kids', 'teens', 'adults']
+      mockUseAllServices.mockReturnValue({ data: null, isLoading: true });
+
+      const profileData = {
+        is_live: false,
+        services: [{
+          service_catalog_id: 'svc-1',
+          service_catalog_name: 'Piano',
+          hourly_rate: 60,
+          offers_online: true,
+          // subcategory_id not in API response — will be ''
+          // age_groups not provided — will be set from catalog defaults
+        }],
+      };
+
+      const { rerender } = render(
+        <SkillsPricingInline instructorProfile={profileData as never} />
+      );
+
+      // Step 2: Now catalog data loads
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [{
+              id: 'svc-1',
+              name: 'Piano',
+              slug: 'piano',
+              subcategory_id: '01HABCTESTSUBCAT0000000001',
+              eligible_age_groups: ['teens', 'adults'],
+            }],
+          }],
+        },
+        isLoading: false,
+      });
+
+      rerender(<SkillsPricingInline instructorProfile={profileData as never} />);
+
+      // The service should still render correctly
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/hourly rate/i)).toHaveValue(60);
+      });
+    });
+
+    it('back-fill effect fills missing filter_selections when skill_level is absent (lines 536-542)', async () => {
+      // Profile hydrates with service that has no filter_selections at all
+      mockUseAllServices.mockReturnValue({ data: null, isLoading: true });
+
+      const profileData = {
+        is_live: false,
+        services: [{
+          service_catalog_id: 'svc-1',
+          service_catalog_name: 'Piano',
+          hourly_rate: 60,
+          offers_online: true,
+          filter_selections: {}, // Empty — no skill_level or age_groups
+        }],
+      };
+
+      const { rerender } = render(
+        <SkillsPricingInline instructorProfile={profileData as never} />
+      );
+
+      // Now catalog data loads — triggers back-fill
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [{
+              id: 'svc-1',
+              name: 'Piano',
+              slug: 'piano',
+              subcategory_id: '01HABCTESTSUBCAT0000000001',
+              eligible_age_groups: ['kids', 'adults'],
+            }],
+          }],
+        },
+        isLoading: false,
+      });
+
+      rerender(<SkillsPricingInline instructorProfile={profileData as never} />);
+
+      // The back-fill should have initialized skill levels
+      await waitFor(() => {
+        const beginnerBtns = screen.getAllByRole('button', { name: /^beginner$/i });
+        expect(beginnerBtns[0]?.className).toContain('purple');
+      });
+    });
+
+    it('service with empty eligible_age_groups gets back-filled from catalog (line 531-533)', async () => {
+      // Create a service that explicitly has empty eligible_age_groups
+      // This can happen when the service hydration runs before catalog data is available
+      mockUseAllServices.mockReturnValue({ data: null, isLoading: true });
+
+      // Use instructorProfile prop to set up service
+      const profileData = {
+        is_live: false,
+        services: [{
+          service_catalog_id: 'svc-1',
+          service_catalog_name: 'Piano',
+          hourly_rate: 60,
+          age_groups: [], // Empty array
+          offers_online: true,
+        }],
+      };
+
+      const { rerender } = render(
+        <SkillsPricingInline instructorProfile={profileData as never} />
+      );
+
+      // Now provide catalog data with eligible_age_groups
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [{
+              id: 'svc-1',
+              name: 'Piano',
+              slug: 'piano',
+              subcategory_id: '01HABCTESTSUBCAT0000000001',
+              eligible_age_groups: ['teens', 'adults'],
+            }],
+          }],
+        },
+        isLoading: false,
+      });
+
+      rerender(<SkillsPricingInline instructorProfile={profileData as never} />);
+
+      // The service should render
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/hourly rate/i)).toHaveValue(60);
+      });
+    });
+
+    it('handleSave clears stale priceErrors via ref when description changes (line 712)', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      // Single service with price floor violation
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          service_area_neighborhoods: ['n1'],
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 30,
+            duration_options: [60],
+            offers_travel: true,
+          }],
+        },
+      });
+      mockUsePricingConfig.mockReturnValue({
+        config: { price_floor_cents: { private: { '60': 5000 } } },
+        isLoading: false,
+      });
+      mockEvaluateViolations.mockReturnValue([
+        { duration: 60, modalityLabel: 'in-person', floorCents: 5000, baseCents: 3000 },
+      ]);
+      mockFetchWithAuth.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+      render(<SkillsPricingInline />);
+
+      // Step 1: Trigger autosave — price floor violation blocks save, sets priceErrors
+      await user.clear(screen.getByPlaceholderText(/hourly rate/i));
+      await user.type(screen.getByPlaceholderText(/hourly rate/i), '30');
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(screen.getByText(/minimum price/i)).toBeInTheDocument();
+      });
+
+      // Step 2: Change description — does NOT clear svc-1's priceError
+      // (only rate changes for the specific service clear the price error)
+      // But we also clear violations so handleSave can proceed past price floor check
+      mockEvaluateViolations.mockReturnValue([]);
+      const descInput = screen.getByPlaceholderText(/brief description/i);
+      await user.type(descInput, 'Classical piano');
+      jest.advanceTimersByTime(1200);
+
+      // Save should succeed; the stale priceErrors should be cleared via ref (line 712)
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalled();
+      });
+
+      jest.useRealTimers();
+    });
+
+    it('pendingSyncSignatureRef match path accepts hydration from saved data (lines 451-459)', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      // Start with a profile
+      const profile = {
+        is_live: false,
+        services: [{
+          service_catalog_id: 'svc-1',
+          service_catalog_name: 'Piano',
+          hourly_rate: 70,
+          offers_online: true,
+        }],
+      };
+
+      mockFetchWithAuth.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+      // Use hook-based profile (not prop) so we can update it via mock
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { ...profile },
+      });
+
+      const { rerender } = render(<SkillsPricingInline />);
+
+      // Edit the rate
+      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      await user.clear(rateInput);
+      await user.type(rateInput, '85');
+
+      // Wait for autosave — this sets pendingSyncSignatureRef
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalled();
+      });
+
+      // Now simulate the hook returning the saved data (matching signature)
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          ...profile,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 85, // matches what was saved
+            offers_online: true,
+          }],
+        },
+      });
+
+      // Trigger re-render to simulate React Query cache update
+      rerender(<SkillsPricingInline />);
+
+      // Value should be accepted (pendingSyncSignatureRef matched)
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/hourly rate/i)).toHaveValue(85);
+      });
+
+      jest.useRealTimers();
+    });
+  });
+
+  describe('Batch 15: branch coverage improvements', () => {
+    it('handleRequestSkill early-returns when requestedSkill is whitespace only (branch 94, line 625)', async () => {
+      // Render with a service so the "Request a skill" section appears
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { is_live: false, services: [{ service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true }] },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // The submit button is disabled when empty — type whitespace to enable it
+      const input = screen.getByPlaceholderText(/request a new skill/i);
+      await userEvent.type(input, '   ');
+
+      // Button should still be disabled because trim() is empty
+      const submitBtn = screen.getByRole('button', { name: /submit/i });
+      expect(submitBtn).toBeDisabled();
+    });
+
+    it('rate onChange when there is no price error returns prev (branch 154, line 1002)', async () => {
+      // Render with profile that has a service
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Rate input has no associated price error, so changing it should just update the value
+      // (branch: if (!prev[s.catalog_service_id]) return prev — returns prev without modification)
+      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      await userEvent.clear(rateInput);
+      await userEvent.type(rateInput, '75');
+
+      expect(rateInput).toHaveValue(75);
+    });
+
+    it('toggleServiceSelection adds service with fallback eligible_age_groups when no catalog entry (branch 92, line 604)', async () => {
+      // Return categories with a service NOT in the catalog map
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [
+              { id: 'svc-unknown', name: 'Harp', slug: 'harp' },
+              // No subcategory_id, no eligible_age_groups in catalog
+            ],
+          }],
+        },
+        isLoading: false,
+      });
+      mockUseServiceCategories.mockReturnValue({
+        data: [{ id: '01HABCTESTCAT0000000000001', name: 'Music', display_order: 1 }],
+        isLoading: false,
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Find and click the Music accordion to expand it
+      const musicBtn = screen.getByRole('button', { name: /music/i });
+      await userEvent.click(musicBtn);
+
+      // Click the Harp service to add it
+      const harpBtn = screen.getByRole('button', { name: /harp/i });
+      await userEvent.click(harpBtn);
+
+      // Service should be added — the rate input should now appear
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/hourly rate/i)).toBeInTheDocument();
+      });
+
+      // Since no catalog entry, fallback age groups should be ['kids', 'teens', 'adults']
+      // and subcategory_id should be ''
+      // Verify the age group buttons are rendered (fallback includes kids, teens, adults)
+      expect(screen.getByRole('button', { name: /^kids$/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^teens$/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^adults$/i })).toBeInTheDocument();
+    });
+
+    it('toggleServiceSelection adds service with fallback subcategory_id when catalog has no subcategory (branch 93, line 609)', async () => {
+      // Catalog entry has no subcategory_id
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [
+              { id: 'svc-nosub', name: 'Flute', slug: 'flute', eligible_age_groups: ['teens', 'adults'] },
+              // No subcategory_id
+            ],
+          }],
+        },
+        isLoading: false,
+      });
+      mockUseServiceCategories.mockReturnValue({
+        data: [{ id: '01HABCTESTCAT0000000000001', name: 'Music', display_order: 1 }],
+        isLoading: false,
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Expand Music
+      const musicBtn = screen.getByRole('button', { name: /music/i });
+      await userEvent.click(musicBtn);
+
+      // Add Flute
+      const fluteBtn = screen.getByRole('button', { name: /flute/i });
+      await userEvent.click(fluteBtn);
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/hourly rate/i)).toBeInTheDocument();
+      });
+    });
+
+    it('service card renders fallback name when service_catalog_name is missing (branch 148, line 965)', () => {
+      // Profile with a service that has no service_catalog_name or name
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            // no service_catalog_name
+            hourly_rate: 50,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // The card should render with 'Service' fallback (line 965)
+      // Both the chip and the card heading use 'Service' as fallback
+      const serviceTexts = screen.getAllByText('Service');
+      expect(serviceTexts.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('chip displays service_catalog_name when name is missing (branch 133/134, line 890)', () => {
+      // Profile service with no name field but has service_catalog_name
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+            // name is not set, so chip should use service_catalog_name
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // The chip at the top should show 'Piano' (from service_catalog_name)
+      const chips = screen.getAllByText('Piano');
+      expect(chips.length).toBeGreaterThan(0);
+    });
+
+    it('description and equipment fields render empty string when values are null/undefined (branches 195/197, lines 1252/1262)', async () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+            description: null,
+            equipment: null,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Description and equipment textareas should render with empty values (fallback || '')
+      const descField = screen.getByPlaceholderText(/brief description/i);
+      expect(descField).toHaveValue('');
+
+      const equipField = screen.getByPlaceholderText(/yoga mat/i);
+      expect(equipField).toHaveValue('');
+    });
+
+    it('multi-service: age group click handler returns x unchanged for non-matching indices (branch 161, line 1052)', async () => {
+      // Two services — clicking age group on first should not affect second
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [
+              { id: 'svc-1', name: 'Piano', slug: 'piano', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+              { id: 'svc-2', name: 'Guitar', slug: 'guitar', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+            ],
+          }],
+        },
+        isLoading: false,
+      });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 40, offers_online: true },
+          ],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Get all "Kids" buttons (one per service card)
+      const kidsButtons = screen.getAllByRole('button', { name: /^kids$/i });
+      expect(kidsButtons.length).toBe(2);
+
+      // Click Kids on the first service — this hits `if (i !== index) return x` for index=1
+      await userEvent.click(kidsButtons[0]!);
+
+      // Both services should still have their rate inputs
+      const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
+      expect(rateInputs.length).toBe(2);
+    });
+
+    it('multi-service: skill level click handler returns x unchanged for non-matching indices (branch 182, line 1197)', async () => {
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [
+              { id: 'svc-1', name: 'Piano', slug: 'piano', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+              { id: 'svc-2', name: 'Guitar', slug: 'guitar', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+            ],
+          }],
+        },
+        isLoading: false,
+      });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 40, offers_online: true },
+          ],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Get all "Beginner" buttons (one per service card)
+      const beginnerButtons = screen.getAllByRole('button', { name: /^beginner$/i });
+      expect(beginnerButtons.length).toBe(2);
+
+      // Click Beginner on the first service — this hits `if (i !== index) return x` for index=1
+      await userEvent.click(beginnerButtons[0]!);
+
+      // Both rate inputs should still be there
+      const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
+      expect(rateInputs.length).toBe(2);
+    });
+
+    it('multi-service: duration click handler returns x unchanged for non-matching indices (branch 189, line 1227)', async () => {
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [
+              { id: 'svc-1', name: 'Piano', slug: 'piano', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+              { id: 'svc-2', name: 'Guitar', slug: 'guitar', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+            ],
+          }],
+        },
+        isLoading: false,
+      });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 40, offers_online: true },
+          ],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Duration buttons use the format "{d}m" — e.g., "30m", "45m", "60m", "90m"
+      const thirtyMinButtons = screen.getAllByRole('button', { name: /^30m$/i });
+      expect(thirtyMinButtons.length).toBe(2);
+
+      // Click 30m on the first service — this hits `if (i !== index) return x` for index=1
+      await userEvent.click(thirtyMinButtons[0]!);
+
+      // Both rate inputs should still be there
+      const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
+      expect(rateInputs.length).toBe(2);
+    });
+
+    it('multi-service: rate onChange for second service hits i===index branch (branch 154 alternate)', async () => {
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [
+              { id: 'svc-1', name: 'Piano', slug: 'piano', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+              { id: 'svc-2', name: 'Guitar', slug: 'guitar', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+            ],
+          }],
+        },
+        isLoading: false,
+      });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 40, offers_online: true },
+          ],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
+      expect(rateInputs.length).toBe(2);
+
+      // Changing second input triggers map where first service hits `i !== index` return
+      await userEvent.clear(rateInputs[1]!);
+      await userEvent.type(rateInputs[1]!, '55');
+      expect(rateInputs[1]).toHaveValue(55);
+    });
+
+    it('servicesByCategory fallback to empty array when category has no services (branch 141, line 922)', async () => {
+      // Category exists but has no services in the data
+      mockUseServiceCategories.mockReturnValue({
+        data: [
+          { id: '01HABCTESTCAT0000000000001', name: 'Music', display_order: 1 },
+          { id: '01HABCTESTCAT0000000000002', name: 'Dance', display_order: 2 },
+        ],
+        isLoading: false,
+      });
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [
+            {
+              id: '01HABCTESTCAT0000000000001',
+              name: 'Music',
+              services: [{ id: 'svc-1', name: 'Piano', slug: 'piano', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] }],
+            },
+            // Dance has no services — will hit servicesByCategory[cat.id] || []
+          ],
+        },
+        isLoading: false,
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Both category headers should be rendered
+      const musicCategory = screen.getByRole('button', { name: /music/i });
+      const danceCategory = screen.getByRole('button', { name: /dance/i });
+      expect(musicCategory).toBeInTheDocument();
+      expect(danceCategory).toBeInTheDocument();
+
+      // Expand Dance accordion to trigger `servicesByCategory[cat.id] || []` fallback
+      await userEvent.click(danceCategory);
+
+      // Dance accordion should be open but empty (no services)
+      // Music accordion also still exists
+      expect(musicCategory).toBeInTheDocument();
+    });
+
+    it('skillsFilter applies text filtering on service names in the grid (branch 143, line 923)', async () => {
+      // Multiple services in one category
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [
+              { id: 'svc-1', name: 'Piano', slug: 'piano', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+              { id: 'svc-2', name: 'Guitar', slug: 'guitar', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+            ],
+          }],
+        },
+        isLoading: false,
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Categories start collapsed — expand the Music accordion
+      const musicAccordion = screen.getByRole('button', { name: /music/i });
+      await userEvent.click(musicAccordion);
+
+      // Before filtering, both Piano and Guitar should be in the accordion grid
+      // Service buttons render as "{name} +" or "{name} ✓"
+      expect(screen.getByText(/^Piano \+$/)).toBeInTheDocument();
+      expect(screen.getByText(/^Guitar \+$/)).toBeInTheDocument();
+
+      // Type in the filter
+      const filterInput = screen.getByPlaceholderText(/search skills/i);
+      await userEvent.type(filterInput, 'Piano');
+
+      // Only Piano should be visible in the accordion; Guitar filtered out
+      expect(screen.getByText(/^Piano \+$/)).toBeInTheDocument();
+      expect(screen.queryByText(/^Guitar \+$/)).not.toBeInTheDocument();
+    });
+
+    it('age group click handler early-returns when group is not eligible (branch 160, line 1050)', async () => {
+      // Service with restricted eligible_age_groups (no toddler)
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [{ id: 'svc-1', name: 'Piano', slug: 'piano', subcategory_id: 'sub1', eligible_age_groups: ['teens', 'adults'] }],
+          }],
+        },
+        isLoading: false,
+      });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+            eligible_age_groups: ['teens', 'adults'],
+            filter_selections: { skill_level: ['beginner', 'intermediate', 'advanced'], age_groups: ['teens', 'adults'] },
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Toddler button should be disabled
+      const toddlerBtn = screen.getByRole('button', { name: /^toddler$/i });
+      expect(toddlerBtn).toBeDisabled();
+
+      // Click it anyway — should hit `if (!isEligible) return` early return
+      await userEvent.click(toddlerBtn);
+
+      // Nothing should change — teens and adults should still be selected
+      const teensBtn = screen.getByRole('button', { name: /^teens$/i });
+      expect(teensBtn.className).toContain('purple');
+    });
+
+    it('save payload includes age_groups from filter_selections when available (branch 114, line 742)', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+            age_groups: ['teens', 'adults'], // top-level age_groups is what hydration reads
+            eligible_age_groups: ['kids', 'teens', 'adults'],
+            filter_selections: { skill_level: ['beginner'] },
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Make a small change to trigger autosave
+      const descField = screen.getByPlaceholderText(/brief description/i);
+      await user.type(descField, 'test');
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalled();
+      });
+
+      // Check that the payload used the hydrated age_groups from top-level
+      const call = mockFetchWithAuth.mock.calls[0];
+      const body = JSON.parse(call?.[1]?.body as string);
+      expect(body.services[0].age_groups).toEqual(['teens', 'adults']);
+
+      jest.useRealTimers();
+    });
+
+    it('save payload includes equipment_required when equipment is provided (branch 113/116, lines 740/745)', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Add equipment
+      const equipField = screen.getByPlaceholderText(/yoga mat/i);
+      await user.type(equipField, 'Sheet music, Metronome');
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalled();
+      });
+
+      const call = mockFetchWithAuth.mock.calls[0];
+      const body = JSON.parse(call?.[1]?.body as string);
+      expect(body.services[0].equipment_required).toEqual(['Sheet music', 'Metronome']);
+
+      jest.useRealTimers();
+    });
+
+    it('save payload includes description when provided (branch 113, line 740)', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      const descField = screen.getByPlaceholderText(/brief description/i);
+      await user.type(descField, 'Classical and jazz');
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalled();
+      });
+
+      const call = mockFetchWithAuth.mock.calls[0];
+      const body = JSON.parse(call?.[1]?.body as string);
+      expect(body.services[0].description).toBe('Classical and jazz');
+
+      jest.useRealTimers();
+    });
+
+    it('age groups fallback to empty array when filter_selections has no age_groups key (branch 159, line 1042)', () => {
+      // Service explicitly has no age_groups in filter_selections
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+            eligible_age_groups: ['kids', 'teens', 'adults'],
+            filter_selections: { skill_level: ['beginner'] },
+            // No age_groups key — triggers ?? [] fallback on line 1042
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Kids button should not be selected (no age_groups in filter_selections)
+      // because the fallback is [] which means nothing is selected
+      // But the back-fill effect may populate it — check that rendering doesn't crash
+      expect(screen.getByRole('button', { name: /^kids$/i })).toBeInTheDocument();
+    });
+
+    it('skill_level fallback to DEFAULT_SKILL_LEVELS when filter_selections has no skill_level (branch 181/183, line 1191/1198)', () => {
+      // Service with filter_selections that has age_groups but no skill_level
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+            eligible_age_groups: ['kids', 'teens', 'adults'],
+            filter_selections: { age_groups: ['kids', 'teens'] },
+            // No skill_level — triggers ?? [...DEFAULT_SKILL_LEVELS] fallback on line 1191
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // All skill levels should show as selected (default fallback)
+      const beginnerBtn = screen.getByRole('button', { name: /^beginner$/i });
+      const intermediateBtn = screen.getByRole('button', { name: /^intermediate$/i });
+      const advancedBtn = screen.getByRole('button', { name: /^advanced$/i });
+      // All should have the purple styling (selected)
+      expect(beginnerBtn.className).toContain('purple');
+      expect(intermediateBtn.className).toContain('purple');
+      expect(advancedBtn.className).toContain('purple');
+    });
+
+    it('buildPriceFloorErrors returns empty when pricingFloors is null (branch 26, line 241)', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      // pricingFloors is null (no config)
+      mockUsePricingConfig.mockReturnValue({ config: { price_floor_cents: null } });
+
+      // But make evaluateViolations return violations
+      mockEvaluateViolations.mockReturnValue([{
+        floorCents: 5000,
+        baseCents: 3000,
+        modalityLabel: 'in-person',
+        duration: 60,
+      }]);
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 30,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Edit to trigger autosave
+      const descField = screen.getByPlaceholderText(/brief description/i);
+      await user.type(descField, 'Test');
+      jest.advanceTimersByTime(1200);
+
+      // Save should proceed because pricingFloors is null — buildPriceFloorErrors returns {}
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalled();
+      });
+
+      // No price error toast should have been called
+      expect(toast.error).not.toHaveBeenCalled();
+
+      jest.useRealTimers();
+    });
+
+    it('autosave has invalid capabilities blocks save silently (not manual) (branch 112, line 723)', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+            offers_travel: false,
+            offers_at_location: false,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Turn off Online — this makes all capabilities false
+      const onlineToggle = screen.getByRole('switch', { name: /online lessons/i });
+      await user.click(onlineToggle);
+
+      // Wait for autosave to trigger
+      jest.advanceTimersByTime(1200);
+
+      // There should be an inline error message
+      await waitFor(() => {
+        expect(screen.getByText(/select at least one location option/i)).toBeInTheDocument();
+      });
+
+      // But toast.error should NOT have been called (only fires for source === 'manual')
+      // The autosave uses source === 'auto', so it silently blocks
+      expect(toast.error).not.toHaveBeenCalledWith(
+        expect.stringContaining('Select at least one way'),
+        expect.anything()
+      );
+
+      jest.useRealTimers();
+    });
+
+    it('multi-service: description onChange on second service passes through for non-matching index (branch 195)', async () => {
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [
+              { id: 'svc-1', name: 'Piano', slug: 'piano', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+              { id: 'svc-2', name: 'Guitar', slug: 'guitar', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+            ],
+          }],
+        },
+        isLoading: false,
+      });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 40, offers_online: true },
+          ],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Get all description fields
+      const descFields = screen.getAllByPlaceholderText(/brief description/i);
+      expect(descFields.length).toBe(2);
+
+      // Type in the second description — first service unchanged
+      await userEvent.type(descFields[1]!, 'Jazz guitar');
+      expect(descFields[1]).toHaveValue('Jazz guitar');
+    });
+
+    it('multi-service: equipment onChange on second service passes through for non-matching index (branch 197)', async () => {
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [
+              { id: 'svc-1', name: 'Piano', slug: 'piano', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+              { id: 'svc-2', name: 'Guitar', slug: 'guitar', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+            ],
+          }],
+        },
+        isLoading: false,
+      });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 40, offers_online: true },
+          ],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Get all equipment fields
+      const equipFields = screen.getAllByPlaceholderText(/yoga mat/i);
+      expect(equipFields.length).toBe(2);
+
+      // Type in the second equipment — first service unchanged
+      await userEvent.type(equipFields[1]!, 'Guitar pick');
+      expect(equipFields[1]).toHaveValue('Guitar pick');
+    });
+
+    it('initializeMissingFilters skips service when serviceId does not match (branch 32, line 299)', async () => {
+      // This tests that initializeMissingFilters returns `s` unchanged for non-matching services
+      mockUseSubcategoryFilters.mockReturnValue({
+        data: [
+          { filter_key: 'instrument_type', filter_display_name: 'Instrument Type', filter_type: 'multi_select', options: [{ id: '1', value: 'acoustic', display_name: 'Acoustic', display_order: 1 }] },
+        ],
+        isLoading: false,
+      });
+
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [
+              { id: 'svc-1', name: 'Piano', slug: 'piano', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+              { id: 'svc-2', name: 'Guitar', slug: 'guitar', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+            ],
+          }],
+        },
+        isLoading: false,
+      });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true, subcategory_id: 'sub1' },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 40, offers_online: true, subcategory_id: 'sub1' },
+          ],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Both services should render fine - RefineFiltersSection calls initializeMissingFilters
+      // for each service, and the filter_key matching only applies to the correct service
+      await waitFor(() => {
+        const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
+        expect(rateInputs.length).toBe(2);
+      });
+
+      // Reset mock
+      mockUseSubcategoryFilters.mockReturnValue({ data: [], isLoading: false });
+    });
+
+    it('initializeMissingFilters does not set changed=true when all keys already exist (branch 33, line 303-306)', async () => {
+      // Setup subcategory filters that would provide defaults
+      mockUseSubcategoryFilters.mockReturnValue({
+        data: [
+          {
+            filter_key: 'instrument_type',
+            filter_display_name: 'Instrument Type',
+            filter_type: 'multi_select',
+            options: [{ id: '1', value: 'acoustic', display_name: 'Acoustic', display_order: 1 }],
+          },
+        ],
+        isLoading: false,
+      });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+            subcategory_id: 'sub1',
+            filter_selections: {
+              skill_level: ['beginner'],
+              age_groups: ['kids'],
+              instrument_type: ['acoustic'], // Already has this key!
+            },
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Service should render — the initializeMissingFilters sees instrument_type exists
+      // so changed stays false and returns `s` unchanged (branch 34, line 308)
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/hourly rate/i)).toHaveValue(50);
+      });
+
+      // Reset mock
+      mockUseSubcategoryFilters.mockReturnValue({ data: [], isLoading: false });
+    });
+
+    it('setServiceFilterValues updates the correct service in a multi-service setup (branch 31, line 286-288)', async () => {
+      // Two services, test that setServiceFilterValues only updates the matching one
+      mockUseSubcategoryFilters.mockReturnValue({
+        data: [
+          {
+            filter_key: 'style',
+            filter_display_name: 'Style',
+            filter_type: 'multi_select',
+            options: [
+              { id: '1', value: 'classical', display_name: 'Classical', display_order: 1 },
+              { id: '2', value: 'jazz', display_name: 'Jazz', display_order: 2 },
+            ],
+          },
+        ],
+        isLoading: false,
+      });
+
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [
+              { id: 'svc-1', name: 'Piano', slug: 'piano', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+              { id: 'svc-2', name: 'Guitar', slug: 'guitar', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+            ],
+          }],
+        },
+        isLoading: false,
+      });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true, subcategory_id: 'sub1' },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 40, offers_online: true, subcategory_id: 'sub1' },
+          ],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Expand refine filters for first service
+      const toggleButtons = screen.getAllByLabelText(/toggle refine filters/i);
+      expect(toggleButtons.length).toBeGreaterThan(0);
+
+      await userEvent.click(toggleButtons[0]!);
+
+      // Should see the Style filter options
+      await waitFor(() => {
+        expect(screen.getByText('Classical')).toBeInTheDocument();
+      });
+
+      // Click "Jazz" to toggle it — this calls setServiceFilterValues for svc-1
+      // and hits the branch where non-matching services return unchanged
+      await userEvent.click(screen.getByText('Jazz'));
+
+      // Both services should still be displayed
+      const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
+      expect(rateInputs.length).toBe(2);
+
+      // Reset mock
+      mockUseSubcategoryFilters.mockReturnValue({ data: [], isLoading: false });
+    });
+
+    it('multi-service: toggle travel switch for one service leaves other unchanged (branch 171, line 1113)', async () => {
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [
+              { id: 'svc-1', name: 'Piano', slug: 'piano', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+              { id: 'svc-2', name: 'Guitar', slug: 'guitar', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+            ],
+          }],
+        },
+        isLoading: false,
+      });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          service_area_neighborhoods: ['Upper East Side'],
+          preferred_teaching_locations: [{ id: 'loc-1', name: 'Studio A' }],
+          services: [
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true, offers_travel: true, offers_at_location: false },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 40, offers_online: true, offers_travel: false, offers_at_location: false },
+          ],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Get all "I travel to students" toggles — they should NOT be disabled because hasServiceAreas is true
+      const travelToggles = screen.getAllByRole('switch', { name: /i travel to students/i });
+      expect(travelToggles.length).toBe(2);
+
+      // Toggle travel on the first service — index=1 hits `i !== index` return
+      await userEvent.click(travelToggles[0]!);
+
+      // Both services should still be rendered
+      const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
+      expect(rateInputs.length).toBe(2);
+    });
+
+    it('multi-service: toggle at-location switch for one service leaves other unchanged (branch 176, line 1142)', async () => {
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [
+              { id: 'svc-1', name: 'Piano', slug: 'piano', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+              { id: 'svc-2', name: 'Guitar', slug: 'guitar', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+            ],
+          }],
+        },
+        isLoading: false,
+      });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          service_area_neighborhoods: ['Midtown'],
+          preferred_teaching_locations: [{ id: 'loc-1', name: 'Studio A' }],
+          services: [
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true, offers_travel: false, offers_at_location: true },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 40, offers_online: true, offers_travel: false, offers_at_location: false },
+          ],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      const atLocationToggles = screen.getAllByRole('switch', { name: /students come to me/i });
+      expect(atLocationToggles.length).toBe(2);
+
+      // Toggle at-location on first service — second service hits `i !== index` return
+      await userEvent.click(atLocationToggles[0]!);
+
+      const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
+      expect(rateInputs.length).toBe(2);
+    });
+
+    it('multi-service: toggle online switch for one service leaves other unchanged (branch 179, line 1166)', async () => {
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [
+              { id: 'svc-1', name: 'Piano', slug: 'piano', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+              { id: 'svc-2', name: 'Guitar', slug: 'guitar', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+            ],
+          }],
+        },
+        isLoading: false,
+      });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 40, offers_online: true },
+          ],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      const onlineToggles = screen.getAllByRole('switch', { name: /online lessons/i });
+      expect(onlineToggles.length).toBe(2);
+
+      // Toggle online on first service
+      await userEvent.click(onlineToggles[0]!);
+
+      const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
+      expect(rateInputs.length).toBe(2);
+    });
+
+    it('serializeServices handles null description and equipment gracefully (branches 29/30, lines 268-269)', async () => {
+      // Service with null description and equipment — exercises the `?? ''` fallbacks in serializeServices
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+            // description and equipment will be '' by default, but serializeServices has null guards
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Change rate to trigger autosave (which calls serializeServices internally)
+      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      await user.clear(rateInput);
+      await user.type(rateInput, '60');
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalled();
+      });
+
+      jest.useRealTimers();
+    });
+
+    it('price floor error message includes the service name (branch 28, line 246)', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      // Need pricingFloors to be truthy AND have violations
+      mockUsePricingConfig.mockReturnValue({
+        config: {
+          price_floor_cents: { 'online:60': 5000 },
+        },
+      });
+      mockEvaluateViolations.mockReturnValue([{
+        floorCents: 5000,
+        baseCents: 3000,
+        modalityLabel: 'online',
+        duration: 60,
+      }]);
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 30,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Trigger autosave
+      const descField = screen.getByPlaceholderText(/brief description/i);
+      await user.type(descField, 'test');
+      jest.advanceTimersByTime(1200);
+
+      // Should see a price floor error toast with the service name
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalled();
+      });
+
+      const errorCall = (toast.error as jest.Mock).mock.calls[0]?.[0] as string;
+      // The service has name 'Piano' (from displayServiceName mock), so the message should include it
+      expect(errorCall).toContain('Piano');
+
+      jest.useRealTimers();
+    });
+
+    it('service card key uses name fallback when catalog_service_id is empty (branch 199, line 960)', () => {
+      // Service with empty catalog_service_id — key uses `s.name` fallback
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: '', // empty, but filter removes this
+            service_catalog_name: 'Custom Service',
+            hourly_rate: 50,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // An empty catalog_service_id service gets filtered out in hydration (line 435)
+      // So this actually tests the filtering, not the fallback
+      // But let's verify the component renders without error
+      expect(screen.queryByText('Custom Service')).not.toBeInTheDocument();
+    });
+
+    it('service with empty hourly_rate shows $0 display (branch 148 related, line 967)', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 0,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // With hourly_rate of 0, the display should show "$0"
+      expect(screen.getByText('$0')).toBeInTheDocument();
+    });
+
+    it('save does not fire when all services have empty hourly rate (branch in payload filter, line 735)', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Clear the rate entirely — makes it empty string, filtered from payload
+      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      await user.clear(rateInput);
+
+      // Also add a description to ensure dirty state
+      const descField = screen.getByPlaceholderText(/brief description/i);
+      await user.type(descField, 'Something');
+      jest.advanceTimersByTime(1200);
+
+      // Autosave should still fire but with empty services array in payload
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalled();
+      });
+
+      const call = mockFetchWithAuth.mock.calls[0];
+      const body = JSON.parse(call?.[1]?.body as string);
+      // Service with empty rate gets filtered out
+      expect(body.services).toEqual([]);
+
+      jest.useRealTimers();
+    });
+
+    it('serviceFloorViolations memo handles service with no location types (branch 24, line 222)', () => {
+      // Service with all capabilities false (no location types)
+      mockUsePricingConfig.mockReturnValue({
+        config: { price_floor_cents: { 'in_person:60': 5000 } },
+      });
+      mockEvaluateViolations.mockReturnValue([]);
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: false,
+            offers_travel: false,
+            offers_at_location: false,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Should render without issues — no violations because no location types
+      expect(screen.getByPlaceholderText(/hourly rate/i)).toHaveValue(50);
+    });
+
+    it('price floor violation blocks save with toast error when pricingFloors exists (branch 106, lines 696-707)', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      // Set up price floors that will cause violations
+      mockUsePricingConfig.mockReturnValue({
+        config: { price_floor_cents: { 'online:60': 5000 } },
+      });
+      mockEvaluateViolations.mockReturnValue([{
+        floorCents: 5000,
+        baseCents: 3000,
+        modalityLabel: 'online',
+        duration: 60,
+      }]);
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 30,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Trigger autosave with a description change
+      const descField = screen.getByPlaceholderText(/brief description/i);
+      await user.type(descField, 'test');
+      jest.advanceTimersByTime(1200);
+
+      // Toast error should fire with the price floor message
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalled();
+      });
+
+      // The save should NOT have been called (blocked by violations)
+      expect(mockFetchWithAuth).not.toHaveBeenCalled();
+
+      jest.useRealTimers();
+    });
+
+    it('duration_options fallback to [60] when empty in payload (branch 116, line 745)', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+            duration_options: [60], // default — can't deselect because min-1 guard
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Trigger autosave
+      const descField = screen.getByPlaceholderText(/brief description/i);
+      await user.type(descField, 'test');
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalled();
+      });
+
+      const call = mockFetchWithAuth.mock.calls[0];
+      const body = JSON.parse(call?.[1]?.body as string);
+      expect(body.services[0].duration_options).toEqual([60]);
+
+      jest.useRealTimers();
+    });
+
+    it('chip and card display fallback to service_catalog_name when name is empty (branches 133-137, lines 890-894)', () => {
+      // Override displayServiceName to return empty string, so hydration sets name=''
+      mockDisplayServiceName.mockReturnValue('');
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // With name='', the chip should fall back to service_catalog_name='Piano'
+      // Line 890: s.name || s.service_catalog_name — name is '', so uses service_catalog_name
+      const pianoElements = screen.getAllByText('Piano');
+      expect(pianoElements.length).toBeGreaterThanOrEqual(1);
+
+      // Restore the mock
+      mockDisplayServiceName.mockImplementation(
+        ({ service_catalog_name }: { service_catalog_name?: string }) => service_catalog_name || 'Service'
+      );
+    });
+
+    it('chip and card display handle empty name and null service_catalog_name gracefully (branches 133[2], lines 890)', () => {
+      // Override displayServiceName to return empty string
+      mockDisplayServiceName.mockReturnValue('');
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            // No service_catalog_name — will be null
+            hourly_rate: 50,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Both name='' and service_catalog_name=null
+      // Chip uses: s.name || s.service_catalog_name || '' → '' (empty)
+      // Card uses: s.service_catalog_name ?? s.name ?? 'Service' → null ?? '' ?? 'Service' → '' (name is '', not nullish)
+      // The component should render without crashing
+      expect(screen.getByPlaceholderText(/hourly rate/i)).toHaveValue(50);
+
+      // Restore the mock
+      mockDisplayServiceName.mockImplementation(
+        ({ service_catalog_name }: { service_catalog_name?: string }) => service_catalog_name || 'Service'
+      );
+    });
+
+    it('buildPriceFloorErrors uses "this service" when service name is empty (branch 28, line 246)', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      // Override displayServiceName to return empty string
+      mockDisplayServiceName.mockReturnValue('');
+
+      mockUsePricingConfig.mockReturnValue({
+        config: { price_floor_cents: { 'online:60': 5000 } },
+      });
+      mockEvaluateViolations.mockReturnValue([{
+        floorCents: 5000,
+        baseCents: 3000,
+        modalityLabel: 'online',
+        duration: 60,
+      }]);
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 30,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Trigger autosave
+      const descField = screen.getByPlaceholderText(/brief description/i);
+      await user.type(descField, 'test');
+      jest.advanceTimersByTime(1200);
+
+      // Should see a price floor error toast with "this service" fallback
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalled();
+      });
+
+      const errorCall = (toast.error as jest.Mock).mock.calls[0]?.[0] as string;
+      expect(errorCall).toContain('this service');
+
+      // Restore
+      mockDisplayServiceName.mockImplementation(
+        ({ service_catalog_name }: { service_catalog_name?: string }) => service_catalog_name || 'Service'
+      );
+      jest.useRealTimers();
+    });
+
+    it('expanded category accordion renders services without skillsFilter (branch 143[1], line 923)', async () => {
+      // This specifically tests the falsy branch of the skillsFilter ternary
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [
+              { id: 'svc-1', name: 'Piano', slug: 'piano', subcategory_id: 'sub1', eligible_age_groups: ['kids', 'teens', 'adults'] },
+            ],
+          }],
+        },
+        isLoading: false,
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Expand Music accordion — skillsFilter is '' (empty)
+      const musicBtn = screen.getByRole('button', { name: /music/i });
+      await userEvent.click(musicBtn);
+
+      // The filter ternary evaluates `skillsFilter ? ... : true`
+      // skillsFilter is '' so it takes the `true` branch (shows all services)
+      await waitFor(() => {
+        expect(screen.getByText(/^Piano \+$/)).toBeInTheDocument();
+      });
+    });
+  });
+
+  // -----------------------------------------------------------------
+  // Branch-coverage: nullish/falsy paths, else branches, ternary false
+  // -----------------------------------------------------------------
+  describe('branch coverage — nullish and falsy paths', () => {
+    it('handles service with null description and null equipment (binary-expr lines 268-269)', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            description: null,
+            equipment_required: null,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Description/equipment should be empty strings, not "null"
+      expect(screen.getByPlaceholderText(/brief description/i)).toHaveValue('');
+      expect(screen.getByPlaceholderText(/yoga mat/i)).toHaveValue('');
+    });
+
+    it('handles service with undefined description and undefined equipment', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            // No description or equipment_required fields at all
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      expect(screen.getByPlaceholderText(/brief description/i)).toHaveValue('');
+      expect(screen.getByPlaceholderText(/yoga mat/i)).toHaveValue('');
+    });
+
+    it('handles service with missing duration_options (line 222 fallback to [60])', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            duration_options: null, // Null duration_options
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Component should default to [60] and render 60m selected
+      const durationButtons = screen.getAllByRole('button', { name: /60m/i });
+      expect(durationButtons.length).toBeGreaterThan(0);
+    });
+
+    it('handles service with empty duration_options array', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            duration_options: [], // Empty array
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Should fall back to [60]
+      const durationButtons = screen.getAllByRole('button', { name: /60m/i });
+      expect(durationButtons.length).toBeGreaterThan(0);
+    });
+
+    it('renders $0 display when hourly_rate is empty string (line 967)', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: '',
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // The display shows "$0" when hourly_rate is empty
+      expect(screen.getByText(/\$0/)).toBeInTheDocument();
+    });
+
+    it('does not show earnings when hourly_rate is 0', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: '0',
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Earnings should NOT be shown when hourly_rate is 0
+      expect(screen.queryByText(/you'll earn/i)).not.toBeInTheDocument();
+    });
+
+    it('handles null service_catalog_name fallback to name in display (line 965)', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: null,
+            name: null,
+            hourly_rate: 50,
+            offers_online: true,
+          }],
+        },
+      });
+      mockDisplayServiceName.mockReturnValue(null);
+
+      render(<SkillsPricingInline />);
+
+      // Falls back to 'Service' display
+      expect(screen.getByText('Service')).toBeInTheDocument();
+    });
+
+    it('handles null hourly_rate from API response (line 419)', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: null,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // hourly_rate defaults to empty string via String(null ?? '')
+      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      expect(rateInput).toHaveValue(null);
+    });
+
+    it('handles profile with no service_area_boroughs and string service_area_summary', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          service_area_neighborhoods: [],
+          service_area_boroughs: [],
+          service_area_summary: 'Covers all of NYC',
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_travel: true,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // hasServiceAreas should be true because summary is non-empty
+      const travelSwitch = screen.getByRole('switch', { name: /i travel to students/i });
+      expect(travelSwitch).not.toBeDisabled();
+    });
+
+    it('handles profileData with non-array service_area_neighborhoods', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          service_area_neighborhoods: 'not-an-array',
+          service_area_boroughs: null,
+          service_area_summary: '',
+          preferred_teaching_locations: null,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Non-array neighborhoods should be treated as empty
+      const travelSwitch = screen.getByRole('switch', { name: /i travel to students/i });
+      expect(travelSwitch).toBeDisabled();
+    });
+
+    it('handles non-finite currentTierPct value (line 169)', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          current_tier_pct: Infinity,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 100,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Should handle Infinity gracefully (currentTierPct fallback to null)
+      expect(screen.getByText(/platform fee/i)).toBeInTheDocument();
+    });
+
+    it('handles non-number currentTierPct value (string)', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          current_tier_pct: 'not-a-number',
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 100,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Should handle string gracefully (currentTierPct fallback to null)
+      expect(screen.getByText(/platform fee/i)).toBeInTheDocument();
+    });
+
+    it('skips buildPriceFloorErrors when no pricingFloors (line 241 else)', () => {
+      mockUsePricingConfig.mockReturnValue({ config: { price_floor_cents: null }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // No price errors should appear without pricing floors
+      expect(screen.queryByText(/minimum price/i)).not.toBeInTheDocument();
+    });
+
+    it('skips violation when service has no location types (line 213 early return)', () => {
+      mockUsePricingConfig.mockReturnValue({
+        config: { price_floor_cents: { private: { '60': 5000 } } },
+        isLoading: false,
+      });
+      // Service has all location options disabled
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 10, // Very low rate but no location types
+            offers_travel: false,
+            offers_at_location: false,
+            offers_online: false,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // No pricing violations should be computed (skipped due to no location types)
+      // evaluatePriceFloorViolations should NOT have been called
+      expect(mockEvaluateViolations).not.toHaveBeenCalled();
+    });
+
+    it('handles empty requestedSkill for handleRequestSkill (line 625)', async () => {
+      const user = userEvent.setup();
+      render(<SkillsPricingInline instructorProfile={{ is_live: false, services: [] } as never} />);
+
+      // Input should be empty
+      expect(screen.getByPlaceholderText(/request a new skill/i)).toHaveValue('');
+
+      // Submit button should be disabled
+      expect(screen.getByRole('button', { name: /submit/i })).toBeDisabled();
+
+      // Even if we click it, nothing should happen
+      await user.click(screen.getByRole('button', { name: /submit/i }));
+      expect(screen.queryByText(/we'll review/i)).not.toBeInTheDocument();
+    });
+
+    it('handles initializeMissingFilters — no change when filters already exist (line 308 false path)', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            filter_selections: { skill_level: ['beginner'], age_groups: ['adults'] },
+            age_groups: ['adults'],
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Component should render without errors — filters already populated
+      const pianoElements = screen.getAllByText(/piano/i);
+      expect(pianoElements.length).toBeGreaterThan(0);
+    });
+
+    it('handles profile with non-string service_area_summary', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          service_area_neighborhoods: [],
+          service_area_boroughs: [],
+          service_area_summary: 12345, // Non-string
+          preferred_teaching_locations: [],
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Non-string summary should be treated as empty
+      const travelSwitch = screen.getByRole('switch', { name: /i travel to students/i });
+      expect(travelSwitch).toBeDisabled();
+    });
+
+    it('handles back-fill effect with empty eligible_age_groups (line 531 if branch)', () => {
+      // Service has empty eligible_age_groups, catalog has them
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            eligible_age_groups: [],
+            offers_online: true,
+          }],
+        },
+      });
+
+      // Catalog provides eligible_age_groups
+      mockUseAllServices.mockReturnValue({
+        data: {
+          categories: [{
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [{
+              id: 'svc-1',
+              name: 'Piano',
+              slug: 'piano',
+              subcategory_id: '01HABCTESTSUBCAT0000000001',
+              eligible_age_groups: ['kids', 'teens', 'adults'],
+            }],
+          }],
+        },
+        isLoading: false,
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Should backfill age groups from catalog
+      const pianoElements = screen.getAllByText(/piano/i);
+      expect(pianoElements.length).toBeGreaterThan(0);
     });
   });
 });

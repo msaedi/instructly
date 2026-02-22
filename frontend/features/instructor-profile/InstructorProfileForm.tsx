@@ -157,6 +157,9 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   const redirectingRef = useRef(false);
   // Fetch guard to prevent duplicate API calls in React Strict Mode
   const hasFetchedPrefillRef = useRef(false);
+  // Track initial locations loaded from API to avoid sending unchanged empty arrays
+  const initialPreferredLocationsRef = useRef<string[]>([]);
+  const initialNeutralPlacesRef = useRef<string[]>([]);
 
   // Use React Query hook for instructor profile - leverages cache from dashboard
   const { data: instructorProfileFromHook, isLoading: isProfileLoading } = useInstructorProfileMe(true);
@@ -311,6 +314,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
           if (teachingAddresses.length === 2) break;
         }
         setPreferredLocations(teachingAddresses);
+        initialPreferredLocationsRef.current = [...teachingAddresses];
         setPreferredLocationTitles(teachingTitles);
 
         const publicFromApi = Array.isArray(data?.['preferred_public_spaces'])
@@ -328,6 +332,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
           if (publicAddresses.length === 2) break;
         }
         setNeutralPlaces(publicAddresses);
+        initialNeutralPlacesRef.current = [...publicAddresses];
 
         // Prefill service areas (neighborhoods)
         try {
@@ -572,8 +577,19 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
         if (publicPayload.length === 2) break;
       }
 
-      payload.preferred_teaching_locations = teachingPayload;
-      payload.preferred_public_spaces = publicPayload;
+      const teachingChanged =
+        JSON.stringify(preferredLocations.map(l => l.trim().toLowerCase()).sort()) !==
+        JSON.stringify(initialPreferredLocationsRef.current.map(l => l.trim().toLowerCase()).sort());
+      const publicChanged =
+        JSON.stringify(neutralPlaces.map(l => l.trim().toLowerCase()).sort()) !==
+        JSON.stringify(initialNeutralPlacesRef.current.map(l => l.trim().toLowerCase()).sort());
+
+      if (teachingChanged) {
+        payload.preferred_teaching_locations = teachingPayload;
+      }
+      if (publicChanged) {
+        payload.preferred_public_spaces = publicPayload;
+      }
 
       debugProfilePayload('InstructorUpdate', payload);
       const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, {
@@ -702,6 +718,13 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
         queryClient.invalidateQueries({ queryKey: queryKeys.auth.me }),
         queryClient.invalidateQueries({ queryKey: ['instructor', 'service-areas'] }),
       ]);
+
+      if (teachingChanged) {
+        initialPreferredLocationsRef.current = [...preferredLocations];
+      }
+      if (publicChanged) {
+        initialNeutralPlacesRef.current = [...neutralPlaces];
+      }
 
       toast.success('Profile saved', {
         style: {

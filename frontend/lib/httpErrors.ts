@@ -47,6 +47,9 @@ export function formatProblemMessages(body: unknown): string[] {
   if (!out.length) {
     if (typeof (base as Record<string, unknown>)['detail'] === 'string') {
       out.push((base as Record<string, unknown>)['detail'] as string);
+    } else if (typeof detail === 'object' && detail !== null && !Array.isArray(detail)) {
+      const msg = (detail as Record<string, unknown>)?.['message'];
+      if (typeof msg === 'string') out.push(msg);
     } else if (typeof (base as Record<string, unknown>)['message'] === 'string') {
       out.push((base as Record<string, unknown>)['message'] as string);
     }

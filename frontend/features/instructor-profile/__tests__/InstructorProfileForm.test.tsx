@@ -103,6 +103,12 @@ jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/PersonalI
           latitude: 40.72,
           longitude: -73.99,
         })}>Set Full Address</button>
+        <button type="button" onClick={() => onProfileChange({
+          street_line1: '200 Park Ave',
+          locality: 'New York',
+          administrative_area: 'NY',
+          postal_code: '10017',
+        })}>Set Basic Address</button>
         <button type="button" onClick={onToggle}>Toggle</button>
       </section>
     );
@@ -125,11 +131,18 @@ jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/BioCard',
 });
 
 jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/ServiceAreasCard', () => {
-  function ServiceAreasCard({ selectedNeighborhoods, formatNeighborhoodName, onToggleBoroughAccordion, onGlobalFilterChange, onToggleNeighborhood, toggleBoroughAll, onToggle }: { selectedNeighborhoods: Set<string>; formatNeighborhoodName: (value: string) => string; onToggleBoroughAccordion: (borough: string) => void; onGlobalFilterChange: (value: string) => void; onToggleNeighborhood?: (id: string) => void; toggleBoroughAll?: (borough: string, value: boolean, items?: Array<{ neighborhood_id: string }>) => void; onToggle?: () => void }) {
+  const React = require('react');
+  function ServiceAreasCard({ selectedNeighborhoods, formatNeighborhoodName, onToggleBoroughAccordion, onGlobalFilterChange, onToggleNeighborhood, toggleBoroughAll, onToggle, boroughAccordionRefs }: { selectedNeighborhoods: Set<string>; formatNeighborhoodName: (value: string) => string; onToggleBoroughAccordion: (borough: string) => void; onGlobalFilterChange: (value: string) => void; onToggleNeighborhood?: (id: string) => void; toggleBoroughAll?: (borough: string, value: boolean, items?: Array<{ neighborhood_id: string }>) => void; onToggle?: () => void; boroughAccordionRefs?: React.MutableRefObject<Record<string, HTMLDivElement | null>> }) {
     return (
       <section>
         <div data-testid="service-areas-count">{selectedNeighborhoods.size}</div>
         <div data-testid="formatted-name">{formatNeighborhoodName('lower east')}</div>
+        <div
+          data-testid="borough-accordion-manhattan"
+          ref={(el: HTMLDivElement | null) => {
+            if (boroughAccordionRefs?.current) boroughAccordionRefs.current['Manhattan'] = el;
+          }}
+        />
         <button type="button" onClick={() => onToggleBoroughAccordion('Manhattan')}>Toggle Borough</button>
         <button type="button" onClick={() => onGlobalFilterChange('park')}>Filter</button>
         <button type="button" onClick={() => onToggleNeighborhood?.('test-neighborhood-1')}>Toggle Neighborhood</button>
@@ -148,6 +161,8 @@ jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/Preferred
       <section>
         <button type="button" onClick={() => setPreferredLocations(['Studio'])}>Set Preferred</button>
         <button type="button" onClick={() => setNeutralPlaces(['Library'])}>Set Neutral</button>
+        <button type="button" onClick={() => setPreferredLocations(['', '  ', 'Studio A', 'studio a', 'Studio B'])}>Set Dirty Preferred</button>
+        <button type="button" onClick={() => setNeutralPlaces(['', 'Park X', 'park x', '  ', 'Park Y'])}>Set Dirty Neutral</button>
         <button type="button" onClick={() => onToggle?.()}>Toggle Preferred Locations</button>
       </section>
     );
@@ -2179,13 +2194,13 @@ describe('InstructorProfileForm', () => {
         expect(savedPayload).toBeTruthy();
       });
 
-      // Check dedup worked - should have only 1 teaching location (deduped)
-      const teaching = (savedPayload as unknown as Record<string, unknown>)?.['preferred_teaching_locations'] as Array<{ address: string; label?: string }>;
-      expect(teaching).toHaveLength(1);
-      expect(teaching[0]?.label).toBe('Main Studio');
-
-      const publicSpaces = (savedPayload as unknown as Record<string, unknown>)?.['preferred_public_spaces'] as Array<{ address: string }>;
-      expect(publicSpaces).toHaveLength(1);
+      // Dedup happens at load time. Since the deduped result matches the
+      // initial loaded state, locations are omitted from the save payload
+      // (Phase 2 conditional-send fix).
+      const teaching = (savedPayload as unknown as Record<string, unknown>)?.['preferred_teaching_locations'];
+      const publicSpaces = (savedPayload as unknown as Record<string, unknown>)?.['preferred_public_spaces'];
+      expect(teaching).toBeUndefined();
+      expect(publicSpaces).toBeUndefined();
     });
 
     it('handles address creation on 404 with address payload', async () => {
@@ -3670,7 +3685,7 @@ describe('InstructorProfileForm', () => {
   });
 
   describe('Teaching location save deduplication', () => {
-    it('saves empty teaching and public space arrays when none are set', async () => {
+    it('omits teaching and public space arrays from payload when unchanged', async () => {
       const { Wrapper } = createWrapper();
       mockUseSession.mockReturnValue({
         data: { id: 'user-1', first_name: 'T', last_name: 'U' },
@@ -3714,13 +3729,13 @@ describe('InstructorProfileForm', () => {
         expect(savedPayload).toBeTruthy();
       });
 
-      const teaching = (savedPayload as unknown as Record<string, unknown>)['preferred_teaching_locations'] as unknown[];
-      const publicSpaces = (savedPayload as unknown as Record<string, unknown>)['preferred_public_spaces'] as unknown[];
-      expect(teaching).toHaveLength(0);
-      expect(publicSpaces).toHaveLength(0);
+      // Locations haven't changed from initial state (both empty), so they're
+      // omitted from the payload (Phase 2 conditional-send fix).
+      expect((savedPayload as unknown as Record<string, unknown>)['preferred_teaching_locations']).toBeUndefined();
+      expect((savedPayload as unknown as Record<string, unknown>)['preferred_public_spaces']).toBeUndefined();
     });
 
-    it('limits teaching locations to max 2 entries', async () => {
+    it('caps teaching locations to max 2 at load time', async () => {
       const { Wrapper } = createWrapper();
       mockUseSession.mockReturnValue({
         data: { id: 'user-1', first_name: 'T', last_name: 'U' },
@@ -3768,9 +3783,10 @@ describe('InstructorProfileForm', () => {
         expect(savedPayload).toBeTruthy();
       });
 
-      const teaching = (savedPayload as unknown as Record<string, unknown>)['preferred_teaching_locations'] as unknown[];
-      // Prefill caps at 2 entries, so max 2 should be in the payload
-      expect(teaching.length).toBeLessThanOrEqual(2);
+      // Load caps at 2 entries. Since the capped result matches what the
+      // component loaded (initial ref = first 2), locations are omitted
+      // from the payload as unchanged.
+      expect((savedPayload as unknown as Record<string, unknown>)['preferred_teaching_locations']).toBeUndefined();
     });
   });
 
@@ -4804,6 +4820,1415 @@ describe('InstructorProfileForm', () => {
       });
 
       formatProblemMessages.mockReturnValue(['Bad request']);
+    });
+  });
+
+  describe('Batch 11 — targeted branch coverage', () => {
+    it('sends preferred_teaching_locations when locations are changed from initial', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'T', last_name: 'U' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          bio: 'A'.repeat(420),
+          has_profile_picture: true,
+          preferred_teaching_locations: [{ address: 'Old Studio', label: 'Main' }],
+          preferred_public_spaces: [{ address: 'Old Park' }],
+        },
+        isLoading: false,
+      });
+
+      let savedPayload: Record<string, unknown> | null = null;
+      mockFetchWithAuth.mockImplementation(async (url: string, options?: { method?: string; body?: string }) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        if (url === '/api/v1/addresses/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE && options?.method === 'PUT') {
+          savedPayload = JSON.parse(options?.body ?? '{}') as Record<string, unknown>;
+          return { ok: true, status: 200, json: async () => ({}) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      // Change teaching and neutral locations from their initial values
+      await user.click(screen.getByRole('button', { name: /set preferred/i }));
+      await user.click(screen.getByRole('button', { name: /set neutral/i }));
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(savedPayload).toBeTruthy();
+      });
+
+      // Since locations changed from initial, payload should include them
+      expect(savedPayload).toHaveProperty('preferred_teaching_locations');
+      expect(savedPayload).toHaveProperty('preferred_public_spaces');
+    });
+
+    it('does not send location fields when locations have not changed', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'T', last_name: 'U' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          bio: 'A'.repeat(420),
+          has_profile_picture: true,
+        },
+        isLoading: false,
+      });
+
+      let savedPayload: Record<string, unknown> | null = null;
+      mockFetchWithAuth.mockImplementation(async (url: string, options?: { method?: string; body?: string }) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        if (url === '/api/v1/addresses/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE && options?.method === 'PUT') {
+          savedPayload = JSON.parse(options?.body ?? '{}') as Record<string, unknown>;
+          return { ok: true, status: 200, json: async () => ({}) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      // Save without changing locations
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(savedPayload).toBeTruthy();
+      });
+
+      // Since no locations changed, payload should NOT include them
+      expect(savedPayload).not.toHaveProperty('preferred_teaching_locations');
+      expect(savedPayload).not.toHaveProperty('preferred_public_spaces');
+    });
+
+    it('handles sessionStorage.setItem throwing an error', async () => {
+      const { Wrapper } = createWrapper();
+      const onStepStatusChange = jest.fn();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'T', last_name: 'U' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'A'.repeat(420), has_profile_picture: true },
+        isLoading: false,
+      });
+
+      // Make sessionStorage.setItem throw
+      Object.defineProperty(window, 'sessionStorage', {
+        value: {
+          setItem: jest.fn(() => { throw new Error('Storage full'); }),
+          getItem: jest.fn(),
+          removeItem: jest.fn(),
+        },
+        writable: true,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        if (url === '/api/v1/addresses/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm onStepStatusChange={onStepStatusChange} />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+      // Should still succeed even if sessionStorage throws
+      await waitFor(() => {
+        expect(toast.success).toHaveBeenCalledWith('Profile saved', expect.any(Object));
+      });
+    });
+
+    it('handles address create POST failure on 404 path during save', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'Test', last_name: 'User' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'A'.repeat(420), has_profile_picture: true },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string, options?: { method?: string }) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) {
+          return { ok: true, status: 200, json: async () => ({}) };
+        }
+        if (url === '/api/v1/addresses/me' && !options?.method) {
+          return { ok: false, status: 404, json: async () => ({ detail: 'Not found' }) };
+        }
+        if (url === '/api/v1/addresses/me' && options?.method === 'POST') {
+          return {
+            ok: false,
+            status: 400,
+            clone: () => ({
+              json: async () => ({ detail: 'Invalid data' }),
+            }),
+            json: async () => ({ detail: 'Invalid data' }),
+          };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      // Set full address to trigger the create path
+      await user.click(screen.getByRole('button', { name: /set full address/i }));
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalled();
+      });
+    });
+
+    it('handles deriveErrorMessage when json parsing fails', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'Test', last_name: 'User', zip_code: '99999' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({
+        data: { items: [{ id: 'addr-1', postal_code: '00000', is_default: true }] },
+        isLoading: false,
+      });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'A'.repeat(420), has_profile_picture: true },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string, options?: { method?: string }) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) {
+          return { ok: true, status: 200, json: async () => ({}) };
+        }
+        if (url === '/api/v1/addresses/me' && !options?.method) {
+          return { ok: true, status: 200, json: async () => ({ items: [{ id: 'addr-1', postal_code: '00000', is_default: true }] }) };
+        }
+        if (url.includes('/api/v1/addresses/me/addr-1') && options?.method === 'PATCH') {
+          return {
+            ok: false,
+            status: 422,
+            clone: () => ({
+              json: async () => { throw new Error('Bad JSON'); },
+            }),
+            json: async () => { throw new Error('Bad JSON'); },
+          };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      const zipInput = screen.getByLabelText(/zip code/i);
+      await user.clear(zipInput);
+      await user.type(zipInput, '99999');
+
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith('Request failed (422)');
+      });
+    });
+
+    it('toggles section accordions in onboarding context', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'Test' },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm context="onboarding" />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      // Toggle Bio section
+      await user.click(screen.getByRole('button', { name: /toggle bio/i }));
+      // Toggle Service Areas section
+      await user.click(screen.getByRole('button', { name: /toggle service areas/i }));
+      // Toggle Preferred Locations section
+      await user.click(screen.getByRole('button', { name: /toggle preferred locations/i }));
+
+      // In onboarding context, Skills & Booking sections should NOT be shown
+      expect(screen.queryByText(/skills & pricing/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/booking preferences/i)).not.toBeInTheDocument();
+    });
+
+    it('handles profile data with duplicate teaching locations at max limit', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'T', last_name: 'U' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          bio: 'Test',
+          preferred_teaching_locations: [
+            { address: 'Studio A', label: 'Main' },
+            { address: 'Studio B', label: 'Second' },
+            { address: 'Studio C', label: 'Third' }, // Exceeds max of 2
+          ],
+          preferred_public_spaces: [
+            { address: 'Park A' },
+            { address: 'Park B' },
+            { address: 'Park C' }, // Exceeds max of 2
+          ],
+        },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+    });
+
+    it('handles preferred locations with empty/whitespace addresses', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          bio: 'Test',
+          preferred_teaching_locations: [
+            { address: '', label: 'Empty' },
+            { address: '  ', label: 'Whitespace' },
+            { address: 'Valid Studio', label: 'Good' },
+          ],
+          preferred_public_spaces: [
+            { address: '' },
+            { address: 'Valid Park' },
+          ],
+        },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+    });
+
+    it('handles service_area_boroughs from API being non-empty', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          bio: 'Test',
+          service_area_boroughs: ['Manhattan', 'Brooklyn', 'Queens'],
+          service_area_neighborhoods: [],
+        },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+    });
+
+    it('handles NYC zip check returning non-ok response', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
+      mockUseUserAddresses.mockReturnValue({
+        data: { items: [{ id: 'addr-1', postal_code: '10001', is_default: true }] },
+        isLoading: false,
+      });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'Test' },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      // NYC zip check returns error
+      global.fetch = jest.fn().mockImplementation(async () => {
+        return { ok: false, status: 500 };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+    });
+
+    it('handles NYC zip check throwing an error', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
+      mockUseUserAddresses.mockReturnValue({
+        data: { items: [{ id: 'addr-1', postal_code: '10001', is_default: true }] },
+        isLoading: false,
+      });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'Test' },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      // NYC zip check throws
+      global.fetch = jest.fn().mockRejectedValue(new Error('Network error'));
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+    });
+
+    it('handles profile error response with empty formatProblemMessages', async () => {
+      const { Wrapper } = createWrapper();
+      const formatProblemMessages = jest.requireMock('@/lib/httpErrors').formatProblemMessages as jest.Mock;
+      formatProblemMessages.mockReturnValue([]);
+
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'T', last_name: 'U' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'A'.repeat(420), has_profile_picture: true },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) {
+          return { ok: false, status: 400, json: async () => ({ detail: 'Error' }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => {
+        // When formatProblemMessages returns empty, falls back to generic message
+        expect(toast.error).toHaveBeenCalledWith('Request failed (400)');
+      });
+
+      formatProblemMessages.mockReturnValue(['Bad request']);
+    });
+
+    it('handles profile error response when json parsing fails', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'T', last_name: 'U' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'A'.repeat(420), has_profile_picture: true },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) {
+          return { ok: false, status: 500, json: async () => { throw new Error('Invalid JSON'); } };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => {
+        // Falls back to generic message when JSON parsing fails
+        expect(toast.error).toHaveBeenCalledWith('Request failed (500)');
+      });
+    });
+  });
+
+  /* ==========================================================================
+   * Branch coverage: lines 214-215, 384-385, 525
+   * ========================================================================== */
+  describe('branch coverage — uncovered paths', () => {
+    it('hits hasFetchedPrefillRef early return on re-render with changed hook data (lines 214-215)', async () => {
+      const { Wrapper } = createWrapper();
+      const profileDataV1 = { bio: 'Original bio text' };
+      const profileDataV2 = { bio: 'Updated bio text' };
+
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'T', last_name: 'U' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: profileDataV1,
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      const { rerender } = render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      // Wait for initial load to complete (hasFetchedPrefillRef set to true)
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      // Change the hook return to a new object reference so the useEffect
+      // dependency array changes and the effect re-runs
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: profileDataV2,
+        isLoading: false,
+      });
+
+      rerender(<InstructorProfileForm />);
+
+      // The effect re-runs but hits the early return at line 213-215
+      // because hasFetchedPrefillRef.current is already true.
+      // The component should still be rendered (not stuck in loading).
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+    });
+
+    it('catches outer load() error and sets error state (lines 384-385)', async () => {
+      const { Wrapper } = createWrapper();
+      const loggerMock = jest.requireMock('@/lib/logger').logger as {
+        error: jest.Mock;
+      };
+      const getServiceAreaBoroughsMock = jest.requireMock(
+        '@/lib/profileServiceAreas'
+      ).getServiceAreaBoroughs as jest.Mock;
+
+      // Make getServiceAreaBoroughs throw so the outer catch fires.
+      // This function is called during profile processing (line 289),
+      // which is outside the inner try/catch blocks.
+      getServiceAreaBoroughsMock.mockImplementation(() => {
+        throw new Error('boroughs explosion');
+      });
+
+      mockUseSession.mockReturnValue({
+        data: null,
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        // Provide data with empty service_area_boroughs so the fallback
+        // calls getServiceAreaBoroughs (the throwing mock)
+        data: { bio: 'Test', service_area_boroughs: [] },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(loggerMock.error).toHaveBeenCalledWith(
+          'Failed to load profile',
+          expect.any(Error)
+        );
+      });
+
+      // The error message should be rendered in the UI
+      expect(screen.getByText('Failed to load profile')).toBeInTheDocument();
+
+      // Restore the mock for other tests
+      getServiceAreaBoroughsMock.mockImplementation(() => ['Manhattan']);
+    });
+
+    it('calls window.scrollBy when borough accordion position changes (line 525)', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'Test' },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      global.fetch = jest.fn().mockImplementation(async (url: string) => {
+        if (typeof url === 'string' && url.includes('/neighborhoods')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              items: [{ neighborhood_id: 'n1', name: 'Greenwich Village' }],
+            }),
+          };
+        }
+        return { ok: true, status: 200, json: async () => ({ is_nyc: true }) };
+      });
+
+      // Mock requestAnimationFrame to invoke callbacks synchronously
+      const origRaf = window.requestAnimationFrame;
+      window.requestAnimationFrame = jest.fn((cb: FrameRequestCallback) => {
+        cb(0);
+        return 0;
+      });
+
+      const scrollBySpy = jest.fn();
+      window.scrollBy = scrollBySpy;
+
+      // Simulate getBoundingClientRect returning different top values
+      // on successive calls (first call: prevTop=100, second call: newTop=150)
+      let callCount = 0;
+      const origGetBCR = Element.prototype.getBoundingClientRect;
+      Element.prototype.getBoundingClientRect = function () {
+        const result = origGetBCR.call(this);
+        if (this.getAttribute('data-testid') === 'borough-accordion-manhattan') {
+          callCount++;
+          // First call (prevTop capture): 100, Second call (newTop capture): 150
+          return { ...result, top: callCount <= 1 ? 100 : 150 };
+        }
+        return result;
+      };
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /toggle borough/i }));
+
+      await waitFor(() => {
+        expect(scrollBySpy).toHaveBeenCalledWith({
+          top: 50,
+          left: 0,
+          behavior: 'auto',
+        });
+      });
+
+      // Restore
+      Element.prototype.getBoundingClientRect = origGetBCR;
+      window.requestAnimationFrame = origRaf;
+    });
+
+    it('uses embedded user fallback when userDataFromHook is null (lines 240-242)', async () => {
+      const { Wrapper } = createWrapper();
+      // Do NOT provide session data (userDataFromHook is null)
+      mockUseSession.mockReturnValue({ data: null, isLoading: false });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          bio: 'Test bio',
+          // Embedded user in the profile data — triggers fallback path
+          user: {
+            first_name: 'EmbeddedFirst',
+            last_name: 'EmbeddedLast',
+            zip_code: '10001',
+          },
+        },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toHaveTextContent('EmbeddedFirst');
+        expect(screen.getByTestId('personal-info')).toHaveTextContent('EmbeddedLast');
+      });
+    });
+
+    it('covers buildInstructorProfilePayload nullish branches during save (lines 48-49)', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'T', last_name: 'U' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        // Omit min_advance_booking_hours and buffer_time_minutes so they
+        // default to undefined, triggering the ?? branches in
+        // buildInstructorProfilePayload
+        data: { bio: 'A'.repeat(420), has_profile_picture: true },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => {
+        // Verify the profile save was called with default values
+        expect(mockFetchWithAuth).toHaveBeenCalledWith(
+          API_ENDPOINTS.INSTRUCTOR_PROFILE,
+          expect.objectContaining({
+            method: 'PUT',
+            body: expect.stringContaining('"min_advance_booking_hours":2'),
+          })
+        );
+      });
+    });
+
+    it('builds address payload with optional fields and covers branches (lines 81-90)', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'T', last_name: 'U' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'A'.repeat(420), has_profile_picture: true },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string, options?: { method?: string }) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        if (url === '/api/v1/addresses/me' && !options?.method) {
+          // GET /addresses/me returns 404 to trigger address creation
+          return { ok: false, status: 404, json: async () => ({}) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      // Click "Set Full Address" to populate address fields
+      // (street_line1, street_line2, locality, administrative_area,
+      //  postal_code, country_code, place_id, latitude, longitude)
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /set full address/i }));
+
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalledWith(
+          API_ENDPOINTS.INSTRUCTOR_PROFILE,
+          expect.objectContaining({ method: 'PUT' })
+        );
+      });
+    });
+
+    it('patches address when zip code differs from existing default (lines 641-649)', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'T', last_name: 'U' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({
+        data: { items: [{ id: 'addr-1', postal_code: '10001', is_default: true }] },
+        isLoading: false,
+      });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'A'.repeat(420), has_profile_picture: true },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string, options?: { method?: string }) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        if (url === '/api/v1/addresses/me' && !options?.method) {
+          // GET returns existing default address with OLD zip
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              items: [{ id: 'addr-1', postal_code: '10001', is_default: true }],
+            }),
+          };
+        }
+        if (url.includes('/api/v1/addresses/me/addr-1') && options?.method === 'PATCH') {
+          return { ok: true, status: 200, json: async () => ({}) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      // Change zip code to a different value to trigger the PATCH branch
+      const user = userEvent.setup();
+      const zipInput = screen.getByLabelText(/zip code/i);
+      await user.clear(zipInput);
+      await user.type(zipInput, '10002');
+
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalledWith(
+          '/api/v1/addresses/me/addr-1',
+          expect.objectContaining({
+            method: 'PATCH',
+            body: JSON.stringify({ postal_code: '10002' }),
+          })
+        );
+      });
+    });
+
+    it('handles address PATCH failure (line 649)', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'T', last_name: 'U' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({
+        data: { items: [{ id: 'addr-1', postal_code: '10001', is_default: true }] },
+        isLoading: false,
+      });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'A'.repeat(420), has_profile_picture: true },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string, options?: { method?: string }) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        if (url === '/api/v1/addresses/me' && !options?.method) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              items: [{ id: 'addr-1', postal_code: '10001', is_default: true }],
+            }),
+          };
+        }
+        if (url.includes('/api/v1/addresses/me/addr-1') && options?.method === 'PATCH') {
+          // PATCH fails
+          return { ok: false, status: 422, json: async () => ({ detail: 'Invalid zip' }) };
+        }
+        if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) {
+          return { ok: true, status: 200, json: async () => ({}) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      const zipInput = screen.getByLabelText(/zip code/i);
+      await user.clear(zipInput);
+      await user.type(zipInput, '10002');
+
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalled();
+      });
+    });
+
+    it('deduplicates empty/whitespace teaching locations during save (lines 554-556)', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'T', last_name: 'U' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          bio: 'A'.repeat(420),
+          has_profile_picture: true,
+          // Preferred locations with empty/whitespace entries to trigger
+          // the continue branch (line 554) and dedup branch (line 556)
+          preferred_teaching_locations: [
+            { address: '  ', label: 'Blank' },
+            { address: 'Studio A', label: 'Main' },
+            { address: 'studio a', label: 'Duplicate' },
+          ],
+          preferred_public_spaces: [
+            { address: '' },
+            { address: 'Park X' },
+            { address: 'park x' },
+          ],
+        },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      // The mock PersonalInfoCard "Set Preferred" and "Set Neutral" buttons
+      // are different from what sets locations here — the locations come from
+      // the initial prefill. We trigger save to exercise the dedup code
+      // in the save function (lines 550-578).
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalledWith(
+          API_ENDPOINTS.INSTRUCTOR_PROFILE,
+          expect.objectContaining({ method: 'PUT' })
+        );
+      });
+    });
+
+    it('uses toTitle formatNeighborhoodName for empty-string edge case (line 103)', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'Test' },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      // The mock ServiceAreasCard calls formatNeighborhoodName('lower east')
+      // which exercises toTitle, including the empty-check on charAt(0)
+      expect(screen.getByTestId('formatted-name')).toHaveTextContent('Lower East');
+    });
+
+    it('uses embedded user fallback with empty fields hitting || fallbacks (lines 240-242)', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({ data: null, isLoading: false });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          bio: 'Test bio',
+          // Embedded user with empty/falsy fields to trigger || '' fallbacks
+          user: {
+            first_name: '',
+            last_name: null,
+            // zip_code missing entirely
+          },
+        },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        // Should still render — empty strings from fallback
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+    });
+
+    it('builds address payload without optional fields (lines 85-90 falsy)', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'T', last_name: 'U' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'A'.repeat(420), has_profile_picture: true },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string, options?: { method?: string }) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        if (url === '/api/v1/addresses/me' && !options?.method) {
+          return { ok: false, status: 404, json: async () => ({}) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      // Click "Set Basic Address" (no street_line2, place_id, lat, lng)
+      // to trigger falsy branches in buildInstructorAddressPayload
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /set basic address/i }));
+
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => {
+        // Address should be created with only required fields
+        expect(mockFetchWithAuth).toHaveBeenCalledWith(
+          '/api/v1/addresses/me',
+          expect.objectContaining({
+            method: 'POST',
+            body: expect.not.stringContaining('street_line2'),
+          })
+        );
+      });
+    });
+
+    it('handles address sync throwing an error (line 690)', async () => {
+      const { Wrapper } = createWrapper();
+      const loggerMock = jest.requireMock('@/lib/logger').logger as {
+        warn: jest.Mock;
+      };
+
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'T', last_name: 'U' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'A'.repeat(420), has_profile_picture: true },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) {
+          return { ok: true, status: 200, json: async () => ({}) };
+        }
+        if (url === '/api/v1/addresses/me') {
+          // Throw a non-Error value to hit the instanceof Error falsy branch
+          throw 'network failure string';
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(loggerMock.warn).toHaveBeenCalledWith(
+          'Failed to sync address during profile save',
+          undefined
+        );
+      });
+    });
+
+    it('covers deriveErrorMessage parse failure branch in save (line 624)', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'T', last_name: 'U' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({
+        data: { items: [{ id: 'addr-1', postal_code: '10001', is_default: true }] },
+        isLoading: false,
+      });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'A'.repeat(420), has_profile_picture: true },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string, options?: { method?: string }) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        if (url === '/api/v1/addresses/me' && !options?.method) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              items: [{ id: 'addr-1', postal_code: '10001', is_default: true }],
+            }),
+          };
+        }
+        if (url.includes('/api/v1/addresses/me/addr-1') && options?.method === 'PATCH') {
+          // PATCH fails with unparseable JSON to trigger deriveErrorMessage
+          // catch block at line 624
+          return {
+            ok: false,
+            status: 500,
+            clone: () => ({
+              json: async () => { throw new Error('Unparseable body'); },
+            }),
+            json: async () => { throw new Error('Unparseable body'); },
+          };
+        }
+        if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) {
+          return { ok: true, status: 200, json: async () => ({}) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      const zipInput = screen.getByLabelText(/zip code/i);
+      await user.clear(zipInput);
+      await user.type(zipInput, '10002');
+
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => {
+        // Falls back to generic message since json parsing failed
+        expect(toast.error).toHaveBeenCalledWith('Request failed (500)');
+      });
+    });
+
+    it('deduplicates and filters dirty teaching/public locations during save (lines 554-577)', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'T', last_name: 'U' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'A'.repeat(420), has_profile_picture: true },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+
+      // Set dirty preferred locations: includes empties, whitespace, and
+      // case-insensitive duplicates to trigger lines 554 (!trimmed),
+      // 556 (seenTeaching.has(key)), and 565 (length === 2 break)
+      await user.click(screen.getByRole('button', { name: /set dirty preferred/i }));
+
+      // Set dirty neutral places: same pattern for lines 572, 574, 577
+      await user.click(screen.getByRole('button', { name: /set dirty neutral/i }));
+
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => {
+        const profileCall = mockFetchWithAuth.mock.calls.find(
+          (call: unknown[]) => call[0] === API_ENDPOINTS.INSTRUCTOR_PROFILE
+        ) as unknown[] | undefined;
+        expect(profileCall).toBeDefined();
+        const opts = profileCall![1] as { body: string };
+        const body = JSON.parse(opts.body) as Record<string, unknown>;
+        // Only unique, non-empty locations should be in the payload
+        if (body['preferred_teaching_locations']) {
+          const locs = body['preferred_teaching_locations'] as Array<{ address: string }>;
+          expect(locs.length).toBeLessThanOrEqual(2);
+          for (const loc of locs) {
+            expect(loc.address.trim().length).toBeGreaterThan(0);
+          }
+        }
+      });
+    });
+
+    it('handles NaN in advance notice input (line 1044)', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'Test', min_advance_booking_hours: 3, buffer_time_minutes: 60 },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm context="dashboard" />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      await user.click(screen.getByText(/booking preferences/i));
+
+      await waitFor(() => {
+        expect(screen.getByText(/advance notice/i)).toBeInTheDocument();
+      });
+
+      const inputs = screen.getAllByRole('spinbutton');
+      const advanceInput = inputs[0]!;
+
+      // Fire onChange with a value that makes parseInt return NaN
+      // The input has || '0' fallback but we can simulate via fireEvent
+      // directly with a non-numeric value
+      await user.clear(advanceInput);
+      // After clear, value is '' -> parseInt('' || '0', 10) = 0, not NaN
+      // To produce NaN, we need parseInt of something non-numeric
+      // jsdom number inputs accept any string via fireEvent.change
+      const { fireEvent } = await import('@testing-library/react');
+      fireEvent.change(advanceInput, { target: { value: 'abc' } });
+
+      await waitFor(() => {
+        // parseInt('abc' || '0', 10) -> 'abc' is truthy, so parseInt('abc', 10) = NaN
+        // isNaN(NaN) -> true, so result = 1 (clamped)
+        expect(advanceInput).toHaveValue(1);
+      });
+    });
+
+    it('handles NaN in buffer time input (line 1075)', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'Test', min_advance_booking_hours: 3, buffer_time_minutes: 60 },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm context="dashboard" />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      await user.click(screen.getByText(/booking preferences/i));
+
+      await waitFor(() => {
+        expect(screen.getByText(/buffer time/i)).toBeInTheDocument();
+      });
+
+      const inputs = screen.getAllByRole('spinbutton');
+      const bufferInput = inputs[1]!;
+
+      // Fire change with non-numeric value to trigger NaN path
+      const { fireEvent } = await import('@testing-library/react');
+      fireEvent.change(bufferInput, { target: { value: 'xyz' } });
+
+      await waitFor(() => {
+        // parseFloat('xyz' || '0') -> 'xyz' is truthy, parseFloat('xyz') = NaN
+        // isNaN(NaN) -> true, result = 0 (clamped)
+        expect(bufferInput).toHaveValue(0);
+      });
+    });
+
+    it('covers save button guard when not saving (line 1092)', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'T', last_name: 'U' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'A'.repeat(420), has_profile_picture: true },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      // Clicking save when not currently saving exercises the
+      // if (!saving && !savingServiceAreas) guard at line 1092
+      const user = userEvent.setup();
+      const saveBtn = screen.getByRole('button', { name: /save changes/i });
+      expect(saveBtn).not.toBeDisabled();
+      await user.click(saveBtn);
+
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalledWith(
+          API_ENDPOINTS.INSTRUCTOR_PROFILE,
+          expect.objectContaining({ method: 'PUT' })
+        );
+      });
     });
   });
 });

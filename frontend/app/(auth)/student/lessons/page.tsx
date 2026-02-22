@@ -17,6 +17,7 @@ import type { Booking } from '@/types/booking';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { useRatingsBatch, useExistingReviews } from '@/hooks/queries/useReviewsBatch';
 import { resolveBookingDateTimes } from '@/lib/timezone/formatBookingTime';
+import { JoinLessonButton } from '@/components/lessons/video/JoinLessonButton';
 
 function MyLessonsContent() {
   const router = useRouter();
@@ -43,7 +44,12 @@ function MyLessonsContent() {
     return 'upcoming';
   });
 
-  type LessonItem = Omit<Booking, 'updated_at'> & { updated_at?: string };
+  type LessonItem = Omit<Booking, 'updated_at'> & { updated_at?: string | null };
+
+  const normalizeLesson = (lesson: LessonItem): Booking => ({
+    ...lesson,
+    updated_at: lesson.updated_at ?? new Date().toISOString(),
+  });
 
   const {
     data: upcomingLessons,
@@ -75,7 +81,10 @@ function MyLessonsContent() {
     return Array.from(deduped.values());
   }, [historyLessons?.items, upcomingLessons?.items]);
 
-  const { upcomingList, historyList } = useMemo(() => {
+  const { upcomingList, historyList } = useMemo((): {
+    upcomingList: LessonItem[];
+    historyList: LessonItem[];
+  } => {
     if (!hasMounted) {
       return {
         upcomingList: upcomingLessons?.items ?? [],
@@ -297,6 +306,7 @@ function MyLessonsContent() {
         ) : lessons && lessons.length > 0 ? (
           // Lesson cards
           lessons.map((lesson) => {
+            const normalizedLesson = normalizeLesson(lesson);
             const { start, end } = resolveBookingDateTimes(lesson);
             const now = new Date();
             const isInProgress =
@@ -314,11 +324,11 @@ function MyLessonsContent() {
             return (
               <LessonCard
                 key={lesson.id}
-                lesson={{ ...lesson, updated_at: (lesson as unknown as { updated_at?: string }).updated_at ?? new Date().toISOString() } as unknown as Booking}
+                lesson={normalizedLesson}
                 isCompleted={isCompleted}
                 isInProgress={isInProgress}
                 onViewDetails={() => router.push(`/student/lessons/${lesson.id}`)}
-                onChat={() => handleOpenChat(lesson as unknown as Booking)}
+                onChat={() => handleOpenChat(normalizedLesson)}
                 onBookAgain={() => router.push(`/instructors/${lesson.instructor_id}`)}
                 onReviewTip={() => router.push(`/student/review/${lesson.id}`)}
                 {...(typeof br?.rating === 'number' && { prefetchedRating: br.rating })}
@@ -326,7 +336,15 @@ function MyLessonsContent() {
                 prefetchedReviewed={!!reviewedMap[lesson.id]}
                 suppressFetchRating={true}
                 suppressFetchReviewed={true}
-              />
+              >
+                {lesson.join_opens_at && (
+                  <JoinLessonButton
+                    bookingId={lesson.id}
+                    joinOpensAt={lesson.join_opens_at}
+                    joinClosesAt={lesson.join_closes_at}
+                  />
+                )}
+              </LessonCard>
             );
           })
         ) : (

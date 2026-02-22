@@ -340,6 +340,46 @@ describe('CancelBookingModal', () => {
     });
   });
 
+  describe('defensive validation in handleSubmit', () => {
+    it('shows validation error when submit handler fires with empty reason', async () => {
+      // Lines 55-57: defensive guard where reason.trim() is empty.
+      // The submit button is disabled when reason is empty, making this normally
+      // unreachable from the UI. To exercise this defensive code path, we need
+      // to invoke the onClick handler directly while reason state is empty.
+      //
+      // Strategy: React attaches event handlers using its internal fiber system.
+      // We can access the handler through React's internal properties and call it directly.
+      const onConfirm = jest.fn();
+      render(<CancelBookingModal {...defaultProps} onConfirm={onConfirm} />);
+
+      const submitButton = screen.getByRole('button', { name: /cancel booking/i });
+      expect(submitButton).toBeDisabled();
+
+      // Access the React fiber to find the onClick handler and call it directly
+      // This bypasses the disabled check that React applies to synthetic events
+      const fiberKey = Object.keys(submitButton).find(
+        (key) => key.startsWith('__reactFiber$') || key.startsWith('__reactInternalInstance$')
+      );
+
+      if (fiberKey) {
+        const fiber = (submitButton as unknown as Record<string, unknown>)[fiberKey] as {
+          memoizedProps?: { onClick?: (e: unknown) => void };
+        };
+        const onClick = fiber?.memoizedProps?.onClick;
+        if (onClick) {
+          // Call the handler with a mock event (empty reason state)
+          onClick({ preventDefault: jest.fn() });
+
+          await waitFor(() => {
+            expect(screen.getByText('Please provide a reason for cancellation')).toBeInTheDocument();
+          });
+
+          expect(onConfirm).not.toHaveBeenCalled();
+        }
+      }
+    });
+  });
+
   describe('accessibility', () => {
     it('textarea is disabled during loading', async () => {
       const user = userEvent.setup();

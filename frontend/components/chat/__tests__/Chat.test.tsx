@@ -5507,3 +5507,128 @@ describe('Chat typing indicator display (line 905)', () => {
     });
   });
 });
+
+describe('Chat marks the newer of multiple unread messages (line 460)', () => {
+  let queryClient: QueryClient;
+  let markMessagesAsReadMutate: jest.Mock;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    queryClient = new QueryClient();
+    markMessagesAsReadMutate = jest.fn();
+
+    mockUseSendConversationMessage.mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
+    mockUseSendConversationTyping.mockReturnValue({ mutate: jest.fn() });
+    mockUseMarkMessagesAsRead.mockImplementation(() => ({ mutate: markMessagesAsReadMutate }));
+    mockUseEditMessage.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseDeleteMessage.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseAddReaction.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseRemoveReaction.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseMessageStream.mockReturnValue({
+      isConnected: true,
+      connectionError: null,
+      subscribe: jest.fn(() => jest.fn()),
+    });
+  });
+
+  it('marks the newest unread message when multiple unread exist from others', async () => {
+    // Two unread messages from student: should mark the newer one
+    const messages = [
+      buildMessage('msg-older', {
+        content: 'First unread',
+        sender_id: 'student-1',
+        created_at: new Date('2024-06-15T10:00:00Z').toISOString(),
+        read_by: [],
+      }),
+      buildMessage('msg-newer', {
+        content: 'Second unread',
+        sender_id: 'student-1',
+        created_at: new Date('2024-06-15T12:00:00Z').toISOString(),
+        read_by: [],
+      }),
+    ];
+    mockUseConversationMessages.mockImplementation(() => defaultHistoryResponse(messages));
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Chat {...baseProps} />
+      </QueryClientProvider>
+    );
+
+    // Should mark the newest message (msg-newer), not the older one
+    await waitFor(() => {
+      expect(markMessagesAsReadMutate).toHaveBeenCalledWith({
+        message_ids: ['msg-newer'],
+      });
+    });
+  });
+
+  it('does not mark own messages as unread', async () => {
+    // Own messages should be skipped by the sender_id check (line 451)
+    const messages = [
+      buildMessage('msg-own', {
+        content: 'My message',
+        sender_id: baseProps.currentUserId,
+        is_from_me: true,
+        created_at: new Date('2024-06-15T10:00:00Z').toISOString(),
+        read_by: [],
+      }),
+    ];
+    mockUseConversationMessages.mockImplementation(() => defaultHistoryResponse(messages));
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Chat {...baseProps} />
+      </QueryClientProvider>
+    );
+
+    // Should not mark own messages as read
+    await waitFor(() => {
+      expect(markMessagesAsReadMutate).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe('Chat messageConfig edit_window_minutes fallback (line 77)', () => {
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    queryClient = new QueryClient();
+
+    mockUseSendConversationMessage.mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
+    mockUseSendConversationTyping.mockReturnValue({ mutate: jest.fn() });
+    mockUseMarkMessagesAsRead.mockImplementation(() => ({ mutate: jest.fn() }));
+    mockUseEditMessage.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseDeleteMessage.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseAddReaction.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseRemoveReaction.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseMessageStream.mockReturnValue({
+      isConnected: true,
+      connectionError: null,
+      subscribe: jest.fn(() => jest.fn()),
+    });
+  });
+
+  it('renders correctly when messages have read receipts by other users', () => {
+    // Message read by someone other than currentUserId — exercises the
+    // wasRead check where user_id !== currentUserId (line 454 false branch)
+    const messages = [
+      buildMessage('msg-1', {
+        content: 'Hello',
+        sender_id: 'student-1',
+        read_by: [{ user_id: 'someone-else', read_at: new Date().toISOString() }],
+      }),
+    ];
+    mockUseConversationMessages.mockImplementation(() => defaultHistoryResponse(messages));
+
+    const { getByText } = render(
+      <QueryClientProvider client={queryClient}>
+        <Chat {...baseProps} />
+      </QueryClientProvider>
+    );
+
+    // Message should still render and be considered unread by currentUserId
+    expect(getByText('Hello')).toBeInTheDocument();
+  });
+});

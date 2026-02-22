@@ -483,6 +483,86 @@ describe('UserProfileDropdown', () => {
       // Restore original
       Element.prototype.getBoundingClientRect = originalGetBoundingClientRect;
     });
+
+    it('applies computed position styles from getBoundingClientRect to dropdown', async () => {
+      const user = userEvent.setup();
+      mockUseAuth.mockReturnValue({
+        user: {
+          id: '01K2GY3VEVJWKZDVH5HMNXEVRP',
+          first_name: 'Pos',
+          last_name: 'Test',
+          roles: [RoleName.STUDENT],
+        },
+        logout: mockLogout,
+        isLoading: false,
+      });
+
+      const originalGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+      Element.prototype.getBoundingClientRect = jest.fn(() => ({
+        top: 60,
+        left: 800,
+        right: 860,
+        bottom: 110,
+        width: 60,
+        height: 50,
+        x: 800,
+        y: 60,
+        toJSON: jest.fn(),
+      }));
+
+      // window.scrollY and window.scrollX default to 0 in jsdom
+      // window.innerWidth defaults to 1024 in jsdom
+      render(<UserProfileDropdown />);
+
+      await user.click(screen.getByRole('button', { name: /open user menu/i }));
+
+      // The dropdown div should have position styles applied
+      // top = rect.bottom + window.scrollY + 8 = 110 + 0 + 8 = 118
+      // right = window.innerWidth - (rect.right + window.scrollX) = 1024 - 860 = 164
+      const dropdown = screen.getByText('My Account').closest('div[style]') as HTMLElement | null;
+      expect(dropdown).not.toBeNull();
+      expect(dropdown?.style.top).toBe('118px');
+      expect(dropdown?.style.right).toBe('164px');
+
+      Element.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+    });
+  });
+
+  describe('SSR hydration (server snapshot path)', () => {
+    it('renders loading skeleton when useSyncExternalStore returns server snapshot (false)', () => {
+      mockUseAuth.mockReturnValue({
+        user: {
+          id: '01K2GY3VEVJWKZDVH5HMNXEVRQ',
+          first_name: 'Server',
+          last_name: 'Test',
+          roles: [RoleName.STUDENT],
+        },
+        logout: mockLogout,
+        isLoading: false,
+      });
+
+      const actualReact = jest.requireActual<typeof import('react')>('react');
+      const spy = jest.spyOn(actualReact, 'useSyncExternalStore').mockImplementation(
+        (_subscribe, _getSnapshot, getServerSnapshot) => {
+          return getServerSnapshot ? getServerSnapshot() : _getSnapshot();
+        }
+      );
+
+      const { container } = render(<UserProfileDropdown />);
+
+      // When isMounted is false (server snapshot), the component renders the loading skeleton
+      // even though isLoading is false, because !isMounted triggers the skeleton branch
+      const skeleton = container.querySelector('.animate-pulse');
+      expect(skeleton).toBeInTheDocument();
+      expect(container.querySelector('.bg-gray-200.rounded-full')).toBeInTheDocument();
+
+      // The user menu button should NOT be rendered
+      expect(screen.queryByRole('button', { name: /open user menu/i })).not.toBeInTheDocument();
+      // Sign In should also NOT be rendered (it requires isMounted && !user)
+      expect(screen.queryByRole('button', { name: /sign in/i })).not.toBeInTheDocument();
+
+      spy.mockRestore();
+    });
   });
 
   describe('Edge cases', () => {

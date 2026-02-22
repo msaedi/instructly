@@ -9,6 +9,7 @@ import type {
   ReferralSendResponse,
   ApiErrorResponse,
 } from '@/features/shared/api/types';
+import { extractApiErrorMessage } from '@/lib/apiErrors';
 
 export const REFERRALS_ME_KEY = '/api/v1/referrals/me';
 
@@ -154,7 +155,7 @@ export async function sendReferralInvites({ emails, shareUrl, fromName }: SendRe
 
   if (!response.ok) {
     const errorPayload = payload as ApiErrorResponse | null;
-    throw new Error(errorPayload?.detail || errorPayload?.message || 'Failed to send invites');
+    throw new Error(extractApiErrorMessage(errorPayload ?? {}, 'Failed to send invites'));
   }
 
   const sendPayload = payload as ReferralSendResponse | null;

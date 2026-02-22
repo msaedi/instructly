@@ -222,6 +222,43 @@ describe('useSaveInstructor', () => {
       });
     });
 
+    it('reverts optimistic update on unsave error (isSaved goes back to true)', async () => {
+      // Save succeeds, unsave fails -- the onError callback should revert isSaved to true
+      const mockSaveFn = jest.fn().mockResolvedValue({
+        instructor_id: 'instructor-123',
+        saved_at: '2025-01-15T10:00:00Z',
+      });
+      const mockUnsaveFn = jest.fn().mockRejectedValue(new Error('Unsave failed'));
+
+      mutationFnMock
+        .mockReturnValueOnce(mockSaveFn)   // save mutation's inner call
+        .mockReturnValueOnce(mockUnsaveFn); // unsave mutation's inner call
+
+      const { result } = renderHook(
+        () => useSaveInstructor('instructor-123'),
+        { wrapper: createWrapper() }
+      );
+
+      // Step 1: Toggle save (save mutation) -- should succeed
+      await act(async () => {
+        result.current.toggleSave();
+      });
+
+      await waitFor(() => {
+        expect(result.current.isSaved).toBe(true);
+      });
+
+      // Step 2: Toggle again (unsave mutation) -- optimistically sets isSaved to false
+      await act(async () => {
+        result.current.toggleSave();
+      });
+
+      // The unsave API rejects, so onError should revert isSaved back to true
+      await waitFor(() => {
+        expect(result.current.isSaved).toBe(true);
+      });
+    });
+
     it('shows loading state during mutation', async () => {
       let resolveMutation: () => void;
       const mockMutationFn = jest.fn().mockReturnValue(
@@ -279,6 +316,142 @@ describe('useSaveInstructor', () => {
 
       // Should return false since instructor-123 is not in the array
       expect(result.current.isSaved).toBe(false);
+    });
+
+    it('verifies sessionStorage contains the instructor ID after guest save', () => {
+      useAuthMock.mockReturnValue({ isAuthenticated: false });
+
+      const { result } = renderHook(
+        () => useSaveInstructor('instructor-save-check'),
+        { wrapper: createWrapper() }
+      );
+
+      act(() => {
+        result.current.toggleSave();
+      });
+
+      // Verify the exact content written to sessionStorage
+      const stored = mockSessionStorage['savedInstructors'];
+      expect(stored).toBeDefined();
+      if (!stored) {
+        throw new Error('Expected savedInstructors in sessionStorage');
+      }
+      const parsed = JSON.parse(stored) as string[];
+      expect(parsed).toContain('instructor-save-check');
+    });
+
+    it('verifies sessionStorage removes the instructor ID after guest unsave', () => {
+      useAuthMock.mockReturnValue({ isAuthenticated: false });
+      mockSessionStorage['savedInstructors'] = JSON.stringify([
+        'instructor-keep',
+        'instructor-remove',
+      ]);
+
+      const { result } = renderHook(
+        () => useSaveInstructor('instructor-remove'),
+        { wrapper: createWrapper() }
+      );
+
+      expect(result.current.isSaved).toBe(true);
+
+      act(() => {
+        result.current.toggleSave();
+      });
+
+      const stored = mockSessionStorage['savedInstructors'];
+      const parsed = JSON.parse(stored) as string[];
+      expect(parsed).not.toContain('instructor-remove');
+      expect(parsed).toContain('instructor-keep');
+    });
+
+    it('throws on corrupted (non-JSON) sessionStorage during initialization', () => {
+      useAuthMock.mockReturnValue({ isAuthenticated: false });
+      // This is a REAL BUG: corrupted sessionStorage causes JSON.parse to throw
+      // during the useState initializer, crashing the hook
+      mockSessionStorage['savedInstructors'] = '<<<not-json>>>';
+
+      expect(() => {
+        renderHook(
+          () => useSaveInstructor('instructor-123'),
+          { wrapper: createWrapper() }
+        );
+      }).toThrow();
+    });
+
+    it('throws on corrupted sessionStorage during toggleSave', () => {
+      useAuthMock.mockReturnValue({ isAuthenticated: false });
+
+      const { result } = renderHook(
+        () => useSaveInstructor('instructor-123'),
+        { wrapper: createWrapper() }
+      );
+
+      // Corrupt sessionStorage after initialization
+      mockSessionStorage['savedInstructors'] = '{invalid json}';
+
+      // JSON.parse in toggleSave will throw — this is a latent bug
+      expect(() => {
+        act(() => {
+          result.current.toggleSave();
+        });
+      }).toThrow();
+    });
+
+    it('preserves other saved instructors when saving a new one', () => {
+      useAuthMock.mockReturnValue({ isAuthenticated: false });
+      mockSessionStorage['savedInstructors'] = JSON.stringify([
+        'existing-1',
+        'existing-2',
+      ]);
+
+      const { result } = renderHook(
+        () => useSaveInstructor('new-instructor'),
+        { wrapper: createWrapper() }
+      );
+
+      act(() => {
+        result.current.toggleSave();
+      });
+
+      const stored = mockSessionStorage['savedInstructors'];
+      const parsed = JSON.parse(stored) as string[];
+      expect(parsed).toEqual(['existing-1', 'existing-2', 'new-instructor']);
+    });
+
+    it('handles double-save by appending duplicate (no dedup in source)', () => {
+      useAuthMock.mockReturnValue({ isAuthenticated: false });
+
+      const { result } = renderHook(
+        () => useSaveInstructor('instructor-dup'),
+        { wrapper: createWrapper() }
+      );
+
+      // First save
+      act(() => {
+        result.current.toggleSave();
+      });
+      expect(result.current.isSaved).toBe(true);
+
+      // The hook flips isSaved to true, so next toggle will unsave.
+      // But if we re-mount the hook while sessionStorage has the ID:
+      mockSessionStorage['savedInstructors'] = JSON.stringify([
+        'instructor-dup',
+        'instructor-dup',
+      ]);
+
+      const { result: result2 } = renderHook(
+        () => useSaveInstructor('instructor-dup'),
+        { wrapper: createWrapper() }
+      );
+
+      // Unsaving with duplicates: filter removes ALL instances
+      act(() => {
+        result2.current.toggleSave();
+      });
+
+      const stored = mockSessionStorage['savedInstructors'];
+      const parsed = JSON.parse(stored) as string[];
+      expect(parsed).not.toContain('instructor-dup');
     });
   });
 });

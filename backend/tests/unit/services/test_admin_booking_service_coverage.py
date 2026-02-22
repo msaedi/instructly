@@ -5,10 +5,20 @@ Specifically targets:
 - Lines 217-320: Audit entries, cancel booking logic, credit release
 - Lines 351-373: AUDIT_ENABLED conditional and audit logging
 - Lines 485-521: Timeline event building (no_show, payment events)
+- Lines 410-411: AuditService.log_changes exception in cancel_booking
+- Lines 430: Status not CONFIRMED branch in update_booking_status
+- Lines 484-485: AuditService.log_changes exception in update_booking_status
+- Lines 529-532: stripe_url when pd_intent_id is None
+- Lines 568: payment_status when pd is None
+- Lines 587: lesson_price from hourly_rate calculation
+- Lines 707, 720: _issue_refund error paths
+- Line 880: _extract_audit_details returns None for unknown action
 """
 
-from datetime import datetime, timezone
-from unittest.mock import Mock
+from datetime import date, datetime, timezone
+import sys
+from types import ModuleType, SimpleNamespace
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -502,3 +512,561 @@ class TestAdminBookingServiceRealBranches:
         events = service._build_timeline(booking, [])
 
         assert any(event.event == "lesson_no_show" for event in events)
+
+
+class TestCancelBookingAuditServiceException:
+    """Test lines 410-411: AuditService.log_changes raises in cancel_booking."""
+
+    def test_cancel_booking_audit_service_exception_is_non_blocking(self, monkeypatch):
+        """Audit service failure during cancel should not prevent the cancel from completing."""
+        from app.models.booking import BookingStatus, PaymentStatus
+        from app.services import admin_booking_service as admin_module
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        booking = Mock()
+        booking.id = "booking-1"
+        booking.status = BookingStatus.CONFIRMED
+        booking.refunded_to_card_amount = 0
+        pd = Mock()
+        pd.payment_intent_id = "pi_1"
+        pd.settlement_outcome = None
+        pd.payment_status = PaymentStatus.AUTHORIZED.value
+        pd.credits_reserved_cents = 0
+        booking.payment_detail = pd
+        booking.to_dict.return_value = {}
+
+        service.booking_repo = Mock()
+        service.booking_repo.get_booking_with_details.return_value = booking
+        service.booking_repo.ensure_payment.return_value = pd
+        service.audit_repo = Mock()
+        service._resolve_full_refund_cents = Mock(return_value=2500)
+        service._issue_refund = Mock(return_value={"refund_id": "re_1"})
+
+        # Setup credit service that works
+        fake_credit_module = ModuleType("app.services.credit_service")
+
+        class FakeCreditService:
+            def __init__(self, _db):
+                pass
+
+            def release_credits_for_booking(self, *_a, **_kw):
+                return None
+
+        fake_credit_module.CreditService = FakeCreditService
+        monkeypatch.setitem(sys.modules, "app.services.credit_service", fake_credit_module)
+        monkeypatch.setattr(admin_module, "AUDIT_ENABLED", True)
+
+        # Make AuditService.log_changes raise
+        with patch.object(admin_module, "AuditService") as mock_audit_service_cls:
+            mock_audit_instance = Mock()
+            mock_audit_instance.log_changes.side_effect = Exception("audit DB error")
+            mock_audit_service_cls.return_value = mock_audit_instance
+
+            result_booking, refund_id = service.cancel_booking(
+                booking_id="booking-1",
+                reason="admin-test",
+                note="test note",
+                refund=True,
+                actor=Mock(id="admin-1"),
+            )
+
+        assert result_booking is booking
+        assert refund_id == "re_1"
+        # Audit repo write should still be called (lines 364-376 before the try)
+        assert service.audit_repo.write.call_count == 2
+
+
+class TestUpdateBookingStatusEdgeCases:
+    """Test missed lines in update_booking_status."""
+
+    def test_update_status_not_confirmed_raises(self):
+        """Test line 430: booking not in CONFIRMED status raises ServiceException."""
+        from app.core.exceptions import ServiceException
+        from app.models.booking import BookingStatus
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        booking = Mock()
+        booking.status = BookingStatus.COMPLETED  # Not CONFIRMED
+        booking.to_dict.return_value = {}
+        service.booking_repo = Mock(get_booking_with_details=Mock(return_value=booking))
+
+        with pytest.raises(ServiceException, match="cannot be updated"):
+            service.update_booking_status(
+                booking_id="booking-1",
+                status=BookingStatus.COMPLETED,
+                note=None,
+                actor=Mock(id="admin-1"),
+            )
+
+    def test_update_status_audit_service_exception_is_non_blocking(self, monkeypatch):
+        """Test lines 484-485: AuditService.log_changes raises during status update."""
+        from app.models.booking import BookingStatus
+        from app.services import admin_booking_service as admin_module
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        booking = Mock()
+        booking.id = "booking-1"
+        booking.status = BookingStatus.CONFIRMED
+        booking.to_dict.return_value = {}
+        pd = Mock()
+        pd.payment_status = "authorized"
+        booking.payment_detail = pd
+        booking.complete = Mock()
+        service.booking_repo = Mock(get_booking_with_details=Mock(return_value=booking))
+        service.audit_repo = Mock()
+
+        monkeypatch.setattr(admin_module, "AUDIT_ENABLED", True)
+
+        with patch.object(admin_module, "AuditService") as mock_audit_service_cls:
+            mock_audit_instance = Mock()
+            mock_audit_instance.log_changes.side_effect = Exception("audit failure")
+            mock_audit_service_cls.return_value = mock_audit_instance
+
+            with patch.object(admin_module.AuditLog, "from_change", return_value=Mock()):
+                result = service.update_booking_status(
+                    booking_id="booking-1",
+                    status=BookingStatus.COMPLETED,
+                    note="test",
+                    actor=Mock(id="admin-1"),
+                )
+
+        assert result is booking
+        booking.complete.assert_called_once()
+        service.audit_repo.write.assert_called_once()
+
+    def test_update_status_no_show(self, monkeypatch):
+        """Test line 443-444: NO_SHOW status calls mark_no_show."""
+        from app.models.booking import BookingStatus
+        from app.services import admin_booking_service as admin_module
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        booking = Mock()
+        booking.id = "booking-1"
+        booking.status = BookingStatus.CONFIRMED
+        booking.to_dict.return_value = {}
+        pd = Mock()
+        pd.payment_status = "authorized"
+        booking.payment_detail = pd
+        booking.mark_no_show = Mock()
+        service.booking_repo = Mock(get_booking_with_details=Mock(return_value=booking))
+
+        monkeypatch.setattr(admin_module, "AUDIT_ENABLED", False)
+
+        result = service.update_booking_status(
+            booking_id="booking-1",
+            status=BookingStatus.NO_SHOW,
+            note="student absent",
+            actor=Mock(id="admin-1"),
+        )
+
+        assert result is booking
+        booking.mark_no_show.assert_called_once()
+
+
+class TestBuildPaymentInfoEdgeCases:
+    """Test missed branches in _build_payment_info."""
+
+    def test_payment_info_no_pd_intent_id(self):
+        """Test line 529->532: pd_intent_id is falsy, stripe_url remains None."""
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        booking = Mock()
+        booking.total_price = 50
+        pd = Mock()
+        pd.payment_intent_id = None  # No intent ID
+        pd.payment_status = "pending"
+        booking.payment_detail = pd
+
+        service._resolve_lesson_price_cents = Mock(return_value=5000)
+        service._resolve_platform_fee_cents = Mock(return_value=500)
+        service._resolve_instructor_payout_cents = Mock(return_value=4500)
+
+        result = service._build_payment_info(booking, payment_intent=None, credits_applied_cents=0)
+
+        assert result.stripe_url is None
+        assert result.payment_intent_id is None
+
+    def test_payment_info_pd_is_none(self):
+        """Test line 568: pd is None, payment_status should be None."""
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        booking = Mock()
+        booking.total_price = 50
+        booking.payment_detail = None  # pd is None
+
+        service._resolve_lesson_price_cents = Mock(return_value=5000)
+        service._resolve_platform_fee_cents = Mock(return_value=500)
+        service._resolve_instructor_payout_cents = Mock(return_value=4500)
+
+        result = service._build_payment_info(booking, payment_intent=None, credits_applied_cents=0)
+
+        assert result.stripe_url is None
+        assert result.payment_status is None
+        assert result.payment_intent_id is None
+
+
+class TestResolveLessonPriceCents:
+    """Test line 587: lesson_price_cents from hourly_rate * duration."""
+
+    def test_lesson_price_from_hourly_rate_and_duration(self):
+        """Test line 646-651: calculates from hourly_rate and duration_minutes."""
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        booking = Mock()
+        booking.hourly_rate = "60.00"
+        booking.duration_minutes = 90
+        booking.total_price = 100  # fallback, should not be used
+
+        result = service._resolve_lesson_price_cents(booking, payment_intent=None)
+
+        # 60 * 90 / 60 = 90.00 -> 9000 cents
+        assert result == 9000
+
+    def test_lesson_price_from_payment_intent(self):
+        """Test line 643-644: uses payment_intent.base_price_cents when available."""
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        booking = Mock()
+        booking.hourly_rate = "60.00"
+        booking.duration_minutes = 90
+        booking.total_price = 100
+
+        pi = Mock()
+        pi.base_price_cents = 7500
+
+        result = service._resolve_lesson_price_cents(booking, payment_intent=pi)
+
+        assert result == 7500
+
+
+class TestIssueRefundEdgeCases:
+    """Test lines 707, 720 in _issue_refund."""
+
+    def test_issue_refund_no_payment_intent(self):
+        """Test line 707: booking has no payment intent raises ServiceException."""
+        from app.core.exceptions import ServiceException
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        booking = Mock()
+        pd = Mock()
+        pd.payment_intent_id = None
+        booking.payment_detail = pd
+
+        with pytest.raises(ServiceException, match="no Stripe payment intent"):
+            service._issue_refund(booking=booking, amount_cents=1000, reason="test")
+
+    def test_issue_refund_service_exception_passes_through(self, monkeypatch):
+        """Test line 720: ServiceException from stripe_service.refund_payment passes through."""
+        from app.core.exceptions import ServiceException
+        from app.services import admin_booking_service as admin_module
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        booking = Mock()
+        booking.id = "booking-1"
+        pd = Mock()
+        pd.payment_intent_id = "pi_123"
+        booking.payment_detail = pd
+
+        class FakeStripeService:
+            def __init__(self, *_a, **_kw):
+                pass
+
+            def refund_payment(self, **_kw):
+                raise ServiceException("Stripe says no", code="stripe_declined")
+
+        monkeypatch.setattr(admin_module, "StripeService", FakeStripeService)
+
+        with pytest.raises(ServiceException, match="Stripe says no"):
+            service._issue_refund(booking=booking, amount_cents=1000, reason="test")
+
+
+class TestExtractAuditDetailsUnknownAction:
+    """Test line 880: _extract_audit_details returns None for unknown action."""
+
+    def test_unknown_action_returns_none(self):
+        """Test that unknown action type returns None."""
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        entry = SimpleNamespace(action="some_unknown_action", after={"data": "value"})
+
+        result = service._extract_audit_details(entry)
+
+        assert result is None
+
+
+class TestBuildBookingListItemEdgeCases:
+    """Test pd is None branches in _build_booking_list_item."""
+
+    def test_list_item_with_none_pd(self):
+        """Test line 506-507: pd is None in _build_booking_list_item."""
+        from datetime import time as time_type
+
+        from app.models.booking import BookingStatus
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        booking = Mock()
+        booking.id = "booking-1"
+        booking.student = None
+        booking.instructor = None
+        booking.service_name = "Piano"
+        booking.booking_date = date(2024, 6, 15)
+        booking.start_time = time_type(10, 0)
+        booking.end_time = time_type(11, 0)
+        booking.booking_start_utc = datetime(2024, 6, 15, 14, 0, tzinfo=timezone.utc)
+        booking.booking_end_utc = datetime(2024, 6, 15, 15, 0, tzinfo=timezone.utc)
+        booking.lesson_timezone = "America/New_York"
+        booking.instructor_tz_at_booking = "America/New_York"
+        booking.student_tz_at_booking = "America/New_York"
+        booking.total_price = 50
+        booking.status = BookingStatus.CONFIRMED
+        booking.payment_detail = None  # pd is None
+        booking.created_at = datetime(2024, 6, 15, tzinfo=timezone.utc)
+
+        result = service._build_booking_list_item(booking)
+
+        assert result.id == "booking-1"
+        assert result.payment_status is None
+        assert result.payment_intent_id is None
+
+
+class TestBuildTimelinePaymentEvents:
+    """Test _build_timeline with actual payment events."""
+
+    def test_timeline_with_payment_captured_event(self):
+        """Test lines 584-595: payment events are added to timeline."""
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        booking = Mock()
+        booking.created_at = datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc)
+        booking.completed_at = None
+        booking.cancelled_at = None
+        booking.status = "confirmed"  # Not NO_SHOW
+
+        payment_event = Mock()
+        payment_event.event_type = "payment_captured"
+        payment_event.created_at = datetime(2024, 1, 2, 10, 0, tzinfo=timezone.utc)
+        payment_event.event_data = {"amount_captured_cents": 5000}
+
+        events = service._build_timeline(booking, [payment_event])
+
+        # Should have booking_created + payment_captured
+        assert len(events) == 2
+        assert events[0].event == "booking_created"
+        assert events[1].event == "payment_captured"
+        assert events[1].amount == 50.0
+
+    def test_timeline_skips_unknown_payment_event_type(self):
+        """Test line 586-587: unknown event_type is skipped."""
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        booking = Mock()
+        booking.created_at = datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc)
+        booking.completed_at = None
+        booking.cancelled_at = None
+        booking.status = "confirmed"
+
+        payment_event = Mock()
+        payment_event.event_type = "unknown_event_type"
+        payment_event.created_at = datetime(2024, 1, 2, 10, 0, tzinfo=timezone.utc)
+        payment_event.event_data = {}
+
+        events = service._build_timeline(booking, [payment_event])
+
+        # Only booking_created, the unknown event is skipped
+        assert len(events) == 1
+        assert events[0].event == "booking_created"
+
+    def test_timeline_with_completed_and_cancelled(self):
+        """Test lines 559-573: both completed_at and cancelled_at in timeline."""
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        booking = Mock()
+        booking.created_at = datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc)
+        booking.completed_at = datetime(2024, 1, 1, 11, 0, tzinfo=timezone.utc)
+        booking.cancelled_at = datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc)
+        booking.status = "cancelled"
+
+        events = service._build_timeline(booking, [])
+
+        assert len(events) == 3
+        event_types = [e.event for e in events]
+        assert "booking_created" in event_types
+        assert "lesson_completed" in event_types
+        assert "booking_cancelled" in event_types
+
+
+class TestResolvePaymentEventAmount:
+    """Test _resolve_payment_event_amount for non-captured events."""
+
+    def test_non_captured_event_uses_amount_cents(self):
+        """Test line 607-608: non-payment_captured event uses amount_cents."""
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        event = Mock()
+        event.event_type = "auth_succeeded"
+        event.event_data = {"amount_cents": 3000}
+
+        result = service._resolve_payment_event_amount(event)
+
+        assert result == 30.0
+
+    def test_non_captured_event_no_amount_returns_none(self):
+        """Test line 607-608: non-payment_captured event with no matching keys returns None."""
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        event = Mock()
+        event.event_type = "auth_succeeded"
+        event.event_data = {}
+
+        result = service._resolve_payment_event_amount(event)
+
+        assert result is None
+
+    def test_captured_event_no_amount_returns_none(self):
+        """Test line 602-606: payment_captured event with no amount data returns None."""
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        event = Mock()
+        event.event_type = "payment_captured"
+        event.event_data = {}
+
+        result = service._resolve_payment_event_amount(event)
+
+        assert result is None
+
+
+class TestCancelBookingNoRefundPath:
+    """Test cancel_booking without refund to cover the refund=False branches."""
+
+    def test_cancel_without_refund_skips_payment_update(self, monkeypatch):
+        """Test line 334->337: when refund=False, amount_cents is None, skips refund block."""
+        from app.models.booking import BookingStatus, PaymentStatus
+        from app.services import admin_booking_service as admin_module
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        booking = Mock()
+        booking.id = "booking-1"
+        booking.status = BookingStatus.CONFIRMED
+        booking.refunded_to_card_amount = 0
+        pd = Mock()
+        pd.payment_intent_id = None
+        pd.settlement_outcome = None
+        pd.payment_status = PaymentStatus.AUTHORIZED.value
+        pd.credits_reserved_cents = 0
+        booking.payment_detail = pd
+        booking.to_dict.return_value = {}
+
+        service.booking_repo = Mock()
+        service.booking_repo.get_booking_with_details.return_value = booking
+        service.booking_repo.ensure_payment.return_value = pd
+
+        fake_credit_module = ModuleType("app.services.credit_service")
+
+        class FakeCreditService:
+            def __init__(self, _db):
+                pass
+
+            def release_credits_for_booking(self, *_a, **_kw):
+                return None
+
+        fake_credit_module.CreditService = FakeCreditService
+        monkeypatch.setitem(sys.modules, "app.services.credit_service", fake_credit_module)
+        monkeypatch.setattr(admin_module, "AUDIT_ENABLED", False)
+
+        result_booking, refund_id = service.cancel_booking(
+            booking_id="booking-1",
+            reason="customer request",
+            note=None,
+            refund=False,
+            actor=Mock(id="admin-1"),
+        )
+
+        assert result_booking is booking
+        assert refund_id is None
+        # Payment status should NOT be changed to SETTLED
+        assert pd.payment_status == PaymentStatus.AUTHORIZED.value
+
+
+class TestBuildAuditSummaryEdgeCases:
+    """Test edge cases in _build_audit_summary."""
+
+    def test_build_audit_summary_with_admin_id_skips_captures(self):
+        """Test line 829-830: admin_id != system skips capture entries."""
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        service.audit_repo = Mock()
+        service.audit_repo.list_for_booking_actions.return_value = ([], 0)
+        service.payment_repo = Mock()
+
+        summary = service._build_audit_summary(
+            admin_id="admin-1",  # not "system"
+            date_from=None,
+            date_to=None,
+        )
+
+        assert summary.captures_count == 0
+        assert summary.captures_total == 0.0
+        # payment_repo.list_payment_events_by_types should NOT be called
+        service.payment_repo.list_payment_events_by_types.assert_not_called()
+
+    def test_build_audit_summary_capture_amount_none_skipped(self):
+        """Test line 847: capture event with None amount is skipped in sum."""
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        service.audit_repo = Mock()
+        service.audit_repo.list_for_booking_actions.return_value = ([], 0)
+
+        # One capture with no amount data
+        capture_event = SimpleNamespace(event_data={})
+        service.payment_repo = Mock()
+        service.payment_repo.list_payment_events_by_types.return_value = [capture_event]
+        service.payment_repo.count_payment_events_by_types.return_value = 1
+
+        summary = service._build_audit_summary(
+            admin_id=None,
+            date_from=None,
+            date_to=None,
+        )
+
+        assert summary.captures_count == 1
+        assert summary.captures_total == 0.0
+
+
+class TestStripeReasonForCancel:
+    """Test _stripe_reason_for_cancel edge cases."""
+
+    def test_dispute_reason_returns_duplicate(self):
+        """Test line 688-689: dispute reason maps to 'duplicate'."""
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        assert service._stripe_reason_for_cancel("dispute") == "duplicate"
+        assert service._stripe_reason_for_cancel("  Dispute  ") == "duplicate"
+
+    def test_other_reason_returns_requested_by_customer(self):
+        """Test line 690: non-dispute reason maps to 'requested_by_customer'."""
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        assert service._stripe_reason_for_cancel("other reason") == "requested_by_customer"

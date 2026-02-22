@@ -766,6 +766,277 @@ describe('useWeekSchedule', () => {
     });
   });
 
+  describe('extractDetailFromResponse — uncovered branches', () => {
+    it('handles detail array with entries that have no string/msg (returns undefined)', async () => {
+      mockFetchWithAuth.mockImplementationOnce(async () => ({
+        ok: false,
+        status: 422,
+        statusText: 'Unprocessable Entity',
+        json: async () => ({
+          // Array where entries are neither strings nor have a msg field
+          detail: [{ code: 123 }, { loc: ['body'] }],
+        }),
+        headers: { get: () => null },
+      }));
+
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      // Since collected is empty (no strings, no msg fields), falls through
+      // to the 'message' field check, then to JSON.stringify
+      expect(result.current.message?.type).toBe('error');
+      // Should contain the JSON stringified version of the detail array
+      expect(result.current.message?.text).toContain('detail');
+    });
+
+    it('handles non-Error thrown in catch block', async () => {
+      mockFetchWithAuth.mockImplementationOnce(async () => {
+        throw 'string-thrown-error';
+      });
+
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      expect(result.current.message?.type).toBe('error');
+      // The fallback is: error instanceof Error ? error.message : 'Unexpected error'
+      expect(result.current.message?.text).toContain('Unexpected error');
+    });
+  });
+
+  describe('dayBitsEqual / weekBitsEqual edge cases', () => {
+    it('detects inequality when one week has extra date key', async () => {
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0));
+      });
+
+      // Set weekBits with an extra date that savedWeekBits doesn't have
+      await act(async () => {
+        result.current.setWeekBits({
+          '2030-01-07': new Uint8Array([1, 0, 0]),
+          '2030-01-08': new Uint8Array([2, 0, 0]),
+        });
+      });
+
+      await act(async () => {
+        result.current.setSavedWeekBits({
+          '2030-01-07': new Uint8Array([1, 0, 0]),
+        });
+      });
+
+      // weekBitsEqual should return false because of the extra key
+      expect(result.current.hasUnsavedChanges).toBe(true);
+    });
+
+    it('dayBitsEqual treats undefined bits as all zeros', async () => {
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0));
+      });
+
+      // weekBits has a key with all-zero bits, savedWeekBits doesn't have the key
+      await act(async () => {
+        result.current.setWeekBits({
+          '2030-01-07': new Uint8Array(180).fill(0),
+        });
+      });
+
+      // savedWeekBits is empty - dayBitsEqual(zeros, undefined) should be true
+      expect(result.current.hasUnsavedChanges).toBe(false);
+    });
+  });
+
+  describe('setWeekBits function updater', () => {
+    it('passes previous bits to the updater function', async () => {
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0));
+      });
+
+      // Set initial bits
+      await act(async () => {
+        result.current.setWeekBits({ '2030-01-07': new Uint8Array([1]) });
+      });
+
+      // Use function updater form
+      await act(async () => {
+        result.current.setWeekBits((prev) => ({
+          ...prev,
+          '2030-01-08': new Uint8Array([2]),
+        }));
+      });
+
+      expect(result.current.hasUnsavedChanges).toBe(true);
+    });
+  });
+
+  describe('setSavedWeekBits function updater', () => {
+    it('passes previous saved bits to the updater function', async () => {
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0));
+      });
+
+      // Use function updater form
+      await act(async () => {
+        result.current.setSavedWeekBits((prev) => ({
+          ...prev,
+          '2030-01-07': new Uint8Array([5]),
+        }));
+      });
+
+      // Since weekBits is empty but savedWeekBits has data, should differ
+      expect(result.current.hasUnsavedChanges).toBe(true);
+    });
+  });
+
+  describe('X-Allow-Past false values', () => {
+    it('parses X-Allow-Past header "false" as false', async () => {
+      mockFetchWithAuth.mockImplementationOnce(async () => ({
+        ok: true,
+        json: async () => ({}),
+        headers: {
+          get: (name: string) => {
+            if (name === 'X-Allow-Past') return 'false';
+            if (name === 'ETag') return 'xyz';
+            return null;
+          },
+        },
+      }));
+
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      expect(result.current.allowPastEdits).toBe(false);
+    });
+
+    it('parses X-Allow-Past header "0" as false', async () => {
+      mockFetchWithAuth.mockImplementationOnce(async () => ({
+        ok: true,
+        json: async () => ({}),
+        headers: {
+          get: (name: string) => {
+            if (name === 'X-Allow-Past') return '0';
+            if (name === 'ETag') return 'xyz';
+            return null;
+          },
+        },
+      }));
+
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      expect(result.current.allowPastEdits).toBe(false);
+    });
+  });
+
+  describe('conditional return fields', () => {
+    it('omits version, etag, lastModified when not present', async () => {
+      mockFetchWithAuth.mockImplementationOnce(async () => ({
+        ok: true,
+        json: async () => ({}),
+        headers: {
+          get: () => null,
+        },
+      }));
+
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      expect(result.current.version).toBeUndefined();
+      expect(result.current.etag).toBeUndefined();
+      expect(result.current.lastModified).toBeUndefined();
+      // allowPastEdits should also be undefined since header is null
+      expect(result.current.allowPastEdits).toBeUndefined();
+    });
+  });
+
+  describe('selectedWeekStart sync — no-op when already equal', () => {
+    it('does not re-set currentWeekStart when normalized equals current', async () => {
+      // Initialize with a specific date that normalizes to itself
+      const selectedDate = new Date('2030-01-07'); // This is a Monday
+
+      const { result, rerender } = renderHook(
+        ({ selectedWeekStart }) => useWeekSchedule({ selectedWeekStart }),
+        { initialProps: { selectedWeekStart: selectedDate } }
+      );
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0));
+      });
+
+      const initialWeekStart = result.current.currentWeekStart;
+
+      // Re-render with same date — should be a no-op
+      rerender({ selectedWeekStart: new Date('2030-01-07') });
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      expect(result.current.currentWeekStart.getTime()).toBe(initialWeekStart.getTime());
+    });
+  });
+
+  describe('fetchWeekSchedule error detail fallback chain', () => {
+    it('uses statusText when detail extraction returns undefined', async () => {
+      mockFetchWithAuth.mockImplementationOnce(async () => ({
+        ok: false,
+        status: 503,
+        statusText: 'Service Unavailable',
+        json: async () => undefined,
+        headers: { get: () => null },
+      }));
+
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      expect(result.current.message?.type).toBe('error');
+      expect(result.current.message?.text).toContain('Service Unavailable');
+    });
+
+    it('uses "Unknown error" when both detail and statusText are empty', async () => {
+      mockFetchWithAuth.mockImplementationOnce(async () => ({
+        ok: false,
+        status: 500,
+        statusText: '',
+        json: async () => undefined,
+        headers: { get: () => null },
+      }));
+
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      expect(result.current.message?.type).toBe('error');
+      expect(result.current.message?.text).toContain('Unknown error');
+    });
+  });
+
   describe('messageTimeout edge case', () => {
     it('does not clear message when timeout is 0', async () => {
       const { result } = renderHook(() => useWeekSchedule({ messageTimeout: 0 }));

@@ -622,4 +622,188 @@ describe('useInstructorProfile', () => {
     // Default to 0 when NaN
     expect(service?.hourly_rate).toBe(0);
   });
+
+  it('falls back to instructorId when both id and user_id are missing', async () => {
+    mockUseInstructor.mockReturnValue({
+      data: {
+        // No id field, no user_id
+        user_id: '',
+        user: { first_name: 'Test', last_initial: 'U' },
+        services: [],
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useInstructorProfile('fallback-instructor-id'), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.data).toBeDefined();
+    });
+
+    // canonicalId falls through: id is not a string -> user_id is '' (falsy) -> instructorId
+    expect(result.current.data?.id).toBe('fallback-instructor-id');
+    // user_id also falls through to canonicalId
+    expect(result.current.data?.user_id).toBe('fallback-instructor-id');
+  });
+
+  it('maps service with numeric hourly_rate directly', async () => {
+    mockUseInstructor.mockReturnValue({
+      data: {
+        user_id: '01K2TEST00000000000000001',
+        user: { first_name: 'Test', last_initial: 'U' },
+        services: [
+          {
+            id: 'svc-num',
+            hourly_rate: 99.5,
+            duration_options: [45],
+          },
+        ],
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useInstructorProfile('01K2TEST00000000000000001'), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.data?.services).toBeDefined();
+    });
+
+    const service = result.current.data?.services[0];
+    expect(service?.hourly_rate).toBe(99.5);
+    expect(service?.duration_options).toEqual([45]);
+  });
+
+  it('maps is_live and is_founding_instructor when set to false', async () => {
+    mockUseInstructor.mockReturnValue({
+      data: {
+        user_id: '01K2TEST00000000000000001',
+        user: { first_name: 'Test', last_initial: 'U' },
+        services: [],
+        is_live: false,
+        is_founding_instructor: false,
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useInstructorProfile('01K2TEST00000000000000001'), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.data).toBeDefined();
+    });
+
+    // Boolean false should still be included via the typeof check
+    expect((result.current.data as unknown as { is_live?: boolean })?.is_live).toBe(false);
+    expect((result.current.data as unknown as { is_founding_instructor?: boolean })?.is_founding_instructor).toBe(false);
+  });
+
+  it('handles preferred_public_spaces with label field', async () => {
+    mockUseInstructor.mockReturnValue({
+      data: {
+        user_id: '01K2TEST00000000000000001',
+        user: { first_name: 'Test', last_initial: 'U' },
+        services: [],
+        preferred_public_spaces: [
+          { address: 'Prospect Park', label: 'Fave spot' },
+          { address: 'Bryant Park', label: '  ' }, // Whitespace-only label
+          { address: 'Union Square' }, // No label
+        ],
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useInstructorProfile('01K2TEST00000000000000001'), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.data?.preferred_public_spaces).toBeDefined();
+    });
+
+    const spaces = result.current.data?.preferred_public_spaces;
+    expect(spaces).toEqual([
+      { address: 'Prospect Park', label: 'Fave spot' },
+      { address: 'Bryant Park' }, // Whitespace label trimmed to empty -> omitted
+      { address: 'Union Square' },
+    ]);
+  });
+
+  it('omits service_area_summary as null when undefined', async () => {
+    mockUseInstructor.mockReturnValue({
+      data: {
+        user_id: '01K2TEST00000000000000001',
+        user: { first_name: 'Test', last_initial: 'U' },
+        services: [],
+        // service_area_summary intentionally absent
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useInstructorProfile('01K2TEST00000000000000001'), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.data).toBeDefined();
+    });
+
+    // undefined ?? null = null
+    expect(result.current.data?.service_area_summary).toBeNull();
+  });
+
+  it('handles preferred_public_spaces with non-string label', async () => {
+    mockUseInstructor.mockReturnValue({
+      data: {
+        user_id: '01K2TEST00000000000000001',
+        user: { first_name: 'Test', last_initial: 'U' },
+        services: [],
+        preferred_public_spaces: [
+          { address: 'Central Park', label: 42 }, // Non-string label -> omitted
+        ],
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useInstructorProfile('01K2TEST00000000000000001'), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.data?.preferred_public_spaces).toBeDefined();
+    });
+
+    // Non-string label falls to '' in ternary, so label is not included
+    expect(result.current.data?.preferred_public_spaces).toEqual([
+      { address: 'Central Park' },
+    ]);
+  });
+
+  it('maps service with null hourly_rate to 0', async () => {
+    mockUseInstructor.mockReturnValue({
+      data: {
+        user_id: '01K2TEST00000000000000001',
+        user: { first_name: 'Test', last_initial: 'U' },
+        services: [
+          {
+            id: 'svc-null-rate',
+            hourly_rate: null,
+            duration_options: undefined,
+          },
+        ],
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useInstructorProfile('01K2TEST00000000000000001'), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.data?.services).toBeDefined();
+    });
+
+    const service = result.current.data?.services[0];
+    // null -> parseFloat('0') = 0 and NaN check passes -> 0
+    expect(service?.hourly_rate).toBe(0);
+    // undefined duration_options -> [60]
+    expect(service?.duration_options).toEqual([60]);
+  });
 });

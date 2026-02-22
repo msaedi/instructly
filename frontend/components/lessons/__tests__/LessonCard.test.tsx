@@ -860,4 +860,57 @@ describe('LessonCard', () => {
       expect(screen.getByText('$60.00')).toBeInTheDocument();
     });
   });
+
+  describe('children prop', () => {
+    it('renders children when provided', () => {
+      const { Wrapper } = createWrapper();
+      render(
+        <Wrapper>
+          <LessonCard
+            lesson={mockBooking}
+            isCompleted={false}
+            onViewDetails={jest.fn()}
+          >
+            <span data-testid="test-child">Test Child</span>
+          </LessonCard>
+        </Wrapper>
+      );
+
+      expect(screen.getByTestId('test-child')).toBeInTheDocument();
+    });
+
+    it('does not render children wrapper when no children', () => {
+      const { Wrapper } = createWrapper();
+      render(
+        <Wrapper>
+          <LessonCard
+            lesson={mockBooking}
+            isCompleted={false}
+            onViewDetails={jest.fn()}
+          />
+        </Wrapper>
+      );
+
+      expect(screen.getByTestId('lesson-card')).toBeInTheDocument();
+    });
+
+    it('clicking children does not trigger onViewDetails', () => {
+      const onViewDetails = jest.fn();
+      const { Wrapper } = createWrapper();
+      render(
+        <Wrapper>
+          <LessonCard
+            lesson={mockBooking}
+            isCompleted={false}
+            onViewDetails={onViewDetails}
+          >
+            <button data-testid="child-btn">Click</button>
+          </LessonCard>
+        </Wrapper>
+      );
+
+      fireEvent.click(screen.getByTestId('child-btn'));
+      expect(onViewDetails).not.toHaveBeenCalled();
+    });
+  });
 });

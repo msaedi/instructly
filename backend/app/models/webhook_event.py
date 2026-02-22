@@ -30,6 +30,14 @@ class WebhookEvent(Base):
         sa.Index("ix_webhook_events_status", "status"),
         sa.Index("ix_webhook_events_received_at", "received_at"),
         sa.Index("ix_webhook_events_event_id", "event_id"),
+        sa.Index(
+            "ix_webhook_events_source_idempotency",
+            "source",
+            "idempotency_key",
+            unique=True,
+            postgresql_where=sa.text("idempotency_key IS NOT NULL"),
+            sqlite_where=sa.text("idempotency_key IS NOT NULL"),
+        ),
         sa.Index("ix_webhook_events_related_entity", "related_entity_type", "related_entity_id"),
         sa.UniqueConstraint("source", "event_id", name="uq_webhook_events_source_event_id"),
     )

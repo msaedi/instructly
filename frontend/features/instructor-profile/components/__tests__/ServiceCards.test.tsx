@@ -690,4 +690,65 @@ describe('ServiceCards', () => {
     // Undefined skill renders as 'Service'
     expect(headings[1]).toHaveTextContent('Service');
   });
+
+  it('defaults getUnavailableMessage availableDuration to 60 when slot has no availableDuration', () => {
+    // Parent: availableMinutes = undefined || 120 = 120. Duration=150 > 120 => canBook=false
+    // Child getUnavailableMessage: availableMinutes = undefined || 60 = 60. 150 > 60 with 60===60
+    // => hits "This 150-minute session requires a 3-hour time block"
+    const service: InstructorService = { ...baseService, duration_options: [150] };
+    const selectedSlot = { date: '2025-01-06', time: '9:00 AM', duration: 150 };
+
+    render(<ServiceCards services={[service]} selectedSlot={selectedSlot} />);
+
+    const card = screen.getByText('Piano').closest('.transition-all') as HTMLElement;
+    fireEvent.mouseEnter(card);
+
+    expect(screen.getByText(/this 150-minute session requires a 3-hour time block/i)).toBeInTheDocument();
+  });
+
+  it('sorts correctly when both services have undefined skill with searchedService', () => {
+    // Exercises the optional chain `a.service.skill?.toLowerCase()` returning undefined for both
+    const services: InstructorService[] = [
+      { ...baseService, id: 'svc-1', skill: undefined },
+      { ...baseService, id: 'svc-2', skill: undefined },
+    ];
+
+    render(<ServiceCards services={services} searchedService="piano" />);
+
+    const headings = screen.getAllByRole('heading', { level: 3 });
+    // Both should render as 'Service' since skill is undefined
+    expect(headings[0]).toHaveTextContent('Service');
+    expect(headings[1]).toHaveTextContent('Service');
+  });
+
+  it('falls through age_groups ternary when raw cast returns non-array and service.age_groups is also non-array', () => {
+    // Exercises the final `[]` branch on line 77 when both rawAgeGroups and
+    // service.age_groups are not arrays
+    const service = {
+      ...baseService,
+      age_groups: undefined,
+    } as InstructorService;
+    // Both rawAgeGroups and service.age_groups are undefined -> falls to []
+    // No kids badge shown
+    render(<ServiceCards services={[service]} />);
+
+    const kidsBadges = screen.getAllByText(/kids lesson available/i);
+    kidsBadges.forEach(badge => {
+      expect(badge).toHaveClass('opacity-0');
+    });
+  });
+
+  it('falls through levels_taught ternary when raw cast returns non-array and service.levels_taught is also non-array', () => {
+    // Exercises the final `[]` branch on line 54 when both rawLevels and
+    // service.levels_taught are not arrays
+    const service = {
+      ...baseService,
+      levels_taught: undefined,
+    } as InstructorService;
+
+    render(<ServiceCards services={[service]} />);
+
+    // No levels label
+    expect(screen.queryByText(/levels:/i)).not.toBeInTheDocument();
+  });
 });

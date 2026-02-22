@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -632,7 +633,7 @@ def test_booking_repository_branch_filters(
     db, test_student, test_instructor_with_availability, test_booking, monkeypatch
 ):
     repo = BookingRepository(db)
-    fixed_now = datetime(2026, 1, 14, 12, 0, tzinfo=timezone.utc)
+    fixed_now = datetime(2026, 1, 14, 12, 0, tzinfo=ZoneInfo("America/New_York"))
     monkeypatch.setattr(
         "app.repositories.booking_repository.get_user_now_by_id",
         lambda *_: fixed_now,
@@ -1078,7 +1079,7 @@ def test_student_and_instructor_booking_branch_filters(
     fixed_now = datetime.combine(
         test_booking.booking_date + timedelta(days=10),
         time(12, 0),
-        tzinfo=timezone.utc,
+        tzinfo=ZoneInfo("America/New_York"),
     )
     monkeypatch.setattr(
         "app.repositories.booking_repository.get_user_now_by_id",

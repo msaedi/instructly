@@ -230,6 +230,13 @@ class Booking(Base):
         cascade="all, delete-orphan",
         lazy="noload",
     )
+    video_session = relationship(
+        "BookingVideoSession",
+        back_populates="booking",
+        uselist=False,
+        cascade="all, delete-orphan",
+        lazy="noload",
+    )
     generated_credits = relationship(
         "PlatformCredit",
         foreign_keys="PlatformCredit.source_booking_id",

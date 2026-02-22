@@ -72,6 +72,7 @@
     "api:lint": "spectral lint ../backend/openapi/openapi.json -r ../backend/openapi/spectral.yaml"
   },
   "dependencies": {
+    "@100mslive/roomkit-react": "^0.4.2",
     "@marsidev/react-turnstile": "^1.4.0",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.15",
@@ -102,6 +103,7 @@
     "next-axiom": "^1.10.0",
     "react": "^19.1.1",
     "react-dom": "^19.2.4",
+    "react-is": "^19.2.4",
     "react-leaflet": "^5.0.0",
     "recharts": "^3.7.0",
     "sonner": "^2.0.7",
@@ -114,6 +116,7 @@
     "@playwright/test": "1.58.2",
     "@size-limit/file": "^12.0.0",
     "@tailwindcss/postcss": "^4.1.18",
+    "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
@@ -152,7 +155,7 @@
     {
       "name": "chunks-total-js",
       "path": ".next/static/chunks/*.js",
-      "limit": "2 MB",
+      "limit": "2.7 MB",
       "running": false
     },
     {
@@ -189,6 +192,19 @@
     "path-to-regexp": "6.3.0",
     "tar-fs": "3.1.1",
     "esbuild": "0.27.1",
-    "tmp": "0.2.5"
+    "tmp": "0.2.5",
+    "glob": "11.1.0",
+    "minimatch": "10.2.1",
+    "rimraf": "6.1.3",
+    "nanoid": "5.1.6",
+    "test-exclude": {
+      "glob": "7.2.3",
+      "minimatch": "3.1.2"
+    },
+    "@radix-ui/react-slot": "1.2.3",
+    "@radix-ui/react-compose-refs": "1.1.2",
+    "@100mslive/roomkit-react": {
+      "react": "$react"
+    }
   }
 }

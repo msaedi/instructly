@@ -1,5 +1,6 @@
 import { fetchWithAuth } from '@/lib/api';
 import type { ApiErrorResponse, components } from '@/features/shared/api/types';
+import { extractApiErrorMessage } from '@/lib/apiErrors';
 
 export type NotificationItem = components['schemas']['NotificationResponse'];
 export type NotificationListResponse = components['schemas']['NotificationListResponse'];
@@ -17,7 +18,7 @@ const UNREAD_COUNT_PATH = '/api/v1/notifications/unread-count';
 async function parseErrorMessage(response: Response, fallback: string): Promise<string> {
   try {
     const payload = (await response.json()) as ApiErrorResponse;
-    return payload.detail ?? payload.message ?? fallback;
+    return extractApiErrorMessage(payload, fallback);
   } catch {
     return fallback;
   }

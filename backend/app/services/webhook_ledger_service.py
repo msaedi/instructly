@@ -6,13 +6,20 @@ from datetime import datetime, timezone
 import time
 from typing import Any
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import RepositoryException
 from app.models.webhook_event import WebhookEvent
 from app.repositories.webhook_event_repository import WebhookEventRepository
 from app.services.base import BaseService
 
-_SENSITIVE_HEADERS = {"authorization", "stripe-signature", "x-api-key"}
+_SENSITIVE_HEADERS = {
+    "authorization",
+    "stripe-signature",
+    "x-api-key",
+    "x-hundredms-secret",
+}
 
 
 def _now_utc() -> datetime:
@@ -25,6 +32,21 @@ class WebhookLedgerService(BaseService):
     def __init__(self, db: Session) -> None:
         super().__init__(db)
         self.repository = WebhookEventRepository(db)
+
+    def _find_existing_event(
+        self,
+        *,
+        source: str,
+        event_id: str | None,
+        idempotency_key: str | None,
+    ) -> WebhookEvent | None:
+        if event_id:
+            existing = self.repository.find_by_source_and_event_id(source, event_id)
+            if existing is not None:
+                return existing
+        if idempotency_key:
+            return self.repository.find_by_source_and_idempotency_key(source, idempotency_key)
+        return None
 
     @BaseService.measure_operation("webhook_ledger.log_received")
     def log_received(
@@ -44,28 +66,58 @@ class WebhookLedgerService(BaseService):
         """
         safe_headers = self._sanitize_headers(headers) if headers else None
         now = _now_utc()
-
-        if event_id:
-            existing = self.repository.find_by_source_and_event_id(source, event_id)
-            if existing:
-                existing.retry_count = (existing.retry_count or 0) + 1
-                existing.last_retry_at = now
-                if safe_headers is not None:
-                    existing.headers = safe_headers
-                self.repository.flush()
-                return existing
-
-        return self.repository.create(
+        existing = self._find_existing_event(
             source=source,
-            event_type=event_type or "unknown",
             event_id=event_id,
-            payload=payload,
-            headers=safe_headers,
-            status="received",
             idempotency_key=idempotency_key,
-            received_at=now,
-            retry_count=0,
         )
+
+        if existing:
+            existing.retry_count = (existing.retry_count or 0) + 1
+            existing.last_retry_at = now
+            if safe_headers is not None:
+                existing.headers = safe_headers
+            self.repository.flush()
+            return existing
+
+        try:
+            return self.repository.create(
+                source=source,
+                event_type=event_type or "unknown",
+                event_id=event_id,
+                payload=payload,
+                headers=safe_headers,
+                status="received",
+                idempotency_key=idempotency_key,
+                received_at=now,
+                retry_count=0,
+            )
+        except RepositoryException as exc:
+            # Race-safe fallback: DB uniqueness won in another worker.
+            if isinstance(exc.__cause__, IntegrityError):
+                existing = self._find_existing_event(
+                    source=source,
+                    event_id=event_id,
+                    idempotency_key=idempotency_key,
+                )
+                if existing is not None:
+                    existing.retry_count = (existing.retry_count or 0) + 1
+                    existing.last_retry_at = now
+                    if safe_headers is not None:
+                        existing.headers = safe_headers
+                    self.repository.flush()
+                    return existing
+            raise
+
+    @BaseService.measure_operation("webhook_ledger.mark_processing")
+    def mark_processing(self, event: WebhookEvent) -> bool:
+        """Attempt to claim an event for processing."""
+        claimed = self.repository.claim_for_processing(event.id)
+        if claimed:
+            event.status = "processing"
+            event.processing_error = None
+            event.processed_at = None
+        return claimed
 
     @BaseService.measure_operation("webhook_ledger.mark_processed")
     def mark_processed(

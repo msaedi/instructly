@@ -3551,6 +3551,38 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/lessons/{booking_id}/join": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["join_lesson_api_v1_lessons__booking_id__join_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/lessons/{booking_id}/video-session": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_video_session_api_v1_lessons__booking_id__video_session_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/messages/config": {
  parameters: {
  query?: never;
@@ -5567,6 +5599,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/webhooks/hundredms": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["handle_hundredms_webhook_api_v1_webhooks_hundredms_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
 };
 export type webhooks = Record<string, never>;
 export type components = {
@@ -6641,6 +6689,7 @@ export type components = {
  booking_date: string;
  booking_end_utc?: string | null;
  booking_start_utc?: string | null;
+ can_join_lesson?: boolean | null;
  cancellation_reason: string | null;
  cancelled_at: string | null;
  cancelled_by_id: string | null;
@@ -6660,6 +6709,8 @@ export type components = {
  instructor_service: components["schemas"]["BookingServiceInfo"];
  instructor_service_id: string;
  instructor_timezone?: string | null;
+ join_closes_at?: string | null;
+ join_opens_at?: string | null;
  lesson_timezone?: string | null;
  location_address?: string | null;
  location_lat?: number | null;
@@ -6697,6 +6748,12 @@ export type components = {
  student_note: string | null;
  student_timezone?: string | null;
  total_price: number;
+ video_instructor_joined_at?: string | null;
+ video_room_id?: string | null;
+ video_session_duration_seconds?: number | null;
+ video_session_ended_at?: string | null;
+ video_session_started_at?: string | null;
+ video_student_joined_at?: string | null;
  };
  BookingDetailMeta: {
  booking_id: string;
@@ -6793,6 +6850,7 @@ export type components = {
  booking_date: string;
  booking_end_utc?: string | null;
  booking_start_utc?: string | null;
+ can_join_lesson?: boolean | null;
  cancellation_reason: string | null;
  cancelled_at: string | null;
  cancelled_by_id: string | null;
@@ -6812,6 +6870,8 @@ export type components = {
  instructor_service: components["schemas"]["BookingServiceInfo"];
  instructor_service_id: string;
  instructor_timezone?: string | null;
+ join_closes_at?: string | null;
+ join_opens_at?: string | null;
  lesson_timezone?: string | null;
  location_address?: string | null;
  location_lat?: number | null;
@@ -6847,6 +6907,12 @@ export type components = {
  student_note: string | null;
  student_timezone?: string | null;
  total_price: number;
+ video_instructor_joined_at?: string | null;
+ video_room_id?: string | null;
+ video_session_duration_seconds?: number | null;
+ video_session_ended_at?: string | null;
+ video_session_started_at?: string | null;
+ video_student_joined_at?: string | null;
  };
  BookingServiceInfo: {
  description: string | null;
@@ -10405,6 +10471,19 @@ export type components = {
  };
  VapidPublicKeyResponse: {
  public_key: string;
+ };
+ VideoJoinResponse: {
+ auth_token: string;
+ booking_id: string;
+ role: string;
+ room_id: string;
+ };
+ VideoSessionStatusResponse: {
+ instructor_joined_at?: string | null;
+ room_id: string;
+ session_ended_at?: string | null;
+ session_started_at?: string | null;
+ student_joined_at?: string | null;
  };
  WebhookAckResponse: {
  ok: boolean;
@@ -17863,6 +17942,64 @@ export interface operations {
  };
  };
  };
+ join_lesson_api_v1_lessons__booking_id__join_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ booking_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["VideoJoinResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_video_session_api_v1_lessons__booking_id__video_session_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ booking_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["VideoSessionStatusResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
  get_message_config_api_v1_messages_config_get: {
  parameters: {
  query?: never;
@@ -21588,6 +21725,25 @@ export interface operations {
  };
  };
  handle_checkr_webhook_api_v1_webhooks_checkr_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["WebhookAckResponse"];
+ };
+ };
+ };
+ };
+ handle_hundredms_webhook_api_v1_webhooks_hundredms_post: {
  parameters: {
  query?: never;
  header?: never;

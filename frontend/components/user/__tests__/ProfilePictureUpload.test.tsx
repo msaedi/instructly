@@ -565,7 +565,7 @@ describe('ProfilePictureUpload', () => {
     });
   });
 
-  describe('overlay size measurement (lines 66-67)', () => {
+  describe('overlay size measurement (measureTriggerCircleSize effect)', () => {
     it('measures trigger element size when custom trigger is provided', () => {
       const { Wrapper } = createWrapper();
 
@@ -625,6 +625,174 @@ describe('ProfilePictureUpload', () => {
       );
 
       expect(screen.getByTestId('small-trigger')).toBeInTheDocument();
+    });
+
+    it('constrains overlay to the smaller dimension (width < height)', () => {
+      const { Wrapper } = createWrapper();
+      mockUseProfilePictureUrls.mockReturnValue({ 'user-1': 'https://cdn.example.com/pic.jpg' });
+
+      // Mock getBoundingClientRect to return non-square dimensions
+      const originalGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+      Element.prototype.getBoundingClientRect = jest.fn(() => ({
+        top: 0, left: 0, right: 80, bottom: 120,
+        width: 80, height: 120,
+        x: 0, y: 0, toJSON: jest.fn(),
+      }));
+
+      const CustomTrigger = (
+        <div data-testid="rect-trigger" className="rounded-full">Avatar</div>
+      );
+
+      render(
+        <ProfilePictureUpload ariaLabel="Change avatar" trigger={CustomTrigger} />,
+        { wrapper: Wrapper }
+      );
+
+      // The overlay Image should use the smaller dimension (width=80)
+      const overlayImg = screen.getByAltText('Profile');
+      expect(overlayImg).toBeInTheDocument();
+      // Overlay size should be Math.min(80, 120) = 80
+      expect(overlayImg.style.width).toBe('80px');
+      expect(overlayImg.style.height).toBe('80px');
+
+      Element.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+    });
+
+    it('constrains overlay to the smaller dimension (height < width)', () => {
+      const { Wrapper } = createWrapper();
+      mockUseProfilePictureUrls.mockReturnValue({ 'user-1': 'https://cdn.example.com/pic.jpg' });
+
+      const originalGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+      Element.prototype.getBoundingClientRect = jest.fn(() => ({
+        top: 0, left: 0, right: 150, bottom: 60,
+        width: 150, height: 60,
+        x: 0, y: 0, toJSON: jest.fn(),
+      }));
+
+      const CustomTrigger = (
+        <div data-testid="wide-trigger" className="rounded-full">Wide</div>
+      );
+
+      render(
+        <ProfilePictureUpload ariaLabel="Change avatar" trigger={CustomTrigger} />,
+        { wrapper: Wrapper }
+      );
+
+      const overlayImg = screen.getByAltText('Profile');
+      // Overlay size should be Math.min(150, 60) = 60
+      expect(overlayImg.style.width).toBe('60px');
+      expect(overlayImg.style.height).toBe('60px');
+
+      Element.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+    });
+
+    it('does not update overlaySize when getBoundingClientRect returns 0x0 (hidden element)', () => {
+      const { Wrapper } = createWrapper();
+      mockUseProfilePictureUrls.mockReturnValue({ 'user-1': 'https://cdn.example.com/pic.jpg' });
+
+      // Mock getBoundingClientRect to return 0x0 (hidden element)
+      const originalGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+      Element.prototype.getBoundingClientRect = jest.fn(() => ({
+        top: 0, left: 0, right: 0, bottom: 0,
+        width: 0, height: 0,
+        x: 0, y: 0, toJSON: jest.fn(),
+      }));
+
+      const CustomTrigger = (
+        <div data-testid="hidden-trigger" className="rounded-full">Hidden</div>
+      );
+
+      render(
+        <ProfilePictureUpload ariaLabel="Change avatar" trigger={CustomTrigger} size={48} />,
+        { wrapper: Wrapper }
+      );
+
+      const overlayImg = screen.getByAltText('Profile');
+      // The `if (w && h)` guard should prevent updating overlaySize from the default (48)
+      // When w=0 or h=0, the guard fails, so overlaySize stays at the default `size` prop
+      expect(overlayImg.style.width).toBe('48px');
+      expect(overlayImg.style.height).toBe('48px');
+
+      Element.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+    });
+
+    it('does not update overlaySize when difference is 1 or less', () => {
+      const { Wrapper } = createWrapper();
+      mockUseProfilePictureUrls.mockReturnValue({ 'user-1': 'https://cdn.example.com/pic.jpg' });
+
+      // Default size is 64. If getBoundingClientRect returns 65x65,
+      // Math.abs(65 - 64) = 1, which is NOT > 1, so overlaySize stays at 64
+      const originalGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+      Element.prototype.getBoundingClientRect = jest.fn(() => ({
+        top: 0, left: 0, right: 65, bottom: 65,
+        width: 65, height: 65,
+        x: 0, y: 0, toJSON: jest.fn(),
+      }));
+
+      const CustomTrigger = (
+        <div data-testid="close-size-trigger" className="rounded-full">Close</div>
+      );
+
+      render(
+        <ProfilePictureUpload ariaLabel="Change avatar" trigger={CustomTrigger} />,
+        { wrapper: Wrapper }
+      );
+
+      const overlayImg = screen.getByAltText('Profile');
+      // overlaySize should stay at the default 64 since |65 - 64| = 1 is not > 1
+      expect(overlayImg.style.width).toBe('64px');
+      expect(overlayImg.style.height).toBe('64px');
+
+      Element.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+    });
+
+    it('falls back to button element when no .rounded-full child exists', () => {
+      const { Wrapper } = createWrapper();
+      mockUseProfilePictureUrls.mockReturnValue({ 'user-1': 'https://cdn.example.com/pic.jpg' });
+
+      const originalGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+      Element.prototype.getBoundingClientRect = jest.fn(() => ({
+        top: 0, left: 0, right: 100, bottom: 100,
+        width: 100, height: 100,
+        x: 0, y: 0, toJSON: jest.fn(),
+      }));
+
+      // Trigger WITHOUT .rounded-full class - the effect should fall back to the button element
+      const NoCircleTrigger = (
+        <div data-testid="no-circle">No circle class</div>
+      );
+
+      render(
+        <ProfilePictureUpload ariaLabel="Change avatar" trigger={NoCircleTrigger} />,
+        { wrapper: Wrapper }
+      );
+
+      const overlayImg = screen.getByAltText('Profile');
+      // Should use the button element's dimensions (100x100), and since |100 - 64| > 1, update overlaySize
+      expect(overlayImg.style.width).toBe('100px');
+      expect(overlayImg.style.height).toBe('100px');
+
+      Element.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+    });
+
+    it('skips measurement effect entirely when no trigger is provided', () => {
+      const { Wrapper } = createWrapper();
+
+      const querySelectorSpy = jest.spyOn(Element.prototype, 'querySelector');
+
+      render(
+        <ProfilePictureUpload ariaLabel="Change avatar" />,
+        { wrapper: Wrapper }
+      );
+
+      // Without a trigger, the effect returns early (if (!trigger) return),
+      // so querySelector should not be called to find '.rounded-full'
+      const roundedFullCalls = querySelectorSpy.mock.calls.filter(
+        ([selector]) => selector === '.rounded-full'
+      );
+      expect(roundedFullCalls.length).toBe(0);
+
+      querySelectorSpy.mockRestore();
     });
   });
 
@@ -963,6 +1131,35 @@ describe('ProfilePictureUpload', () => {
 
       // Crop modal should be closed after successful upload
       expect(screen.queryByTestId('crop-modal')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('onPick triggers file input click', () => {
+    it('clicking the camera button calls click() on the hidden file input (bug hunt: onPick at line 78)', () => {
+      (useAuth as jest.Mock).mockReturnValue({
+        checkAuth: jest.fn().mockReturnValue(true),
+        user: { id: '01K2TEST00000000000000001', has_profile_picture: false },
+      });
+      (useProfilePictureUrls as jest.Mock).mockReturnValue({});
+
+      const { Wrapper } = createWrapper();
+      const { container } = render(
+        <Wrapper>
+          <ProfilePictureUpload />
+        </Wrapper>,
+      );
+
+      // The hidden file input
+      const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+      const clickSpy = jest.spyOn(fileInput, 'click');
+
+      // Click the default camera button (no custom trigger)
+      const cameraButton = screen.getByTitle('Choose Image');
+      fireEvent.click(cameraButton);
+
+      // onPick should have triggered fileInput.click()
+      expect(clickSpy).toHaveBeenCalledTimes(1);
+      clickSpy.mockRestore();
     });
   });
 });

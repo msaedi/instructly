@@ -770,6 +770,37 @@ def test_dispute_no_show_invalid_type(
         booking_service.dispute_no_show(booking_id=booking.id, disputer=disputer, reason="x")
 
 
+def test_dispute_no_show_mutual_allows_participant(
+    booking_service: BookingService, mock_repository: MagicMock
+) -> None:
+    booking = make_booking(
+        no_show_reported_at=datetime.now(timezone.utc) - timedelta(hours=1),
+        no_show_type="mutual",
+    )
+    disputer = make_user(RoleName.STUDENT, id=booking.student_id)
+    no_show_record = make_no_show_record(
+        no_show_reported_at=booking.no_show_reported_at,
+        no_show_type=booking.no_show_type,
+        no_show_disputed=False,
+    )
+    mock_repository.get_booking_with_details.return_value = booking
+    mock_repository.get_no_show_by_booking_id.return_value = no_show_record
+    booking_service._snapshot_booking = Mock(return_value={})
+    booking_service._write_booking_audit = Mock()
+    booking_service._invalidate_booking_caches = Mock()
+
+    with patch("app.repositories.payment_repository.PaymentRepository") as payment_repo:
+        payment_repo.return_value.create_payment_event = Mock()
+        result = booking_service.dispute_no_show(
+            booking_id=booking.id,
+            disputer=disputer,
+            reason="mutual attendance issue",
+        )
+
+    assert result["disputed"] is True
+    assert no_show_record.no_show_disputed is True
+
+
 def test_dispute_no_show_naive_reported_at_success(
     booking_service: BookingService, mock_repository: MagicMock
 ) -> None:
@@ -967,6 +998,59 @@ def test_resolve_no_show_student_locked_path(
 
     assert result["success"] is True
     booking_service.resolve_lock_for_booking.assert_called_once_with("lock_2", "new_lesson_completed")
+
+
+def test_resolve_no_show_mutual_refunds_student_no_payout(
+    booking_service: BookingService, mock_repository: MagicMock
+) -> None:
+    booking = make_booking(
+        no_show_reported_at=datetime.now(timezone.utc),
+        no_show_type="mutual",
+        payment_status=PaymentStatus.AUTHORIZED.value,
+        payment_intent_id="pi_456",
+        has_locked_funds=False,
+        rescheduled_from_booking_id=None,
+    )
+    no_show_record = make_no_show_record(
+        no_show_reported_at=booking.no_show_reported_at,
+        no_show_type=booking.no_show_type,
+        no_show_disputed=False,
+        no_show_resolved_at=None,
+    )
+    mock_repository.get_booking_with_details.side_effect = [booking, booking]
+    mock_repository.get_no_show_by_booking_id.return_value = no_show_record
+    booking_service._snapshot_booking = Mock(return_value={})
+    booking_service._write_booking_audit = Mock()
+    booking_service._invalidate_booking_caches = Mock()
+    booking_service._refund_for_instructor_no_show = Mock(
+        return_value={
+            "refund_success": True,
+            "refund_data": {"amount_refunded": 12000, "refund_id": "re_123"},
+        }
+    )
+
+    with patch("app.repositories.payment_repository.PaymentRepository") as payment_repo:
+        payment_repo.return_value.get_payment_by_booking_id.return_value = SimpleNamespace(
+            amount=12000,
+            instructor_payout_cents=8000,
+            status=PaymentStatus.AUTHORIZED.value,
+        )
+        payment_repo.return_value.create_payment_event = Mock()
+
+        result = booking_service.resolve_no_show(
+            booking_id=booking.id,
+            resolution="confirmed_no_dispute",
+            resolved_by=None,
+        )
+
+    settled_payment = mock_repository.ensure_payment.return_value
+    assert result["success"] is True
+    assert booking.status == BookingStatus.NO_SHOW
+    assert booking.refunded_to_card_amount == 12000
+    assert booking.student_credit_amount == 0
+    assert settled_payment.instructor_payout_amount == 0
+    assert settled_payment.payment_status == PaymentStatus.SETTLED.value
+    assert settled_payment.settlement_outcome == "mutual_no_show_full_refund"
 
 
 def test_refund_for_instructor_no_show_cancel_success(

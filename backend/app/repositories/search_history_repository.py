@@ -70,7 +70,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         search_query = self._add_user_filter(search_query, context)
         return cast(Optional[SearchHistory], search_query.first())
 
-    def increment_search_count(self, search_id: int) -> Optional[SearchHistory]:
+    def increment_search_count(self, search_id: str | int) -> Optional[SearchHistory]:
         """
         Increment count and update last_searched_at timestamp.
 
@@ -80,7 +80,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         Returns:
             Updated SearchHistory or None if not found
         """
-        search = self.get_by_id(search_id)
+        search = self.get_by_id(str(search_id))
         if search and not search.deleted_at:
             search.search_count += 1
             search.last_searched_at = datetime.now(timezone.utc)

@@ -2508,7 +2508,7 @@ def capture_late_cancellation(self: Any, booking_id: Union[int, str]) -> Dict[st
 
             # Get the booking
             booking_repo = RepositoryFactory.get_booking_repository(db)
-            booking = booking_repo.get_by_id(booking_id)
+            booking = booking_repo.get_by_id(str(booking_id))
             if not booking:
                 logger.error(f"Booking {booking_id} not found for late cancellation capture")
                 return {"success": False, "error": "Booking not found"}

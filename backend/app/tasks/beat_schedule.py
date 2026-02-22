@@ -127,6 +127,14 @@ CELERYBEAT_SCHEDULE = {
             "priority": 3,
         },
     },
+    "detect-video-no-shows": {
+        "task": "app.tasks.video_tasks.detect_video_no_shows",
+        "schedule": crontab(minute="*/15"),
+        "options": {
+            "queue": "celery",
+            "priority": 5,
+        },
+    },
     # Search history cleanup - runs daily at 3 AM
     "cleanup-search-history": {
         "task": "privacy.cleanup_search_history",

@@ -617,6 +617,49 @@ describe('useConversations', () => {
     });
   });
 
+  describe('SSE onMessage callback', () => {
+    it('should call invalidate on new message event', async () => {
+      let capturedCallbacks: { onMessage?: () => void; onMessageEdited?: () => void } = {};
+
+      mockSubscribe.mockImplementation((_: string, callbacks: typeof capturedCallbacks) => {
+        capturedCallbacks = callbacks;
+        return () => {};
+      });
+
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(createMockConversationListResponse()),
+      });
+
+      renderHook(
+        () =>
+          useConversations({
+            currentUserId: 'instructor1',
+            isLoadingUser: false,
+          }),
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(mockSubscribe).toHaveBeenCalled();
+      });
+
+      // Clear fetch calls from initial load
+      (global.fetch as jest.Mock).mockClear();
+
+      // Simulate new message event via onMessage callback
+      if (capturedCallbacks.onMessage) {
+        capturedCallbacks.onMessage();
+      }
+
+      // The invalidate should trigger a refetch
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalled();
+      });
+    });
+  });
+
   describe('SSE message edited callback', () => {
     it('should call invalidate on message edited event', async () => {
       let capturedCallbacks: { onMessage?: () => void; onMessageEdited?: () => void } = {};

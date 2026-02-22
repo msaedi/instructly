@@ -119,6 +119,7 @@ from .routes.v1 import (
     instructor_referrals as instructor_referrals_v1,
     instructors as instructors_v1,
     internal as internal_v1,
+    lessons as lessons_v1,
     messages as messages_v1,
     metrics as metrics_v1,
     monitoring as monitoring_v1,
@@ -144,6 +145,7 @@ from .routes.v1 import (
     uploads as uploads_v1,
     users as users_v1,
     webhooks_checkr as webhooks_checkr_v1,
+    webhooks_hundredms as webhooks_hundredms_v1,
 )
 from .routes.v1.admin import (
     audit as admin_audit_v1,
@@ -334,6 +336,32 @@ def _validate_startup_config() -> None:
         logger.info("Background-check report encryption enabled for production")
     elif secret_or_plain(getattr(runtime_settings, "bgc_encryption_key", None)).strip():
         logger.info("Background-check report encryption enabled")
+
+    if getattr(runtime_settings, "hundredms_enabled", False):
+        access_key = (getattr(runtime_settings, "hundredms_access_key", None) or "").strip()
+        app_secret = secret_or_plain(
+            getattr(runtime_settings, "hundredms_app_secret", None)
+        ).strip()
+        template_id = (getattr(runtime_settings, "hundredms_template_id", None) or "").strip()
+        webhook_secret = secret_or_plain(
+            getattr(runtime_settings, "hundredms_webhook_secret", None)
+        ).strip()
+
+        missing: list[str] = []
+        if not access_key:
+            missing.append("HUNDREDMS_ACCESS_KEY")
+        if not app_secret:
+            missing.append("HUNDREDMS_APP_SECRET")
+        if not template_id:
+            missing.append("HUNDREDMS_TEMPLATE_ID")
+        if not webhook_secret:
+            missing.append("HUNDREDMS_WEBHOOK_SECRET")
+
+        if missing:
+            raise ValueError(
+                "HUNDREDMS_ENABLED=True but required configuration is missing: "
+                + ", ".join(missing)
+            )
 
 
 @asynccontextmanager
@@ -1099,6 +1127,7 @@ api_v1.include_router(reviews_v1.router, prefix="/reviews")  # type: ignore[attr
 api_v1.include_router(services_v1.router, prefix="/services")  # type: ignore[attr-defined]
 api_v1.include_router(catalog_v1.router, prefix="/catalog")  # type: ignore[attr-defined]
 api_v1.include_router(favorites_v1.router, prefix="/favorites")  # type: ignore[attr-defined]
+api_v1.include_router(lessons_v1.router, prefix="/lessons")  # type: ignore[attr-defined]
 api_v1.include_router(addresses_v1.router, prefix="/addresses")  # type: ignore[attr-defined]
 api_v1.include_router(search_v1.router, prefix="/search")  # type: ignore[attr-defined]
 api_v1.include_router(search_history_v1.router, prefix="/search-history")  # type: ignore[attr-defined]
@@ -1227,6 +1256,7 @@ api_v1.include_router(  # type: ignore[attr-defined]
 )
 # Phase 23 v1 webhooks router
 api_v1.include_router(webhooks_checkr_v1.router, prefix="/webhooks/checkr")  # type: ignore[attr-defined]
+api_v1.include_router(webhooks_hundredms_v1.router, prefix="/webhooks/hundredms")  # type: ignore[attr-defined]
 # Phase 24.5 v1 admin operations routers
 api_v1.include_router(analytics_v1.router, prefix="/analytics")  # type: ignore[attr-defined]
 api_v1.include_router(codebase_metrics_v1.router, prefix="/analytics/codebase")  # type: ignore[attr-defined]
@@ -1251,6 +1281,8 @@ PUBLIC_OPEN_PATHS = {
     "/api/v1/referrals/claim",
     # v1 payments webhook (signature-verified, no auth needed)
     "/api/v1/payments/webhooks/stripe",
+    # v1 100ms video webhook (secret-verified, no auth needed)
+    "/api/v1/webhooks/hundredms",
     # v1 prometheus metrics (public, no auth per Prometheus best practices)
     "/api/v1/metrics/prometheus",
 }

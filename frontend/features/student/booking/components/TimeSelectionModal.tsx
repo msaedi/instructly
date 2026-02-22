@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { X, ArrowLeft } from 'lucide-react';
 import { UserAvatar } from '@/components/user/UserAvatar';
 import { logger } from '@/lib/logger';
@@ -142,6 +143,7 @@ export default function TimeSelectionModal({
   bookingDraftId,
   appliedCreditCents,
 }: TimeSelectionModalProps) {
+  const router = useRouter();
   const { isAuthenticated, redirectToLogin, user } = useAuth();
   const { floors: pricingFloors } = usePricingFloors();
 
@@ -922,7 +924,7 @@ export default function TimeSelectionModal({
 
       // Small delay to ensure modal closes before navigation
       setTimeout(() => {
-        window.location.href = '/student/booking/confirm';
+        router.push('/student/booking/confirm');
       }, 100);
     }
     return undefined;

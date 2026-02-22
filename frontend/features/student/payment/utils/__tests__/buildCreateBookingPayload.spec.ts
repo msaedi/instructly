@@ -589,4 +589,113 @@ describe('buildCreateBookingPayload', () => {
       }),
     ).toThrow('Booking start and end times are required to build payload');
   });
+
+  it('uses metadata.duration number when booking.duration is nullish', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-mdur',
+      serviceId: 'svc-mdur',
+      bookingDate: '2025-05-06',
+      booking: {
+        ...baseBooking,
+        duration: undefined as unknown as number,
+        metadata: {
+          modality: 'remote',
+          duration: 75, // numeric duration in metadata
+        },
+      },
+    });
+
+    expect(payload.selected_duration).toBe(75);
+  });
+
+  it('defaults metadata to empty object when booking.metadata is undefined', () => {
+    const booking = { ...baseBooking };
+    delete (booking as Record<string, unknown>)['metadata'];
+
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-nometa',
+      serviceId: 'svc-nometa',
+      bookingDate: '2025-05-06',
+      booking,
+    });
+
+    // Should not throw -- metadata defaults to {}
+    expect(payload.selected_duration).toBe(60);
+  });
+
+  it('uses "In-person lesson" as meeting_location fallback for non-online bookings with no location', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-noloc',
+      serviceId: 'svc-noloc',
+      bookingDate: '2025-05-06',
+      booking: {
+        ...baseBooking,
+        location: undefined as unknown as string, // truly absent location
+        metadata: {
+          modality: 'in_person',
+        },
+      },
+    });
+
+    // locationAddress = undefined ?? undefined ?? undefined = undefined
+    // fallbackLocation = undefined (typeof undefined !== 'string')
+    // meetingLocation = undefined ?? undefined ?? 'In-person lesson'
+    expect(payload.meeting_location).toBe('In-person lesson');
+    expect(payload.location_type).toBe('student_location');
+  });
+
+  it('resolves timezone from lesson_timezone metadata key', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-ltz',
+      serviceId: 'svc-ltz',
+      bookingDate: '2025-05-06',
+      booking: {
+        ...baseBooking,
+        metadata: {
+          modality: 'remote',
+          lesson_timezone: 'Pacific/Honolulu',
+        },
+      },
+    });
+
+    expect(payload.timezone).toBe('Pacific/Honolulu');
+  });
+
+  it('resolves timezone from instructor_timezone metadata key', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-itz',
+      serviceId: 'svc-itz',
+      bookingDate: '2025-05-06',
+      booking: {
+        ...baseBooking,
+        metadata: {
+          modality: 'remote',
+          instructor_timezone: 'Europe/London',
+        },
+      },
+    });
+
+    expect(payload.timezone).toBe('Europe/London');
+  });
+
+  it('normalizeNumber returns undefined for non-number non-string types', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-bool',
+      serviceId: 'svc-bool',
+      bookingDate: '2025-05-06',
+      booking: {
+        ...baseBooking,
+        location: '123 Main',
+        metadata: {
+          modality: 'in_person',
+          location_lat: true as unknown as number,
+          location_lng: null as unknown as number,
+        },
+      },
+    });
+
+    // Boolean and null are not number or string -> undefined
+    expect(payload).not.toHaveProperty('location_lat');
+    expect(payload).not.toHaveProperty('location_lng');
+  });
 });

@@ -84,4 +84,39 @@ describe('useCodebaseMetrics', () => {
     expect(getCodebaseMetricsMock).toHaveBeenCalledWith('');
     expect(getCodebaseHistoryMock).toHaveBeenCalledWith('');
   });
+
+  it('auto-refreshes on interval tick and survives a rejected fetch', async () => {
+    jest.useFakeTimers();
+
+    const snapshot = { total_files: 120 };
+    const history = { items: [{ timestamp: '2024-01-01', total_files: 100 }] };
+
+    getCodebaseMetricsMock.mockResolvedValue(snapshot);
+    getCodebaseHistoryMock.mockResolvedValue(history);
+
+    const { result } = renderHook(() => useCodebaseMetrics('token-123'));
+
+    // Wait for the initial fetch to complete
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(getCodebaseMetricsMock).toHaveBeenCalledTimes(1);
+    expect(getCodebaseHistoryMock).toHaveBeenCalledTimes(1);
+
+    // Make the next fetch reject to verify the interval callback handles errors
+    getCodebaseMetricsMock.mockRejectedValueOnce(new Error('Network timeout'));
+
+    // Advance time by 10 minutes to trigger the interval
+    await act(async () => {
+      jest.advanceTimersByTime(10 * 60 * 1000);
+    });
+
+    // The interval should have triggered a second call
+    await waitFor(() => expect(getCodebaseMetricsMock).toHaveBeenCalledTimes(2));
+
+    // Error should be captured in state, not thrown
+    expect(result.current.error).toBe('Network timeout');
+    // Previous data should still be present (hook sets error but doesn't clear data)
+    expect(result.current.data).toEqual(snapshot);
+
+    jest.useRealTimers();
+  });
 });

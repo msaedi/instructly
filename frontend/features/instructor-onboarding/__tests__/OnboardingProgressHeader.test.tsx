@@ -137,4 +137,106 @@ describe('OnboardingProgressHeader', () => {
     fireEvent.click(screen.getByTitle('Step 2: Add Skills'));
     expect(pushMock).toHaveBeenCalledWith('/instructor/onboarding/skill-selection');
   });
+
+  it('renders with default statuses when no stepStatus is provided', () => {
+    // effectiveStepStatus is undefined (autoEvaluate=false, no stepStatus)
+    // This exercises the `effectiveStepStatus || {}` fallback on line 71
+    render(
+      <OnboardingProgressHeader activeStep="skill-selection" />
+    );
+
+    // All steps should default to 'pending' status
+    const step1 = screen.getByTitle('Step 1: Account Setup');
+    expect(step1.className).toContain('border-gray-300');
+    // Step 2 is active (current)
+    const step2 = screen.getByTitle('Step 2: Add Skills');
+    expect(step2.className).toContain('bg-purple-100');
+  });
+
+  it('renders failed step with cross icon and dashed line', () => {
+    render(
+      <OnboardingProgressHeader
+        activeStep="verify-identity"
+        stepStatus={stepStatusDoneFailed}
+      />
+    );
+
+    // Step 2 has 'failed' status
+    const step2 = screen.getByTitle('Step 2: Add Skills');
+    const crossIcon = step2.querySelector('.icon-cross');
+    expect(crossIcon).toBeInTheDocument();
+
+    // Line after step 2 should use the dashed pattern
+    const line2 = document.getElementById('progress-line-2');
+    expect(line2?.className).toContain('repeating-linear-gradient');
+  });
+
+  it('renders pending line as gray between pending steps', () => {
+    render(
+      <OnboardingProgressHeader
+        activeStep="account-setup"
+        stepStatus={{
+          'account-setup': 'pending',
+          'skill-selection': 'pending',
+          'verify-identity': 'pending',
+          'payment-setup': 'pending',
+        }}
+      />
+    );
+
+    // Line after step 1 should be gray (pending)
+    const line1 = document.getElementById('progress-line-1');
+    expect(line1?.className).toContain('bg-gray-300');
+  });
+
+  it('derives completionMap from resolvedStatuses when completedSteps is not provided', () => {
+    render(
+      <OnboardingProgressHeader
+        activeStep="verify-identity"
+        stepStatus={{
+          'account-setup': 'done',
+          'skill-selection': 'done',
+          'verify-identity': 'pending',
+          'payment-setup': 'pending',
+        }}
+      />
+    );
+
+    // Completed steps should show checkmarks
+    const step1 = screen.getByTitle('Step 1: Account Setup');
+    expect(step1.querySelector('.icon-check')).toBeInTheDocument();
+    const step2 = screen.getByTitle('Step 2: Add Skills');
+    expect(step2.querySelector('.icon-check')).toBeInTheDocument();
+  });
+
+  it('uses walk animation classes for non-first active step', () => {
+    render(
+      <OnboardingProgressHeader
+        activeStep="payment-setup"
+        stepStatus={{
+          'account-setup': 'done',
+          'skill-selection': 'done',
+          'verify-identity': 'done',
+          'payment-setup': 'pending',
+        }}
+      />
+    );
+
+    const art = screen.getByTestId('onboarding-header-art');
+    expect(art.className).toContain('inst-anim-walk');
+    expect(art.className).not.toContain('inst-anim-walk-profile');
+  });
+
+  it('does not render a line after the last step', () => {
+    render(
+      <OnboardingProgressHeader
+        activeStep="payment-setup"
+        stepStatus={stepStatusDoneFailed}
+      />
+    );
+
+    // The 4th step should NOT have a trailing line
+    const line4 = document.getElementById('progress-line-4');
+    expect(line4).toBeNull();
+  });
 });

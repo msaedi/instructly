@@ -1,5 +1,6 @@
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from backend.tests.factories.booking_builders import create_booking_pg_safe
 from fastapi.testclient import TestClient
@@ -155,7 +156,7 @@ def test_completed_endpoint_includes_past_confirmed_lessons(
     """Past lessons endpoint should include chronologically past CONFIRMED bookings."""
     service = _service_for(db, test_instructor)
 
-    fake_now = datetime(2025, 1, 1, 20, 0, tzinfo=timezone.utc)
+    fake_now = datetime(2025, 1, 1, 20, 0, tzinfo=ZoneInfo("America/New_York"))
 
     def _fake_user_now(user_id: str, _db: Session):
         assert user_id == test_instructor.id

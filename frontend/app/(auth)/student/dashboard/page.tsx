@@ -20,6 +20,7 @@ import { fetchAPI, fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { toast } from 'sonner';
 import { favoritesApi } from '@/services/api/favorites';
 import type { ApiErrorResponse, FavoritesListResponse, components } from '@/features/shared/api/types';
+import { extractApiErrorMessage } from '@/lib/apiErrors';
 import { getServiceAreaDisplay } from '@/lib/profileServiceAreas';
 import { StudentBadgesSection } from '@/features/student/badges/StudentBadgesSection';
 import RewardsPanel from '@/features/referrals/RewardsPanel';
@@ -923,7 +924,8 @@ function NotificationsTab() {
 
   const handleSave = async () => {
     setSaving(true);
-    // TODO: Implement API call to save preferences
+    // Tracking: FE-3321 (owner: @frontend-platform, target: 2026-03-31)
+    // Keep simulated save until notification preferences API integration is finalized.
     await new Promise(resolve => setTimeout(resolve, 1000));
     toast.success('Notification preferences saved', {
       style: {
@@ -1759,7 +1761,7 @@ function DeleteAccountModal({ email, onClose, onDeleted }: { email: string; onCl
         try {
           const body = (await delRes.json().catch(() => ({}))) as ApiErrorResponse;
           if (delRes.status === 400 && body.detail) {
-            setError(body.detail);
+            setError(extractApiErrorMessage(body));
           } else {
             setError('Failed to delete account. Please try again later.');
           }
@@ -1883,7 +1885,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as ApiErrorResponse;
         logger.error('Profile update failed', new Error(String(res.status)), { body });
-        setError(body.detail || 'Failed to update profile');
+        setError(extractApiErrorMessage(body, 'Failed to update profile'));
         setLoading(false);
         return;
       }
@@ -2015,7 +2017,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as ApiErrorResponse;
-        setError(body.detail || 'Failed to change password.');
+        setError(extractApiErrorMessage(body, 'Failed to change password.'));
         setSubmitting(false);
         return;
       }

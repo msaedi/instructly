@@ -241,4 +241,74 @@ describe('useMessageDrafts', () => {
 
     expect(result.current.draftsByThread).toEqual({});
   });
+
+  it('handles cookie where value part after = is undefined (fallback to empty string)', () => {
+    // This tests the ?? '' branch on target.split('=')[1] ?? ''
+    // When the cookie is exactly "DRAFT_COOKIE_NAME=" with nothing after the =,
+    // split('=') gives ['DRAFT_COOKIE_NAME', ''] which is still truthy,
+    // but we need the [1] to be undefined.
+    // We simulate this by setting a cookie that after splitting on = produces
+    // an undefined [1] element. Since split always returns at least the original
+    // string, the only way to get undefined[1] is if the cookie format is unusual.
+    // However, the cookie mock makes this tricky. The real branch we cover is
+    // decodeURIComponent of '' which returns '' and falls to the !raw check.
+    mockCookies[DRAFT_COOKIE_NAME] = '';
+
+    const { result } = renderHook(() => useMessageDrafts());
+
+    // Should handle gracefully and return empty
+    expect(result.current.draftsByThread).toEqual({});
+  });
+
+  it('handles numeric string cookie value gracefully', () => {
+    // JSON.parse("42") returns 42, which is not an object
+    mockCookies[DRAFT_COOKIE_NAME] = encodeURIComponent('42');
+
+    const { result } = renderHook(() => useMessageDrafts());
+
+    expect(result.current.draftsByThread).toEqual({});
+  });
+
+  it('handles null cookie value gracefully', () => {
+    // JSON.parse("null") returns null
+    mockCookies[DRAFT_COOKIE_NAME] = encodeURIComponent('null');
+
+    const { result } = renderHook(() => useMessageDrafts());
+
+    expect(result.current.draftsByThread).toEqual({});
+  });
+
+  it('handles boolean cookie value gracefully', () => {
+    mockCookies[DRAFT_COOKIE_NAME] = encodeURIComponent('true');
+
+    const { result } = renderHook(() => useMessageDrafts());
+
+    expect(result.current.draftsByThread).toEqual({});
+  });
+
+  it('handles multiple drafts persisted and cleared correctly', () => {
+    const { result } = renderHook(() => useMessageDrafts());
+
+    act(() => {
+      result.current.updateDraft('thread-1', 'Draft 1');
+    });
+
+    act(() => {
+      result.current.updateDraft('thread-2', 'Draft 2');
+    });
+
+    // Both should be persisted
+    expect(mockCookies[DRAFT_COOKIE_NAME]).toBeDefined();
+
+    act(() => {
+      result.current.clearDraft('thread-1');
+    });
+
+    act(() => {
+      result.current.clearDraft('thread-2');
+    });
+
+    // All empty -> cookie should be cleared
+    expect(mockCookies[DRAFT_COOKIE_NAME]).toBeUndefined();
+  });
 });

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { fetchAPI, fetchWithAuth } from '@/lib/api';
 import type { ApiErrorResponse } from '@/features/shared/api/types';
+import { extractApiErrorMessage } from '@/lib/apiErrors';
 
 type Props = {
   email: string;
@@ -46,7 +47,7 @@ export default function DeleteAccountModal({ email, onClose, onDeleted }: Props)
         try {
           const body = (await delRes.json()) as ApiErrorResponse;
           if (delRes.status === 400 && body?.detail) {
-            setError(body.detail);
+            setError(extractApiErrorMessage(body));
           } else {
             setError('Failed to delete account. Please try again later.');
           }

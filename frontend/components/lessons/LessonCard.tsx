@@ -23,6 +23,7 @@ interface LessonCardProps {
   prefetchedReviewed?: boolean;
   suppressFetchRating?: boolean;
   suppressFetchReviewed?: boolean;
+  children?: React.ReactNode;
 }
 
 export function LessonCard({
@@ -39,6 +40,7 @@ export function LessonCard({
   prefetchedReviewed,
   suppressFetchRating,
   suppressFetchReviewed,
+  children,
 }: LessonCardProps) {
   const formattedDate = formatBookingDate(lesson);
   const formattedTime = formatBookingTime(lesson);
@@ -174,6 +176,12 @@ export function LessonCard({
           </div>
         </div>
 
+        {children && (
+          <div className="pt-2" onClick={e => e.stopPropagation()}>
+            {children}
+          </div>
+        )}
+
         {/* Instructor Info */}
         <div className="pt-4 border-t border-gray-300">
           <InstructorInfo
@@ -208,7 +216,7 @@ function getCancellationFeeDisplay(lesson: Booking): string {
   }
 
   const cancelledDate = new Date(lesson.cancelled_at);
-  const bookingStartUtc = (lesson as { booking_start_utc?: string | null }).booking_start_utc;
+  const bookingStartUtc = lesson.booking_start_utc;
   const lessonDateTime = bookingStartUtc
     ? new Date(bookingStartUtc)
     : new Date(`${lesson.booking_date}T${lesson.start_time}Z`);

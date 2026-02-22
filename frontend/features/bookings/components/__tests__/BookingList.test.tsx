@@ -3,6 +3,12 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BookingList } from '../BookingList';
 
+jest.mock('@/components/lessons/video/JoinLessonButton', () => ({
+  JoinLessonButton: (props: Record<string, unknown>) => (
+    <div data-testid="join-lesson-button" data-booking-id={props.bookingId} />
+  ),
+}));
+
 describe('BookingList', () => {
   it('renders loading cards when loading', () => {
     render(
@@ -598,6 +604,167 @@ describe('BookingList', () => {
 
     // needsAction returns false when end_time is missing
     expect(screen.queryByText('Action Required')).not.toBeInTheDocument();
+
+    jest.useRealTimers();
+  });
+
+  it('calls onViewDetails when a booking card is clicked', async () => {
+    const onViewDetails = jest.fn();
+    const user = userEvent.setup();
+
+    render(
+      <BookingList
+        data={[
+          {
+            id: 'b-click',
+            booking_date: '2025-01-06',
+            start_time: '10:00:00',
+            status: 'CONFIRMED',
+            service_name: 'Piano',
+          },
+        ]}
+        emptyTitle="No bookings"
+        emptyDescription="Come back later"
+        onViewDetails={onViewDetails}
+      />
+    );
+
+    await user.click(screen.getByTestId('booking-card'));
+    expect(onViewDetails).toHaveBeenCalledWith('b-click');
+  });
+
+  it('does not call onViewDetails when action buttons are clicked', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2025-01-06T12:30:00'));
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    const onViewDetails = jest.fn();
+    const onComplete = jest.fn();
+
+    render(
+      <BookingList
+        data={[
+          {
+            id: 'b-stop',
+            booking_date: '2025-01-06',
+            start_time: '10:00:00',
+            end_time: '11:00:00',
+            status: 'CONFIRMED',
+            service_name: 'Guitar',
+          },
+        ]}
+        emptyTitle="No bookings"
+        emptyDescription="Come back later"
+        onViewDetails={onViewDetails}
+        onComplete={onComplete}
+      />
+    );
+
+    await user.click(screen.getByTestId('mark-complete-button'));
+    expect(onComplete).toHaveBeenCalledWith('b-stop');
+    expect(onViewDetails).not.toHaveBeenCalled();
+
+    jest.useRealTimers();
+  });
+
+  it('renders JoinLessonButton when join_opens_at is provided', () => {
+    render(
+      <BookingList
+        data={[
+          {
+            id: 'b23',
+            booking_date: '2025-01-06',
+            start_time: '10:00:00',
+            end_time: '11:00:00',
+            status: 'CONFIRMED',
+            service_name: 'Piano',
+            join_opens_at: '2025-01-06T09:55:00Z',
+            join_closes_at: '2025-01-06T10:15:00Z',
+          },
+        ]}
+        emptyTitle="No bookings"
+        emptyDescription="Come back later"
+      />
+    );
+
+    expect(screen.getByTestId('join-lesson-button')).toBeInTheDocument();
+  });
+
+  it('does not render JoinLessonButton when join_opens_at is null', () => {
+    render(
+      <BookingList
+        data={[
+          {
+            id: 'b24',
+            booking_date: '2025-01-06',
+            start_time: '10:00:00',
+            end_time: '11:00:00',
+            status: 'CONFIRMED',
+            service_name: 'Guitar',
+          },
+        ]}
+        emptyTitle="No bookings"
+        emptyDescription="Come back later"
+      />
+    );
+
+    expect(screen.queryByTestId('join-lesson-button')).not.toBeInTheDocument();
+  });
+
+  it('does not call onViewDetails when JoinLessonButton area is clicked', async () => {
+    const onViewDetails = jest.fn();
+    const user = userEvent.setup();
+
+    render(
+      <BookingList
+        data={[
+          {
+            id: 'b-join-stop',
+            booking_date: '2025-01-06',
+            start_time: '10:00:00',
+            end_time: '11:00:00',
+            status: 'CONFIRMED',
+            service_name: 'Piano',
+            join_opens_at: '2025-01-06T09:55:00Z',
+            join_closes_at: '2025-01-06T10:15:00Z',
+          },
+        ]}
+        emptyTitle="No bookings"
+        emptyDescription="Come back later"
+        onViewDetails={onViewDetails}
+      />
+    );
+
+    await user.click(screen.getByTestId('join-lesson-button'));
+    expect(onViewDetails).not.toHaveBeenCalled();
+  });
+
+  it('renders JoinLessonButton alongside action buttons', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2025-01-06T12:30:00'));
+
+    render(
+      <BookingList
+        data={[
+          {
+            id: 'b25',
+            booking_date: '2025-01-06',
+            start_time: '10:00:00',
+            end_time: '11:00:00',
+            status: 'CONFIRMED',
+            service_name: 'Drums',
+            join_opens_at: '2025-01-06T09:55:00Z',
+            join_closes_at: '2025-01-06T10:15:00Z',
+          },
+        ]}
+        emptyTitle="No bookings"
+        emptyDescription="Come back later"
+        onComplete={jest.fn()}
+        onNoShow={jest.fn()}
+      />
+    );
+
+    expect(screen.getByTestId('join-lesson-button')).toBeInTheDocument();
+    expect(screen.getByTestId('mark-complete-button')).toBeInTheDocument();
 
     jest.useRealTimers();
   });

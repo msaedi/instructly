@@ -234,6 +234,15 @@ def test_instructor_service_fallbacks() -> None:
     assert service.category_slug == "unknown"
 
 
+def test_service_catalog_default_eligible_age_groups() -> None:
+    """ORM insert-default for eligible_age_groups is kids/teens/adults."""
+    col = ServiceCatalog.__table__.c.eligible_age_groups
+    assert col.default is not None
+    assert col.default.is_callable
+    # SQLAlchemy wraps zero-arg callables; pass execution context as None
+    assert col.default.arg(None) == ["kids", "teens", "adults"]
+
+
 def test_service_analytics_scores() -> None:
     analytics = ServiceAnalytics(
         service_catalog_id="svc",

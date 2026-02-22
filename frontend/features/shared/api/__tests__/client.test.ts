@@ -314,6 +314,367 @@ describe('getPlaceDetails', () => {
   });
 });
 
+describe('cleanFetch — additional branch coverage', () => {
+  const originalFetch = global.fetch;
+  let fetchMock: jest.Mock;
+
+  beforeEach(() => {
+    fetchMock = jest.fn();
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+    (getSessionId as jest.Mock).mockReturnValue(null);
+  });
+
+  afterEach(() => {
+    if (originalFetch) {
+      global.fetch = originalFetch;
+    } else {
+      // @ts-expect-error - cleanup when fetch was initially undefined
+      delete global.fetch;
+    }
+  });
+
+  it('skips X-Session-ID header when getSessionId returns null', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: { get: jest.fn() },
+      json: async () => ({}),
+    });
+
+    await cleanFetch('/api/v1/test');
+
+    const options = fetchMock.mock.calls[0][1] as RequestInit;
+    const headers = options.headers as Record<string, string>;
+    expect(headers['X-Session-ID']).toBeUndefined();
+    // X-Search-Origin should still be set in browser
+    expect(headers['X-Search-Origin']).toBeDefined();
+  });
+
+  it('returns data as null for 204 No Content responses', async () => {
+    const jsonFn = jest.fn();
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 204,
+      headers: { get: jest.fn() },
+      json: jsonFn,
+    });
+
+    const response = await cleanFetch('/api/v1/test');
+
+    expect(response.status).toBe(204);
+    expect(response.data).toBeNull();
+    // json() should NOT have been called for 204
+    expect(jsonFn).not.toHaveBeenCalled();
+  });
+
+  it('returns data as null for 205 Reset Content responses', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 205,
+      headers: { get: jest.fn() },
+      json: jest.fn(),
+    });
+
+    const response = await cleanFetch('/api/v1/test');
+
+    expect(response.status).toBe(205);
+    expect(response.data).toBeNull();
+  });
+
+  it('handles JSON parse error on non-ok response by falling back to status code', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 502,
+      headers: { get: jest.fn() },
+      json: async () => { throw new SyntaxError('Bad Gateway HTML'); },
+    });
+
+    const response = await cleanFetch('/api/v1/test');
+
+    // data is null, detail is null, so error should be "Error: 502"
+    expect(response.status).toBe(502);
+    expect(response.error).toBe('Error: 502');
+  });
+
+  it('returns string error detail directly without stringifying', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      headers: { get: jest.fn() },
+      json: async () => ({ detail: 'Access denied' }),
+    });
+
+    const response = await cleanFetch('/api/v1/test');
+
+    expect(response.status).toBe(403);
+    expect(response.error).toBe('Access denied');
+  });
+
+  it('handles non-Error thrown objects in catch block', async () => {
+    fetchMock.mockRejectedValueOnce('string error');
+
+    const response = await cleanFetch('/api/v1/test');
+
+    expect(response.status).toBe(0);
+    expect(response.error).toBe('Network error');
+  });
+
+  it('skips null and undefined param values', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: { get: jest.fn() },
+      json: async () => ({}),
+    });
+
+    await cleanFetch('/api/v1/test', {
+      params: {
+        keep: 'yes',
+        // @ts-expect-error - testing runtime null handling
+        dropNull: null,
+        // @ts-expect-error - testing runtime undefined handling
+        dropUndefined: undefined,
+      },
+    });
+
+    const calledUrl = fetchMock.mock.calls[0][0] as string;
+    const url = new URL(calledUrl);
+    expect(url.searchParams.get('keep')).toBe('yes');
+    expect(url.searchParams.has('dropNull')).toBe(false);
+    expect(url.searchParams.has('dropUndefined')).toBe(false);
+  });
+
+  it('uses default credentials include when not specified', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: { get: jest.fn() },
+      json: async () => ({}),
+    });
+
+    await cleanFetch('/api/v1/test');
+
+    const options = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(options.credentials).toBe('include');
+  });
+
+  it('preserves custom credentials when specified', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: { get: jest.fn() },
+      json: async () => ({}),
+    });
+
+    await cleanFetch('/api/v1/test', { credentials: 'same-origin' });
+
+    const options = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(options.credentials).toBe('same-origin');
+  });
+
+  it('handles error response with undefined detail (falls back to status)', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 418,
+      headers: { get: jest.fn() },
+      json: async () => ({ other: 'field' }),
+    });
+
+    const response = await cleanFetch('/api/v1/test');
+
+    expect(response.status).toBe(418);
+    expect(response.error).toBe('Error: 418');
+  });
+
+  it('handles 429 with non-numeric Retry-After header', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      headers: { get: jest.fn(() => 'invalid') },
+      json: async () => ({}),
+    });
+
+    const response = await cleanFetch('/api/v1/search');
+
+    expect(response.status).toBe(429);
+    // parseInt('invalid', 10) is NaN, !Number.isFinite(NaN) -> secs=undefined
+    expect(response.error).toBe('Our hamsters are sprinting. Please try again shortly.');
+    expect((response as { retryAfterSeconds?: number }).retryAfterSeconds).toBeUndefined();
+  });
+});
+
+describe('publicApi — additional branch coverage', () => {
+  const originalFetch = global.fetch;
+  let fetchMock: jest.Mock;
+
+  beforeEach(() => {
+    fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: jest.fn() },
+      json: async () => ({}),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+    (refreshSession as jest.Mock).mockClear();
+    document.cookie = 'guest_id=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+  });
+
+  afterEach(() => {
+    if (originalFetch) {
+      global.fetch = originalFetch;
+    } else {
+      // @ts-expect-error - cleanup when fetch was initially undefined
+      delete global.fetch;
+    }
+  });
+
+  it('preserves user-supplied search_context in recordSearchHistory', async () => {
+    const customContext = { page: '/custom', source: 'test' };
+    await publicApi.recordSearchHistory({
+      search_query: 'drums',
+      search_type: 'text',
+      search_context: customContext,
+    });
+
+    const options = fetchMock.mock.calls[0][1] as RequestInit;
+    const body = JSON.parse(options.body as string) as { search_context?: Record<string, unknown> };
+    // Should use the user-supplied context, not generate default
+    expect(body.search_context).toEqual(customContext);
+  });
+
+  it('calls searchWithNaturalLanguage without optional params', async () => {
+    await publicApi.searchWithNaturalLanguage('yoga');
+
+    const calledUrl = fetchMock.mock.calls[0][0] as string;
+    const requestUrl = new URL(calledUrl);
+    expect(requestUrl.searchParams.get('q')).toBe('yoga');
+    expect(requestUrl.searchParams.has('skill_level')).toBe(false);
+    expect(requestUrl.searchParams.has('subcategory_id')).toBe(false);
+  });
+
+  it('omits guest session header when cookie value is empty', async () => {
+    document.cookie = 'guest_id=';
+    const getItemSpy = jest.spyOn(Storage.prototype, 'getItem').mockReturnValue(null);
+
+    await publicApi.getRecentSearches();
+
+    const options = fetchMock.mock.calls[0][1] as RequestInit;
+    const headers = options.headers as Record<string, string>;
+    // decodeURIComponent('') is '' which is falsy, so header should not be set
+    expect(headers['X-Guest-Session-ID']).toBeUndefined();
+    getItemSpy.mockRestore();
+  });
+});
+
+describe('protectedApi — additional branch coverage', () => {
+  const originalFetch = global.fetch;
+  let fetchMock: jest.Mock;
+
+  beforeEach(() => {
+    fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: jest.fn() },
+      json: async () => ({}),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+    document.cookie = 'guest_id=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+  });
+
+  afterEach(() => {
+    if (originalFetch) {
+      global.fetch = originalFetch;
+    } else {
+      // @ts-expect-error - cleanup when fetch was initially undefined
+      delete global.fetch;
+    }
+  });
+
+  it('getBookings with no params sends no query string', async () => {
+    await protectedApi.getBookings();
+
+    const calledUrl = fetchMock.mock.calls[0][0] as string;
+    const requestUrl = new URL(calledUrl);
+    // No params at all
+    expect(Array.from(requestUrl.searchParams.entries())).toHaveLength(0);
+  });
+
+  it('getBookings skips status param when undefined', async () => {
+    await protectedApi.getBookings({ upcoming: true });
+
+    const calledUrl = fetchMock.mock.calls[0][0] as string;
+    const requestUrl = new URL(calledUrl);
+    expect(requestUrl.searchParams.get('upcoming')).toBe('true');
+    expect(requestUrl.searchParams.has('status')).toBe(false);
+  });
+
+  it('getBookings with signal passes AbortSignal', async () => {
+    const controller = new AbortController();
+    await protectedApi.getBookings({ signal: controller.signal });
+
+    const options = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(options.signal).toBe(controller.signal);
+  });
+
+  it('getInstructorBookings with no params sends empty options', async () => {
+    await protectedApi.getInstructorBookings();
+
+    const calledUrl = fetchMock.mock.calls[0][0] as string;
+    const requestUrl = new URL(calledUrl);
+    expect(Array.from(requestUrl.searchParams.entries())).toHaveLength(0);
+  });
+
+  it('getInstructorBookings passes signal correctly', async () => {
+    const controller = new AbortController();
+    await protectedApi.getInstructorBookings({ signal: controller.signal });
+
+    const options = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(options.signal).toBe(controller.signal);
+  });
+
+  it('getInstructorBookings with per_page under 100 keeps original value', async () => {
+    await protectedApi.getInstructorBookings({ per_page: 25 });
+
+    const calledUrl = fetchMock.mock.calls[0][0] as string;
+    const requestUrl = new URL(calledUrl);
+    expect(requestUrl.searchParams.get('per_page')).toBe('25');
+  });
+
+  it('getPlaceDetails without provider or signal', async () => {
+    await getPlaceDetails({ place_id: 'place-2' });
+
+    const calledUrl = fetchMock.mock.calls[0][0] as string;
+    const requestUrl = new URL(calledUrl);
+    expect(requestUrl.searchParams.get('place_id')).toBe('place-2');
+    expect(requestUrl.searchParams.has('provider')).toBe(false);
+  });
+
+  it('normalizeBookingStatus returns undefined for empty string', async () => {
+    // passing status as '' which is falsy
+    await protectedApi.getBookings({ status: '' as unknown as undefined });
+
+    const calledUrl = fetchMock.mock.calls[0][0] as string;
+    const requestUrl = new URL(calledUrl);
+    expect(requestUrl.searchParams.has('status')).toBe(false);
+  });
+
+  it('getInstructorUpcomingBookings caps per_page at 100', async () => {
+    await protectedApi.getInstructorUpcomingBookings(1, 200);
+
+    const calledUrl = fetchMock.mock.calls[0][0] as string;
+    const requestUrl = new URL(calledUrl);
+    expect(requestUrl.searchParams.get('per_page')).toBe('100');
+  });
+
+  it('getInstructorCompletedBookings caps per_page at 100', async () => {
+    await protectedApi.getInstructorCompletedBookings(1, 150);
+
+    const calledUrl = fetchMock.mock.calls[0][0] as string;
+    const requestUrl = new URL(calledUrl);
+    expect(requestUrl.searchParams.get('per_page')).toBe('100');
+  });
+});
+
 describe('API endpoint constants', () => {
   it('exports PUBLIC_ENDPOINTS with expected structure', () => {
     expect(PUBLIC_ENDPOINTS.instructors.list).toBe('/api/v1/instructors');

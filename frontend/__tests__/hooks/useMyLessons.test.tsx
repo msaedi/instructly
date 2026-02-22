@@ -829,6 +829,166 @@ describe('useMyLessons hooks', () => {
         expect(onSuccess).toHaveBeenCalled();
       });
     });
+
+    it('returns 0 duration when time has too few parts (no colon)', () => {
+      const mockMutate = jest.fn();
+      mockUseRescheduleBooking.mockReturnValue({
+        ...mockMutation(),
+        mutate: mockMutate,
+      });
+
+      const { result } = renderHook(() => useRescheduleLesson(), { wrapper });
+
+      result.current.mutate({
+        lessonId: '01ABCDEF123456789012345678',
+        newDate: '2024-12-26',
+        newStartTime: '10',     // no colon -> parts.length < 2 -> null
+        newEndTime: '11:00:00',
+      });
+
+      // parseTimeToMinutes('10') returns null, so calculateDurationMinutes returns 0
+      expect(mockMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            selected_duration: 0,
+          }),
+        }),
+        expect.any(Object)
+      );
+    });
+
+    it('returns 0 duration when time contains non-numeric values', () => {
+      const mockMutate = jest.fn();
+      mockUseRescheduleBooking.mockReturnValue({
+        ...mockMutation(),
+        mutate: mockMutate,
+      });
+
+      const { result } = renderHook(() => useRescheduleLesson(), { wrapper });
+
+      result.current.mutate({
+        lessonId: '01ABCDEF123456789012345678',
+        newDate: '2024-12-26',
+        newStartTime: 'abc:def',
+        newEndTime: '11:00:00',
+      });
+
+      // parseTimeToMinutes('abc:def') returns null (NaN is not finite)
+      expect(mockMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            selected_duration: 0,
+          }),
+        }),
+        expect.any(Object)
+      );
+    });
+
+    it('returns 0 duration when time has negative hours or minutes >= 60', () => {
+      const mockMutate = jest.fn();
+      mockUseRescheduleBooking.mockReturnValue({
+        ...mockMutation(),
+        mutate: mockMutate,
+      });
+
+      const { result } = renderHook(() => useRescheduleLesson(), { wrapper });
+
+      result.current.mutate({
+        lessonId: '01ABCDEF123456789012345678',
+        newDate: '2024-12-26',
+        newStartTime: '-1:30',     // negative hours -> null
+        newEndTime: '11:00:00',
+      });
+
+      expect(mockMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            selected_duration: 0,
+          }),
+        }),
+        expect.any(Object)
+      );
+    });
+
+    it('returns 0 duration when minutes are >= 60', () => {
+      const mockMutate = jest.fn();
+      mockUseRescheduleBooking.mockReturnValue({
+        ...mockMutation(),
+        mutate: mockMutate,
+      });
+
+      const { result } = renderHook(() => useRescheduleLesson(), { wrapper });
+
+      result.current.mutate({
+        lessonId: '01ABCDEF123456789012345678',
+        newDate: '2024-12-26',
+        newStartTime: '10:70',    // minutes >= 60 -> null
+        newEndTime: '11:00:00',
+      });
+
+      expect(mockMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            selected_duration: 0,
+          }),
+        }),
+        expect.any(Object)
+      );
+    });
+
+    it('returns 0 duration when end time is before start time', () => {
+      const mockMutate = jest.fn();
+      mockUseRescheduleBooking.mockReturnValue({
+        ...mockMutation(),
+        mutate: mockMutate,
+      });
+
+      const { result } = renderHook(() => useRescheduleLesson(), { wrapper });
+
+      result.current.mutate({
+        lessonId: '01ABCDEF123456789012345678',
+        newDate: '2024-12-26',
+        newStartTime: '14:00',
+        newEndTime: '10:00',     // end before start -> negative duration -> 0
+      });
+
+      expect(mockMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            selected_duration: 0,
+          }),
+        }),
+        expect.any(Object)
+      );
+    });
+
+    it('returns 0 duration via mutateAsync when time is invalid', async () => {
+      const mockMutateAsync = jest.fn().mockResolvedValue({ id: '01ABCDEF123456789012345678' });
+      mockUseRescheduleBooking.mockReturnValue({
+        ...mockMutation(),
+        mutateAsync: mockMutateAsync,
+      });
+
+      const { result } = renderHook(() => useRescheduleLesson(), { wrapper });
+
+      await act(async () => {
+        await result.current.mutateAsync({
+          lessonId: '01ABCDEF123456789012345678',
+          newDate: '2024-12-26',
+          newStartTime: 'bad',
+          newEndTime: 'input',
+        });
+      });
+
+      expect(mockMutateAsync).toHaveBeenCalledWith({
+        bookingId: '01ABCDEF123456789012345678',
+        data: {
+          booking_date: '2024-12-26',
+          start_time: 'bad',
+          selected_duration: 0,
+        },
+      });
+    });
   });
 
   describe('useCurrentLessonsInfinite', () => {

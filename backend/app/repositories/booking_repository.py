@@ -37,6 +37,7 @@ from ..models.booking_no_show import BookingNoShow
 from ..models.booking_payment import BookingPayment
 from ..models.booking_reschedule import BookingReschedule
 from ..models.booking_transfer import BookingTransfer
+from ..models.booking_video_session import BookingVideoSession
 from ..models.user import User
 from .base_repository import BaseRepository
 from .cached_repository_mixin import CachedRepositoryMixin, cached_method
@@ -57,6 +58,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         super().__init__(db, Booking)
         self.logger = logging.getLogger(__name__)
         self.init_cache(cache_service)
+        # Savepoint used to release row locks before outbound API calls
+        # without rolling back unrelated staged work on the session.
+        self._external_call_lock_savepoint: Any | None = None
 
     def create(self, **kwargs: Any) -> Booking:
         """Create a booking, exposing integrity errors for conflict handling."""
@@ -288,6 +292,105 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         except Exception:
             nested.rollback()
             raise
+
+    def get_video_session_by_booking_id(self, booking_id: str) -> Optional[BookingVideoSession]:
+        """Return video session satellite row for a booking, if present."""
+        try:
+            video_session = cast(
+                Optional[BookingVideoSession],
+                self.db.query(BookingVideoSession)
+                .filter(BookingVideoSession.booking_id == booking_id)
+                .one_or_none(),
+            )
+            return video_session
+        except Exception as e:
+            self.logger.error(f"Error getting video session for booking {booking_id}: {str(e)}")
+            raise RepositoryException(f"Failed to get booking video session: {str(e)}")
+
+    def ensure_video_session(
+        self, booking_id: str, room_id: str, room_name: str | None = None
+    ) -> BookingVideoSession:
+        """Get or create video session satellite row for a booking."""
+        video_session = self.get_video_session_by_booking_id(booking_id)
+        if video_session is not None:
+            return video_session
+        try:
+            nested = self.db.begin_nested()
+            video_session = BookingVideoSession(
+                booking_id=booking_id, room_id=room_id, room_name=room_name
+            )
+            self.db.add(video_session)
+            self.db.flush()
+            return video_session
+        except IntegrityError:
+            nested.rollback()
+            video_session = self.get_video_session_by_booking_id(booking_id)
+            if video_session is not None:
+                return video_session
+            raise RepositoryException(
+                f"Failed to ensure booking video session after retry for booking {booking_id}"
+            )
+        except Exception:
+            nested.rollback()
+            raise
+
+    def release_lock_for_external_call(self) -> None:
+        """Release row-level lock before outbound API calls.
+
+        Uses a SAVEPOINT created by ``get_booking_for_participant_for_update``
+        when ``lock_scope_for_external_call=True``. This avoids a full session
+        rollback so unrelated staged changes are preserved.
+        """
+        savepoint = self._external_call_lock_savepoint
+        self._external_call_lock_savepoint = None
+        if savepoint is None:
+            return
+        if not getattr(savepoint, "is_active", True):
+            return
+        savepoint.rollback()
+
+    def get_video_no_show_candidates(
+        self, sql_cutoff: datetime
+    ) -> List[Tuple[Booking, Optional[BookingVideoSession]]]:
+        """Find online CONFIRMED bookings eligible for no-show check.
+
+        Uses LEFT JOIN on video sessions so mutual no-shows (neither party
+        clicked join → no BookingVideoSession row) are also detected.
+
+        Uses MIN_GRACE_MINUTES (8min = ceil of shortest grace) as the SQL cutoff
+        to catch ALL candidates, including short 30-min lessons with 7.5-min grace.
+        The caller computes per-booking grace in Python.
+        """
+        try:
+            NoShowAlias = aliased(BookingNoShow)
+            rows = (
+                self.db.query(Booking, BookingVideoSession)
+                .outerjoin(
+                    BookingVideoSession,
+                    BookingVideoSession.booking_id == Booking.id,
+                )
+                .outerjoin(NoShowAlias, NoShowAlias.booking_id == Booking.id)
+                .filter(
+                    Booking.status == BookingStatus.CONFIRMED.value,
+                    Booking.location_type == "online",
+                    Booking.booking_start_utc <= sql_cutoff,
+                    or_(
+                        BookingVideoSession.id.is_(None),
+                        BookingVideoSession.instructor_joined_at.is_(None),
+                        BookingVideoSession.student_joined_at.is_(None),
+                    ),
+                    or_(
+                        NoShowAlias.no_show_reported_at.is_(None),
+                        NoShowAlias.id.is_(None),
+                    ),
+                )
+                .order_by(Booking.booking_start_utc.asc())
+                .all()
+            )
+            return cast(List[Tuple[Booking, Optional[BookingVideoSession]]], rows)
+        except Exception as exc:
+            self.logger.error("Failed to load video no-show candidates: %s", str(exc))
+            raise RepositoryException(f"Failed to load video no-show candidates: {exc}")
 
     # Time-based Booking Queries (NEW)
 
@@ -738,6 +841,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     selectinload(Booking.reschedule_detail),
                     selectinload(Booking.dispute),
                     selectinload(Booking.transfer),
+                    selectinload(Booking.video_session),
                 )
                 .filter(Booking.student_id == student_id)
             )
@@ -752,50 +856,27 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
             # Handle upcoming_only filter
             if upcoming_only:
-                # Get user's current datetime in their timezone
+                # Use UTC datetime to correctly handle midnight-crossing bookings
                 user_now = get_user_now_by_id(student_id, self.db)
-                today = user_now.date()
-                current_time = user_now.time()
+                now_utc = user_now.astimezone(timezone.utc)
 
-                # Filter for bookings that haven't ended yet (includes in-progress lessons)
                 query = query.filter(
-                    or_(
-                        Booking.booking_date > today,  # Future dates
-                        and_(
-                            Booking.booking_date == today,  # Today
-                            Booking.end_time > current_time.isoformat(),  # Lesson hasn't ended
-                        ),
-                    ),
+                    Booking.booking_end_utc > now_utc,
                     Booking.status == BookingStatus.CONFIRMED,
                 )
 
             # Handle exclude_future_confirmed (for History tab - past bookings + cancelled)
             elif exclude_future_confirmed:
-                # Include: past bookings (any status) + future cancelled/no-show bookings
-                # Exclude: future confirmed bookings (including in-progress)
-                # Get user's current datetime in their timezone
                 user_now = get_user_now_by_id(student_id, self.db)
-                today = user_now.date()
-                current_time = user_now.time()
+                now_utc = user_now.astimezone(timezone.utc)
 
                 query = query.filter(
                     or_(
-                        # Past dates (any status)
-                        Booking.booking_date < today,
-                        # Today's lessons that have ended (any status)
+                        # Bookings that have ended (any status)
+                        Booking.booking_end_utc <= now_utc,
+                        # Future bookings that are cancelled/no-show
                         and_(
-                            Booking.booking_date == today,
-                            Booking.end_time <= current_time.isoformat(),
-                        ),
-                        # Future bookings that are NOT confirmed (cancelled/no-show)
-                        and_(
-                            or_(
-                                Booking.booking_date > today,
-                                and_(
-                                    Booking.booking_date == today,
-                                    Booking.end_time > current_time.isoformat(),
-                                ),
-                            ),
+                            Booking.booking_end_utc > now_utc,
                             Booking.status.in_([BookingStatus.CANCELLED, BookingStatus.NO_SHOW]),
                             # Hide reschedule-driven cancellations from student History
                             Booking.cancellation_reason != "Rescheduled",
@@ -805,20 +886,11 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
             # Handle include_past_confirmed (for BookAgain - only completed past bookings)
             elif include_past_confirmed:
-                # Only past bookings with COMPLETED status
-                # Get student's current datetime in their timezone
                 user_now = get_user_now_by_id(student_id, self.db)
-                today = user_now.date()
-                current_time = user_now.time()
+                now_utc = user_now.astimezone(timezone.utc)
 
                 query = query.filter(
-                    or_(
-                        Booking.booking_date < today,
-                        and_(
-                            Booking.booking_date == today,
-                            Booking.start_time <= current_time.isoformat(),
-                        ),
-                    ),
+                    Booking.booking_start_utc <= now_utc,
                     Booking.status == BookingStatus.COMPLETED,
                 )
 
@@ -873,6 +945,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     selectinload(Booking.reschedule_detail),
                     selectinload(Booking.dispute),
                     selectinload(Booking.transfer),
+                    selectinload(Booking.video_session),
                 )
                 .filter(Booking.instructor_id == instructor_id)
             )
@@ -895,50 +968,27 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
             # Handle upcoming_only filter
             if upcoming_only:
-                # Get instructor's current datetime in their timezone
+                # Use UTC datetime to correctly handle midnight-crossing bookings
                 user_now = get_user_now_by_id(instructor_id, self.db)
-                today = user_now.date()
-                current_time = user_now.time()
+                now_utc = user_now.astimezone(timezone.utc)
 
-                # Filter for bookings that haven't ended yet (includes in-progress lessons)
                 query = query.filter(
-                    or_(
-                        Booking.booking_date > today,  # Future dates
-                        and_(
-                            Booking.booking_date == today,  # Today
-                            Booking.end_time > current_time.isoformat(),  # Lesson hasn't ended
-                        ),
-                    ),
+                    Booking.booking_end_utc > now_utc,
                     Booking.status == BookingStatus.CONFIRMED,
                 )
 
             # Handle exclude_future_confirmed (for History tab - past bookings + cancelled)
             elif exclude_future_confirmed:
-                # Include: past bookings (any status) + future cancelled/no-show bookings
-                # Exclude: future confirmed bookings (including in-progress)
-                # Get instructor's current datetime in their timezone
                 user_now = get_user_now_by_id(instructor_id, self.db)
-                today = user_now.date()
-                current_time = user_now.time()
+                now_utc = user_now.astimezone(timezone.utc)
 
                 query = query.filter(
                     or_(
-                        # Past dates (any status)
-                        Booking.booking_date < today,
-                        # Today's lessons that have ended (any status)
+                        # Bookings that have ended (any status)
+                        Booking.booking_end_utc <= now_utc,
+                        # Future bookings that are cancelled/no-show
                         and_(
-                            Booking.booking_date == today,
-                            Booking.end_time <= current_time.isoformat(),
-                        ),
-                        # Future bookings that are NOT confirmed (cancelled/no-show)
-                        and_(
-                            or_(
-                                Booking.booking_date > today,
-                                and_(
-                                    Booking.booking_date == today,
-                                    Booking.end_time > current_time.isoformat(),
-                                ),
-                            ),
+                            Booking.booking_end_utc > now_utc,
                             Booking.status.in_([BookingStatus.CANCELLED, BookingStatus.NO_SHOW]),
                         ),
                     )
@@ -946,19 +996,11 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
             # Handle include_past_confirmed (for BookAgain - only completed past bookings)
             elif include_past_confirmed_mode:
-                # Include confirmed/completed lessons that have already finished
                 user_now = get_user_now_by_id(instructor_id, self.db)
-                today = user_now.date()
-                current_time = user_now.time()
+                now_utc = user_now.astimezone(timezone.utc)
 
                 query = query.filter(
-                    or_(
-                        Booking.booking_date < today,
-                        and_(
-                            Booking.booking_date == today,
-                            Booking.end_time <= current_time.isoformat(),
-                        ),
-                    ),
+                    Booking.booking_end_utc <= now_utc,
                     Booking.status.in_(
                         [
                             BookingStatus.CONFIRMED,
@@ -1139,6 +1181,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     selectinload(Booking.reschedule_detail),
                     selectinload(Booking.dispute),
                     selectinload(Booking.transfer),
+                    selectinload(Booking.video_session),
                 )
                 .filter(Booking.id == booking_id)
                 .first()
@@ -1167,6 +1210,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             selectinload(Booking.reschedule_detail),
             selectinload(Booking.dispute),
             selectinload(Booking.transfer),
+            selectinload(Booking.video_session),
         )
 
     def get_booking_for_participant(self, booking_id: str, user_id: str) -> Optional[Booking]:
@@ -1238,6 +1282,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         *,
         load_relationships: bool = True,
         populate_existing: bool = True,
+        lock_scope_for_external_call: bool = False,
     ) -> Optional[Booking]:
         """
         Get booking with row-level lock, only if user is a participant.
@@ -1245,6 +1290,14 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         Defense-in-depth: combines SELECT FOR UPDATE with participant filtering.
         """
         try:
+            if lock_scope_for_external_call:
+                existing_savepoint = self._external_call_lock_savepoint
+                if existing_savepoint is not None and getattr(
+                    existing_savepoint, "is_active", True
+                ):
+                    existing_savepoint.rollback()
+                self._external_call_lock_savepoint = self.db.begin_nested()
+
             query = (
                 self.db.query(Booking)
                 .filter(
@@ -1262,6 +1315,11 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 query = query.populate_existing()
             return cast(Optional[Booking], query.first())
         except Exception as e:
+            if lock_scope_for_external_call:
+                savepoint = self._external_call_lock_savepoint
+                self._external_call_lock_savepoint = None
+                if savepoint is not None and getattr(savepoint, "is_active", True):
+                    savepoint.rollback()
             self.logger.error(f"Error getting booking for participant (for update): {str(e)}")
             raise RepositoryException(
                 f"Failed to get booking for participant (for update): {str(e)}"
@@ -1326,6 +1384,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     selectinload(Booking.reschedule_detail),
                     selectinload(Booking.dispute),
                     selectinload(Booking.transfer),
+                    selectinload(Booking.video_session),
                 )
             )
 
@@ -1394,15 +1453,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             if needs_action:
                 effective_now = now or datetime.now(timezone.utc)
                 query = query.filter(Booking.status == BookingStatus.CONFIRMED)
-                query = query.filter(
-                    or_(
-                        Booking.booking_date < effective_now.date(),
-                        and_(
-                            Booking.booking_date == effective_now.date(),
-                            Booking.end_time <= effective_now.time(),
-                        ),
-                    )
-                )
+                query = query.filter(Booking.booking_end_utc <= effective_now)
 
             total = int(query.count())
             offset = max(0, (page - 1) * per_page)
@@ -1444,17 +1495,12 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
     def count_pending_completion(self, now: datetime) -> int:
         """Count confirmed bookings that should be completed or no-show."""
         try:
-            today = now.date()
-            now_time = now.time()
             count = (
                 self.db.query(func.count())
                 .select_from(Booking)
                 .filter(
                     Booking.status == BookingStatus.CONFIRMED,
-                    or_(
-                        Booking.booking_date < today,
-                        and_(Booking.booking_date == today, Booking.end_time <= now_time),
-                    ),
+                    Booking.booking_end_utc <= now,
                 )
                 .scalar()
             )
@@ -1774,6 +1820,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             joinedload(Booking.lock_detail),
             joinedload(Booking.dispute),
             joinedload(Booking.transfer),
+            joinedload(Booking.video_session),
         )
 
     def count_old_bookings(self, cutoff_date: datetime) -> int:
@@ -2199,9 +2246,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
     # Additional Repository Methods (from BaseRepository)
     # The following are inherited from BaseRepository:
     # - create(**kwargs) -> Booking
-    # - update(id: int, **kwargs) -> Optional[Booking]
-    # - delete(id: int) -> bool
-    # - get_by_id(id: int, load_relationships: bool = True) -> Optional[Booking]
+    # - update(id: str, **kwargs) -> Optional[Booking]
+    # - delete(id: str) -> bool
+    # - get_by_id(id: str, load_relationships: bool = True) -> Optional[Booking]
     # - exists(**kwargs) -> bool
     # - count(**kwargs) -> int
     # - find_by(**kwargs) -> List[Booking]

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { fetchWithAuth } from '@/lib/api';
 import type { ApiErrorResponse } from '@/features/shared/api/types';
+import { extractApiErrorMessage } from '@/lib/apiErrors';
 
 export default function ChangePasswordModal({ onClose }: { onClose: () => void }) {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -23,7 +24,7 @@ export default function ChangePasswordModal({ onClose }: { onClose: () => void }
       });
       if (!res.ok) {
         const b = (await res.json().catch(() => ({}))) as ApiErrorResponse;
-        setError(b.detail || b.message || 'Failed to change password.');
+        setError(extractApiErrorMessage(b, 'Failed to change password.'));
         setLoading(false);
         return;
       }

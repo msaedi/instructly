@@ -778,6 +778,82 @@ describe('MessageBubble', () => {
     });
   });
 
+  describe('reactions with undefined (line 44 falsy branch)', () => {
+    it('handles undefined reactions array gracefully', () => {
+      render(
+        <MessageBubble
+          message={createMessage({ reactions: undefined })}
+        />
+      );
+
+      expect(screen.getByText('Hello, world!')).toBeInTheDocument();
+    });
+  });
+
+  describe('handleDelete early return without onDelete (line 62)', () => {
+    it('does nothing when onDelete is not provided and delete is confirmed', async () => {
+      const { rerender } = render(
+        <MessageBubble
+          message={createMessage({ isOwn: true })}
+          canDelete
+          onDelete={jest.fn()}
+        />
+      );
+
+      // Enter delete confirmation mode
+      fireEvent.click(screen.getByLabelText('Delete message'));
+      expect(screen.getByText('Delete?')).toBeInTheDocument();
+
+      // Re-render without onDelete to test the guard
+      rerender(
+        <MessageBubble
+          message={createMessage({ isOwn: true })}
+          canDelete
+          // No onDelete provided
+        />
+      );
+
+      // Confirm delete - should return early since onDelete is undefined
+      fireEvent.click(screen.getByLabelText('Confirm delete'));
+
+      // Should not crash
+      expect(screen.getByText('Hello, world!')).toBeInTheDocument();
+    });
+  });
+
+  describe('textarea styling for left-side editing', () => {
+    it('applies left-side textarea styling when side is left and editing', () => {
+      render(
+        <MessageBubble
+          message={createMessage({ isOwn: true })}
+          canEdit
+          onEdit={jest.fn()}
+          side="left"
+        />
+      );
+
+      fireEvent.click(screen.getByLabelText('Edit message'));
+
+      const textarea = screen.getByRole('textbox');
+      expect(textarea).toHaveClass('bg-transparent');
+    });
+  });
+
+  describe('non-deleted message p tag does not get italic class (line 261)', () => {
+    it('renders non-deleted message without italic class', () => {
+      const { container } = render(
+        <MessageBubble
+          message={createMessage({ isDeleted: false, content: 'Active message' })}
+        />
+      );
+
+      const paragraphs = container.querySelectorAll('p.whitespace-pre-wrap');
+      expect(paragraphs.length).toBeGreaterThan(0);
+      const p = paragraphs[0];
+      expect(p).not.toHaveClass('italic');
+    });
+  });
+
   describe('currentUserReaction and quickEmojis pass-through (lines 293-294)', () => {
     it('passes currentUserReaction to ReactionTrigger', () => {
       const { container } = render(
