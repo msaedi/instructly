@@ -49,11 +49,11 @@ class TestManagementToken:
         payload = jwt.decode(token, "test_secret_value_for_hmac_256bit", algorithms=["HS256"])
         assert payload["exp"] - payload["iat"] == 3600
 
-    def test_management_token_header_has_jti(self):
+    def test_management_token_header_uses_standard_fields(self):
         client = self._make_client()
         token = client._generate_management_token()
         headers = jwt.get_unverified_header(token)
-        assert "jti" in headers
+        assert "jti" not in headers
         assert headers["alg"] == "HS256"
         assert headers["typ"] == "JWT"
 
@@ -344,6 +344,45 @@ class TestFakeHundredMsClient:
         assert client._calls[1]["user_id"] == "user_123"
         assert client._calls[1]["role"] == "host"
 
+    def test_create_room_raises_injected_error(self):
+        client = FakeHundredMsClient()
+        client.set_error("create_room", HundredMsError("boom", status_code=500))
+
+        with pytest.raises(HundredMsError, match="boom"):
+            client.create_room(name="lesson-err")
+
+    def test_disable_room_raises_injected_error(self):
+        client = FakeHundredMsClient()
+        client.set_error("disable_room", HundredMsError("disable failed", status_code=500))
+
+        with pytest.raises(HundredMsError, match="disable failed"):
+            client.disable_room("room_err")
+
+    def test_generate_auth_token_raises_injected_error(self):
+        client = FakeHundredMsClient()
+        client.set_error("generate_auth_token", HundredMsError("token failed", status_code=500))
+
+        with pytest.raises(HundredMsError, match="token failed"):
+            client.generate_auth_token(room_id="room_abc", user_id="user_123", role="guest")
+
+    def test_get_active_session_raises_injected_error(self):
+        client = FakeHundredMsClient()
+        client.set_error("get_active_session", HundredMsError("session failed", status_code=503))
+
+        with pytest.raises(HundredMsError, match="session failed"):
+            client.get_active_session("room_abc")
+
+    def test_clear_errors_allows_followup_calls(self):
+        client = FakeHundredMsClient()
+        client.set_error("create_room", HundredMsError("temporary", status_code=500))
+
+        with pytest.raises(HundredMsError):
+            client.create_room(name="lesson-1")
+
+        client.clear_errors()
+        result = client.create_room(name="lesson-2")
+        assert result["name"] == "lesson-2"
+
 
 # ── Auth token tests ──────────────────────────────────────────────────
 
@@ -389,12 +428,12 @@ class TestAuthToken:
         payload = jwt.decode(token, "test_secret_value_for_hmac_256bit", algorithms=["HS256"])
         assert payload["exp"] == payload["iat"] + 3600
 
-    def test_auth_token_header_has_jti(self):
+    def test_auth_token_header_uses_standard_fields(self):
         client = self._make_client()
         token = client.generate_auth_token(
             room_id="room_abc", user_id="user_123", role="guest"
         )
         headers = jwt.get_unverified_header(token)
-        assert "jti" in headers
+        assert "jti" not in headers
         assert headers["alg"] == "HS256"
         assert headers["typ"] == "JWT"

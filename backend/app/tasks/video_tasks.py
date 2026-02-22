@@ -77,7 +77,11 @@ def _determine_no_show_type(video_session: Any | None) -> str | None:
         None if both joined (lesson happened).
     """
     if video_session is None:
-        return "mutual"  # Neither party even attempted to join
+        # No video session row exists. This is usually a true mutual no-show
+        # (neither participant clicked join), but it can also happen when room
+        # creation fails before attendance is recorded. We classify as "mutual"
+        # and rely on the dispute workflow for edge-case correction.
+        return "mutual"
 
     instructor_joined = video_session.instructor_joined_at is not None
     student_joined = video_session.student_joined_at is not None

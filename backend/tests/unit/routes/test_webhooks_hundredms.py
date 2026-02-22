@@ -319,6 +319,24 @@ class TestVerifyHundredmsSecret:
             # Should not raise
             _verify_hundredms_secret(request)
 
+    def test_empty_configured_secret_raises_503(self) -> None:
+        from fastapi import HTTPException
+
+        from app.routes.v1.webhooks_hundredms import _verify_hundredms_secret
+
+        request = MagicMock()
+        request.headers = {"x-hundredms-secret": "provided-secret"}
+
+        with patch("app.routes.v1.webhooks_hundredms.settings") as mock_settings:
+            mock_settings.hundredms_webhook_secret = MagicMock()
+            mock_settings.hundredms_webhook_secret.get_secret_value.return_value = ""
+
+            with pytest.raises(HTTPException) as exc_info:
+                _verify_hundredms_secret(request)
+
+            assert exc_info.value.status_code == 503
+            assert exc_info.value.detail == "Webhook verification misconfigured"
+
     def test_unconfigured_secret_raises_500(self) -> None:
         from fastapi import HTTPException
 

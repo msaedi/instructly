@@ -97,7 +97,7 @@ class VideoService(BaseService):
                     extra={"status_code": e.status_code},
                 )
                 raise ServiceException(
-                    f"100ms room creation failed: {e.message}",
+                    "Video room setup failed. Please try again.",
                     details={"status_code": e.status_code},
                 )
 
@@ -149,7 +149,7 @@ class VideoService(BaseService):
                 extra={"status_code": e.status_code, "room_id": video_session.room_id},
             )
             raise ServiceException(
-                f"100ms auth token generation failed: {e.message}",
+                "Video lesson join failed. Please try again.",
                 details={"status_code": e.status_code},
             )
 

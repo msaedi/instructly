@@ -614,6 +614,9 @@ def _extract_satellite_fields(booking: Any) -> dict[str, Any]:
     ):
         _opens_at = _start - timedelta(minutes=5)
         _grace = compute_grace_minutes(int(_duration))
+        # join_closes_at is the last moment participants are allowed to join.
+        # It does not represent room shutdown time; the provider room may remain
+        # active until a later session.close event.
         _closes_at = _start + timedelta(minutes=_grace)
         _now = datetime.now(timezone.utc)
         _can_join = _opens_at <= _now <= _closes_at

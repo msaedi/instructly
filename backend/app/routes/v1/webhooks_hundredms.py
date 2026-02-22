@@ -200,7 +200,15 @@ def _verify_hundredms_secret(request: Request) -> None:
             detail="Unauthorized",
         )
 
-    if not _secrets.compare_digest(provided, webhook_secret.get_secret_value()):
+    secret_value = webhook_secret.get_secret_value()
+    if not secret_value:
+        logger.error("HUNDREDMS_WEBHOOK_SECRET is configured but empty")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Webhook verification misconfigured",
+        )
+
+    if not _secrets.compare_digest(provided, secret_value):
         logger.warning(
             "100ms webhook secret mismatch",
             extra={"evt": "hundredms_webhook_invalid_secret"},

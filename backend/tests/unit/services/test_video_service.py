@@ -273,6 +273,24 @@ class TestJoinLessonTiming:
         disable_calls = [c for c in fake_client._calls if c["method"] == "disable_room"]
         assert len(disable_calls) == 1
 
+    def test_cleanup_disable_room_failure_does_not_mask_validation_error(self):
+        from app.core.exceptions import ValidationException
+
+        booking = _make_booking()
+        cancelled_booking = _make_booking(status="CANCELLED")
+        vs = _make_video_session()
+        service, fake_client, mock_repo = _make_service(
+            booking=booking,
+            video_session=None,
+            ensure_returns=vs,
+        )
+        mock_repo.get_booking_for_participant_for_update.side_effect = [booking, cancelled_booking]
+        mock_repo.get_video_session_by_booking_id.side_effect = [None, None]
+        fake_client.set_error("disable_room", HundredMsError("cleanup failed", status_code=500))
+
+        with pytest.raises(ValidationException, match="not confirmed"):
+            service.join_lesson(booking.id, booking.student_id)
+
 
 # ── Booking validation ────────────────────────────────────────────────
 
@@ -353,13 +371,9 @@ class TestJoinLessonErrors:
             video_session=None,  # Will trigger room creation
         )
 
-        # Replace create_room to raise HundredMsError
-        def failing_create_room(**kwargs):
-            raise HundredMsError("API down", status_code=500)
+        fake_client.set_error("create_room", HundredMsError("API down", status_code=500))
 
-        fake_client.create_room = failing_create_room
-
-        with pytest.raises(ServiceException, match="100ms"):
+        with pytest.raises(ServiceException, match="Video room setup failed"):
             service.join_lesson(booking.id, booking.student_id)
 
     def test_auth_token_failure_wrapped_in_service_exception(self):
@@ -375,11 +389,10 @@ class TestJoinLessonErrors:
         vs = _make_video_session()
         service, fake_client, _ = _make_service(booking=booking, video_session=vs)
 
-        # Room exists, but token generation fails
-        def failing_generate_auth_token(**kwargs):
-            raise HundredMsError("Token signing failed", status_code=500)
+        fake_client.set_error(
+            "generate_auth_token",
+            HundredMsError("Token signing failed", status_code=500),
+        )
 
-        fake_client.generate_auth_token = failing_generate_auth_token
-
-        with pytest.raises(ServiceException, match="auth token generation failed"):
+        with pytest.raises(ServiceException, match="Video lesson join failed"):
             service.join_lesson(booking.id, booking.student_id)

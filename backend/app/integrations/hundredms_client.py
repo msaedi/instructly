@@ -76,7 +76,7 @@ class HundredMsClient:
             payload,
             self._app_secret,
             algorithm="HS256",
-            headers={"alg": "HS256", "typ": "JWT", "jti": str(uuid.uuid4())},
+            headers={"alg": "HS256", "typ": "JWT"},
         )
         return token
 
@@ -128,10 +128,8 @@ class HundredMsClient:
             except Exception:
                 error_body = {"raw": response.text[:500]}
 
-            message = response.text
-            details = None
-            message = error_body.get("message", response.text)
-            details = error_body.get("details")
+            details = error_body.get("details", None)
+            message = error_body.get("message") or error_body.get("description") or response.text
 
             logger.error(
                 "100ms API error %s for %s %s: %s",
@@ -219,7 +217,7 @@ class HundredMsClient:
             payload,
             self._app_secret,
             algorithm="HS256",
-            headers={"alg": "HS256", "typ": "JWT", "jti": str(uuid.uuid4())},
+            headers={"alg": "HS256", "typ": "JWT"},
         )
         return token
 
@@ -229,10 +227,25 @@ class FakeHundredMsClient:
 
     def __init__(self, **kwargs: Any) -> None:
         self._calls: list[dict[str, Any]] = []
+        self._errors: dict[str, HundredMsError] = {}
+
+    def set_error(self, method: str, error: HundredMsError) -> None:
+        """Inject a method-specific error for deterministic failure testing."""
+        self._errors[method] = error
+
+    def clear_errors(self) -> None:
+        """Reset all injected fake-client errors."""
+        self._errors.clear()
+
+    def _raise_if_injected(self, method: str) -> None:
+        error = self._errors.get(method)
+        if error is not None:
+            raise error
 
     def create_room(self, *, name: str, **kwargs: Any) -> dict[str, Any]:
         call: dict[str, Any] = {"method": "create_room", "name": name, **kwargs}
         self._calls.append(call)
+        self._raise_if_injected("create_room")
         return {
             "id": f"fake_room_{uuid.uuid4().hex[:12]}",
             "name": name,
@@ -248,14 +261,17 @@ class FakeHundredMsClient:
 
     def disable_room(self, room_id: str) -> dict[str, Any]:
         self._calls.append({"method": "disable_room", "room_id": room_id})
+        self._raise_if_injected("disable_room")
         return {"id": room_id, "enabled": False}
 
     def get_active_session(self, room_id: str) -> dict[str, Any] | None:
         self._calls.append({"method": "get_active_session", "room_id": room_id})
+        self._raise_if_injected("get_active_session")
         return None
 
     def generate_auth_token(self, *, room_id: str, user_id: str, role: str, **kwargs: Any) -> str:
         self._calls.append(
             {"method": "generate_auth_token", "room_id": room_id, "user_id": user_id, "role": role}
         )
+        self._raise_if_injected("generate_auth_token")
         return f"fake_auth_token_{room_id}_{user_id}"

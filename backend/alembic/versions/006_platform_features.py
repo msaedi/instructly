@@ -1307,6 +1307,11 @@ def upgrade() -> None:
         ["room_id"],
     )
     op.create_index(
+        "ix_booking_video_sessions_session_id",
+        "booking_video_sessions",
+        ["session_id"],
+    )
+    op.create_index(
         "ix_bookings_video_noshow_candidates",
         "bookings",
         ["status", "location_type", "booking_start_utc"],
@@ -1449,6 +1454,7 @@ def downgrade() -> None:
             _drop_permissive_policy_and_disable_rls(table_name)
 
     op.drop_index("ix_bookings_video_noshow_candidates", table_name="bookings")
+    op.drop_index("ix_booking_video_sessions_session_id", table_name="booking_video_sessions")
     op.drop_index("idx_booking_video_sessions_room_id", table_name="booking_video_sessions")
     op.drop_index("idx_booking_video_sessions_booking_id", table_name="booking_video_sessions")
     op.drop_constraint("uq_booking_video_sessions_booking_id", "booking_video_sessions", type_="unique")
