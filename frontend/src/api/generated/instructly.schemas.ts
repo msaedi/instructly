@@ -8718,7 +8718,9 @@ export interface VideoSessionStatusResponse {
  * Standard acknowledgement payload returned by webhook endpoints.
  */
 export interface WebhookAckResponse {
+  message?: string | null;
   ok?: boolean;
+  status?: string | null;
 }
 
 export interface WebhookResponse {

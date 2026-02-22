@@ -91,6 +91,41 @@ class TestHundredmsWebhookEndpoint:
         assert data["ok"] is True
         assert response.headers.get("X-RateLimit-Policy") == "webhook_hundredms"
 
+    @patch("app.routes.v1.webhooks_hundredms.WebhookLedgerService")
+    @patch("app.routes.v1.webhooks_hundredms.settings")
+    def test_hundredms_test_webhook_returns_200(
+        self,
+        mock_settings,
+        mock_ledger_cls,
+        client_with_mock_repo,
+    ):
+        """100ms dashboard test payload should return 200 for health checks."""
+        mock_settings.hundredms_webhook_secret = MagicMock()
+        mock_settings.hundredms_webhook_secret.get_secret_value.return_value = "test-secret"
+
+        payload = {
+            "version": "2.0",
+            "id": "test-event-id",
+            "timestamp": "20XX-0X-0XT10:XX:XXZ",
+            "type": "session.open.success",
+            "data": {
+                "room_name": "Sample Room Name",
+                "session_id": "test-session",
+            },
+        }
+        response = client_with_mock_repo.post(
+            "/api/v1/webhooks/hundredms",
+            content=json.dumps(payload),
+            headers={
+                "Content-Type": "application/json",
+                "x-hundredms-secret": "test-secret",
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.json()["message"] == "test webhook received"
+        mock_ledger_cls.assert_not_called()
+
     @patch("app.routes.v1.webhooks_hundredms.settings")
     def test_returns_401_without_secret(self, mock_settings, client_with_mock_repo):
         mock_settings.hundredms_webhook_secret = MagicMock()

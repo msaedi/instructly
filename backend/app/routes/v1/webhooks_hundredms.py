@@ -701,6 +701,12 @@ async def handle_hundredms_webhook(
             detail="Invalid JSON payload",
         )
 
+    # 100ms dashboard "Test Webhook" sends placeholder payload data.
+    timestamp_value = payload.get("timestamp")
+    if isinstance(timestamp_value, str) and timestamp_value.startswith("20XX"):
+        logger.info("100ms test webhook received — connectivity confirmed")
+        return WebhookAckResponse(ok=True, status="ok", message="test webhook received")
+
     # 3. Extract event metadata
     event_type_raw = payload.get("type")
     event_type = event_type_raw.strip() if isinstance(event_type_raw, str) else ""

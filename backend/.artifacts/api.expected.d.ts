@@ -10486,7 +10486,9 @@ export type components = {
  student_joined_at?: string | null;
  };
  WebhookAckResponse: {
+ message?: string | null;
  ok: boolean;
+ status?: string | null;
  };
  WebhookEventBrief: {
  event_id: string;

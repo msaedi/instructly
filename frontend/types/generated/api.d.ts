@@ -21059,11 +21059,15 @@ export type components = {
          * @description Standard acknowledgement payload returned by webhook endpoints.
          */
         WebhookAckResponse: {
+            /** Message */
+            message?: string | null;
             /**
              * Ok
              * @default true
              */
             ok: boolean;
+            /** Status */
+            status?: string | null;
         };
         /** WebhookEventBrief */
         WebhookEventBrief: {
