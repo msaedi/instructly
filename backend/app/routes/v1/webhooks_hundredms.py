@@ -17,6 +17,7 @@ from time import monotonic
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from prometheus_client import Counter
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from sqlalchemy.orm import Session
 
@@ -56,6 +57,11 @@ _HANDLED_EVENT_TYPES = frozenset(
         "peer.join.success",
         "peer.leave.success",
     }
+)
+
+PEER_METADATA_FALLBACK_COUNTER = Counter(
+    "instainstru_webhook_peer_metadata_fallback_total",
+    "Times peer identity fell back to client-provided metadata instead of auth token",
 )
 
 
@@ -348,6 +354,18 @@ def _build_delivery_key(event_id: str | None, event_type: str, data: dict[str, A
     return f"{event_type}:{room_id}:{session_id}:{peer_key or 'no-peer'}"
 
 
+def _extract_user_id_from_metadata(raw_metadata: dict[str, Any] | str | None) -> str | None:
+    """Best-effort user_id extraction from peer metadata."""
+    try:
+        metadata = (
+            json.loads(raw_metadata) if isinstance(raw_metadata, str) else (raw_metadata or {})
+        )
+        extracted = metadata.get("user_id") if isinstance(metadata, dict) else None
+        return extracted if isinstance(extracted, str) and extracted else None
+    except (json.JSONDecodeError, AttributeError, TypeError):
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Event processing
 # ---------------------------------------------------------------------------
@@ -399,14 +417,13 @@ def _handle_peer_join(
     # fall back to peer metadata JSON (defense-in-depth).
     peer_user_id = data.get("user_id")
     if not isinstance(peer_user_id, str) or not peer_user_id:
-        raw_metadata = data.get("metadata") or "{}"
-        try:
-            metadata = (
-                json.loads(raw_metadata) if isinstance(raw_metadata, str) else (raw_metadata or {})
-            )
-            peer_user_id = metadata.get("user_id") if isinstance(metadata, dict) else None
-        except (json.JSONDecodeError, AttributeError):
-            peer_user_id = None
+        logger.warning(
+            "Peer join missing user_id in auth token; falling back to client metadata for booking=%s peer=%s",
+            video_session.booking_id,
+            peer_id,
+        )
+        PEER_METADATA_FALLBACK_COUNTER.inc()
+        peer_user_id = _extract_user_id_from_metadata(data.get("metadata"))
 
     booking_start_utc = getattr(booking, "booking_start_utc", None)
     booking_duration = getattr(booking, "duration_minutes", None)

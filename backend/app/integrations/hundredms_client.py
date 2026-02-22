@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from typing import Any, cast
 import uuid
@@ -18,6 +19,16 @@ import jwt
 from pydantic import SecretStr
 
 logger = logging.getLogger(__name__)
+
+_SENSITIVE_PATTERN = re.compile(
+    r"(?i)\b(token|secret|api[_-]?key|password|authorization|credential)\b['\"]?\s*[:=]\s*['\"]?[A-Za-z0-9._-]{8,}"
+)
+
+
+def _sanitize_error_text(text: str, max_length: int = 500) -> str:
+    """Truncate and redact potential secrets from API error responses."""
+    truncated = text[:max_length]
+    return _SENSITIVE_PATTERN.sub(lambda match: f"{match.group(1)}=REDACTED", truncated)
 
 
 class HundredMsError(RuntimeError):
@@ -135,19 +146,22 @@ class HundredMsClient:
                 if isinstance(parsed_body, dict):
                     error_body = parsed_body
                 else:
-                    error_body = {"raw": response.text[:500]}
+                    error_body = {"raw": _sanitize_error_text(response.text)}
             except Exception:
-                error_body = {"raw": response.text[:500]}
+                error_body = {"raw": _sanitize_error_text(response.text)}
 
             details = error_body.get("details", None)
-            message = error_body.get("message") or error_body.get("description") or response.text
+            message_raw = (
+                error_body.get("message") or error_body.get("description") or response.text
+            )
+            message = _sanitize_error_text(str(message_raw))
 
             logger.error(
                 "100ms API error %s for %s %s: %s",
                 response.status_code,
                 method,
                 path,
-                response.text[:500],
+                _sanitize_error_text(response.text),
             )
             raise HundredMsError(
                 message=message,

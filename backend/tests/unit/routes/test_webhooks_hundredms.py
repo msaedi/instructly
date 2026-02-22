@@ -598,6 +598,35 @@ class TestProcessHundredmsEvent:
         assert vs.student_peer_id == "peer-meta"
         assert vs.student_joined_at is not None
 
+    def test_peer_join_metadata_fallback_logs_warning_and_metric(self) -> None:
+        """Fallback path should emit observability signals."""
+        from app.routes.v1.webhooks_hundredms import _process_hundredms_event
+
+        vs = self._make_video_session()
+        repo = self._make_repo(vs)
+
+        with (
+            patch("app.routes.v1.webhooks_hundredms.logger.warning") as mock_warning,
+            patch("app.routes.v1.webhooks_hundredms.PEER_METADATA_FALLBACK_COUNTER") as mock_counter,
+        ):
+            error, outcome = _process_hundredms_event(
+                event_type="peer.join.success",
+                data={
+                    "room_name": "lesson-01HYXZ5G6KFXJKZ9CHQM4E3P7G",
+                    "peer_id": "peer-meta-observed",
+                    "role": "guest",
+                    "joined_at": "2024-06-15T14:01:00Z",
+                    "metadata": '{"user_id":"student_123"}',
+                },
+                booking_repo=repo,
+            )
+
+        assert error is None
+        assert outcome == "processed"
+        mock_counter.inc.assert_called_once()
+        assert mock_warning.call_count == 1
+        assert "falling back to client metadata" in mock_warning.call_args[0][0]
+
     def test_peer_join_mismatched_user_id_is_skipped(self) -> None:
         from app.routes.v1.webhooks_hundredms import _process_hundredms_event
 

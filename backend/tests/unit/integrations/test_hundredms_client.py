@@ -13,6 +13,7 @@ from app.integrations.hundredms_client import (
     FakeHundredMsClient,
     HundredMsClient,
     HundredMsError,
+    _sanitize_error_text,
 )
 
 # ── Management token tests ─────────────────────────────────────────────
@@ -88,6 +89,24 @@ class TestManagementToken:
             assert client._get_management_token() == "token-1"
             assert client._get_management_token() == "token-2"
         assert gen.call_count == 2
+
+
+class TestSanitizeErrorText:
+    def test_sanitize_error_text_redacts_tokens(self):
+        raw = '{"error":"bad","token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"}'
+        sanitized = _sanitize_error_text(raw)
+        assert "token=REDACTED" in sanitized
+        assert "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9" not in sanitized
+
+    def test_sanitize_error_text_preserves_normal_errors(self):
+        raw = "room not found"
+        assert _sanitize_error_text(raw) == raw
+
+    def test_sanitize_error_text_truncates(self):
+        raw = "x" * 600
+        sanitized = _sanitize_error_text(raw)
+        assert len(sanitized) == 500
+        assert sanitized == "x" * 500
 
 
 # ── HTTP request tests (mocked) ────────────────────────────────────────
