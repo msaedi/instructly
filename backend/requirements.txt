@@ -9,7 +9,7 @@ sse-starlette==3.2.0
 # Database
 SQLAlchemy==2.0.46
 psycopg2-binary==2.9.11
-alembic==1.18.1
+alembic==1.18.4
 pgvector==0.4.2
 
 # Validation & Serialization
