@@ -13,8 +13,13 @@ export function Select({ onOpenChange, ...rest }: SelectRootProps) {
     />
   );
 }
-export const SelectGroup = SelectPrimitive.Group;
-export const SelectValue = SelectPrimitive.Value;
+export function SelectGroup(props: React.ComponentPropsWithoutRef<typeof SelectPrimitive.Group>) {
+  return <SelectPrimitive.Group {...props} />;
+}
+
+export function SelectValue(props: React.ComponentPropsWithoutRef<typeof SelectPrimitive.Value>) {
+  return <SelectPrimitive.Value {...props} />;
+}
 
 type SelectTriggerProps = React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger> & {
   error?: boolean;

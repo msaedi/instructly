@@ -6,9 +6,11 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   Select,
+  SelectGroup,
   SelectTrigger,
   SelectContent,
   SelectItem,
+  SelectLabel,
   SelectValue,
 } from '../select';
 
@@ -164,6 +166,32 @@ describe('Select component — branch coverage', () => {
       // item-aligned does NOT use popper, so no popper wrapper
       const popperWrapper = document.querySelector('[data-radix-popper-content-wrapper]');
       expect(popperWrapper).not.toBeInTheDocument();
+    });
+  });
+
+  // ---- SelectGroup and SelectLabel ----
+
+  describe('SelectGroup and SelectLabel', () => {
+    it('renders grouped items with a label', async () => {
+      render(
+        <Select defaultOpen value="a">
+          <SelectTrigger>
+            <SelectValue placeholder="Choose" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectLabel>Fruits</SelectLabel>
+              <SelectItem value="a">Apple</SelectItem>
+              <SelectItem value="b">Banana</SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Fruits')).toBeInTheDocument();
+        expect(screen.getByRole('option', { name: 'Apple' })).toBeInTheDocument();
+      });
     });
   });
 

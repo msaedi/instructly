@@ -1,7 +1,7 @@
 import { dirname } from 'path';
 import { fileURLToPath } from 'url';
 import nextConfig from 'eslint-config-next/core-web-vitals';
-import reactRefresh from 'eslint-plugin-react-refresh';
+import reactRefreshPlugin from 'eslint-plugin-react-refresh';
 import noOnlyTests from 'eslint-plugin-no-only-tests';
 import tsParser from '@typescript-eslint/parser';
 
@@ -29,7 +29,7 @@ const eslintConfig = [
   {
     files: ['**/*.{js,jsx,mjs,ts,tsx,mts,cts}'],
     plugins: {
-      'react-refresh': reactRefresh,
+      'react-refresh': reactRefreshPlugin,
       'no-only-tests': noOnlyTests,
     },
     rules: {
@@ -142,7 +142,7 @@ const eslintConfig = [
   // React Refresh ergonomics in component and test files
   {
     files: ['components/**/*', 'features/**/*', 'app/**/*', '__tests__/**/*'],
-    plugins: { 'react-refresh': reactRefresh },
+    plugins: { 'react-refresh': reactRefreshPlugin },
     rules: {
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
       // Guardrails: prevent dynamic access of NEXT_PUBLIC_* in client code
