@@ -324,3 +324,45 @@ class TestSearchEventRepositoryCoverage:
 
         event_by_id = repo.get_search_event_by_id(event.id)
         assert event_by_id is not None
+
+    def test_quality_score_missing_event(self, db, test_student):
+        """L246: event not found returns 0.0."""
+        repo = SearchEventRepository(db)
+        score = repo.calculate_search_quality_score("nonexistent-event-id-xxx")
+        assert score == 0.0
+
+    def test_quality_score_moderate_results(self, db, test_student):
+        """L254,260: results_count in the 11-50 range."""
+        repo = SearchEventRepository(db)
+        now = datetime.now(timezone.utc)
+
+        moderate_event = _create_event(
+            db,
+            user_id=test_student.id,
+            search_query="moderate",
+            search_type="natural_language",
+            results_count=25,
+            searched_at=now,
+        )
+        db.commit()
+
+        score = repo.calculate_search_quality_score(moderate_event.id)
+        assert score == 50.0  # capped at 50
+
+    def test_hourly_search_counts_non_datetime_value(self, db, test_student):
+        """L572-575: non-datetime hour_start is parsed via fromisoformat."""
+        repo = SearchEventRepository(db)
+        now = datetime.now(timezone.utc)
+
+        _create_event(
+            db,
+            user_id=test_student.id,
+            search_query="hourly-test",
+            search_type="natural_language",
+            results_count=1,
+            searched_at=now,
+        )
+        db.commit()
+
+        hourly = repo.get_hourly_search_counts(now - timedelta(days=1), limit=5)
+        assert isinstance(hourly, list)

@@ -9,6 +9,8 @@ was removed. Those functions are handled by NotificationService and PasswordRese
 
 from unittest.mock import MagicMock, Mock, patch
 
+import pytest
+
 
 class TestSendBetaInvitesBatchTask:
     """Tests for send_beta_invites_batch task."""
@@ -220,6 +222,36 @@ class TestSendBetaInvitesBatchTask:
         assert sent_item["code"] == "BETA2024"
         assert sent_item["email"] == "test@example.com"
         assert sent_item["join_url"] == "https://join.example.com/BETA2024"
+
+
+    @patch("app.tasks.email.get_db")
+    @patch("app.tasks.email.BetaService")
+    @patch("celery.current_task", None)
+    def test_outer_exception_triggers_retry(self, mock_beta_service, mock_get_db):
+        """L98-99: Exception during BetaService init triggers self.retry."""
+        from app.tasks.email import send_beta_invites_batch
+
+        mock_db = MagicMock()
+        mock_get_db.return_value = iter([mock_db])
+        mock_beta_service.side_effect = RuntimeError("service init failed")
+
+        # The task is bound, so self.retry will be called.
+        # self.retry raises Retry exception by default.
+        from celery.exceptions import Retry
+
+        with patch.object(send_beta_invites_batch, "retry", side_effect=Retry("retry")) as mock_retry:
+            with pytest.raises(Retry):
+                send_beta_invites_batch(
+                    emails=["test@example.com"],
+                    role="student",
+                    expires_in_days=7,
+                    source="test",
+                    base_url="https://example.com",
+                )
+            mock_retry.assert_called_once()
+            call_kwargs = mock_retry.call_args
+            assert call_kwargs[1]["countdown"] == 60
+        mock_db.close.assert_called_once()
 
 
 class TestEmailModuleImports:

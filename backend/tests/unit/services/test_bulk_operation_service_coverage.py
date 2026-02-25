@@ -2537,3 +2537,181 @@ class TestTodayPastTimeSlot:
         # Should return error for past time slot
         assert error is not None
         assert "past time slot" in error
+
+
+@pytest.mark.unit
+class TestGenerateWeekOperationsNoneDefaults:
+    """Cover _generate_operations_from_states None parameter defaults (L941-948)."""
+
+    @pytest.fixture
+    def mock_db(self) -> MagicMock:
+        db = MagicMock()
+        mock_user = MagicMock()
+        mock_user.id = generate_ulid()
+        mock_user.timezone = "America/New_York"
+        mock_query = MagicMock()
+        mock_filter = MagicMock()
+        mock_filter.first.return_value = mock_user
+        mock_query.filter.return_value = mock_filter
+        db.query.return_value = mock_query
+        return db
+
+    @pytest.fixture
+    def service(self, mock_db: MagicMock) -> Any:
+        from app.services.bulk_operation_service import BulkOperationService
+
+        return BulkOperationService(
+            db=mock_db,
+            slot_manager=MagicMock(),
+            conflict_checker=MagicMock(),
+            cache_service=MagicMock(),
+        )
+
+    def test_existing_slots_alias(self, service: Any) -> None:
+        """L941-942: existing_slots is used when existing_windows is None."""
+        result = service._generate_operations_from_states(
+            existing_windows=None,
+            current_week={},
+            saved_week={},
+            week_start=date(2024, 6, 3),
+            existing_slots={"2024-06-03": [{"start_time": "09:00", "end_time": "10:00"}]},
+        )
+        assert isinstance(result, list)
+
+    def test_all_none_defaults(self, service: Any) -> None:
+        """L943-948: all None params -> default to empty dicts."""
+        result = service._generate_operations_from_states(
+            existing_windows=None,
+            current_week=None,
+            saved_week=None,
+            week_start=date(2024, 6, 3),
+        )
+        assert result == []
+
+    def test_week_start_none_raises(self, service: Any) -> None:
+        """L949-950: week_start is None -> raises ValueError."""
+        with pytest.raises(ValueError, match="week_start is required"):
+            service._generate_operations_from_states(
+                existing_windows={},
+                current_week={},
+                saved_week={},
+                week_start=None,
+            )
+
+
+@pytest.mark.unit
+class TestValidateRemoveOperationStringTimesExtra:
+    """Cover _validate_remove_operation string time parsing (L654,656)."""
+
+    @pytest.fixture
+    def mock_db(self) -> MagicMock:
+        db = MagicMock()
+        mock_user = MagicMock()
+        mock_user.id = generate_ulid()
+        mock_user.timezone = "America/New_York"
+        mock_query = MagicMock()
+        mock_filter = MagicMock()
+        mock_filter.first.return_value = mock_user
+        mock_query.filter.return_value = mock_filter
+        db.query.return_value = mock_query
+        return db
+
+    @pytest.fixture
+    def service(self, mock_db: MagicMock) -> Any:
+        from app.services.bulk_operation_service import BulkOperationService
+
+        return BulkOperationService(
+            db=mock_db,
+            slot_manager=MagicMock(),
+            conflict_checker=MagicMock(),
+            cache_service=MagicMock(),
+        )
+
+    def test_string_time_parsing(self, service: Any) -> None:
+        """L654,656: string times -> parsed to time objects."""
+        instructor_id = generate_ulid()
+        operation = MagicMock()
+        operation.slot_id = None
+        operation.date = date(2024, 6, 3)
+        operation.start_time = "09:00:00"
+        operation.end_time = "10:00:00"
+
+        with patch.object(service, "_get_existing_week_windows", return_value={}):
+            slot, error = service._validate_remove_operation(instructor_id, operation)
+
+        # Should return error since window not found in existing
+        assert error is not None
+
+    def test_missing_date_returns_error(self, service: Any) -> None:
+        """L639-643: missing date -> returns None + error message."""
+        instructor_id = generate_ulid()
+        operation = MagicMock()
+        operation.slot_id = None
+        operation.date = None
+        operation.start_time = time(9, 0)
+        operation.end_time = time(10, 0)
+
+        slot, error = service._validate_remove_operation(instructor_id, operation)
+        assert slot is None
+        assert error is not None
+        assert "Missing date" in error
+
+    def test_none_start_time_returns_error(self, service: Any) -> None:
+        """L660-661: start_time is None after parsing -> returns error."""
+        instructor_id = generate_ulid()
+        operation = MagicMock()
+        operation.slot_id = None
+        operation.date = date(2024, 6, 3)
+        operation.start_time = 12345  # Not str, not time -> both branches fail
+        operation.end_time = 67890
+
+        slot, error = service._validate_remove_operation(instructor_id, operation)
+        assert slot is None
+        assert error is not None
+        assert "Invalid window time" in error
+
+
+@pytest.mark.unit
+class TestProcessUpdateSlotNone:
+    """Cover _process_update_operation slot is None (L852-853)."""
+
+    @pytest.fixture
+    def mock_db(self) -> MagicMock:
+        db = MagicMock()
+        mock_user = MagicMock()
+        mock_user.id = generate_ulid()
+        mock_user.timezone = "America/New_York"
+        mock_query = MagicMock()
+        mock_filter = MagicMock()
+        mock_filter.first.return_value = mock_user
+        mock_query.filter.return_value = mock_filter
+        db.query.return_value = mock_query
+        return db
+
+    @pytest.fixture
+    def service(self, mock_db: MagicMock) -> Any:
+        from app.services.bulk_operation_service import BulkOperationService
+
+        return BulkOperationService(
+            db=mock_db,
+            slot_manager=MagicMock(),
+            conflict_checker=MagicMock(),
+            cache_service=MagicMock(),
+        )
+
+    def test_slot_none_returns_failed(self, service: Any) -> None:
+        """L852-858: _find_slot_for_update returns (None, None) -> failed result."""
+        instructor_id = generate_ulid()
+        operation = MagicMock()
+        operation.action = "update"
+        operation.slot_id = "SLOT_01"
+        operation.start_time = time(9, 0)
+        operation.end_time = time(10, 0)
+
+        with patch.object(service, "_find_slot_for_update", return_value=(None, None)):
+            result = service._process_update_operation(
+                instructor_id, operation, 0, validate_only=False
+            )
+
+        assert result.status == "failed"
+        assert "could not be loaded" in result.reason

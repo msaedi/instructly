@@ -81,28 +81,5 @@ class LocationEnrichmentService:
                 },
             )
 
-        # Skip legacy fallback here to keep service repository-driven; default to metadata-only
-        row2 = None
-
-        if row2:
-            borough = row2.get("borough")
-            ntacode = row2.get("ntacode")
-            ntaname = row2.get("ntaname")
-            community_district = row2.get("community_district")
-            return EnrichmentResult(
-                district=borough,
-                neighborhood=ntaname,
-                location_metadata={
-                    "country": "US",
-                    "region_type": "nyc",
-                    "nyc": {
-                        "borough": borough,
-                        "nta_code": ntacode,
-                        "nta_name": ntaname,
-                        "community_district": community_district,
-                    },
-                },
-            )
-
         # No match: still label as NYC region
         return EnrichmentResult(location_metadata={"region_type": "nyc"})

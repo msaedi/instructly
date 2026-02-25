@@ -62,3 +62,47 @@ def test_bulk_upsert_native(db):
     )
     assert count == 2
     assert repo.get_day_bits(instructor_id, day) == bits
+
+
+def test_get_day_bits_nonexistent(db):
+    """L97: get_day_bits returns None when no matching row."""
+    repo = AvailabilityDayRepository(db)
+    assert repo.get_day_bits("nonexistent-inst-xyz", date.today()) is None
+
+
+def test_upsert_week_updates_existing(db):
+    """L127: upsert_week updates existing row when one already exists."""
+    repo = AvailabilityDayRepository(db)
+    instructor_id = "inst-upsert-update"
+    day = date.today()
+    bits_v1 = b"\x01\x01\x01"
+    bits_v2 = b"\x02\x02\x02"
+
+    repo.upsert_week(instructor_id, [(day, bits_v1)])
+    repo.upsert_week(instructor_id, [(day, bits_v2)])
+
+    assert repo.get_day_bits(instructor_id, day) == bits_v2
+
+
+def test_bulk_upsert_all_empty_list(db):
+    """L155: bulk_upsert_all with empty items returns 0."""
+    repo = AvailabilityDayRepository(db)
+    assert repo.bulk_upsert_all([]) == 0
+
+
+def test_bulk_upsert_native_empty_list(db):
+    """bulk_upsert_native with empty items returns 0."""
+    repo = AvailabilityDayRepository(db)
+    assert repo.bulk_upsert_native([]) == 0
+
+
+def test_delete_days_for_instructor_no_exclusions(db):
+    """delete_days_for_instructor without exclude_dates deletes all."""
+    repo = AvailabilityDayRepository(db)
+    instructor_id = "inst-delete-all"
+    day = date.today()
+    bits = b"\x01\x02\x03"
+
+    repo.upsert_week(instructor_id, [(day, bits), (day + timedelta(days=1), bits)])
+    deleted = repo.delete_days_for_instructor(instructor_id)
+    assert deleted == 2

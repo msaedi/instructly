@@ -48,3 +48,23 @@ def test_get_normalized_query_handles_errors(db, monkeypatch):
 
     monkeypatch.setattr(repo.db, "get", _raise)
     assert repo.get_normalized_query("any") is None
+
+
+def test_get_normalized_query_rollback_error(db, monkeypatch):
+    """L44-45: db.rollback() raises inside the except block – should not propagate."""
+    from unittest.mock import MagicMock
+
+    mock_db = MagicMock()
+    repo = SearchQueryRepository(mock_db)
+
+    mock_db.get.side_effect = SQLAlchemyError("db error")
+    mock_db.rollback.side_effect = RuntimeError("rollback failed")
+
+    assert repo.get_normalized_query("any-id") is None
+
+
+def test_get_normalized_query_none_payload(db):
+    """When normalized_query is None, should return None."""
+    repo = SearchQueryRepository(db)
+    row = _create_search_query(db, normalized_query=None)
+    assert repo.get_normalized_query(row.id) is None

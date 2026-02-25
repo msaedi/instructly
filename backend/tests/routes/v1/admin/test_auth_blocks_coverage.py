@@ -351,3 +351,138 @@ async def test_clear_account_blocks_handles_delete_error(monkeypatch):
         )
 
     assert exc.value.status_code == 500
+
+
+# ---- Branch coverage: _has_active_blocks with no lockout but high failure_count ----
+def test_has_active_blocks_high_failure_count_only():
+    account = auth_blocks.BlockedAccount(
+        email="user@example.com",
+        failure_count=5,
+        blocks=auth_blocks.BlocksState(),
+    )
+    # failure_count >= 3 triggers True when no filter_type
+    assert auth_blocks._has_active_blocks(account) is True
+
+
+def test_has_active_blocks_rate_limit_hour_active():
+    account = auth_blocks.BlockedAccount(
+        email="user@example.com",
+        failure_count=0,
+        blocks=auth_blocks.BlocksState(
+            rate_limit_hour=auth_blocks.RateLimitState(
+                active=True, count=20, limit=10, ttl_seconds=100,
+            ),
+        ),
+    )
+    assert auth_blocks._has_active_blocks(account, "rate_limit") is True
+
+
+# ---- Branch coverage: list_auth_issues with email filter ----
+@pytest.mark.asyncio
+async def test_list_auth_issues_email_filter(monkeypatch):
+    store = {
+        "login:lockout:one@example.com": "1",
+        "login:failures:one@example.com": "5",
+        "login:lockout:two@other.com": "1",
+        "login:failures:two@other.com": "5",
+    }
+    ttls = {
+        "login:lockout:one@example.com": 30,
+        "login:lockout:two@other.com": 30,
+    }
+    redis = FakeRedis(store=store, ttls=ttls)
+
+    async def _get_redis():
+        return redis
+
+    monkeypatch.setattr(auth_blocks, "get_async_cache_redis_client", _get_redis)
+    monkeypatch.setattr(auth_blocks.settings, "captcha_failure_threshold", 3, raising=False)
+    monkeypatch.setattr(auth_blocks.settings, "login_attempts_per_minute", 5, raising=False)
+    monkeypatch.setattr(auth_blocks.settings, "login_attempts_per_hour", 10, raising=False)
+
+    result = await auth_blocks.list_auth_issues(
+        type=None,
+        email="one@example",
+        current_user=SimpleNamespace(email="admin@example.com"),
+    )
+    # Should only include one@example.com, not two@other.com
+    assert result.total == 1
+    assert result.accounts[0].email == "one@example.com"
+
+
+# ---- Branch coverage: list_auth_issues with type filter ----
+@pytest.mark.asyncio
+async def test_list_auth_issues_type_filter_lockout(monkeypatch):
+    store = {
+        "login:lockout:locked@example.com": "1",
+        "login:failures:locked@example.com": "10",
+        "login:failures:notlocked@example.com": "3",
+    }
+    ttls = {"login:lockout:locked@example.com": 60}
+    redis = FakeRedis(store=store, ttls=ttls)
+
+    async def _get_redis():
+        return redis
+
+    monkeypatch.setattr(auth_blocks, "get_async_cache_redis_client", _get_redis)
+    monkeypatch.setattr(auth_blocks.settings, "captcha_failure_threshold", 3, raising=False)
+    monkeypatch.setattr(auth_blocks.settings, "login_attempts_per_minute", 5, raising=False)
+    monkeypatch.setattr(auth_blocks.settings, "login_attempts_per_hour", 10, raising=False)
+
+    result = await auth_blocks.list_auth_issues(
+        type="lockout",
+        email=None,
+        current_user=SimpleNamespace(email="admin@example.com"),
+    )
+    # Only locked-out accounts
+    assert all(
+        a.blocks.lockout is not None and a.blocks.lockout.active
+        for a in result.accounts
+    )
+
+
+# ---- Branch coverage: clear_account_blocks with None request ----
+@pytest.mark.asyncio
+async def test_clear_account_blocks_none_request(monkeypatch):
+    store = {
+        "login:lockout:user@example.com": "1",
+        "login:failures:user@example.com": "5",
+    }
+    redis = FakeRedis(store=store)
+
+    async def _get_redis():
+        return redis
+
+    monkeypatch.setattr(auth_blocks, "get_async_cache_redis_client", _get_redis)
+
+    response = await auth_blocks.clear_account_blocks(
+        "user@example.com",
+        request=None,  # Should default to clearing all types
+        current_user=SimpleNamespace(email="admin@example.com"),
+    )
+    assert "lockout" in response.cleared
+    assert "failures" in response.cleared
+    assert response.reason is None
+
+
+# ---- Branch coverage: get_account_state with data present returns state ----
+@pytest.mark.asyncio
+async def test_get_account_state_returns_data(monkeypatch):
+    store = {
+        "login:failures:user@example.com": "5",
+    }
+    redis = FakeRedis(store=store)
+
+    async def _get_redis():
+        return redis
+
+    monkeypatch.setattr(auth_blocks, "get_async_cache_redis_client", _get_redis)
+    monkeypatch.setattr(auth_blocks.settings, "captcha_failure_threshold", 3, raising=False)
+    monkeypatch.setattr(auth_blocks.settings, "login_attempts_per_minute", 5, raising=False)
+    monkeypatch.setattr(auth_blocks.settings, "login_attempts_per_hour", 10, raising=False)
+
+    result = await auth_blocks.get_account_state(
+        "user@example.com",
+        current_user=SimpleNamespace(email="admin@example.com"),
+    )
+    assert result.failure_count == 5

@@ -81,3 +81,34 @@ async def test_force_logout_user_not_found(monkeypatch, db, admin_user):
             db=db,
         )
     assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_force_logout_user_audit_failure_swallowed(monkeypatch, db, admin_user):
+    """L55-56: AuditService.log raises → warning logged but response still returned."""
+
+    class _Repo:
+        def invalidate_all_tokens(self, _user_id: str, **_kwargs):
+            return True
+
+    class _FailingAuditService:
+        def __init__(self, _db):
+            pass
+
+        def log(self, **_kwargs):
+            raise RuntimeError("audit write exploded")
+
+    monkeypatch.setattr(
+        users_routes.RepositoryFactory,
+        "create_user_repository",
+        lambda _db: _Repo(),
+    )
+    monkeypatch.setattr(users_routes, "AuditService", _FailingAuditService)
+
+    response = await users_routes.force_logout_user(
+        user_id="01TARGETUSERIDHERE00000000",
+        request=_make_request(),
+        current_admin=admin_user,
+        db=db,
+    )
+    assert response.message == "User sessions have been logged out"

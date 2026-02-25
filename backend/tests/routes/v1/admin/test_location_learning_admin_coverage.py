@@ -169,3 +169,21 @@ def test_non_admin_forbidden(client, auth_headers_student):
         headers=auth_headers_student,
     )
     assert response.status_code == 403
+
+
+# ---- L84: approve_alias returns False → 404 ----
+def test_approve_nonexistent_alias(client, auth_headers_admin):
+    response = client.post(
+        "/api/v1/admin/location-learning/aliases/01NONEXISTENTALIAS000000000/approve",
+        headers=auth_headers_admin,
+    )
+    assert response.status_code == 404
+
+
+# ---- L100: reject_alias returns False → 404 ----
+def test_reject_nonexistent_alias(client, auth_headers_admin):
+    response = client.post(
+        "/api/v1/admin/location-learning/aliases/01NONEXISTENTALIAS000000000/reject",
+        headers=auth_headers_admin,
+    )
+    assert response.status_code == 404

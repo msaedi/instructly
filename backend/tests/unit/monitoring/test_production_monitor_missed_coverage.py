@@ -175,3 +175,139 @@ async def test_periodic_health_check_stale_count(monkeypatch) -> None:
     mon.check_memory_usage()
     stale_count = mon.cleanup_stale_requests()
     assert stale_count == 3
+
+
+# ──────────────────────────────────────────────────────────────
+# Additional coverage: L40-42, L201, L321, L347, L440-445
+# ──────────────────────────────────────────────────────────────
+
+
+class TestCeleryImportFallback:
+    """L40-42: When Celery enqueue import fails → CELERY_AVAILABLE=False."""
+
+    def test_celery_not_available_flag(self):
+        """Verify CELERY_AVAILABLE can be False and alerts still work."""
+        with patch("app.monitoring.production_monitor.event"):
+            from app.monitoring.production_monitor import PerformanceMonitor
+
+            mon = PerformanceMonitor()
+
+        with patch("app.monitoring.production_monitor.CELERY_AVAILABLE", False):
+            # _send_alert should still log but not try Celery dispatch
+            mon._send_alert("celery_unavailable_test", "testing fallback")
+        assert "celery_unavailable_test" in mon._last_alert_time
+
+
+class TestDbPoolHealthEmpty:
+    """L201: get_pool_status_for_role returns empty dict → fallback to get_db_pool_status."""
+
+    def test_empty_pool_roles_fallback(self):
+        with patch("app.monitoring.production_monitor.event"):
+            from app.monitoring.production_monitor import PerformanceMonitor
+
+            mon = PerformanceMonitor()
+
+        with patch("app.monitoring.production_monitor.get_pool_status_for_role", return_value={}), \
+             patch("app.monitoring.production_monitor.get_db_pool_status", return_value={
+                 "checked_out": 2,
+                 "max_capacity": 20,
+                 "utilization_pct": 10.0,
+             }):
+            result = mon.check_db_pool_health()
+        assert result["usage_percent"] == 10.0
+        assert "api" in result["pools"]
+
+    def test_pool_high_usage_alert(self):
+        """Alert fired when pool usage > 80%."""
+        with patch("app.monitoring.production_monitor.event"):
+            from app.monitoring.production_monitor import PerformanceMonitor
+
+            mon = PerformanceMonitor()
+
+        with patch("app.monitoring.production_monitor.get_pool_status_for_role", return_value={
+                 "api": {"checked_out": 18, "max_capacity": 20, "utilization_pct": 90.0},
+             }):
+            result = mon.check_db_pool_health()
+        assert result["healthy"] is False
+        assert "high_db_pool_usage" in mon._last_alert_time
+
+
+class TestSendAlertSeverity:
+    """Alert severity is 'critical' when alert type contains 'extremely'."""
+
+    def test_critical_severity(self):
+        with patch("app.monitoring.production_monitor.event"):
+            from app.monitoring.production_monitor import PerformanceMonitor
+
+            mon = PerformanceMonitor()
+
+        with patch("app.monitoring.production_monitor.CELERY_AVAILABLE", True), \
+             patch.object(mon, "_is_redis_available", return_value=True), \
+             patch("app.monitoring.production_monitor.enqueue_task") as mock_enqueue:
+            mon._send_alert("extremely_slow_query", "test critical")
+        call_kwargs = mock_enqueue.call_args[1]["kwargs"]
+        assert call_kwargs["severity"] == "critical"
+
+    def test_warning_severity(self):
+        with patch("app.monitoring.production_monitor.event"):
+            from app.monitoring.production_monitor import PerformanceMonitor
+
+            mon = PerformanceMonitor()
+
+        with patch("app.monitoring.production_monitor.CELERY_AVAILABLE", True), \
+             patch.object(mon, "_is_redis_available", return_value=True), \
+             patch("app.monitoring.production_monitor.enqueue_task") as mock_enqueue:
+            mon._send_alert("high_db_pool_usage", "test warning")
+        call_kwargs = mock_enqueue.call_args[1]["kwargs"]
+        assert call_kwargs["severity"] == "warning"
+
+
+class TestTrackRequestEndEdgeCases:
+    """Track request end edge cases."""
+
+    def test_unknown_request_id(self):
+        with patch("app.monitoring.production_monitor.event"):
+            from app.monitoring.production_monitor import PerformanceMonitor
+
+            mon = PerformanceMonitor()
+
+        result = mon.track_request_end("nonexistent_id", 200)
+        assert result is None
+
+    def test_slow_request_tracked(self):
+        with patch("app.monitoring.production_monitor.event"):
+            from app.monitoring.production_monitor import PerformanceMonitor
+
+            mon = PerformanceMonitor(slow_request_threshold_ms=0)
+
+        mock_request = MagicMock()
+        mock_request.method = "GET"
+        mock_request.url.path = "/api/v1/test"
+        mock_request.client.host = "127.0.0.1"
+        mon.track_request_start("req1", mock_request)
+        duration = mon.track_request_end("req1", 200)
+        assert duration is not None
+        assert len(mon.slow_requests) >= 1
+
+
+class TestCheckMemoryHighUsage:
+    """Test high memory usage triggers alert and gc."""
+
+    def test_high_memory_triggers_alert(self):
+        with patch("app.monitoring.production_monitor.event"):
+            from app.monitoring.production_monitor import PerformanceMonitor
+
+            mon = PerformanceMonitor()
+
+        with patch("app.monitoring.production_monitor.psutil") as mock_psutil, \
+             patch("app.monitoring.production_monitor.gc") as mock_gc:
+            mock_process = MagicMock()
+            mock_process.memory_info.return_value = MagicMock(rss=500 * 1024 * 1024, vms=800 * 1024 * 1024)
+            mock_process.memory_percent.return_value = 85.0
+            mock_psutil.Process.return_value = mock_process
+            mock_psutil.virtual_memory.return_value = MagicMock(available=1000 * 1024 * 1024)
+
+            result = mon.check_memory_usage()
+            assert result["percent"] == 85.0
+            assert "high_memory_usage" in mon._last_alert_time
+            mock_gc.collect.assert_called_once()

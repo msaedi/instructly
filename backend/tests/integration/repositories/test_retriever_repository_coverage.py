@@ -127,3 +127,36 @@ def test_search_with_instructor_data(db, test_instructor):
 
     results = repo.search_with_instructor_data([0.01] * 1536, limit=3)
     assert isinstance(results, list)
+
+
+# ── L200,271,321,360: early returns for empty ID lists ──────────────────────
+
+
+def test_get_services_by_ids_empty_list(db):
+    """L200: get_services_by_ids([]) should return [] immediately."""
+    repo = RetrieverRepository(db)
+    assert repo.get_services_by_ids([]) == []
+
+
+def test_get_instructor_summaries_empty_list(db):
+    """L271: get_instructor_summaries([]) should return [] immediately."""
+    repo = RetrieverRepository(db)
+    assert repo.get_instructor_summaries([]) == []
+
+
+def test_get_instructor_ratings_empty_list(db):
+    """L321: get_instructor_ratings([]) should return [] immediately."""
+    repo = RetrieverRepository(db)
+    assert repo.get_instructor_ratings([]) == []
+
+
+def test_get_instructor_coverage_areas_empty_list(db):
+    """L360: get_instructor_coverage_areas([]) should return [] immediately."""
+    repo = RetrieverRepository(db)
+    assert repo.get_instructor_coverage_areas([]) == []
+
+
+def test_get_instructor_cards_empty_list(db):
+    """get_instructor_cards([]) should return [] immediately."""
+    repo = RetrieverRepository(db)
+    assert repo.get_instructor_cards([]) == []

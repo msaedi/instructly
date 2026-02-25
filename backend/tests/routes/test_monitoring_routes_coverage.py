@@ -234,3 +234,122 @@ async def test_trigger_payment_health_check_error(monkeypatch) -> None:
             await monitoring_routes.trigger_payment_health_check()
 
     assert exc.value.status_code == 500
+
+
+# ---- L60: api_key mismatch with correct MONITORING_API_KEY set ----
+@pytest.mark.asyncio
+async def test_verify_monitoring_api_key_valid(monkeypatch) -> None:
+    monkeypatch.setattr(monitoring_routes.settings, "environment", "production", raising=False)
+    monkeypatch.setenv("MONITORING_API_KEY", "correct-key")
+
+    # Should not raise with matching key
+    await monitoring_routes.verify_monitoring_api_key(api_key="correct-key")
+
+
+# ---- L161-178: _generate_recommendations thresholds ----
+def test_generate_recommendations_no_issues() -> None:
+    performance = {
+        "database": {"average_pool_usage_percent": 30, "slow_queries_count": 5},
+        "requests": {"active_count": 10},
+        "memory": {"percent": 40},
+    }
+    cache_health: dict = {}
+    recs = monitoring_routes._generate_recommendations(performance, cache_health)
+    assert recs == []
+
+
+def test_generate_recommendations_all_thresholds() -> None:
+    performance = {
+        "database": {"average_pool_usage_percent": 80, "slow_queries_count": 25},
+        "requests": {"active_count": 60},
+        "memory": {"percent": 80},
+    }
+    cache_health = {"recommendations": ["Tune cache TTL"]}
+    recs = monitoring_routes._generate_recommendations(performance, cache_health)
+    types = [r["type"] for r in recs]
+    assert "database" in types
+    assert "cache" in types
+    assert "memory" in types
+    assert "requests" in types
+    # Should have at least 5 recommendations (2 db + 1 cache + 1 memory + 1 requests)
+    assert len(recs) >= 5
+
+
+def test_generate_recommendations_only_db_pool() -> None:
+    performance = {
+        "database": {"average_pool_usage_percent": 71, "slow_queries_count": 5},
+        "requests": {"active_count": 10},
+        "memory": {"percent": 40},
+    }
+    recs = monitoring_routes._generate_recommendations(performance, {})
+    assert len(recs) == 1
+    assert recs[0]["type"] == "database"
+    assert "pool" in recs[0]["message"].lower()
+
+
+# ---- L227-229: payment health with no overdue and no last auth ----
+@pytest.mark.asyncio
+async def test_payment_health_healthy_no_auth() -> None:
+    class _Repo:
+        def get_payment_status_counts(self, _now):
+            return []
+
+        def get_recent_event_counts(self, _since):
+            return []
+
+        def count_overdue_authorizations(self, _now):
+            return 0
+
+        def get_last_successful_authorization(self):
+            return None
+
+    response = await monitoring_routes.get_payment_system_health(_Repo())
+    assert response.status == "healthy"
+    assert response.minutes_since_last_auth is None
+    assert response.alerts == []
+
+
+# ---- payment health with warning threshold (overdue 6-10) ----
+@pytest.mark.asyncio
+async def test_payment_health_warning_threshold() -> None:
+    now = datetime.now(timezone.utc)
+
+    class _Repo:
+        def get_payment_status_counts(self, _now):
+            return []
+
+        def get_recent_event_counts(self, _since):
+            return []
+
+        def count_overdue_authorizations(self, _now):
+            return 6
+
+        def get_last_successful_authorization(self):
+            return SimpleNamespace(created_at=now - timedelta(minutes=10))
+
+    response = await monitoring_routes.get_payment_system_health(_Repo())
+    assert response.status == "warning"
+    assert any("overdue" in a for a in response.alerts)
+
+
+# ---- payment health with long time since auth ----
+@pytest.mark.asyncio
+async def test_payment_health_no_recent_auth_warning() -> None:
+    now = datetime.now(timezone.utc)
+
+    class _Repo:
+        def get_payment_status_counts(self, _now):
+            return []
+
+        def get_recent_event_counts(self, _since):
+            return []
+
+        def count_overdue_authorizations(self, _now):
+            return 0
+
+        def get_last_successful_authorization(self):
+            return SimpleNamespace(created_at=now - timedelta(minutes=150))
+
+    response = await monitoring_routes.get_payment_system_health(_Repo())
+    assert response.status == "warning"
+    assert any("authorizations" in a.lower() for a in response.alerts)

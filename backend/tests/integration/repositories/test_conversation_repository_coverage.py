@@ -294,3 +294,24 @@ def test_conversation_repository_fallback_branches():
     db_error.query.side_effect = RuntimeError("boom")
     repo_error = ConversationRepository(db_error)
     assert repo_error.get_participant_first_names(["u1"]) == {"u1": None}
+
+
+def test_get_or_create_integrity_all_retries_exhausted(
+    db, test_student, test_instructor_with_availability, monkeypatch
+):
+    """L112-118: IntegrityError on all retries and find_by_pair returns None -> raise."""
+    repo = ConversationRepository(db)
+
+    def fake_find_by_pair(*_args, **_kwargs):
+        return None
+
+    def fake_create(**_kwargs):
+        raise IntegrityError("stmt", {}, Exception("boom"))
+
+    monkeypatch.setattr(repo, "find_by_pair", fake_find_by_pair)
+    monkeypatch.setattr(repo, "create", fake_create)
+
+    import pytest
+
+    with pytest.raises(IntegrityError):
+        repo.get_or_create(test_student.id, test_instructor_with_availability.id)

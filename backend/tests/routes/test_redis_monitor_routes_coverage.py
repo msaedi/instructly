@@ -219,3 +219,100 @@ async def test_flush_celery_queues_error(monkeypatch) -> None:
     with pytest.raises(HTTPException) as exc:
         await redis_routes.flush_celery_queues(current_user=SimpleNamespace())
     assert exc.value.status_code == 500
+
+
+# ---- L41: get_redis_client returns None → RuntimeError ----
+@pytest.mark.asyncio
+async def test_get_redis_client_returns_none(monkeypatch) -> None:
+    async def _return_none():
+        return None
+
+    monkeypatch.setattr(redis_routes, "get_async_cache_redis_client", _return_none)
+
+    with pytest.raises(RuntimeError, match="Redis unavailable"):
+        await redis_routes.get_redis_client()
+
+
+# ---- L270,277,285: connection audit URL parsing branches ----
+@pytest.mark.asyncio
+async def test_redis_connection_audit_with_auth_url(monkeypatch) -> None:
+    """URL with auth component: redis://user:pass@host:6379/0"""
+    monkeypatch.setattr(redis_routes.settings, "redis_url", "redis://user:pass@my-redis:6379/0")
+
+    async def _client():
+        return _DummyRedis()
+
+    monkeypatch.setattr(redis_routes, "get_redis_client", _client)
+
+    response = await redis_routes.redis_connection_audit(current_user=SimpleNamespace())
+    assert response.connections is not None
+    conn = response.connections[0]
+    assert "my-redis" in str(conn.service_connections)
+
+
+@pytest.mark.asyncio
+async def test_redis_connection_audit_instructly_redis(monkeypatch) -> None:
+    """URL containing 'instructly-redis' triggers Render Redis detection."""
+    monkeypatch.setattr(
+        redis_routes.settings, "redis_url", "redis://instructly-redis:6379/0"
+    )
+
+    async def _client():
+        return _DummyRedis()
+
+    monkeypatch.setattr(redis_routes, "get_redis_client", _client)
+
+    response = await redis_routes.redis_connection_audit(current_user=SimpleNamespace())
+    conn = response.connections[0]
+    assert conn.migration_status == "complete"
+
+
+# ---- Flush queues with empty queues ----
+@pytest.mark.asyncio
+async def test_flush_celery_queues_empty(monkeypatch) -> None:
+    """Queues with length 0 are not deleted."""
+
+    class _EmptyRedis(_DummyRedis):
+        async def llen(self, queue: str) -> int:
+            return 0
+
+    async def _client():
+        return _EmptyRedis()
+
+    monkeypatch.setattr(redis_routes, "get_redis_client", _client)
+
+    response = await redis_routes.flush_celery_queues(current_user=SimpleNamespace())
+    assert response.queues_flushed == []
+    assert "removed 0 tasks" in response.message
+
+
+# ---- L270: parse_redis_url with empty URL ----
+@pytest.mark.asyncio
+async def test_redis_connection_audit_empty_redis_url(monkeypatch) -> None:
+    """L270: empty redis_url.strip() falls through to default 'redis://localhost:6379/0'."""
+    monkeypatch.setattr(redis_routes.settings, "redis_url", "   ")
+
+    async def _client():
+        return _DummyRedis()
+
+    monkeypatch.setattr(redis_routes, "get_redis_client", _client)
+
+    response = await redis_routes.redis_connection_audit(current_user=SimpleNamespace())
+    assert response.connections is not None
+
+
+# ---- L277: parse_redis_url with non-redis scheme URL ----
+@pytest.mark.asyncio
+async def test_redis_connection_audit_non_redis_scheme(monkeypatch) -> None:
+    """L277: URL that doesn't start with redis:// or rediss:// → returned as-is."""
+    monkeypatch.setattr(redis_routes.settings, "redis_url", "custom-protocol://myhost:1234")
+
+    async def _client():
+        return _DummyRedis()
+
+    monkeypatch.setattr(redis_routes, "get_redis_client", _client)
+
+    response = await redis_routes.redis_connection_audit(current_user=SimpleNamespace())
+    conn = response.connections[0]
+    # The parse_redis_url function returns the url as-is for non-redis schemes
+    assert "custom-protocol" in str(conn.service_connections)

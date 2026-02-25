@@ -72,3 +72,43 @@ def test_enrich_nyc_with_postgis_match() -> None:
     assert result["district"] == "Manhattan"
     assert result["neighborhood"] == "Chelsea"
     assert result["location_metadata"]["nyc"]["nta_code"] == "MN01"
+
+
+def test_enrich_nyc_dead_code_row2_path() -> None:
+    """L85-92: row2 is always None (dead code). Confirm the branch never executes."""
+    mock_db = MagicMock()
+    svc = LocationEnrichmentService(db=mock_db)
+
+    mock_repo = MagicMock()
+    mock_repo.has_postgis.return_value = True
+    # First repo call returns None (no match)
+    mock_repo.find_region_by_point.return_value = None
+
+    with patch.object(svc, "_repo", return_value=mock_repo):
+        result = svc._enrich_nyc(40.7128, -74.0060)
+
+    # row2 = None always, so it falls through to default metadata-only result
+    assert result["location_metadata"]["region_type"] == "nyc"
+    assert result.get("district") is None
+    assert result.get("neighborhood") is None
+
+
+def test_enrich_nyc_with_missing_metadata_fields() -> None:
+    """L75-82: PostGIS match but some fields missing in result."""
+    mock_db = MagicMock()
+    svc = LocationEnrichmentService(db=mock_db)
+
+    mock_repo = MagicMock()
+    mock_repo.has_postgis.return_value = True
+    mock_repo.find_region_by_point.return_value = {
+        "parent_region": None,
+        "region_code": None,
+        "region_name": None,
+        "region_metadata": None,
+    }
+
+    with patch.object(svc, "_repo", return_value=mock_repo):
+        result = svc.enrich(40.7466, -74.0009)
+
+    assert result["district"] is None
+    assert result["neighborhood"] is None
