@@ -92,13 +92,13 @@ describe('next.config security headers', () => {
     );
   });
 
-  it('uses explicit 100ms origins in production without wildcard defaults', async () => {
+  it('allows *.100ms.live wildcards in production (dynamic regional endpoints)', async () => {
     mutableEnv.NODE_ENV = 'production';
     mutableEnv.NEXT_PUBLIC_APP_ENV = 'production';
     delete mutableEnv.VERCEL_ENV;
     mutableEnv.NEXT_PUBLIC_SENTRY_DSN = '';
     mutableEnv.NEXT_PUBLIC_100MS_CONNECT_ORIGINS =
-      'https://rtm.prod.100ms.live,wss://rtm.prod.100ms.live,https://storage.googleapis.com';
+      'https://*.100ms.live,wss://*.100ms.live,https://storage.googleapis.com';
     jest.resetModules();
 
     const configModule = await import('../../next.config');
@@ -113,10 +113,22 @@ describe('next.config security headers', () => {
     );
     const cspValue = cspHeader!.value;
 
-    expect(cspValue).toContain('https://rtm.prod.100ms.live');
-    expect(cspValue).toContain('wss://rtm.prod.100ms.live');
+    expect(cspValue).toContain('https://*.100ms.live');
+    expect(cspValue).toContain('wss://*.100ms.live');
     expect(cspValue).toContain('https://storage.googleapis.com');
-    expect(cspValue).not.toContain('https://*.100ms.live');
-    expect(cspValue).not.toContain('wss://*.100ms.live');
+  });
+
+  it('rejects non-100ms wildcards in production', async () => {
+    mutableEnv.NODE_ENV = 'production';
+    mutableEnv.NEXT_PUBLIC_APP_ENV = 'production';
+    delete mutableEnv.VERCEL_ENV;
+    mutableEnv.NEXT_PUBLIC_SENTRY_DSN = '';
+    mutableEnv.NEXT_PUBLIC_100MS_CONNECT_ORIGINS =
+      'https://*.example.com,https://*.100ms.live';
+    jest.resetModules();
+
+    await expect(import('../../next.config')).rejects.toThrow(
+      'wildcards are only allowed for *.100ms.live'
+    );
   });
 });

@@ -34340,5 +34340,617 @@
         }
       }
     }
+  },
+  {
+    "timestamp": "2026-02-22T08:30:04.372503+00:00",
+    "total_lines": 714348,
+    "total_files": 2706,
+    "backend_lines": 399626,
+    "frontend_lines": 314722,
+    "git_commits": 1615,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 215,
+          "lines": 32671
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6823
+        },
+        "Tasks/Celery": {
+          "files": 64,
+          "lines": 18243
+        },
+        "Core/Config": {
+          "files": 40,
+          "lines": 8184
+        },
+        "Repositories": {
+          "files": 152,
+          "lines": 39971
+        },
+        "Models": {
+          "files": 64,
+          "lines": 8188
+        },
+        "Schemas": {
+          "files": 95,
+          "lines": 12216
+        },
+        "Routes/APIs": {
+          "files": 218,
+          "lines": 53966
+        },
+        "Services": {
+          "files": 398,
+          "lines": 148903
+        },
+        "Unit Tests": {
+          "files": 371,
+          "lines": 89534
+        },
+        "Integration Tests": {
+          "files": 232,
+          "lines": 52249
+        },
+        "Route Tests": {
+          "files": 109,
+          "lines": 28470
+        }
+      },
+      "frontend": {
+        "Types": {
+          "files": 20,
+          "lines": 2942
+        },
+        "Pages": {
+          "files": 152,
+          "lines": 37716
+        },
+        "Utils": {
+          "files": 32,
+          "lines": 4933
+        },
+        "Unit Tests": {
+          "files": 344,
+          "lines": 147932
+        },
+        "Hooks": {
+          "files": 166,
+          "lines": 39873
+        },
+        "API/Lib": {
+          "files": 73,
+          "lines": 9083
+        },
+        "E2E Tests": {
+          "files": 40,
+          "lines": 8912
+        },
+        "Features": {
+          "files": 191,
+          "lines": 79099
+        },
+        "Components": {
+          "files": 351,
+          "lines": 129566
+        },
+        "Public": {
+          "files": 4,
+          "lines": 943
+        }
+      }
+    }
+  },
+  {
+    "timestamp": "2026-02-22T20:32:40.954530+00:00",
+    "total_lines": 714348,
+    "total_files": 2706,
+    "backend_lines": 399626,
+    "frontend_lines": 314722,
+    "git_commits": 1615,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 215,
+          "lines": 32671
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6823
+        },
+        "Tasks/Celery": {
+          "files": 64,
+          "lines": 18243
+        },
+        "Core/Config": {
+          "files": 40,
+          "lines": 8184
+        },
+        "Repositories": {
+          "files": 152,
+          "lines": 39971
+        },
+        "Models": {
+          "files": 64,
+          "lines": 8188
+        },
+        "Schemas": {
+          "files": 95,
+          "lines": 12216
+        },
+        "Routes/APIs": {
+          "files": 218,
+          "lines": 53966
+        },
+        "Services": {
+          "files": 398,
+          "lines": 148903
+        },
+        "Unit Tests": {
+          "files": 371,
+          "lines": 89534
+        },
+        "Integration Tests": {
+          "files": 232,
+          "lines": 52249
+        },
+        "Route Tests": {
+          "files": 109,
+          "lines": 28470
+        }
+      },
+      "frontend": {
+        "Types": {
+          "files": 20,
+          "lines": 2942
+        },
+        "Pages": {
+          "files": 152,
+          "lines": 37716
+        },
+        "Utils": {
+          "files": 32,
+          "lines": 4933
+        },
+        "Unit Tests": {
+          "files": 344,
+          "lines": 147932
+        },
+        "Hooks": {
+          "files": 166,
+          "lines": 39873
+        },
+        "API/Lib": {
+          "files": 73,
+          "lines": 9083
+        },
+        "E2E Tests": {
+          "files": 40,
+          "lines": 8912
+        },
+        "Features": {
+          "files": 191,
+          "lines": 79099
+        },
+        "Components": {
+          "files": 351,
+          "lines": 129566
+        },
+        "Public": {
+          "files": 4,
+          "lines": 943
+        }
+      }
+    }
+  },
+  {
+    "timestamp": "2026-02-23T08:30:04.554420+00:00",
+    "total_lines": 714348,
+    "total_files": 2706,
+    "backend_lines": 399626,
+    "frontend_lines": 314722,
+    "git_commits": 1615,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 215,
+          "lines": 32671
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6823
+        },
+        "Tasks/Celery": {
+          "files": 64,
+          "lines": 18243
+        },
+        "Core/Config": {
+          "files": 40,
+          "lines": 8184
+        },
+        "Repositories": {
+          "files": 152,
+          "lines": 39971
+        },
+        "Models": {
+          "files": 64,
+          "lines": 8188
+        },
+        "Schemas": {
+          "files": 95,
+          "lines": 12216
+        },
+        "Routes/APIs": {
+          "files": 218,
+          "lines": 53966
+        },
+        "Services": {
+          "files": 398,
+          "lines": 148903
+        },
+        "Unit Tests": {
+          "files": 371,
+          "lines": 89534
+        },
+        "Integration Tests": {
+          "files": 232,
+          "lines": 52249
+        },
+        "Route Tests": {
+          "files": 109,
+          "lines": 28470
+        }
+      },
+      "frontend": {
+        "Types": {
+          "files": 20,
+          "lines": 2942
+        },
+        "Pages": {
+          "files": 152,
+          "lines": 37716
+        },
+        "Utils": {
+          "files": 32,
+          "lines": 4933
+        },
+        "Unit Tests": {
+          "files": 344,
+          "lines": 147932
+        },
+        "Hooks": {
+          "files": 166,
+          "lines": 39873
+        },
+        "API/Lib": {
+          "files": 73,
+          "lines": 9083
+        },
+        "E2E Tests": {
+          "files": 40,
+          "lines": 8912
+        },
+        "Features": {
+          "files": 191,
+          "lines": 79099
+        },
+        "Components": {
+          "files": 351,
+          "lines": 129566
+        },
+        "Public": {
+          "files": 4,
+          "lines": 943
+        }
+      }
+    }
+  },
+  {
+    "timestamp": "2026-02-23T20:41:32.774381+00:00",
+    "total_lines": 714348,
+    "total_files": 2706,
+    "backend_lines": 399626,
+    "frontend_lines": 314722,
+    "git_commits": 1615,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 215,
+          "lines": 32671
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6823
+        },
+        "Tasks/Celery": {
+          "files": 64,
+          "lines": 18243
+        },
+        "Core/Config": {
+          "files": 40,
+          "lines": 8184
+        },
+        "Repositories": {
+          "files": 152,
+          "lines": 39971
+        },
+        "Models": {
+          "files": 64,
+          "lines": 8188
+        },
+        "Schemas": {
+          "files": 95,
+          "lines": 12216
+        },
+        "Routes/APIs": {
+          "files": 218,
+          "lines": 53966
+        },
+        "Services": {
+          "files": 398,
+          "lines": 148903
+        },
+        "Unit Tests": {
+          "files": 371,
+          "lines": 89534
+        },
+        "Integration Tests": {
+          "files": 232,
+          "lines": 52249
+        },
+        "Route Tests": {
+          "files": 109,
+          "lines": 28470
+        }
+      },
+      "frontend": {
+        "Types": {
+          "files": 20,
+          "lines": 2942
+        },
+        "Pages": {
+          "files": 152,
+          "lines": 37716
+        },
+        "Utils": {
+          "files": 32,
+          "lines": 4933
+        },
+        "Unit Tests": {
+          "files": 344,
+          "lines": 147932
+        },
+        "Hooks": {
+          "files": 166,
+          "lines": 39873
+        },
+        "API/Lib": {
+          "files": 73,
+          "lines": 9083
+        },
+        "E2E Tests": {
+          "files": 40,
+          "lines": 8912
+        },
+        "Features": {
+          "files": 191,
+          "lines": 79099
+        },
+        "Components": {
+          "files": 351,
+          "lines": 129566
+        },
+        "Public": {
+          "files": 4,
+          "lines": 943
+        }
+      }
+    }
+  },
+  {
+    "timestamp": "2026-02-24T08:30:04.552638+00:00",
+    "total_lines": 714348,
+    "total_files": 2706,
+    "backend_lines": 399626,
+    "frontend_lines": 314722,
+    "git_commits": 1615,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 215,
+          "lines": 32671
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6823
+        },
+        "Tasks/Celery": {
+          "files": 64,
+          "lines": 18243
+        },
+        "Core/Config": {
+          "files": 40,
+          "lines": 8184
+        },
+        "Repositories": {
+          "files": 152,
+          "lines": 39971
+        },
+        "Models": {
+          "files": 64,
+          "lines": 8188
+        },
+        "Schemas": {
+          "files": 95,
+          "lines": 12216
+        },
+        "Routes/APIs": {
+          "files": 218,
+          "lines": 53966
+        },
+        "Services": {
+          "files": 398,
+          "lines": 148903
+        },
+        "Unit Tests": {
+          "files": 371,
+          "lines": 89534
+        },
+        "Integration Tests": {
+          "files": 232,
+          "lines": 52249
+        },
+        "Route Tests": {
+          "files": 109,
+          "lines": 28470
+        }
+      },
+      "frontend": {
+        "Types": {
+          "files": 20,
+          "lines": 2942
+        },
+        "Pages": {
+          "files": 152,
+          "lines": 37716
+        },
+        "Utils": {
+          "files": 32,
+          "lines": 4933
+        },
+        "Unit Tests": {
+          "files": 344,
+          "lines": 147932
+        },
+        "Hooks": {
+          "files": 166,
+          "lines": 39873
+        },
+        "API/Lib": {
+          "files": 73,
+          "lines": 9083
+        },
+        "E2E Tests": {
+          "files": 40,
+          "lines": 8912
+        },
+        "Features": {
+          "files": 191,
+          "lines": 79099
+        },
+        "Components": {
+          "files": 351,
+          "lines": 129566
+        },
+        "Public": {
+          "files": 4,
+          "lines": 943
+        }
+      }
+    }
+  },
+  {
+    "timestamp": "2026-02-24T20:40:32.692502+00:00",
+    "total_lines": 714348,
+    "total_files": 2706,
+    "backend_lines": 399626,
+    "frontend_lines": 314722,
+    "git_commits": 1615,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 215,
+          "lines": 32671
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6823
+        },
+        "Tasks/Celery": {
+          "files": 64,
+          "lines": 18243
+        },
+        "Core/Config": {
+          "files": 40,
+          "lines": 8184
+        },
+        "Repositories": {
+          "files": 152,
+          "lines": 39971
+        },
+        "Models": {
+          "files": 64,
+          "lines": 8188
+        },
+        "Schemas": {
+          "files": 95,
+          "lines": 12216
+        },
+        "Routes/APIs": {
+          "files": 218,
+          "lines": 53966
+        },
+        "Services": {
+          "files": 398,
+          "lines": 148903
+        },
+        "Unit Tests": {
+          "files": 371,
+          "lines": 89534
+        },
+        "Integration Tests": {
+          "files": 232,
+          "lines": 52249
+        },
+        "Route Tests": {
+          "files": 109,
+          "lines": 28470
+        }
+      },
+      "frontend": {
+        "Types": {
+          "files": 20,
+          "lines": 2942
+        },
+        "Pages": {
+          "files": 152,
+          "lines": 37716
+        },
+        "Utils": {
+          "files": 32,
+          "lines": 4933
+        },
+        "Unit Tests": {
+          "files": 344,
+          "lines": 147932
+        },
+        "Hooks": {
+          "files": 166,
+          "lines": 39873
+        },
+        "API/Lib": {
+          "files": 73,
+          "lines": 9083
+        },
+        "E2E Tests": {
+          "files": 40,
+          "lines": 8912
+        },
+        "Features": {
+          "files": 191,
+          "lines": 79099
+        },
+        "Components": {
+          "files": 351,
+          "lines": 129566
+        },
+        "Public": {
+          "files": 4,
+          "lines": 943
+        }
+      }
+    }
   }
 ]

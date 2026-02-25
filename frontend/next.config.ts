@@ -71,8 +71,15 @@ const hundredMsConnectOrigins = (
   .map((origin) => origin.trim())
   .filter(Boolean);
 
-if (isStrictProductionRuntime && hundredMsConnectOrigins.some((origin) => origin.includes('*'))) {
-  throw new Error('NEXT_PUBLIC_100MS_CONNECT_ORIGINS cannot contain wildcard origins in production.');
+if (
+  isStrictProductionRuntime &&
+  hundredMsConnectOrigins.some(
+    (origin) => origin.includes('*') && !origin.endsWith('.100ms.live'),
+  )
+) {
+  throw new Error(
+    'NEXT_PUBLIC_100MS_CONNECT_ORIGINS wildcards are only allowed for *.100ms.live in production.',
+  );
 }
 
 const hundredMsMediaOrigins = hundredMsConnectOrigins.filter(
