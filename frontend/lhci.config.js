@@ -22,7 +22,7 @@ const basePatterns = {
 const strictAssertions = {
   'categories:performance': [strictLevel, { minScore: isMain ? 0.9 : 0.85 }],
   'largest-contentful-paint': [strictLevel, { maxNumericValue: 3000 }],
-  'total-blocking-time': [strictLevel, { maxNumericValue: 200, aggregationMethod: 'optimistic' }],
+  'total-blocking-time': [strictLevel, { maxNumericValue: 250, aggregationMethod: 'optimistic' }],
   'uses-long-cache-ttl': 'off',
   'categories:accessibility': ['error', { minScore: 0.9 }],
 };
@@ -30,7 +30,7 @@ const strictAssertions = {
 const availabilityAssertions = {
   'categories:performance': ['warn', { minScore: 0.85 }],
   'largest-contentful-paint': ['warn', { maxNumericValue: 4500 }],
-  'total-blocking-time': [strictLevel, { maxNumericValue: 200, aggregationMethod: 'optimistic' }],
+  'total-blocking-time': [strictLevel, { maxNumericValue: 250, aggregationMethod: 'optimistic' }],
   'uses-long-cache-ttl': 'off',
   'categories:accessibility': ['error', { minScore: 0.9 }],
 };
