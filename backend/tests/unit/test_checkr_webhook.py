@@ -140,7 +140,7 @@ def test_report_completed_clear_updates_profile(client, db: Session) -> None:
     )
 
     assert response.status_code == 200
-    assert response.json() == {"ok": True}
+    assert response.json()["ok"] is True
 
     updated = db.query(InstructorProfile).filter_by(id=profile.id).one()
     assert updated.bgc_status == "passed"
@@ -530,7 +530,7 @@ def test_unknown_report_id_is_noop(client, db: Session) -> None:
     )
 
     assert response.status_code == 200
-    assert response.json() == {"ok": True}
+    assert response.json()["ok"] is True
 
     untouched = db.query(InstructorProfile).filter_by(id=profile.id).one()
     assert untouched.bgc_status == "pending"

@@ -17971,6 +17971,12 @@ export interface operations {
  "application/json": components["schemas"]["HTTPValidationError"];
  };
  };
+ 503: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
  };
  };
  get_video_session_api_v1_lessons__booking_id__video_session_get: {
@@ -17999,6 +18005,12 @@ export interface operations {
  content: {
  "application/json": components["schemas"]["HTTPValidationError"];
  };
+ };
+ 503: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
  };
  };
  };

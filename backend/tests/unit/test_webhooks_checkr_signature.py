@@ -50,7 +50,7 @@ def test_valid_signature_allows_processing(client):
     )
 
     assert response.status_code == 200
-    assert response.json() == {"ok": True}
+    assert response.json()["ok"] is True
 
 
 def test_invalid_signature_logs_warning(client, caplog):

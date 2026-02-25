@@ -54,7 +54,7 @@ export const joinLessonApiV1LessonsBookingIdJoinPost = async (
 };
 
 export const getJoinLessonApiV1LessonsBookingIdJoinPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
+  TError = ErrorType<HTTPValidationError | void>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -93,13 +93,14 @@ export type JoinLessonApiV1LessonsBookingIdJoinPostMutationResult = NonNullable<
   Awaited<ReturnType<typeof joinLessonApiV1LessonsBookingIdJoinPost>>
 >;
 
-export type JoinLessonApiV1LessonsBookingIdJoinPostMutationError = ErrorType<HTTPValidationError>;
+export type JoinLessonApiV1LessonsBookingIdJoinPostMutationError =
+  ErrorType<HTTPValidationError | void>;
 
 /**
  * @summary Join Lesson
  */
 export const useJoinLessonApiV1LessonsBookingIdJoinPost = <
-  TError = ErrorType<HTTPValidationError>,
+  TError = ErrorType<HTTPValidationError | void>,
   TContext = unknown,
 >(
   options?: {
@@ -154,7 +155,7 @@ export const getGetVideoSessionApiV1LessonsBookingIdVideoSessionGetQueryKey = (
 
 export const getGetVideoSessionApiV1LessonsBookingIdVideoSessionGetQueryOptions = <
   TData = Awaited<ReturnType<typeof getVideoSessionApiV1LessonsBookingIdVideoSessionGet>>,
-  TError = ErrorType<HTTPValidationError>,
+  TError = ErrorType<HTTPValidationError | void>,
 >(
   bookingId: string,
   options?: {
@@ -190,11 +191,11 @@ export type GetVideoSessionApiV1LessonsBookingIdVideoSessionGetQueryResult = Non
   Awaited<ReturnType<typeof getVideoSessionApiV1LessonsBookingIdVideoSessionGet>>
 >;
 export type GetVideoSessionApiV1LessonsBookingIdVideoSessionGetQueryError =
-  ErrorType<HTTPValidationError>;
+  ErrorType<HTTPValidationError | void>;
 
 export function useGetVideoSessionApiV1LessonsBookingIdVideoSessionGet<
   TData = Awaited<ReturnType<typeof getVideoSessionApiV1LessonsBookingIdVideoSessionGet>>,
-  TError = ErrorType<HTTPValidationError>,
+  TError = ErrorType<HTTPValidationError | void>,
 >(
   bookingId: string,
   options: {
@@ -219,7 +220,7 @@ export function useGetVideoSessionApiV1LessonsBookingIdVideoSessionGet<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useGetVideoSessionApiV1LessonsBookingIdVideoSessionGet<
   TData = Awaited<ReturnType<typeof getVideoSessionApiV1LessonsBookingIdVideoSessionGet>>,
-  TError = ErrorType<HTTPValidationError>,
+  TError = ErrorType<HTTPValidationError | void>,
 >(
   bookingId: string,
   options?: {
@@ -244,7 +245,7 @@ export function useGetVideoSessionApiV1LessonsBookingIdVideoSessionGet<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useGetVideoSessionApiV1LessonsBookingIdVideoSessionGet<
   TData = Awaited<ReturnType<typeof getVideoSessionApiV1LessonsBookingIdVideoSessionGet>>,
-  TError = ErrorType<HTTPValidationError>,
+  TError = ErrorType<HTTPValidationError | void>,
 >(
   bookingId: string,
   options?: {
@@ -265,7 +266,7 @@ export function useGetVideoSessionApiV1LessonsBookingIdVideoSessionGet<
 
 export function useGetVideoSessionApiV1LessonsBookingIdVideoSessionGet<
   TData = Awaited<ReturnType<typeof getVideoSessionApiV1LessonsBookingIdVideoSessionGet>>,
-  TError = ErrorType<HTTPValidationError>,
+  TError = ErrorType<HTTPValidationError | void>,
 >(
   bookingId: string,
   options?: {

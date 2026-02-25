@@ -99,6 +99,7 @@ def handle_domain_exception(exc: DomainException) -> NoReturn:
     "/{booking_id}/join",
     response_model=VideoJoinResponse,
     dependencies=[Depends(new_rate_limit("video"))],
+    responses={503: {"description": "Video service unavailable"}},
 )
 async def join_lesson(
     booking_id: str = Path(
@@ -144,6 +145,7 @@ async def join_lesson(
     "/{booking_id}/video-session",
     response_model=VideoSessionStatusResponse,
     dependencies=[Depends(new_rate_limit("video"))],
+    responses={503: {"description": "Video service unavailable"}},
 )
 async def get_video_session(
     booking_id: str = Path(
