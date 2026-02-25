@@ -177,12 +177,14 @@ def _run_schemathesis_case(
         # - 404: Resource not found - Schemathesis sends random ULIDs that don't exist in the database
         # - 500: Database constraint violations from fuzzed data (FK, unique, check constraints) -
         #        these are internal errors but expected when fuzzing with completely random data
-        if (
-            response.status_code == 503
-            and case.path == "/api/v1/push/vapid-public-key"
+        if response.status_code == 503 and case.path in (
+            "/api/v1/push/vapid-public-key",
+            "/api/v1/lessons/{booking_id}/join",
+            "/api/v1/lessons/{booking_id}/video-session",
         ):
-            # Push keys are not configured in CI, so this endpoint returns 503.
-            # It's documented in OpenAPI but not a schema violation for these tests.
+            # External services not configured in CI:
+            # - Push: VAPID keys not set
+            # - Lessons: 100ms video service not available
             return
 
         if response.status_code in (204, 400, 401, 403, 404, 422, 500):
