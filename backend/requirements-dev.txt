@@ -10,4 +10,4 @@ hypothesis>=6.0.0
 schemathesis>=4.10.1,<5
 locust>=2.23.0
 sseclient-py>=1.8.0
-werkzeug==3.1.5
+werkzeug>=3.1.6
