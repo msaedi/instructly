@@ -1689,24 +1689,13 @@ class TestBookingIntegration:
         bookings = response.json()["items"]
         assert any(b["id"] == booking_id for b in bookings)
 
-        # Confirm payment first (new payment flow requires this)
-        # Mock the Stripe payment confirmation
-        from unittest.mock import patch
+        # Transition booking to CONFIRMED (normally done via payment checkout)
+        from app.models.booking import Booking
 
-        with patch("app.services.stripe_service.StripeService.save_payment_method"), patch(
-            "app.tasks.payment_tasks._process_authorization_for_booking",
-            return_value={"success": True},
-        ):
-            payment_data = {
-                "payment_method_id": "pm_test_mock",
-                "save_payment_method": False,
-            }
-            response = client.post(
-                f"/api/v1/bookings/{booking_id}/confirm-payment", json=payment_data, headers=student_headers
-            )
-            # If endpoint doesn't exist or fails, booking might already be confirmed
-            if response.status_code == 200:
-                assert response.json()["status"] == BookingStatus.CONFIRMED.value
+        booking = db.get(Booking, booking_id)
+        booking.status = BookingStatus.CONFIRMED
+        db.commit()
+        db.refresh(booking)
 
         # Complete the booking (as instructor)
         response = client.post(f"/api/v1/bookings/{booking_id}/complete", headers=instructor_headers)
@@ -1714,9 +1703,7 @@ class TestBookingIntegration:
         assert response.json()["status"] == BookingStatus.COMPLETED.value
 
         # Verify status changed
-        from app.models.booking import Booking
-
-        booking = db.get(Booking, booking_id)
+        db.refresh(booking)
         assert booking.status == BookingStatus.COMPLETED
 
     @pytest.mark.asyncio

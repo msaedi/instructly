@@ -3,10 +3,10 @@
 Production startup optimizations for Render deployment.
 
 This module handles:
-- Lazy loading of heavy dependencies
-- Connection pool warming
-- Cache preloading (optional)
-- Health check verification
+- Production logging configuration
+- Critical service verification (database, Redis)
+- Connection pool warming (optional)
+- Background monitoring setup
 """
 
 from __future__ import annotations
@@ -178,69 +178,3 @@ class ProductionStartup:
         summary: dict[str, Any] = monitor.get_performance_summary()
         memory_mb = summary.get("memory", {}).get("rss_mb", "unknown")
         logger.info(f"Initial system state: {memory_mb}MB RSS")
-
-
-# Lazy imports for heavy dependencies
-_heavy_imports_loaded: bool = False
-
-
-def lazy_import_heavy_dependencies() -> None:
-    """Lazy load heavy dependencies to improve startup time."""
-    global _heavy_imports_loaded
-
-    if _heavy_imports_loaded:
-        return
-
-    logger.info("Loading heavy dependencies...")
-
-    # Import heavy libraries only when needed
-    try:
-        # ML/AI libraries (if used)
-        if os.getenv("ENABLE_ML_FEATURES", "false").lower() == "true":
-            import importlib
-
-            importlib.import_module("numpy")
-            importlib.import_module("pandas")
-
-            logger.info("✓ ML dependencies loaded")
-    except ImportError:
-        pass
-
-    _heavy_imports_loaded = True
-
-
-# Circuit breaker for external services
-class ServiceCircuitBreaker:
-    """Simple circuit breaker for external service calls."""
-
-    def __init__(self, service_name: str, failure_threshold: int = 3) -> None:
-        self.service_name = service_name
-        self.failure_threshold = failure_threshold
-        self.failure_count: int = 0
-        self.is_open: bool = False
-
-    def record_success(self) -> None:
-        """Record successful call."""
-        self.failure_count = 0
-        if self.is_open:
-            logger.info(f"Circuit breaker for {self.service_name} closed")
-            self.is_open = False
-
-    def record_failure(self) -> None:
-        """Record failed call."""
-        self.failure_count += 1
-        if self.failure_count >= self.failure_threshold and not self.is_open:
-            logger.warning(f"Circuit breaker for {self.service_name} opened")
-            self.is_open = True
-
-    def can_proceed(self) -> bool:
-        """Check if request can proceed."""
-        return not self.is_open
-
-
-# Global circuit breakers
-circuit_breakers: dict[str, ServiceCircuitBreaker] = {
-    "email": ServiceCircuitBreaker("email", 5),
-    "sms": ServiceCircuitBreaker("sms", 3),
-    "payment": ServiceCircuitBreaker("payment", 3),
-}

@@ -1,15 +1,13 @@
 """
 Coverage tests for payment_tasks.py targeting uncovered edge-case paths.
 
-Covers: timezone resolution helpers, booking start/end UTC fallbacks,
-end-date resolution, cancel-booking-payment-failed helper, and
-typed_task wrapper.
+Covers: booking start/end UTC helpers, cancel-booking-payment-failed helper,
+and typed_task wrapper.
 """
 
 from __future__ import annotations
 
 from datetime import date, datetime, time, timezone
-from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -38,104 +36,8 @@ def _fake_booking(**overrides: Any) -> MagicMock:
 
 
 @pytest.mark.unit
-class TestResolveLessonTimezone:
-    def test_lesson_timezone_present(self):
-        from app.tasks.payment_tasks import _resolve_lesson_timezone
-
-        b = _fake_booking(lesson_timezone="America/Chicago")
-        assert _resolve_lesson_timezone(b) == "America/Chicago"
-
-    def test_instructor_tz_at_booking_fallback(self):
-        from app.tasks.payment_tasks import _resolve_lesson_timezone
-
-        b = _fake_booking(lesson_timezone=None, instructor_tz_at_booking="America/Los_Angeles")
-        assert _resolve_lesson_timezone(b) == "America/Los_Angeles"
-
-    def test_instructor_timezone_fallback(self):
-        from app.tasks.payment_tasks import _resolve_lesson_timezone
-
-        instructor = MagicMock()
-        instructor.timezone = "America/Denver"
-        instructor.user = None
-        b = _fake_booking(lesson_timezone=None, instructor_tz_at_booking=None, instructor=instructor)
-        assert _resolve_lesson_timezone(b) == "America/Denver"
-
-    def test_instructor_user_timezone_fallback(self):
-        from app.tasks.payment_tasks import _resolve_lesson_timezone
-
-        instructor_user = SimpleNamespace(timezone="Europe/London")
-        instructor = MagicMock()
-        instructor.timezone = None
-        instructor.user = instructor_user
-        b = _fake_booking(lesson_timezone=None, instructor_tz_at_booking=None, instructor=instructor)
-        assert _resolve_lesson_timezone(b) == "Europe/London"
-
-    def test_default_timezone(self):
-        from app.tasks.payment_tasks import _resolve_lesson_timezone
-
-        instructor = MagicMock()
-        instructor.timezone = None
-        instructor.user = SimpleNamespace(timezone=None)
-        b = _fake_booking(lesson_timezone=None, instructor_tz_at_booking=None, instructor=instructor)
-        result = _resolve_lesson_timezone(b)
-        assert result == "America/New_York"
-
-    def test_no_instructor(self):
-        from app.tasks.payment_tasks import _resolve_lesson_timezone
-
-        b = _fake_booking(lesson_timezone=None, instructor_tz_at_booking=None, instructor=None)
-        result = _resolve_lesson_timezone(b)
-        assert result == "America/New_York"
-
-    def test_empty_string_timezone(self):
-        from app.tasks.payment_tasks import _resolve_lesson_timezone
-
-        b = _fake_booking(lesson_timezone="", instructor_tz_at_booking="")
-        result = _resolve_lesson_timezone(b)
-        assert result == "America/New_York"
-
-    def test_non_string_timezone(self):
-        from app.tasks.payment_tasks import _resolve_lesson_timezone
-
-        b = _fake_booking(lesson_timezone=123, instructor_tz_at_booking=None)
-        result = _resolve_lesson_timezone(b)
-        assert result == "America/New_York"
-
-
-@pytest.mark.unit
-class TestResolveEndDate:
-    def test_normal(self):
-        from app.tasks.payment_tasks import _resolve_end_date
-
-        b = _fake_booking(start_time=time(10, 0), end_time=time(11, 0))
-        result = _resolve_end_date(b)
-        assert result == date(2026, 3, 15)
-
-    def test_midnight_end(self):
-        from app.tasks.payment_tasks import _resolve_end_date
-
-        b = _fake_booking(start_time=time(23, 0), end_time=time(0, 0))
-        result = _resolve_end_date(b)
-        assert result == date(2026, 3, 16)
-
-    def test_midnight_both(self):
-        from app.tasks.payment_tasks import _resolve_end_date
-
-        b = _fake_booking(start_time=time(0, 0), end_time=time(0, 0))
-        result = _resolve_end_date(b)
-        assert result == date(2026, 3, 15)
-
-    def test_invalid_types(self):
-        from app.tasks.payment_tasks import _resolve_end_date
-
-        b = _fake_booking(start_time="not_a_time", end_time="not_a_time")
-        result = _resolve_end_date(b)
-        assert result == date(2026, 3, 15)
-
-
-@pytest.mark.unit
 class TestGetBookingStartUtc:
-    def test_uses_booking_start_utc_if_present(self):
+    def test_returns_booking_start_utc(self):
         from app.tasks.payment_tasks import _get_booking_start_utc
 
         dt = datetime(2026, 3, 15, 14, 0, tzinfo=timezone.utc)
@@ -143,72 +45,16 @@ class TestGetBookingStartUtc:
         result = _get_booking_start_utc(b)
         assert result == dt
 
-    @patch("app.tasks.payment_tasks.TimezoneService")
-    def test_fallback_conversion(self, mock_tz):
-        from app.tasks.payment_tasks import _get_booking_start_utc
-
-        expected = datetime(2026, 3, 15, 15, 0, tzinfo=timezone.utc)
-        mock_tz.local_to_utc.return_value = expected
-        mock_tz.DEFAULT_TIMEZONE = "America/New_York"
-        b = _fake_booking(
-            booking_start_utc=None,
-            lesson_timezone="America/New_York",
-        )
-        result = _get_booking_start_utc(b)
-        assert result == expected
-
-    @patch("app.tasks.payment_tasks.TimezoneService")
-    def test_fallback_on_value_error(self, mock_tz):
-        from app.tasks.payment_tasks import _get_booking_start_utc
-
-        mock_tz.local_to_utc.side_effect = ValueError("invalid time")
-        mock_tz.DEFAULT_TIMEZONE = "America/New_York"
-        b = _fake_booking(
-            booking_start_utc=None,
-            lesson_timezone="America/New_York",
-        )
-        result = _get_booking_start_utc(b)
-        assert result is not None
-        assert result.tzinfo is not None
-
 
 @pytest.mark.unit
 class TestGetBookingEndUtc:
-    def test_uses_booking_end_utc_if_present(self):
+    def test_returns_booking_end_utc(self):
         from app.tasks.payment_tasks import _get_booking_end_utc
 
         dt = datetime(2026, 3, 15, 15, 0, tzinfo=timezone.utc)
         b = _fake_booking(booking_end_utc=dt)
         result = _get_booking_end_utc(b)
         assert result == dt
-
-    @patch("app.tasks.payment_tasks.TimezoneService")
-    def test_fallback_conversion(self, mock_tz):
-        from app.tasks.payment_tasks import _get_booking_end_utc
-
-        expected = datetime(2026, 3, 15, 16, 0, tzinfo=timezone.utc)
-        mock_tz.local_to_utc.return_value = expected
-        mock_tz.DEFAULT_TIMEZONE = "America/New_York"
-        b = _fake_booking(
-            booking_end_utc=None,
-            lesson_timezone="America/New_York",
-        )
-        result = _get_booking_end_utc(b)
-        assert result == expected
-
-    @patch("app.tasks.payment_tasks.TimezoneService")
-    def test_fallback_on_value_error(self, mock_tz):
-        from app.tasks.payment_tasks import _get_booking_end_utc
-
-        mock_tz.local_to_utc.side_effect = ValueError("bad time")
-        mock_tz.DEFAULT_TIMEZONE = "America/New_York"
-        b = _fake_booking(
-            booking_end_utc=None,
-            lesson_timezone="America/New_York",
-        )
-        result = _get_booking_end_utc(b)
-        assert result is not None
-        assert result.tzinfo is not None
 
 
 @pytest.mark.unit
@@ -263,7 +109,7 @@ class TestCancelBookingPaymentFailed:
         mock_repo.ensure_payment.return_value = bp
         mock_repo_cls.return_value = mock_repo
         mock_payment_repo = MagicMock()
-        mock_factory.get_payment_repository.return_value = mock_payment_repo
+        mock_factory.create_payment_repository.return_value = mock_payment_repo
 
         now = datetime.now(timezone.utc)
         with patch("app.services.credit_service.CreditService"):
@@ -336,17 +182,16 @@ class TestWarnOnlyAlreadySent:
         with patch("app.tasks.payment_tasks.BookingRepository") as mock_br_cls:
             mock_br_cls.side_effect = [booking_repo_read, booking_repo_warn]
             with patch("app.tasks.payment_tasks.RepositoryFactory"):
-                with patch("app.tasks.payment_tasks._resolve_lesson_timezone", return_value="America/New_York"):
-                    with patch("app.tasks.payment_tasks._get_booking_start_utc") as mock_start:
-                        # 11 hours until lesson -> "warn_only" action
-                        mock_start.return_value = datetime(2026, 3, 16, 10, 0, tzinfo=timezone.utc)
-                        now = datetime(2026, 3, 15, 23, 0, tzinfo=timezone.utc)
-                        with patch("app.tasks.payment_tasks.datetime") as mock_dt:
-                            mock_dt.now.return_value = now
-                            mock_dt.side_effect = lambda *a, **k: datetime(*a, **k)
-                            # This is too integrated for a clean unit test. Let's test
-                            # handle_authorization_failure instead.
-                            pass
+                with patch("app.tasks.payment_tasks._get_booking_start_utc") as mock_start:
+                    # 11 hours until lesson -> "warn_only" action
+                    mock_start.return_value = datetime(2026, 3, 16, 10, 0, tzinfo=timezone.utc)
+                    now = datetime(2026, 3, 15, 23, 0, tzinfo=timezone.utc)
+                    with patch("app.tasks.payment_tasks.datetime") as mock_dt:
+                        mock_dt.now.return_value = now
+                        mock_dt.side_effect = lambda *a, **k: datetime(*a, **k)
+                        # This is too integrated for a clean unit test. Let's test
+                        # handle_authorization_failure instead.
+                        pass
 
 
 @pytest.mark.unit
@@ -498,7 +343,7 @@ class TestProcessCaptureInvalidRequestAlreadyCaptured:
         mock_br_cls.return_value = mock_br
 
         mock_payment_repo = MagicMock()
-        mock_factory.get_payment_repository.return_value = mock_payment_repo
+        mock_factory.create_payment_repository.return_value = mock_payment_repo
 
         mock_stripe_svc = MagicMock()
         mock_stripe_svc.capture_booking_payment_intent.side_effect = (
@@ -548,7 +393,7 @@ class TestProcessCaptureExpiredError:
         mock_br_cls.return_value = mock_br
 
         mock_payment_repo = MagicMock()
-        mock_factory.get_payment_repository.return_value = mock_payment_repo
+        mock_factory.create_payment_repository.return_value = mock_payment_repo
 
         mock_stripe_svc = MagicMock()
         mock_stripe_svc.capture_booking_payment_intent.side_effect = (
@@ -601,7 +446,7 @@ class TestProcessCaptureCardError:
         mock_br_cls.return_value = mock_br
 
         mock_payment_repo = MagicMock()
-        mock_factory.get_payment_repository.return_value = mock_payment_repo
+        mock_factory.create_payment_repository.return_value = mock_payment_repo
 
         mock_stripe_svc = MagicMock()
         mock_stripe_svc.capture_booking_payment_intent.side_effect = (
@@ -652,7 +497,7 @@ class TestProcessCaptureUnexpectedError:
         mock_br_cls.return_value = mock_br
 
         mock_payment_repo = MagicMock()
-        mock_factory.get_payment_repository.return_value = mock_payment_repo
+        mock_factory.create_payment_repository.return_value = mock_payment_repo
 
         mock_stripe_svc = MagicMock()
         mock_stripe_svc.capture_booking_payment_intent.side_effect = RuntimeError("network timeout")

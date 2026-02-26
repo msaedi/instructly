@@ -251,7 +251,7 @@ class User(Base):
 
     @property
     def role(self) -> Optional[str]:
-        """Get primary role name for backward compatibility."""
+        """Get primary role name."""
         return self.roles[0].name if self.roles else None
 
     @property

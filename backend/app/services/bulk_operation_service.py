@@ -34,8 +34,6 @@ from .base import BaseService
 from .conflict_checker import ConflictChecker
 from .search.cache_invalidation import invalidate_on_availability_change
 
-# SlotManager removed - bitmap-only storage now
-
 if TYPE_CHECKING:
     from ..repositories.bulk_operation_repository import BulkOperationRepository
     from .cache_service import CacheServiceSyncAdapter
@@ -61,7 +59,6 @@ class BulkOperationService(BaseService):
     def __init__(
         self,
         db: Session,
-        slot_manager: Optional[Any] = None,  # DEPRECATED: Not used, kept for compatibility
         conflict_checker: Optional[ConflictChecker] = None,
         cache_service: Optional["CacheServiceSyncAdapter"] = None,
         repository: Optional["BulkOperationRepository"] = None,
@@ -70,14 +67,12 @@ class BulkOperationService(BaseService):
         """Initialize bulk operation service."""
         super().__init__(db, cache=cache_service)
         self.logger = logging.getLogger(__name__)
-        # slot_manager removed - bitmap-only storage now
         self.conflict_checker = conflict_checker or ConflictChecker(db)
         self.cache_service = cache_service
         self.repository = repository or RepositoryFactory.create_bulk_operation_repository(db)
         self.availability_repository = RepositoryFactory.create_availability_repository(db)
         self.week_operation_repository = RepositoryFactory.create_week_operation_repository(db)
         self.availability_service = availability_service or AvailabilityService(db=db)
-        self.slot_manager = slot_manager
 
     @BaseService.measure_operation("bulk_update")
     def process_bulk_update(
@@ -311,9 +306,6 @@ class BulkOperationService(BaseService):
                 continue
 
             if op.action == "remove" and op.slot_id:
-                # DEPRECATED: Slot-based operations removed - bitmap-only storage now
-                # Cannot query slot date directly - skip this check
-                # Affected dates will be determined from operation.date if present
                 pass
             elif op.date:
                 # Handle both string and date objects
@@ -500,8 +492,6 @@ class BulkOperationService(BaseService):
         if operation_date is None or start_time is None or end_time is None:
             return "Missing date/start_time/end_time for add operation"
 
-        # DEPRECATED: slot_exists removed - bitmap-only storage now
-        # Check overlap using bitmap data instead
         from app.repositories.availability_day_repository import AvailabilityDayRepository
 
         bitmap_repo = AvailabilityDayRepository(self.db)
@@ -537,15 +527,7 @@ class BulkOperationService(BaseService):
             start_label = start_time.strftime("%H:%M")
             end_label = end_time.strftime("%H:%M")
             date_label = operation_date.isoformat()
-            if self.slot_manager:
-                return self.slot_manager.create_slot(
-                    instructor_id=instructor_id,
-                    target_date=operation_date,
-                    start_time=start_time,
-                    end_time=end_time,
-                    auto_merge=True,
-                )
-            raise NotImplementedError("Slot manager not configured for slot creation")
+            raise NotImplementedError("Slot creation not supported in bitmap-only storage")
         except Exception as e:
             raise Exception(
                 f"Failed to create slot {start_label}-{end_label} on {date_label}: {str(e)}"
@@ -694,10 +676,7 @@ class BulkOperationService(BaseService):
             return True
 
         try:
-            if self.slot_manager:
-                self.slot_manager.delete_slot(getattr(slot, "id", slot_id))
-                return True
-            raise NotImplementedError("Slot manager not configured for slot removal")
+            raise NotImplementedError("Slot removal not supported in bitmap-only storage")
         except Exception as e:
             raise Exception(f"Failed to remove slot {slot_id}: {str(e)}")
 
@@ -805,16 +784,10 @@ class BulkOperationService(BaseService):
         if validate_only:
             return None
 
-        try:
-            slot_id = cast(str, operation.slot_id)  # validated upstream
-            if self.slot_manager:
-                return self.slot_manager.update_slot(slot_id, new_start, new_end)
-            raise NotImplementedError("Slot manager not configured for slot updates")
-        except Exception as e:
-            raise Exception(
-                f"Failed to update slot {slot_id} to {new_start.strftime('%H:%M')}-"
-                f"{new_end.strftime('%H:%M')}: {str(e)}"
-            )
+        raise NotImplementedError(
+            f"Slot update not supported in bitmap-only storage: "
+            f"{new_start.strftime('%H:%M')}-{new_end.strftime('%H:%M')}"
+        )
 
     @BaseService.measure_operation("process_update_operation")
     def _process_update_operation(

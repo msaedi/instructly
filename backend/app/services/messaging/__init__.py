@@ -32,12 +32,9 @@ from app.services.messaging.publisher import (
     publish_typing_status,
     publish_typing_status_direct,
 )
-from app.services.messaging.redis_pubsub import pubsub_manager
 from app.services.messaging.sse_stream import create_sse_stream, ensure_db_health, publish_to_user
 
 __all__ = [
-    # Manager (legacy - kept for backward compatibility during transition)
-    "pubsub_manager",
     # Publishers (DB-based - fetch participants internally)
     "publish_new_message",
     "publish_typing_status",

@@ -15,7 +15,7 @@ Endpoints:
 """
 
 import asyncio
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import datetime, timezone
 import logging
 from typing import List, Optional, cast
 
@@ -36,7 +36,6 @@ from ...schemas.base_responses import PaginatedResponse
 from ...schemas.booking import BookingResponse
 from ...services.booking_service import BookingService
 from ...services.permission_service import PermissionService
-from ...services.timezone_service import TimezoneService
 
 logger = logging.getLogger(__name__)
 
@@ -61,38 +60,8 @@ def check_permission(user: User, permission: PermissionName, db: Session) -> Non
         )
 
 
-def _resolve_end_date(booking: Booking) -> date:
-    booking_date = cast(date, booking.booking_date)
-    if booking.start_time and booking.end_time:
-        midnight = time(0, 0)
-        if booking.end_time == midnight and booking.start_time != midnight:
-            return booking_date + timedelta(days=1)
-    return booking_date
-
-
 def _get_booking_end_utc(booking: Booking) -> datetime:
-    booking_end_utc = getattr(booking, "booking_end_utc", None)
-    if isinstance(booking_end_utc, datetime):
-        return booking_end_utc
-
-    lesson_tz = booking.lesson_timezone or booking.instructor_tz_at_booking
-    if not lesson_tz and booking.instructor:
-        instructor_user = getattr(booking.instructor, "user", None)
-        lesson_tz = getattr(instructor_user, "timezone", None) if instructor_user else None
-    lesson_tz = lesson_tz or TimezoneService.DEFAULT_TIMEZONE
-
-    end_date = _resolve_end_date(booking)
-    try:
-        return TimezoneService.local_to_utc(end_date, booking.end_time, lesson_tz)
-    except ValueError as exc:
-        logger.warning(
-            "Failed to convert booking %s end to UTC (%s); falling back to UTC combine.",
-            getattr(booking, "id", None),
-            exc,
-        )
-        return datetime.combine(  # tz-pattern-ok: fallback for invalid legacy time
-            end_date, booking.end_time, tzinfo=timezone.utc
-        )
+    return cast(datetime, booking.booking_end_utc)
 
 
 def _paginate_bookings(
@@ -143,7 +112,7 @@ async def get_pending_completion_bookings(
     """
     check_permission(current_user, PermissionName.VIEW_INCOMING_BOOKINGS, db)
 
-    booking_repo = RepositoryFactory.get_booking_repository(db)
+    booking_repo = RepositoryFactory.create_booking_repository(db)
 
     bookings = await asyncio.to_thread(
         booking_repo.get_instructor_bookings,
@@ -170,7 +139,7 @@ async def get_upcoming_bookings(
 ) -> PaginatedResponse[BookingResponse]:
     """Return instructor's upcoming confirmed bookings."""
     check_permission(current_user, PermissionName.VIEW_INCOMING_BOOKINGS, db)
-    booking_repo = RepositoryFactory.get_booking_repository(db)
+    booking_repo = RepositoryFactory.create_booking_repository(db)
 
     bookings = await asyncio.to_thread(
         booking_repo.get_instructor_bookings,
@@ -194,7 +163,7 @@ async def get_completed_bookings(
 ) -> PaginatedResponse[BookingResponse]:
     """Get instructor's completed bookings."""
     check_permission(current_user, PermissionName.VIEW_INCOMING_BOOKINGS, db)
-    booking_repo = RepositoryFactory.get_booking_repository(db)
+    booking_repo = RepositoryFactory.create_booking_repository(db)
 
     bookings = await asyncio.to_thread(
         booking_repo.get_instructor_bookings,
@@ -234,7 +203,7 @@ async def list_instructor_bookings(
 ) -> PaginatedResponse[BookingResponse]:
     """List instructor bookings with filters."""
     check_permission(current_user, PermissionName.VIEW_INCOMING_BOOKINGS, db)
-    booking_repo = RepositoryFactory.get_booking_repository(db)
+    booking_repo = RepositoryFactory.create_booking_repository(db)
 
     bookings = await asyncio.to_thread(
         booking_repo.get_instructor_bookings,

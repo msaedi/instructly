@@ -42,10 +42,10 @@ def test_cancels_at_12h_deadline():
     mock_booking_repo.get_bookings_for_payment_retry.return_value = [booking]
 
     with patch(
-        "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+        "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
         return_value=mock_payment_repo,
     ), patch(
-        "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+        "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
         return_value=mock_booking_repo,
     ), patch(
         "app.database.SessionLocal",
@@ -79,10 +79,10 @@ def test_retries_before_12h_deadline():
     mock_booking_repo.get_bookings_for_payment_retry.return_value = [booking]
 
     with patch(
-        "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+        "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
         return_value=mock_payment_repo,
     ), patch(
-        "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+        "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
         return_value=mock_booking_repo,
     ), patch(
         "app.database.SessionLocal",
@@ -113,10 +113,10 @@ def test_exactly_12h_triggers_cancel():
     mock_booking_repo.get_bookings_for_payment_retry.return_value = [booking]
 
     with patch(
-        "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+        "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
         return_value=mock_payment_repo,
     ), patch(
-        "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+        "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
         return_value=mock_booking_repo,
     ), patch(
         "app.database.SessionLocal",

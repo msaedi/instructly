@@ -384,10 +384,6 @@ def test_user_has_cached_permission_false():
     assert auth_cache.user_has_cached_permission(user, "perm.none") is False
 
 
-def test_reset_redis_client_noop():
-    auth_cache._reset_redis_client()
-
-
 # ── Coverage tests for empty-input guard branches ──
 
 

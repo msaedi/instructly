@@ -65,6 +65,8 @@ def _run_check_availability(
 
 
 def _make_booking(booking_date: date, end_time: time, tz_name: str) -> MagicMock:
+    import zoneinfo
+
     booking = MagicMock(spec=Booking)
     booking.id = generate_ulid()
     booking.status = BookingStatus.CONFIRMED
@@ -74,6 +76,10 @@ def _make_booking(booking_date: date, end_time: time, tz_name: str) -> MagicMock
     booking.end_time = end_time
     booking.instructor = MagicMock()
     booking.instructor.timezone = tz_name
+    # Compute booking_end_utc from booking_date + end_time in the given timezone
+    tz = zoneinfo.ZoneInfo(tz_name)
+    local_end = datetime.combine(booking_date, end_time, tzinfo=tz)
+    booking.booking_end_utc = local_end.astimezone(timezone.utc)
     # Payment fields live on the payment_detail satellite
     payment_detail = MagicMock()
     payment_detail.payment_status = "authorized"
@@ -150,10 +156,10 @@ class TestCaptureCompletedLessonsUTC:
                     mock_booking_repo.get_bookings_for_payment_capture.return_value = []
                     mock_booking_repo.get_bookings_for_auto_completion.return_value = [booking]
                     mock_booking_repo.get_bookings_with_expired_auth.return_value = []
-                    mock_factory.get_booking_repository.return_value = mock_booking_repo
+                    mock_factory.create_booking_repository.return_value = mock_booking_repo
 
                     mock_payment_repo = MagicMock()
-                    mock_factory.get_payment_repository.return_value = mock_payment_repo
+                    mock_factory.create_payment_repository.return_value = mock_payment_repo
 
                     with patch("app.tasks.payment_tasks._auto_complete_booking") as mock_auto:
                         result = capture_completed_lessons()
@@ -180,10 +186,10 @@ class TestCaptureCompletedLessonsUTC:
                     mock_booking_repo.get_bookings_for_payment_capture.return_value = []
                     mock_booking_repo.get_bookings_for_auto_completion.return_value = [booking]
                     mock_booking_repo.get_bookings_with_expired_auth.return_value = []
-                    mock_factory.get_booking_repository.return_value = mock_booking_repo
+                    mock_factory.create_booking_repository.return_value = mock_booking_repo
 
                     mock_payment_repo = MagicMock()
-                    mock_factory.get_payment_repository.return_value = mock_payment_repo
+                    mock_factory.create_payment_repository.return_value = mock_payment_repo
 
                     with patch(
                         "app.tasks.payment_tasks._auto_complete_booking",

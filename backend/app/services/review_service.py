@@ -714,10 +714,6 @@ class ReviewService(BaseService):
             return
         try:
             # Specific keys only; caller may manage a set to expand if needed
-            # Legacy keys
-            self.cache.delete(f"ratings:instructor:{instructor_id}")
-            self.cache.delete(f"ratings:search:{instructor_id}:all")
-            # Versioned keys
             self.cache.delete(f"ratings:{self.CACHE_VERSION}:instructor:{instructor_id}")
             self.cache.delete(f"ratings:search:{self.CACHE_VERSION}:{instructor_id}:all")
         except Exception:

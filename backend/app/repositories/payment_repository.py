@@ -1288,8 +1288,8 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             if total_used > 0:
                 return total_used
 
-            # Legacy fallback: aggregated credits_applied events (pre "credit_used" granularity)
-            legacy_events = (
+            # Fallback: aggregated credits_applied events (pre "credit_used" granularity)
+            fallback_events = (
                 self.db.query(PaymentEvent)
                 .filter(
                     PaymentEvent.booking_id == booking_id,
@@ -1298,15 +1298,15 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 .all()
             )
 
-            legacy_total = 0
-            for event in legacy_events:
+            fallback_total = 0
+            for event in fallback_events:
                 data = event.event_data or {}
                 try:
-                    legacy_total += max(0, int(data.get("applied_cents") or 0))
+                    fallback_total += max(0, int(data.get("applied_cents") or 0))
                 except (TypeError, ValueError):
                     continue
 
-            return legacy_total
+            return fallback_total
         except Exception as exc:
             self.logger.error(
                 "Failed to load applied credits for booking %s: %s", booking_id, str(exc)
@@ -1351,7 +1351,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 user_id=user_id,
                 amount_cents=amount_cents,
                 reason=reason,
-                source_type=source_type or reason or "legacy",
+                source_type=source_type or reason or "manual",
                 source_booking_id=source_booking_id,
                 expires_at=expires_at,
                 original_expires_at=original_expires_at,
@@ -1405,7 +1405,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                         user_id=user_id,
                         amount_cents=original_credit_cents - reserve_amount,
                         reason=f"Remainder of {credit.id}",
-                        source_type=getattr(credit, "source_type", "legacy"),
+                        source_type=getattr(credit, "source_type", "manual"),
                         source_booking_id=credit.source_booking_id,
                         expires_at=credit.expires_at,
                         status="available",

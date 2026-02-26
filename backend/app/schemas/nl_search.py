@@ -105,7 +105,7 @@ class NLSearchResultItem(StrictModel):
 
 
 # =============================================================================
-# Legacy Service-Level Schemas (Kept for backward compatibility during transition)
+# Service-Level Schemas
 # =============================================================================
 
 

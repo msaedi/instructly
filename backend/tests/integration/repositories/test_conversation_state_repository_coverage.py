@@ -107,10 +107,6 @@ def test_get_states_for_user_no_filter(db, state_repo, conversation, test_studen
     assert len(filtered) >= 1
 
 
-def test_get_booking_ids_by_state_returns_empty(state_repo, test_student):
-    """L93: Legacy method always returns []."""
-    assert state_repo.get_booking_ids_by_state(test_student.id, "archived") == []
-
 
 def test_restore_to_active_already_active(db, state_repo, conversation, test_student):
     """restore_to_active when already active returns existing without change."""

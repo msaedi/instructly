@@ -206,7 +206,7 @@ async def get_current_user(
     Args:
         request: The incoming request
         current_user_id: User ID from JWT token
-        db: Database session (kept for backward compatibility with tests)
+        db: Database session
 
     Returns:
         User object
@@ -219,10 +219,10 @@ async def get_current_user(
     if isinstance(state_obj, User) and getattr(state_obj, "is_active", True):
         return state_obj
 
-    # Backward-compat for tests that call get_current_user(identifier, db) positionally
+    # Convenience overload: tests call get_current_user(identifier, db) positionally.
     # In that case, request is a string and current_user_id is a Session/Mock.
     if not isinstance(current_user_id, str) and isinstance(request, str):
-        # This is a legacy test call pattern - use sync lookup for compatibility
+        # Test call pattern — sync lookup for unit/integration tests
         from ...repositories.user_repository import UserRepository
 
         swap_db = current_user_id if hasattr(current_user_id, "query") else db
@@ -234,10 +234,10 @@ async def get_current_user(
         current_user_id = request
         user_repo = UserRepository(swap_db)
         if "@" in current_user_id:
-            # async-blocking-ignore: Test/legacy fallback path, not used in production
+            # async-blocking-ignore: Test path, not used in production
             user = user_repo.get_by_email(current_user_id)  # async-blocking-ignore
         else:
-            # async-blocking-ignore: Test/legacy fallback path, not used in production
+            # async-blocking-ignore: Test path, not used in production
             user = user_repo.get_by_id(current_user_id, use_retry=False)  # async-blocking-ignore
             if not user:
                 user = user_repo.get_by_email(current_user_id)  # async-blocking-ignore
@@ -258,10 +258,10 @@ async def get_current_user(
 
         user_repo = UserRepository(db)
         if "@" in current_user_id:
-            # async-blocking-ignore: Test/legacy fallback path, not used in production
+            # async-blocking-ignore: Test path, not used in production
             user = user_repo.get_by_email(current_user_id)  # async-blocking-ignore
         else:
-            # async-blocking-ignore: Test/legacy fallback path, not used in production
+            # async-blocking-ignore: Test path, not used in production
             user = user_repo.get_by_id(current_user_id, use_retry=False)  # async-blocking-ignore
             if not user:
                 user = user_repo.get_by_email(current_user_id)  # async-blocking-ignore
@@ -384,7 +384,7 @@ async def get_current_active_user_optional(
     Args:
         request: The incoming request
         current_user_id: User ID from JWT token (if present)
-        db: Database session (kept for backward compatibility)
+        db: Database session
 
     Returns:
         User object if authenticated and found, None otherwise
@@ -408,10 +408,10 @@ async def get_current_active_user_optional(
 
         user_repo = UserRepository(db)
         if "@" in current_user_id:
-            # async-blocking-ignore: Test/legacy fallback path, not used in production
+            # async-blocking-ignore: Test path, not used in production
             user = user_repo.get_by_email(current_user_id)  # async-blocking-ignore
         else:
-            # async-blocking-ignore: Test/legacy fallback path, not used in production
+            # async-blocking-ignore: Test path, not used in production
             user = user_repo.get_by_id(current_user_id, use_retry=False)  # async-blocking-ignore
             if not user:
                 user = user_repo.get_by_email(current_user_id)  # async-blocking-ignore

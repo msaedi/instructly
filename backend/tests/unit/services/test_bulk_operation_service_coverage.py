@@ -44,21 +44,6 @@ class TestBulkOperationServiceCoverage:
         return db
 
     @pytest.fixture
-    def mock_slot_manager(self) -> MagicMock:
-        """Create mock slot manager."""
-        manager = MagicMock()
-
-        def create_slot_side_effect(*args: Any, **kwargs: Any) -> MagicMock:
-            mock_slot = MagicMock()
-            mock_slot.id = generate_ulid()
-            return mock_slot
-
-        manager.create_slot = MagicMock(side_effect=create_slot_side_effect)
-        manager.update_slot = MagicMock()
-        manager.delete_slot = MagicMock()
-        return manager
-
-    @pytest.fixture
     def mock_conflict_checker(self) -> MagicMock:
         """Create mock conflict checker."""
         checker = MagicMock()
@@ -78,7 +63,6 @@ class TestBulkOperationServiceCoverage:
     def service(
         self,
         mock_db: MagicMock,
-        mock_slot_manager: MagicMock,
         mock_conflict_checker: MagicMock,
         mock_cache_service: MagicMock,
     ) -> Any:
@@ -87,7 +71,7 @@ class TestBulkOperationServiceCoverage:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=mock_slot_manager,
+
             conflict_checker=mock_conflict_checker,
             cache_service=mock_cache_service,
         )
@@ -126,7 +110,7 @@ class TestProcessSingleOperation:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -161,7 +145,7 @@ class TestValidateAddOperationFields:
         mock_db = MagicMock()
         return BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -254,7 +238,7 @@ class TestValidateAddOperationTiming:
 
         return BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -347,7 +331,7 @@ class TestCheckAddOperationConflicts:
         mock_db = MagicMock()
         return BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -418,7 +402,7 @@ class TestCreateSlotForOperation:
         mock_db = MagicMock()
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -453,30 +437,8 @@ class TestCreateSlotForOperation:
 
         assert "Failed to create slot" in str(exc_info.value)
 
-    def test_successful_slot_creation(self, service: Any) -> None:
-        """Test successful slot creation."""
-        mock_slot = MagicMock()
-        mock_slot.id = generate_ulid()
-        service.slot_manager.create_slot.return_value = mock_slot
-
-        operation = SlotOperation(
-            action="add",
-            date=date(2026, 12, 25),
-            start_time=time(9, 0),
-            end_time=time(10, 0),
-        )
-
-        result = service._create_slot_for_operation(
-            generate_ulid(), operation, validate_only=False
-        )
-
-        assert result is not None
-        assert result.id == mock_slot.id
-
-    def test_slot_manager_not_configured(self, service: Any) -> None:
-        """Test error when slot manager is None."""
-        service.slot_manager = None
-
+    def test_slot_creation_raises_not_implemented(self, service: Any) -> None:
+        """Test slot creation raises NotImplementedError (bitmap-only storage)."""
         operation = SlotOperation(
             action="add",
             date=date(2026, 12, 25),
@@ -489,7 +451,7 @@ class TestCreateSlotForOperation:
                 generate_ulid(), operation, validate_only=False
             )
 
-        assert "Slot manager not configured" in str(exc_info.value)
+        assert "Failed to create slot" in str(exc_info.value)
 
 
 class TestValidateRemoveOperation:
@@ -502,7 +464,7 @@ class TestValidateRemoveOperation:
         mock_db = MagicMock()
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -600,7 +562,7 @@ class TestCheckRemoveOperationBookings:
         mock_db = MagicMock()
         return BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -621,7 +583,7 @@ class TestExecuteSlotRemoval:
         mock_db = MagicMock()
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -633,31 +595,9 @@ class TestExecuteSlotRemoval:
             MagicMock(), "slot_id", validate_only=True
         )
         assert result is True
-        service.slot_manager.delete_slot.assert_not_called()
 
-    def test_successful_removal(self, service: Any) -> None:
-        """Test successful slot removal."""
-        mock_slot = MagicMock()
-        mock_slot.id = "slot_id"
-
-        result = service._execute_slot_removal(mock_slot, "slot_id", validate_only=False)
-
-        assert result is True
-        service.slot_manager.delete_slot.assert_called_once()
-
-    def test_slot_manager_not_configured(self, service: Any) -> None:
-        """Test error when slot manager is None."""
-        service.slot_manager = None
-
-        with pytest.raises(Exception) as exc_info:
-            service._execute_slot_removal(MagicMock(), "slot_id", validate_only=False)
-
-        assert "Slot manager not configured" in str(exc_info.value)
-
-    def test_deletion_failure(self, service: Any) -> None:
-        """Test handling deletion failure."""
-        service.slot_manager.delete_slot.side_effect = Exception("Delete failed")
-
+    def test_removal_raises_not_implemented(self, service: Any) -> None:
+        """Test slot removal raises NotImplementedError (bitmap-only storage)."""
         with pytest.raises(Exception) as exc_info:
             service._execute_slot_removal(MagicMock(), "slot_id", validate_only=False)
 
@@ -674,7 +614,7 @@ class TestValidateUpdateOperationFields:
         mock_db = MagicMock()
         return BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -707,7 +647,7 @@ class TestFindSlotForUpdate:
         mock_db = MagicMock()
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -745,7 +685,7 @@ class TestValidateUpdateTimingAndConflicts:
         mock_db = MagicMock()
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -803,7 +743,7 @@ class TestProcessRemoveOperation:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -843,10 +783,9 @@ class TestProcessRemoveOperation:
         assert "Validation passed" in result.reason
 
     def test_execution_failure(self, service: Any) -> None:
-        """Test remove operation with execution failure."""
+        """Test remove operation with execution failure (bitmap-only raises NotImplementedError)."""
         mock_slot = MagicMock()
         service.repository.get_slot_for_instructor.return_value = mock_slot
-        service.slot_manager.delete_slot.side_effect = Exception("Delete failed")
 
         operation = SlotOperation(action="remove", slot_id="existing_id")
 
@@ -874,7 +813,7 @@ class TestProcessUpdateOperation:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -934,7 +873,7 @@ class TestProcessAddOperation:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -981,9 +920,6 @@ class TestProcessAddOperation:
             end_time=time(10, 0),
         )
 
-        # Mock to return None from slot creation
-        service.slot_manager.create_slot.return_value = None
-
         with patch(
             "app.services.bulk_operation_service.get_user_today_by_id"
         ) as mock_today:
@@ -1002,7 +938,7 @@ class TestProcessAddOperation:
                 )
 
         assert result.status == "failed"
-        assert "Slot creation returned None" in result.reason
+        assert "Failed to create slot" in result.reason
 
 
 class TestProcessBulkUpdate:
@@ -1030,7 +966,7 @@ class TestProcessBulkUpdate:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -1074,13 +1010,10 @@ class TestProcessBulkUpdate:
         assert "results" in result
 
     def test_execute_mode(self, service: Any, mock_db: MagicMock) -> None:
-        """Test process_bulk_update in execute mode."""
+        """Test process_bulk_update in execute mode (slot creation raises in bitmap-only)."""
         from app.schemas.availability_window import BulkUpdateRequest
 
         future_date = date.today() + timedelta(days=30)
-        mock_slot = MagicMock()
-        mock_slot.id = generate_ulid()
-        service.slot_manager.create_slot.return_value = mock_slot
 
         update_data = BulkUpdateRequest(
             validate_only=False,
@@ -1140,7 +1073,7 @@ class TestValidateBulkOperations:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -1217,7 +1150,7 @@ class TestExecuteBulkOperations:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -1249,13 +1182,10 @@ class TestExecuteBulkOperations:
     def test_execute_with_successful_operations(
         self, service: Any, mock_db: MagicMock
     ) -> None:
-        """Test execution with successful operations."""
+        """Test execution with operations (slot creation raises in bitmap-only)."""
         from app.schemas.availability_window import BulkUpdateRequest
 
         future_date = date.today() + timedelta(days=30)
-        mock_slot = MagicMock()
-        mock_slot.id = generate_ulid()
-        service.slot_manager.create_slot.return_value = mock_slot
 
         update_data = BulkUpdateRequest(
             validate_only=False,
@@ -1287,7 +1217,8 @@ class TestExecuteBulkOperations:
                         update_data=update_data,
                     )
 
-        assert result["successful"] >= 1
+        # Slot creation raises NotImplementedError in bitmap-only, so operations fail
+        assert "successful" in result
 
 
 class TestProcessOperations:
@@ -1312,7 +1243,7 @@ class TestProcessOperations:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -1406,7 +1337,7 @@ class TestInvalidateAffectedCache:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=mock_cache_service,
         )
@@ -1418,7 +1349,7 @@ class TestInvalidateAffectedCache:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=None,
         )
@@ -1499,7 +1430,7 @@ class TestExtractAffectedDates:
         mock_db = MagicMock()
         return BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -1610,7 +1541,7 @@ class TestCreateOperationSummary:
         mock_db = MagicMock()
         return BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -1668,7 +1599,7 @@ class TestValidateWeekChanges:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -1744,7 +1675,7 @@ class TestGetExistingWeekWindows:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -1778,7 +1709,7 @@ class TestGenerateOperationsFromStates:
         mock_db = MagicMock()
         return BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -1888,7 +1819,7 @@ class TestValidateOperations:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -1978,7 +1909,7 @@ class TestGenerateValidationSummary:
         mock_db = MagicMock()
         return BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -2037,7 +1968,7 @@ class TestGenerateValidationWarnings:
         mock_db = MagicMock()
         return BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -2088,7 +2019,7 @@ class TestNullTransaction:
         mock_db = MagicMock()
         return BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -2109,7 +2040,7 @@ class TestExecuteSlotUpdate:
         mock_db = MagicMock()
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -2125,48 +2056,16 @@ class TestExecuteSlotUpdate:
         )
 
         assert result is None
-        service.slot_manager.update_slot.assert_not_called()
 
-    def test_successful_update(self, service: Any) -> None:
-        """Test successful slot update."""
-        mock_slot = MagicMock()
-        mock_updated_slot = MagicMock()
-        service.slot_manager.update_slot.return_value = mock_updated_slot
-
-        operation = SlotOperation(action="update", slot_id="some_id")
-
-        result = service._execute_slot_update(
-            mock_slot, operation, time(9, 0), time(10, 0), validate_only=False
-        )
-
-        assert result == mock_updated_slot
-        service.slot_manager.update_slot.assert_called_once()
-
-    def test_slot_manager_not_configured(self, service: Any) -> None:
-        """Test error when slot manager is None."""
-        service.slot_manager = None
+    def test_update_raises_not_implemented(self, service: Any) -> None:
+        """Test slot update raises when validate_only=False (bitmap-only storage)."""
         mock_slot = MagicMock()
         operation = SlotOperation(action="update", slot_id="some_id")
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(Exception):
             service._execute_slot_update(
                 mock_slot, operation, time(9, 0), time(10, 0), validate_only=False
             )
-
-        assert "Slot manager not configured" in str(exc_info.value)
-
-    def test_update_failure(self, service: Any) -> None:
-        """Test handling update failure."""
-        service.slot_manager.update_slot.side_effect = Exception("Update failed")
-        mock_slot = MagicMock()
-        operation = SlotOperation(action="update", slot_id="some_id")
-
-        with pytest.raises(Exception) as exc_info:
-            service._execute_slot_update(
-                mock_slot, operation, time(9, 0), time(10, 0), validate_only=False
-            )
-
-        assert "Failed to update slot" in str(exc_info.value)
 
 
 class TestProcessUpdateOperationFull:
@@ -2183,7 +2082,7 @@ class TestProcessUpdateOperationFull:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -2239,40 +2138,12 @@ class TestProcessUpdateOperationFull:
         assert result.status == "success"
         assert "Validation passed" in result.reason
 
-    def test_execution_success(self, service: Any) -> None:
-        """Test successful update operation execution."""
+    def test_execution_raises_not_implemented(self, service: Any) -> None:
+        """Test update operation raises NotImplementedError (bitmap-only storage)."""
         mock_slot = MagicMock()
         mock_slot.start_time = time(9, 0)
         mock_slot.end_time = time(10, 0)
         service.repository.get_slot_for_instructor.return_value = mock_slot
-
-        mock_updated_slot = MagicMock()
-        service.slot_manager.update_slot.return_value = mock_updated_slot
-
-        operation = SlotOperation(
-            action="update",
-            slot_id="existing_id",
-            start_time=time(9, 0),
-            end_time=time(11, 0),
-        )
-
-        result = service._process_update_operation(
-            instructor_id=generate_ulid(),
-            operation=operation,
-            operation_index=0,
-            validate_only=False,
-        )
-
-        assert result.status == "success"
-        assert result.slot_id == "existing_id"
-
-    def test_execution_failure(self, service: Any) -> None:
-        """Test update operation with execution failure."""
-        mock_slot = MagicMock()
-        mock_slot.start_time = time(9, 0)
-        mock_slot.end_time = time(10, 0)
-        service.repository.get_slot_for_instructor.return_value = mock_slot
-        service.slot_manager.update_slot.side_effect = Exception("Update failed")
 
         operation = SlotOperation(
             action="update",
@@ -2305,15 +2176,15 @@ class TestProcessRemoveOperationFull:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
         service.repository = MagicMock()
         return service
 
-    def test_execution_success(self, service: Any) -> None:
-        """Test successful remove operation execution."""
+    def test_execution_raises_not_implemented(self, service: Any) -> None:
+        """Test remove operation raises NotImplementedError (bitmap-only storage)."""
         mock_slot = MagicMock()
         mock_slot.id = "existing_id"
         service.repository.get_slot_for_instructor.return_value = mock_slot
@@ -2327,8 +2198,7 @@ class TestProcessRemoveOperationFull:
             validate_only=False,
         )
 
-        assert result.status == "success"
-        service.slot_manager.delete_slot.assert_called()
+        assert result.status == "failed"
 
 
 class TestValidateRemoveOperationStringTimes:
@@ -2341,7 +2211,7 @@ class TestValidateRemoveOperationStringTimes:
         mock_db = MagicMock()
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -2407,7 +2277,7 @@ class TestProcessSingleOperationRouting:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -2504,7 +2374,7 @@ class TestTodayPastTimeSlot:
 
         return BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -2562,7 +2432,7 @@ class TestGenerateWeekOperationsNoneDefaults:
 
         return BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -2622,7 +2492,7 @@ class TestValidateRemoveOperationStringTimesExtra:
 
         return BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -2694,7 +2564,7 @@ class TestProcessUpdateSlotNone:
 
         return BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )

@@ -902,7 +902,11 @@ def test_cancel_booking_without_stripe_clear_payment_intent(
 def test_activate_lock_for_reschedule_expire_all_error(
     booking_service: BookingService, mock_repository: MagicMock, mock_db: MagicMock
 ) -> None:
-    booking = make_booking(payment_status=PaymentStatus.SCHEDULED.value, payment_intent_id="pi_123")
+    booking = make_booking(
+        payment_status=PaymentStatus.SCHEDULED.value,
+        payment_intent_id="pi_123",
+        booking_start_utc=datetime(2030, 1, 1, 15, 0, 0, tzinfo=timezone.utc),
+    )
     mock_repository.get_by_id_for_update.return_value = booking
     booking_service.transaction = MagicMock(return_value=_transaction_cm())
 

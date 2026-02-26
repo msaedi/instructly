@@ -233,7 +233,7 @@ def _get_bgc_cases_cursor(
     cursor: str | None,
     search: str | None,
 ) -> tuple[list[BGCCaseItemModel], str | None]:
-    """Legacy cursor-based pagination for review list endpoint."""
+    """Cursor-based pagination for review list endpoint."""
 
     query = _build_case_query(repo=repo, status=status, search=search)
 
@@ -337,13 +337,6 @@ async def bgc_cases(
     q: Optional[str] = Query(None, description="Search by instructor id, name, or email"),
     page: int = Query(1, ge=1),
     page_size: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
-    legacy_limit: Optional[int] = Query(
-        None,
-        alias="limit",
-        ge=1,
-        le=MAX_LIMIT,
-        description="Deprecated; use page_size instead.",
-    ),
     repo: InstructorProfileRepository = Depends(get_instructor_repo),
     _: None = Depends(require_admin),
 ) -> BGCCaseListResponse:
@@ -356,8 +349,6 @@ async def bgc_cases(
             detail="Invalid status; expected one of: review, pending, all.",
         )
 
-    effective_page_size = legacy_limit or page_size
-
     (
         items,
         total,
@@ -367,14 +358,14 @@ async def bgc_cases(
         repo=repo,
         status=normalized,
         page=page,
-        page_size=effective_page_size,
+        page_size=page_size,
         search=q,
     )
     payload = {
         "items": items,
         "total": total,
         "page": current_page,
-        "page_size": effective_page_size,
+        "page_size": page_size,
         "total_pages": total_pages,
         "has_next": current_page < total_pages,
         "has_prev": current_page > 1,

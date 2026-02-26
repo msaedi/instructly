@@ -21,9 +21,6 @@ Router Endpoints:
     POST /apply-to-date-range - Apply a pattern to a date range
     POST /specific-date - Add availability for a single date
     GET / - Get all availability with optional date filtering
-    PATCH /bulk-update - Bulk update availability slots (deprecated)
-    PATCH /{window_id} - Update a specific time slot (deprecated)
-    DELETE /{window_id} - Delete a specific time slot (deprecated)
     GET /week/booked-slots - Get booked slots for a week
     POST /week/validate-changes - Validate planned changes
     GET /blackout-dates - Get instructor's blackout dates
@@ -65,18 +62,14 @@ from ...schemas.availability_responses import (
     BookedSlotsResponse,
     CopyWeekResponse,
     DeleteBlackoutResponse,
-    DeleteWindowResponse,
     WeekAvailabilityResponse,
     WeekAvailabilityUpdateResponse,
 )
 from ...schemas.availability_window import (
     ApplyToDateRangeRequest,
     AvailabilityWindowResponse,
-    AvailabilityWindowUpdate,
     BlackoutDateCreate,
     BlackoutDateResponse,
-    BulkUpdateRequest,
-    BulkUpdateResponse,
     CopyWeekRequest,
     SpecificDateAvailabilityCreate,
     TimeRange,
@@ -572,88 +565,6 @@ def get_all_availability(
     except Exception as e:
         logger.error(f"Unexpected error getting all availability: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
-
-
-@router.patch(
-    "/bulk-update",
-    response_model=BulkUpdateResponse,
-    dependencies=[Depends(require_beta_access("instructor"))],
-    responses={
-        401: {"description": "Not authenticated"},
-        403: {"description": "User is not an instructor"},
-        410: {"description": "Endpoint deprecated"},
-    },
-)
-async def bulk_update_availability(
-    update_data: BulkUpdateRequest,
-    current_user: User = Depends(get_current_active_user),
-    bulk_operation_service: BulkOperationService = Depends(get_bulk_operation_service),
-) -> BulkUpdateResponse:
-    """Bulk update availability slots."""
-    verify_instructor(current_user)
-
-    raise HTTPException(
-        status_code=410,
-        detail="PATCH /api/v1/instructors/availability/bulk-update has been deprecated. "
-        "Use POST /api/v1/instructors/availability/week to update windows.",
-    )
-
-
-@router.patch(
-    "/{window_id}",
-    response_model=AvailabilityWindowResponse,
-    dependencies=[Depends(require_beta_access("instructor"))],
-    responses={
-        401: {"description": "Not authenticated"},
-        403: {"description": "User is not an instructor"},
-        501: {"description": "Operation not supported"},
-    },
-)
-def update_availability_window(
-    window_id: str,
-    payload: AvailabilityWindowUpdate = Body(...),
-    current_user: User = Depends(get_current_active_user),
-    availability_service: AvailabilityService = Depends(get_availability_service),
-) -> AvailabilityWindowResponse:
-    """
-    Update an availability window.
-
-    DEPRECATED: Individual window updates not supported in bitmap storage.
-    Use POST /api/v1/instructors/availability/week to update entire days.
-    """
-    verify_instructor(current_user)
-    raise HTTPException(
-        status_code=501,
-        detail="Individual window updates not supported. Use POST /api/v1/instructors/availability/week to update availability.",
-    )
-
-
-@router.delete(
-    "/{window_id}",
-    response_model=DeleteWindowResponse,
-    dependencies=[Depends(require_beta_access("instructor"))],
-    responses={
-        401: {"description": "Not authenticated"},
-        403: {"description": "User is not an instructor"},
-        501: {"description": "Operation not supported"},
-    },
-)
-def delete_availability_window(
-    window_id: str,
-    current_user: User = Depends(get_current_active_user),
-    availability_service: AvailabilityService = Depends(get_availability_service),
-) -> DeleteWindowResponse:
-    """
-    Delete an availability window.
-
-    DEPRECATED: Individual window deletion not supported in bitmap storage.
-    Use POST /api/v1/instructors/availability/week to remove windows from days.
-    """
-    verify_instructor(current_user)
-    raise HTTPException(
-        status_code=501,
-        detail="Individual window deletion not supported. Use POST /api/v1/instructors/availability/week to remove availability.",
-    )
 
 
 @router.get(

@@ -29,22 +29,6 @@ def test_get_bookings_in_date_range_summary(db, test_booking):
     assert test_booking.booking_date.isoformat() in summary["bookings_by_date"]
 
 
-@pytest.mark.parametrize(
-    "method_name,args",
-    [
-        ("get_week_slots", ("inst1", date.today(), date.today())),
-        ("get_slots_with_booking_status", ("inst1", date.today())),
-        ("get_week_with_booking_status", ("inst1", date.today(), date.today())),
-        ("bulk_create_slots", ([],)),
-        ("bulk_delete_slots", ([1, 2],)),
-        ("delete_slots_preserving_booked_times", ("inst1", [date.today()], True)),
-    ],
-)
-def test_slot_methods_raise_not_implemented(method_name, args):
-    repo = WeekOperationRepository(MagicMock())
-    with pytest.raises(NotImplementedError):
-        getattr(repo, method_name)(*args)
-
 
 @pytest.mark.parametrize(
     "method_name,args",

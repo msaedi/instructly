@@ -397,11 +397,3 @@ def user_has_cached_permission(user: User, permission_name: str) -> bool:
             if perm.name == permission_name:
                 return True
     return False
-
-
-# For tests - allow patching the Redis client getter
-def _reset_redis_client() -> None:
-    """Reset the Redis client singleton (for testing only)."""
-    # The caching Redis client is managed per-event-loop in app.core.cache_redis.
-    # Tests that need to influence Redis behavior should patch _get_auth_redis_client().
-    return

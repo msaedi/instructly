@@ -33,9 +33,6 @@ logger = logging.getLogger(__name__)
 # Fail fast rather than block for 5+ seconds with retries.
 OPENAI_TIMEOUT_S = float(os.getenv("OPENAI_TIMEOUT_S", "2.0"))
 
-# Legacy environment variable support (deprecated - use OPENAI_PARSING_MODEL)
-# Configuration is now managed via app.services.search.config module
-
 SYSTEM_PROMPT = """You are a search query parser for InstaInstru, a marketplace for lesson instructors in NYC.
 
 Extract structured parameters from the user's search query.

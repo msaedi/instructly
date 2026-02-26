@@ -26,7 +26,7 @@ import os
 from pathlib import Path
 import re
 import sys
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 from urllib.parse import urlparse, urlunparse
 
 from pydantic import SecretStr
@@ -366,9 +366,6 @@ class DatabaseConfig:
         Requires interactive confirmation to prevent accidents, unless running
         in production server mode.
         """
-        # Future: Call pre-production checks
-        self._pre_production_checks()
-
         # Check if we're in production server mode
         is_production_server = self._check_production_mode()
 
@@ -412,9 +409,6 @@ class DatabaseConfig:
             print("Production access cancelled.")
             self._audit_log_operation("production_access_denied", {"reason": "user_cancelled"})
             sys.exit(1)
-
-        # Future: Call post-approval hooks
-        self._post_production_approval()
 
         scripts_log_info("prod", "Using Production database - BE CAREFUL!")
         self._audit_log_operation(
@@ -539,8 +533,6 @@ class DatabaseConfig:
         except Exception as e:
             logger.warning(f"Failed to write audit log: {e}")
 
-    # ========== Extension Points for Future Features ==========
-
     def _check_production_mode(self) -> bool:
         """
         Detect if we're running in production environment.
@@ -549,67 +541,3 @@ class DatabaseConfig:
         to prevent misclassification (e.g., Render preview).
         """
         return os.getenv("SITE_MODE", "").lower().strip() in {"prod", "production", "live"}
-
-    def _pre_production_checks(self) -> None:
-        """
-        Future: Perform checks before allowing production access.
-
-        Could include:
-        - User authentication level
-        - Time-based access restrictions
-        - Maintenance window checks
-        """
-        return None
-
-    def _post_production_approval(self) -> None:
-        """
-        Future: Actions to take after production access is approved.
-
-        Could include:
-        - Send notifications to team
-        - Start session recording
-        - Enable additional logging
-        """
-        return None
-
-    def _create_backup_if_needed(self, operation: str) -> Optional[str]:
-        """
-        Future: Create automatic backups before destructive operations.
-
-        Args:
-            operation: The operation about to be performed
-
-        Returns:
-            Optional[str]: Backup identifier if backup was created
-        """
-        return None
-
-    def _validate_schema_version(self) -> bool:
-        """
-        Future: Ensure database schema matches application version.
-
-        Returns:
-            bool: True if schema is compatible
-        """
-        return False
-
-    def _check_dry_run_mode(self) -> bool:
-        """
-        Future: Check if operations should be simulated only.
-
-        Returns:
-            bool: True if in dry-run mode
-        """
-        return False
-
-    def _rate_limit_check(self, operation: str) -> bool:
-        """
-        Future: Implement rate limiting for database operations.
-
-        Args:
-            operation: Type of operation to check
-
-        Returns:
-            bool: True if operation is allowed
-        """
-        return False

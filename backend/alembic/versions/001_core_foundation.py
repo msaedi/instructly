@@ -54,73 +54,6 @@ def _get_public_tables(exclude: list[str]) -> list[str]:
     return [r[0] for r in rows]
 
 
-def _enable_rls_with_permissive_policy(table_name: str) -> None:
-    """Enable RLS and create an app role policy on the given table."""
-
-    op.execute(
-        f"""
-        DO $$
-        BEGIN
-            IF NOT EXISTS (
-                SELECT 1
-                FROM pg_class c
-                JOIN pg_namespace n ON n.oid = c.relnamespace
-                WHERE c.relname = '{table_name}' AND n.nspname = 'public' AND c.relrowsecurity = true
-            ) THEN
-                EXECUTE 'ALTER TABLE public.{table_name} ENABLE ROW LEVEL SECURITY';
-            END IF;
-        END$$;
-        """
-    )
-
-    op.execute(
-        f"""
-        DO $$
-        BEGIN
-            IF NOT EXISTS (
-                SELECT 1 FROM pg_policies
-                WHERE schemaname = 'public' AND tablename = '{table_name}' AND policyname = 'app_role_access'
-            ) THEN
-                EXECUTE 'CREATE POLICY app_role_access ON public.{table_name} FOR ALL USING (current_user IN (''postgres'', ''app_user'')) WITH CHECK (current_user IN (''postgres'', ''app_user''))';
-            END IF;
-        END$$;
-        """
-    )
-
-
-def _drop_permissive_policy_and_disable_rls(table_name: str) -> None:
-    """Drop app role policy and disable RLS on the given table (idempotent)."""
-
-    op.execute(
-        f"""
-        DO $$
-        BEGIN
-            IF EXISTS (
-                SELECT 1 FROM pg_policies
-                WHERE schemaname = 'public' AND tablename = '{table_name}' AND policyname = 'app_role_access'
-            ) THEN
-                EXECUTE 'DROP POLICY app_role_access ON public.{table_name}';
-            END IF;
-        END$$;
-        """
-    )
-    op.execute(
-        f"""
-        DO $$
-        BEGIN
-            IF EXISTS (
-                SELECT 1
-                FROM pg_class c
-                JOIN pg_namespace n ON n.oid = c.relnamespace
-                WHERE c.relname = '{table_name}' AND n.nspname = 'public' AND c.relrowsecurity = true
-            ) THEN
-                EXECUTE 'ALTER TABLE public.{table_name} DISABLE ROW LEVEL SECURITY';
-            END IF;
-        END$$;
-        """
-    )
-
-
 def _create_extension_prefer_extensions_schema(extension_name: str) -> None:
     """Create extension using extensions schema when available."""
 
@@ -208,18 +141,7 @@ def upgrade() -> None:
 
         for enum_name, values in enum_definitions.items():
             value_list = ", ".join(f"'{value}'" for value in values)
-            op.execute(
-                f"""
-                DO $$
-                BEGIN
-                    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '{enum_name}') THEN
-                        CREATE TYPE {enum_name} AS ENUM ({value_list});
-                    END IF;
-                END$$;
-                """
-            )
-            for value in values:
-                op.execute(f"ALTER TYPE {enum_name} ADD VALUE IF NOT EXISTS '{value}';")
+            op.execute(f"CREATE TYPE {enum_name} AS ENUM ({value_list})")
 
     # Create users table with all final columns
     op.create_table(

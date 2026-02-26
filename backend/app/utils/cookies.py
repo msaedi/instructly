@@ -33,20 +33,12 @@ def session_cookie_base_name(site_mode: Optional[str] = None) -> str:
 
 
 def session_cookie_candidates(site_mode: Optional[str] = None) -> List[str]:
-    """Return possible cookie names (new + legacy) for the current site mode."""
+    """Return possible cookie names for the current site mode."""
     mode = (site_mode or _current_site_mode()).lower()
     base = session_cookie_base_name(mode)
-    candidates: List[str] = []
     if base:
-        candidates.append(base)
-    legacy = "access_token"
-    if mode == "preview":
-        legacy = "sid_preview"
-    elif mode in {"prod", "beta", "production", "live"}:
-        legacy = "sid_prod"
-    if legacy not in candidates:
-        candidates.append(legacy)
-    return candidates
+        return [base]
+    return []
 
 
 def refresh_cookie_base_name(site_mode: Optional[str] = None) -> str:

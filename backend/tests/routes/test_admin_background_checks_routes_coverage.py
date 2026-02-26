@@ -329,7 +329,6 @@ def test_bgc_cases_invalid_status():
                 q=None,
                 page=1,
                 page_size=10,
-                legacy_limit=None,
                 repo=repo,
                 _=None,
             )
@@ -630,48 +629,12 @@ def test_bgc_review_list_and_cases(monkeypatch):
             q=None,
             page=1,
             page_size=1,
-            legacy_limit=None,
             repo=repo,
             _=None,
         )
     )
     assert cases.total == 1
     assert cases.page_size == 1
-    assert cases.has_next is False
-
-
-def test_bgc_cases_uses_legacy_limit():
-    now = datetime.now(timezone.utc)
-    profile = SimpleNamespace(
-        id="profile-1",
-        user=SimpleNamespace(first_name="Jane", last_name="Doe", email="jane@example.com"),
-        bgc_report_id="rpt_1",
-        bgc_valid_until=now + timedelta(days=5),
-        bgc_status="review",
-        bgc_includes_canceled=False,
-        bgc_completed_at=None,
-        created_at=now,
-        updated_at=now,
-        is_live=True,
-        bgc_in_dispute=False,
-        bgc_dispute_note=None,
-        bgc_dispute_opened_at=None,
-        bgc_dispute_resolved_at=None,
-        bgc_eta=None,
-    )
-    repo = _RepoStub(_FakeQuery([profile, profile]))
-    cases = asyncio_run(
-        bgc_routes.bgc_cases(
-            status_param="all",
-            q=None,
-            page=1,
-            page_size=1,
-            legacy_limit=2,
-            repo=repo,
-            _=None,
-        )
-    )
-    assert cases.page_size == 2
     assert cases.has_next is False
 
 

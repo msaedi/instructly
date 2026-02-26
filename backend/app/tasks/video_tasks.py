@@ -125,7 +125,7 @@ def detect_video_no_shows() -> VideoNoShowResults:
     db: Optional[Session] = None
     try:
         db = cast(Session, next(get_db()))
-        booking_repo = RepositoryFactory.get_booking_repository(db)
+        booking_repo = RepositoryFactory.create_booking_repository(db)
         booking_service = BookingService(db)
 
         sql_cutoff = now - timedelta(minutes=MIN_GRACE_MINUTES)

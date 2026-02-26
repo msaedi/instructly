@@ -1053,7 +1053,7 @@ def _run_cache_coroutine(coro: Coroutine[Any, Any, _CT]) -> _CT:
     """
     Run a cache coroutine from sync code without blocking the main event loop.
 
-    This is used only by CacheServiceSyncAdapter for legacy sync call sites.
+    This is used only by CacheServiceSyncAdapter for sync call sites.
     """
 
     async def _runner() -> _CT:
@@ -1100,7 +1100,7 @@ def clear_cache_event_loop() -> None:
 
 class CacheServiceSyncAdapter:
     """
-    Synchronous adapter over CacheService for legacy sync call sites.
+    Synchronous adapter over CacheService for sync call sites.
 
     Redis operations remain async (redis.asyncio) and execute on the main event loop,
     while sync callers block only their worker thread.

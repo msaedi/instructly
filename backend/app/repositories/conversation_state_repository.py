@@ -88,10 +88,6 @@ class ConversationStateRepository(BaseRepository[ConversationUserState]):
         )
         return [r[0] for r in results if r[0]]
 
-    def get_booking_ids_by_state(self, user_id: str, state: str) -> list[str]:
-        """Legacy: Get list of booking IDs in a specific state for a user."""
-        return []
-
     def restore_to_active(
         self,
         user_id: str,

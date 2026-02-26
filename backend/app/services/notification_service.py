@@ -16,11 +16,22 @@ Changes from original:
 """
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from functools import wraps
 import logging
 import time
-from typing import Any, Callable, Coroutine, Dict, List, Optional, ParamSpec, Sequence, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Coroutine,
+    Dict,
+    List,
+    Optional,
+    ParamSpec,
+    Sequence,
+    TypeVar,
+    cast,
+)
 
 from jinja2.exceptions import TemplateNotFound
 from sqlalchemy.orm import Session
@@ -261,28 +272,7 @@ class NotificationService(BaseService):
         return lesson_tz or TimezoneService.DEFAULT_TIMEZONE
 
     def _get_booking_start_utc(self, booking: Booking) -> datetime:
-        booking_start_utc = getattr(booking, "booking_start_utc", None)
-        if isinstance(booking_start_utc, datetime):
-            return booking_start_utc
-
-        lesson_tz = self._resolve_lesson_timezone(booking)
-        try:
-            return TimezoneService.local_to_utc(
-                booking.booking_date,
-                booking.start_time,
-                lesson_tz,
-            )
-        except ValueError as exc:
-            logger.warning(
-                "Failed to convert booking %s start to UTC (%s); falling back to UTC combine.",
-                getattr(booking, "id", None),
-                exc,
-            )
-            return datetime.combine(  # tz-pattern-ok: fallback for invalid legacy time
-                booking.booking_date,
-                booking.start_time,
-                tzinfo=timezone.utc,  # tz-pattern-ok: legacy fallback
-            )
+        return cast(datetime, booking.booking_start_utc)
 
     def _get_booking_local_datetime(self, booking: Booking) -> datetime:
         lesson_tz = self._resolve_lesson_timezone(booking)

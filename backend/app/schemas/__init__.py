@@ -3,7 +3,7 @@
 Pydantic schemas for InstaInstru platform.
 
 Clean Architecture: Exports only schemas that match our new architecture.
-No legacy patterns, no dead code, no backward compatibility.
+Clean architecture with no dead code.
 """
 
 # Availability schemas - Bitmap-only storage now

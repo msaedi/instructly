@@ -116,7 +116,7 @@ class TestDetectVideoNoShows:
         assert result["skipped"] == 0
         assert result["failed"] == 0
         mock_get_db.assert_not_called()
-        mock_factory.get_booking_repository.assert_not_called()
+        mock_factory.create_booking_repository.assert_not_called()
 
     @patch("app.tasks.video_tasks.BookingService")
     @patch("app.tasks.video_tasks.RepositoryFactory")
@@ -130,7 +130,7 @@ class TestDetectVideoNoShows:
         mock_get_db.return_value = iter([mock_db])
         mock_repo = MagicMock()
         mock_repo.get_video_no_show_candidates.return_value = []
-        mock_factory.get_booking_repository.return_value = mock_repo
+        mock_factory.create_booking_repository.return_value = mock_repo
 
         result = detect_video_no_shows()
 
@@ -157,7 +157,7 @@ class TestDetectVideoNoShows:
         mock_repo = MagicMock()
         mock_repo.get_video_no_show_candidates.return_value = [(booking, vs)]
         mock_repo.get_no_show_by_booking_id.return_value = None
-        mock_factory.get_booking_repository.return_value = mock_repo
+        mock_factory.create_booking_repository.return_value = mock_repo
 
         mock_svc = MagicMock()
         mock_svc.report_automated_no_show.return_value = {"success": True}
@@ -194,7 +194,7 @@ class TestDetectVideoNoShows:
         mock_repo = MagicMock()
         mock_repo.get_video_no_show_candidates.return_value = [(booking, vs)]
         mock_repo.get_no_show_by_booking_id.return_value = None
-        mock_factory.get_booking_repository.return_value = mock_repo
+        mock_factory.create_booking_repository.return_value = mock_repo
 
         mock_svc = MagicMock()
         mock_svc.report_automated_no_show.return_value = {"success": True}
@@ -227,7 +227,7 @@ class TestDetectVideoNoShows:
 
         mock_repo = MagicMock()
         mock_repo.get_video_no_show_candidates.return_value = [(booking, vs)]
-        mock_factory.get_booking_repository.return_value = mock_repo
+        mock_factory.create_booking_repository.return_value = mock_repo
 
         result = detect_video_no_shows()
 
@@ -251,7 +251,7 @@ class TestDetectVideoNoShows:
 
         mock_repo = MagicMock()
         mock_repo.get_video_no_show_candidates.return_value = [(booking, vs)]
-        mock_factory.get_booking_repository.return_value = mock_repo
+        mock_factory.create_booking_repository.return_value = mock_repo
 
         result = detect_video_no_shows()
 
@@ -276,7 +276,7 @@ class TestDetectVideoNoShows:
         mock_repo = MagicMock()
         mock_repo.get_video_no_show_candidates.return_value = [(booking, vs)]
         mock_repo.get_no_show_by_booking_id.return_value = None
-        mock_factory.get_booking_repository.return_value = mock_repo
+        mock_factory.create_booking_repository.return_value = mock_repo
 
         mock_svc = MagicMock()
         mock_svc.report_automated_no_show.return_value = {"success": True}
@@ -309,7 +309,7 @@ class TestDetectVideoNoShows:
 
         mock_repo = MagicMock()
         mock_repo.get_video_no_show_candidates.return_value = [(booking, vs)]
-        mock_factory.get_booking_repository.return_value = mock_repo
+        mock_factory.create_booking_repository.return_value = mock_repo
 
         # Lock not acquired
         mock_lock.return_value.__enter__ = MagicMock(return_value=False)
@@ -337,7 +337,7 @@ class TestDetectVideoNoShows:
 
         mock_repo = MagicMock()
         mock_repo.get_video_no_show_candidates.return_value = [(booking, vs)]
-        mock_factory.get_booking_repository.return_value = mock_repo
+        mock_factory.create_booking_repository.return_value = mock_repo
 
         mock_lock.return_value.__enter__ = MagicMock(return_value=True)
         mock_lock.return_value.__exit__ = MagicMock(return_value=False)
@@ -370,7 +370,7 @@ class TestDetectVideoNoShows:
 
         mock_repo = MagicMock()
         mock_repo.get_video_no_show_candidates.return_value = [(booking, vs)]
-        mock_factory.get_booking_repository.return_value = mock_repo
+        mock_factory.create_booking_repository.return_value = mock_repo
 
         mock_lock.return_value.__enter__ = MagicMock(return_value=True)
         mock_lock.return_value.__exit__ = MagicMock(return_value=False)
@@ -404,7 +404,7 @@ class TestDetectVideoNoShows:
         mock_repo = MagicMock()
         mock_repo.get_video_no_show_candidates.return_value = [(booking, None)]
         mock_repo.get_no_show_by_booking_id.return_value = None
-        mock_factory.get_booking_repository.return_value = mock_repo
+        mock_factory.create_booking_repository.return_value = mock_repo
 
         mock_svc = MagicMock()
         mock_svc.report_automated_no_show.return_value = {"success": True}
@@ -439,7 +439,7 @@ class TestDetectVideoNoShows:
         mock_repo = MagicMock()
         mock_repo.get_video_no_show_candidates.return_value = [(booking, vs)]
         mock_repo.get_no_show_by_booking_id.return_value = None
-        mock_factory.get_booking_repository.return_value = mock_repo
+        mock_factory.create_booking_repository.return_value = mock_repo
 
         mock_svc = MagicMock()
         mock_svc.report_automated_no_show.return_value = {"success": True}
@@ -473,7 +473,7 @@ class TestDetectVideoNoShows:
         mock_repo = MagicMock()
         mock_repo.get_video_no_show_candidates.return_value = [(booking, vs)]
         mock_repo.get_no_show_by_booking_id.return_value = None
-        mock_factory.get_booking_repository.return_value = mock_repo
+        mock_factory.create_booking_repository.return_value = mock_repo
 
         mock_lock.return_value.__enter__ = MagicMock(return_value=True)
         mock_lock.return_value.__exit__ = MagicMock(return_value=False)

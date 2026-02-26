@@ -32,7 +32,7 @@ def _make_service(**overrides: Any) -> Any:
     svc.conflict_checker = overrides.get("conflict_checker", MagicMock())
     svc.cache_service = overrides.get("cache_service", None)
     svc.cache = None
-    svc.slot_manager = overrides.get("slot_manager", None)
+    # slot_manager was removed (bitmap-only storage)
     svc.availability_service = overrides.get("availability_service", MagicMock())
     svc.logger = MagicMock()
     return svc
@@ -285,28 +285,14 @@ class TestCreateSlotForOperation:
         result = svc._create_slot_for_operation("I1", op, validate_only=True)
         assert result is None
 
-    def test_no_slot_manager_raises(self):
-        """L548: no slot_manager => NotImplementedError wrapped in Exception."""
-        svc = _make_service(slot_manager=None)
+    def test_create_slot_raises_not_implemented(self):
+        """Slot creation raises NotImplementedError in bitmap-only storage."""
+        svc = _make_service()
         op = SlotOperation(action="add", date=date(2026, 3, 16),
                            start_time=time(9, 0), end_time=time(10, 0))
 
         with pytest.raises(Exception, match="Failed to create slot"):
             svc._create_slot_for_operation("I1", op, validate_only=False)
-
-    def test_slot_manager_creates_slot(self):
-        """L540-547: slot_manager.create_slot is called."""
-        mock_manager = MagicMock()
-        mock_slot = MagicMock()
-        mock_slot.id = "SLOT1"
-        mock_manager.create_slot.return_value = mock_slot
-
-        svc = _make_service(slot_manager=mock_manager)
-        op = SlotOperation(action="add", date=date(2026, 3, 16),
-                           start_time=time(9, 0), end_time=time(10, 0))
-
-        result = svc._create_slot_for_operation("I1", op, validate_only=False)
-        assert result.id == "SLOT1"
 
 
 # ---------------------------------------------------------------------------
@@ -552,14 +538,8 @@ class TestExecuteSlotRemoval:
         svc = _make_service()
         assert svc._execute_slot_removal(None, "S1", validate_only=True) is True
 
-    def test_no_slot_manager_raises(self):
-        svc = _make_service(slot_manager=None)
+    def test_removal_raises_not_implemented(self):
+        """Slot removal raises NotImplementedError in bitmap-only storage."""
+        svc = _make_service()
         with pytest.raises(Exception, match="Failed to remove slot"):
             svc._execute_slot_removal(MagicMock(), "S1", validate_only=False)
-
-    def test_slot_manager_removes(self):
-        mock_manager = MagicMock()
-        svc = _make_service(slot_manager=mock_manager)
-        result = svc._execute_slot_removal(MagicMock(), "S1", validate_only=False)
-        assert result is True
-        mock_manager.delete_slot.assert_called_once()

@@ -24,7 +24,7 @@ from .template_service import TemplateService
 
 
 def get_cache_service_sync(db: Session = Depends(get_db)) -> CacheServiceSyncAdapter:
-    """Get sync cache adapter for legacy sync call sites."""
+    """Get sync cache adapter for sync call sites."""
     return CacheServiceSyncAdapter(get_cache_service(db))
 
 

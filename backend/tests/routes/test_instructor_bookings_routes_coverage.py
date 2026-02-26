@@ -1,6 +1,5 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, time, timedelta, timezone
-from types import SimpleNamespace
 
 from fastapi import HTTPException
 import pytest
@@ -26,35 +25,6 @@ def test_check_permission_denied(monkeypatch, test_student, db):
     assert exc.value.status_code == 403
 
 
-def test_resolve_end_date_midnight():
-    booking = _booking_stub(
-        booking_date=datetime.now(timezone.utc).date(),
-        start_time=time(23, 0),
-        end_time=time(0, 0),
-    )
-    assert routes._resolve_end_date(booking) == booking.booking_date + timedelta(days=1)
-
-
-def test_get_booking_end_utc_fallback(monkeypatch):
-    booking = _booking_stub(
-        booking_date=datetime.now(timezone.utc).date(),
-        start_time=time(9, 0),
-        end_time=time(10, 0),
-        lesson_timezone=None,
-        instructor_tz_at_booking=None,
-        booking_end_utc=None,
-        instructor=None,
-    )
-
-    def _boom(*_args, **_kwargs):
-        raise ValueError("bad tz")
-
-    monkeypatch.setattr("app.routes.v1.instructor_bookings.TimezoneService.local_to_utc", _boom)
-
-    end_utc = routes._get_booking_end_utc(booking)
-    assert end_utc.tzinfo is not None
-
-
 def test_get_booking_end_utc_returns_existing():
     now = datetime.now(timezone.utc)
     booking = _booking_stub(
@@ -64,27 +34,6 @@ def test_get_booking_end_utc_returns_existing():
         booking_end_utc=now,
     )
     assert routes._get_booking_end_utc(booking) == now
-
-
-def test_get_booking_end_utc_uses_instructor_timezone(monkeypatch):
-    sentinel = datetime(2024, 1, 1, 15, 0, tzinfo=timezone.utc)
-    instructor = SimpleNamespace(user=SimpleNamespace(timezone="America/New_York"))
-    booking = SimpleNamespace(
-        booking_date=datetime.now(timezone.utc).date(),
-        start_time=time(9, 0),
-        end_time=time(10, 0),
-        lesson_timezone=None,
-        instructor_tz_at_booking=None,
-        booking_end_utc=None,
-        instructor=instructor,
-    )
-
-    monkeypatch.setattr(
-        "app.routes.v1.instructor_bookings.TimezoneService.local_to_utc",
-        lambda *_args, **_kwargs: sentinel,
-    )
-
-    assert routes._get_booking_end_utc(booking) == sentinel
 
 
 def test_paginate_bookings(test_booking):
@@ -104,7 +53,7 @@ async def test_get_pending_completion_bookings(monkeypatch, test_instructor, tes
             return [test_booking]
 
     monkeypatch.setattr(
-        "app.routes.v1.instructor_bookings.RepositoryFactory.get_booking_repository",
+        "app.routes.v1.instructor_bookings.RepositoryFactory.create_booking_repository",
         lambda _db: _Repo(),
     )
     monkeypatch.setattr(
@@ -125,7 +74,7 @@ async def test_get_upcoming_and_list_bookings(monkeypatch, test_instructor, test
             return [test_booking]
 
     monkeypatch.setattr(
-        "app.routes.v1.instructor_bookings.RepositoryFactory.get_booking_repository",
+        "app.routes.v1.instructor_bookings.RepositoryFactory.create_booking_repository",
         lambda _db: _Repo(),
     )
     monkeypatch.setattr(
@@ -158,7 +107,7 @@ async def test_get_completed_bookings(monkeypatch, test_instructor, test_booking
             return [test_booking]
 
     monkeypatch.setattr(
-        "app.routes.v1.instructor_bookings.RepositoryFactory.get_booking_repository",
+        "app.routes.v1.instructor_bookings.RepositoryFactory.create_booking_repository",
         lambda _db: _Repo(),
     )
     monkeypatch.setattr(

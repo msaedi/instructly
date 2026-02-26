@@ -28,7 +28,7 @@ For single slot CRUD operations, use AvailabilityRepository.
 
 from datetime import date
 import logging
-from typing import Any, Dict, List, cast
+from typing import cast
 
 from sqlalchemy import and_
 from sqlalchemy.exc import SQLAlchemyError
@@ -91,15 +91,3 @@ class BulkOperationRepository:
             raise RepositoryException(f"Failed to check bookings: {str(e)}")
 
     # Data Retrieval for Validation - REMOVED (slot operations deprecated)
-
-    # Cache Support - REMOVED (slot operations deprecated)
-
-    # Bulk Operations - REMOVED (slot operations deprecated)
-
-    def bulk_create_slots(self, slots: List[Dict[str, Any]]) -> List[dict[str, Any]]:
-        """
-        DEPRECATED: Slot-based bulk operations removed. Use bitmap storage instead.
-        """
-        raise NotImplementedError(
-            "Slot-based bulk operations removed. All availability operations must use bitmap storage via AvailabilityDayRepository."
-        )

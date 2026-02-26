@@ -71,6 +71,12 @@ class TestEmailCleanArchitecture:
         # Status
         booking.status = BookingStatus.CONFIRMED
 
+        # UTC timestamps (9:00 AM EDT = 1:00 PM UTC on July 15, 2025)
+        booking.booking_start_utc = datetime(2025, 7, 15, 13, 0, 0)
+        booking.booking_end_utc = datetime(2025, 7, 15, 14, 0, 0)
+        booking.lesson_timezone = "America/New_York"
+        booking.instructor_tz_at_booking = "America/New_York"
+
         # Ensure NO slot references
         assert not hasattr(booking, "availability_slot_id")
         assert not hasattr(booking, "availability_slot")

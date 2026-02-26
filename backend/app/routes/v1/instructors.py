@@ -42,7 +42,6 @@ from ...core.exceptions import (
 )
 from ...core.ulid_helper import is_valid_ulid
 from ...database import get_db
-from ...middleware.rate_limiter import RateLimitKeyType, rate_limit as legacy_rate_limit
 from ...models.user import User
 from ...ratelimit.dependency import rate_limit
 from ...repositories.filter_repository import FilterRepository
@@ -433,11 +432,11 @@ async def get_instructor(
 @router.get(
     "/{instructor_id}/coverage",
     response_model=CoverageFeatureCollectionResponse,
+    dependencies=[Depends(rate_limit("read"))],
     responses={
         400: {"description": "Invalid instructor ID"},
     },
 )
-@legacy_rate_limit("30/minute", key_type=RateLimitKeyType.IP)
 async def get_coverage(
     instructor_id: str = Path(
         ...,

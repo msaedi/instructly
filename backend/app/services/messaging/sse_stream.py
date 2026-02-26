@@ -357,7 +357,6 @@ def format_message_from_db(message: Message, user_id: str) -> Dict[str, str]:
             "message_type": msg_type,
         },
         "conversation_id": conv_id,
-        "booking_id": message.booking_id,  # Include for backward compatibility
         "is_mine": message.sender_id == user_id,
         "message_type": msg_type,
     }

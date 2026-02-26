@@ -1057,7 +1057,6 @@ class TestStripeService:
         mock_pricing.assert_called_once_with(
             booking_id=test_booking.id,
             applied_credit_cents=700,
-            persist=True,
         )
 
         assert context.applied_credit_cents == credit_locked
@@ -1115,7 +1114,6 @@ class TestStripeService:
         mock_pricing.assert_called_once_with(
             booking_id=test_booking.id,
             applied_credit_cents=500,
-            persist=True,
         )
 
         assert context.applied_credit_cents == locked_credit

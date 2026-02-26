@@ -462,7 +462,7 @@ def log_search_click(
         None,
         description=(
             "JSON body payload for click tracking. If omitted, query parameters are accepted for "
-            "backward compatibility."
+            "convenience."
         ),
     ),
     search_query_id: Optional[str] = Query(None, description="Search query ID from NL search"),

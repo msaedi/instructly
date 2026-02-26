@@ -133,7 +133,6 @@ class CategoryServiceDetail(StrictModel):
     requires_certification: Optional[bool] = None
     is_active: Optional[bool] = None
     active_instructors: int = 0
-    instructor_count: int = 0
     demand_score: float = 0.0
     is_trending: bool = False
     actual_min_price: Optional[float] = None

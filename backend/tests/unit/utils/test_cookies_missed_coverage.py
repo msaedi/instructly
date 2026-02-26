@@ -13,12 +13,12 @@ from unittest.mock import MagicMock, patch
 
 
 def test_session_cookie_candidates_empty_base() -> None:
-    """Line 40->42: when base is empty, candidates list starts empty."""
+    """When base is empty, candidates list is empty (no legacy fallback)."""
     with patch("app.utils.cookies.session_cookie_base_name", return_value=""):
         from app.utils.cookies import session_cookie_candidates
         result = session_cookie_candidates("local")
-    # base is empty so first condition fails, legacy still appended
-    assert isinstance(result, list)
+    # base is empty so returns empty list (no legacy fallback)
+    assert result == []
 
 
 def test_set_session_cookie_with_expires() -> None:
@@ -121,7 +121,7 @@ def test_session_cookie_base_name_prod_mode() -> None:
 
 
 def test_session_cookie_candidates_prod_mode() -> None:
-    """Lines 45-46: site_mode is 'prod' => legacy is 'sid_prod'."""
+    """site_mode is 'prod' => returns just [base], no legacy fallback."""
     from app.utils.cookies import session_cookie_candidates
 
     with patch("app.utils.cookies.settings") as mock_settings:
@@ -129,5 +129,4 @@ def test_session_cookie_candidates_prod_mode() -> None:
         mock_settings.site_mode = "prod"
         result = session_cookie_candidates("prod")
 
-    assert "sid" in result
-    assert "sid_prod" in result
+    assert result == ["sid"]

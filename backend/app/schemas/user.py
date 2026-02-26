@@ -52,7 +52,7 @@ class UserRegistrationMetadata(BaseModel):
 
 class UserCreate(StrictRequestModel, UserBase):
     password: str
-    role: Optional[str] = None  # For backward compatibility during registration
+    role: Optional[str] = None  # Role assignment during registration
     guest_session_id: Optional[str] = None  # For conversion on signup
     metadata: Optional[UserRegistrationMetadata] = None  # Client-provided registration metadata
 

@@ -20,7 +20,6 @@ Endpoints:
     POST /{booking_id}/complete - Mark booking as completed
     POST /{booking_id}/no-show - Report a no-show
     POST /{booking_id}/no-show/dispute - Dispute a no-show report
-    POST /{booking_id}/confirm-payment - Confirm payment method
     PATCH /{booking_id}/payment-method - Update booking payment method
 """
 
@@ -50,7 +49,6 @@ from ...schemas.booking import (
     AvailabilityCheckRequest,
     AvailabilityCheckResponse,
     BookingCancel,
-    BookingConfirmPayment,
     BookingCreate,
     BookingCreateResponse,
     BookingPaymentMethodUpdate,
@@ -472,7 +470,7 @@ async def create_booking(
     1. Creates booking with 'pending_payment' status
     2. Returns SetupIntent client_secret for card collection
     3. Frontend collects card details
-    4. Call /bookings/{id}/confirm-payment to complete
+    4. Call /payments/checkout to complete
 
     Rate limited per user to prevent booking spam.
     """
@@ -1083,49 +1081,6 @@ async def dispute_no_show(
                 reason=request.reason,
             )
             return NoShowDisputeResponse.model_validate(result)
-    except DomainException as e:
-        handle_domain_exception(e)
-
-
-@router.post(
-    "/{booking_id}/confirm-payment",
-    response_model=BookingResponse,
-    dependencies=[Depends(new_rate_limit("payment"))],
-    responses={404: {"description": "Booking not found"}},
-    deprecated=True,
-)
-async def confirm_booking_payment(
-    booking_id: str = Path(
-        ...,
-        description="Booking ULID",
-        pattern=ULID_PATH_PATTERN,
-        examples=["01HF4G12ABCDEF3456789XYZAB"],
-    ),
-    payment_data: BookingConfirmPayment = Body(...),
-    current_user: User = Depends(get_current_active_user),
-    booking_service: BookingService = Depends(get_booking_service),
-) -> BookingResponse:
-    """
-    Confirm payment method for a booking (Phase 2.1).
-
-    Deprecated: use /api/v1/payments/checkout instead.
-    """
-    try:
-        async with booking_lock(booking_id) as acquired:
-            if not acquired:
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail="Operation in progress",
-                )
-            booking = await asyncio.to_thread(
-                booking_service.confirm_booking_payment,
-                booking_id,
-                current_user,
-                payment_data.payment_method_id,
-                payment_data.save_payment_method,
-            )
-
-            return BookingResponse.from_booking(booking)
     except DomainException as e:
         handle_domain_exception(e)
 

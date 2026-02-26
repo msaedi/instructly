@@ -599,22 +599,15 @@ class TestInstructorProfileRepositoryValidation:
         active_services = [s for s in all_services if s.is_active]
         assert len(active_services) == 2
 
-        # Repository should always return ALL services
-        # The include_inactive_services parameter is ignored at repository level
-        profile_result1 = repo.get_by_user_id_with_details(user.id, include_inactive_services=False)
+        # Repository always returns ALL services
+        profile_result = repo.get_by_user_id_with_details(user.id)
 
         # Should have ALL services (repository doesn't filter)
-        assert len(profile_result1.instructor_services) == 4
-
-        # Get profile again with different parameter
-        profile_result2 = repo.get_by_user_id_with_details(user.id, include_inactive_services=True)
-
-        # Should still have ALL services
-        assert len(profile_result2.instructor_services) == 4
+        assert len(profile_result.instructor_services) == 4
 
         # Verify both active and inactive services are present
-        active_in_result = sum(1 for s in profile_result2.instructor_services if s.is_active)
-        inactive_in_result = sum(1 for s in profile_result2.instructor_services if not s.is_active)
+        active_in_result = sum(1 for s in profile_result.instructor_services if s.is_active)
+        inactive_in_result = sum(1 for s in profile_result.instructor_services if not s.is_active)
         assert active_in_result == 2
         assert inactive_in_result == 2
 

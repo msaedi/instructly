@@ -1031,7 +1031,6 @@ class AvailabilityService(BaseService):
             return None
 
         map_candidate: Any = payload
-        slots_payload: Any = None
 
         if isinstance(payload, dict):
             payload["_metadata"] = self._coerce_metadata_list(payload.get("_metadata"))
@@ -1039,11 +1038,6 @@ class AvailabilityService(BaseService):
                 map_candidate = payload.get("map")
             elif "week_map" in payload:
                 map_candidate = payload.get("week_map")
-
-            if "slots" in payload:
-                slots_payload = payload.get("slots")
-            elif "slot_meta" in payload:
-                slots_payload = payload.get("slot_meta")
 
         week_map = self._sanitize_week_map(map_candidate)
         if week_map is None:
@@ -1055,34 +1049,28 @@ class AvailabilityService(BaseService):
             return WeekAvailabilityResult(week_map=week_map, windows=windows)
 
         slot_snapshots: list[SlotSnapshot] = []
-        # DEPRECATED: _deserialize_slot_meta removed - bitmap-only storage now
-        if isinstance(slots_payload, list):
-            # Legacy slot payload format not supported - return empty snapshots
-            slot_snapshots = []
-        else:
-            slot_snapshots = []
-            for iso_date, entries in week_map.items():
+        for iso_date, entries in week_map.items():
+            try:
+                day = date.fromisoformat(iso_date)
+            except ValueError:
+                continue
+            for entry in entries:
+                start = entry.get("start_time")
+                end = entry.get("end_time")
+                if start is None or end is None:
+                    continue
                 try:
-                    day = date.fromisoformat(iso_date)
+                    slot_snapshots.append(
+                        SlotSnapshot(
+                            specific_date=day,
+                            start_time=string_to_time(str(start)),
+                            end_time=string_to_time(str(end)),
+                            created_at=None,
+                            updated_at=None,
+                        )
+                    )
                 except ValueError:
                     continue
-                for entry in entries:
-                    start = entry.get("start_time")
-                    end = entry.get("end_time")
-                    if start is None or end is None:
-                        continue
-                    try:
-                        slot_snapshots.append(
-                            SlotSnapshot(
-                                specific_date=day,
-                                start_time=string_to_time(str(start)),
-                                end_time=string_to_time(str(end)),
-                                created_at=None,
-                                updated_at=None,
-                            )
-                        )
-                    except ValueError:
-                        continue
 
         # Convert slot snapshots to windows
         for snapshot in slot_snapshots:
@@ -1181,8 +1169,6 @@ class AvailabilityService(BaseService):
                 windows.append((str(start), str(end)))
             bits_by_day[day] = bits_from_windows(windows) if windows else new_empty_bits()
         return bits_by_day
-
-    # Removed _serialize_slot_meta and _deserialize_slot_meta - no longer needed with bitmap storage
 
     @BaseService.measure_operation("get_instructor_availability_for_date_range")
     def get_instructor_availability_for_date_range(
@@ -1371,9 +1357,6 @@ class AvailabilityService(BaseService):
                 windows_to_create.append(window_input)
 
         return PreparedWeek(windows=windows_to_create, affected_dates=affected_dates)
-
-    # DEPRECATED: _save_week_slots_transaction removed - bitmap-only storage now
-    # This method was never called and contained dead slot-based code
 
     async def _warm_cache_after_save(
         self,

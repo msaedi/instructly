@@ -468,49 +468,6 @@ class TestGetBookingStartUtc:
 
         assert result == expected_utc
 
-    def test_legacy_booking_with_lesson_timezone(self, booking_service):
-        """Test legacy booking using lesson_timezone."""
-        booking = MagicMock(spec=Booking)
-        booking.booking_start_utc = None
-        booking.lesson_timezone = "America/New_York"
-        booking.instructor_tz_at_booking = None
-        booking.instructor = None
-        booking.booking_date = date(2026, 12, 25)
-        booking.start_time = time(10, 0)
-
-        result = booking_service._get_booking_start_utc(booking)
-
-        assert isinstance(result, datetime)
-        assert result.tzinfo is not None
-
-    def test_legacy_booking_with_instructor_tz(self, booking_service):
-        """Test legacy booking using instructor_tz_at_booking."""
-        booking = MagicMock(spec=Booking)
-        booking.booking_start_utc = None
-        booking.lesson_timezone = None
-        booking.instructor_tz_at_booking = "America/Chicago"
-        booking.instructor = None
-        booking.booking_date = date(2026, 12, 25)
-        booking.start_time = time(10, 0)
-
-        result = booking_service._get_booking_start_utc(booking)
-
-        assert isinstance(result, datetime)
-
-    def test_legacy_booking_fallback_to_default(self, booking_service):
-        """Test legacy booking falls back to default timezone."""
-        booking = MagicMock(spec=Booking)
-        booking.booking_start_utc = None
-        booking.lesson_timezone = None
-        booking.instructor_tz_at_booking = None
-        booking.instructor = None
-        booking.booking_date = date(2026, 12, 25)
-        booking.start_time = time(10, 0)
-
-        result = booking_service._get_booking_start_utc(booking)
-
-        assert isinstance(result, datetime)
-
 
 class TestGetBookingEndUtc:
     """Test _get_booking_end_utc helper method."""
@@ -524,21 +481,6 @@ class TestGetBookingEndUtc:
         result = booking_service._get_booking_end_utc(booking)
 
         assert result == expected_utc
-
-    def test_legacy_booking_conversion(self, booking_service):
-        """Test legacy booking UTC conversion."""
-        booking = MagicMock(spec=Booking)
-        booking.booking_end_utc = None
-        booking.lesson_timezone = "America/New_York"
-        booking.instructor_tz_at_booking = None
-        booking.instructor = None
-        booking.booking_date = date(2026, 12, 25)
-        booking.start_time = time(10, 0)
-        booking.end_time = time(11, 0)
-
-        result = booking_service._get_booking_end_utc(booking)
-
-        assert isinstance(result, datetime)
 
 
 class TestValidateAgainstAvailabilityBits:
@@ -1172,43 +1114,6 @@ class TestValidateAgainstAvailabilityBitsExtended:
         booking_service._validate_against_availability_bits(
             booking_data, instructor_profile
         )
-
-
-class TestGetBookingTimesWithInstructor:
-    """Test _get_booking_start_utc and _get_booking_end_utc with instructor fallback."""
-
-    def test_start_utc_with_instructor_timezone(self, booking_service):
-        """Test start UTC with instructor timezone fallback."""
-        booking = MagicMock(spec=Booking)
-        booking.booking_start_utc = None
-        booking.lesson_timezone = None
-        booking.instructor_tz_at_booking = None
-        mock_instructor = MagicMock()
-        mock_instructor.timezone = "America/Los_Angeles"
-        booking.instructor = mock_instructor
-        booking.booking_date = date(2026, 12, 25)
-        booking.start_time = time(10, 0)
-
-        result = booking_service._get_booking_start_utc(booking)
-
-        assert isinstance(result, datetime)
-
-    def test_end_utc_with_instructor_timezone(self, booking_service):
-        """Test end UTC with instructor timezone fallback."""
-        booking = MagicMock(spec=Booking)
-        booking.booking_end_utc = None
-        booking.lesson_timezone = None
-        booking.instructor_tz_at_booking = None
-        mock_instructor = MagicMock()
-        mock_instructor.timezone = "America/Los_Angeles"
-        booking.instructor = mock_instructor
-        booking.booking_date = date(2026, 12, 25)
-        booking.start_time = time(10, 0)
-        booking.end_time = time(11, 0)
-
-        result = booking_service._get_booking_end_utc(booking)
-
-        assert isinstance(result, datetime)
 
 
 class TestShouldTriggerLockExtended:

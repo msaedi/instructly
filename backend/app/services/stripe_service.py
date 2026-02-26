@@ -1764,7 +1764,6 @@ class StripeService(BaseService):
                 pricing = self.pricing_service.compute_booking_pricing(
                     booking_id=booking_id,
                     applied_credit_cents=applied_credit_cents,
-                    persist=True,
                 )
 
             tier_pct = Decimal(str(pricing.get("instructor_tier_pct", 0)))
@@ -3524,13 +3523,13 @@ class StripeService(BaseService):
             self.logger.error(f"Error processing webhook event: {str(e)}")
             raise ServiceException(f"Failed to process webhook event: {str(e)}")
 
-    @BaseService.measure_operation("stripe_handle_webhook_legacy")
+    @BaseService.measure_operation("stripe_handle_webhook_with_verification")
     def handle_webhook(self, payload: str, signature: str) -> Dict[str, Any]:
         """
-        Legacy webhook handler that verifies signature and processes events.
+        Webhook handler that verifies signature and processes events.
 
-        This method is kept for backward compatibility. New code should use
-        handle_webhook_event() with pre-verified events.
+        Combines signature verification with event processing in a single call.
+        For pre-verified events, use handle_webhook_event() directly.
 
         Args:
             payload: Raw webhook payload as string

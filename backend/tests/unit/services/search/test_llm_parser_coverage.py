@@ -34,15 +34,19 @@ class TestLLMParserClient:
     def test_client_lazy_init(self):
         """L97-102: first access creates client."""
         parser = _make_llm_parser()
-        with patch("app.services.search.llm_parser.get_search_config") as mock_config:
+        with patch("app.services.search.llm_parser.get_search_config") as mock_config, \
+             patch("app.services.search.llm_parser.AsyncOpenAI") as mock_openai:
             mock_config.return_value = MagicMock(max_retries=2)
+            mock_openai.return_value = MagicMock()
             client = parser.client
         assert client is not None
 
     def test_client_reinit_on_retries_change(self):
         """L103-108: max_retries changes -> recreates client."""
         parser = _make_llm_parser()
-        with patch("app.services.search.llm_parser.get_search_config") as mock_config:
+        with patch("app.services.search.llm_parser.get_search_config") as mock_config, \
+             patch("app.services.search.llm_parser.AsyncOpenAI") as mock_openai:
+            mock_openai.side_effect = [MagicMock(), MagicMock()]
             mock_config.return_value = MagicMock(max_retries=2)
             client1 = parser.client
             mock_config.return_value = MagicMock(max_retries=5)
@@ -52,8 +56,10 @@ class TestLLMParserClient:
     def test_client_max_retries_invalid(self):
         """L93-95: invalid max_retries -> defaults to 2."""
         parser = _make_llm_parser()
-        with patch("app.services.search.llm_parser.get_search_config") as mock_config:
+        with patch("app.services.search.llm_parser.get_search_config") as mock_config, \
+             patch("app.services.search.llm_parser.AsyncOpenAI") as mock_openai:
             mock_config.return_value = MagicMock(max_retries="invalid")
+            mock_openai.return_value = MagicMock()
             client = parser.client
         assert client is not None
 

@@ -278,7 +278,7 @@ class Settings(BaseSettings):
     )
 
     # Raw database URLs - DO NOT USE DIRECTLY! Use properties instead
-    # Explicit env names (no backward compatibility):
+    # Explicit env names:
     #  - prod_database_url
     #  - preview_database_url
     #  - stg_database_url
@@ -326,7 +326,7 @@ class Settings(BaseSettings):
         description="Service role for pool monitoring (api, worker, scheduler, all)",
     )
 
-    # Legacy flags for backward compatibility
+    # Test configuration
     is_testing: bool = False  # Set to True when running tests
 
     # Email settings
@@ -966,7 +966,7 @@ class Settings(BaseSettings):
         description="Stripe secret key for backend API calls",
     )
 
-    # Webhook secrets - backward compatible for both local and deployed environments
+    # Webhook secrets for local dev and deployed environments
     stripe_webhook_secret: SecretStr = Field(
         default=SecretStr(""),
         description="Stripe webhook secret for local dev (Stripe CLI)",

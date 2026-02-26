@@ -106,24 +106,20 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             self.db.query(InstructorProfile).filter(InstructorProfile.user_id == user_id).first(),
         )
 
-    def get_all_with_details(
-        self, skip: int = 0, limit: int = 100, include_inactive_services: bool = False
-    ) -> List[InstructorProfile]:
+    def get_all_with_details(self, skip: int = 0, limit: int = 100) -> List[InstructorProfile]:
         """
         Get all instructor profiles with user and services eager loaded.
 
         This method solves the N+1 query problem by loading all related
         data in a single query with joins.
 
-        Note: This method returns ALL services regardless of the include_inactive_services
-        parameter. The service layer should handle filtering when converting to DTOs.
+        The service layer handles filtering inactive services when converting to DTOs.
 
         UPDATED: Now filters to only include instructors with active account status.
 
         Args:
             skip: Number of records to skip
             limit: Maximum number of records to return
-            include_inactive_services: DEPRECATED - kept for compatibility but ignored
 
         Returns:
             List of InstructorProfile objects with all relationships loaded
@@ -156,18 +152,14 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             self.logger.error(f"Error getting all profiles with details: {str(e)}")
             raise RepositoryException(f"Failed to get instructor profiles: {str(e)}")
 
-    def get_by_user_id_with_details(
-        self, user_id: str, include_inactive_services: bool = False
-    ) -> Optional[InstructorProfile]:
+    def get_by_user_id_with_details(self, user_id: str) -> Optional[InstructorProfile]:
         """
         Get a single instructor profile by user_id with all relationships loaded.
 
-        Note: This method returns ALL services regardless of the include_inactive_services
-        parameter. The service layer should handle filtering when converting to DTOs.
+        The service layer handles filtering inactive services when converting to DTOs.
 
         Args:
             user_id: The user ID
-            include_inactive_services: DEPRECATED - kept for compatibility but ignored
 
         Returns:
             InstructorProfile with all relationships loaded, or None if not found
