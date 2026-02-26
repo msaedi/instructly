@@ -12,7 +12,7 @@ jest.mock('@/src/api/services/bookings', () => ({
   cancelBookingImperative: (...args: unknown[]) => mockCancelBookingImperative(...args),
 }));
 
-// Type alias for backward compatibility
+// Type alias
 type Booking = BookingResponse;
 
 const mockQueryClient = {

@@ -48,7 +48,7 @@ export type {
   CandidateServiceQuery,
 };
 
-// Type aliases for backwards compatibility
+// Type aliases for convenience
 export type SearchTrend = DailySearchTrend;
 export type ZeroResultSearch = ZeroResultQueryItem;
 export type SearchAnalyticsSummary = SearchAnalyticsSummaryResponse;

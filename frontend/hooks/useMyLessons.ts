@@ -25,11 +25,9 @@ import {
  *
  * ✅ MIGRATED TO V1 - Uses /api/v1/bookings endpoint with upcoming_only filter
  *
- * @param pageOrEnabled - Page number (1-based) or legacy enabled flag (ignored)
- * @param _enabled - Legacy parameter kept for backward compatibility but not used (v1 hooks don't support enabled)
+ * @param page - Page number (1-based)
  */
-export function useCurrentLessons(pageOrEnabled: number | boolean = 1, _enabled: boolean = true) {
-  const page = typeof pageOrEnabled === 'number' ? pageOrEnabled : 1;
+export function useCurrentLessons(page: number = 1) {
   // Use v1 service with upcoming_only filter to get full booking objects
   const result = useBookingsList({
     upcoming_only: true,
@@ -37,7 +35,7 @@ export function useCurrentLessons(pageOrEnabled: number | boolean = 1, _enabled:
     per_page: 10,
   });
 
-  // Map v1 response shape to legacy shape for backward compatibility
+  // Map v1 response to expected shape
   return {
     ...result,
     data: result.data ? {
@@ -96,12 +94,11 @@ export function useCurrentLessonsInfinite() {
  * ✅ MIGRATED TO V1 - Uses /api/v1/bookings endpoint with exclude_future_confirmed filter
  *
  * @param page - Page number (1-based)
- * @param _enabled - Legacy parameter kept for backward compatibility but not used
  */
-export function useCompletedLessons(page: number = 1, _enabled: boolean = true) {
+export function useCompletedLessons(page: number = 1) {
   const result = useBookingsHistory(page, 10);
 
-  // Map v1 response shape to legacy shape for backward compatibility
+  // Map v1 response to expected shape
   return {
     ...result,
     data: result.data ? {
@@ -161,7 +158,7 @@ export function useCompletedLessonsInfinite() {
 export function useCancelledLessons(page: number = 1) {
   const result = useCancelledBookingsV1(page, 20);
 
-  // Map v1 response shape to legacy shape for backward compatibility
+  // Map v1 response to expected shape
   return {
     ...result,
     data: result.data ? {
@@ -184,7 +181,7 @@ export function useCancelledLessons(page: number = 1) {
 export function useLessonDetails(lessonId: string) {
   const result = useBooking(lessonId);
 
-  // Map v1 response to legacy Booking type for backward compatibility
+  // Map v1 response to expected Booking type
   return {
     ...result,
     data: result.data as Booking | undefined,
@@ -282,7 +279,7 @@ function calculateDurationMinutes(
  * ✅ MIGRATED TO V1 - Uses /api/v1/bookings/{bookingId}/reschedule endpoint
  *
  * Note: The v1 API uses selected_duration instead of end_time.
- * This wrapper maintains backward compatibility by calculating duration from times.
+ * This wrapper calculates duration from times for the reschedule API.
  */
 export function useRescheduleLesson() {
   const queryClient = useQueryClient();
@@ -448,7 +445,7 @@ export function useMarkNoShow() {
 
 /**
  * Fallback platform fee percentage when payment_summary is not available.
- * Only used for legacy bookings that don't have payment_summary populated.
+ * Only used for bookings without payment_summary populated.
  * @deprecated Use payment_summary.lesson_amount and payment_summary.service_fee instead
  */
 const FALLBACK_PLATFORM_FEE_PERCENT = 0.12;
@@ -488,7 +485,7 @@ type CancellationFeeInput = Pick<Booking, 'booking_date' | 'start_time' | 'total
  * - <12h before lesson: No refund, full charge, instructor paid
  *
  * Uses payment_summary from backend when available (accurate).
- * Falls back to calculation for legacy bookings without payment_summary.
+ * Falls back to calculation for bookings without payment_summary.
  *
  * @param lesson - Booking with required fields
  * @returns Cancellation policy details
@@ -499,7 +496,7 @@ export function calculateCancellationFee(lesson: CancellationFeeInput): Cancella
   const hoursUntil = (lessonDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
 
   // Use payment_summary from backend when available (accurate source of truth)
-  // Falls back to calculation only for legacy bookings without payment_summary
+  // Falls back to calculation only for bookings without payment_summary
   let lessonPrice: number;
   let platformFee: number;
 
@@ -508,7 +505,7 @@ export function calculateCancellationFee(lesson: CancellationFeeInput): Cancella
     lessonPrice = lesson.payment_summary.lesson_amount;
     platformFee = lesson.payment_summary.service_fee;
   } else {
-    // Fallback calculation for legacy bookings
+    // Fallback calculation for bookings without payment_summary
     // total_price = lesson_price + platform_fee
     // platform_fee = lesson_price * 0.12
     // total_price = lesson_price * 1.12

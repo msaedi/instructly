@@ -127,7 +127,7 @@ export function Chat({
     handleSSEReadReceipt,
   } = useSSEHandlers();
 
-  // Map connection state to legacy status enum
+  // Map connection state to status enum
   const connectionStatus: ConnectionStatus = connectionError
     ? ConnectionStatus.ERROR
     : isConnected

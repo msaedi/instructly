@@ -21,7 +21,7 @@ import { fetchBookingDetails, cancelBookingImperative } from '@/src/api/services
 import type { BookingResponse } from '@/src/api/generated/instructly.schemas';
 import { ApiProblemError } from '@/lib/api/fetch';
 
-// Type alias for backward compatibility
+// Type alias
 type Booking = BookingResponse;
 import { PricingPreviewContext, usePricingPreviewController, type PreviewCause } from '../hooks/usePricingPreview';
 import CheckoutApplyReferral from '@/components/referrals/CheckoutApplyReferral';
@@ -440,7 +440,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   // Use shared credits hook with React Query
   const { data: creditsData, isLoading: isLoadingCredits, refetch: refetchCredits } = useCredits();
 
-  // Convert credits data to legacy format for compatibility with existing code
+  // Convert credits data to expected format
   const userCredits = {
     totalAmount: creditsData?.available ?? 0,
     credits: [],

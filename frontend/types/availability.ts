@@ -14,16 +14,12 @@ import type { DayBits } from '@/lib/calendar/bitset';
 
 // Import types from generated OpenAPI shim
 import type {
-  BulkUpdateRequest as GeneratedBulkUpdateRequest,
-  BulkUpdateResponse as GeneratedBulkUpdateResponse,
   WeekValidationResponse as GeneratedWeekValidationResponse,
   ValidateWeekRequest as GeneratedValidateWeekRequest,
   TimeSlot as GeneratedTimeSlot,
 } from '@/features/shared/api/types';
 
-// Re-export generated types for backwards compatibility
-export type BulkUpdateRequest = GeneratedBulkUpdateRequest;
-export type BulkUpdateResponse = GeneratedBulkUpdateResponse;
+// Re-export generated types for convenience
 export type WeekValidationResponse = GeneratedWeekValidationResponse;
 export type ValidateWeekRequest = GeneratedValidateWeekRequest;
 export type TimeSlot = GeneratedTimeSlot;
@@ -66,7 +62,7 @@ export type DayOfWeek =
  * // Remove operation
  * const removeOp: SlotOperation = {
  *   action: 'remove',
- *   slot_id: 123
+ *   slot_id: '01ABC...'
  * };
  * ```
  */
@@ -86,8 +82,6 @@ export interface SlotOperation {
   /** Slot ID for remove/update operations */
   slot_id?: string;
 }
-
-// BulkUpdateRequest - now imported from shim (see top of file)
 
 /**
  * Result of a single slot operation (frontend-specific, not in generated OpenAPI)
@@ -111,7 +105,6 @@ export interface OperationResult {
   slot_id?: string;
 }
 
-// BulkUpdateResponse - now imported from shim (see top of file)
 
 /**
  * Represents an existing availability slot from the database
@@ -315,44 +308,6 @@ export interface ApplyToFutureOptions {
 }
 
 /**
- * Difference between two schedules
- * Used for generating operations during save
- *
- * @interface ScheduleDiff
- */
-export interface ScheduleDiff {
-  /** Slots to be added */
-  toAdd: Array<{
-    date: string;
-    slot: TimeSlot;
-  }>;
-
-  /** Slots to be removed */
-  toRemove: Array<{
-    date: string;
-    slot: TimeSlot;
-    slotId?: number;
-  }>;
-}
-
-/**
- * Options for operation generation
- * Controls how operations are generated from schedule differences
- *
- * @interface OperationGeneratorOptions
- */
-export interface OperationGeneratorOptions {
-  /** Skip operations for dates in the past */
-  skipPastDates?: boolean;
-
-  /** Include today's date in operations */
-  includeToday?: boolean;
-
-  /** Preserve slots with bookings */
-  preserveBookedSlots?: boolean;
-}
-
-/**
  * Constants for availability system
  * Centralized configuration values
  */
@@ -389,22 +344,6 @@ export const AVAILABILITY_CONSTANTS = {
  */
 export function isDayOfWeek(day: string): day is DayOfWeek {
   return AVAILABILITY_CONSTANTS.DAYS_OF_WEEK.includes(day as DayOfWeek);
-}
-
-/**
- * Type guard to check if an operation is valid
- *
- * @param operation - Operation to validate
- * @returns boolean indicating if operation has required fields
- */
-export function isValidOperation(operation: SlotOperation): boolean {
-  if (operation.action === 'add') {
-    return !!(operation.date && operation.start_time && operation.end_time);
-  }
-  if (operation.action === 'remove') {
-    return !!operation.slot_id;
-  }
-  return false;
 }
 
 /**

@@ -4,7 +4,7 @@ import { createBookingImperative } from '@/src/api/services/bookings';
 import type { BookingCreate, BookingResponse } from '@/src/api/generated/instructly.schemas';
 import { logger } from '@/lib/logger';
 
-// Re-export types for backward compatibility
+// Re-export types
 type CreateBookingRequest = BookingCreate;
 type Booking = BookingResponse;
 

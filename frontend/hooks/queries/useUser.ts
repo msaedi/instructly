@@ -16,7 +16,7 @@ import { httpJson } from '@/features/shared/api/http';
 import { withApiBase } from '@/lib/apiBase';
 import { loadMeSchema } from '@/features/shared/api/schemas/me';
 
-// Type alias for backwards compatibility
+// Type alias for convenience
 type UserData = User;
 
 /**

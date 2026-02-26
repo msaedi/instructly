@@ -2511,22 +2511,6 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
- "/api/v1/bookings/{booking_id}/confirm-payment": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["confirm_booking_payment_api_v1_bookings__booking_id__confirm_payment_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
  "/api/v1/bookings/{booking_id}/no-show": {
  parameters: {
  query?: never;
@@ -3247,22 +3231,6 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
- "/api/v1/instructors/availability/bulk-update": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch: operations["bulk_update_availability_api_v1_instructors_availability_bulk_update_patch"];
- trace?: never;
- };
  "/api/v1/instructors/availability/copy-week": {
  parameters: {
  query?: never;
@@ -3341,22 +3309,6 @@ export type paths = {
  options?: never;
  head?: never;
  patch?: never;
- trace?: never;
- };
- "/api/v1/instructors/availability/{window_id}": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post?: never;
- delete: operations["delete_availability_window_api_v1_instructors_availability__window_id__delete"];
- options?: never;
- head?: never;
- patch: operations["update_availability_window_api_v1_instructors_availability__window_id__patch"];
  trace?: never;
  };
  "/api/v1/instructors/me": {
@@ -6389,20 +6341,12 @@ export type components = {
  availability_invalidations: number;
  availability_total_requests: number;
  };
- AvailabilityWindowBulkUpdateRequest: {
- operations: components["schemas"]["SlotOperation"][];
- validate_only: boolean;
- };
  AvailabilityWindowResponse: {
  end_time: string;
  id: string;
  instructor_id: string;
  specific_date: string;
  start_time: string;
- };
- AvailabilityWindowUpdate: {
- end_time?: string | null;
- start_time?: string | null;
  };
  BGCCaseCountsResponse: {
  pending: number;
@@ -6660,10 +6604,6 @@ export type components = {
  };
  BookingCancel: {
  reason: string;
- };
- BookingConfirmPayment: {
- payment_method_id: string;
- save_payment_method: boolean;
  };
  BookingCreate: {
  booking_date: string;
@@ -6999,12 +6939,6 @@ export type components = {
  user_ids?: string[] | null;
  user_type?: components["schemas"]["BulkUserType"] | null;
  };
- BulkUpdateResponse: {
- failed: number;
- results: components["schemas"]["OperationResult"][];
- skipped: number;
- successful: number;
- };
  BulkUserType: "all" | "student" | "instructor";
  Burst1StageDetails: {
  location_tier?: number | null;
@@ -7153,7 +7087,6 @@ export type components = {
  display_order?: number | null;
  eligible_age_groups?: ("toddler" | "kids" | "teens" | "adults")[];
  id: string;
- instructor_count: number;
  is_active?: boolean | null;
  is_trending: boolean;
  name: string;
@@ -7475,10 +7408,6 @@ export type components = {
  DeleteMessageResponse: {
  message: string;
  success: boolean;
- };
- DeleteWindowResponse: {
- message: string;
- window_id: string;
  };
  DemandMetrics: {
  booking_attempts: number;
@@ -8780,13 +8709,6 @@ export type components = {
  payouts_enabled: boolean;
  requirements?: string[];
  };
- OperationResult: {
- action: string;
- operation_index: number;
- reason?: string | null;
- slot_id?: string | null;
- status: "success" | "failed" | "skipped";
- };
  OriginalPayment: {
  captured_at: string | null;
  gross: number;
@@ -10021,13 +9943,6 @@ export type components = {
  };
  SkippedStageDetails: {
  reason: string;
- };
- SlotOperation: {
- action: "add" | "remove" | "update";
- date?: string | null;
- end_time?: string | null;
- slot_id?: string | null;
- start_time?: string | null;
  };
  SlowQueriesResponse: {
  slow_queries: components["schemas"]["SlowQueryInfo"][];
@@ -11425,7 +11340,6 @@ export interface operations {
  q?: string | null;
  page?: number;
  page_size?: number;
- limit?: number | null;
  };
  header?: never;
  path?: never;
@@ -15338,45 +15252,6 @@ export interface operations {
  };
  };
  };
- confirm_booking_payment_api_v1_bookings__booking_id__confirm_payment_post: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- booking_id: string;
- };
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["BookingConfirmPayment"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["BookingResponse"];
- };
- };
- 404: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
  report_no_show_api_v1_bookings__booking_id__no_show_post: {
  parameters: {
  query?: never;
@@ -16877,55 +16752,6 @@ export interface operations {
  };
  };
  };
- bulk_update_availability_api_v1_instructors_availability_bulk_update_patch: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["AvailabilityWindowBulkUpdateRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["BulkUpdateResponse"];
- };
- };
- 401: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- 403: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- 410: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
  copy_week_availability_api_v1_instructors_availability_copy_week_post: {
  parameters: {
  query?: never;
@@ -17185,104 +17011,6 @@ export interface operations {
  content: {
  "application/json": components["schemas"]["HTTPValidationError"];
  };
- };
- };
- };
- delete_availability_window_api_v1_instructors_availability__window_id__delete: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- window_id: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["DeleteWindowResponse"];
- };
- };
- 401: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- 403: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- 501: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- };
- };
- update_availability_window_api_v1_instructors_availability__window_id__patch: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- window_id: string;
- };
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["AvailabilityWindowUpdate"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AvailabilityWindowResponse"];
- };
- };
- 401: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- 403: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- 501: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
  };
  };
  };

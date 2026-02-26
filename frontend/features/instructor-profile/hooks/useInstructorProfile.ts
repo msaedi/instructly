@@ -59,7 +59,7 @@ export function useInstructorProfile(instructorId: string) {
   // Use v1 service to fetch instructor
   const v1Result = useInstructor(instructorId);
 
-  // Transform v1 response to legacy format using useMemo to avoid recalculation
+  // Transform v1 response to expected format using useMemo to avoid recalculation
   const transformedData = useMemo(() => {
     if (!v1Result.data) return undefined;
 

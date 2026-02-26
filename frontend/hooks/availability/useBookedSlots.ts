@@ -15,7 +15,7 @@ import { BookedSlotPreview } from '@/types/booking';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { formatDateForAPI } from '@/lib/availability/dateHelpers';
 import type { components } from '@/features/shared/api/types';
-// Local lightweight helpers to avoid legacy-patterns dependency
+// Local lightweight helpers for booked-hour map construction
 function createBookedHoursMapLocal(booked: BookedSlotPreview[]): Map<string, true> {
   const map = new Map<string, true>();
   for (const b of booked) {

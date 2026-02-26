@@ -15,7 +15,6 @@ import {
   useGetBookingPreviewApiV1BookingsBookingIdPreviewGet,
   useCreateBookingApiV1BookingsPost,
   useCancelBookingApiV1BookingsBookingIdCancelPost,
-  useConfirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost,
   useCheckAvailabilityApiV1BookingsCheckAvailabilityPost,
   useRescheduleBookingApiV1BookingsBookingIdReschedulePost,
   useCompleteBookingApiV1BookingsBookingIdCompletePost,
@@ -25,7 +24,6 @@ import type {
   GetBookingsApiV1BookingsGetParams,
   BookingCreate,
   BookingCancel,
-  BookingConfirmPayment,
   AvailabilityCheckRequest,
 } from '@/src/api/generated/instructly.schemas';
 
@@ -210,29 +208,6 @@ export function useCreateBooking() {
  */
 export function useCancelBooking() {
   return useCancelBookingApiV1BookingsBookingIdCancelPost();
-}
-
-/**
- * Confirm payment for booking mutation.
- *
- * @example
- * ```tsx
- * function ConfirmPaymentButton({ bookingId, paymentMethodId }: Props) {
- *   const confirmPayment = useConfirmBookingPayment();
- *
- *   const handleConfirm = async () => {
- *     await confirmPayment.mutateAsync({
- *       bookingId,
- *       data: { payment_method_id: paymentMethodId, save_payment_method: true }
- *     });
- *   };
- *
- *   return <button onClick={handleConfirm}>Confirm Payment</button>;
- * }
- * ```
- */
-export function useConfirmBookingPayment() {
-  return useConfirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost();
 }
 
 /**
@@ -490,7 +465,6 @@ export { reportNoShowApiV1BookingsBookingIdNoShowPost as markBookingNoShowImpera
 export type {
   BookingCreate,
   BookingCancel,
-  BookingConfirmPayment,
   AvailabilityCheckRequest,
   GetBookingsApiV1BookingsGetParams as BookingsListParams,
 };

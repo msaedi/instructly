@@ -13,10 +13,10 @@ import type { LocationType } from '@/types/booking';
  * @module api
  */
 
-// Re-export location types from canonical sources for backward compatibility
+// Re-export location types from canonical sources
 export type { ServiceLocationType } from '@/types/instructor';
 
-// Booking location types - alias to LocationType from booking.ts for backward compatibility
+// Booking location types - alias to LocationType from booking.ts
 export type BookingLocationType = LocationType;
 
 /**

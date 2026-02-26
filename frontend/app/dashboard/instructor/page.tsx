@@ -1,6 +1,6 @@
 // frontend/app/dashboard/instructor/page.tsx
 'use client';
-// LEGACY-ONLY: This is the legacy instructor dashboard. Phoenix routes live under (auth)/instructor/*.
+// REDIRECT TARGET: This instructor dashboard is superseded by Phoenix routes at (auth)/instructor/*.
 
 import { BRAND } from '@/app/config/brand';
 import { useState, useEffect } from 'react';
@@ -220,13 +220,13 @@ export default function InstructorDashboard() {
 
         {/* Welcome Section */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back, {displayName}! (Legacy)</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back, {displayName}!</h1>
           <p className="text-gray-600">Manage your instructor profile and bookings</p>
         </div>
 
         {/* Onboarding Checklist */}
         <div className="mb-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Onboarding (Legacy)</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">Onboarding</h2>
           <div className="bg-white rounded-lg shadow-sm p-6 space-y-4">
             <ChecklistRow
               label="Stripe Connect onboarding"

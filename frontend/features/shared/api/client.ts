@@ -2,7 +2,7 @@
 /**
  * Clean API Client for Student Features
  *
- * A simple, clean fetch-based API client that doesn't rely on legacy patterns.
+ * A simple, clean fetch-based API client.
  * Used for all new student-facing features.
  */
 
@@ -437,55 +437,6 @@ export const publicApi = {
     }>(SEARCH_HISTORY_API_BASE, {
       method: 'POST',
       body: JSON.stringify(searchData),
-    });
-  },
-
-  // Legacy methods for backward compatibility - can be removed once all components are updated
-  /**
-   * @deprecated Use recordSearchHistory with appropriate headers instead
-   */
-  async recordGuestSearchHistory(data: {
-    guest_session_id: string;
-    search_query: string;
-    search_type: string;
-    results_count?: number | null;
-  }) {
-    return cleanFetch<{
-      id: string;
-      search_query: string;
-      search_type: string;
-      results_count: number | null;
-      created_at: string;
-      guest_session_id: string;
-    }>(`${SEARCH_HISTORY_API_BASE}/guest`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  },
-
-  /**
-   * @deprecated Use getRecentSearches with appropriate headers instead
-   */
-  async getGuestRecentSearches(guestSessionId: string, limit: number = 3) {
-    return cleanFetch<
-      Array<{
-        id: string;
-        search_query: string;
-        search_type: string;
-        results_count: number | null;
-        created_at: string;
-      }>
-    >(`${SEARCH_HISTORY_API_BASE}/guest/${guestSessionId}`, {
-      params: { limit },
-    });
-  },
-
-  /**
-   * @deprecated Use deleteSearchHistory with appropriate headers instead
-   */
-  async deleteGuestSearchHistory(guestSessionId: string, searchId: number) {
-    return cleanFetch<void>(`${SEARCH_HISTORY_API_BASE}/guest/${guestSessionId}/${searchId}`, {
-      method: 'DELETE',
     });
   },
 

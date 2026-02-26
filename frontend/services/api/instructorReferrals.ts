@@ -10,7 +10,7 @@ import type {
 
 const BASE_PATH = '/api/v1/instructor-referrals';
 
-// Alias for backwards compat - generated uses ReferredInstructorInfo
+// Alias — generated uses ReferredInstructorInfo
 type ReferredInstructorResponse = ReferredInstructorInfo;
 
 export interface ReferralStats {
