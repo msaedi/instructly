@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from app.schemas.admin_booking_detail import (
+    AdminBookingDetailServiceInfo,
     AdminBookingNote,
     AdminNoteAuthor,
     BookingDetailMeta,
@@ -10,7 +11,6 @@ from app.schemas.admin_booking_detail import (
     BookingInfo,
     ParticipantInfo,
     RecommendedAction,
-    ServiceInfo,
     TimelineEvent,
 )
 
@@ -18,7 +18,7 @@ from app.schemas.admin_booking_detail import (
 def test_admin_booking_detail_schema_models():
     now = datetime(2026, 2, 3, 12, 0, 0, tzinfo=timezone.utc)
     meta = BookingDetailMeta(generated_at=now, booking_id="bk1")
-    service = ServiceInfo(slug="guitar", name="Guitar", category="music")
+    service = AdminBookingDetailServiceInfo(slug="guitar", name="Guitar", category="music")
     participant = ParticipantInfo(id="u1", name="Student S.", email_hash="abc12345")
     booking = BookingInfo(
         id="bk1",

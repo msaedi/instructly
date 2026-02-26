@@ -17,7 +17,7 @@ import type {
 } from '@/features/shared/api/types';
 import { logger } from '@/lib/logger';
 import { formatDateForAPI } from '@/lib/availability/dateHelpers';
-import { getApiBase, withApiBaseForRequest } from '@/lib/apiBase';
+import { withApiBaseForRequest } from '@/lib/apiBase';
 import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { extractApiErrorMessage } from '@/lib/apiErrors';
 
@@ -43,11 +43,6 @@ type UpcomingBooking = UpcomingBookingResponse;
  *
  * @module api
  */
-
-/** @deprecated Use getApiUrl() or withApiBase() instead */
-export function getApiUrl(): string {
-  return getApiBase();
-}
 
 /**
  * Helper function for authenticated requests

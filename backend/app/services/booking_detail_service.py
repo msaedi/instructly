@@ -18,6 +18,7 @@ from app.repositories.factory import RepositoryFactory
 from app.repositories.review_repository import ReviewRepository, ReviewTipRepository
 from app.repositories.webhook_event_repository import WebhookEventRepository
 from app.schemas.admin_booking_detail import (
+    AdminBookingDetailServiceInfo,
     AdminBookingNote,
     AdminNoteAuthor,
     BookingDetailMeta,
@@ -30,7 +31,6 @@ from app.schemas.admin_booking_detail import (
     PaymentIds,
     PaymentInfo,
     RecommendedAction,
-    ServiceInfo,
     TimelineEvent,
     TracesSummary,
     WebhookEventBrief,
@@ -303,7 +303,7 @@ class BookingDetailService(BaseService):
             recommended_actions=recommended_actions,
         )
 
-    def _build_service_info(self, booking: Booking) -> ServiceInfo:
+    def _build_service_info(self, booking: Booking) -> AdminBookingDetailServiceInfo:
         instructor_service = getattr(booking, "instructor_service", None)
         catalog_entry = getattr(instructor_service, "catalog_entry", None)
         slug = "unknown"
@@ -320,7 +320,7 @@ class BookingDetailService(BaseService):
             category_value = getattr(category_obj, "name", None)
             if isinstance(category_value, str) and category_value:
                 category = category_value
-        return ServiceInfo(slug=slug, name=name, category=category)
+        return AdminBookingDetailServiceInfo(slug=slug, name=name, category=category)
 
     def _build_participant(self, participant: Any) -> ParticipantInfo:
         return ParticipantInfo(

@@ -30,10 +30,6 @@ class AdminBookingDetailServiceInfo(StrictModel):
     category: str
 
 
-# Backward-compatible alias for existing imports.
-ServiceInfo = AdminBookingDetailServiceInfo
-
-
 class ParticipantInfo(StrictModel):
     id: str
     name: str
@@ -46,7 +42,7 @@ class BookingInfo(StrictModel):
     scheduled_at: datetime
     duration_minutes: int
     location_type: str
-    service: ServiceInfo
+    service: AdminBookingDetailServiceInfo
     student: ParticipantInfo
     instructor: ParticipantInfo
     created_at: datetime
@@ -157,7 +153,7 @@ __all__ = [
     "PaymentIds",
     "PaymentInfo",
     "RecommendedAction",
-    "ServiceInfo",
+    "AdminBookingDetailServiceInfo",
     "TimelineEvent",
     "TracesSummary",
     "WebhookEventBrief",

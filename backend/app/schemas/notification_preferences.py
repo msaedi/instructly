@@ -51,7 +51,3 @@ class NotificationPreferencesBulkUpdateRequest(StrictRequestModel):
     """Bulk preference update request."""
 
     updates: List[PreferenceUpdate]
-
-
-# Backward-compatible alias for existing imports.
-BulkUpdateRequest = NotificationPreferencesBulkUpdateRequest

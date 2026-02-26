@@ -12,7 +12,6 @@ import {
   isRefundable,
   hasActiveHold,
   getPaymentStatusFromResponse,
-  isCheckoutSuccessPaymentStatus,
 } from '../paymentStatus';
 
 describe('PAYMENT_STATUS constants', () => {
@@ -163,11 +162,5 @@ describe('getPaymentStatusFromResponse', () => {
   it('returns undefined for non-string status', () => {
     expect(getPaymentStatusFromResponse({ status: 123 })).toBeUndefined();
     expect(getPaymentStatusFromResponse({ status: null })).toBeUndefined();
-  });
-});
-
-describe('isCheckoutSuccessPaymentStatus alias', () => {
-  it('is an alias for isCheckoutSuccess', () => {
-    expect(isCheckoutSuccessPaymentStatus).toBe(isCheckoutSuccess);
   });
 });

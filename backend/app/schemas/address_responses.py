@@ -29,10 +29,6 @@ class AddressDeleteResponse(StrictModel):
     message: str
 
 
-# Backward-compatible alias for existing imports.
-DeleteResponse = AddressDeleteResponse
-
-
 class NeighborhoodItem(StrictModel):
     """Single neighborhood entry with optional borough metadata."""
 
@@ -52,8 +48,8 @@ class NeighborhoodsListResponse(StrictModel):
 
 
 __all__ = [
+    "AddressDeleteResponse",
     "CoverageFeatureCollectionResponse",
-    "DeleteResponse",
     "NeighborhoodItem",
     "NeighborhoodsListResponse",
     "NYCZipCheckResponse",

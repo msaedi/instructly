@@ -280,10 +280,6 @@ class PaymentDeleteResponse(StrictModel):
     success: bool = Field(..., description="Whether deletion was successful")
 
 
-# Backward-compatible alias for existing imports.
-DeleteResponse = PaymentDeleteResponse
-
-
 class InstructorInvoiceSummary(StrictModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Summary of an instructor invoice/payment."""

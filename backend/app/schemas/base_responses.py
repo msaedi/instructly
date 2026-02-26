@@ -89,10 +89,6 @@ class BaseDeleteResponse(StrictModel):
     )
 
 
-# Backward-compatible alias for existing imports.
-DeleteResponse = BaseDeleteResponse
-
-
 class ErrorDetail(BaseModel):
     """Standard error detail structure."""
 

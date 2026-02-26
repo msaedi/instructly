@@ -57,24 +57,6 @@ class TestSchemaValidation:
         assert "start_time" in error_fields
         assert "end_time" in error_fields
 
-    def test_availability_update_rejects_legacy_fields(self, client, auth_headers_instructor):
-        """Verify AvailabilityWindowUpdate doesn't accept is_available."""
-        # Try to update with legacy field (slot doesn't need to exist for schema validation)
-        response = client.patch(
-            "/api/v1/instructors/availability/999999",  # Non-existent ID
-            json={"start_time": "09:00", "end_time": "10:00", "is_available": True},  # This field shouldn't exist
-            headers=auth_headers_instructor,
-        )
-
-        # Should get 422 for extra field (not 404 for non-existent slot)
-        if response.status_code == 422:
-            errors = response.json()["detail"]
-            # Verify it's complaining about extra inputs
-            assert any("Extra inputs are not permitted" in str(err) for err in errors)
-        else:
-            # If we get 404, that's also fine - it means schema passed but slot not found
-            assert response.status_code == 404
-
 
 class TestResponseFormats:
     """Test that responses use the clean format."""

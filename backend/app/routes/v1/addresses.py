@@ -44,8 +44,8 @@ from ...schemas.address import (
     ServiceAreasUpdateRequest,
 )
 from ...schemas.address_responses import (
+    AddressDeleteResponse,
     CoverageFeatureCollectionResponse,
-    DeleteResponse,
     NeighborhoodItem,
     NeighborhoodsListResponse,
     NYCZipCheckResponse,
@@ -198,14 +198,14 @@ def update_my_address(
     return AddressResponse(**updated)
 
 
-@router.delete("/me/{address_id}", response_model=DeleteResponse)
+@router.delete("/me/{address_id}", response_model=AddressDeleteResponse)
 def delete_my_address(
     address_id: str = Path(..., pattern=ULID_PATH_PATTERN),
     current_user: User = Depends(get_current_active_user),
     service: AddressService = Depends(get_address_service),
     cache_service: CacheService = Depends(get_cache_service_dep),
     background_tasks: BackgroundTasks = None,
-) -> DeleteResponse:
+) -> AddressDeleteResponse:
     """Delete an address for the current user."""
     ok = service.delete_address(current_user.id, address_id)
     if not ok:
@@ -214,7 +214,7 @@ def delete_my_address(
     if background_tasks:
         background_tasks.add_task(_invalidate_user_address_cache, cache_service, current_user.id)
     response_payload = {"success": True, "message": "Address deleted"}
-    return DeleteResponse(**model_filter(DeleteResponse, response_payload))
+    return AddressDeleteResponse(**model_filter(AddressDeleteResponse, response_payload))
 
 
 # Instructor service areas

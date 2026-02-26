@@ -162,45 +162,6 @@ async function setupMocksAndAuth(page: Page) {
     const url = new URL(route.request().url());
     const pathname = url.pathname;
 
-    // Note: /bookings/upcoming path does not exist; frontend uses /api/v1/bookings?upcoming_only=true
-    // This check is kept for backward compatibility but should not be triggered
-    if (pathname.endsWith('/bookings/upcoming')) {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          items: [
-            {
-              id: '01J5TESTBOOK00000000000001',
-              instructor: {
-                id: '01J5TESTINSTR0000000000008',
-                first_name: 'John',
-                last_initial: 'D',
-                email: 'john.doe@example.com',
-                rating: 4.8,
-                total_reviews: 156,
-              },
-              service_name: upcomingLesson.service,
-              booking_date: futureISO,
-              start_time: '14:00:00',
-              end_time: '15:00:00',
-              price: 60,
-              total_price: 60,
-              status: 'CONFIRMED',
-              location_type: 'online',
-              location_details: 'Zoom meeting',
-            },
-          ],
-          total: 1,
-          page: 1,
-          per_page: 20,
-          has_next: false,
-          has_prev: false,
-        }),
-      });
-      return;
-    }
-
     // Check if this is a detail request
     const pathParts = pathname.split('/');
     const bookingId = pathParts[pathParts.length - 1];

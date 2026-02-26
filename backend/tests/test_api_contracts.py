@@ -366,7 +366,6 @@ class TestResponseModelCoverage:
             "AuthUserResponse",
             # Standard response models
             "ErrorResponse",
-            "DeleteResponse",
             "HealthResponse",
             "MetricsResponse",
             "HealthLiteResponse",

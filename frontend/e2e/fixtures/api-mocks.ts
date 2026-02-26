@@ -957,7 +957,7 @@ export async function setupAllMocks(
               name: 'Music',
               slug: 'music',
               services: [
-                { id: TEST_ULIDS.service1, name: 'Piano', slug: 'piano', min_price: 75, instructor_count: 5 }
+                { id: TEST_ULIDS.service1, name: 'Piano', slug: 'piano', min_price: 75, active_instructors: 5 }
               ]
             }
           ]

@@ -107,26 +107,6 @@ class SpecificDateAvailabilityCreate(StrictRequestModel):
         return v
 
 
-class AvailabilityWindowUpdate(StrictRequestModel):
-    """Schema for updating an availability window."""
-
-    start_time: Optional[TimeType] = None
-    end_time: Optional[TimeType] = None
-    model_config = StrictRequestModel.model_config
-
-    @field_validator("end_time")
-    @classmethod
-    def validate_time_order(cls, v: Optional[TimeType], info: Any) -> Optional[TimeType]:
-        """Ensure end time is after start time if both provided."""
-        if not v:
-            return v
-        data = getattr(info, "data", None)
-        start = data.get("start_time") if isinstance(data, dict) else None
-        if not _is_half_open_interval(start, v):
-            raise ValueError("End time must be after start time")
-        return v
-
-
 class AvailabilityWindowResponse(StandardizedModel):
     """
     Response schema for availability windows.

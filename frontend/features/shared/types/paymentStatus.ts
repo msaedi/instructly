@@ -54,6 +54,3 @@ export const getPaymentStatusFromResponse = (response: unknown): string | undefi
   }
   return undefined;
 };
-
-// Backward-compatible alias.
-export const isCheckoutSuccessPaymentStatus = isCheckoutSuccess;

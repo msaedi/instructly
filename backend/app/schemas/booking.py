@@ -281,24 +281,6 @@ class BookingRescheduleRequest(StrictRequestModel):
         return v
 
 
-class BookingConfirmPayment(BaseModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-    """
-    Confirm payment method for a booking after SetupIntent completion.
-
-    Used in the two-step booking flow:
-    1. Create booking (returns SetupIntent client_secret)
-    2. Confirm payment (this schema) after card details collected
-    """
-
-    payment_method_id: str = Field(
-        ..., description="Stripe payment method ID from completed SetupIntent"
-    )
-    save_payment_method: bool = Field(
-        False, description="Whether to save this payment method for future use"
-    )
-
-
 class BookingUpdate(StrictRequestModel):
     """
     Schema for updating booking details.
@@ -524,10 +506,6 @@ class BookingServiceInfo(StandardizedModel):
     description: Optional[str]
 
 
-# Backward-compatible alias for existing imports.
-ServiceInfo = BookingServiceInfo
-
-
 # ---------------------------------------------------------------------------
 # Shared satellite-field extraction helpers
 # ---------------------------------------------------------------------------
@@ -725,7 +703,7 @@ class BookingResponse(BookingBase):
 
     student: StudentInfo  # Students see their own full info
     instructor: InstructorInfo  # Privacy-aware: only has last_initial
-    instructor_service: ServiceInfo
+    instructor_service: BookingServiceInfo
     # Minimal info to display "Rescheduled from ..." on detail page
     rescheduled_from: Optional["RescheduledFromInfo"] = None
     payment_summary: Optional[PaymentSummary] = None
@@ -818,7 +796,7 @@ class BookingResponse(BookingBase):
             "instructor": InstructorInfo.from_user(booking.instructor)
             if booking.instructor
             else None,
-            "instructor_service": ServiceInfo.model_validate(booking.instructor_service)
+            "instructor_service": BookingServiceInfo.model_validate(booking.instructor_service)
             if booking.instructor_service
             else None,
             # Nested minimal info for annotation
@@ -923,7 +901,7 @@ class BookingCreateResponse(BookingResponse):
                 last_name=booking.student.last_name,
                 email=booking.student.email,
             ),
-            "instructor_service": ServiceInfo(
+            "instructor_service": BookingServiceInfo(
                 id=booking.instructor_service.id
                 if booking.instructor_service
                 else booking.instructor_service_id,

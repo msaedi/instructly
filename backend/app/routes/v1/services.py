@@ -317,7 +317,6 @@ async def get_all_services_with_instructors(
                 "requires_certification": service_raw.get("requires_certification"),
                 "is_active": service_raw.get("is_active"),
                 "active_instructors": service_raw.get("active_instructors"),
-                "instructor_count": service_raw.get("instructor_count"),
                 "demand_score": service_raw.get("demand_score"),
                 "is_trending": service_raw.get("is_trending"),
                 "actual_min_price": service_raw.get("actual_min_price"),

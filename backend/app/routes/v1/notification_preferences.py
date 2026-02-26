@@ -11,7 +11,7 @@ from ...api.dependencies.services import get_cache_service_sync_dep
 from ...database import get_db
 from ...models.user import User
 from ...schemas.notification_preferences import (
-    BulkUpdateRequest,
+    NotificationPreferencesBulkUpdateRequest,
     PreferenceResponse,
     PreferencesByCategory,
     UpdatePreferenceRequest,
@@ -42,7 +42,7 @@ def get_preferences(
 
 @router.put("", response_model=list[PreferenceResponse])
 def update_preferences_bulk(
-    request: BulkUpdateRequest,
+    request: NotificationPreferencesBulkUpdateRequest,
     db: Session = Depends(get_db),
     cache: CacheServiceSyncAdapter = Depends(get_cache_service_sync_dep),
     current_user: User = Depends(get_current_active_user),
