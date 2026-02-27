@@ -284,7 +284,7 @@ class WeekOperationService(BaseService):
             date_range=f"{start_date} to {end_date}",
         )
 
-        # Bitmap-only path - no legacy fallback
+        # Bitmap path
         return await self._apply_pattern_to_date_range_bitmap(
             instructor_id=instructor_id,
             from_week_start=from_week_start,

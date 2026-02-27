@@ -1,29 +1,9 @@
 # backend/app/repositories/bulk_operation_repository.py
 """
-BulkOperation Repository for InstaInstru Platform
+BulkOperation Repository – booking validation for bulk availability changes.
 
-REFOCUSED: This repository provides validation support AND bulk operations for availability.
-
-This repository has been cleaned to focus on validation queries and bulk operations
-needed when performing bulk availability modifications. It provides ownership
-validation, booking checks, and bulk creation operations.
-
-Key responsibilities:
-- Validate slot ownership before bulk operations
-- Check for existing bookings that would conflict
-- Perform bulk slot creation operations
-- Retrieve slot data for validation purposes
-- Support cache invalidation for bulk operations
-
-Methods removed:
-- slot_exists() → Use AvailabilityRepository
-- count_slots_for_date() → Use AvailabilityRepository
-- get_instructor_profile() → Use ConflictCheckerRepository
-- get_week_slots() → Use WeekOperationRepository
-- get_booked_slot_ids() → Use SlotManagerRepository
-- slot_has_active_booking() → REMOVED (violates clean architecture)
-
-For single slot CRUD operations, use AvailabilityRepository.
+Provides queries to check for existing bookings that would conflict
+with bulk availability modifications (e.g., clearing a full day).
 """
 
 from datetime import date
@@ -41,28 +21,16 @@ logger = logging.getLogger(__name__)
 
 
 class BulkOperationRepository:
-    """
-    Repository for bulk operation validation and execution.
-
-    NOTE: Slot-based bulk operations removed. This repository now only provides
-    booking validation methods. All availability operations use bitmap storage.
-    """
+    """Repository for booking validation during bulk operations."""
 
     def __init__(self, db: Session):
         """Initialize repository."""
         self.db = db
         self.logger = logging.getLogger(__name__)
 
-    # Ownership Validation - REMOVED (slot operations deprecated)
-
-    # Booking Validation
-
     def has_bookings_on_date(self, instructor_id: str, target_date: date) -> bool:
         """
-        Check if instructor has any bookings on a specific date.
-
-        UPDATED: Simplified to check bookings directly without slot join.
-        This aligns with clean architecture where bookings exist independently.
+        Check if instructor has any confirmed/completed bookings on a date.
 
         Args:
             instructor_id: The instructor ID
@@ -89,5 +57,3 @@ class BulkOperationRepository:
         except SQLAlchemyError as e:
             self.logger.error(f"Error checking bookings: {str(e)}")
             raise RepositoryException(f"Failed to check bookings: {str(e)}")
-
-    # Data Retrieval for Validation - REMOVED (slot operations deprecated)

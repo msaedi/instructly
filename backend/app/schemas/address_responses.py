@@ -9,7 +9,7 @@ class CoverageFeatureCollectionResponse(StrictModel):
     type: str
     features: List[Dict[str, Any]]
 
-    # Maintain strict extras while satisfying legacy contract tests.
+    # Maintain strict extras while satisfying contract tests.
     model_config = StrictModel.model_config
 
 
