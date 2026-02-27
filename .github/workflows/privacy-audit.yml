@@ -19,7 +19,7 @@ permissions:
   pull-requests: write
 
 env:
-  NODE_VERSION: '22'
+  NODE_VERSION: '24'
   DB_IMAGE: ghcr.io/msaedi/instructly-ci-postgres@sha256:dd6c9450465b6fc753e084f870df22307bfddd150b14a660bf28fd786c9acc58
   # no-op bump demo; digest unchanged
 
