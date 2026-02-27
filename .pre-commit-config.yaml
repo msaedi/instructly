@@ -51,11 +51,11 @@ repos:
     rev: 1.7.7
     hooks:
       - id: bandit
-        args: ["-r", "backend/app", "-ll"]
+        args: ["-r", "backend/app"]
         pass_filenames: false
       - id: bandit
         name: bandit (mcp-server)
-        args: ["-r", "mcp-server/src", "-ll"]
+        args: ["-r", "mcp-server/src"]
         pass_filenames: false
         files: ^mcp-server/.*\.py$
   - repo: local
