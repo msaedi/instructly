@@ -7,7 +7,7 @@ import json
 import logging
 import os
 import secrets
-import subprocess
+import subprocess  # nosec B404 — hardcoded git command, no user input
 import time
 from typing import TYPE_CHECKING, Any, Tuple
 from urllib.parse import parse_qs, urlencode
@@ -74,7 +74,7 @@ ALLOWED_EMAILS = {
 def get_git_sha() -> str:
     """Get short git SHA for release tracking."""
     try:
-        return subprocess.check_output(
+        return subprocess.check_output(  # nosec B603 B607 — hardcoded git command, no user input
             ["git", "rev-parse", "--short", "HEAD"],
             stderr=subprocess.DEVNULL,
             text=True,
@@ -233,7 +233,7 @@ class DualAuthMiddleware:
                     if isinstance(parsed, dict):
                         mcp_method = parsed.get("method")
                 except Exception:
-                    pass
+                    logger.debug("Failed to parse MCP method from request body", exc_info=True)
 
             # Allow unauthenticated access for discovery methods
             if mcp_method in self.UNAUTHENTICATED_MCP_METHODS:
@@ -415,7 +415,7 @@ class DualAuthMiddleware:
                 if isinstance(parsed, dict):
                     request_id = parsed.get("id")
             except Exception:
-                pass
+                logger.debug("Failed to parse request ID from body", exc_info=True)
 
             mcp_error = {
                 "jsonrpc": "2.0",
