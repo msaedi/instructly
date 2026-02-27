@@ -37,7 +37,6 @@ Design team deliverables and mockups:
 - [API Usage Guide](./api/instainstru-api-guide.md) - Complete endpoint documentation
 - [OpenAPI Specification](./api/instainstru-openapi.yaml) - Machine-readable API spec
 - [Postman Collection](./api/instainstru-postman.json) - Import into Postman
-- [TypeScript Interfaces](./api/typescript-interfaces/) - Type definitions
 
 ### 💻 [Development](./development/)
 - [Setup Guide](./development/setup-guide.md) - Getting started locally

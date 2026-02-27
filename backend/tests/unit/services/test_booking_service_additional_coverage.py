@@ -548,8 +548,15 @@ def test_create_rescheduled_booking_with_existing_payment_credit_transfer_except
     service = SimpleNamespace(duration_options=[60])
     instructor_profile = SimpleNamespace()
 
-    booking = make_booking()
-    old_booking = make_booking(instructor_id=booking_data.instructor_id)
+    booking = make_booking(
+        booking_start_utc=datetime(2030, 1, 1, 14, 0, tzinfo=timezone.utc),
+        booking_end_utc=datetime(2030, 1, 1, 15, 0, tzinfo=timezone.utc),
+    )
+    old_booking = make_booking(
+        instructor_id=booking_data.instructor_id,
+        booking_start_utc=datetime(2030, 1, 1, 14, 0, tzinfo=timezone.utc),
+        booking_end_utc=datetime(2030, 1, 1, 15, 0, tzinfo=timezone.utc),
+    )
 
     booking_service._validate_booking_prerequisites = Mock(return_value=(service, instructor_profile))
     booking_service._calculate_and_validate_end_time = Mock(return_value=time(11, 0))

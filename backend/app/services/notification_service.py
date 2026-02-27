@@ -272,9 +272,8 @@ class NotificationService(BaseService):
         return lesson_tz or TimezoneService.DEFAULT_TIMEZONE
 
     def _get_booking_start_utc(self, booking: Booking) -> datetime:
-        assert (
-            booking.booking_start_utc is not None
-        ), f"Booking {booking.id} missing booking_start_utc"
+        if booking.booking_start_utc is None:
+            raise ValueError(f"Booking {booking.id} missing booking_start_utc")
         return cast(datetime, booking.booking_start_utc)
 
     def _get_booking_local_datetime(self, booking: Booking) -> datetime:

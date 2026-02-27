@@ -80,8 +80,12 @@ def _fake_booking(**overrides: Any) -> MagicMock:
     b.instructor_service = overrides.get("instructor_service", None)
     b.lesson_timezone = overrides.get("lesson_timezone", "America/New_York")
     b.instructor_tz_at_booking = overrides.get("instructor_tz_at_booking", "America/New_York")
-    b.booking_start_utc = overrides.get("booking_start_utc", None)
-    b.booking_end_utc = overrides.get("booking_end_utc", None)
+    b.booking_start_utc = overrides.get(
+        "booking_start_utc", datetime(2026, 3, 15, 14, 0, tzinfo=timezone.utc)
+    )
+    b.booking_end_utc = overrides.get(
+        "booking_end_utc", datetime(2026, 3, 15, 15, 0, tzinfo=timezone.utc)
+    )
     b.video_session = overrides.get("video_session", None)
     b.student_credit_amount = overrides.get("student_credit_amount", 0)
     b.refunded_to_card_amount = overrides.get("refunded_to_card_amount", 0)

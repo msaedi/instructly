@@ -8,7 +8,7 @@ from datetime import date, time, timedelta
 from sqlalchemy.orm import Session
 
 from app.models.user import User
-from app.schemas.availability_window import OperationResult, SlotOperation
+from app.schemas.availability_window import SlotOperation
 from app.services.bulk_operation_service import BulkOperationService
 from app.utils.time_helpers import string_to_time
 from tests._utils.bitmap_avail import get_day_windows, seed_day
@@ -58,29 +58,6 @@ class TestBulkOperationBitmapPatterns:
         slot, error = service._validate_remove_operation(instructor_id, operation)
         assert error is None
         assert slot is not None
-
-    def test_extract_affected_dates_accepts_iso_strings(self, db: Session) -> None:
-        """_extract_affected_dates converts ISO strings to date objects."""
-        service = BulkOperationService(db)
-        iso_date = date.today().isoformat()
-        operations = [
-            SlotOperation(
-                action="add",
-                date=iso_date,
-                start_time=time(8, 0),
-                end_time=time(9, 0),
-            )
-        ]
-        results = [
-            OperationResult(
-                operation_index=0,
-                action="add",
-                status="success",
-            )
-        ]
-
-        affected = service._extract_affected_dates(operations, results)
-        assert date.fromisoformat(iso_date) in affected
 
     def test_get_existing_week_windows_returns_bitmap_windows(
         self, db: Session, test_instructor: User

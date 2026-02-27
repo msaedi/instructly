@@ -483,14 +483,14 @@ class BookingService(BaseService):
 
     def _get_booking_start_utc(self, booking: Booking) -> datetime:
         """Get booking start time in UTC."""
-        assert (
-            booking.booking_start_utc is not None
-        ), f"Booking {booking.id} missing booking_start_utc"
+        if booking.booking_start_utc is None:
+            raise ValueError(f"Booking {booking.id} missing booking_start_utc")
         return cast(datetime, booking.booking_start_utc)
 
     def _get_booking_end_utc(self, booking: Booking) -> datetime:
         """Get booking end time in UTC."""
-        assert booking.booking_end_utc is not None, f"Booking {booking.id} missing booking_end_utc"
+        if booking.booking_end_utc is None:
+            raise ValueError(f"Booking {booking.id} missing booking_end_utc")
         return cast(datetime, booking.booking_end_utc)
 
     def _validate_against_availability_bits(

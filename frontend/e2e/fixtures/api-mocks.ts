@@ -77,8 +77,6 @@ export async function mockInstructorProfile(page: Page) {
           ],
           background_check_completed: true,
           is_verified: true,
-          // Add availability_windows if needed
-          availability_windows: [],
         }),
       });
     } else {
@@ -847,7 +845,6 @@ export async function setupAllMocks(
           background_check_completed: true,
           is_verified: true,
           verified: true,
-          availability_windows: [],
         }),
       });
     } else if (url.includes('/services/catalog')) {

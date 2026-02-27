@@ -314,15 +314,6 @@ class SlotOperation(BaseModel):
         return v
 
 
-class AvailabilityWindowBulkUpdateRequest(StrictRequestModel):
-    """Request schema for bulk availability update."""
-
-    model_config = StrictRequestModel.model_config
-
-    operations: List[SlotOperation]
-    validate_only: bool = Field(False, description="If true, only validate without making changes")
-
-
 class OperationResult(BaseModel):
     """Result of a single operation in bulk update."""
 
@@ -331,16 +322,6 @@ class OperationResult(BaseModel):
     status: Literal["success", "failed", "skipped"]
     reason: Optional[str] = None
     slot_id: Optional[str] = None  # For successful adds
-
-
-class BulkUpdateResponse(StrictModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-    """Response schema for bulk availability update."""
-
-    successful: int
-    failed: int
-    skipped: int
-    results: List[OperationResult]
 
 
 # Validation schemas
