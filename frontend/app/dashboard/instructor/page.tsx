@@ -165,7 +165,7 @@ export default function InstructorDashboard() {
         </nav>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="bg-white rounded-lg shadow p-6 text-center">
-            <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
+            <h1 className="text-2xl font-bold text-red-600 mb-4">Error</h1>
             <p className="text-gray-600 mb-6">{error}</p>
             <Link
               href="/become-instructor"
@@ -192,9 +192,9 @@ export default function InstructorDashboard() {
         <div className="flex items-center justify-between max-w-full">
           <div className="flex items-center gap-4">
             <Link className="inline-block" href="/">
-              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">
+              <span className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">
                 {BRAND.name}
-              </h1>
+              </span>
             </Link>
           </div>
           <button

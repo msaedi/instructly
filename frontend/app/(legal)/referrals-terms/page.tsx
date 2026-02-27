@@ -1,6 +1,6 @@
 export default function ReferralTermsPage() {
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
+    <div className="mx-auto w-full max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
       <header className="mb-8">
         <p className="text-sm uppercase tracking-[0.18em] text-gray-500">iNSTAiNSTRU Legal</p>
         <h1 className="mt-2 text-3xl font-bold text-gray-900">Referral Program Terms</h1>
@@ -66,6 +66,6 @@ export default function ReferralTermsPage() {
           </p>
         </article>
       </section>
-    </main>
+    </div>
   );
 }

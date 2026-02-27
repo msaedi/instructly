@@ -707,7 +707,7 @@ export default function InstructorDashboardNew() {
                 setIsMobileMenuOpen(false);
               }}
             >
-              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+              <span className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</span>
             </Link>
             <div className="pr-4">
               <UserProfileDropdown hideDashboardItem />
@@ -716,7 +716,7 @@ export default function InstructorDashboardNew() {
         </header>
         <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
           <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
-            <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
+            <h1 className="text-2xl font-bold text-red-600 mb-4">Error</h1>
             <p className="text-gray-600 mb-6">{error}</p>
             <Link
               href="/signup?redirect=%2Finstructor%2Fonboarding%2Fstep-2"
@@ -748,7 +748,7 @@ export default function InstructorDashboardNew() {
               setIsMobileMenuOpen(false);
             }}
           >
-            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
+            <span className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</span>
           </Link>
           <div className="flex items-center gap-2 pr-0 sm:pr-4">
             <DashboardPopover
@@ -1077,6 +1077,7 @@ export default function InstructorDashboardNew() {
         </div>
 
         {/* Snapshot Cards directly under header */}
+        <h2 className="sr-only">Overview</h2>
         <div className="grid grid-cols-3 gap-3 sm:gap-6 mb-8">
           {/* Bookings card - clickable button, navigates to past tab since it shows completed count */}
           <button

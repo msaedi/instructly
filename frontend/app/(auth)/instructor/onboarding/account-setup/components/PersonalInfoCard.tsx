@@ -50,7 +50,7 @@ export function PersonalInfoCard({
       {collapsible ? (
         <button
           type="button"
-          className="mb-4"
+          className="w-full flex items-center justify-between mb-4 text-left"
           onClick={onToggle}
           aria-expanded={expanded}
         >

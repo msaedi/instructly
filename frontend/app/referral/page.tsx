@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 export default function ReferralLandingPage() {
   return (
-    <main className="relative overflow-hidden bg-gradient-to-b from-white via-purple-50 to-white">
+    <div className="relative overflow-hidden bg-gradient-to-b from-white via-purple-50 to-white">
       <div className="mx-auto flex min-h-[70vh] w-full max-w-5xl flex-col gap-16 px-4 py-16 sm:px-6 lg:flex-row lg:items-center lg:gap-20 lg:px-8">
         <section className="max-w-xl">
           <p className="mb-4 inline-flex items-center rounded-full bg-[#7E22CE]/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#7E22CE]">
@@ -60,6 +60,6 @@ export default function ReferralLandingPage() {
           </div>
         </section>
       </div>
-    </main>
+    </div>
   );
 }

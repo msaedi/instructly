@@ -153,7 +153,7 @@ export default function LHCIInstructorPage() {
         </div>
       </section>
 
-      <main className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-12">
+      <div className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-12">
         <section className="grid gap-4 sm:grid-cols-3">
           <Card>
             <CardHeader className="pb-2">
@@ -275,7 +275,7 @@ export default function LHCIInstructorPage() {
             ))}
           </div>
         </section>
-      </main>
+      </div>
     </div>
   );
 }

@@ -161,6 +161,9 @@ export default async function RootLayout({
         className={`h-full antialiased bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 ${_geistSans.variable} ${_geistMono.variable}`}
         style={{ isolation: 'isolate' }}
       >
+        <a href="#main-content" className="skip-to-main">
+          Skip to main content
+        </a>
         <BackgroundProvider>
           {/* Global fixed background with blur-up and readability overlay */}
           <GlobalBackground />
@@ -174,7 +177,7 @@ export default async function RootLayout({
               - Theme provider
             */}
             <Providers>
-              {children}
+              <main id="main-content">{children}</main>
               <Analytics />
               <SpeedInsights />
               <AxiomWebVitals />

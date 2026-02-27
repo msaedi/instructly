@@ -1064,7 +1064,7 @@ export default function LegalResourceCenter() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="mb-8">
           <span className="text-sm uppercase tracking-[0.18em] text-gray-500">Legal Center</span>
           <h1 className="mt-2 text-4xl font-bold text-gray-900">Policies &amp; Agreements</h1>
@@ -1180,7 +1180,7 @@ export default function LegalResourceCenter() {
             </div>
           </article>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
