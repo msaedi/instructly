@@ -88,4 +88,33 @@ describe('useCreateConversation', () => {
 
     expect(loggerErrorMock).toHaveBeenCalledWith('Failed to create conversation', error);
   });
+
+  it('does not include initialMessage key when it is undefined (line 58 false branch)', async () => {
+    createConversationMock.mockResolvedValue({ id: 'conv-4', created: true });
+    const { Wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useCreateConversation(), { wrapper: Wrapper });
+
+    await act(async () => {
+      // Call with initialMessage explicitly undefined via options
+      await result.current.createConversation('instr-4', { initialMessage: undefined });
+    });
+
+    // createConversation should be called with only instructorId (no initialMessage arg)
+    expect(createConversationMock).toHaveBeenCalledWith('instr-4', undefined);
+  });
+
+  it('includes initialMessage when it is a non-empty string (line 58 true branch)', async () => {
+    createConversationMock.mockResolvedValue({ id: 'conv-5', created: true });
+    const { Wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useCreateConversation(), { wrapper: Wrapper });
+
+    await act(async () => {
+      await result.current.createConversation('instr-5', { initialMessage: 'Hello!' });
+    });
+
+    // createConversation should be called with instructorId and the initial message
+    expect(createConversationMock).toHaveBeenCalledWith('instr-5', 'Hello!');
+  });
 });

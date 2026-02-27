@@ -398,4 +398,99 @@ describe('PaymentMethods', () => {
 
     expect(screen.getByText(/failed to load payment methods/i)).toBeInTheDocument();
   });
+
+  it('shows fallback error when Stripe error has no message', async () => {
+    const user = userEvent.setup();
+    mockUsePaymentMethods.mockReturnValue({ data: [], isLoading: false, error: null });
+    mockUseStripe.mockReturnValue({
+      createPaymentMethod: jest.fn().mockResolvedValue({ error: {} }),
+    });
+
+    render(<PaymentMethods userId="user-1" />);
+
+    await user.click(screen.getByRole('button', { name: /add your first card/i }));
+    await user.click(screen.getByRole('button', { name: /add card/i }));
+
+    expect(await screen.findByText(/failed to add card/i)).toBeInTheDocument();
+  });
+
+  it('displays recognized brand names correctly', () => {
+    mockUsePaymentMethods.mockReturnValue({
+      data: [
+        { id: 'pm_amex', last4: '0001', brand: 'amex', is_default: false, created_at: '2024-01-01T00:00:00Z' },
+        { id: 'pm_discover', last4: '0002', brand: 'discover', is_default: false, created_at: '2024-01-02T00:00:00Z' },
+      ],
+      isLoading: false,
+      error: null,
+    });
+
+    render(<PaymentMethods userId="user-1" />);
+
+    expect(screen.getByText('American Express')).toBeInTheDocument();
+    expect(screen.getByText('Discover')).toBeInTheDocument();
+  });
+
+  it('falls back to "Card" for unrecognized brand', () => {
+    mockUsePaymentMethods.mockReturnValue({
+      data: [
+        { id: 'pm_weird', last4: '0003', brand: 'obscure_brand', is_default: false, created_at: '2024-01-01T00:00:00Z' },
+      ],
+      isLoading: false,
+      error: null,
+    });
+
+    render(<PaymentMethods userId="user-1" />);
+
+    // The getCardBrandDisplay fallback returns 'Card'
+    expect(screen.getByText('Card')).toBeInTheDocument();
+  });
+
+  it('hides "Add Your First Card" button when add form is open with empty list', async () => {
+    const user = userEvent.setup();
+    mockUsePaymentMethods.mockReturnValue({ data: [], isLoading: false, error: null });
+
+    render(<PaymentMethods userId="user-1" />);
+
+    // Click "Add Your First Card" to open form
+    await user.click(screen.getByRole('button', { name: /add your first card/i }));
+
+    // The "Add Your First Card" button within the empty state should disappear
+    expect(screen.queryByRole('button', { name: /add your first card/i })).not.toBeInTheDocument();
+    // The top "Add Payment Method" button should also be hidden
+    expect(screen.queryByRole('button', { name: /add payment method/i })).not.toBeInTheDocument();
+  });
+
+  it('does not show "Set Default" button for the default card', () => {
+    mockUsePaymentMethods.mockReturnValue({
+      data: [
+        { id: 'pm_default', last4: '8888', brand: 'visa', is_default: true, created_at: '2024-01-01T00:00:00Z' },
+        { id: 'pm_other', last4: '9999', brand: 'mastercard', is_default: false, created_at: '2024-01-02T00:00:00Z' },
+      ],
+      isLoading: false,
+      error: null,
+    });
+
+    render(<PaymentMethods userId="user-1" />);
+
+    // Default badge should appear for the default card
+    expect(screen.getByText('Default')).toBeInTheDocument();
+    // Only one "Set Default" button should exist (for the non-default card)
+    const setDefaultButtons = screen.getAllByRole('button', { name: /set default/i });
+    expect(setDefaultButtons).toHaveLength(1);
+  });
+
+  it('shows formatted date for card creation', () => {
+    mockUsePaymentMethods.mockReturnValue({
+      data: [
+        { id: 'pm_dated', last4: '4444', brand: 'visa', is_default: false, created_at: '2024-06-15T12:00:00Z' },
+      ],
+      isLoading: false,
+      error: null,
+    });
+
+    render(<PaymentMethods userId="user-1" />);
+
+    // Check that the "Added" date is formatted
+    expect(screen.getByText(/added/i)).toBeInTheDocument();
+  });
 });

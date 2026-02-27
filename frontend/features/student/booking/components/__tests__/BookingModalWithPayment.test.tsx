@@ -771,4 +771,173 @@ describe('BookingModalWithPayment', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Close booking modal' }));
     expect(onClose).toHaveBeenCalled();
   });
+
+  describe('B2: uncovered branch — agreedToTerms defaults to false (line 78)', () => {
+    it('checkbox starts unchecked by default', async () => {
+      useAuthMock.mockReturnValue({
+        user: { full_name: 'Jane Doe', email: 'jane@example.com' },
+        isAuthenticated: true,
+        redirectToLogin: jest.fn(),
+      });
+
+      renderModal();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Continue to Booking' }));
+
+      // The terms checkbox should be unchecked by default (agreedToTerms: false)
+      const checkbox = screen.getByRole('checkbox');
+      expect(checkbox).not.toBeChecked();
+    });
+  });
+
+  describe('B2: uncovered branch — formatFullName with null/empty name fields (line 150)', () => {
+    it('populates form with empty string when user has no first_name or last_name', async () => {
+      useAuthMock.mockReturnValue({
+        user: { first_name: '', last_initial: '', email: 'test@test.com' },
+        isAuthenticated: true,
+        redirectToLogin: jest.fn(),
+      });
+
+      renderModal();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Continue to Booking' }));
+
+      // Should show booking details without crashing
+      expect(screen.getByText('Booking Details')).toBeInTheDocument();
+
+      // The name field should be populated with formatFullName result (which falls back)
+      const inputs = getTextInputs();
+      const nameInput = inputs[0]!;
+      // formatFullName with empty first_name and last_initial returns email or 'User'
+      expect(nameInput.value).toBeTruthy();
+    });
+
+    it('populates form with fallback when user is completely null', async () => {
+      useAuthMock.mockReturnValue({
+        user: null,
+        isAuthenticated: true,
+        redirectToLogin: jest.fn(),
+      });
+
+      renderModal();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Continue to Booking' }));
+
+      // Should show form - the user null check at line 147 means setBookingFormData skipped
+      expect(screen.getByText('Booking Details')).toBeInTheDocument();
+    });
+  });
+
+  describe('B2: uncovered branch — submit without service selection alert (line 207)', () => {
+    it('alerts "Please select a service" when selectedService is null and all fields filled', async () => {
+      useAuthMock.mockReturnValue({
+        user: { full_name: 'Jane Doe', email: 'jane@example.com' },
+        isAuthenticated: true,
+        redirectToLogin: jest.fn(),
+      });
+
+      // Instructor with no services → selectedService defaults to null
+      const instructorNoServices: Instructor = {
+        ...instructor,
+        services: [],
+      };
+
+      renderModal({ instructor: instructorNoServices });
+
+      await userEvent.click(screen.getByRole('button', { name: 'Continue to Booking' }));
+
+      // Fill all required fields
+      const inputs = getTextInputs();
+      const nameInput = inputs[0]!;
+      const emailInput = inputs[1]!;
+      const phoneInput = inputs[2]!;
+      await userEvent.clear(nameInput);
+      await userEvent.type(nameInput, 'Jane Doe');
+      await userEvent.clear(emailInput);
+      await userEvent.type(emailInput, 'jane@example.com');
+      await userEvent.type(phoneInput, '555-1234');
+
+      // Check the terms checkbox
+      await userEvent.click(screen.getByRole('checkbox'));
+
+      // Submit — should hit the !selectedService guard
+      await userEvent.click(screen.getByRole('button', { name: 'Continue to Payment' }));
+
+      expect(window.alert).toHaveBeenCalledWith('Please select a service');
+    });
+  });
+
+  describe('B2: uncovered branch — parseFloat with nullish hourly_rate (line 269)', () => {
+    it('handles service with null hourly_rate during booking creation', async () => {
+      useAuthMock.mockReturnValue({
+        user: { full_name: 'Jane Doe', email: 'jane@example.com' },
+        isAuthenticated: true,
+        redirectToLogin: jest.fn(),
+      });
+
+      const instructorNullRate: Instructor = {
+        ...instructor,
+        services: [
+          {
+            id: 'service-1',
+            skill: 'Piano',
+            hourly_rate: null as unknown as number,
+            duration_options: [60],
+            duration: 60,
+          },
+        ],
+      };
+
+      renderModal({ instructor: instructorNullRate });
+
+      // The price should be $0.00 since parseFloat(String(null ?? '0')) = 0
+      expect(screen.getByText(/\$0\.00 total/)).toBeInTheDocument();
+    });
+
+    it('handles service with undefined hourly_rate during totalPrice calculation', async () => {
+      useAuthMock.mockReturnValue({
+        user: { full_name: 'Jane Doe', email: 'jane@example.com' },
+        isAuthenticated: true,
+        redirectToLogin: jest.fn(),
+      });
+
+      const instructorUndefinedRate: Instructor = {
+        ...instructor,
+        services: [
+          {
+            id: 'service-1',
+            skill: 'Piano',
+            hourly_rate: undefined as unknown as number,
+            duration_options: [60],
+            duration: 60,
+          },
+        ],
+      };
+
+      renderModal({ instructor: instructorUndefinedRate });
+
+      // parseFloat(String(undefined ?? '0')) = parseFloat('0') = 0
+      expect(screen.getByText(/\$0\.00 total/)).toBeInTheDocument();
+    });
+  });
+
+  describe('B2: uncovered branch — totalPrice with null selectedService (line 51)', () => {
+    it('returns 0 when selectedService is null', () => {
+      useAuthMock.mockReturnValue({
+        user: null,
+        isAuthenticated: false,
+        redirectToLogin: jest.fn(),
+      });
+
+      const instructorNoServices: Instructor = {
+        ...instructor,
+        services: [],
+      };
+
+      renderModal({ instructor: instructorNoServices });
+
+      // With no services, selectedService is null, totalPrice = 0
+      expect(screen.getByText(/\$0\.00 total/)).toBeInTheDocument();
+    });
+  });
 });

@@ -12267,4 +12267,247 @@ describe('EditProfileModal', () => {
       });
     });
   });
+
+  describe('B3: uncovered branch — empty service_area_boroughs blocks submit (lines 1000-1003)', () => {
+    it('shows error and returns early when service_area_boroughs is empty on submit', async () => {
+      const onSuccess = jest.fn();
+      const onClose = jest.fn();
+
+      // Mock getServiceAreaBoroughs to return empty array
+      const { getServiceAreaBoroughs } = jest.requireMock('@/lib/profileServiceAreas');
+      getServiceAreaBoroughs.mockReturnValue([]);
+
+      // Mock a profile that initially has empty boroughs
+      const profileNoBoroughs = {
+        ...mockInstructorProfile,
+        service_area_boroughs: [],
+      };
+
+      fetchWithAuthMock.mockImplementation((url: string, options?: RequestInit) => {
+        if (url.includes('instructors/me') && !options?.method) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(profileNoBoroughs),
+          });
+        }
+        if (url.includes('users/me') && options?.method === 'PATCH') {
+          return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+        }
+        if (url.includes('users/me')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ first_name: 'John', last_name: 'Doe' }),
+          });
+        }
+        if (url.includes('addresses/me')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ items: [] }),
+          });
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+      });
+
+      render(
+        <EditProfileModal
+          {...defaultProps}
+          onSuccess={onSuccess}
+          onClose={onClose}
+        />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+      });
+
+      // Wait for the form to load
+      await waitFor(() => {
+        expect(screen.getByText(/personal information/i)).toBeInTheDocument();
+      });
+
+      // The Save Changes button should be disabled (canSubmit = false because boroughs empty)
+      const saveButton = screen.getByRole('button', { name: /save changes/i });
+      expect(saveButton).toBeDisabled();
+
+      // Bypass the disabled state to test the guard inside handleSubmit
+      const propsKey = Object.keys(saveButton).find(k => k.startsWith('__reactProps$'));
+      if (propsKey) {
+        const el = saveButton as unknown as Record<string, Record<string, unknown>>;
+        el[propsKey] = { ...el[propsKey], disabled: false };
+      }
+      fireEvent.click(saveButton);
+
+      // Should show error about selecting at least one service area
+      await waitFor(() => {
+        expect(screen.getByText(/please select at least one service area/i)).toBeInTheDocument();
+      });
+
+      // onSuccess and onClose should NOT have been called
+      expect(onSuccess).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('B3: uncovered branch — duplicate skill error (lines 1049-1053)', () => {
+    it('shows error when adding a skill that matches an existing service', async () => {
+      const user = userEvent.setup();
+
+      // Start with NO services so we can add Yoga through the normal dropdown flow.
+      // Then try to add Yoga AGAIN. The second addition triggers the duplicate skill check.
+      const profileNoServices = {
+        ...mockInstructorProfile,
+        services: [] as typeof mockInstructorProfile.services,
+        service_area_boroughs: ['Manhattan'],
+      };
+
+      fetchWithAuthMock.mockImplementation((url: string) => {
+        if (url.includes('instructors/me')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(profileNoServices),
+          });
+        }
+        if (url.includes('users/me')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ first_name: 'John', last_name: 'Doe' }),
+          });
+        }
+        if (url.includes('addresses/me')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ items: [] }),
+          });
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+      });
+
+      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+      });
+
+      // Wait for the Services & Rates section to render (default variant includes it)
+      await waitFor(() => {
+        expect(screen.getByText(/services & rates/i)).toBeInTheDocument();
+      });
+
+      // Step 1: Add 'Yoga' the first time through the normal dropdown
+      const newSkillDropdown = screen.getByLabelText(/select skill/i);
+
+      // Verify 'Yoga' is available as an option
+      const yogaOption = screen.getByRole('option', { name: 'Yoga' });
+      expect(yogaOption).toBeInTheDocument();
+
+      await user.selectOptions(newSkillDropdown, 'Yoga');
+
+      const rateInput = screen.getByLabelText(/hourly rate/i);
+      await user.clear(rateInput);
+      await user.type(rateInput, '50');
+
+      const addButton = screen.getByRole('button', { name: /add service/i });
+      await user.click(addButton);
+
+      // Verify Yoga was added successfully by checking that 'Yoga' is no longer in the dropdown
+      // (the filter removes already-added skills from the dropdown)
+      await waitFor(() => {
+        expect(screen.queryByRole('option', { name: 'Yoga' })).not.toBeInTheDocument();
+      });
+
+      // Step 2: Now try to add 'Yoga' again.
+      // 'Yoga' is filtered from dropdown options, so we cannot use selectOptions.
+      // We need to set the select value to 'Yoga' and trigger the onChange handler.
+      // Use Object.defineProperty to override the value getter so React reads 'Yoga'
+      // from event.target.value during the change event dispatch.
+      Object.defineProperty(newSkillDropdown, 'value', {
+        get() { return 'Yoga'; },
+        configurable: true,
+      });
+      fireEvent.change(newSkillDropdown);
+
+      // Set rate again (form was reset after first add)
+      await user.clear(rateInput);
+      await user.type(rateInput, '50');
+
+      // Click "Add Service" — this should trigger the duplicate skill error
+      await user.click(addButton);
+
+      // Should show duplicate skill error message
+      await waitFor(() => {
+        expect(screen.getByText(/you already offer yoga/i)).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('B3: uncovered branch — !violation guard in handleServicesSave (lines 851-852)', () => {
+    it('returns early when floor violations map has entry but first violation is undefined', async () => {
+      // This test covers the edge case where serviceFloorViolations has entries
+      // but the first violation in the array is falsy (undefined/null).
+      // The `if (!violation)` guard at line 850 handles this.
+
+      // The evaluatePriceFloorViolations mock returns violations
+      const { evaluatePriceFloorViolations } = jest.requireMock('@/lib/pricing/priceFloors');
+
+      // Return a Map with an entry where violations array is empty
+      // This should cause `violations[0]` to be undefined, triggering the `!violation` guard
+      const emptyViolationsMap = new Map<string, never[]>();
+      emptyViolationsMap.set('svc-1', []);
+      evaluatePriceFloorViolations.mockReturnValue(emptyViolationsMap);
+
+      usePricingConfigMock.mockReturnValue({
+        config: {
+          price_floor_cents: {
+            'in-person': { 30: 99999, 60: 99999 },
+            online: { 30: 99999, 60: 99999 },
+          },
+        },
+      });
+
+      useServiceCategoriesMock.mockReturnValue({
+        data: [{ id: 'cat-1', slug: 'music', name: 'Music' }],
+        isLoading: false,
+      });
+
+      fetchWithAuthMock.mockImplementation((url: string, options?: RequestInit) => {
+        if (url.includes('instructors/me') && options?.method === 'PUT') {
+          return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+      });
+
+      render(
+        <EditProfileModal {...defaultProps} variant="services" />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+      });
+
+      // Wait for services variant to render
+      await waitFor(() => {
+        expect(screen.getByText('Service categories')).toBeInTheDocument();
+      });
+
+      // Find and click the save button
+      const saveButton = screen.getByRole('button', { name: /save/i });
+
+      // If the button is disabled due to the violation detection, bypass it
+      const propsKey = Object.keys(saveButton).find(k => k.startsWith('__reactProps$'));
+      if (propsKey) {
+        const el = saveButton as unknown as Record<string, Record<string, unknown>>;
+        el[propsKey] = { ...el[propsKey], disabled: false };
+      }
+      fireEvent.click(saveButton);
+
+      // The !violation guard should cause the function to return early
+      // without showing an error message or proceeding to the API call
+      // Component should remain in a stable state
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+      });
+    });
+  });
 });

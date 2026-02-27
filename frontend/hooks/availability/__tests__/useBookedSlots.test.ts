@@ -574,6 +574,100 @@ describe('useBookedSlots', () => {
     });
   });
 
+  describe('malformed time strings with fallback to 0 (lines 25-26, 39-40)', () => {
+    it('handles start_time with leading colon (empty first segment falls back to 0)', async () => {
+      // `:30:00` splits to ['', '30', '00'], startTimeParts[0] is '' → fallback '0' → parseInt('0') = 0
+      const slot = createSlot({
+        booking_id: 'booking-malformed-start',
+        start_time: ':30:00',
+        end_time: '02:00:00',
+      });
+      fetchWithAuthMock.mockResolvedValueOnce({
+        ok: true,
+        json: jest.fn().mockResolvedValue({ booked_slots: [slot] }),
+      });
+
+      const { result } = renderHook(() => useBookedSlots());
+
+      await act(async () => {
+        await result.current.fetchBookedSlots(new Date('2025-01-06T00:00:00Z'));
+      });
+
+      // startHour falls back to 0, endHour is 2 → hours 0, 1 are booked
+      expect(result.current.isSlotBooked('2025-01-06', 0)).toBe(true);
+      expect(result.current.isSlotBooked('2025-01-06', 1)).toBe(true);
+      expect(result.current.isSlotBooked('2025-01-06', 2)).toBe(false);
+    });
+
+    it('handles end_time with leading colon (empty first segment falls back to 0)', async () => {
+      // `:00:00` splits to ['', '00', '00'], endTimeParts[0] is '' → fallback '0' → parseInt('0') = 0
+      const slot = createSlot({
+        booking_id: 'booking-malformed-end',
+        start_time: '09:00:00',
+        end_time: ':00:00',
+      });
+      fetchWithAuthMock.mockResolvedValueOnce({
+        ok: true,
+        json: jest.fn().mockResolvedValue({ booked_slots: [slot] }),
+      });
+
+      const { result } = renderHook(() => useBookedSlots());
+
+      await act(async () => {
+        await result.current.fetchBookedSlots(new Date('2025-01-06T00:00:00Z'));
+      });
+
+      // startHour is 9, endHour falls back to 0 → loop 9 < 0 never runs → no booked hours
+      expect(result.current.isSlotBooked('2025-01-06', 9)).toBe(false);
+    });
+
+    it('handles empty string time values (both fall back to 0)', async () => {
+      // Empty string '' splits to [''], [0] is '' → fallback '0' → parseInt('0') = 0
+      const slot = createSlot({
+        booking_id: 'booking-empty-times',
+        start_time: '',
+        end_time: '',
+      });
+      fetchWithAuthMock.mockResolvedValueOnce({
+        ok: true,
+        json: jest.fn().mockResolvedValue({ booked_slots: [slot] }),
+      });
+
+      const { result } = renderHook(() => useBookedSlots());
+
+      await act(async () => {
+        await result.current.fetchBookedSlots(new Date('2025-01-06T00:00:00Z'));
+      });
+
+      // Both fall back to 0 → loop 0 < 0 never runs → no booked hours
+      expect(result.current.isSlotBooked('2025-01-06', 0)).toBe(false);
+    });
+
+    it('getBookingForSlot handles malformed times with fallback (lines 39-40)', async () => {
+      const slot = createSlot({
+        booking_id: 'booking-malformed-lookup',
+        start_time: ':00:00',
+        end_time: '03:00:00',
+      });
+      fetchWithAuthMock.mockResolvedValueOnce({
+        ok: true,
+        json: jest.fn().mockResolvedValue({ booked_slots: [slot] }),
+      });
+
+      const { result } = renderHook(() => useBookedSlots());
+
+      await act(async () => {
+        await result.current.fetchBookedSlots(new Date('2025-01-06T00:00:00Z'));
+      });
+
+      // startHour falls back to 0, endHour is 3
+      // getBookingForSlot at hour 1 should find the booking (0 <= 1 < 3)
+      expect(result.current.getBookingForSlot('2025-01-06', 1)).toEqual(slot);
+      // Hour 3 should be outside range
+      expect(result.current.getBookingForSlot('2025-01-06', 3)).toBeNull();
+    });
+  });
+
   describe('getBookingForSlot with different dates', () => {
     it('returns null when date does not match any booking', async () => {
       const slot = createSlot({ date: '2025-01-06' });

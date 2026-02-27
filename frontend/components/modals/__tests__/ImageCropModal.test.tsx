@@ -432,4 +432,80 @@ describe('ImageCropModal', () => {
     // onCropped should not be called
     expect(onCropped).not.toHaveBeenCalled();
   });
+
+  it('clampOffset returns unclamped offset when natural is null (line 82)', async () => {
+    // When image hasn't loaded yet, natural is null. Dragging should not crash.
+    // We use an Image mock that never triggers onload.
+    jest.spyOn(global, 'Image').mockImplementation(() => {
+      const img = {
+        onload: null,
+        onerror: null,
+        src: '',
+        naturalWidth: 0,
+        naturalHeight: 0,
+      };
+      return img as unknown as HTMLImageElement;
+    });
+
+    render(<ImageCropModal {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Image crop area')).toBeInTheDocument();
+    });
+
+    const cropArea = screen.getByLabelText('Image crop area');
+
+    // Start drag and move — clampOffset should return unclamped {x, y} since natural is null
+    fireEvent.pointerDown(cropArea, { clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(cropArea, { clientX: 200, clientY: 200 });
+    fireEvent.pointerUp(cropArea);
+
+    // Should not crash — grab cursor restored
+    expect(cropArea).toHaveStyle({ cursor: 'grab' });
+  });
+
+  it('zooms out via mouse wheel with positive deltaY (line 112 factor 0.95)', async () => {
+    render(<ImageCropModal {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Image crop area')).toBeInTheDocument();
+    });
+
+    const cropArea = screen.getByLabelText('Image crop area');
+
+    // Zoom in first with negative deltaY
+    fireEvent.wheel(cropArea, { deltaY: -100 });
+
+    // Now zoom out with positive deltaY (delta = -deltaY < 0, factor = 0.95)
+    fireEvent.wheel(cropArea, { deltaY: 100 });
+
+    // Component should handle zoom out without error
+    expect(cropArea).toBeInTheDocument();
+  });
+
+  it('does not call onCropped when toBlob yields null blob (lines 138-142)', async () => {
+    // Reset mocks to ensure we use our specific toBlob mock
+    HTMLCanvasElement.prototype.getContext = jest.fn(() => mockCanvasContext) as jest.Mock;
+    HTMLCanvasElement.prototype.toBlob = jest.fn((callback: BlobCallback) => {
+      callback(null); // Simulate toBlob returning null
+    });
+
+    const user = userEvent.setup();
+    const onCropped = jest.fn();
+    render(<ImageCropModal {...defaultProps} onCropped={onCropped} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument();
+    });
+
+    // Wait for image to load (our default mock triggers onload)
+    await waitFor(() => {
+      expect(screen.getByAltText('To be cropped')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    // onCropped should NOT be called because blob is null
+    expect(onCropped).not.toHaveBeenCalled();
+  });
 });

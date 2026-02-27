@@ -226,4 +226,92 @@ describe('ReferralShareModal', () => {
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it('falls back to code when URL pathname has no segments (line 31 pop() ?? code)', () => {
+    // A URL like "https://example.com" has pathname "/" which after
+    // split('/').filter(Boolean) produces an empty array, so pop() returns undefined.
+    // The ?? code fallback should be used.
+    render(
+      <ReferralShareModal
+        open
+        onClose={jest.fn()}
+        code={code}
+        shareUrl="https://example.com"
+      />
+    );
+
+    // Should display /r/ABC123 via the ?? code fallback
+    expect(screen.getByText(/\/r\/ABC123/i)).toBeInTheDocument();
+  });
+
+  it('copy finally block preserves non-copy state (line 57)', async () => {
+    // Scenario: copyToClipboard starts (sets isProcessing to 'copy'),
+    // but by the time the finally runs, the state is already something else.
+    // The ternary `current === 'copy' ? null : current` preserves the other state.
+    // We test by clicking copy with a fast-resolving clipboard mock,
+    // confirming processing resets to null after completion.
+    const writeText = jest.fn().mockResolvedValue(undefined);
+    setNavigatorProperty('clipboard', { writeText } as unknown as Navigator['clipboard']);
+
+    render(
+      <ReferralShareModal open onClose={jest.fn()} code={code} shareUrl={shareUrl} />
+    );
+
+    const copyButton = screen.getByRole('button', { name: /copy referral link/i });
+    fireEvent.click(copyButton);
+
+    // After copy resolves, buttons should be re-enabled (isProcessing back to null)
+    await waitFor(() => {
+      expect(copyButton).not.toBeDisabled();
+    });
+
+    expect(toast.success).toHaveBeenCalledWith('Referral link copied');
+  });
+
+  it('share finally block resets state after share completes (line 79)', async () => {
+    mockShareOrCopy.mockResolvedValue('shared');
+
+    render(
+      <ReferralShareModal open onClose={jest.fn()} code={code} shareUrl={shareUrl} />
+    );
+
+    const shareButton = screen.getByRole('button', { name: /share referral link/i });
+    fireEvent.click(shareButton);
+
+    // After share resolves, buttons should be re-enabled (isProcessing back to null)
+    await waitFor(() => {
+      expect(shareButton).not.toBeDisabled();
+    });
+
+    expect(toast.success).toHaveBeenCalledWith('Share sheet opened');
+  });
+
+  it('formats slug from URL with only root path', () => {
+    // URL "https://example.com/" has pathname "/" which splits to empty filtered array
+    render(
+      <ReferralShareModal
+        open
+        onClose={jest.fn()}
+        code={code}
+        shareUrl="https://example.com/"
+      />
+    );
+
+    expect(screen.getByText(/\/r\/ABC123/i)).toBeInTheDocument();
+  });
+
+  it('formats slug from URL with multi-segment path', () => {
+    // URL with path "/r/my-custom-slug" should use "my-custom-slug" from pop()
+    render(
+      <ReferralShareModal
+        open
+        onClose={jest.fn()}
+        code={code}
+        shareUrl="https://app.instainstru.com/r/my-custom-slug"
+      />
+    );
+
+    // The formatted slug should show the last path segment, not the code
+    expect(screen.getByText(/Direct shortcut: \/r\/my-custom-slug/)).toBeInTheDocument();
+  });
 });

@@ -244,4 +244,64 @@ describe('DeleteProfileModal', () => {
     expect(input).toHaveAttribute('aria-describedby', 'delete-confirmation-help');
   });
 
+  it('shows fallback error message when thrown value has no message property', async () => {
+    const user = userEvent.setup();
+    // Throw a non-Error object that has no `.message`
+    fetchWithAuth.mockRejectedValueOnce(null);
+    render(<DeleteProfileModal {...defaultProps} />);
+
+    await user.type(screen.getByPlaceholderText(/type delete here/i), 'DELETE');
+    await user.click(screen.getByRole('button', { name: /delete profile/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Failed to delete profile. Please try again.')).toBeInTheDocument();
+    });
+  });
+
+  it('re-enables delete button after failed deletion attempt', async () => {
+    const user = userEvent.setup();
+    fetchWithAuth.mockRejectedValueOnce(new Error('Server error'));
+    render(<DeleteProfileModal {...defaultProps} />);
+
+    await user.type(screen.getByPlaceholderText(/type delete here/i), 'DELETE');
+    await user.click(screen.getByRole('button', { name: /delete profile/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Server error')).toBeInTheDocument();
+    });
+
+    // Button should be re-enabled after loading completes
+    const deleteButton = screen.getByRole('button', { name: /delete profile/i });
+    expect(deleteButton).not.toBeDisabled();
+  });
+
+  it('disables input field during loading', async () => {
+    const user = userEvent.setup();
+    let resolveDelete: (value: { ok: boolean }) => void;
+    fetchWithAuth.mockImplementation(
+      () => new Promise((resolve) => (resolveDelete = resolve))
+    );
+    render(<DeleteProfileModal {...defaultProps} />);
+
+    await user.type(screen.getByPlaceholderText(/type delete here/i), 'DELETE');
+    await user.click(screen.getByRole('button', { name: /delete profile/i }));
+
+    // Input should be disabled during loading
+    expect(screen.getByPlaceholderText(/type delete here/i)).toBeDisabled();
+
+    resolveDelete!({ ok: true });
+  });
+
+  it('shows red styling when text is not DELETE', async () => {
+    const user = userEvent.setup();
+    render(<DeleteProfileModal {...defaultProps} />);
+
+    const input = screen.getByPlaceholderText(/type delete here/i);
+    await user.type(input, 'DEL');
+
+    // Input should NOT have green styling (should have red focus ring instead)
+    expect(input).not.toHaveClass('border-green-300');
+    expect(input).toHaveClass('border-gray-300');
+  });
+
 });

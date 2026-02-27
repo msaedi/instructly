@@ -903,4 +903,265 @@ describe('useUserMessageStream', () => {
       expect(es.readyState).toBe(2); // CLOSED
     });
   });
+
+  describe('malformed JSON handling for all event types', () => {
+    it('handles malformed JSON in typing_status gracefully', async () => {
+      renderHook(() => useUserMessageStream());
+
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+
+      const es = getLatestEventSource();
+      act(() => { es.emit('connected'); });
+
+      // Should not throw
+      act(() => {
+        es.emit('typing_status', '{invalid json');
+      });
+    });
+
+    it('handles malformed JSON in read_receipt gracefully', async () => {
+      renderHook(() => useUserMessageStream());
+
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+
+      const es = getLatestEventSource();
+      act(() => { es.emit('connected'); });
+
+      act(() => {
+        es.emit('read_receipt', 'not json');
+      });
+    });
+
+    it('handles malformed JSON in reaction_update gracefully', async () => {
+      renderHook(() => useUserMessageStream());
+
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+
+      const es = getLatestEventSource();
+      act(() => { es.emit('connected'); });
+
+      act(() => {
+        es.emit('reaction_update', '{{broken');
+      });
+    });
+
+    it('handles malformed JSON in message_edited gracefully', async () => {
+      renderHook(() => useUserMessageStream());
+
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+
+      const es = getLatestEventSource();
+      act(() => { es.emit('connected'); });
+
+      act(() => {
+        es.emit('message_edited', 'bad data');
+      });
+    });
+
+    it('handles malformed JSON in message_deleted gracefully', async () => {
+      renderHook(() => useUserMessageStream());
+
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+
+      const es = getLatestEventSource();
+      act(() => { es.emit('connected'); });
+
+      act(() => {
+        es.emit('message_deleted', 'not-json');
+      });
+    });
+
+    it('handles malformed JSON in notification_update gracefully', async () => {
+      renderHook(() => useUserMessageStream());
+
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+
+      const es = getLatestEventSource();
+      act(() => { es.emit('connected'); });
+
+      act(() => {
+        es.emit('notification_update', '(not json)');
+      });
+    });
+  });
+
+  describe('read_receipt edge cases', () => {
+    it('passes empty array when neither message_ids nor message_id is present', async () => {
+      const onReadReceipt = jest.fn();
+      const { result } = renderHook(() => useUserMessageStream());
+
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+
+      act(() => { result.current.subscribe('conv-1', { onReadReceipt }); });
+      const es = getLatestEventSource();
+      act(() => { es.emit('connected'); });
+
+      // read_receipt with no message_ids and no message_id
+      act(() => {
+        es.emit('read_receipt', JSON.stringify({
+          conversation_id: 'conv-1', reader_id: 'u2',
+          // no message_ids, no message_id
+        }));
+      });
+
+      expect(onReadReceipt).toHaveBeenCalledWith([], 'u2');
+    });
+  });
+
+  describe('new_message without message.id bypasses dedup', () => {
+    it('routes new_message events without message.id (no deduplication)', async () => {
+      const onMessage = jest.fn();
+      const { result } = renderHook(() => useUserMessageStream());
+
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+
+      act(() => { result.current.subscribe('conv-1', { onMessage }); });
+      const es = getLatestEventSource();
+      act(() => { es.emit('connected'); });
+
+      // Send message with no id field
+      act(() => {
+        es.emit('new_message', JSON.stringify({
+          conversation_id: 'conv-1', is_mine: false,
+          message: { content: 'No ID message', sender_id: 'u2', sender_name: 'Jane', created_at: '2025-01-01' },
+        }));
+      });
+
+      // Send same structure again - both should go through since no dedup without id
+      act(() => {
+        es.emit('new_message', JSON.stringify({
+          conversation_id: 'conv-1', is_mine: false,
+          message: { content: 'No ID message', sender_id: 'u2', sender_name: 'Jane', created_at: '2025-01-01' },
+        }));
+      });
+
+      expect(onMessage).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('global handler for message_edited without content', () => {
+    it('does not call global onMessageEdited when content is missing', async () => {
+      const globalOnMessageEdited = jest.fn();
+      const { result } = renderHook(() => useUserMessageStream());
+
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+
+      act(() => { result.current.subscribe('__global__', { onMessageEdited: globalOnMessageEdited }); });
+      const es = getLatestEventSource();
+      act(() => { es.emit('connected'); });
+
+      act(() => {
+        es.emit('message_edited', JSON.stringify({
+          conversation_id: 'conv-1', message_id: 'm1', editor_id: 'u1', data: {},
+        }));
+      });
+
+      // Global handler should NOT be called since data.content is falsy
+      expect(globalOnMessageEdited).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('authenticated error handler branches (lines 499, 508)', () => {
+    it('logs warning on first authenticated error (line 499-506)', async () => {
+      const { logger } = jest.requireMock('@/lib/logger') as {
+        logger: { warn: jest.Mock; debug: jest.Mock; info: jest.Mock; error: jest.Mock };
+      };
+
+      const { result } = renderHook(() => useUserMessageStream());
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      const es = getLatestEventSource();
+      act(() => { es.emit('connected'); });
+      expect(result.current.isConnected).toBe(true);
+
+      logger.warn.mockClear();
+
+      // Trigger error while authenticated and connectionErrorLoggedRef is false
+      act(() => { es.triggerError(); });
+
+      // Should have logged the warning (line 500-505)
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[SSE] Connection error, will retry',
+        expect.objectContaining({ readyState: expect.any(Number) })
+      );
+    });
+
+    it('suppresses duplicate error log on second error before connected event (line 508)', async () => {
+      const { logger } = jest.requireMock('@/lib/logger') as {
+        logger: { warn: jest.Mock; debug: jest.Mock; info: jest.Mock; error: jest.Mock };
+      };
+
+      const { result } = renderHook(() => useUserMessageStream());
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      const es1 = getLatestEventSource();
+      act(() => { es1.emit('connected'); });
+      expect(result.current.isConnected).toBe(true);
+
+      // First error — sets connectionErrorLoggedRef to true
+      act(() => { es1.triggerError(); });
+      expect(result.current.isConnected).toBe(false);
+
+      // Reconnect — creates a new EventSource
+      await act(async () => {
+        jest.advanceTimersByTime(3000);
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      const es2 = getLatestEventSource();
+      expect(es2).not.toBe(es1);
+
+      logger.warn.mockClear();
+      logger.debug.mockClear();
+
+      // Second error BEFORE connected event fires on es2 —
+      // connectionErrorLoggedRef is still true, so line 508 path should be taken
+      act(() => { es2.triggerError(); });
+
+      // Should NOT have called logger.warn with 'Connection error, will retry'
+      const warnCalls = logger.warn.mock.calls.filter(
+        (call: unknown[]) => call[0] === '[SSE] Connection error, will retry'
+      );
+      expect(warnCalls).toHaveLength(0);
+
+      // Should have called logger.debug with the suppressed message
+      const debugCalls = logger.debug.mock.calls.filter(
+        (call: unknown[]) => call[0] === '[MSG-DEBUG] SSE: Connection error (suppressed)'
+      );
+      expect(debugCalls).toHaveLength(1);
+    });
+  });
+
+  describe('error handler when not authenticated', () => {
+    it('suppresses error when isAuthenticated is false during error event', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+
+      const es = getLatestEventSource();
+      act(() => { es.emit('connected'); });
+
+      // Now change auth state to false
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: false,
+        user: null,
+        checkAuth: mockCheckAuth,
+      });
+
+      // Trigger error while not authenticated
+      act(() => { es.triggerError(); });
+
+      expect(result.current.connectionError).toBe('Connection lost');
+    });
+  });
 });

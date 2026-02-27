@@ -83,6 +83,33 @@ describe('useDatabaseData', () => {
     expect(result.current.error).toBeNull();
   });
 
+  it('uses fallback error message when thrown value is not an Error instance (line 32)', async () => {
+    // Throw a string instead of an Error
+    getStatsMock.mockRejectedValueOnce('raw string error');
+
+    const { result } = renderHook(() => useDatabaseData('token-123'));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    // Should use the fallback message, not the thrown string
+    expect(result.current.error).toBe('Failed to fetch database data');
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'Failed to fetch database data',
+      'raw string error'
+    );
+  });
+
+  it('uses fallback error message when thrown value is a number', async () => {
+    // Throw a number to verify the non-Error branch
+    getStatsMock.mockRejectedValueOnce(42);
+
+    const { result } = renderHook(() => useDatabaseData('token-123'));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.error).toBe('Failed to fetch database data');
+  });
+
   it('auto-refreshes on interval tick and handles a rejected fetch gracefully', async () => {
     jest.useFakeTimers();
 

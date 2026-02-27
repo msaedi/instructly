@@ -434,4 +434,192 @@ describe('useNotifications', () => {
       expect(result.current.total).toBe(0);
     });
   });
+
+  describe('markAsRead optimistic update edge cases', () => {
+    it('skips optimistic update when notification is already read', async () => {
+      notificationApiMock.getNotifications.mockResolvedValue({
+        notifications: [
+          {
+            id: 'notif-already-read',
+            type: 'booking_confirmed',
+            category: 'booking',
+            title: 'Test',
+            body: 'Test msg',
+            data: null,
+            read_at: '2024-01-01T00:00:00Z', // already read
+            created_at: '2024-01-01T00:00:00Z',
+          },
+        ],
+        total: 1,
+        unread_count: 0,
+      });
+      notificationApiMock.getUnreadCount.mockResolvedValue({ unread_count: 0 });
+      notificationApiMock.markAsRead.mockResolvedValue(undefined as unknown as ReturnType<typeof notificationApi.markAsRead>);
+
+      const { result } = renderHook(() => useNotifications(), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(result.current.notifications).toHaveLength(1);
+      });
+
+      // markAsRead on an already-read notification should not decrement unread
+      act(() => {
+        result.current.markAsRead.mutate('notif-already-read');
+      });
+
+      await waitFor(() => {
+        expect(notificationApiMock.markAsRead).toHaveBeenCalledWith('notif-already-read');
+      });
+
+      // Unread count should remain 0 (didUpdate stays false, no decrement)
+      expect(result.current.unreadCount).toBe(0);
+    });
+
+    it('skips optimistic update when notification id does not match', async () => {
+      notificationApiMock.getNotifications.mockResolvedValue({
+        notifications: [
+          {
+            id: 'notif-existing',
+            type: 'booking_confirmed',
+            category: 'booking',
+            title: 'Existing',
+            body: 'Test',
+            data: null,
+            read_at: null,
+            created_at: '2024-01-01T00:00:00Z',
+          },
+        ],
+        total: 1,
+        unread_count: 1,
+      });
+      notificationApiMock.getUnreadCount.mockResolvedValue({ unread_count: 1 });
+      notificationApiMock.markAsRead.mockResolvedValue(undefined as unknown as ReturnType<typeof notificationApi.markAsRead>);
+
+      const { result } = renderHook(() => useNotifications(), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(result.current.notifications).toHaveLength(1);
+      });
+
+      // markAsRead with a non-existent id - the map loop runs but didUpdate stays false
+      act(() => {
+        result.current.markAsRead.mutate('notif-nonexistent');
+      });
+
+      await waitFor(() => {
+        expect(notificationApiMock.markAsRead).toHaveBeenCalledWith('notif-nonexistent');
+      });
+    });
+  });
+
+  describe('SSE notification update edge cases', () => {
+    it('trims notification list to limit when adding new notification', async () => {
+      // Create initial list at exactly the limit (20)
+      const notifications = Array.from({ length: 20 }, (_, i) => ({
+        id: `notif-${i}`,
+        type: 'booking_confirmed' as const,
+        category: 'booking' as const,
+        title: `Notification ${i}`,
+        body: `Body ${i}`,
+        data: null,
+        read_at: null,
+        created_at: `2024-01-01T${String(i).padStart(2, '0')}:00:00Z`,
+      }));
+
+      notificationApiMock.getNotifications.mockResolvedValue({
+        notifications,
+        total: 20,
+        unread_count: 20,
+      });
+
+      let capturedHandler: ((event: SSENotificationUpdateEvent) => void) | undefined;
+      const subscribeMock = jest.fn((_channel: string, handlers: { onNotificationUpdate?: (event: SSENotificationUpdateEvent) => void }) => {
+        capturedHandler = handlers.onNotificationUpdate;
+        return jest.fn();
+      });
+      useMessageStreamMock.mockReturnValue({ subscribe: subscribeMock });
+
+      const { result } = renderHook(() => useNotifications(), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(result.current.notifications).toHaveLength(20);
+      });
+
+      // Add a new notification that should push the list over the limit
+      act(() => {
+        capturedHandler?.({
+          type: 'notification_update',
+          unread_count: 21,
+          latest: {
+            id: 'notif-new',
+            type: 'new_message',
+            category: 'message',
+            title: 'New one',
+            body: 'Fresh',
+            data: null,
+            created_at: '2024-01-02T00:00:00Z',
+          },
+        });
+      });
+
+      // Should still be limited to 20 (sliced to limit)
+      await waitFor(() => {
+        expect(result.current.notifications).toHaveLength(20);
+        expect(result.current.notifications[0]?.id).toBe('notif-new');
+      });
+    });
+
+    it('sets read_at to null and defaults data to null for SSE latest notification', async () => {
+      notificationApiMock.getNotifications.mockResolvedValue({
+        notifications: [],
+        total: 0,
+        unread_count: 0,
+      });
+
+      let capturedHandler: ((event: SSENotificationUpdateEvent) => void) | undefined;
+      const subscribeMock = jest.fn((_channel: string, handlers: { onNotificationUpdate?: (event: SSENotificationUpdateEvent) => void }) => {
+        capturedHandler = handlers.onNotificationUpdate;
+        return jest.fn();
+      });
+      useMessageStreamMock.mockReturnValue({ subscribe: subscribeMock });
+
+      const { result } = renderHook(() => useNotifications(), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      // Add a notification whose data field is undefined (should be defaulted to null)
+      act(() => {
+        capturedHandler?.({
+          type: 'notification_update',
+          unread_count: 1,
+          latest: {
+            id: 'notif-no-data',
+            type: 'new_message',
+            category: 'message',
+            title: 'No data field',
+            body: 'Test',
+            // data is undefined here, should become null via `latest.data ?? null`
+            created_at: '2024-01-01T00:00:00Z',
+          },
+        });
+      });
+
+      await waitFor(() => {
+        expect(result.current.notifications).toHaveLength(1);
+      });
+
+      expect(result.current.notifications[0]?.data).toBeNull();
+      expect(result.current.notifications[0]?.read_at).toBeNull();
+    });
+  });
 });

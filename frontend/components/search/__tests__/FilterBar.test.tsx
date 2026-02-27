@@ -231,6 +231,60 @@ describe('FilterBar', () => {
     spy.mockRestore();
   });
 
+  it('closes an already-open dropdown when the same button is clicked again', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    // Open Date dropdown
+    await user.click(screen.getByRole('button', { name: 'Date' }));
+    expect(screen.getByText('Select Date')).toBeInTheDocument();
+
+    // Click Date again to close it (toggleDropdown: prev === name ? null : name)
+    await user.click(screen.getByRole('button', { name: 'Date' }));
+    expect(screen.queryByText('Select Date')).not.toBeInTheDocument();
+  });
+
+  it('renders without rightSlot', () => {
+    const [filters, setFilters] = [DEFAULT_FILTERS, jest.fn()];
+    render(
+      <FilterBar
+        filters={filters}
+        onFiltersChange={setFilters}
+      />
+    );
+
+    // No rightSlot div should be rendered
+    expect(screen.getByRole('button', { name: 'Date' })).toBeInTheDocument();
+    expect(screen.queryByText('Sort')).not.toBeInTheDocument();
+  });
+
+  it('closes MoreFiltersModal on escape key', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    await user.click(screen.getByRole('button', { name: /more filters/i }));
+    const dialog = screen.getByRole('dialog', { name: /more filters/i });
+    expect(dialog).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: /more filters/i })).not.toBeInTheDocument();
+  });
+
+  it('does not attach escape listener when no dropdown or modal is open', () => {
+    const addEventListenerSpy = jest.spyOn(window, 'addEventListener');
+
+    render(<Harness />);
+
+    // No dropdown or modal is open initially, so no keydown listener should be attached
+    // for the escape handler (the useEffect has an early return)
+    const keydownCalls = addEventListenerSpy.mock.calls.filter(
+      ([event]) => event === 'keydown'
+    );
+    expect(keydownCalls).toHaveLength(0);
+
+    addEventListenerSpy.mockRestore();
+  });
+
   it('clears active filters from dropdowns and modal', async () => {
     const user = userEvent.setup();
     render(

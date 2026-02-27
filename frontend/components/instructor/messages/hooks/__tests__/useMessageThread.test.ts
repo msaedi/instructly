@@ -3628,4 +3628,66 @@ describe('useMessageThread', () => {
       expect(spy).toHaveBeenCalled();
     });
   });
+
+  // -------------------------------------------------------------------
+  // shouldFetchHistory true branch via stale with existing cache (line 278-280)
+  // -------------------------------------------------------------------
+  describe('loadThreadMessages stale thread with existing cache (line 278-280)', () => {
+    it('triggers setHistoryTarget when thread has cache but is marked stale', () => {
+      const { Wrapper } = createWrapper();
+      const now = Date.now();
+      const conversation = makeConversation({ id: 'conv-stale-cache', latestMessageAt: now - 10000 });
+      const setConversations = jest.fn((updater) => {
+        if (typeof updater === 'function') updater([conversation]);
+      });
+
+      const { result, rerender } = renderHook(
+        ({ convs }) =>
+          useMessageThread({
+            currentUserId: 'instr-001',
+            conversations: convs,
+            setConversations,
+          }),
+        { wrapper: Wrapper, initialProps: { convs: [conversation] } }
+      );
+
+      // Step 1: Populate cache via SSE so hasCache becomes true
+      act(() => {
+        result.current.handleSSEMessage(
+          {
+            id: 'msg-cached-1',
+            content: 'Hello from student',
+            sender_id: 'student-001',
+            created_at: new Date(now - 5000).toISOString(),
+            is_mine: false,
+          } as SSEMessageWithOwnership,
+          'conv-stale-cache',
+          conversation
+        );
+      });
+
+      // Verify cache is populated
+      expect(result.current.messagesByThread['conv-stale-cache']?.length).toBe(1);
+
+      // Step 2: Load thread to establish lastSeenTimestamp
+      act(() => {
+        result.current.loadThreadMessages('conv-stale-cache', conversation, 'inbox');
+      });
+
+      // Step 3: Advance latestMessageAt to make thread stale
+      const updatedConv = makeConversation({ id: 'conv-stale-cache', latestMessageAt: now + 60000 });
+      rerender({ convs: [updatedConv] });
+
+      // Step 4: Load again -- isStale=true AND hasCache=true, so shouldFetchHistory=true
+      // This specifically exercises the line 278-280 branch (isStale path)
+      act(() => {
+        result.current.loadThreadMessages('conv-stale-cache', updatedConv, 'inbox');
+      });
+
+      // The cached messages should still be shown immediately
+      expect(result.current.threadMessages.length).toBeGreaterThanOrEqual(1);
+      // useConversationMessages should have been called (historyTarget was set)
+      expect(mockUseConversationMessages).toHaveBeenCalled();
+    });
+  });
 });

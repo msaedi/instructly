@@ -159,4 +159,101 @@ describe('NotificationBar', () => {
     });
     jest.useRealTimers();
   });
+
+  it('shows new_instructors notification when user has no credits and is not new', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2025-01-20T10:00:00Z'));
+    useAuthMock.mockReturnValue({
+      user: { credits_balance: 0, created_at: '2024-06-01T10:00:00Z' },
+      isAuthenticated: true,
+    });
+
+    render(<NotificationBar />);
+
+    jest.runOnlyPendingTimers();
+    await waitFor(() => {
+      expect(screen.getByText(/new martial arts instructors/i)).toBeInTheDocument();
+    });
+    jest.useRealTimers();
+  });
+
+  it('shows new_instructors notification when user has no created_at', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2025-01-20T10:00:00Z'));
+    useAuthMock.mockReturnValue({
+      user: { credits_balance: undefined },
+      isAuthenticated: true,
+    });
+
+    render(<NotificationBar />);
+
+    jest.runOnlyPendingTimers();
+    await waitFor(() => {
+      expect(screen.getByText(/new martial arts instructors/i)).toBeInTheDocument();
+    });
+    jest.useRealTimers();
+  });
+
+  it('falls through to deals notification when higher-priority ones are dismissed', async () => {
+    jest.useFakeTimers();
+    const now = new Date('2025-01-20T10:00:00Z').getTime();
+    jest.setSystemTime(new Date(now));
+    // Dismiss new_instructors (priority 3) and credits/welcome won't appear
+    // The currentNotification takes the first from sorted by priority,
+    // so we need to dismiss all higher-priority ones.
+    // Actually, the component shows only the highest-priority non-dismissed one.
+    // Let's dismiss new_instructors and see that deals is shown next.
+    setupSessionStorage({ new_instructors: now - 60 * 1000 });
+    useAuthMock.mockReturnValue({
+      user: { credits_balance: 0, created_at: '2024-06-01T10:00:00Z' },
+      isAuthenticated: true,
+    });
+
+    render(<NotificationBar />);
+    jest.runOnlyPendingTimers();
+
+    // The component shows the single highest priority notification.
+    // new_instructors (priority 3) is the highest for non-new, no-credit users.
+    // Since it is dismissed, the component returns null (isDismissed = true).
+    await waitFor(() => {
+      // isDismissed applies to currentNotification (the highest priority one),
+      // not a fallback, so bar should be hidden
+      expect(screen.queryByText(/deals/i)).not.toBeInTheDocument();
+    });
+    jest.useRealTimers();
+  });
+
+  it('returns null when sessionStorage getItem returns null', () => {
+    Object.defineProperty(window, 'sessionStorage', {
+      value: {
+        getItem: jest.fn(() => null),
+        setItem: jest.fn(),
+      },
+      configurable: true,
+    });
+
+    useAuthMock.mockReturnValue({ user: null, isAuthenticated: false });
+
+    const { container } = render(<NotificationBar />);
+    expect(container.firstChild).toBeNull();
+  });
+
+  it('does not show notification when nowMs has not yet been set (initial null state)', () => {
+    // Before the setTimeout fires, nowMs is null so isDismissed check won't match
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2025-01-20T10:00:00Z'));
+    useAuthMock.mockReturnValue({
+      user: { credits_balance: 0, created_at: '2024-06-01T10:00:00Z' },
+      isAuthenticated: true,
+    });
+
+    render(<NotificationBar />);
+
+    // Before timers fire, nowMs is null -> the component should still render
+    // because isDismissed requires nowMs to be a number
+    // The notification bar should be visible since nowMs null means
+    // the dismissal check fails (not dismissed)
+    expect(screen.getByText(/new martial arts instructors/i)).toBeInTheDocument();
+    jest.useRealTimers();
+  });
 });

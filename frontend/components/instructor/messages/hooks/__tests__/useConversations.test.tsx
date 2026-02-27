@@ -728,6 +728,243 @@ describe('useConversations', () => {
       expect(result.current.totalUnread).toBe(0);
     });
   });
+
+  describe('typeFilter student passthrough', () => {
+    it('should include conversations when typeFilter is student', async () => {
+      const mockData = createMockConversationListResponse([
+        {
+          id: 'conv1',
+          other_user: { id: 'user1', first_name: 'Student', last_initial: 'U' },
+          unread_count: 1,
+          last_message: {
+            content: 'Hello',
+            created_at: '2024-01-01T12:00:00Z',
+            is_from_me: false,
+          },
+          upcoming_booking_count: 0,
+          upcoming_bookings: [],
+          state: 'active',
+        },
+      ]);
+
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(mockData),
+      });
+
+      const { result } = renderHook(
+        () =>
+          useConversations({
+            currentUserId: 'instructor1',
+            isLoadingUser: false,
+            typeFilter: 'student', // Not 'platform', so filter returns true
+          }),
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(result.current.conversations).toHaveLength(1);
+      });
+
+      // Student type filter lets all conversations through
+      expect(result.current.conversations[0]?.type).toBe('student');
+    });
+  });
+
+  describe('undefined currentUserId', () => {
+    it('should set instructorId to null when currentUserId is undefined', async () => {
+      const mockData = createMockConversationListResponse([
+        {
+          id: 'conv1',
+          other_user: { id: 'user1', first_name: 'Test', last_initial: 'U' },
+          unread_count: 0,
+          last_message: {
+            content: 'Hi',
+            created_at: '2024-01-01T12:00:00Z',
+            is_from_me: false,
+          },
+          upcoming_booking_count: 0,
+          upcoming_bookings: [],
+          state: 'active',
+        },
+      ]);
+
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(mockData),
+      });
+
+      const { result } = renderHook(
+        () =>
+          useConversations({
+            currentUserId: undefined,
+            isLoadingUser: false,
+          }),
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(result.current.conversations).toHaveLength(1);
+      });
+
+      // currentUserId undefined => instructorId should be null
+      expect(result.current.conversations[0]?.instructorId).toBeNull();
+    });
+  });
+
+  describe('conversation with undefined upcoming_bookings', () => {
+    it('should default upcoming_bookings to empty array when undefined', async () => {
+      const mockData = createMockConversationListResponse([
+        {
+          id: 'conv1',
+          other_user: { id: 'user1', first_name: 'NoBookings', last_initial: 'U' },
+          unread_count: 0,
+          last_message: null,
+          upcoming_booking_count: 0,
+          // upcoming_bookings intentionally missing/undefined
+          state: 'active',
+        },
+      ]);
+
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(mockData),
+      });
+
+      const { result } = renderHook(
+        () =>
+          useConversations({
+            currentUserId: 'instructor1',
+            isLoadingUser: false,
+          }),
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(result.current.conversations).toHaveLength(1);
+      });
+
+      expect(result.current.conversations[0]?.bookingIds).toEqual([]);
+      expect(result.current.conversations[0]?.upcomingBookings).toEqual([]);
+    });
+  });
+
+  describe('last_message content is null or empty', () => {
+    it('should show last message content when it is short', async () => {
+      const mockData = createMockConversationListResponse([
+        {
+          id: 'conv1',
+          other_user: { id: 'user1', first_name: 'Short', last_initial: 'M' },
+          unread_count: 0,
+          last_message: {
+            content: 'Hello there!',
+            created_at: '2024-01-01T12:00:00Z',
+            is_from_me: false,
+          },
+          upcoming_booking_count: 0,
+          upcoming_bookings: [],
+          state: 'active',
+        },
+      ]);
+
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(mockData),
+      });
+
+      const { result } = renderHook(
+        () =>
+          useConversations({
+            currentUserId: 'instructor1',
+            isLoadingUser: false,
+          }),
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(result.current.conversations).toHaveLength(1);
+      });
+
+      // Short messages (<=100 chars) are not truncated
+      expect(result.current.conversations[0]?.lastMessage).toBe('Hello there!');
+    });
+
+    it('should use exactly 100 char message without truncation', async () => {
+      const exactMessage = 'a'.repeat(100);
+      const mockData = createMockConversationListResponse([
+        {
+          id: 'conv1',
+          other_user: { id: 'user1', first_name: 'Exact', last_initial: 'M' },
+          unread_count: 0,
+          last_message: {
+            content: exactMessage,
+            created_at: '2024-01-01T12:00:00Z',
+            is_from_me: false,
+          },
+          upcoming_booking_count: 0,
+          upcoming_bookings: [],
+          state: 'active',
+        },
+      ]);
+
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(mockData),
+      });
+
+      const { result } = renderHook(
+        () =>
+          useConversations({
+            currentUserId: 'instructor1',
+            isLoadingUser: false,
+          }),
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(result.current.conversations).toHaveLength(1);
+      });
+
+      // Exactly 100 chars should NOT be truncated (condition is > 100)
+      expect(result.current.conversations[0]?.lastMessage).toBe(exactMessage);
+      expect(result.current.conversations[0]?.lastMessage).toHaveLength(100);
+    });
+  });
+
+  describe('stateFilter null maps to active', () => {
+    it('should fetch active conversations when stateFilter is null', async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(createMockConversationListResponse()),
+      });
+
+      renderHook(
+        () =>
+          useConversations({
+            currentUserId: 'instructor1',
+            isLoadingUser: false,
+            stateFilter: null,
+          }),
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalled();
+      });
+
+      // null stateFilter maps to 'active', so the URL should include state=active
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('state=active'),
+        expect.any(Object)
+      );
+    });
+  });
 });
 
 describe('useUpdateConversationState', () => {

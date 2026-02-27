@@ -360,4 +360,66 @@ describe('PaymentMethodSelection', () => {
 
     expect(screen.getByText('Backup Payment Method')).toBeInTheDocument();
   });
+
+  it('does not crash when onCardAdded is not provided and card is added', async () => {
+    createPaymentMethodMock.mockResolvedValueOnce({ paymentMethod: { id: 'pm_456' } });
+    paymentServiceMock.mockResolvedValueOnce({
+      id: 'card-no-callback',
+      last4: '7777',
+      brand: 'amex',
+      is_default: false,
+    });
+
+    const onSelectPayment = jest.fn();
+    render(
+      <PaymentMethodSelection
+        booking={booking}
+        cards={cards}
+        credits={{ totalAmount: 0, credits: [] }}
+        onSelectPayment={onSelectPayment}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add New Card' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add Card' }));
+
+    // Form should close after adding card even without onCardAdded
+    await waitFor(() => {
+      expect(screen.queryByText('Enter Card Details')).not.toBeInTheDocument();
+    });
+  });
+
+  it('renders with empty cards array and no cards displayed', () => {
+    renderComponent({ cards: [] });
+
+    // Should not display any card labels
+    expect(screen.queryByText(/ending in/)).not.toBeInTheDocument();
+    // "Add New Card" button should still be available
+    expect(screen.getByRole('button', { name: 'Add New Card' })).toBeInTheDocument();
+  });
+
+  it('shows loading state on add card button during submission', async () => {
+    let resolveCreate: (val: unknown) => void;
+    createPaymentMethodMock.mockImplementation(
+      () => new Promise((resolve) => { resolveCreate = resolve; })
+    );
+
+    renderComponent();
+    await userEvent.click(screen.getByRole('button', { name: 'Add New Card' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add Card' }));
+
+    // Button text should change to "Adding..."
+    expect(screen.getByRole('button', { name: 'Adding...' })).toBeInTheDocument();
+
+    resolveCreate!({ paymentMethod: { id: 'pm_loading' } });
+  });
+
+  it('selects empty string for selectedCardId when cards are empty', async () => {
+    const { onSelectPayment } = renderComponent({ cards: [] });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Apply payment method' }));
+
+    // With empty cards, selectedCardId defaults to '' (empty string)
+    expect(onSelectPayment).toHaveBeenCalledWith(PaymentMethod.CREDIT_CARD, '');
+  });
 });

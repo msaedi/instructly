@@ -1289,6 +1289,136 @@ describe('useProfilePictureUrls', () => {
     });
   });
 
+  describe('empty requestMap after module-level cache dedup (lines 134-136)', () => {
+    it('skips API call when all enqueued requests hit module-level cache during flush', async () => {
+      // Step 1: Populate module-level cache with a successful fetch
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          urls: {
+            'user-skip-a': 'https://cdn/avatar/skip-a',
+          },
+        }),
+      } as Response);
+
+      const wrapper = createWrapper();
+
+      const { result: r1, unmount: u1 } = renderHook(
+        () => useProfilePictureUrls(['user-skip-a']),
+        { wrapper }
+      );
+
+      act(() => { jest.runOnlyPendingTimers(); });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(r1.current['user-skip-a']).toBe('https://cdn/avatar/skip-a');
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      u1();
+      fetchMock.mockClear();
+
+      // Step 2: Force a new enqueueFetch that bypasses React Query cache
+      // by using a new wrapper (new QueryClient).
+      // The module-level cache still has user-skip-a, so during flushPendingQueue
+      // the requestMap will be empty after getCachedValue filters everything out.
+      // This exercises the `if (!requestMap.size) continue` branch (lines 134-136).
+      const wrapper2 = createWrapper();
+
+      const { result: r2 } = renderHook(
+        () => useProfilePictureUrls(['user-skip-a']),
+        { wrapper: wrapper2 }
+      );
+
+      act(() => { jest.runOnlyPendingTimers(); });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // Module-level cache should serve the value; no new API call
+      await waitFor(() => {
+        expect(r2.current['user-skip-a']).toBe('https://cdn/avatar/skip-a');
+      });
+      // No additional API calls because the requestMap was empty
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('cache merge resolution branches (lines 168-174)', () => {
+    it('resolves entries from getCachedValue during snapshot resolution (line 168-169)', async () => {
+      // Step 1: Populate cache for user-cached-x
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          urls: {
+            'user-cached-x': 'https://cdn/avatar/cached-x',
+          },
+        }),
+      } as Response);
+
+      const wrapper = createWrapper();
+
+      const { result: r1, unmount: u1 } = renderHook(
+        () => useProfilePictureUrls(['user-cached-x']),
+        { wrapper }
+      );
+
+      act(() => { jest.runOnlyPendingTimers(); });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(r1.current['user-cached-x']).toBe('https://cdn/avatar/cached-x');
+      });
+      u1();
+      fetchMock.mockClear();
+
+      // Step 2: Request both cached and uncached user in a fresh QueryClient.
+      // During flushPendingQueue snapshot resolution:
+      // - user-cached-x: resolved via getCachedValue (line 168-169)
+      // - user-merge-y: resolved via aggregated (line 170-171)
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          urls: {
+            'user-merge-y': 'https://cdn/avatar/merge-y',
+          },
+        }),
+      } as Response);
+
+      const wrapper2 = createWrapper();
+
+      const { result: r2 } = renderHook(
+        () => useProfilePictureUrls(['user-cached-x', 'user-merge-y']),
+        { wrapper: wrapper2 }
+      );
+
+      act(() => { jest.runOnlyPendingTimers(); });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(r2.current['user-cached-x']).toBe('https://cdn/avatar/cached-x');
+      });
+      await waitFor(() => {
+        expect(r2.current['user-merge-y']).toBe('https://cdn/avatar/merge-y');
+      });
+    });
+  });
+
   describe('requestProfilePictureBatch empty ids guard', () => {
     it('returns empty map immediately for empty ids array via internal path', async () => {
       // This exercises the `if (!ids.length) return {}` in requestProfilePictureBatch.

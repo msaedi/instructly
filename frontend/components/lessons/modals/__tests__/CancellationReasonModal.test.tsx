@@ -213,4 +213,122 @@ describe('CancellationReasonModal', () => {
       expect(logger.error).toHaveBeenCalledWith('Failed to cancel lesson', error);
     });
   });
+
+  it('renders "Instructor" fallback when lesson.instructor is null in success state', () => {
+    useCancelLessonMock.mockReturnValue({
+      mutateAsync,
+      isSuccess: true,
+      isPending: false,
+    });
+
+    const lessonNoInstructor = {
+      ...baseLesson,
+      instructor: null,
+    } as unknown as Booking;
+
+    render(
+      <CancellationReasonModal
+        isOpen
+        onClose={onClose}
+        lesson={lessonNoInstructor}
+        onReschedule={onReschedule}
+      />
+    );
+
+    // Should use "Instructor" fallback
+    expect(screen.getByText(/Guitar with Instructor$/)).toBeInTheDocument();
+  });
+
+  it('does not call mutateAsync when no reason is selected', async () => {
+    render(
+      <CancellationReasonModal
+        isOpen
+        onClose={onClose}
+        lesson={baseLesson}
+        onReschedule={onReschedule}
+      />
+    );
+
+    // Button should be disabled when no reason selected
+    const confirmButton = screen.getByRole('button', { name: /confirm cancellation/i });
+    expect(confirmButton).toBeDisabled();
+
+    // The handleContinue guard checks selectedReason is truthy
+    expect(mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('does not render when isOpen is false', () => {
+    render(
+      <CancellationReasonModal
+        isOpen={false}
+        onClose={onClose}
+        lesson={baseLesson}
+        onReschedule={onReschedule}
+      />
+    );
+
+    expect(screen.queryByText(/please tell us why/i)).not.toBeInTheDocument();
+  });
+
+  it('calls onClose when Keep Lesson is clicked', async () => {
+    const user = userEvent.setup();
+    render(
+      <CancellationReasonModal
+        isOpen
+        onClose={onClose}
+        lesson={baseLesson}
+        onReschedule={onReschedule}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: /keep lesson/i }));
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('renders all cancellation reasons', () => {
+    render(
+      <CancellationReasonModal
+        isOpen
+        onClose={onClose}
+        lesson={baseLesson}
+        onReschedule={onReschedule}
+      />
+    );
+
+    expect(screen.getByLabelText(/lesson was booked by mistake/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/my schedule changed/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/instructor's schedule changed/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/found another instructor/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/I changed my mind/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/emergency/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/other reason/i)).toBeInTheDocument();
+  });
+
+  it('selects different reasons via radio buttons', async () => {
+    const user = userEvent.setup();
+    render(
+      <CancellationReasonModal
+        isOpen
+        onClose={onClose}
+        lesson={baseLesson}
+        onReschedule={onReschedule}
+      />
+    );
+
+    // Select "Other reason"
+    await user.click(screen.getByLabelText(/other reason/i));
+
+    // Confirm button should now be enabled
+    expect(screen.getByRole('button', { name: /confirm cancellation/i })).not.toBeDisabled();
+
+    // Submit with "Other reason"
+    await user.click(screen.getByRole('button', { name: /confirm cancellation/i }));
+
+    await waitFor(() => {
+      expect(mutateAsync).toHaveBeenCalledWith({
+        lessonId: baseLesson.id,
+        reason: 'Other reason',
+      });
+    });
+  });
 });

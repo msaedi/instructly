@@ -286,6 +286,33 @@ describe('useMessageDrafts', () => {
     expect(result.current.draftsByThread).toEqual({});
   });
 
+  it('getDraft returns empty string when no draft cookie exists at all (line 21-22)', () => {
+    // Ensure no DRAFT_COOKIE_NAME is present in cookies at all
+    // This exercises the !target branch on line 21 and the getCurrentDraft fallback
+    delete mockCookies[DRAFT_COOKIE_NAME];
+    // Also clear any other cookies that might exist
+    mockCookies = {};
+
+    const { result } = renderHook(() => useMessageDrafts());
+
+    // loadInitialDrafts returns {} because !target is true
+    expect(result.current.draftsByThread).toEqual({});
+    // getCurrentDraft should return '' for any thread since no drafts loaded
+    expect(result.current.getCurrentDraft('any-thread-id')).toBe('');
+    expect(result.current.getCurrentDraft(null)).toBe('');
+  });
+
+  it('getDraft returns empty string when other cookies exist but draft cookie does not (line 21)', () => {
+    // Set unrelated cookies but no draft cookie
+    mockCookies = { 'other_cookie': 'some-value', 'another_one': 'data' };
+
+    const { result } = renderHook(() => useMessageDrafts());
+
+    // !target is true because DRAFT_COOKIE_NAME is not among the cookies
+    expect(result.current.draftsByThread).toEqual({});
+    expect(result.current.getCurrentDraft('thread-abc')).toBe('');
+  });
+
   it('handles multiple drafts persisted and cleared correctly', () => {
     const { result } = renderHook(() => useMessageDrafts());
 

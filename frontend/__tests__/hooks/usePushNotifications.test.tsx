@@ -558,4 +558,109 @@ describe('usePushNotifications', () => {
       expect(result.current.isLoading).toBe(false);
     });
   });
+
+  it('checkSubscription is a no-op when swRegistration is null', async () => {
+    // Simulate a case where serviceWorker.register fails,
+    // so swRegistration remains null even though isSupported is true
+    mockServiceWorker.register.mockRejectedValue(new Error('SW register fail'));
+
+    const { result } = renderHook(() => usePushNotifications());
+
+    await waitFor(() => {
+      expect(result.current.error).toBe('Failed to register service worker');
+    });
+
+    // Clear mock calls from init
+    mockPushManager.getSubscription.mockClear();
+
+    // checkSubscription should early return since swRegistration is null
+    await act(async () => {
+      await result.current.checkSubscription();
+    });
+
+    // getSubscription should NOT have been called again
+    expect(mockPushManager.getSubscription).not.toHaveBeenCalled();
+  });
+
+  it('subscribe handles getKey returning null buffer', async () => {
+    const mockSubscription = {
+      endpoint: 'https://fcm.googleapis.com/test',
+      getKey: jest.fn().mockReturnValue(null), // null ArrayBuffer
+      unsubscribe: jest.fn().mockResolvedValue(true),
+    };
+    mockPushManager.subscribe.mockResolvedValue(mockSubscription);
+
+    const { result } = renderHook(() => usePushNotifications());
+
+    await waitFor(() => {
+      expect(result.current.isSupported).toBe(true);
+    });
+    await waitFor(() => {
+      expect(mockPushManager.getSubscription).toHaveBeenCalled();
+    });
+
+    await act(async () => {
+      const success = await result.current.subscribe();
+      expect(success).toBe(true);
+    });
+
+    // arrayBufferToBase64 with null should return ''
+    expect(mockedApi.subscribe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endpoint: 'https://fcm.googleapis.com/test',
+        p256dh: '',
+        auth: '',
+      })
+    );
+  });
+
+  it('subscribe skips permission request when already granted', async () => {
+    // Notification.permission is 'granted' (set in beforeEach), so
+    // neither the 'default' nor 'denied' branch should run
+    const mockSubscription = {
+      endpoint: 'https://fcm.googleapis.com/test-granted',
+      getKey: jest.fn().mockReturnValue(new Uint8Array([4, 5, 6]).buffer),
+      unsubscribe: jest.fn().mockResolvedValue(true),
+    };
+    mockPushManager.subscribe.mockResolvedValue(mockSubscription);
+
+    const { result } = renderHook(() => usePushNotifications());
+
+    await waitFor(() => {
+      expect(result.current.isSupported).toBe(true);
+    });
+    await waitFor(() => {
+      expect(mockPushManager.getSubscription).toHaveBeenCalled();
+    });
+
+    await act(async () => {
+      const success = await result.current.subscribe();
+      expect(success).toBe(true);
+    });
+
+    // requestPermission should NOT have been called since it was already granted
+    expect((window.Notification as unknown as { requestPermission: jest.Mock }).requestPermission).not.toHaveBeenCalled();
+    expect(result.current.isSubscribed).toBe(true);
+  });
+
+  it('subscribe returns false when swRegistration is null but isSupported is true', async () => {
+    // This happens when SW registration fails
+    mockServiceWorker.register.mockRejectedValue(new Error('SW fail'));
+
+    const { result } = renderHook(() => usePushNotifications());
+
+    await waitFor(() => {
+      expect(result.current.isSupported).toBe(true);
+      expect(result.current.error).toBe('Failed to register service worker');
+    });
+
+    // Clear error so we can see the subscribe error
+    await act(async () => {
+      const success = await result.current.subscribe();
+      expect(success).toBe(false);
+    });
+
+    expect(result.current.error).toBe('Push notifications not available');
+  });
+
 });

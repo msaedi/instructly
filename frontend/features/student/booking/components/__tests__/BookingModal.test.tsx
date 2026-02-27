@@ -980,6 +980,51 @@ describe('BookingModal', () => {
     });
   });
 
+  describe('skill fallback to Lesson', () => {
+    it('displays "Lesson" when selectedService has no skill', () => {
+      useAuthMock.mockReturnValue({
+        user: null,
+        isAuthenticated: false,
+        redirectToLogin: jest.fn(),
+      });
+
+      const instructorNoSkill: Instructor = {
+        ...instructor,
+        services: [
+          { id: 'service-1', skill: '', hourly_rate: 100, duration_options: [60], duration: 60 },
+        ],
+      };
+
+      renderModal({ instructor: instructorNoSkill });
+
+      // When skill is empty, the component falls back to 'Lesson'
+      expect(screen.getByText(/Lesson with Jane D\./)).toBeInTheDocument();
+    });
+  });
+
+  describe('service duration fallback', () => {
+    it('defaults to 60 minutes when service has no duration property', () => {
+      useAuthMock.mockReturnValue({
+        user: null,
+        isAuthenticated: false,
+        redirectToLogin: jest.fn(),
+      });
+
+      const instructorNoDuration: Instructor = {
+        ...instructor,
+        services: [
+          { id: 'service-1', skill: 'Piano', hourly_rate: 100, duration_options: [60] } as Instructor['services'][number],
+        ],
+      };
+
+      renderModal({ instructor: instructorNoDuration });
+
+      // Default duration is used (60 from defaultService?.duration ?? 60)
+      const duration60Radio = screen.getByRole('radio', { name: /60 minutes/i });
+      expect(duration60Radio).toBeChecked();
+    });
+  });
+
   describe('user null/empty fields during resetState', () => {
     it('resets form data with empty user fields', async () => {
       useAuthMock.mockReturnValue({
