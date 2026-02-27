@@ -1,9 +1,6 @@
 // frontend/hooks/availability/usePublicAvailability.ts
 /**
- * Example hook for consuming the new public availability endpoint.
- * This shows how SIMPLE the frontend should be with the correct mental model.
- *
- * Compare this to the 600+ lines in useAvailabilityOperations.ts!
+ * Hook for consuming the public availability endpoint.
  */
 
 import { useState, useEffect, useCallback } from 'react';

@@ -18,7 +18,7 @@ def _make_credit(**overrides):
         "status": "available",
         "expires_at": None,
         "source_booking_id": None,
-        "source_type": "legacy",
+        "source_type": "manual",
         "original_expires_at": None,
         "used_at": None,
         "used_booking_id": None,

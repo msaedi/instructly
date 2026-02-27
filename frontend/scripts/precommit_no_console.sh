@@ -10,7 +10,7 @@ fi
 
 FAILED=0
 for f in "${FILES[@]}"; do
-  # ignore tests, e2e, logger implementation, server.js, legacy samples
+  # ignore tests, e2e, logger implementation, server.js
   if [[ "$f" == *"/__tests__/"* || "$f" == *"/e2e/"* ]]; then
     continue
   fi
