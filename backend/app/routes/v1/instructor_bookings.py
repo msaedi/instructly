@@ -61,6 +61,7 @@ def check_permission(user: User, permission: PermissionName, db: Session) -> Non
 
 
 def _get_booking_end_utc(booking: Booking) -> datetime:
+    assert booking.booking_end_utc is not None, f"Booking {booking.id} missing booking_end_utc"
     return cast(datetime, booking.booking_end_utc)
 
 

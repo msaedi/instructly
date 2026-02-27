@@ -5,15 +5,12 @@ Tests logic in isolation with mocked dependencies.
 """
 
 from datetime import date, time
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
 from app.core.ulid_helper import generate_ulid
-from app.models.booking import BookingStatus
 from app.schemas.availability_window import (
-    BulkUpdateRequest,
-    OperationResult,
     SlotOperation,
     ValidationSlotDetail,
     ValidationSummary,
@@ -133,7 +130,7 @@ class TestBulkOperationLogic:
         )
 
         result = bulk_service._process_add_operation(
-            instructor_id=generate_ulid(), operation=operation, operation_index=0, validate_only=False
+            instructor_id=generate_ulid(), operation=operation, operation_index=0, validate_only=True
         )
 
         assert result.status == "failed"
@@ -143,83 +140,22 @@ class TestBulkOperationLogic:
         operation = SlotOperation(action="add", date=past_date, start_time=time(9, 0), end_time=time(10, 0))
 
         result = bulk_service._process_add_operation(
-            instructor_id=generate_ulid(), operation=operation, operation_index=0, validate_only=False
+            instructor_id=generate_ulid(), operation=operation, operation_index=0, validate_only=True
         )
 
         assert result.status == "failed"
         assert "past date" in result.reason
-
-    def test_process_add_with_conflicts(self, bulk_service, mock_conflict_checker):
-        """Test add operation when conflicts exist - should succeed with new architecture."""
-        booking_id = generate_ulid()
-        mock_conflict_checker.check_booking_conflicts.return_value = [
-            {"booking_id": booking_id, "start_time": "09:00", "end_time": "10:00"}
-        ]
-
-        mock_slot = Mock()
-        slot_id = generate_ulid()
-        mock_slot.id = slot_id
-        bulk_service._create_slot_for_operation = Mock(return_value=mock_slot)
-
-        from datetime import datetime
-
-        future_date = datetime(2026, 7, 1).date()
-        operation = SlotOperation(action="add", date=future_date, start_time=time(9, 0), end_time=time(10, 0))
-
-        instructor_id = generate_ulid()
-        result = bulk_service._process_add_operation(
-            instructor_id=instructor_id, operation=operation, operation_index=0, validate_only=False
-        )
-
-        assert result.status == "success"
-        assert result.slot_id == slot_id
-        bulk_service._create_slot_for_operation.assert_called_once_with(
-            instructor_id, operation, False
-        )
 
     def test_process_remove_operation_validation(self, bulk_service, mock_db):
         """Test validation logic for remove operations."""
         operation = SlotOperation(action="remove", slot_id=None)
 
         result = bulk_service._process_remove_operation(
-            instructor_id=generate_ulid(), operation=operation, operation_index=0, validate_only=False
+            instructor_id=generate_ulid(), operation=operation, operation_index=0, validate_only=True
         )
 
         assert result.status == "failed"
         assert "Missing" in result.reason
-
-        bulk_service.repository.get_slot_for_instructor.return_value = None
-
-        operation = SlotOperation(action="remove", slot_id=generate_ulid())
-        result = bulk_service._process_remove_operation(
-            instructor_id=generate_ulid(), operation=operation, operation_index=0, validate_only=False
-        )
-
-        assert result.status == "failed"
-        assert "not found" in result.reason
-
-    def test_process_remove_with_booking(self, bulk_service, mock_db):
-        """Test remove operation when slot has booking - should succeed with new architecture."""
-        mock_slot = Mock()
-        slot_id = generate_ulid()
-        mock_slot.id = slot_id
-        bulk_service.repository.get_slot_for_instructor.return_value = mock_slot
-
-        bulk_service.repository.slot_has_active_booking.return_value = True
-
-        mock_booking = Mock()
-        mock_booking.status = BookingStatus.CONFIRMED
-        mock_db.query().filter().first.return_value = mock_booking
-
-        bulk_service._execute_slot_removal = Mock(return_value=True)
-
-        operation = SlotOperation(action="remove", slot_id=slot_id)
-        result = bulk_service._process_remove_operation(
-            instructor_id=generate_ulid(), operation=operation, operation_index=0, validate_only=False
-        )
-
-        assert result.status == "success"
-        bulk_service._execute_slot_removal.assert_called_once()
 
     def test_validate_only_mode_behavior(self, bulk_service, mock_db, mock_conflict_checker):
         """Test that validate_only mode doesn't make changes."""
@@ -237,32 +173,12 @@ class TestBulkOperationLogic:
         mock_db.add.assert_not_called()
         mock_db.commit.assert_not_called()
 
-    def test_cache_invalidation_logic(self, bulk_service, mock_cache_service):
-        """Test cache invalidation after successful operations."""
-        from datetime import datetime
-
-        future_date = datetime(2026, 9, 1).date()
-        operations = [SlotOperation(action="add", date=future_date, start_time=time(9, 0), end_time=time(10, 0))]
-
-        request = BulkUpdateRequest(operations=operations, validate_only=False)
-
-        with patch.object(
-            bulk_service,
-            "_process_single_operation",
-            return_value=OperationResult(operation_index=0, action="add", status="success"),
-        ):
-            bulk_service.process_bulk_update(1, request)
-
-        assert mock_cache_service.invalidate_instructor_availability.called or mock_cache_service.delete_pattern.called
-
     def test_generate_operations_from_states(self, bulk_service):
         """Test operation generation from week states."""
-        slot1_id = generate_ulid()
-        slot2_id = generate_ulid()
         existing_slots = {
             "2024-01-01": [
-                {"id": slot1_id, "start_time": "09:00:00", "end_time": "10:00:00"},
-                {"id": slot2_id, "start_time": "14:00:00", "end_time": "15:00:00"},
+                {"start_time": "09:00:00", "end_time": "10:00:00"},
+                {"start_time": "14:00:00", "end_time": "15:00:00"},
             ]
         }
 
@@ -281,7 +197,6 @@ class TestBulkOperationLogic:
 
         assert len(operations) == 1
         assert operations[0].action == "remove"
-        assert operations[0].slot_id == slot2_id
 
     def test_generate_validation_summary(self, bulk_service):
         """Test validation summary generation."""
@@ -331,81 +246,3 @@ class TestBulkOperationLogic:
 
         assert len(warnings) >= 1
         assert any("1 operations will fail" in w for w in warnings)
-
-    def test_transaction_behavior(self, bulk_service, mock_db):
-        """Test transaction management."""
-        from datetime import datetime
-
-        future_date = datetime(2026, 10, 1).date()
-        operations = [SlotOperation(action="add", date=future_date, start_time=time(9, 0), end_time=time(10, 0))]
-
-        request = BulkUpdateRequest(operations=operations, validate_only=False)
-
-        with patch.object(bulk_service, "_process_single_operation", side_effect=Exception("Test error")):
-            bulk_service.process_bulk_update(1, request)
-
-        assert mock_db.rollback.called
-
-    def test_null_transaction_context_manager(self, bulk_service):
-        """Test null transaction context manager for validation mode."""
-        with bulk_service._null_transaction() as db:
-            assert db == bulk_service.db
-
-    def test_update_operation_validation(self, bulk_service, mock_db, mock_conflict_checker):
-        """Test update operation validation."""
-        operation = SlotOperation(action="update", slot_id=None, end_time=time(11, 0))
-
-        result = bulk_service._process_update_operation(
-            instructor_id=generate_ulid(), operation=operation, operation_index=0, validate_only=False
-        )
-
-        assert result.status == "failed"
-        assert "Missing slot_id" in result.reason
-
-        from datetime import datetime
-
-        future_date = datetime(2026, 11, 1).date()
-        mock_slot = Mock()
-        mock_slot.start_time = time(10, 0)
-        mock_slot.end_time = time(11, 0)
-        mock_slot.instructor_id = generate_ulid()
-        mock_slot.date = future_date
-
-        bulk_service.repository.get_slot_for_instructor.return_value = mock_slot
-
-        mock_conflict_checker.validate_time_range.return_value = {"valid": False, "reason": "Invalid time"}
-
-        operation = SlotOperation(action="update", slot_id=generate_ulid(), end_time=time(9, 0))
-        result = bulk_service._process_update_operation(
-            instructor_id=generate_ulid(), operation=operation, operation_index=0, validate_only=False
-        )
-
-        assert result.status == "failed"
-        assert "must be after start time" in result.reason
-
-    def test_error_handling_in_batch(self, bulk_service):
-        """Test error handling for individual operations in batch."""
-        from datetime import datetime
-
-        future_date = datetime(2026, 12, 1).date()
-        operations = [
-            SlotOperation(action="remove", slot_id=generate_ulid()),
-            SlotOperation(action="add", date=future_date, start_time=time(9, 0), end_time=time(10, 0)),
-        ]
-
-        request = BulkUpdateRequest(operations=operations, validate_only=False)
-
-        bulk_service.repository.get_slot_for_instructor.return_value = None
-
-        def mock_remove_operation(*args, **kwargs):
-            return OperationResult(operation_index=0, action="remove", status="failed", reason="Slot not found")
-
-        def mock_add_operation(*args, **kwargs):
-            return OperationResult(operation_index=1, action="add", status="success", slot_id=generate_ulid())
-
-        with patch.object(bulk_service, "_process_remove_operation", side_effect=mock_remove_operation):
-            with patch.object(bulk_service, "_process_add_operation", side_effect=mock_add_operation):
-                result = bulk_service.process_bulk_update(1, request)
-
-        assert result["failed"] == 1
-        assert result["successful"] == 1

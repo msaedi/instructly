@@ -628,10 +628,6 @@ class ReviewService(BaseService):
             return ReviewStatus.FLAGGED
         return ReviewStatus.PUBLISHED
 
-    def _bayesian(self, rating_sum: int, count: int) -> float:
-        # Backward-compatible wrapper for simple shrinkage used in per-service breakdown.
-        return float(compute_simple_shrinkage(rating_sum, count))
-
     def _compute_dirichlet_rating(self, instructor_id: str) -> RatingComputation:
         """Compute overall rating using a Dirichlet prior with recency weighting.
 

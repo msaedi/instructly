@@ -591,7 +591,6 @@ def test_review_service_helpers(db, test_booking):
     assert service._moderate_text("") == service._moderate_text(None)
     assert service._moderate_text("aa") != service._moderate_text("valid text")
     assert service._moderate_text("a" * 10) != service._moderate_text("valid text")
-    assert service._bayesian(10, 2) > 0
     assert service._dirichlet_prior_mean() > 0
     assert service._confidence(1) == "new"
     assert service._confidence(10) == "establishing"

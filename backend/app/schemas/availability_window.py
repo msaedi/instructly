@@ -323,10 +323,6 @@ class AvailabilityWindowBulkUpdateRequest(StrictRequestModel):
     validate_only: bool = Field(False, description="If true, only validate without making changes")
 
 
-# Backward-compatible alias for existing imports.
-BulkUpdateRequest = AvailabilityWindowBulkUpdateRequest
-
-
 class OperationResult(BaseModel):
     """Result of a single operation in bulk update."""
 

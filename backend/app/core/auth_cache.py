@@ -141,7 +141,7 @@ def invalidate_cached_user_by_id_sync(user_id: str, db_session: Any) -> bool:
 
     Args:
         user_id: User's ULID
-        db_session: Unused; kept for backward-compatible call signatures
+        db_session: Unused; retained for caller convention
 
     Returns:
         True if cache was invalidated, False otherwise
@@ -268,11 +268,6 @@ def _sync_user_lookup_by_id(user_id: str) -> Optional[Dict[str, Any]]:
     finally:
         db.rollback()
         db.close()
-
-
-async def lookup_user_nonblocking(user_identifier: str) -> Optional[Dict[str, Any]]:
-    """Backward-compatible alias for ULID-based non-blocking user lookup."""
-    return await lookup_user_by_id_nonblocking(user_identifier)
 
 
 async def lookup_user_by_id_nonblocking(user_id: str) -> Optional[Dict[str, Any]]:

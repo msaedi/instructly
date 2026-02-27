@@ -260,55 +260,6 @@ def test_user_to_dict_includes_tokens_valid_after_ts():
 
 
 @pytest.mark.asyncio
-async def test_lookup_user_nonblocking_cache_hit_and_miss(monkeypatch):
-    async def fake_get_cached(_user_id):
-        return {"id": "cached"}
-
-    async def fake_set_cached(_user_id, _data):
-        raise AssertionError("set_cached_user should not be called")
-
-    monkeypatch.setattr(auth_cache, "get_cached_user", fake_get_cached)
-    monkeypatch.setattr(auth_cache, "set_cached_user", fake_set_cached)
-
-    cached = await auth_cache.lookup_user_nonblocking("01ARZ3NDEKTSV4RRFFQ69G5FAV")
-    assert cached == {"id": "cached"}
-
-    async def fake_get_cached_miss(_user_id):
-        return None
-
-    async def fake_set_cached_ok(_user_id, _data):
-        return None
-
-    async def fake_to_thread(func, *args, **kwargs):
-        return {"id": "db"}
-
-    monkeypatch.setattr(auth_cache, "get_cached_user", fake_get_cached_miss)
-    monkeypatch.setattr(auth_cache, "set_cached_user", fake_set_cached_ok)
-    monkeypatch.setattr(asyncio, "to_thread", fake_to_thread)
-
-    result = await auth_cache.lookup_user_nonblocking("01ARZ3NDEKTSV4RRFFQ69G5FAV")
-    assert result == {"id": "db"}
-
-
-@pytest.mark.asyncio
-async def test_lookup_user_nonblocking_no_user(monkeypatch):
-    async def fake_get_cached(_user_id):
-        return None
-
-    async def fake_set_cached(_user_id, _data):
-        raise AssertionError("set_cached_user should not be called")
-
-    async def fake_to_thread(func, *args, **kwargs):
-        return None
-
-    monkeypatch.setattr(auth_cache, "get_cached_user", fake_get_cached)
-    monkeypatch.setattr(auth_cache, "set_cached_user", fake_set_cached)
-    monkeypatch.setattr(asyncio, "to_thread", fake_to_thread)
-
-    assert await auth_cache.lookup_user_nonblocking("01ARZ3NDEKTSV4RRFFQ69G5FAV") is None
-
-
-@pytest.mark.asyncio
 async def test_lookup_user_by_id_nonblocking(monkeypatch):
     async def fake_get_cached(_identifier):
         return None
@@ -325,18 +276,6 @@ async def test_lookup_user_by_id_nonblocking(monkeypatch):
     result = await auth_cache.lookup_user_by_id_nonblocking("user1")
     assert result == {"id": "user1"}
 
-
-@pytest.mark.asyncio
-async def test_lookup_user_nonblocking_is_ulid_alias(monkeypatch):
-    expected = {"id": "01ARZ3NDEKTSV4RRFFQ69G5FAV"}
-
-    async def fake_lookup(_user_id):
-        return expected
-
-    monkeypatch.setattr(auth_cache, "lookup_user_by_id_nonblocking", fake_lookup)
-
-    result = await auth_cache.lookup_user_nonblocking("01ARZ3NDEKTSV4RRFFQ69G5FAV")
-    assert result == expected
 
 
 def test_create_transient_user_and_permissions():
