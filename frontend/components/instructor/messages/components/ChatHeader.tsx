@@ -194,6 +194,7 @@ export function ChatHeader({
               <button
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 onClick={() => setShowThreadMenu((v) => !v)}
+                aria-label="More options"
                 aria-expanded={showThreadMenu}
                 aria-haspopup="menu"
               >

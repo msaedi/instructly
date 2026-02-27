@@ -25,6 +25,7 @@ describe('MessageInput', () => {
       render(<MessageInput {...defaultProps} />);
 
       expect(screen.getByPlaceholderText('Type your message...')).toBeInTheDocument();
+      expect(screen.getByLabelText('Type a message')).toBeInTheDocument();
     });
 
     it('renders attachment button', () => {
@@ -36,7 +37,7 @@ describe('MessageInput', () => {
     it('renders send button', () => {
       render(<MessageInput {...defaultProps} />);
 
-      const sendButton = screen.getByRole('button', { name: '' });
+      const sendButton = screen.getByRole('button', { name: /send message/i });
       expect(sendButton).toBeInTheDocument();
     });
 
@@ -192,6 +193,7 @@ describe('MessageInput', () => {
 
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
       expect(fileInput).toHaveAttribute('multiple');
+      expect(fileInput).toHaveAttribute('aria-label', 'Attach file');
     });
 
     it('hides the file input element', () => {

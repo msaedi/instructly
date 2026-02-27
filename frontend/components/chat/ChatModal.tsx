@@ -10,7 +10,7 @@
  * Handles proper focus management and accessibility.
  */
 
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Chat } from './Chat';
@@ -34,6 +34,15 @@ interface ChatModalProps {
   isReadOnly?: boolean;
 }
 
+const FOCUSABLE_SELECTOR = [
+  'button:not([disabled])',
+  'a[href]',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(', ');
+
 export function ChatModal({
   isOpen,
   onClose,
@@ -47,30 +56,100 @@ export function ChatModal({
   lessonDate,
   isReadOnly = false,
 }: ChatModalProps) {
-  // Handle escape key and mounting
+  const modalRef = useRef<HTMLDivElement | null>(null);
+  const previousActiveElementRef = useRef<HTMLElement | null>(null);
+
+  const getFocusableElements = useCallback((): HTMLElement[] => {
+    if (!modalRef.current) return [];
+    const elements = Array.from(modalRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+    return elements.filter((element) => {
+      if (element.getAttribute('aria-hidden') === 'true') return false;
+      if (element.hasAttribute('hidden')) return false;
+      if (element.tabIndex < 0) return false;
+      if (element instanceof HTMLButtonElement && element.disabled) return false;
+      if (element instanceof HTMLInputElement && element.disabled) return false;
+      if (element instanceof HTMLSelectElement && element.disabled) return false;
+      if (element instanceof HTMLTextAreaElement && element.disabled) return false;
+      return true;
+    });
+  }, []);
+
+  // Handle keyboard and focus management
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
+    if (!isOpen) return;
+
+    previousActiveElementRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const focusableElements = getFocusableElements();
+    const firstFocusableElement = focusableElements[0];
+    if (firstFocusableElement) {
+      firstFocusableElement.focus();
+    } else {
+      modalRef.current?.focus();
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        e.preventDefault();
         onClose();
+        return;
+      }
+
+      if (e.key !== 'Tab') return;
+
+      const modalElement = modalRef.current;
+      if (!modalElement) return;
+
+      const currentFocusableElements = getFocusableElements();
+      if (!currentFocusableElements.length) {
+        e.preventDefault();
+        modalElement.focus();
+        return;
+      }
+
+      const firstElement = currentFocusableElements[0];
+      const lastElement = currentFocusableElements[currentFocusableElements.length - 1];
+      const activeElement = document.activeElement as HTMLElement | null;
+
+      if (!activeElement || !modalElement.contains(activeElement)) {
+        e.preventDefault();
+        (e.shiftKey ? lastElement : firstElement)?.focus();
+        return;
+      }
+
+      if (e.shiftKey && activeElement === firstElement) {
+        e.preventDefault();
+        lastElement?.focus();
+        return;
+      }
+
+      if (!e.shiftKey && activeElement === lastElement) {
+        e.preventDefault();
+        firstElement?.focus();
       }
     };
 
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      // Prevent body scroll on mobile
-      document.body.style.overflow = 'hidden';
-
-      return () => {
-        document.removeEventListener('keydown', handleEscape);
-        document.body.style.overflow = '';
-      };
-    }
+    document.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = '';
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = originalOverflow;
+
+      const previousActiveElement = previousActiveElementRef.current;
+      if (
+        previousActiveElement &&
+        document.contains(previousActiveElement) &&
+        typeof previousActiveElement.focus === 'function'
+      ) {
+        previousActiveElement.focus();
+      }
     };
-  }, [isOpen, onClose]);
+  }, [getFocusableElements, isOpen, onClose]);
 
   const { data: conversationData, isLoading: isLoadingConversation } = useQuery({
     queryKey: ['conversation-for-instructor', instructorId],
@@ -105,6 +184,7 @@ export function ChatModal({
 
       {/* Modal/Drawer */}
       <div
+        ref={modalRef}
         className={cn(
           'fixed z-50 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 shadow-2xl transition-all border border-gray-300 overflow-hidden flex h-full flex-col',
           'dark:bg-gray-900/90 dark:supports-[backdrop-filter]:bg-gray-900/75 dark:border-gray-600 dark:shadow-xl',
@@ -119,6 +199,7 @@ export function ChatModal({
         role="dialog"
         aria-modal="true"
         aria-label="Chat"
+        tabIndex={-1}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-200 px-4 pt-5 pb-3 sm:px-6 sm:pt-6 sm:pb-4 dark:border-gray-800 pt-[max(env(safe-area-inset-top),theme(spacing.5))] bg-[#EDE7F6]">

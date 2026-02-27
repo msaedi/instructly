@@ -108,6 +108,7 @@ export function MessageInput({
           type="file"
           multiple
           className="hidden"
+          aria-label="Attach file"
           onChange={(event) => {
             onAttachmentAdd(event.target.files);
             if (event.target.value) event.target.value = '';
@@ -117,6 +118,7 @@ export function MessageInput({
           value={messageText}
           onChange={(e) => onMessageChange(e.target.value)}
           onKeyPress={onKeyPress}
+          aria-label="Type a message"
           placeholder="Type your message..."
           className="flex-1 resize-none border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500 min-h-[2.5rem]"
           rows={1}
@@ -125,6 +127,7 @@ export function MessageInput({
           type="button"
           onClick={onSend}
           disabled={isSendDisabled}
+          aria-label="Send message"
           className="h-10 w-10 flex items-center justify-center bg-[#7E22CE] text-white rounded-full hover:bg-[#5f1aa4] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           <Send className="w-4 h-4" />

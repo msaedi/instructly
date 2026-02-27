@@ -6,7 +6,12 @@ import { ChatModal } from '../ChatModal';
 // Mock the Chat component to avoid its complex dependencies
 jest.mock('../Chat', () => ({
   Chat: function MockChat(_props: { onClose?: () => void }) {
-    return <div data-testid="mock-chat">Mock Chat Component</div>;
+    return (
+      <div data-testid="mock-chat">
+        Mock Chat Component
+        <button type="button" data-testid="mock-chat-action">Chat action</button>
+      </div>
+    );
   },
 }));
 
@@ -69,6 +74,16 @@ describe('ChatModal', () => {
 
     expect(screen.getByText('Chat with Student A')).toBeInTheDocument();
     expect(screen.getByTestId('mock-chat')).toBeInTheDocument();
+  });
+
+  it('moves initial focus to first focusable element in modal', () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ChatModal {...baseProps} />
+      </QueryClientProvider>
+    );
+
+    expect(screen.getByLabelText('Close chat')).toHaveFocus();
   });
 
   it('does not render when isOpen is false', () => {
@@ -264,6 +279,64 @@ describe('ChatModal', () => {
     fireEvent.keyDown(document, { key: 'Space' });
 
     expect(baseProps.onClose).not.toHaveBeenCalled();
+  });
+
+  it('wraps focus from last to first on Tab', () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ChatModal {...baseProps} />
+      </QueryClientProvider>
+    );
+
+    const closeButton = screen.getByLabelText('Close chat');
+    const chatActionButton = screen.getByTestId('mock-chat-action');
+
+    chatActionButton.focus();
+    fireEvent.keyDown(document, { key: 'Tab' });
+
+    expect(closeButton).toHaveFocus();
+  });
+
+  it('wraps focus from first to last on Shift+Tab', () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ChatModal {...baseProps} />
+      </QueryClientProvider>
+    );
+
+    const closeButton = screen.getByLabelText('Close chat');
+    const chatActionButton = screen.getByTestId('mock-chat-action');
+
+    closeButton.focus();
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+
+    expect(chatActionButton).toHaveFocus();
+  });
+
+  it('returns focus to trigger element when modal closes', () => {
+    const trigger = document.createElement('button');
+    trigger.textContent = 'Open chat';
+    document.body.appendChild(trigger);
+    trigger.focus();
+
+    const onClose = jest.fn();
+    const { rerender } = render(
+      <QueryClientProvider client={queryClient}>
+        <ChatModal {...baseProps} onClose={onClose} />
+      </QueryClientProvider>
+    );
+
+    fireEvent.click(screen.getByLabelText('Close chat'));
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <ChatModal {...baseProps} isOpen={false} onClose={onClose} />
+      </QueryClientProvider>
+    );
+
+    expect(trigger).toHaveFocus();
+    trigger.remove();
   });
 
   it('adds and removes keydown event listener correctly', () => {

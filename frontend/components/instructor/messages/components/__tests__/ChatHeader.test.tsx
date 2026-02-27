@@ -103,6 +103,12 @@ describe('ChatHeader', () => {
       expect(menuButton).toBeInTheDocument();
     });
 
+    it('provides accessible label for menu button', () => {
+      render(<ChatHeader {...defaultProps} />);
+
+      expect(screen.getByRole('button', { name: /more options/i })).toBeInTheDocument();
+    });
+
     it('toggles menu on button click', () => {
       render(<ChatHeader {...defaultProps} />);
 
