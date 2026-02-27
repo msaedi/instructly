@@ -144,9 +144,6 @@ export const UI_CONFIG = {
  * API Configuration
  */
 export const API_CONFIG = {
-  /** Maximum operations per bulk update */
-  MAX_BULK_OPERATIONS: 100,
-
   /** Retry attempts for failed requests */
   MAX_RETRIES: 3,
 

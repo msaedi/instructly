@@ -65,7 +65,7 @@ export type MessageWithAttachments = MessageItem & {
 
 /**
  * Booking info for conversation context (Phase 4)
- * Re-exported from @/types/conversation for backwards compatibility
+ * Re-exported from @/types/conversation
  */
 export type ConversationBooking = BookingSummary;
 

@@ -3,7 +3,7 @@
 Pydantic schemas for InstaInstru platform.
 
 Clean Architecture: Exports only schemas that match our new architecture.
-No legacy patterns, no dead code, no backward compatibility.
+Clean architecture with no dead code.
 """
 
 # Availability schemas - Bitmap-only storage now
@@ -14,11 +14,8 @@ from .availability_window import (
     ApplyToDateRangeRequest,
     AvailabilityWindowBase,
     AvailabilityWindowResponse,
-    AvailabilityWindowUpdate,
     BlackoutDateCreate,
     BlackoutDateResponse,
-    BulkUpdateRequest,
-    BulkUpdateResponse,
     CopyWeekRequest,
     OperationResult,
     SlotOperation,
@@ -41,13 +38,13 @@ from .booking import (
     BookingListResponse,
     BookingOpportunity,
     BookingResponse,
+    BookingServiceInfo,
     BookingStatsResponse,
     BookingStatus,
     BookingUpdate,
     FindBookingOpportunitiesRequest,
     FindBookingOpportunitiesResponse,
     InstructorInfo,
-    ServiceInfo,
     StudentInfo,
     UpcomingBookingResponse,
 )
@@ -138,7 +135,6 @@ __all__ = [
     "ServiceResponse",
     # Availability window schemas - Date operations (bitmap-only storage)
     "AvailabilityWindowBase",
-    "AvailabilityWindowUpdate",
     "AvailabilityWindowResponse",
     "SpecificDateAvailabilityCreate",
     "WeekSpecificScheduleCreate",
@@ -148,8 +144,6 @@ __all__ = [
     "ApplyToDateRangeRequest",
     "TimeSlot",
     "SlotOperation",
-    "BulkUpdateRequest",
-    "BulkUpdateResponse",
     "OperationResult",
     "ValidateWeekRequest",
     "WeekValidationResponse",
@@ -168,7 +162,7 @@ __all__ = [
     "BookingListResponse",
     "StudentInfo",
     "InstructorInfo",
-    "ServiceInfo",
+    "BookingServiceInfo",
     "AvailabilityCheckRequest",
     "AvailabilityCheckResponse",
     "BookingStatsResponse",

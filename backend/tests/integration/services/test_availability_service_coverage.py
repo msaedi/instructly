@@ -1507,7 +1507,9 @@ class TestWeekAvailabilityCacheCoverage:
             test_instructor.id, monday, use_cache=True
         )
         assert monday.isoformat() in result.week_map
-        assert result.windows == []
+        # Windows are derived from week_map entries
+        assert len(result.windows) == 1
+        assert result.windows[0][0] == monday
 
     def test_get_week_availability_cache_map_hit(
         self, db: Session, test_instructor: User, memory_cache: MemoryCache

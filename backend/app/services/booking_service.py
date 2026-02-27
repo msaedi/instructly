@@ -482,44 +482,16 @@ class BookingService(BaseService):
         return start_utc, end_utc
 
     def _get_booking_start_utc(self, booking: Booking) -> datetime:
-        """Get booking start time in UTC, handling legacy bookings."""
-        booking_start_utc = getattr(booking, "booking_start_utc", None)
-        if isinstance(booking_start_utc, datetime):
-            return booking_start_utc
-
-        lesson_tz = booking.lesson_timezone or booking.instructor_tz_at_booking
-        if not lesson_tz and booking.instructor:
-            lesson_tz = getattr(booking.instructor, "timezone", None)
-        lesson_tz = lesson_tz or TimezoneService.DEFAULT_TIMEZONE
-        start_utc: datetime = TimezoneService.local_to_utc(
-            booking.booking_date,
-            booking.start_time,
-            lesson_tz,
-        )
-        return start_utc
+        """Get booking start time in UTC."""
+        if booking.booking_start_utc is None:
+            raise ValueError(f"Booking {booking.id} missing booking_start_utc")
+        return cast(datetime, booking.booking_start_utc)
 
     def _get_booking_end_utc(self, booking: Booking) -> datetime:
-        """Get booking end time in UTC, handling legacy bookings."""
-        booking_end_utc = getattr(booking, "booking_end_utc", None)
-        if isinstance(booking_end_utc, datetime):
-            return booking_end_utc
-
-        lesson_tz = booking.lesson_timezone or booking.instructor_tz_at_booking
-        if not lesson_tz and booking.instructor:
-            lesson_tz = getattr(booking.instructor, "timezone", None)
-        lesson_tz = lesson_tz or TimezoneService.DEFAULT_TIMEZONE
-
-        end_date = self._resolve_end_date(  # tz-pattern-ok: legacy end-date resolution
-            booking.booking_date,
-            booking.start_time,
-            booking.end_time,  # tz-pattern-ok: legacy end-date resolution
-        )
-        end_utc: datetime = TimezoneService.local_to_utc(
-            end_date,
-            booking.end_time,
-            lesson_tz,
-        )
-        return end_utc
+        """Get booking end time in UTC."""
+        if booking.booking_end_utc is None:
+            raise ValueError(f"Booking {booking.id} missing booking_end_utc")
+        return cast(datetime, booking.booking_end_utc)
 
     def _validate_against_availability_bits(
         self,
@@ -2284,7 +2256,7 @@ class BookingService(BaseService):
             if payout_full_cents is None:
                 pricing_service = PricingService(self.db)
                 pricing = pricing_service.compute_booking_pricing(
-                    booking_id=locked_booking.id, applied_credit_cents=0, persist=False
+                    booking_id=locked_booking.id, applied_credit_cents=0
                 )
                 payout_full_cents = int(pricing.get("target_instructor_payout_cents", 0))
 
@@ -5268,7 +5240,7 @@ class BookingService(BaseService):
         detailed_booking = self.repository.get_booking_with_details(booking.id)
 
         pricing_service = PricingService(self.db)
-        pricing_service.compute_booking_pricing(booking.id, applied_credit_cents=0, persist=False)
+        pricing_service.compute_booking_pricing(booking.id, applied_credit_cents=0)
 
         if detailed_booking is not None:
             return detailed_booking
@@ -5787,7 +5759,6 @@ class BookingService(BaseService):
         pricing_data: PricingPreviewData = pricing_service.compute_booking_pricing(
             booking_id,
             applied_credit_cents,
-            False,
         )
         return dict(pricing_data)
 

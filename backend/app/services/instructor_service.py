@@ -128,9 +128,7 @@ class InstructorService(BaseService):
             NotFoundException: If profile not found
         """
         # Use optimized repository method that eager loads relationships
-        profile = self.profile_repository.get_by_user_id_with_details(
-            user_id=user_id, include_inactive_services=include_inactive_services
-        )
+        profile = self.profile_repository.get_by_user_id_with_details(user_id=user_id)
 
         if not profile:
             raise NotFoundException("Instructor profile not found")
@@ -191,7 +189,6 @@ class InstructorService(BaseService):
         profiles = self.profile_repository.get_all_with_details(
             skip=skip,
             limit=limit,
-            include_inactive_services=False,  # Only active services
         )
 
         # Convert to dictionaries - no additional queries needed since everything is loaded
@@ -1988,7 +1985,6 @@ class InstructorService(BaseService):
                     "is_active": service.is_active,
                     # Analytics data
                     "active_instructors": active_instructors,
-                    "instructor_count": active_instructors,  # Alias for frontend compatibility
                     "demand_score": analytics.demand_score if analytics else 0,
                     "is_trending": analytics.is_trending if analytics else False,
                     # Store original display order for secondary sorting

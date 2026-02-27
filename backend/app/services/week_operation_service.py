@@ -284,7 +284,7 @@ class WeekOperationService(BaseService):
             date_range=f"{start_date} to {end_date}",
         )
 
-        # Bitmap-only path - no legacy fallback
+        # Bitmap path
         return await self._apply_pattern_to_date_range_bitmap(
             instructor_id=instructor_id,
             from_week_start=from_week_start,
@@ -333,24 +333,6 @@ class WeekOperationService(BaseService):
             self.logger.warning(f"Source week start {from_week_start} is not a Monday")
         if to_week_start.weekday() != 0:
             self.logger.warning(f"Target week start {to_week_start} is not a Monday")
-
-    def _clear_week_slots(self, instructor_id: str, week_dates: List[date]) -> int:
-        """DEPRECATED: Slot-based method removed. Use bitmap operations only."""
-        raise NotImplementedError(
-            "Slot-based operations removed. All availability operations must use bitmap storage."
-        )
-
-    def _copy_slots_between_weeks(
-        self,
-        instructor_id: str,
-        from_week_start: date,
-        to_week_start: date,
-        existing_target_slots: Optional[List[dict[str, Any]]] = None,
-    ) -> int:
-        """DEPRECATED: Slot-based method removed. Use bitmap operations only."""
-        raise NotImplementedError(
-            "Slot-based operations removed. All availability operations must use bitmap storage."
-        )
 
     def _enqueue_week_copy_event(
         self,
@@ -478,8 +460,7 @@ class WeekOperationService(BaseService):
         payload: dict[str, Any] = {
             "week_start": target_week_start.isoformat(),
             "source_week_start": source_week_start.isoformat(),
-            "slot_counts": counts,  # Legacy field - kept for backward compatibility
-            "window_counts": counts,  # Bitmap-era field - preferred going forward
+            "window_counts": counts,
             "version": self.availability_service.compute_week_version(
                 instructor_id, target_week_start, week_end
             ),
@@ -749,24 +730,6 @@ class WeekOperationService(BaseService):
             all_dates.append(current_date)
             current_date += timedelta(days=1)
         return all_dates
-
-    def _clear_date_range_slots(self, instructor_id: str, dates: List[date]) -> int:
-        """DEPRECATED: Slot-based method removed. Use bitmap operations only."""
-        raise NotImplementedError(
-            "Slot-based operations removed. All availability operations must use bitmap storage."
-        )
-
-    def _apply_pattern_to_dates(
-        self,
-        instructor_id: str,
-        week_pattern: Dict[str, List[Dict[str, Any]]],
-        start_date: date,
-        end_date: date,
-    ) -> Tuple[int, int]:
-        """DEPRECATED: Slot-based method removed. Use bitmap operations only."""
-        raise NotImplementedError(
-            "Slot-based operations removed. All availability operations must use bitmap storage."
-        )
 
     async def _warm_cache_for_affected_weeks(
         self, instructor_id: str, start_date: date, end_date: date

@@ -34,7 +34,6 @@ export interface SSENotificationUpdateEvent {
 export interface SSEMessageEvent {
   type: 'new_message';
   conversation_id: string; // PRIMARY key for SSE routing (Phase 7)
-  booking_id?: string; // Optional context for which booking this message is about
   is_mine: boolean;
   message: {
     id: string;

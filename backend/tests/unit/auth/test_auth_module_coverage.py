@@ -442,7 +442,7 @@ class TestGetCurrentUser:
         """L452-458: cookie-based auth when no Authorization header."""
         monkeypatch.setenv("SITE_MODE", "local")
         token = create_access_token({"sub": "user_01ABC"})
-        request = _make_request(cookies={"access_token": token})
+        request = _make_request(cookies={"sid": token})
 
         with patch("app.auth._enforce_revocation_and_user_invalidation", new_callable=AsyncMock):
             user_id = await get_current_user(request, token=None)
@@ -546,7 +546,7 @@ class TestGetCurrentUserOptional:
         """L522: optional auth falls back to cookie."""
         monkeypatch.setenv("SITE_MODE", "local")
         token = create_access_token({"sub": "user_01ABC"})
-        request = _make_request(cookies={"access_token": token})
+        request = _make_request(cookies={"sid": token})
 
         with patch("app.auth._enforce_revocation_and_user_invalidation", new_callable=AsyncMock):
             result = await get_current_user_optional(request, token=None)

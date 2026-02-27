@@ -8,7 +8,6 @@ import pytest
 from app.schemas.availability_window import (
     ApplyToDateRangeRequest,
     AvailabilityWindowBase,
-    AvailabilityWindowUpdate,
     CopyWeekRequest,
     SlotOperation,
     SpecificDateAvailabilityCreate,
@@ -29,14 +28,6 @@ def test_specific_date_availability_rejects_end_before_start():
             end_time=dt.time(9, 0),
             specific_date=dt.date(2026, 2, 10),
         )
-
-
-def test_availability_window_update_validates_optional_and_order():
-    payload = AvailabilityWindowUpdate(start_time=dt.time(10, 0), end_time=None)
-    assert payload.end_time is None
-
-    with pytest.raises(ValidationError):
-        AvailabilityWindowUpdate(start_time=dt.time(10, 0), end_time=dt.time(9, 0))
 
 
 def test_time_range_rejects_end_before_start():

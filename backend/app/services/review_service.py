@@ -628,10 +628,6 @@ class ReviewService(BaseService):
             return ReviewStatus.FLAGGED
         return ReviewStatus.PUBLISHED
 
-    def _bayesian(self, rating_sum: int, count: int) -> float:
-        # Backward-compatible wrapper for simple shrinkage used in per-service breakdown.
-        return float(compute_simple_shrinkage(rating_sum, count))
-
     def _compute_dirichlet_rating(self, instructor_id: str) -> RatingComputation:
         """Compute overall rating using a Dirichlet prior with recency weighting.
 
@@ -714,10 +710,6 @@ class ReviewService(BaseService):
             return
         try:
             # Specific keys only; caller may manage a set to expand if needed
-            # Legacy keys
-            self.cache.delete(f"ratings:instructor:{instructor_id}")
-            self.cache.delete(f"ratings:search:{instructor_id}:all")
-            # Versioned keys
             self.cache.delete(f"ratings:{self.CACHE_VERSION}:instructor:{instructor_id}")
             self.cache.delete(f"ratings:search:{self.CACHE_VERSION}:{instructor_id}:all")
         except Exception:

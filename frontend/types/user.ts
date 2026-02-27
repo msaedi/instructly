@@ -56,7 +56,7 @@ export interface User {
   zipCode?: string;
 
   /** User role (student or instructor) */
-  role: UserRole | string; // string for backward compatibility
+  role: UserRole | string; // string union for flexible API parsing
 
   /** Account creation timestamp */
   created_at?: string;
@@ -138,7 +138,7 @@ export function isValidUserRole(role: string): role is UserRole {
  * @returns boolean indicating if user is an instructor
  */
 export function isInstructorUser(user: User | UserData): boolean {
-  // Legacy check for backward compatibility
+  // Role-based check
   if ('role' in user && user.role) {
     return user.role === UserRole.INSTRUCTOR || user.role === 'instructor';
   }
@@ -156,7 +156,7 @@ export function isInstructorUser(user: User | UserData): boolean {
  * @returns boolean indicating if user is a student
  */
 export function isStudentUser(user: User | UserData): boolean {
-  // Legacy check for backward compatibility
+  // Role-based check
   if ('role' in user && user.role) {
     return user.role === UserRole.STUDENT || user.role === 'student';
   }

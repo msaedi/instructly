@@ -11,16 +11,6 @@ MAX_SESSION_DURATION = 240  # minutes (4 hours)
 # SSE (Server-Sent Events) configuration
 SSE_PATH_PREFIX = "/api/v1/messages/stream"  # Centralized SSE path for middleware (v1)
 
-# The following constants are DEPRECATED and will be removed
-# They were part of the old booking system
-# DEFAULT_SESSION_DURATION = 60  # DEPRECATED - moved to service level
-# MIN_BUFFER_TIME = 0  # DEPRECATED - will be in booking v2
-# MAX_BUFFER_TIME = 120  # DEPRECATED - will be in booking v2
-# DEFAULT_BUFFER_TIME = 0  # DEPRECATED - will be in booking v2
-# MIN_ADVANCE_BOOKING = 0  # DEPRECATED - will be in booking v2
-# MAX_ADVANCE_BOOKING = 168  # DEPRECATED - will be in booking v2
-# DEFAULT_ADVANCE_BOOKING = 2  # DEPRECATED - will be in booking v2
-
 # Text constraints
 MIN_BIO_LENGTH = 10
 MAX_BIO_LENGTH = 1000
@@ -90,7 +80,7 @@ BRAND_TAGLINE = "Book Expert Instructors Instantly"
 BRAND_DOMAIN = "instainstru.com"
 SUPPORT_EMAIL = "support@instainstru.com"
 MONITORING_EMAIL = "iNSTAiNSTRU Alerts <alerts@instainstru.com>"
-NOREPLY_EMAIL = "iNSTAiNSTRU <hello@instainstru.com>"  # Keep for backward compatibility
+NOREPLY_EMAIL = "iNSTAiNSTRU <hello@instainstru.com>"
 
 # API Documentation
 API_TITLE = f"{BRAND_NAME} API"

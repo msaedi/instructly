@@ -44,8 +44,6 @@ from ...services.referral_service import ReferralService
 from ...services.refund_service import RefundService
 from ...services.sms_service import SMSService
 from ...services.student_admin_service import StudentAdminService
-
-# SlotManager removed - bitmap-only storage now
 from ...services.two_factor_auth_service import TwoFactorAuthService
 from ...services.wallet_service import WalletService
 from ...services.week_operation_service import WeekOperationService
@@ -77,7 +75,7 @@ def get_cache_service_sync_singleton() -> CacheServiceSyncAdapter:
 
 
 def get_cache_service_sync_dep() -> CacheServiceSyncAdapter:
-    """Get sync cache service adapter for legacy sync services."""
+    """Get sync cache service adapter for sync services."""
     return get_cache_service_sync_singleton()
 
 
@@ -266,9 +264,6 @@ def get_conflict_checker(db: Session = Depends(get_db)) -> ConflictChecker:
     return ConflictChecker(db)
 
 
-# get_slot_manager removed - SlotManager service deleted (bitmap-only storage)
-
-
 def get_referral_service(db: Session = Depends(get_db)) -> ReferralService:
     """Provide referral service instance."""
 
@@ -388,9 +383,7 @@ def get_bulk_operation_service(
     Returns:
         BulkOperationService instance
     """
-    return BulkOperationService(
-        db, slot_manager=None, conflict_checker=conflict_checker, cache_service=cache_service
-    )
+    return BulkOperationService(db, conflict_checker=conflict_checker, cache_service=cache_service)
 
 
 def get_presentation_service(db: Session = Depends(get_db)) -> PresentationService:

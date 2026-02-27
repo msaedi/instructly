@@ -93,7 +93,6 @@ def build_new_message_event(
                 "message_type": message_type,
             },
             "conversation_id": conversation_id,
-            "booking_id": booking_id,  # Include for context/filtering
             "sender_id": sender_id,
             "recipient_ids": recipient_ids,
             "message_type": message_type,

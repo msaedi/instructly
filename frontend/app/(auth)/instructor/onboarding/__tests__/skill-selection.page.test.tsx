@@ -108,7 +108,6 @@ const SERVICES_RESPONSE = {
           eligible_age_groups: ['kids', 'teens', 'adults'],
           active_instructors: 2,
           demand_score: 10,
-          instructor_count: 2,
           is_trending: false,
           display_order: 1,
         },

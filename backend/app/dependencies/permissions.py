@@ -144,8 +144,7 @@ def require_role(role_name: str) -> PermissionDependency:
     """
     Create a dependency that requires a specific role.
 
-    This is a convenience function for backward compatibility and simple
-    role-based checks.
+    This is a convenience function for simple role-based checks.
 
     Args:
         role_name: The name of the role required

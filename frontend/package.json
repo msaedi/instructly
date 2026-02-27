@@ -10,8 +10,8 @@
   "scripts": {
     "audit:deps": "depcruise --config dependency-cruiser.config.cjs --ts-config tsconfig.json app components features hooks lib | jq '.'",
     "audit:deps:ci": "depcruise --config dependency-cruiser.config.cjs --ts-config tsconfig.json app components features hooks lib --output-type err",
-    "audit:exports": "ts-prune -p tsconfig.json -i \"(^\\.next/|^e2e/|^types/generated/|\\.d\\.ts$|^playwright\\.config\\.ts$|^next\\.config\\.ts$|^proxy\\.ts$|^app/|^components/|^hooks/|^legacy-patterns/)\" | grep -v 'used in module' | grep -v -f ts-prune-allowlist.txt || true",
-    "audit:exports:ci": "mkdir -p .artifacts && ts-prune -p tsconfig.json -i \"(^\\.next/|^e2e/|^types/generated/|\\.d\\.ts$|^playwright\\.config\\.ts$|^next\\.config\\.ts$|^proxy\\.ts$|^app/|^components/|^hooks/|^legacy-patterns/)\" | grep -v 'used in module' | grep -v -f ts-prune-allowlist.txt | tee .artifacts/ts-prune.txt; test ! -s .artifacts/ts-prune.txt",
+    "audit:exports": "ts-prune -p tsconfig.json -i \"(^\\.next/|^e2e/|^types/generated/|\\.d\\.ts$|^playwright\\.config\\.ts$|^next\\.config\\.ts$|^proxy\\.ts$|^app/|^components/|^hooks/)\" | grep -v 'used in module' | grep -v -f ts-prune-allowlist.txt || true",
+    "audit:exports:ci": "mkdir -p .artifacts && ts-prune -p tsconfig.json -i \"(^\\.next/|^e2e/|^types/generated/|\\.d\\.ts$|^playwright\\.config\\.ts$|^next\\.config\\.ts$|^proxy\\.ts$|^app/|^components/|^hooks/)\" | grep -v 'used in module' | grep -v -f ts-prune-allowlist.txt | tee .artifacts/ts-prune.txt; test ! -s .artifacts/ts-prune.txt",
     "dev": "next dev",
     "dev:test": "next dev -p 3100",
     "dev:http": "rm -rf .next && NEXT_PUBLIC_API_BASE=http://localhost:8000 next dev",

@@ -63,7 +63,7 @@ const SERVICES_WITH_SUPPLY = {
           name: 'Piano',
           subcategory_id: 'sub-piano',
           display_order: 1,
-          instructor_count: 5,
+          active_instructors: 5,
           eligible_age_groups: ['kids', 'adults'],
         },
         {
@@ -71,7 +71,7 @@ const SERVICES_WITH_SUPPLY = {
           name: 'Keyboard',
           subcategory_id: 'sub-piano',
           display_order: 2,
-          instructor_count: 4,
+          active_instructors: 4,
           eligible_age_groups: ['adults'],
         },
         {
@@ -79,7 +79,7 @@ const SERVICES_WITH_SUPPLY = {
           name: 'Music Theory',
           subcategory_id: 'sub-theory',
           display_order: 3,
-          instructor_count: 3,
+          active_instructors: 3,
           eligible_age_groups: ['adults'],
         },
         {
@@ -87,7 +87,7 @@ const SERVICES_WITH_SUPPLY = {
           name: 'Toddler Songs',
           subcategory_id: 'sub-kids-songs',
           display_order: 4,
-          instructor_count: 3,
+          active_instructors: 3,
           eligible_age_groups: ['kids'],
         },
         {
@@ -95,7 +95,7 @@ const SERVICES_WITH_SUPPLY = {
           name: 'Voice & Singing',
           subcategory_id: 'sub-voice',
           display_order: 5,
-          instructor_count: 0,
+          active_instructors: 0,
           eligible_age_groups: ['adults'],
         },
       ],
@@ -111,7 +111,7 @@ const SERVICES_WITH_SUPPLY = {
           name: 'Ballet',
           subcategory_id: 'sub-ballet',
           display_order: 1,
-          instructor_count: 2,
+          active_instructors: 2,
           eligible_age_groups: ['adults'],
         },
       ],
@@ -127,7 +127,7 @@ const SERVICES_WITH_SUPPLY = {
           name: 'Mommy & Me Swimming',
           subcategory_id: 'sub-mommy-me',
           display_order: 1,
-          instructor_count: 2,
+          active_instructors: 2,
           eligible_age_groups: ['kids'],
         },
       ],
@@ -297,7 +297,7 @@ describe('HomeCatalogCascade', () => {
       name: 'Ear Training',
       subcategory_id: 'sub-ear-training',
       display_order: 9,
-      instructor_count: 4,
+      active_instructors: 4,
     });
 
     useAllServicesWithInstructorsMock.mockReturnValue({ data: servicesData });
@@ -322,7 +322,7 @@ describe('HomeCatalogCascade', () => {
         name: 'Zither',
         subcategory_id: 'sub-unmapped',
         display_order: 11,
-        instructor_count: 3,
+        active_instructors: 3,
         eligible_age_groups: ['adults'],
       },
       {
@@ -330,7 +330,7 @@ describe('HomeCatalogCascade', () => {
         name: 'Alto Flute',
         subcategory_id: 'sub-unmapped',
         display_order: 11,
-        instructor_count: 3,
+        active_instructors: 3,
         eligible_age_groups: ['adults'],
       }
     );
@@ -366,7 +366,7 @@ describe('HomeCatalogCascade', () => {
                 name: 'Kids Choir',
                 subcategory_id: 'sub-kids-choir',
                 display_order: 1,
-                instructor_count: 4,
+                active_instructors: 4,
                 eligible_age_groups: ['kids'],
               },
             ],
@@ -406,7 +406,7 @@ describe('HomeCatalogCascade', () => {
                 name: 'Mystery Service',
                 subcategory_id: 'sub-mystery',
                 display_order: 1,
-                instructor_count: 3,
+                active_instructors: 3,
                 eligible_age_groups: ['adults'],
               },
             ],
@@ -448,7 +448,7 @@ describe('HomeCatalogCascade', () => {
                 name: 'Null Icon Service',
                 subcategory_id: 'sub-null-icon',
                 display_order: 1,
-                instructor_count: 2,
+                active_instructors: 2,
                 eligible_age_groups: ['adults'],
               },
             ],
@@ -492,7 +492,7 @@ describe('HomeCatalogCascade', () => {
     expect(screen.getByRole('button', { name: /tutoring & test prep/i })).toBeInTheDocument();
   });
 
-  it('uses active_instructors fallback when instructor_count is missing', async () => {
+  it('renders services when active_instructors is present', async () => {
     useServiceCategoriesMock.mockReturnValue({
       data: [{ id: 'cat-alt', name: 'Alt', subtitle: 'Alt', display_order: 1, icon_name: 'music' }],
     });
@@ -526,7 +526,7 @@ describe('HomeCatalogCascade', () => {
     expect(await screen.findByRole('button', { name: /alt sub/i })).toBeInTheDocument();
   });
 
-  it('filters out services when both instructor_count and active_instructors are missing', async () => {
+  it('filters out services when active_instructors is missing', async () => {
     useServiceCategoriesMock.mockReturnValue({
       data: [{ id: 'cat-empty-supply', name: 'Empty', subtitle: 'Empty', display_order: 1, icon_name: 'music' }],
     });
@@ -545,7 +545,7 @@ describe('HomeCatalogCascade', () => {
                 subcategory_id: 'sub-no-supply',
                 display_order: 1,
                 eligible_age_groups: ['adults'],
-                // no instructor_count, no active_instructors => 0
+                // no active_instructors => 0
               },
             ],
           },
@@ -587,7 +587,7 @@ describe('HomeCatalogCascade', () => {
           name: 'Orphan',
           subcategory_id: 'sub-orphan',
           display_order: 1,
-          instructor_count: 5,
+          active_instructors: 5,
           eligible_age_groups: ['adults'],
         },
       ],
@@ -608,7 +608,7 @@ describe('HomeCatalogCascade', () => {
       name: 'No Subcategory',
       subcategory_id: '',
       display_order: 20,
-      instructor_count: 5,
+      active_instructors: 5,
       eligible_age_groups: ['adults'],
     });
     useAllServicesWithInstructorsMock.mockReturnValue({ data: servicesData });
@@ -640,7 +640,7 @@ describe('HomeCatalogCascade', () => {
                 name: 'No Match',
                 subcategory_id: 'sub-no-match',
                 display_order: 1,
-                instructor_count: 0,
+                active_instructors: 0,
                 eligible_age_groups: ['adults'],
               },
             ],
@@ -652,7 +652,7 @@ describe('HomeCatalogCascade', () => {
 
     render(<HomeCatalogCascade isAuthenticated={false} />);
 
-    // No categories left after filtering (zero instructor_count)
+    // No categories left after filtering (zero active_instructors)
     expect(screen.getByText('Select a category to browse subcategories')).toBeInTheDocument();
   });
 
@@ -759,7 +759,7 @@ describe('HomeCatalogCascade', () => {
                 name: 'NS Service',
                 subcategory_id: 'sub-ns',
                 display_order: 1,
-                instructor_count: 2,
+                active_instructors: 2,
                 eligible_age_groups: ['adults'],
               },
             ],
@@ -790,7 +790,7 @@ describe('HomeCatalogCascade', () => {
                 name: 'Numeric Service',
                 subcategory_id: 'sub-num',
                 display_order: 1,
-                instructor_count: 2,
+                active_instructors: 2,
                 eligible_age_groups: ['adults'],
               },
             ],

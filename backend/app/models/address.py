@@ -82,8 +82,6 @@ class UserAddress(Base):
     verification_status = Column(String(20), nullable=False, default="unverified")
     normalized_payload = Column(JSON, nullable=True)
 
-    # Removed NYC-specific columns in favor of generic fields + metadata
-
     # Metadata
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

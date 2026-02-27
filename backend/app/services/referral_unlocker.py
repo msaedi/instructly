@@ -153,7 +153,7 @@ def _result_to_dict(result: UnlockerResult) -> Dict[str, int]:
 def main(limit: Optional[int] = None, dry_run: Optional[bool] = None) -> Dict[str, int]:
     """Run the referral unlocker once.
 
-    When called without parameters, arguments are parsed from the CLI for backward compatibility.
+    When called without parameters, arguments are parsed from the CLI.
     """
 
     cli_invocation = limit is None and dry_run is None

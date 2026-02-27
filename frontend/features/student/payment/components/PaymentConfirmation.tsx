@@ -848,7 +848,7 @@ function PaymentConfirmationInner({
     };
   }, [booking.basePrice, pricingPreview, pricingConfig, displayAppliedCreditCents, pricingPreviewError]);
 
-  // Destructure for backwards compatibility with existing JSX
+  // Destructure to match existing JSX
   const {
     serviceSupportFeeLabel,
     serviceSupportFeeTooltip,

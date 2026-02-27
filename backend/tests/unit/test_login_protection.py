@@ -105,11 +105,12 @@ async def test_rate_limiter_allows_and_blocks(fake_redis: FakeRedis) -> None:
     limiter.attempts_per_minute = 3
     # Allow under limit
     for _ in range(limiter.attempts_per_minute):
-        allowed, _ = await limiter.check_and_increment("test@example.com")
+        allowed, _ = await limiter.check("test@example.com")
         assert allowed is True
+        await limiter.record_attempt("test@example.com")
 
     # Next attempt should be blocked
-    allowed, info = await limiter.check_and_increment("test@example.com")
+    allowed, info = await limiter.check("test@example.com")
     assert allowed is False
     assert info["reason"] == "minute_limit"
     assert info["retry_after"] >= 1
@@ -171,7 +172,8 @@ async def test_resets_clear_counters(fake_redis: FakeRedis) -> None:
     lockout = lp.AccountLockout(redis=fake_redis)
     email = "reset@example.com"
 
-    await limiter.check_and_increment(email)
+    await limiter.check(email)
+    await limiter.record_attempt(email)
     await lockout.record_failure(email)
     assert fake_redis.store  # counters present
 

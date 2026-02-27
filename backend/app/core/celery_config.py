@@ -105,7 +105,7 @@ class CeleryConfig:
 # Import beat schedule from the dedicated module
 from app.tasks.beat_schedule import CELERYBEAT_SCHEDULE
 
-# For backward compatibility, also export it here
+# Re-export for beat module
 CELERY_BEAT_SCHEDULE = CELERYBEAT_SCHEDULE
 
 

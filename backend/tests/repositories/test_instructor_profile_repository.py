@@ -180,20 +180,11 @@ class TestInstructorProfileRepositoryEagerLoading:
         assert sum(1 for s in all_services if s.is_active) == 2
         assert sum(1 for s in all_services if not s.is_active) == 2
 
-        # Repository should always return ALL services
-        # The include_inactive_services parameter is ignored
-        profile_result = repo.get_by_user_id_with_details(
-            user.id, include_inactive_services=False  # This parameter is now ignored
-        )
+        # Repository always returns ALL services
+        profile_result = repo.get_by_user_id_with_details(user.id)
 
         # Should have ALL services (repository doesn't filter)
         assert len(profile_result.instructor_services) == 4
-
-        # Another call with different parameter should return same result
-        profile_result2 = repo.get_by_user_id_with_details(user.id, include_inactive_services=True)
-
-        # Should still have ALL services
-        assert len(profile_result2.instructor_services) == 4
 
         # The service layer (InstructorService) is responsible for filtering
         # when converting to DTOs
@@ -611,24 +602,15 @@ class TestDiagnosticAndDebugging:
         print("\n=== Repository Tests ===")
         repo = InstructorProfileRepository(db)
 
-        # Test with include_inactive_services=True
-        profile_all = repo.get_by_user_id_with_details(user.id, include_inactive_services=True)
-        print(f"Repository (include all): {len(profile_all.instructor_services)} services")
+        # Repository always returns ALL services
+        profile_all = repo.get_by_user_id_with_details(user.id)
+        print(f"Repository (all): {len(profile_all.instructor_services)} services")
         for s in profile_all.instructor_services:
-            print(f"  - {(s.catalog_entry.name if s.catalog_entry else 'Unknown Service')}: active={s.is_active}")
-
-        # Test with include_inactive_services=False
-        profile_active = repo.get_by_user_id_with_details(user.id, include_inactive_services=False)
-        print(f"Repository (active only): {len(profile_active.instructor_services)} services")
-        for s in profile_active.instructor_services:
             print(f"  - {(s.catalog_entry.name if s.catalog_entry else 'Unknown Service')}: active={s.is_active}")
 
         # Assertions
         assert len(all_services) == 4, "Should have 4 services in database"
-        assert (
-            len(profile_all.instructor_services) == 4
-        ), "Should load all 4 services when include_inactive_services=True"
-        assert len(profile_active.instructor_services) == 4, "Repository now always returns all services"
+        assert len(profile_all.instructor_services) == 4, "Repository always returns all services"
 
         print("\n✅ Debug test passed!")
 
@@ -754,34 +736,24 @@ class TestDiagnosticAndDebugging:
         print("\n=== Test 3: Repository Eager Loading ===")
         repo = InstructorProfileRepository(db)
 
-        # First call - all services
-        profile_all = repo.get_by_user_id_with_details(user.id, include_inactive_services=True)
-        print(f"First call (all): {len(profile_all.instructor_services)} services")
+        # Repository always returns all services
+        profile_all = repo.get_by_user_id_with_details(user.id)
+        print(f"First call: {len(profile_all.instructor_services)} services")
         for s in profile_all.instructor_services:
             print(f"- {(s.catalog_entry.name if s.catalog_entry else 'Unknown Service')}: active={s.is_active}")
 
         # Clear session to avoid caching issues
         db.expire_all()
 
-        # Second call - active only (but repository returns all now)
-        profile_active = repo.get_by_user_id_with_details(user.id, include_inactive_services=False)
-        print(f"\nSecond call (active): {len(profile_active.instructor_services)} services")
-        for s in profile_active.instructor_services:
-            print(f"- {(s.catalog_entry.name if s.catalog_entry else 'Unknown Service')}: active={s.is_active}")
-
-        # Clear session again
-        db.expire_all()
-
-        # Third call - all services again
-        profile_all_2 = repo.get_by_user_id_with_details(user.id, include_inactive_services=True)
-        print(f"\nThird call (all): {len(profile_all_2.instructor_services)} services")
+        # Second call - should return same result
+        profile_all_2 = repo.get_by_user_id_with_details(user.id)
+        print(f"\nSecond call: {len(profile_all_2.instructor_services)} services")
         for s in profile_all_2.instructor_services:
             print(f"- {(s.catalog_entry.name if s.catalog_entry else 'Unknown Service')}: active={s.is_active}")
 
-        # Assertions (updated for new behavior)
+        # Assertions
         assert len(direct_services) == 4
         assert len(profile_all.instructor_services) == 4
-        assert len(profile_active.instructor_services) == 4  # Repository always returns all
         assert len(profile_all_2.instructor_services) == 4
 
         print("\n✅ All assertions passed!")

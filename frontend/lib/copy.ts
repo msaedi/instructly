@@ -9,7 +9,7 @@ export async function copyToClipboard(text: string): Promise<boolean> {
       return true;
     }
   } catch {
-    // fall through to legacy path
+    // fall through to textarea fallback
   }
 
   try {

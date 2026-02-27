@@ -68,7 +68,6 @@ class TestInstructorServiceAllServices:
         assert music_cat is not None
         assert len(music_cat["services"]) >= 1
         assert piano_service["active_instructors"] >= 1
-        assert piano_service["instructor_count"] >= 1
 
         # Verify Sports & Fitness category — same approach: search all for yoga
         sports_cats = [c for c in result["categories"] if c["name"] == "Sports & Fitness"]
@@ -187,7 +186,6 @@ class TestInstructorServiceAllServices:
             for service in category["services"]:
                 # All services should have these fields
                 assert "active_instructors" in service
-                assert "instructor_count" in service
                 assert "demand_score" in service
                 assert "is_trending" in service
 

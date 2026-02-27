@@ -161,46 +161,6 @@ class TestGetBookingsInDateRangeNoneDateAndNonTimeValues:
         assert ranges[0]["start_time"] == time(16, 0)
 
 
-@pytest.mark.unit
-class TestDeprecatedMethods:
-    """Cover the NotImplementedError methods."""
-
-    def test_get_week_slots_raises(self) -> None:
-        mock_db = MagicMock()
-        repo = WeekOperationRepository(mock_db)
-        with pytest.raises(NotImplementedError):
-            repo.get_week_slots("INST_01", date(2025, 1, 1), date(2025, 1, 7))
-
-    def test_get_slots_with_booking_status_raises(self) -> None:
-        mock_db = MagicMock()
-        repo = WeekOperationRepository(mock_db)
-        with pytest.raises(NotImplementedError):
-            repo.get_slots_with_booking_status("INST_01", date(2025, 1, 1))
-
-    def test_get_week_with_booking_status_raises(self) -> None:
-        mock_db = MagicMock()
-        repo = WeekOperationRepository(mock_db)
-        with pytest.raises(NotImplementedError):
-            repo.get_week_with_booking_status("INST_01", date(2025, 1, 1), date(2025, 1, 7))
-
-    def test_bulk_create_slots_raises(self) -> None:
-        mock_db = MagicMock()
-        repo = WeekOperationRepository(mock_db)
-        with pytest.raises(NotImplementedError):
-            repo.bulk_create_slots([])
-
-    def test_bulk_delete_slots_raises(self) -> None:
-        mock_db = MagicMock()
-        repo = WeekOperationRepository(mock_db)
-        with pytest.raises(NotImplementedError):
-            repo.bulk_delete_slots([])
-
-    def test_delete_slots_preserving_booked_times_raises(self) -> None:
-        mock_db = MagicMock()
-        repo = WeekOperationRepository(mock_db)
-        with pytest.raises(NotImplementedError):
-            repo.delete_slots_preserving_booked_times("INST_01", [date(2025, 1, 1)])
-
 
 @pytest.mark.unit
 class TestSQLAlchemyErrors:

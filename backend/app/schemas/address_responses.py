@@ -9,7 +9,7 @@ class CoverageFeatureCollectionResponse(StrictModel):
     type: str
     features: List[Dict[str, Any]]
 
-    # Maintain strict extras while satisfying legacy contract tests.
+    # Maintain strict extras while satisfying contract tests.
     model_config = StrictModel.model_config
 
 
@@ -27,10 +27,6 @@ class AddressDeleteResponse(StrictModel):
 
     success: bool
     message: str
-
-
-# Backward-compatible alias for existing imports.
-DeleteResponse = AddressDeleteResponse
 
 
 class NeighborhoodItem(StrictModel):
@@ -52,8 +48,8 @@ class NeighborhoodsListResponse(StrictModel):
 
 
 __all__ = [
+    "AddressDeleteResponse",
     "CoverageFeatureCollectionResponse",
-    "DeleteResponse",
     "NeighborhoodItem",
     "NeighborhoodsListResponse",
     "NYCZipCheckResponse",

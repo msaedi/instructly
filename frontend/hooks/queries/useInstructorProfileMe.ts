@@ -2,11 +2,11 @@
  * useInstructorProfileMe - Instructor profile hook (migrated to Phase 3 pattern)
  *
  * This hook now uses the new Orval-generated API client via our instructor service layer.
- * It maintains backward compatibility with the existing interface while using the new architecture.
+ * It provides the existing interface while using the new Orval-generated architecture.
  *
  * Migration notes:
  * - Uses useInstructorMe() from @/src/api/services/instructors
- * - Still returns InstructorProfile type for backward compatibility
+ * - Still returns InstructorProfile type for the existing interface
  * - Query key now managed by centralized queryKeys factory
  */
 

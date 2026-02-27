@@ -548,8 +548,15 @@ def test_create_rescheduled_booking_with_existing_payment_credit_transfer_except
     service = SimpleNamespace(duration_options=[60])
     instructor_profile = SimpleNamespace()
 
-    booking = make_booking()
-    old_booking = make_booking(instructor_id=booking_data.instructor_id)
+    booking = make_booking(
+        booking_start_utc=datetime(2030, 1, 1, 14, 0, tzinfo=timezone.utc),
+        booking_end_utc=datetime(2030, 1, 1, 15, 0, tzinfo=timezone.utc),
+    )
+    old_booking = make_booking(
+        instructor_id=booking_data.instructor_id,
+        booking_start_utc=datetime(2030, 1, 1, 14, 0, tzinfo=timezone.utc),
+        booking_end_utc=datetime(2030, 1, 1, 15, 0, tzinfo=timezone.utc),
+    )
 
     booking_service._validate_booking_prerequisites = Mock(return_value=(service, instructor_profile))
     booking_service._calculate_and_validate_end_time = Mock(return_value=time(11, 0))
@@ -902,7 +909,11 @@ def test_cancel_booking_without_stripe_clear_payment_intent(
 def test_activate_lock_for_reschedule_expire_all_error(
     booking_service: BookingService, mock_repository: MagicMock, mock_db: MagicMock
 ) -> None:
-    booking = make_booking(payment_status=PaymentStatus.SCHEDULED.value, payment_intent_id="pi_123")
+    booking = make_booking(
+        payment_status=PaymentStatus.SCHEDULED.value,
+        payment_intent_id="pi_123",
+        booking_start_utc=datetime(2030, 1, 1, 15, 0, 0, tzinfo=timezone.utc),
+    )
     mock_repository.get_by_id_for_update.return_value = booking
     booking_service.transaction = MagicMock(return_value=_transaction_cm())
 

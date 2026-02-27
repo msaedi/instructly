@@ -62,13 +62,7 @@ function isEligibleForAudience(service: CategoryServiceDetail, audience: Audienc
 }
 
 function hasActiveInstructors(service: CategoryServiceDetail): boolean {
-  const count =
-    typeof service.active_instructors === 'number'
-      ? service.active_instructors
-      : typeof service.instructor_count === 'number'
-        ? service.instructor_count
-        : 0;
-  return count > 0;
+  return (service.active_instructors ?? 0) > 0;
 }
 
 function sortServices(services: CategoryServiceDetail[]): CategoryServiceDetail[] {

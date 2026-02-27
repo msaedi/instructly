@@ -13,7 +13,7 @@ import ChangePasswordModal from '@/components/security/ChangePasswordModal';
 import DeleteAccountModal from '@/components/security/DeleteAccountModal';
 import PauseAccountModal from '@/components/security/PauseAccountModal';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
-import { useUser } from '@/hooks/queries/useUser';
+import { useSession } from '@/src/api/hooks/useSession';
 import { useUserAddresses, useInvalidateUserAddresses } from '@/hooks/queries/useUserAddresses';
 import { useTfaStatus, useInvalidateTfaStatus } from '@/hooks/queries/useTfaStatus';
 import { usePushNotifications } from '@/features/shared/hooks/usePushNotifications';
@@ -73,7 +73,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
 
   // React Query hooks for data fetching (replaces useEffect fetches)
   const { data: tfaStatus } = useTfaStatus(embedded && openSecurity);
-  const { data: userData, isLoading: userLoading } = useUser();
+  const { data: userData, isLoading: userLoading } = useSession();
   const { data: addressData, isLoading: addressLoading } = useUserAddresses(embedded);
   const invalidateTfaStatus = useInvalidateTfaStatus();
   const invalidateAddresses = useInvalidateUserAddresses();

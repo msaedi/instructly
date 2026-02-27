@@ -127,9 +127,6 @@ export type ApplyToDateRangeResponse = components['schemas']['ApplyToDateRangeRe
   start_date?: string;
   end_date?: string;
 };
-export type BulkUpdateRequest =
-  components['schemas']['AvailabilityWindowBulkUpdateRequest'];
-export type BulkUpdateResponse = components['schemas']['BulkUpdateResponse'];
 export type WeekValidationResponse = components['schemas']['WeekValidationResponse'];
 export type ValidateWeekRequest = components['schemas']['ValidateWeekRequest'];
 
@@ -403,7 +400,7 @@ export type CopyWeekResponse = components['schemas']['CopyWeekResponse'];
 
 // Payment types
 export type PaymentMethodResponse = components['schemas']['PaymentMethodResponse'];
-export type PaymentMethod = components['schemas']['PaymentMethodResponse']; // Alias for backwards compat
+export type PaymentMethod = components['schemas']['PaymentMethodResponse']; // Type alias
 export type SavePaymentMethodRequest = components['schemas']['SavePaymentMethodRequest'];
 export type CreateCheckoutRequest = components['schemas']['CreateCheckoutRequest'];
 export type EarningsResponse = components['schemas']['EarningsResponse'];
@@ -412,7 +409,7 @@ export type InstructorInvoiceSummary = components['schemas']['InstructorInvoiceS
 export type PayoutSummary = components['schemas']['PayoutSummary'];
 export type PayoutHistoryResponse = components['schemas']['PayoutHistoryResponse'];
 export type OnboardingResponse = components['schemas']['OnboardingResponse'];
-export type Transaction = components['schemas']['TransactionHistoryItem']; // Alias for backwards compat
+export type Transaction = components['schemas']['TransactionHistoryItem']; // Type alias
 export type TransactionHistoryItem = components['schemas']['TransactionHistoryItem'];
 
 // Instructor referral types

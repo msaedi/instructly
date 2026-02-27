@@ -120,17 +120,12 @@ class TestBookingQueryPatterns:
             assert existing_booking.status in [BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
 
     def test_query_pattern_get_bookings_filtered(self, db: Session, test_student: User, test_instructor: User):
-        """Document query for getting bookings with filters and eager loading.
-
-        FIXED: Removed joinedload(Booking.availability_slot) as this relationship
-        no longer exists after Work Stream #9.
-        """
+        """Document query for getting bookings with filters and eager loading."""
         # Basic query with eager loading
         query = db.query(Booking).options(
             joinedload(Booking.student),
             joinedload(Booking.instructor),
             joinedload(Booking.instructor_service),
-            # REMOVED: joinedload(Booking.availability_slot) - relationship no longer exists
         )
 
         # Filter by student
@@ -158,10 +153,7 @@ class TestBookingQueryPatterns:
             assert booking.student_id == test_student.id
 
     def test_query_pattern_get_booking_by_id(self, db: Session, test_booking: Booking):
-        """Document query for getting a single booking with all relationships.
-
-        FIXED: Removed joinedload for availability_slot relationship which no longer exists.
-        """
+        """Document query for getting a single booking with all relationships."""
         booking_id = test_booking.id
 
         # Document the exact query pattern
@@ -171,7 +163,6 @@ class TestBookingQueryPatterns:
                 joinedload(Booking.student),
                 joinedload(Booking.instructor),
                 joinedload(Booking.instructor_service).joinedload(Service.instructor_profile),
-                # REMOVED: joinedload(Booking.availability_slot)
                 joinedload(Booking.cancelled_by),
             )
             .filter(Booking.id == booking_id)
@@ -248,18 +239,13 @@ class TestBookingQueryPatterns:
             assert booking.status == BookingStatus.CONFIRMED
 
     def test_query_pattern_upcoming_bookings(self, db: Session, test_student: User):
-        """Document query for getting upcoming bookings with ordering.
-
-        FIXED: Removed joinedload(Booking.availability_slot) as this relationship
-        no longer exists after Work Stream #9.
-        """
+        """Document query for getting upcoming bookings with ordering."""
         # Query with date filter and ordering
         query = (
             db.query(Booking)
             .options(
                 joinedload(Booking.instructor),
                 joinedload(Booking.instructor_service),
-                # REMOVED: joinedload(Booking.availability_slot) - relationship no longer exists
             )
             .filter(
                 Booking.student_id == test_student.id,

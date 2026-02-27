@@ -107,26 +107,6 @@ class SpecificDateAvailabilityCreate(StrictRequestModel):
         return v
 
 
-class AvailabilityWindowUpdate(StrictRequestModel):
-    """Schema for updating an availability window."""
-
-    start_time: Optional[TimeType] = None
-    end_time: Optional[TimeType] = None
-    model_config = StrictRequestModel.model_config
-
-    @field_validator("end_time")
-    @classmethod
-    def validate_time_order(cls, v: Optional[TimeType], info: Any) -> Optional[TimeType]:
-        """Ensure end time is after start time if both provided."""
-        if not v:
-            return v
-        data = getattr(info, "data", None)
-        start = data.get("start_time") if isinstance(data, dict) else None
-        if not _is_half_open_interval(start, v):
-            raise ValueError("End time must be after start time")
-        return v
-
-
 class AvailabilityWindowResponse(StandardizedModel):
     """
     Response schema for availability windows.
@@ -334,19 +314,6 @@ class SlotOperation(BaseModel):
         return v
 
 
-class AvailabilityWindowBulkUpdateRequest(StrictRequestModel):
-    """Request schema for bulk availability update."""
-
-    model_config = StrictRequestModel.model_config
-
-    operations: List[SlotOperation]
-    validate_only: bool = Field(False, description="If true, only validate without making changes")
-
-
-# Backward-compatible alias for existing imports.
-BulkUpdateRequest = AvailabilityWindowBulkUpdateRequest
-
-
 class OperationResult(BaseModel):
     """Result of a single operation in bulk update."""
 
@@ -355,16 +322,6 @@ class OperationResult(BaseModel):
     status: Literal["success", "failed", "skipped"]
     reason: Optional[str] = None
     slot_id: Optional[str] = None  # For successful adds
-
-
-class BulkUpdateResponse(StrictModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-    """Response schema for bulk availability update."""
-
-    successful: int
-    failed: int
-    skipped: int
-    results: List[OperationResult]
 
 
 # Validation schemas

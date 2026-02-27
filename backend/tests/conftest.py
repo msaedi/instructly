@@ -621,14 +621,46 @@ _TEST_RUN_LOCK_KEY = 987654322
 
 @pytest.fixture(scope="session", autouse=True)
 def _serialize_test_database_sessions():
-    """Prevent concurrent pytest sessions from mutating the shared test DB."""
+    """Prevent concurrent pytest sessions from mutating the shared test DB.
+
+    Uses pg_try_advisory_lock with stale-session cleanup so a crashed
+    pytest run never permanently blocks future runs.
+    """
     if test_engine.dialect.name == "sqlite":
         yield
         return
 
     conn = test_engine.connect()
-    conn.execute(text("SELECT pg_advisory_lock(:key)"), {"key": _TEST_RUN_LOCK_KEY})
+
+    # Try to acquire; if blocked, terminate the stale holder and retry
+    result = conn.execute(
+        text("SELECT pg_try_advisory_lock(:key)"), {"key": _TEST_RUN_LOCK_KEY}
+    )
+    acquired = result.scalar()
     conn.commit()
+
+    if not acquired:
+        # Kill idle sessions holding this lock (stale from crashed runs)
+        conn.execute(
+            text("""
+                SELECT pg_terminate_backend(l.pid)
+                FROM pg_locks l
+                JOIN pg_stat_activity a ON a.pid = l.pid
+                WHERE l.locktype = 'advisory'
+                  AND l.objid = :key
+                  AND l.granted = true
+                  AND a.state = 'idle'
+            """),
+            {"key": _TEST_RUN_LOCK_KEY},
+        )
+        conn.commit()
+
+        # Now do a blocking acquire (stale holder is gone)
+        conn.execute(
+            text("SELECT pg_advisory_lock(:key)"), {"key": _TEST_RUN_LOCK_KEY}
+        )
+        conn.commit()
+
     try:
         yield
     finally:

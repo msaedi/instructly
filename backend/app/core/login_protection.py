@@ -237,26 +237,6 @@ class AccountRateLimiter:
         except Exception as exc:  # pragma: no cover - defensive
             logger.warning("Rate limiter increment failed: %s", exc)
 
-    async def check_and_increment(self, email: str) -> Tuple[bool, Dict[str, Any]]:
-        """
-        Check if login attempt is allowed and increment counters.
-
-        DEPRECATED: Use check() + record_attempt() for better UX.
-        This method is kept for backward compatibility.
-
-        Returns:
-            (allowed: bool, info: dict with remaining attempts and reset time)
-        """
-        allowed, info = await self.check(email)
-        if allowed:
-            await self.record_attempt(email)
-            # Adjust remaining counts since we just incremented
-            if info.get("remaining_minute") is not None:
-                info["remaining_minute"] = max(0, info["remaining_minute"] - 1)
-            if info.get("remaining_hour") is not None:
-                info["remaining_hour"] = max(0, info["remaining_hour"] - 1)
-        return allowed, info
-
     async def reset(self, email: str) -> None:
         """Reset counters on successful login."""
         if is_running_tests() and not self._explicit_redis:

@@ -239,20 +239,8 @@ class TestRoutingInvariants:
             # specific than the instructors router prefix "/instructors" with /{instructor_id}
             ("/api/v1/instructors/{instructor_id}", "/api/v1/instructors/availability"),
             ("/api/v1/instructors/availability", "/api/v1/instructors/{instructor_id}"),
-            # Availability router: Static routes defined before dynamic {window_id}
-            # The static routes (week, copy-week, etc.) are defined before /{window_id}
-            ("/api/v1/instructors/availability/week", "/api/v1/instructors/availability/{window_id}"),
-            ("/api/v1/instructors/availability/{window_id}", "/api/v1/instructors/availability/week"),
-            ("/api/v1/instructors/availability/copy-week", "/api/v1/instructors/availability/{window_id}"),
-            ("/api/v1/instructors/availability/{window_id}", "/api/v1/instructors/availability/copy-week"),
-            ("/api/v1/instructors/availability/apply-to-date-range", "/api/v1/instructors/availability/{window_id}"),
-            ("/api/v1/instructors/availability/{window_id}", "/api/v1/instructors/availability/apply-to-date-range"),
-            ("/api/v1/instructors/availability/specific-date", "/api/v1/instructors/availability/{window_id}"),
-            ("/api/v1/instructors/availability/{window_id}", "/api/v1/instructors/availability/specific-date"),
-            ("/api/v1/instructors/availability/bulk-update", "/api/v1/instructors/availability/{window_id}"),
-            ("/api/v1/instructors/availability/{window_id}", "/api/v1/instructors/availability/bulk-update"),
-            ("/api/v1/instructors/availability/blackout-dates", "/api/v1/instructors/availability/{window_id}"),
-            ("/api/v1/instructors/availability/{window_id}", "/api/v1/instructors/availability/blackout-dates"),
+            # Availability router: All routes are static (no dynamic {window_id} parameter)
+            # No ordering constraints needed within the availability router.
             # Admin auth-blocks: /summary static route defined before /{email} dynamic route
             ("/api/v1/admin/auth-blocks/summary", "/api/v1/admin/auth-blocks/{email}"),
             ("/api/v1/admin/auth-blocks/{email}", "/api/v1/admin/auth-blocks/summary"),
@@ -387,7 +375,6 @@ class TestRoutingInvariants:
             "/api/v1/bookings/{booking_id}/preview",  # GET
             "/api/v1/bookings/{booking_id}/cancel",  # POST
             "/api/v1/bookings/{booking_id}/complete",  # POST
-            "/api/v1/bookings/{booking_id}/confirm-payment",  # POST
         ]
 
         missing = []

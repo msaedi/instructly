@@ -4,168 +4,17 @@ Comprehensive coverage tests for payment_tasks.py helper functions.
 This test file targets the uncovered helper function lines to improve coverage.
 """
 
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 from app.core.ulid_helper import generate_ulid
 
 
-class TestResolveBookingTimezones:
-    """Test timezone resolution helper functions."""
-
-    def test_resolve_lesson_timezone_from_booking(self) -> None:
-        """Test timezone from booking.lesson_timezone."""
-        from app.tasks.payment_tasks import _resolve_lesson_timezone
-
-        booking = MagicMock()
-        booking.lesson_timezone = "America/New_York"
-
-        result = _resolve_lesson_timezone(booking)
-        assert result == "America/New_York"
-
-    def test_resolve_lesson_timezone_from_instructor_tz(self) -> None:
-        """Test timezone fallback to instructor_tz_at_booking."""
-        from app.tasks.payment_tasks import _resolve_lesson_timezone
-
-        booking = MagicMock()
-        booking.lesson_timezone = None
-        booking.instructor_tz_at_booking = "America/Chicago"
-
-        result = _resolve_lesson_timezone(booking)
-        assert result == "America/Chicago"
-
-    def test_resolve_lesson_timezone_from_instructor(self) -> None:
-        """Test timezone fallback to instructor.timezone."""
-        from app.tasks.payment_tasks import _resolve_lesson_timezone
-
-        booking = MagicMock()
-        booking.lesson_timezone = None
-        booking.instructor_tz_at_booking = None
-        mock_instructor = MagicMock()
-        mock_instructor.timezone = "America/Los_Angeles"
-        booking.instructor = mock_instructor
-
-        result = _resolve_lesson_timezone(booking)
-        assert result == "America/Los_Angeles"
-
-    def test_resolve_lesson_timezone_from_instructor_user(self) -> None:
-        """Test timezone fallback to instructor.user.timezone."""
-        from app.tasks.payment_tasks import _resolve_lesson_timezone
-
-        booking = MagicMock()
-        booking.lesson_timezone = None
-        booking.instructor_tz_at_booking = None
-        mock_instructor = MagicMock()
-        mock_instructor.timezone = None
-        mock_user = MagicMock()
-        mock_user.timezone = "Europe/London"
-        mock_instructor.user = mock_user
-        booking.instructor = mock_instructor
-
-        result = _resolve_lesson_timezone(booking)
-        assert result == "Europe/London"
-
-    def test_resolve_lesson_timezone_default(self) -> None:
-        """Test default timezone when all lookups fail."""
-        from app.services.timezone_service import TimezoneService
-        from app.tasks.payment_tasks import _resolve_lesson_timezone
-
-        booking = MagicMock()
-        booking.lesson_timezone = None
-        booking.instructor_tz_at_booking = None
-        booking.instructor = None
-
-        result = _resolve_lesson_timezone(booking)
-        assert result == TimezoneService.DEFAULT_TIMEZONE
-
-    def test_resolve_lesson_timezone_empty_string(self) -> None:
-        """Test empty string timezone fallback."""
-        from app.tasks.payment_tasks import _resolve_lesson_timezone
-
-        booking = MagicMock()
-        booking.lesson_timezone = ""  # Empty string
-        booking.instructor_tz_at_booking = ""  # Empty string
-        booking.instructor = None
-
-        result = _resolve_lesson_timezone(booking)
-        # Should fall back to default
-        assert result is not None
-
-    def test_instructor_timezone_none(self) -> None:
-        """Test fallback when instructor.timezone is None."""
-        from app.services.timezone_service import TimezoneService
-        from app.tasks.payment_tasks import _resolve_lesson_timezone
-
-        booking = MagicMock()
-        booking.lesson_timezone = None
-        booking.instructor_tz_at_booking = None
-        mock_instructor = MagicMock()
-        mock_instructor.timezone = None
-        mock_instructor.user = None  # user is None
-        booking.instructor = mock_instructor
-
-        result = _resolve_lesson_timezone(booking)
-        assert result == TimezoneService.DEFAULT_TIMEZONE
-
-
-class TestResolveEndDate:
-    """Test end date resolution for legacy bookings."""
-
-    def test_resolve_end_date_normal(self) -> None:
-        """Test normal case returns booking date."""
-        from app.tasks.payment_tasks import _resolve_end_date
-
-        booking = MagicMock()
-        booking.booking_date = date(2026, 12, 25)
-        booking.start_time = time(9, 0)
-        booking.end_time = time(10, 0)
-
-        result = _resolve_end_date(booking)
-        assert result == date(2026, 12, 25)
-
-    def test_resolve_end_date_midnight_end(self) -> None:
-        """Test midnight end time adds one day."""
-        from app.tasks.payment_tasks import _resolve_end_date
-
-        booking = MagicMock()
-        booking.booking_date = date(2026, 12, 25)
-        booking.start_time = time(23, 0)
-        booking.end_time = time(0, 0)  # Midnight
-
-        result = _resolve_end_date(booking)
-        assert result == date(2026, 12, 26)
-
-    def test_resolve_end_date_invalid_times(self) -> None:
-        """Test with non-time values."""
-        from app.tasks.payment_tasks import _resolve_end_date
-
-        booking = MagicMock()
-        booking.booking_date = date(2026, 12, 25)
-        booking.start_time = None
-        booking.end_time = "10:00"  # String instead of time
-
-        result = _resolve_end_date(booking)
-        assert result == date(2026, 12, 25)
-
-    def test_both_times_midnight(self) -> None:
-        """Test when both start and end are midnight."""
-        from app.tasks.payment_tasks import _resolve_end_date
-
-        booking = MagicMock()
-        booking.booking_date = date(2026, 12, 25)
-        booking.start_time = time(0, 0)  # Midnight
-        booking.end_time = time(0, 0)  # Midnight
-
-        # Should NOT add a day since start is also midnight
-        result = _resolve_end_date(booking)
-        assert result == date(2026, 12, 25)
-
-
 class TestGetBookingStartUtc:
     """Test _get_booking_start_utc function."""
 
-    def test_with_existing_booking_start_utc(self) -> None:
-        """Test when booking_start_utc already exists."""
+    def test_returns_booking_start_utc(self) -> None:
+        """Test that it returns booking.booking_start_utc directly."""
         from app.tasks.payment_tasks import _get_booking_start_utc
 
         expected_utc = datetime(2026, 12, 25, 14, 0, 0, tzinfo=timezone.utc)
@@ -175,47 +24,12 @@ class TestGetBookingStartUtc:
         result = _get_booking_start_utc(booking)
         assert result == expected_utc
 
-    def test_conversion_from_local(self) -> None:
-        """Test conversion from local time."""
-        from app.tasks.payment_tasks import _get_booking_start_utc
-
-        booking = MagicMock()
-        booking.booking_start_utc = None
-        booking.lesson_timezone = "UTC"
-        booking.booking_date = date(2026, 12, 25)
-        booking.start_time = time(14, 0)
-
-        result = _get_booking_start_utc(booking)
-        assert result.hour == 14
-        assert result.tzinfo is not None
-
-    def test_conversion_fallback_on_error(self) -> None:
-        """Test fallback when timezone conversion fails."""
-        from app.tasks.payment_tasks import _get_booking_start_utc
-
-        booking = MagicMock()
-        booking.booking_start_utc = None
-        booking.lesson_timezone = "Invalid/Timezone"
-        booking.instructor_tz_at_booking = None
-        booking.instructor = None
-        booking.booking_date = date(2026, 12, 25)
-        booking.start_time = time(14, 0)
-
-        with patch("app.tasks.payment_tasks.TimezoneService.local_to_utc") as mock_convert:
-            mock_convert.side_effect = ValueError("Invalid timezone")
-
-            result = _get_booking_start_utc(booking)
-
-        # Should return a datetime even on failure
-        assert isinstance(result, datetime)
-        assert result.hour == 14
-
 
 class TestGetBookingEndUtc:
     """Test _get_booking_end_utc function."""
 
-    def test_with_existing_booking_end_utc(self) -> None:
-        """Test when booking_end_utc already exists."""
+    def test_returns_booking_end_utc(self) -> None:
+        """Test that it returns booking.booking_end_utc directly."""
         from app.tasks.payment_tasks import _get_booking_end_utc
 
         expected_utc = datetime(2026, 12, 25, 15, 0, 0, tzinfo=timezone.utc)
@@ -224,43 +38,6 @@ class TestGetBookingEndUtc:
 
         result = _get_booking_end_utc(booking)
         assert result == expected_utc
-
-    def test_conversion_from_local(self) -> None:
-        """Test conversion from local time."""
-        from app.tasks.payment_tasks import _get_booking_end_utc
-
-        booking = MagicMock()
-        booking.booking_end_utc = None
-        booking.lesson_timezone = "UTC"
-        booking.booking_date = date(2026, 12, 25)
-        booking.start_time = time(14, 0)
-        booking.end_time = time(15, 0)
-
-        result = _get_booking_end_utc(booking)
-        assert result.hour == 15
-        assert result.tzinfo is not None
-
-    def test_conversion_fallback_on_error(self) -> None:
-        """Test fallback when timezone conversion fails."""
-        from app.tasks.payment_tasks import _get_booking_end_utc
-
-        booking = MagicMock()
-        booking.booking_end_utc = None
-        booking.lesson_timezone = "Invalid/Timezone"
-        booking.instructor_tz_at_booking = None
-        booking.instructor = None
-        booking.booking_date = date(2026, 12, 25)
-        booking.start_time = time(14, 0)
-        booking.end_time = time(15, 0)
-
-        with patch("app.tasks.payment_tasks.TimezoneService.local_to_utc") as mock_convert:
-            mock_convert.side_effect = ValueError("Invalid timezone")
-
-            result = _get_booking_end_utc(booking)
-
-        # Should return a datetime even on failure
-        assert isinstance(result, datetime)
-        assert result.hour == 15
 
 
 class TestProcessAuthorizationForBooking:
@@ -314,7 +91,7 @@ class TestRetryFailedAuthorizations:
             with patch("app.tasks.payment_tasks.RepositoryFactory") as mock_factory:
                 mock_booking_repo = MagicMock()
                 mock_booking_repo.get_bookings_for_auth_retry.return_value = []
-                mock_factory.get_booking_repository.return_value = mock_booking_repo
+                mock_factory.create_booking_repository.return_value = mock_booking_repo
 
                 result = retry_failed_authorizations()
 

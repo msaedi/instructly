@@ -237,7 +237,6 @@ test.describe('Student Booking Journey', () => {
             hourly_rate: 100,
             bio: 'Experienced instructor',
             services: ['Piano'],
-            availability_windows: [],
             rating: 4.9,
             total_reviews: 25,
           }),

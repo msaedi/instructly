@@ -218,8 +218,8 @@ class PlatformCredit(Base):
     source_type: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
-        default="legacy",
-        comment="Credit source type (v2.1.1)",
+        default="manual",
+        comment="Credit source type",
     )
     source_booking_id: Mapped[Optional[str]] = mapped_column(
         String(26),

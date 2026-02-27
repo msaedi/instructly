@@ -232,7 +232,7 @@ def create_celery_app() -> Celery:
             "app.tasks.referrals",
             "app.tasks.referral_tasks",
             "app.tasks.retention_tasks",
-            # Include legacy cleanup module for completeness
+            # Search history maintenance
             "app.tasks.search_history_cleanup",
             "app.tasks.notification_tasks",
             # NL Search embedding maintenance

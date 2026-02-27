@@ -21,7 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 def _normalize_timestamp(ts: str | None) -> str | None:
     """Ensure timestamp has timezone info (RFC 3339 compliant).
 
-    Legacy timestamps in metrics_history.json may be missing timezone designator.
+    Timestamps in metrics_history.json may be missing timezone designator.
     This function adds 'Z' (UTC) suffix to naive timestamps to make them valid
     RFC 3339 / JSON Schema date-time format.
     """

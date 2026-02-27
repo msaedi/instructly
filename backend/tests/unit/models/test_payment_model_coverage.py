@@ -28,7 +28,7 @@ def _make_credit(**kwargs) -> PlatformCredit:
         "reason": "test credit",
         "status": "available",
         "expires_at": None,
-        "source_type": "legacy",
+        "source_type": "manual",
     }
     defaults.update(kwargs)
     return PlatformCredit(**defaults)

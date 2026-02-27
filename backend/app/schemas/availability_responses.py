@@ -78,14 +78,6 @@ class ApplyToDateRangeResponse(StrictModel):
     written_dates: List[str] = Field(default_factory=list)
 
 
-class DeleteWindowResponse(StrictModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-    """Response for deleting an availability window."""
-
-    message: str = "Availability window deleted successfully"
-    window_id: str
-
-
 class BookedSlotsResponse(StrictModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for getting booked slots in a week."""

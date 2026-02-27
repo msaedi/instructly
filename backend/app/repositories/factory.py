@@ -57,8 +57,6 @@ if TYPE_CHECKING:
     from .service_catalog_repository import ServiceAnalyticsRepository, ServiceCatalogRepository
     from .subcategory_repository import SubcategoryRepository
     from .taxonomy_filter_repository import TaxonomyFilterRepository
-
-    # SlotManagerRepository removed - bitmap-only storage now
     from .user_repository import UserRepository
     from .week_operation_repository import WeekOperationRepository
 
@@ -84,8 +82,6 @@ class RepositoryFactory:
             BaseRepository instance
         """
         return BaseRepository(db, model)
-
-    # create_slot_manager_repository removed - SlotManagerRepository deleted (bitmap-only storage)
 
     @staticmethod
     def create_alerts_repository(db: Session) -> "AlertsRepository":
@@ -184,11 +180,6 @@ class RepositoryFactory:
         from .notification_repository import NotificationRepository
 
         return NotificationRepository(db)
-
-    @staticmethod
-    def get_booking_repository(db: Session) -> "BookingRepository":
-        """Alias for create_booking_repository for backward compatibility."""
-        return RepositoryFactory.create_booking_repository(db)
 
     @staticmethod
     def create_week_operation_repository(db: Session) -> "WeekOperationRepository":
@@ -312,11 +303,6 @@ class RepositoryFactory:
         from .platform_config_repository import PlatformConfigRepository
 
         return PlatformConfigRepository(db)
-
-    @staticmethod
-    def get_payment_repository(db: Session) -> "PaymentRepository":
-        """Alias for create_payment_repository for backward compatibility."""
-        return RepositoryFactory.create_payment_repository(db)
 
     @staticmethod
     def create_search_event_repository(db: Session) -> "SearchEventRepository":

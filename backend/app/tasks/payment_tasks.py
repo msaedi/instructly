@@ -5,8 +5,7 @@ Handles scheduled authorizations, retries, captures, and payouts.
 Implements proper retry timing windows based on lesson time.
 """
 
-import datetime as datetime_module
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 import logging
 from typing import (
     Any,
@@ -118,84 +117,18 @@ stripe.api_key = (
 STRIPE_CURRENCY = settings.stripe_currency if hasattr(settings, "stripe_currency") else "usd"
 
 
-def _resolve_lesson_timezone(booking: Booking) -> str:
-    lesson_tz = getattr(booking, "lesson_timezone", None)
-    if not isinstance(lesson_tz, str) or not lesson_tz:
-        lesson_tz = getattr(booking, "instructor_tz_at_booking", None)
-    if isinstance(lesson_tz, str) and lesson_tz:
-        return lesson_tz
-    instructor = getattr(booking, "instructor", None)
-    if instructor is not None:
-        instructor_tz = getattr(instructor, "timezone", None)
-        if isinstance(instructor_tz, str) and instructor_tz:
-            return instructor_tz
-        instructor_user = getattr(instructor, "user", None)
-        instructor_user_tz = getattr(instructor_user, "timezone", None) if instructor_user else None
-        if isinstance(instructor_user_tz, str) and instructor_user_tz:
-            return instructor_user_tz
-    return TimezoneService.DEFAULT_TIMEZONE
-
-
-def _resolve_end_date(booking: Booking) -> date:
-    """Resolve end date for legacy bookings that end at midnight."""
-    booking_date = cast(date, booking.booking_date)
-    if not isinstance(booking.end_time, time) or not isinstance(booking.start_time, time):
-        return booking_date
-    midnight = time(0, 0)
-    if booking.end_time == midnight and booking.start_time != midnight:
-        return booking_date + timedelta(days=1)
-    return booking_date
-
-
 def _get_booking_start_utc(booking: Booking) -> datetime:
-    """Get booking start time in UTC, with fallback for legacy bookings."""
-    booking_start_utc = getattr(booking, "booking_start_utc", None)
-    if isinstance(booking_start_utc, datetime_module.datetime):
-        return booking_start_utc
-
-    lesson_tz = _resolve_lesson_timezone(booking)
-    try:
-        return TimezoneService.local_to_utc(
-            booking.booking_date,
-            booking.start_time,
-            lesson_tz,
-        )
-    except ValueError as exc:
-        logger.warning(
-            "Failed to convert booking %s start to UTC (%s); falling back to UTC combine.",
-            booking.id,
-            exc,
-        )
-        return datetime.combine(  # tz-pattern-ok: DST fallback for legacy bookings
-            booking.booking_date,
-            booking.start_time,
-            tzinfo=timezone.utc,  # tz-pattern-ok: legacy fallback
-        )
+    """Get booking start time in UTC."""
+    if booking.booking_start_utc is None:
+        raise ValueError(f"Booking {booking.id} missing booking_start_utc")
+    return cast(datetime, booking.booking_start_utc)
 
 
 def _get_booking_end_utc(booking: Booking) -> datetime:
-    """Get booking end time in UTC, with fallback for legacy bookings."""
-    booking_end_utc = getattr(booking, "booking_end_utc", None)
-    if isinstance(booking_end_utc, datetime_module.datetime):
-        return booking_end_utc
-
-    lesson_tz = _resolve_lesson_timezone(booking)
-    end_date = _resolve_end_date(booking)
-    try:
-        return TimezoneService.local_to_utc(
-            end_date,
-            booking.end_time,
-            lesson_tz,
-        )
-    except ValueError as exc:
-        logger.warning(
-            "Failed to convert booking %s end to UTC (%s); falling back to UTC combine.",
-            booking.id,
-            exc,
-        )
-        return datetime.combine(  # tz-pattern-ok: DST fallback for legacy bookings
-            end_date, booking.end_time, tzinfo=timezone.utc  # tz-pattern-ok: legacy fallback
-        )
+    """Get booking end time in UTC."""
+    if booking.booking_end_utc is None:
+        raise ValueError(f"Booking {booking.id} missing booking_end_utc")
+    return cast(datetime, booking.booking_end_utc)
 
 
 def _process_authorization_for_booking(
@@ -237,7 +170,7 @@ def _process_authorization_for_booking(
             db1.commit()
             return {"success": False, "skipped": True, "reason": "not_eligible"}
 
-        payment_repo = RepositoryFactory.get_payment_repository(db1)
+        payment_repo = RepositoryFactory.create_payment_repository(db1)
         _pd_intent = getattr(pd, "payment_intent_id", None)
         existing_payment_intent_id = (
             _pd_intent if isinstance(_pd_intent, str) and _pd_intent.startswith("pi_") else None
@@ -364,7 +297,7 @@ def _process_authorization_for_booking(
         if not booking:
             return {"success": False, "error": "Booking not found in Phase 3"}
 
-        payment_repo = RepositoryFactory.get_payment_repository(db3)
+        payment_repo = RepositoryFactory.create_payment_repository(db3)
         booking_payment = repo3.ensure_payment(booking.id)
         previous_capture_retry_count = int(getattr(booking_payment, "capture_retry_count", 0) or 0)
 
@@ -523,7 +456,7 @@ def process_scheduled_authorizations(self: Any) -> AuthorizationJobResults:
     # ========== Collect booking IDs to process (quick read) ==========
     db_read: Session = SessionLocal()
     try:
-        booking_repo = RepositoryFactory.get_booking_repository(db_read)
+        booking_repo = RepositoryFactory.create_booking_repository(db_read)
 
         bookings_to_authorize = cast(
             Sequence[Booking],
@@ -543,7 +476,7 @@ def process_scheduled_authorizations(self: Any) -> AuthorizationJobResults:
                 if isinstance(scheduled_for, datetime):
                     due_for_auth = scheduled_for <= now
                 else:
-                    # Legacy path: process if in the 23.5-24.5 hour window
+                    # Fallback: process if in the 23.5-24.5 hour window
                     due_for_auth = 23.5 <= hours_until_lesson <= 24.5
 
             if due_for_auth:
@@ -589,7 +522,7 @@ def process_scheduled_authorizations(self: Any) -> AuthorizationJobResults:
                 try:
                     db_notify: Session = SessionLocal()
                     try:
-                        payment_repo = RepositoryFactory.get_payment_repository(db_notify)
+                        payment_repo = RepositoryFactory.create_payment_repository(db_notify)
                         if not has_event_type(
                             payment_repo, booking_id, "t24_first_failure_email_sent"
                         ):
@@ -676,7 +609,7 @@ def _cancel_booking_payment_failed(
         bp_cancel.settlement_outcome = "student_cancel_gt24_no_charge"
         bp_cancel.instructor_payout_amount = 0
 
-        payment_repo = RepositoryFactory.get_payment_repository(db)
+        payment_repo = RepositoryFactory.create_payment_repository(db)
         try:
             from app.services.credit_service import CreditService
 
@@ -744,7 +677,7 @@ def _process_retry_authorization(booking_id: str, hours_until_lesson: float) -> 
             db1.commit()
             return {"success": False, "skipped": True, "reason": "not_eligible"}
 
-        payment_repo = RepositoryFactory.get_payment_repository(db1)
+        payment_repo = RepositoryFactory.create_payment_repository(db1)
 
         # Record retry attempt
         payment_repo.create_payment_event(
@@ -838,7 +771,7 @@ def _process_retry_authorization(booking_id: str, hours_until_lesson: float) -> 
         if not booking:
             return {"success": False, "error": "Booking not found in Phase 3"}
 
-        payment_repo = RepositoryFactory.get_payment_repository(db3)
+        payment_repo = RepositoryFactory.create_payment_repository(db3)
         bp_retry = repo3.ensure_payment(booking.id)
 
         attempted_at = datetime.now(timezone.utc)
@@ -926,8 +859,8 @@ def retry_failed_authorizations(self: Any) -> RetryJobResults:
     # ========== Collect booking data to process (quick read) ==========
     db_read: Session = SessionLocal()
     try:
-        booking_repo = RepositoryFactory.get_booking_repository(db_read)
-        payment_repo = RepositoryFactory.get_payment_repository(db_read)
+        booking_repo = RepositoryFactory.create_booking_repository(db_read)
+        payment_repo = RepositoryFactory.create_payment_repository(db_read)
 
         bookings_to_retry = cast(
             Sequence[Booking],
@@ -1030,7 +963,9 @@ def retry_failed_authorizations(self: Any) -> RetryJobResults:
                             )
                             bp_warn.auth_failure_t13_warning_sent_at = now
 
-                            payment_repo = RepositoryFactory.get_payment_repository(db_warn_retry)
+                            payment_repo = RepositoryFactory.create_payment_repository(
+                                db_warn_retry
+                            )
                             payment_repo.create_payment_event(
                                 booking_id=booking_id,
                                 event_type="final_warning_sent",
@@ -1207,7 +1142,7 @@ def _escalate_capture_failure(booking_id: str, now: datetime) -> None:
         if not booking:
             return
 
-        payment_repo = RepositoryFactory.get_payment_repository(db_read)
+        payment_repo = RepositoryFactory.create_payment_repository(db_read)
         instructor_repo = RepositoryFactory.create_instructor_profile_repository(db_read)
 
         try:
@@ -1232,7 +1167,7 @@ def _escalate_capture_failure(booking_id: str, now: datetime) -> None:
         if payout_cents is None:
             pricing_service = PricingService(db_read)
             pricing = pricing_service.compute_booking_pricing(
-                booking_id=booking.id, applied_credit_cents=0, persist=False
+                booking_id=booking.id, applied_credit_cents=0
             )
             payout_cents = int(pricing.get("target_instructor_payout_cents", 0) or 0)
 
@@ -1310,7 +1245,7 @@ def _escalate_capture_failure(booking_id: str, now: datetime) -> None:
             student.account_locked_at = now
             student.account_locked_reason = f"capture_failure_escalated:{booking.id}"
 
-        payment_repo = RepositoryFactory.get_payment_repository(db_write)
+        payment_repo = RepositoryFactory.create_payment_repository(db_write)
         payment_repo.create_payment_event(
             booking_id=booking.id,
             event_type="capture_failure_escalated",
@@ -1696,7 +1631,7 @@ def _process_capture_for_booking(
             return {"success": False, "error": "Booking not found in Phase 3"}
         bp_cap3 = booking_repo.ensure_payment(booking.id)
 
-        payment_repo = RepositoryFactory.get_payment_repository(db3)
+        payment_repo = RepositoryFactory.create_payment_repository(db3)
         previous_capture_retry_count = int(getattr(bp_cap3, "capture_retry_count", 0) or 0)
 
         def _notify_payment_failed_once() -> None:
@@ -1892,7 +1827,7 @@ def _auto_complete_booking(booking_id: str, now: datetime) -> Dict[str, Any]:
         )
 
         # Record auto-completion event
-        payment_repo = RepositoryFactory.get_payment_repository(db1)
+        payment_repo = RepositoryFactory.create_payment_repository(db1)
         payment_repo.create_payment_event(
             booking_id=booking.id,
             event_type="auto_completed",
@@ -1996,8 +1931,8 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
     # ========== Collect booking IDs to process (quick read) ==========
     db_read: Session = SessionLocal()
     try:
-        booking_repo = RepositoryFactory.get_booking_repository(db_read)
-        payment_repo = RepositoryFactory.get_payment_repository(db_read)
+        booking_repo = RepositoryFactory.create_booking_repository(db_read)
+        payment_repo = RepositoryFactory.create_payment_repository(db_read)
 
         # 1. Find booking IDs ready for capture
         all_completed_bookings = cast(
@@ -2123,7 +2058,7 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
                         capture_result = _process_capture_for_booking(booking_id, "expired_auth")
                         if not capture_result.get("success"):
                             # Create new auth and capture (3-phase pattern)
-                            payment_repo = RepositoryFactory.get_payment_repository(db_expired)
+                            payment_repo = RepositoryFactory.create_payment_repository(db_expired)
                             new_auth_result = create_new_authorization_and_capture(
                                 booking_exp, payment_repo, db_expired, lock_acquired=True
                             )
@@ -2142,7 +2077,7 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
                         bp_exp.capture_retry_count = (
                             int(getattr(bp_exp, "capture_retry_count", 0) or 0) + 1
                         )
-                        payment_repo = RepositoryFactory.get_payment_repository(db_expired)
+                        payment_repo = RepositoryFactory.create_payment_repository(db_expired)
                         payment_repo.create_payment_event(
                             booking_id=booking_id,
                             event_type="auth_expired",
@@ -2497,7 +2432,7 @@ def capture_late_cancellation(self: Any, booking_id: Union[int, str]) -> Dict[st
                 return {"success": False, "skipped": True, "error": "lock_unavailable"}
 
             db = cast(Session, next(get_db()))
-            _payment_repo = RepositoryFactory.get_payment_repository(db)
+            _payment_repo = RepositoryFactory.create_payment_repository(db)
             config_service = ConfigService(db)
             pricing_service = PricingService(db)
             stripe_service = StripeService(
@@ -2507,7 +2442,7 @@ def capture_late_cancellation(self: Any, booking_id: Union[int, str]) -> Dict[st
             )
 
             # Get the booking
-            booking_repo = RepositoryFactory.get_booking_repository(db)
+            booking_repo = RepositoryFactory.create_booking_repository(db)
             booking = booking_repo.get_by_id(str(booking_id))
             if not booking:
                 logger.error(f"Booking {booking_id} not found for late cancellation capture")
@@ -2649,7 +2584,7 @@ def resolve_undisputed_no_shows() -> NoShowResolutionResults:
     }
     try:
         db = cast(Session, next(get_db()))
-        booking_repo = RepositoryFactory.get_booking_repository(db)
+        booking_repo = RepositoryFactory.create_booking_repository(db)
         booking_service = BookingService(db)
         cutoff = now - timedelta(hours=24)
 
@@ -2696,14 +2631,14 @@ def check_authorization_health() -> Dict[str, Any]:
     db: Optional[Session] = None
     try:
         db = cast(Session, next(get_db()))
-        _payment_repo = RepositoryFactory.get_payment_repository(db)
+        _payment_repo = RepositoryFactory.create_payment_repository(db)
 
         now = datetime.now(timezone.utc)
 
         # Check for bookings that should have been authorized but weren't
         # These are bookings less than 24 hours away that are still "scheduled"
         overdue_bookings = []
-        booking_repo = RepositoryFactory.get_booking_repository(db)
+        booking_repo = RepositoryFactory.create_booking_repository(db)
 
         scheduled_bookings = cast(
             Sequence[Booking],
@@ -2788,7 +2723,7 @@ def audit_and_fix_payout_schedules(self: Any) -> Dict[str, Any]:
 
     db: Session = SessionLocal()
     try:
-        payment_repo = RepositoryFactory.get_payment_repository(db)
+        payment_repo = RepositoryFactory.create_payment_repository(db)
         config_service = ConfigService(db)
         pricing_service = PricingService(db)
         stripe_service = StripeService(

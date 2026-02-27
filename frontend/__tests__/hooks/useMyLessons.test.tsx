@@ -660,16 +660,6 @@ describe('useMyLessons hooks', () => {
   });
 
   describe('useCurrentLessons edge cases', () => {
-    it('handles boolean parameter for backward compatibility', () => {
-      renderHook(() => useCurrentLessons(true), { wrapper });
-
-      expect(mockUseBookingsList).toHaveBeenCalledWith({
-        upcoming_only: true,
-        page: 1,
-        per_page: 10,
-      });
-    });
-
     it('handles undefined data gracefully', () => {
       mockUseBookingsList.mockReturnValue({
         ...mockSuccessResponse(undefined),

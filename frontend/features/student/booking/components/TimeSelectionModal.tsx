@@ -781,7 +781,7 @@ export default function TimeSelectionModal({
         .toString()
         .padStart(2, '0')}:00`;
 
-      // If callback provided, use it (for backward compatibility)
+      // If callback provided, use it
       if (onTimeSelected) {
         onTimeSelected({
           date: selectedDate,

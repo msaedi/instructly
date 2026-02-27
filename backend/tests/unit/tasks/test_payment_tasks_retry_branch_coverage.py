@@ -41,11 +41,11 @@ def test_retry_failed_authorizations_warn_only_skips_if_warning_already_sent():
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_warn]):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 side_effect=_payment_repo_for,
             ):
                 with patch(
@@ -86,11 +86,11 @@ def test_retry_failed_authorizations_retries_in_t13_window_without_warning_branc
 
     with patch("app.database.SessionLocal", return_value=db_read):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 return_value=payment_repo_read,
             ):
                 with patch(
@@ -135,11 +135,11 @@ def test_retry_failed_authorizations_counts_processing_exceptions_as_failed():
 
     with patch("app.database.SessionLocal", return_value=db_read):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 return_value=payment_repo_read,
             ):
                 with patch(

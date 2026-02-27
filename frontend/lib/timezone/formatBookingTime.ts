@@ -1,7 +1,7 @@
 /**
  * Format booking date/time fields for display in a viewer's timezone.
  *
- * Prefers UTC fields and falls back to legacy local date/time strings.
+ * Prefers UTC fields and falls back to local date/time strings.
  */
 
 import { timeToMinutes } from '@/lib/time';

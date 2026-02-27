@@ -134,10 +134,7 @@ interface User {
 - **Dual Environments**: Preview and Beta for phased rollout
 
 ### Technical Debt (Isolated)
-Frontend availability code has a mental model mismatch — believes slots are database entities with IDs. Legacy files isolated in `frontend/legacy-patterns/`:
-- `useAvailabilityOperations.ts` (600 lines → target ~50)
-- `operationGenerator.ts` (to be deleted)
-- `slotHelpers.ts` (to be simplified)
+Frontend availability page has a mental model mismatch — believes slots are database entities with IDs. This is contained within the availability page component and does not leak into other features. Target: simplify to match bitmap-only backend storage.
 
 ## 🛡️ Engineering Guardrails
 

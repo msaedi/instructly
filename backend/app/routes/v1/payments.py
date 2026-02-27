@@ -55,7 +55,6 @@ from ...schemas.payment_schemas import (
     CreateCheckoutRequest,
     CreditBalanceResponse,
     DashboardLinkResponse,
-    DeleteResponse,
     EarningsExportRequest,
     EarningsResponse,
     IdentityRefreshResponse,
@@ -63,6 +62,7 @@ from ...schemas.payment_schemas import (
     InstantPayoutResponse,
     OnboardingResponse,
     OnboardingStatusResponse,
+    PaymentDeleteResponse,
     PaymentMethodResponse,
     PayoutHistoryResponse,
     PayoutScheduleResponse,
@@ -452,13 +452,13 @@ async def list_payment_methods(
         )
 
 
-@router.delete("/methods/{method_id}", response_model=DeleteResponse)
+@router.delete("/methods/{method_id}", response_model=PaymentDeleteResponse)
 async def delete_payment_method(
     method_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     stripe_service: StripeService = Depends(get_stripe_service),
-) -> DeleteResponse:
+) -> PaymentDeleteResponse:
     """
     Delete a payment method for a student.
 
@@ -488,7 +488,7 @@ async def delete_payment_method(
 
         logger.info(f"Deleted payment method {method_id} for user {current_user.id}")
 
-        return DeleteResponse(success=True)
+        return PaymentDeleteResponse(success=True)
 
     except HTTPException:
         raise

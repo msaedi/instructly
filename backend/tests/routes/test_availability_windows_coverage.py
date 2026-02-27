@@ -9,9 +9,7 @@ from app.core.exceptions import DomainException
 from app.routes.v1 import availability_windows as routes
 from app.schemas.availability_window import (
     ApplyToDateRangeRequest,
-    AvailabilityWindowUpdate,
     BlackoutDateCreate,
-    BulkUpdateRequest,
     CopyWeekRequest,
     ValidateWeekRequest,
     WeekSpecificScheduleCreate,
@@ -171,36 +169,6 @@ async def test_apply_to_date_range_coerces_bad_numbers(test_instructor):
     assert result.weeks_applied == 2
     assert result.windows_created == 0
     assert result.days_written == 0
-
-
-@pytest.mark.asyncio
-async def test_deprecated_availability_endpoints_raise(test_instructor):
-    update_payload = AvailabilityWindowUpdate.model_construct()
-    with pytest.raises(HTTPException) as exc:
-        routes.update_availability_window(
-            window_id="w1",
-            payload=update_payload,
-            current_user=test_instructor,
-            availability_service=None,
-        )
-    assert exc.value.status_code == 501
-
-    with pytest.raises(HTTPException) as exc:
-        routes.delete_availability_window(
-            window_id="w1",
-            current_user=test_instructor,
-            availability_service=None,
-        )
-    assert exc.value.status_code == 501
-
-    bulk_payload = BulkUpdateRequest.model_construct(operations=[])
-    with pytest.raises(HTTPException) as exc:
-        await routes.bulk_update_availability(
-            update_data=bulk_payload,
-            current_user=test_instructor,
-            bulk_operation_service=None,
-        )
-    assert exc.value.status_code == 410
 
 
 def test_get_all_availability_success_and_errors(test_instructor):

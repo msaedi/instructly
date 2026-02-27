@@ -66,7 +66,6 @@ class PricingService(BaseService):
         self,
         booking_id: str,
         applied_credit_cents: int = 0,
-        persist: bool = False,
     ) -> PricingPreviewData:
         if applied_credit_cents < 0:
             raise ValidationException(
@@ -76,8 +75,6 @@ class PricingService(BaseService):
             )
 
         inputs = self._load_inputs(booking_id)
-        # Future steps will persist tier updates/Stripe wiring; preview never persists.
-        _ = persist  # pragma: no cover - placeholder until Step 5 implementation
 
         return self._compute_pricing_from_inputs(
             inputs=inputs,

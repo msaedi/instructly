@@ -670,59 +670,6 @@ describe('publicApi additional methods', () => {
     expect(url).toContain('/api/v1/services/catalog/kids-available');
   });
 
-  // Legacy deprecated methods
-  it('records guest search history (deprecated)', async () => {
-    const fetchMock = jest.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ id: 1, guest_session_id: 'guest-123' }),
-      headers: new Headers(),
-    });
-    global.fetch = fetchMock as unknown as typeof global.fetch;
-
-    await publicApi.recordGuestSearchHistory({
-      guest_session_id: 'guest-123',
-      search_query: 'piano',
-      search_type: 'lesson',
-    });
-
-    const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toContain('/api/v1/search-history/guest');
-    expect((options as RequestInit).method).toBe('POST');
-  });
-
-  it('gets guest recent searches (deprecated)', async () => {
-    const fetchMock = jest.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => [],
-      headers: new Headers(),
-    });
-    global.fetch = fetchMock as unknown as typeof global.fetch;
-
-    await publicApi.getGuestRecentSearches('guest-123', 5);
-
-    const [url] = fetchMock.mock.calls[0];
-    const requestUrl = new URL(url as string, window.location.origin);
-    expect(url).toContain('/api/v1/search-history/guest/guest-123');
-    expect(requestUrl.searchParams.get('limit')).toBe('5');
-  });
-
-  it('deletes guest search history (deprecated)', async () => {
-    const fetchMock = jest.fn().mockResolvedValue({
-      ok: true,
-      status: 204,
-      json: async () => undefined,
-      headers: new Headers(),
-    });
-    global.fetch = fetchMock as unknown as typeof global.fetch;
-
-    await publicApi.deleteGuestSearchHistory('guest-123', 456);
-
-    const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toContain('/api/v1/search-history/guest/guest-123/456');
-    expect((options as RequestInit).method).toBe('DELETE');
-  });
 });
 
 describe('getPlaceDetails', () => {

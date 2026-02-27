@@ -141,7 +141,7 @@ def invalidate_cached_user_by_id_sync(user_id: str, db_session: Any) -> bool:
 
     Args:
         user_id: User's ULID
-        db_session: Unused; kept for backward-compatible call signatures
+        db_session: Unused; retained for caller convention
 
     Returns:
         True if cache was invalidated, False otherwise
@@ -270,11 +270,6 @@ def _sync_user_lookup_by_id(user_id: str) -> Optional[Dict[str, Any]]:
         db.close()
 
 
-async def lookup_user_nonblocking(user_identifier: str) -> Optional[Dict[str, Any]]:
-    """Backward-compatible alias for ULID-based non-blocking user lookup."""
-    return await lookup_user_by_id_nonblocking(user_identifier)
-
-
 async def lookup_user_by_id_nonblocking(user_id: str) -> Optional[Dict[str, Any]]:
     """Look up user by ID without blocking the event loop.
 
@@ -397,11 +392,3 @@ def user_has_cached_permission(user: User, permission_name: str) -> bool:
             if perm.name == permission_name:
                 return True
     return False
-
-
-# For tests - allow patching the Redis client getter
-def _reset_redis_client() -> None:
-    """Reset the Redis client singleton (for testing only)."""
-    # The caching Redis client is managed per-event-loop in app.core.cache_redis.
-    # Tests that need to influence Redis behavior should patch _get_auth_redis_client().
-    return

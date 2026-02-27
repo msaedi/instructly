@@ -15,7 +15,7 @@ from ...api.dependencies.auth import get_current_active_user
 from ...database import get_db
 from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ...models.user import User
-from ...schemas.base_responses import DeleteResponse, SuccessResponse
+from ...schemas.base_responses import BaseDeleteResponse, SuccessResponse
 from ...services.dependencies import get_personal_asset_service
 from ...services.personal_asset_service import PersonalAssetService
 
@@ -132,7 +132,7 @@ def get_profile_picture_urls_batch(
     return ProfilePictureUrlsResponse(urls=payload)
 
 
-@router.delete("/me/profile-picture", response_model=DeleteResponse)
+@router.delete("/me/profile-picture", response_model=BaseDeleteResponse)
 @rate_limit(
     "1/minute",
     key_type=RateLimitKeyType.USER,
@@ -141,10 +141,10 @@ def get_profile_picture_urls_batch(
 def delete_profile_picture(
     current_user: User = Depends(get_current_active_user),
     asset_service: PersonalAssetService = Depends(get_personal_asset_service),
-) -> DeleteResponse:
+) -> BaseDeleteResponse:
     try:
         ok = asset_service.delete_profile_picture(current_user)
-        return DeleteResponse(
+        return BaseDeleteResponse(
             success=ok, message="Profile picture deleted" if ok else "No profile picture present"
         )
     except Exception as e:

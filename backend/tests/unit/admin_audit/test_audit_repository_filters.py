@@ -17,7 +17,7 @@ def _seed_logs(repo: AuditRepository) -> list[AuditLog]:
         ("booking", "bk-1", "create", {"status": "CONFIRMED"}, {"status": "CONFIRMED"}, "student-1", "student"),
         ("booking", "bk-1", "update", {"status": "CONFIRMED"}, {"status": "CONFIRMED", "instructor_note": "updated"}, "instr-1", "instructor"),
         ("booking", "bk-2", "cancel", {"status": "CONFIRMED"}, {"status": "CANCELLED"}, "admin-1", "admin"),
-        ("availability", "instructor-1:2025-01-06", "save_week", {"slot_counts": {}}, {"slot_counts": {"2025-01-06": 2}}, "instr-1", "instructor"),
+        ("availability", "instructor-1:2025-01-06", "save_week", {"window_counts": {}}, {"window_counts": {"2025-01-06": 2}}, "instr-1", "instructor"),
         ("booking", "bk-1", "cancel", {"status": "CONFIRMED"}, {"status": "CANCELLED"}, "student-1", "student"),
     ]
 

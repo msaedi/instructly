@@ -530,19 +530,6 @@ class TestWeekOperationHelperCoverage:
 
         assert result["_metadata"]["windows_created"] >= 0
 
-    def test_deprecated_slot_methods_raise(self, db: Session, test_instructor: User) -> None:
-        service = WeekOperationService(db)
-        week_start = date(2025, 6, 16)
-
-        with pytest.raises(NotImplementedError):
-            service._clear_week_slots(test_instructor.id, [week_start])
-        with pytest.raises(NotImplementedError):
-            service._copy_slots_between_weeks(test_instructor.id, week_start, week_start)
-        with pytest.raises(NotImplementedError):
-            service._clear_date_range_slots(test_instructor.id, [week_start])
-        with pytest.raises(NotImplementedError):
-            service._apply_pattern_to_dates(test_instructor.id, {}, week_start, week_start)
-
     def test_resolve_actor_payload_variants(self, db: Session) -> None:
         service = WeekOperationService(db)
 

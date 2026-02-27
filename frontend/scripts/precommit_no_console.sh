@@ -10,8 +10,8 @@ fi
 
 FAILED=0
 for f in "${FILES[@]}"; do
-  # ignore tests, e2e, logger implementation, server.js, legacy samples
-  if [[ "$f" == *"/__tests__/"* || "$f" == *"/e2e/"* || "$f" == *"/legacy-patterns/"* ]]; then
+  # ignore tests, e2e, logger implementation, server.js
+  if [[ "$f" == *"/__tests__/"* || "$f" == *"/e2e/"* ]]; then
     continue
   fi
   if [[ "$f" == *"/lib/logger.ts" || "$f" == *"/server.js" ]]; then

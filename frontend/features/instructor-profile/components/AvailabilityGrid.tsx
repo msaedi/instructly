@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 import { at } from '@/lib/ts/safe';
 import { useRef, useEffect, useState, useMemo } from 'react';
-import type { PublicInstructorAvailability } from '@/src/types/api';
+import type { PublicInstructorAvailability } from '@/features/shared/api/types';
 
 // Type for availability slots
 interface AvailabilitySlot {

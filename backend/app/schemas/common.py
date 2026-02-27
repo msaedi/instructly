@@ -10,5 +10,5 @@ LocationTypeLiteral = Literal[
     "neutral_location",
 ]
 
-# Service location types (legacy service capabilities)
+# Service location types
 ServiceLocationTypeLiteral = Literal["in_person", "online"]

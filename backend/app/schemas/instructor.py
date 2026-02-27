@@ -32,7 +32,7 @@ class InstructorFilterParams(BaseModel):
     """
     Query parameters for filtering instructors.
 
-    All fields are optional to maintain backward compatibility.
+    All fields are optional for flexible filtering.
     Supports text search, skill filtering, and price range filtering.
     """
 

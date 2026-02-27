@@ -590,7 +590,7 @@ describe('useConversations', () => {
       });
     });
 
-    it('should provide no-op setConversations for backward compatibility', async () => {
+    it('should provide no-op setConversations (managed by React Query)', async () => {
       (global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
         status: 200,

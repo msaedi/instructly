@@ -17,7 +17,7 @@ import type {
 } from '@/features/shared/api/types';
 import { logger } from '@/lib/logger';
 import { formatDateForAPI } from '@/lib/availability/dateHelpers';
-import { getApiBase, withApiBaseForRequest } from '@/lib/apiBase';
+import { withApiBaseForRequest } from '@/lib/apiBase';
 import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { extractApiErrorMessage } from '@/lib/apiErrors';
 
@@ -43,11 +43,6 @@ type UpcomingBooking = UpcomingBookingResponse;
  *
  * @module api
  */
-
-/** @deprecated Use getApiUrl() or withApiBase() instead */
-export function getApiUrl(): string {
-  return getApiBase();
-}
 
 /**
  * Helper function for authenticated requests
@@ -254,7 +249,6 @@ export const API_ENDPOINTS = {
   INSTRUCTOR_AVAILABILITY_WEEK: '/api/v1/instructors/availability/week',
   INSTRUCTOR_AVAILABILITY_COPY_WEEK: '/api/v1/instructors/availability/copy-week',
   INSTRUCTOR_AVAILABILITY_APPLY_RANGE: '/api/v1/instructors/availability/apply-to-date-range',
-  INSTRUCTOR_AVAILABILITY_BULK_UPDATE: '/api/v1/instructors/availability/bulk-update',
   INSTRUCTOR_AVAILABILITY: '/api/v1/instructors/availability/',
   INSTRUCTOR_AVAILABILITY_VALIDATE: '/api/v1/instructors/availability/week/validate-changes',
 

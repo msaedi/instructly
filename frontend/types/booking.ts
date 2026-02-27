@@ -16,7 +16,7 @@ import type {
   BookingCreate as GeneratedBookingCreate,
 } from '@/features/shared/api/types';
 
-// Re-export generated types for backwards compatibility
+// Re-export generated types for convenience
 export type BookingStatus = GeneratedBookingStatus;
 export type BookingListResponse = GeneratedBookingListResponse;
 export type AvailabilityCheckRequest = GeneratedAvailabilityCheckRequest;

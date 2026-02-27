@@ -170,8 +170,6 @@ def test_get_production_url_non_interactive(monkeypatch) -> None:
     cfg.prod_url = "postgresql://user:pass@host/prod"
     monkeypatch.setattr(cfg, "_check_production_mode", lambda: False)
     monkeypatch.setattr(cfg, "_audit_log_operation", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(cfg, "_pre_production_checks", lambda: None)
-    monkeypatch.setattr(cfg, "_post_production_approval", lambda: None)
     monkeypatch.setattr(cfg, "_mask_url", lambda value: value)
     monkeypatch.setattr(cfg, "_is_ci_environment", lambda: False)
     monkeypatch.setattr(database_config.sys.stdin, "isatty", lambda: False)
@@ -185,8 +183,6 @@ def test_get_production_url_confirmation_yes(monkeypatch) -> None:
     cfg.prod_url = "postgresql://user:pass@host/prod"
     monkeypatch.setattr(cfg, "_check_production_mode", lambda: False)
     monkeypatch.setattr(cfg, "_audit_log_operation", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(cfg, "_pre_production_checks", lambda: None)
-    monkeypatch.setattr(cfg, "_post_production_approval", lambda: None)
     monkeypatch.setattr(cfg, "_mask_url", lambda value: value)
     monkeypatch.setattr(database_config.sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(builtins, "input", lambda *_args, **_kwargs: "yes")
@@ -371,8 +367,6 @@ def test_get_production_url_user_cancel(monkeypatch) -> None:
     cfg.prod_url = "postgresql://user:pass@host/prod"
     monkeypatch.setattr(cfg, "_check_production_mode", lambda: False)
     monkeypatch.setattr(cfg, "_audit_log_operation", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(cfg, "_pre_production_checks", lambda: None)
-    monkeypatch.setattr(cfg, "_post_production_approval", lambda: None)
     monkeypatch.setattr(cfg, "_mask_url", lambda value: value)
     monkeypatch.setattr(database_config.sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(builtins, "input", lambda *_args, **_kwargs: "no")
@@ -386,16 +380,6 @@ def test_audit_log_operation_failure(monkeypatch, tmp_path: Path) -> None:
     cfg.audit_log_path = tmp_path
 
     cfg._audit_log_operation("unit_test", {"k": "v"})
-
-
-def test_extension_points_defaults(monkeypatch) -> None:
-    cfg = _make_config(monkeypatch)
-    assert cfg._pre_production_checks() is None
-    assert cfg._post_production_approval() is None
-    assert cfg._create_backup_if_needed("op") is None
-    assert cfg._validate_schema_version() is False
-    assert cfg._check_dry_run_mode() is False
-    assert cfg._rate_limit_check("op") is False
 
 
 def test_get_database_url_unknown_site_mode_uses_detected_staging(monkeypatch) -> None:

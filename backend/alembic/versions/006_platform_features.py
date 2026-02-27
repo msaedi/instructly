@@ -652,7 +652,7 @@ def upgrade() -> None:
         sa.Column("user_id", sa.String(26), nullable=False),
         sa.Column("amount_cents", sa.Integer(), nullable=False),
         sa.Column("reason", sa.String(255), nullable=False),
-        sa.Column("source_type", sa.String(50), nullable=False, server_default="legacy"),
+        sa.Column("source_type", sa.String(50), nullable=False, server_default="manual"),
         sa.Column("source_booking_id", sa.String(26), nullable=True),
         sa.Column("used_booking_id", sa.String(26), nullable=True),
         sa.Column("reserved_amount_cents", sa.Integer(), nullable=False, server_default="0"),

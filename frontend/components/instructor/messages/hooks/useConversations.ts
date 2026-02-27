@@ -182,7 +182,7 @@ export function useConversations({
         const lastMessage = conv.last_message?.content ?? 'No messages yet';
 
         // The conversation ID is now the actual conversation ID (not booking ID)
-        // For backward compatibility, we keep the same structure
+        // We maintain the same structure for the messages UI
         return {
           id: conv.id,
           name: displayName,
@@ -221,7 +221,7 @@ export function useConversations({
   // Dummy setConversations for compatibility with existing code
   const setConversations = useCallback(() => {
     // No-op: conversations are now managed by React Query cache
-    // This is here for backward compatibility
+    // No-op: conversations are managed by React Query cache
   }, []);
 
   // loadConversations triggers a refresh

@@ -16,7 +16,7 @@ import type {
   PayoutHistoryResponse,
 } from '@/features/shared/api/types';
 
-// Re-export types for backwards compatibility
+// Re-export types for convenience
 export type {
   PaymentMethod,
   SavePaymentMethodRequest,

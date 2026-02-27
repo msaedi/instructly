@@ -27,7 +27,6 @@ FILES UPDATED:
 2. availability_window.py
    - AvailabilityWindowBase.validate_time_order
    - SpecificDateAvailabilityCreate.validate_future_date
-   - AvailabilityWindowUpdate.validate_time_order
    - BlackoutDateCreate.validate_future_date
    - DateTimeSlot.validate_time_order
    - DateTimeSlot.validate_not_past

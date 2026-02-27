@@ -3018,7 +3018,7 @@ export type paths = {
          *     1. Creates booking with 'pending_payment' status
          *     2. Returns SetupIntent client_secret for card collection
          *     3. Frontend collects card details
-         *     4. Call /bookings/{id}/confirm-payment to complete
+         *     4. Call /payments/checkout to complete
          *
          *     Rate limited per user to prevent booking spam.
          */
@@ -3176,29 +3176,6 @@ export type paths = {
          *     Requires: COMPLETE_BOOKINGS permission (instructor only)
          */
         post: operations["complete_booking_api_v1_bookings__booking_id__complete_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/bookings/{booking_id}/confirm-payment": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Confirm Booking Payment
-         * @deprecated
-         * @description Confirm payment method for a booking (Phase 2.1).
-         *
-         *     Deprecated: use /api/v1/payments/checkout instead.
-         */
-        post: operations["confirm_booking_payment_api_v1_bookings__booking_id__confirm_payment_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4256,26 +4233,6 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/instructors/availability/bulk-update": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Bulk Update Availability
-         * @description Bulk update availability slots.
-         */
-        patch: operations["bulk_update_availability_api_v1_instructors_availability_bulk_update_patch"];
-        trace?: never;
-    };
     "/api/v1/instructors/availability/copy-week": {
         parameters: {
             query?: never;
@@ -4384,36 +4341,6 @@ export type paths = {
         options?: never;
         head?: never;
         patch?: never;
-        trace?: never;
-    };
-    "/api/v1/instructors/availability/{window_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Delete Availability Window
-         * @description Delete an availability window.
-         *
-         *     DEPRECATED: Individual window deletion not supported in bitmap storage.
-         *     Use POST /api/v1/instructors/availability/week to remove windows from days.
-         */
-        delete: operations["delete_availability_window_api_v1_instructors_availability__window_id__delete"];
-        options?: never;
-        head?: never;
-        /**
-         * Update Availability Window
-         * @description Update an availability window.
-         *
-         *     DEPRECATED: Individual window updates not supported in bitmap storage.
-         *     Use POST /api/v1/instructors/availability/week to update entire days.
-         */
-        patch: operations["update_availability_window_api_v1_instructors_availability__window_id__patch"];
         trace?: never;
     };
     "/api/v1/instructors/me": {
@@ -9543,20 +9470,6 @@ export type components = {
             availability_total_requests: number;
         };
         /**
-         * AvailabilityWindowBulkUpdateRequest
-         * @description Request schema for bulk availability update.
-         */
-        AvailabilityWindowBulkUpdateRequest: {
-            /** Operations */
-            operations: components["schemas"]["SlotOperation"][];
-            /**
-             * Validate Only
-             * @description If true, only validate without making changes
-             * @default false
-             */
-            validate_only: boolean;
-        };
-        /**
          * AvailabilityWindowResponse
          * @description Response schema for availability windows.
          *     Clean Architecture: Only meaningful fields for single-table design.
@@ -9581,16 +9494,6 @@ export type components = {
              * Format: time
              */
             start_time: string;
-        };
-        /**
-         * AvailabilityWindowUpdate
-         * @description Schema for updating an availability window.
-         */
-        AvailabilityWindowUpdate: {
-            /** End Time */
-            end_time?: string | null;
-            /** Start Time */
-            start_time?: string | null;
         };
         /** BGCCaseCountsResponse */
         BGCCaseCountsResponse: {
@@ -10256,20 +10159,6 @@ export type components = {
              * @description Cancellation reason
              */
             reason: string;
-        };
-        /** BookingConfirmPayment */
-        BookingConfirmPayment: {
-            /**
-             * Payment Method Id
-             * @description Stripe payment method ID from completed SetupIntent
-             */
-            payment_method_id: string;
-            /**
-             * Save Payment Method
-             * @description Whether to save this payment method for future use
-             * @default false
-             */
-            save_payment_method: boolean;
         };
         /**
          * BookingCreate
@@ -11083,17 +10972,6 @@ export type components = {
             user_ids?: string[] | null;
             user_type?: components["schemas"]["BulkUserType"] | null;
         };
-        /** BulkUpdateResponse */
-        BulkUpdateResponse: {
-            /** Failed */
-            failed: number;
-            /** Results */
-            results: components["schemas"]["OperationResult"][];
-            /** Skipped */
-            skipped: number;
-            /** Successful */
-            successful: number;
-        };
         /**
          * BulkUserType
          * @enum {string}
@@ -11474,11 +11352,6 @@ export type components = {
             eligible_age_groups?: ("toddler" | "kids" | "teens" | "adults")[];
             /** Id */
             id: string;
-            /**
-             * Instructor Count
-             * @default 0
-             */
-            instructor_count: number;
             /** Is Active */
             is_active?: boolean | null;
             /**
@@ -12418,16 +12291,6 @@ export type components = {
              * @default true
              */
             success: boolean;
-        };
-        /** DeleteWindowResponse */
-        DeleteWindowResponse: {
-            /**
-             * Message
-             * @default Availability window deleted successfully
-             */
-            message: string;
-            /** Window Id */
-            window_id: string;
         };
         /** DemandMetrics */
         DemandMetrics: {
@@ -15978,25 +15841,6 @@ export type components = {
              * @description Outstanding requirements
              */
             requirements?: string[];
-        };
-        /**
-         * OperationResult
-         * @description Result of a single operation in bulk update.
-         */
-        OperationResult: {
-            /** Action */
-            action: string;
-            /** Operation Index */
-            operation_index: number;
-            /** Reason */
-            reason?: string | null;
-            /** Slot Id */
-            slot_id?: string | null;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "success" | "failed" | "skipped";
         };
         /** OriginalPayment */
         OriginalPayment: {
@@ -19773,25 +19617,6 @@ export type components = {
             reason: string;
         };
         /**
-         * SlotOperation
-         * @description Schema for a single slot operation in bulk update.
-         */
-        SlotOperation: {
-            /**
-             * Action
-             * @enum {string}
-             */
-            action: "add" | "remove" | "update";
-            /** Date */
-            date?: string | null;
-            /** End Time */
-            end_time?: string | null;
-            /** Slot Id */
-            slot_id?: string | null;
-            /** Start Time */
-            start_time?: string | null;
-        };
-        /**
          * SlowQueriesResponse
          * @description Slow queries response.
          */
@@ -22184,8 +22009,6 @@ export interface operations {
                 q?: string | null;
                 page?: number;
                 page_size?: number;
-                /** @description Deprecated; use page_size instead. */
-                limit?: number | null;
             };
             header?: never;
             path?: never;
@@ -26381,49 +26204,6 @@ export interface operations {
             };
         };
     };
-    confirm_booking_payment_api_v1_bookings__booking_id__confirm_payment_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Booking ULID */
-                booking_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BookingConfirmPayment"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BookingResponse"];
-                };
-            };
-            /** @description Booking not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     report_no_show_api_v1_bookings__booking_id__no_show_post: {
         parameters: {
             query?: never;
@@ -28067,60 +27847,6 @@ export interface operations {
             };
         };
     };
-    bulk_update_availability_api_v1_instructors_availability_bulk_update_patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AvailabilityWindowBulkUpdateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BulkUpdateResponse"];
-                };
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description User is not an instructor */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Endpoint deprecated */
-            410: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     copy_week_availability_api_v1_instructors_availability_copy_week_post: {
         parameters: {
             query?: never;
@@ -28408,114 +28134,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
-            };
-        };
-    };
-    delete_availability_window_api_v1_instructors_availability__window_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                window_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DeleteWindowResponse"];
-                };
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description User is not an instructor */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-            /** @description Operation not supported */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    update_availability_window_api_v1_instructors_availability__window_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                window_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AvailabilityWindowUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AvailabilityWindowResponse"];
-                };
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description User is not an instructor */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-            /** @description Operation not supported */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };

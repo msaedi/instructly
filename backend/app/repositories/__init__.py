@@ -10,7 +10,6 @@ Key Components:
 - IRepository: Interface defining required methods for all repositories
 - RepositoryFactory: Factory for creating repository instances
 - AvailabilityRepository: Repository for availability operations (15+ methods)
-- SlotManagerRepository: Repository for slot management (13 methods)
 - ConflictCheckerRepository: Repository for conflict checking (13 methods)
 - BulkOperationRepository: Repository for bulk operations (13 methods)
 - BookingRepository: Repository for booking operations
@@ -63,8 +62,6 @@ from .referral_repository import (
 from .search_event_repository import SearchEventRepository
 from .subcategory_repository import SubcategoryRepository
 from .taxonomy_filter_repository import TaxonomyFilterRepository
-
-# SlotManagerRepository removed - bitmap-only storage now
 from .week_operation_repository import WeekOperationRepository
 
 __all__ = [
@@ -75,7 +72,6 @@ __all__ = [
     "RepositoryFactory",
     "AvailabilityRepository",
     "AvailabilityDayRepository",
-    # "SlotManagerRepository",  # Removed - bitmap-only storage now
     "CategoryRepository",
     "ConflictCheckerRepository",
     "BulkOperationRepository",

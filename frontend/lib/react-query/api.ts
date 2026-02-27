@@ -116,7 +116,7 @@ export function isAuthError(error: unknown): boolean {
 }
 
 /**
- * Convert legacy API response to React Query format
+ * Convert ApiResponse to React Query format
  *
  * This helper converts the ApiResponse<T> format from the existing
  * API client to throw errors that React Query expects

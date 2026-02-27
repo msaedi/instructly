@@ -76,7 +76,7 @@ class CreditService(BaseService):
                         user_id=user_id,
                         amount_cents=original_credit_cents - reserve_amount,
                         reason=f"Remainder of {credit.id}",
-                        source_type=getattr(credit, "source_type", "legacy"),
+                        source_type=getattr(credit, "source_type", "manual"),
                         source_booking_id=credit.source_booking_id,
                         expires_at=credit.expires_at,
                         original_expires_at=getattr(credit, "original_expires_at", None)

@@ -18,13 +18,11 @@ DO NOT: Add methods for:
 - Blackout dates
 - Simple queries that AvailabilityRepository can handle
 
-Methods removed for clean architecture:
-- delete_non_booked_slots() → Use delete_slots_preserving_booked_times()
 """
 
 from datetime import date, time
 import logging
-from typing import Any, Dict, List, Optional, Sequence, TypedDict, cast
+from typing import Any, Dict, List, Sequence, TypedDict, cast
 
 from sqlalchemy.engine import Row
 from sqlalchemy.exc import SQLAlchemyError
@@ -51,22 +49,6 @@ class WeekBookingsSummary(TypedDict):
 class DateRangeBookingsSummary(TypedDict):
     bookings_by_date: Dict[str, List[BookingTimeRange]]
     total_bookings: int
-
-
-class SlotStatus(TypedDict):
-    id: int
-    start_time: time
-    end_time: time
-    is_booked: bool
-
-
-class WeekSlotStatus(TypedDict):
-    date: date
-    slot_id: int
-    start_time: time
-    end_time: time
-    booking_status: Optional[str]
-    booking_id: Optional[int]
 
 
 class WeekOperationRepository:
@@ -216,61 +198,3 @@ class WeekOperationRepository:
         except SQLAlchemyError as e:
             self.logger.error(f"Error getting bookings in range: {str(e)}")
             raise RepositoryException(f"Failed to get bookings: {str(e)}")
-
-    # Slot Queries
-
-    def get_week_slots(self, instructor_id: str, start_date: date, end_date: date) -> List[Any]:
-        """
-        DEPRECATED: Slot operations removed. Use bitmap storage.
-        """
-        raise NotImplementedError(
-            "Slot operations removed. Use AvailabilityDayRepository for bitmap operations."
-        )
-
-    def get_slots_with_booking_status(
-        self, instructor_id: str, target_date: date
-    ) -> List[SlotStatus]:
-        """
-        DEPRECATED: Slot operations removed. Use bitmap storage.
-        """
-        raise NotImplementedError(
-            "Slot operations removed. Use AvailabilityDayRepository for bitmap operations."
-        )
-
-    def get_week_with_booking_status(
-        self, instructor_id: str, start_date: date, end_date: date
-    ) -> List[WeekSlotStatus]:
-        """
-        DEPRECATED: Slot operations removed. Use bitmap storage.
-        """
-        raise NotImplementedError(
-            "Slot operations removed. Use AvailabilityDayRepository for bitmap operations."
-        )
-
-    # Bulk Operations
-
-    def bulk_create_slots(self, slots: Sequence[Dict[str, Any]]) -> int:
-        """
-        DEPRECATED: Slot operations removed. Use bitmap storage.
-        """
-        raise NotImplementedError(
-            "Slot operations removed. Use AvailabilityDayRepository for bitmap operations."
-        )
-
-    def bulk_delete_slots(self, slot_ids: Sequence[int]) -> int:
-        """
-        DEPRECATED: Slot operations removed. Use bitmap storage.
-        """
-        raise NotImplementedError(
-            "Slot operations removed. Use AvailabilityDayRepository for bitmap operations."
-        )
-
-    def delete_slots_preserving_booked_times(
-        self, instructor_id: str, week_dates: List[date], preserve_booked: bool = True
-    ) -> int:
-        """
-        DEPRECATED: Slot operations removed. Use bitmap storage.
-        """
-        raise NotImplementedError(
-            "Slot operations removed. Use AvailabilityDayRepository for bitmap operations."
-        )

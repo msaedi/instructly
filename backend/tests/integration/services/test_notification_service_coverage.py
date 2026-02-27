@@ -697,30 +697,6 @@ def test_booking_confirmation_failure_paths(
     assert service.send_booking_confirmation(test_booking) is False
 
 
-def test_get_booking_start_utc_fallback(
-    db, test_booking, template_service, email_service, monkeypatch
-):
-    service = NotificationService(db, None, template_service, email_service)
-
-    def _raise(*_args, **_kwargs):
-        raise ValueError("invalid time")
-
-    monkeypatch.setattr(
-        "app.services.notification_service.TimezoneService.local_to_utc", _raise
-    )
-
-    booking_stub = SimpleNamespace(
-        booking_date=test_booking.booking_date,
-        start_time=test_booking.start_time,
-        booking_start_utc=None,
-        lesson_timezone=None,
-        instructor_tz_at_booking=None,
-        instructor=test_booking.instructor,
-    )
-    result = service._get_booking_start_utc(booking_stub)
-    assert result.tzinfo == timezone.utc
-
-
 def test_send_cancellation_notification_edge_cases(
     db, test_booking, template_service, email_service, monkeypatch
 ):

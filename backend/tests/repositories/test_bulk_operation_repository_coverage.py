@@ -37,9 +37,3 @@ class TestBulkOperationRepositoryCoverage:
         repo = BulkOperationRepository(mock_db)
         with pytest.raises(RepositoryException):
             repo.has_bookings_on_date("inst", target_date=None)  # type: ignore[arg-type]
-
-    def test_bulk_create_slots_not_implemented(self, db):
-        repo = BulkOperationRepository(db)
-
-        with pytest.raises(NotImplementedError):
-            repo.bulk_create_slots([{"foo": "bar"}])

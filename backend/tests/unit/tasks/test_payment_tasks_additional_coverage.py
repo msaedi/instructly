@@ -89,7 +89,7 @@ def test_process_scheduled_authorizations_skips_when_not_due():
 
     with patch("app.database.SessionLocal", return_value=db_read):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
@@ -114,11 +114,11 @@ def test_retry_failed_authorizations_cancels_when_due():
 
     with patch("app.database.SessionLocal", return_value=db_read):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 return_value=payment_repo,
             ):
                 with patch(
@@ -241,7 +241,7 @@ def test_escalate_capture_failure_handles_payment_record_error():
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_write]):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=payment_repo,
         ):
             with patch(
@@ -286,11 +286,11 @@ def test_capture_completed_lessons_skips_expired_when_cancelled():
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_expired]):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 return_value=payment_repo,
             ):
                 with patch(
@@ -348,7 +348,7 @@ def test_resolve_undisputed_no_shows_handles_exception():
 
     with patch("app.tasks.payment_tasks.get_db", return_value=iter([db])):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
@@ -495,11 +495,11 @@ def test_process_scheduled_authorizations_sends_first_failure_email():
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_notify, db_notify]):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 return_value=payment_repo,
             ):
                 with patch(
@@ -561,11 +561,11 @@ def test_process_scheduled_authorizations_skips_duplicate_email():
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_notify]):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 return_value=payment_repo,
             ):
                 with patch(
@@ -612,7 +612,7 @@ def test_process_scheduled_authorizations_records_failure_on_exception():
 
     with patch("app.database.SessionLocal", return_value=db_read):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
@@ -657,11 +657,11 @@ def test_process_scheduled_authorizations_skips_email_when_event_already_exists(
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_notify]):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 return_value=payment_repo,
             ):
                 with patch(
@@ -715,11 +715,11 @@ def test_process_scheduled_authorizations_handles_missing_booking_for_email():
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_notify]):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 return_value=payment_repo,
             ):
                 with patch(
@@ -772,7 +772,7 @@ def test_process_authorization_for_booking_phase3_missing():
 
     with patch("app.database.SessionLocal", side_effect=[db1, db3]):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=payment_repo,
         ):
             result = payment_tasks._process_authorization_for_booking(booking.id, 24.0)
@@ -805,11 +805,11 @@ def test_retry_failed_authorizations_warn_only_sends_warning():
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_warn]):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 return_value=payment_repo,
             ):
                 with patch(
@@ -870,11 +870,11 @@ def test_retry_failed_authorizations_warn_only_skips_when_already_sent():
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_warn]):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 return_value=payment_repo,
             ):
                 with patch(
@@ -918,11 +918,11 @@ def test_retry_failed_authorizations_retry_with_warning_skipped():
 
     with patch("app.database.SessionLocal", return_value=db_read):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 return_value=payment_repo,
             ):
                 with patch(
@@ -966,7 +966,7 @@ def test_retry_failed_authorizations_silent_retry_skipped():
 
     with patch("app.database.SessionLocal", return_value=db_read):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
@@ -1006,7 +1006,7 @@ def test_retry_failed_authorizations_handles_exception():
 
     with patch("app.database.SessionLocal", return_value=db_read):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
@@ -1044,11 +1044,11 @@ def test_retry_failed_authorizations_cancel_path_noop_when_cancel_returns_false(
 
     with patch("app.database.SessionLocal", return_value=db_read):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 return_value=MagicMock(),
             ):
                 with patch(
@@ -1396,7 +1396,7 @@ def test_escalate_capture_failure_transfer_error():
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_stripe, db_write]):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=payment_repo,
         ):
             with patch(
@@ -1535,7 +1535,7 @@ def test_process_capture_for_booking_already_captured():
 
     with patch("app.database.SessionLocal", side_effect=[db1, db_stripe, db3]):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=payment_repo,
         ):
             with patch(
@@ -1627,7 +1627,7 @@ def test_auto_complete_booking_locked_funds():
 
     with patch("app.database.SessionLocal", return_value=db1):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=payment_repo,
         ):
             with patch(
@@ -1682,7 +1682,7 @@ def test_auto_complete_booking_locked_funds_resolution_failure_keeps_uncaptured(
 
     with patch("app.database.SessionLocal", return_value=db1):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=payment_repo,
         ):
             with patch(
@@ -1737,7 +1737,7 @@ def test_auto_complete_booking_no_payment_intent():
 
     with patch("app.database.SessionLocal", return_value=db1):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=payment_repo,
         ):
             with patch(
@@ -1779,11 +1779,11 @@ def test_capture_completed_lessons_handles_capture_and_auto_complete_failures():
 
     with patch("app.database.SessionLocal", return_value=db_read):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 return_value=payment_repo,
             ):
                 with patch(
@@ -1826,11 +1826,11 @@ def test_capture_completed_lessons_auto_loop_skips_when_lock_unavailable():
 
     with patch("app.database.SessionLocal", return_value=db_read):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 return_value=payment_repo,
             ):
                 with patch(
@@ -1862,11 +1862,11 @@ def test_capture_completed_lessons_auto_loop_counts_capture_without_auto_complet
 
     with patch("app.database.SessionLocal", return_value=db_read):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 return_value=payment_repo,
             ):
                 with patch(
@@ -1923,11 +1923,11 @@ def test_capture_completed_lessons_marks_expired_auth():
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_expired]):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 return_value=payment_repo,
             ):
                 with patch(
@@ -2048,7 +2048,7 @@ def test_resolve_undisputed_no_shows_skips_and_fails():
 
     with patch("app.tasks.payment_tasks.get_db", return_value=iter([db])):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
@@ -2079,11 +2079,11 @@ def test_check_authorization_health_flags_overdue():
 
     with patch("app.tasks.payment_tasks.get_db", return_value=iter([db])):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=booking_repo,
             ):
                 with patch(
@@ -2109,7 +2109,7 @@ def test_audit_and_fix_payout_schedules_retries_on_error():
             with patch("app.tasks.payment_tasks.ConfigService"):
                 with patch("app.tasks.payment_tasks.PricingService"):
                     with patch(
-                        "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository"
+                        "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository"
                     ):
                         with patch.object(
                             payment_tasks.audit_and_fix_payout_schedules,
@@ -2144,11 +2144,11 @@ def test_capture_late_cancellation_already_captured():
     with patch("app.tasks.payment_tasks.get_db", return_value=iter([db])):
         with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 return_value=payment_repo,
             ):
                 with patch(
-                    "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                    "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                     return_value=booking_repo,
                 ):
                     with patch(
@@ -2196,11 +2196,11 @@ def test_capture_late_cancellation_credit_service_failure():
     with patch("app.tasks.payment_tasks.get_db", return_value=iter([db])):
         with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 return_value=payment_repo,
             ):
                 with patch(
-                    "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                    "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                     return_value=booking_repo,
                 ):
                     with patch(
@@ -2248,11 +2248,11 @@ def test_capture_completed_lessons_capture_loop_exception_counts_failed():
 
     with patch("app.database.SessionLocal", return_value=db_read):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 return_value=payment_repo,
             ):
                 with patch(
@@ -2287,11 +2287,11 @@ def test_capture_completed_lessons_auto_complete_loop_exception_counts_failed():
 
     with patch("app.database.SessionLocal", return_value=db_read):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 return_value=payment_repo,
             ):
                 with patch(
@@ -2373,11 +2373,11 @@ def test_capture_completed_lessons_expired_auth_skip_paths_and_error_branch():
         side_effect=[db_read, db_missing, db_manual, db_not_auth, db_error],
     ):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 return_value=payment_repo,
             ):
                 with patch(
@@ -2438,7 +2438,7 @@ def test_process_capture_for_booking_already_captured_sets_completed_fields(payo
 
     with patch("app.database.SessionLocal", side_effect=[db1, db_stripe, db3]):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=payment_repo,
         ):
             with patch("app.tasks.payment_tasks.StripeService", return_value=stripe_service):
@@ -2536,11 +2536,11 @@ def test_check_authorization_health_booking_not_overdue_branch():
 
     with patch("app.tasks.payment_tasks.get_db", return_value=iter([db])):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=booking_repo,
             ):
                 with patch(
@@ -2574,11 +2574,11 @@ def test_process_scheduled_authorizations_ignores_non_scheduled_bookings():
 
     with patch("app.database.SessionLocal", return_value=db_read):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 return_value=MagicMock(),
             ):
                 with patch("app.tasks.payment_tasks._get_booking_start_utc", return_value=now):
@@ -2618,11 +2618,11 @@ def test_retry_failed_authorizations_warn_only_skips_when_booking_no_longer_elig
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_warn]):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 return_value=MagicMock(),
             ):
                 with patch("app.tasks.payment_tasks._get_booking_start_utc", return_value=now):
@@ -2672,11 +2672,11 @@ def test_retry_failed_authorizations_warn_only_then_retry_success():
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_warn]):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
             return_value=booking_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
                 return_value=payment_repo,
             ):
                 with patch("app.tasks.payment_tasks._get_booking_start_utc", return_value=now):
@@ -2755,7 +2755,7 @@ def test_process_retry_authorization_returns_phase3_missing():
 
     with patch("app.database.SessionLocal", side_effect=[db1, db_stripe, db3]):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=payment_repo,
         ):
             with patch(
@@ -2796,7 +2796,7 @@ def test_escalate_capture_failure_returns_when_booking_missing_in_phase3():
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_write]):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=payment_repo_read,
         ):
             with patch(
@@ -2856,7 +2856,7 @@ def test_escalate_capture_failure_commits_without_student_record():
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_write]):
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             side_effect=[payment_repo_read, payment_repo_write],
         ):
             with patch(

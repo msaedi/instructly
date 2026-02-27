@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
 
 from fastapi import HTTPException
 import pytest
@@ -234,31 +234,6 @@ async def test_account_rate_limiter_record_attempt_redis_none(monkeypatch):
 
     monkeypatch.setattr(lp, "_get_redis_client", _get_none)
     await limiter.record_attempt("user@example.com")
-
-
-@pytest.mark.asyncio
-async def test_account_rate_limiter_check_and_increment_adjusts_remaining():
-    limiter = lp.AccountRateLimiter(redis=FakeRedis())
-    limiter.check = AsyncMock(return_value=(True, {"remaining_minute": 2, "remaining_hour": 4}))
-    limiter.record_attempt = AsyncMock()
-
-    allowed, info = await limiter.check_and_increment("user@example.com")
-
-    assert allowed is True
-    assert info["remaining_minute"] == 1
-    assert info["remaining_hour"] == 3
-
-
-@pytest.mark.asyncio
-async def test_account_rate_limiter_check_and_increment_with_none_remaining():
-    limiter = lp.AccountRateLimiter(redis=FakeRedis())
-    limiter.check = AsyncMock(return_value=(True, {"remaining_minute": None, "remaining_hour": None}))
-    limiter.record_attempt = AsyncMock()
-
-    allowed, info = await limiter.check_and_increment("user@example.com")
-
-    assert allowed is True
-    assert info["remaining_minute"] is None
 
 
 @pytest.mark.asyncio

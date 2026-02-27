@@ -44,21 +44,6 @@ class TestBulkOperationServiceCoverage:
         return db
 
     @pytest.fixture
-    def mock_slot_manager(self) -> MagicMock:
-        """Create mock slot manager."""
-        manager = MagicMock()
-
-        def create_slot_side_effect(*args: Any, **kwargs: Any) -> MagicMock:
-            mock_slot = MagicMock()
-            mock_slot.id = generate_ulid()
-            return mock_slot
-
-        manager.create_slot = MagicMock(side_effect=create_slot_side_effect)
-        manager.update_slot = MagicMock()
-        manager.delete_slot = MagicMock()
-        return manager
-
-    @pytest.fixture
     def mock_conflict_checker(self) -> MagicMock:
         """Create mock conflict checker."""
         checker = MagicMock()
@@ -78,7 +63,6 @@ class TestBulkOperationServiceCoverage:
     def service(
         self,
         mock_db: MagicMock,
-        mock_slot_manager: MagicMock,
         mock_conflict_checker: MagicMock,
         mock_cache_service: MagicMock,
     ) -> Any:
@@ -87,7 +71,7 @@ class TestBulkOperationServiceCoverage:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=mock_slot_manager,
+
             conflict_checker=mock_conflict_checker,
             cache_service=mock_cache_service,
         )
@@ -126,7 +110,7 @@ class TestProcessSingleOperation:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -148,7 +132,7 @@ class TestProcessSingleOperation:
 
         assert result.status == "failed"
         assert "Unknown action" in result.reason
-        assert "valid actions are: add, remove, update" in result.reason
+        assert "valid actions are: add, remove" in result.reason
 
 
 class TestValidateAddOperationFields:
@@ -161,7 +145,7 @@ class TestValidateAddOperationFields:
         mock_db = MagicMock()
         return BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -254,7 +238,7 @@ class TestValidateAddOperationTiming:
 
         return BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -347,7 +331,7 @@ class TestCheckAddOperationConflicts:
         mock_db = MagicMock()
         return BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -408,90 +392,6 @@ class TestCheckAddOperationConflicts:
         assert error is None
 
 
-class TestCreateSlotForOperation:
-    """Test _create_slot_for_operation method."""
-
-    @pytest.fixture
-    def service(self) -> Any:
-        from app.services.bulk_operation_service import BulkOperationService
-
-        mock_db = MagicMock()
-        service = BulkOperationService(
-            db=mock_db,
-            slot_manager=MagicMock(),
-            conflict_checker=MagicMock(),
-            cache_service=MagicMock(),
-        )
-        return service
-
-    def test_validate_only_returns_none(self, service: Any) -> None:
-        """Test that validate_only=True returns None."""
-        operation = SlotOperation(
-            action="add",
-            date=date(2026, 12, 25),
-            start_time=time(9, 0),
-            end_time=time(10, 0),
-        )
-
-        result = service._create_slot_for_operation(
-            generate_ulid(), operation, validate_only=True
-        )
-
-        assert result is None
-
-    def test_missing_fields_raises_error(self, service: Any) -> None:
-        """Test that missing fields raises ValueError."""
-        operation = MagicMock()
-        operation.date = None
-        operation.start_time = None
-        operation.end_time = None
-
-        with pytest.raises(Exception) as exc_info:
-            service._create_slot_for_operation(
-                generate_ulid(), operation, validate_only=False
-            )
-
-        assert "Failed to create slot" in str(exc_info.value)
-
-    def test_successful_slot_creation(self, service: Any) -> None:
-        """Test successful slot creation."""
-        mock_slot = MagicMock()
-        mock_slot.id = generate_ulid()
-        service.slot_manager.create_slot.return_value = mock_slot
-
-        operation = SlotOperation(
-            action="add",
-            date=date(2026, 12, 25),
-            start_time=time(9, 0),
-            end_time=time(10, 0),
-        )
-
-        result = service._create_slot_for_operation(
-            generate_ulid(), operation, validate_only=False
-        )
-
-        assert result is not None
-        assert result.id == mock_slot.id
-
-    def test_slot_manager_not_configured(self, service: Any) -> None:
-        """Test error when slot manager is None."""
-        service.slot_manager = None
-
-        operation = SlotOperation(
-            action="add",
-            date=date(2026, 12, 25),
-            start_time=time(9, 0),
-            end_time=time(10, 0),
-        )
-
-        with pytest.raises(Exception) as exc_info:
-            service._create_slot_for_operation(
-                generate_ulid(), operation, validate_only=False
-            )
-
-        assert "Slot manager not configured" in str(exc_info.value)
-
-
 class TestValidateRemoveOperation:
     """Test _validate_remove_operation method."""
 
@@ -502,36 +402,12 @@ class TestValidateRemoveOperation:
         mock_db = MagicMock()
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
         service.repository = MagicMock()
         return service
-
-    def test_remove_by_slot_id_not_found(self, service: Any) -> None:
-        """Test remove validation when slot not found by ID."""
-        service.repository.get_slot_for_instructor.return_value = None
-
-        operation = SlotOperation(action="remove", slot_id="nonexistent_id")
-
-        slot, error = service._validate_remove_operation(generate_ulid(), operation)
-
-        assert slot is None
-        assert error is not None
-        assert "not found or not owned" in error
-
-    def test_remove_by_slot_id_success(self, service: Any) -> None:
-        """Test remove validation when slot found by ID."""
-        mock_slot = MagicMock()
-        service.repository.get_slot_for_instructor.return_value = mock_slot
-
-        operation = SlotOperation(action="remove", slot_id="existing_id")
-
-        slot, error = service._validate_remove_operation(generate_ulid(), operation)
-
-        assert slot == mock_slot
-        assert error is None
 
     def test_remove_missing_fields(self, service: Any) -> None:
         """Test remove validation with missing fields."""
@@ -590,204 +466,6 @@ class TestValidateRemoveOperation:
         assert error is None
 
 
-class TestCheckRemoveOperationBookings:
-    """Test _check_remove_operation_bookings method."""
-
-    @pytest.fixture
-    def service(self) -> Any:
-        from app.services.bulk_operation_service import BulkOperationService
-
-        mock_db = MagicMock()
-        return BulkOperationService(
-            db=mock_db,
-            slot_manager=MagicMock(),
-            conflict_checker=MagicMock(),
-            cache_service=MagicMock(),
-        )
-
-    def test_always_returns_none(self, service: Any) -> None:
-        """Test method always returns None (layer independence)."""
-        result = service._check_remove_operation_bookings("any_slot_id")
-        assert result is None
-
-
-class TestExecuteSlotRemoval:
-    """Test _execute_slot_removal method."""
-
-    @pytest.fixture
-    def service(self) -> Any:
-        from app.services.bulk_operation_service import BulkOperationService
-
-        mock_db = MagicMock()
-        service = BulkOperationService(
-            db=mock_db,
-            slot_manager=MagicMock(),
-            conflict_checker=MagicMock(),
-            cache_service=MagicMock(),
-        )
-        return service
-
-    def test_validate_only_returns_true(self, service: Any) -> None:
-        """Test validate_only=True returns True without executing."""
-        result = service._execute_slot_removal(
-            MagicMock(), "slot_id", validate_only=True
-        )
-        assert result is True
-        service.slot_manager.delete_slot.assert_not_called()
-
-    def test_successful_removal(self, service: Any) -> None:
-        """Test successful slot removal."""
-        mock_slot = MagicMock()
-        mock_slot.id = "slot_id"
-
-        result = service._execute_slot_removal(mock_slot, "slot_id", validate_only=False)
-
-        assert result is True
-        service.slot_manager.delete_slot.assert_called_once()
-
-    def test_slot_manager_not_configured(self, service: Any) -> None:
-        """Test error when slot manager is None."""
-        service.slot_manager = None
-
-        with pytest.raises(Exception) as exc_info:
-            service._execute_slot_removal(MagicMock(), "slot_id", validate_only=False)
-
-        assert "Slot manager not configured" in str(exc_info.value)
-
-    def test_deletion_failure(self, service: Any) -> None:
-        """Test handling deletion failure."""
-        service.slot_manager.delete_slot.side_effect = Exception("Delete failed")
-
-        with pytest.raises(Exception) as exc_info:
-            service._execute_slot_removal(MagicMock(), "slot_id", validate_only=False)
-
-        assert "Failed to remove slot" in str(exc_info.value)
-
-
-class TestValidateUpdateOperationFields:
-    """Test _validate_update_operation_fields method."""
-
-    @pytest.fixture
-    def service(self) -> Any:
-        from app.services.bulk_operation_service import BulkOperationService
-
-        mock_db = MagicMock()
-        return BulkOperationService(
-            db=mock_db,
-            slot_manager=MagicMock(),
-            conflict_checker=MagicMock(),
-            cache_service=MagicMock(),
-        )
-
-    def test_missing_slot_id(self, service: Any) -> None:
-        """Test validation when slot_id is missing."""
-        operation = SlotOperation(action="update", slot_id=None)
-
-        error = service._validate_update_operation_fields(operation)
-
-        assert error is not None
-        assert "Missing slot_id" in error
-
-    def test_slot_id_present(self, service: Any) -> None:
-        """Test validation passes when slot_id present."""
-        operation = SlotOperation(action="update", slot_id="some_id")
-
-        error = service._validate_update_operation_fields(operation)
-
-        assert error is None
-
-
-class TestFindSlotForUpdate:
-    """Test _find_slot_for_update method."""
-
-    @pytest.fixture
-    def service(self) -> Any:
-        from app.services.bulk_operation_service import BulkOperationService
-
-        mock_db = MagicMock()
-        service = BulkOperationService(
-            db=mock_db,
-            slot_manager=MagicMock(),
-            conflict_checker=MagicMock(),
-            cache_service=MagicMock(),
-        )
-        service.repository = MagicMock()
-        return service
-
-    def test_slot_not_found(self, service: Any) -> None:
-        """Test finding slot when it doesn't exist."""
-        service.repository.get_slot_for_instructor.return_value = None
-
-        slot, error = service._find_slot_for_update(generate_ulid(), "nonexistent")
-
-        assert slot is None
-        assert error is not None
-        assert "not found or not owned" in error
-
-    def test_slot_found(self, service: Any) -> None:
-        """Test finding slot when it exists."""
-        mock_slot = MagicMock()
-        service.repository.get_slot_for_instructor.return_value = mock_slot
-
-        slot, error = service._find_slot_for_update(generate_ulid(), "existing_id")
-
-        assert slot == mock_slot
-        assert error is None
-
-
-class TestValidateUpdateTimingAndConflicts:
-    """Test _validate_update_timing_and_conflicts method."""
-
-    @pytest.fixture
-    def service(self) -> Any:
-        from app.services.bulk_operation_service import BulkOperationService
-
-        mock_db = MagicMock()
-        service = BulkOperationService(
-            db=mock_db,
-            slot_manager=MagicMock(),
-            conflict_checker=MagicMock(),
-            cache_service=MagicMock(),
-        )
-        service.repository = MagicMock()
-        return service
-
-    def test_end_time_before_start_time(self, service: Any) -> None:
-        """Test validation fails when end time is before start time."""
-        existing_slot = MagicMock()
-        existing_slot.start_time = time(9, 0)
-        existing_slot.end_time = time(10, 0)
-
-        operation = MagicMock()
-        operation.slot_id = "some_id"
-        operation.start_time = time(10, 0)  # Start after end
-        operation.end_time = time(9, 0)
-
-        error = service._validate_update_timing_and_conflicts(
-            generate_ulid(), operation, existing_slot
-        )
-
-        assert error is not None
-        assert "must be after start time" in error
-
-    def test_uses_existing_times_if_not_provided(self, service: Any) -> None:
-        """Test that existing times are used if not provided in operation."""
-        existing_slot = MagicMock()
-        existing_slot.start_time = time(9, 0)
-        existing_slot.end_time = time(10, 0)
-
-        operation = MagicMock()
-        operation.slot_id = "some_id"
-        operation.start_time = None  # Use existing
-        operation.end_time = None  # Use existing
-
-        error = service._validate_update_timing_and_conflicts(
-            generate_ulid(), operation, existing_slot
-        )
-
-        # Should not fail since existing times are valid
-        assert error is None
-
 
 class TestProcessRemoveOperation:
     """Test _process_remove_operation method."""
@@ -803,7 +481,7 @@ class TestProcessRemoveOperation:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -825,91 +503,31 @@ class TestProcessRemoveOperation:
 
         assert result.status == "failed"
 
-    def test_validate_only_success(self, service: Any) -> None:
-        """Test remove operation with validate_only=True."""
-        mock_slot = MagicMock()
-        service.repository.get_slot_for_instructor.return_value = mock_slot
-
-        operation = SlotOperation(action="remove", slot_id="existing_id")
-
-        result = service._process_remove_operation(
-            instructor_id=generate_ulid(),
-            operation=operation,
-            operation_index=0,
-            validate_only=True,
+    def test_validate_only_success_with_window(self, service: Any) -> None:
+        """Test remove operation with validate_only=True using bitmap window."""
+        operation = SlotOperation(
+            action="remove",
+            date=date(2026, 12, 25),
+            start_time=time(9, 0),
+            end_time=time(10, 0),
         )
+
+        with patch.object(
+            service, "_get_existing_week_windows"
+        ) as mock_get_windows:
+            mock_get_windows.return_value = {
+                "2026-12-25": [{"start_time": "09:00:00", "end_time": "10:00:00"}]
+            }
+
+            result = service._process_remove_operation(
+                instructor_id=generate_ulid(),
+                operation=operation,
+                operation_index=0,
+                validate_only=True,
+            )
 
         assert result.status == "success"
         assert "Validation passed" in result.reason
-
-    def test_execution_failure(self, service: Any) -> None:
-        """Test remove operation with execution failure."""
-        mock_slot = MagicMock()
-        service.repository.get_slot_for_instructor.return_value = mock_slot
-        service.slot_manager.delete_slot.side_effect = Exception("Delete failed")
-
-        operation = SlotOperation(action="remove", slot_id="existing_id")
-
-        result = service._process_remove_operation(
-            instructor_id=generate_ulid(),
-            operation=operation,
-            operation_index=0,
-            validate_only=False,
-        )
-
-        assert result.status == "failed"
-
-
-class TestProcessUpdateOperation:
-    """Test _process_update_operation method."""
-
-    @pytest.fixture
-    def mock_db(self) -> MagicMock:
-        db = MagicMock()
-        return db
-
-    @pytest.fixture
-    def service(self, mock_db: MagicMock) -> Any:
-        from app.services.bulk_operation_service import BulkOperationService
-
-        service = BulkOperationService(
-            db=mock_db,
-            slot_manager=MagicMock(),
-            conflict_checker=MagicMock(),
-            cache_service=MagicMock(),
-        )
-        service.repository = MagicMock()
-        return service
-
-    def test_missing_slot_id(self, service: Any) -> None:
-        """Test update operation with missing slot_id."""
-        operation = SlotOperation(action="update", slot_id=None)
-
-        result = service._process_update_operation(
-            instructor_id=generate_ulid(),
-            operation=operation,
-            operation_index=0,
-            validate_only=False,
-        )
-
-        assert result.status == "failed"
-        assert "Missing slot_id" in result.reason
-
-    def test_slot_not_found(self, service: Any) -> None:
-        """Test update operation when slot not found."""
-        service.repository.get_slot_for_instructor.return_value = None
-
-        operation = SlotOperation(action="update", slot_id="nonexistent")
-
-        result = service._process_update_operation(
-            instructor_id=generate_ulid(),
-            operation=operation,
-            operation_index=0,
-            validate_only=False,
-        )
-
-        assert result.status == "failed"
-        assert "not found" in result.reason
 
 
 class TestProcessAddOperation:
@@ -934,7 +552,7 @@ class TestProcessAddOperation:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -971,679 +589,11 @@ class TestProcessAddOperation:
         assert result.status == "success"
         assert "Validation passed" in result.reason
 
-    def test_slot_creation_returns_none(self, service: Any) -> None:
-        """Test add operation when slot creation returns None."""
-        future_date = date.today() + timedelta(days=30)
-        operation = SlotOperation(
-            action="add",
-            date=future_date,
-            start_time=time(9, 0),
-            end_time=time(10, 0),
-        )
 
-        # Mock to return None from slot creation
-        service.slot_manager.create_slot.return_value = None
 
-        with patch(
-            "app.services.bulk_operation_service.get_user_today_by_id"
-        ) as mock_today:
-            mock_today.return_value = date.today()
 
-            with patch(
-                "app.repositories.availability_day_repository.AvailabilityDayRepository"
-            ) as mock_repo:
-                mock_repo.return_value.get_day_bits.return_value = None
 
-                result = service._process_add_operation(
-                    instructor_id=generate_ulid(),
-                    operation=operation,
-                    operation_index=0,
-                    validate_only=False,
-                )
 
-        assert result.status == "failed"
-        assert "Slot creation returned None" in result.reason
-
-
-class TestProcessBulkUpdate:
-    """Test process_bulk_update method."""
-
-    @pytest.fixture
-    def mock_db(self) -> MagicMock:
-        db = MagicMock()
-        mock_user = MagicMock()
-        mock_user.id = generate_ulid()
-        mock_user.timezone = "America/New_York"
-        mock_query = MagicMock()
-        mock_filter = MagicMock()
-        mock_filter.first.return_value = mock_user
-        mock_query.filter.return_value = mock_filter
-        db.query.return_value = mock_query
-        db.begin_nested = MagicMock()
-        db.begin_nested.return_value.__enter__ = MagicMock()
-        db.begin_nested.return_value.__exit__ = MagicMock()
-        return db
-
-    @pytest.fixture
-    def service(self, mock_db: MagicMock) -> Any:
-        from app.services.bulk_operation_service import BulkOperationService
-
-        service = BulkOperationService(
-            db=mock_db,
-            slot_manager=MagicMock(),
-            conflict_checker=MagicMock(),
-            cache_service=MagicMock(),
-        )
-        service.repository = MagicMock()
-        return service
-
-    def test_validate_only_mode(self, service: Any, mock_db: MagicMock) -> None:
-        """Test process_bulk_update in validate_only mode."""
-        from app.schemas.availability_window import BulkUpdateRequest
-
-        future_date = date.today() + timedelta(days=30)
-        update_data = BulkUpdateRequest(
-            validate_only=True,
-            operations=[
-                SlotOperation(
-                    action="add",
-                    date=future_date,
-                    start_time=time(9, 0),
-                    end_time=time(10, 0),
-                ),
-            ],
-        )
-
-        with patch(
-            "app.services.bulk_operation_service.get_user_today_by_id"
-        ) as mock_today:
-            mock_today.return_value = date.today()
-
-            with patch(
-                "app.repositories.availability_day_repository.AvailabilityDayRepository"
-            ) as mock_repo:
-                mock_repo.return_value.get_day_bits.return_value = None
-
-                result = service.process_bulk_update(
-                    instructor_id=generate_ulid(),
-                    update_data=update_data,
-                )
-
-        assert "successful" in result
-        assert "failed" in result
-        assert "results" in result
-
-    def test_execute_mode(self, service: Any, mock_db: MagicMock) -> None:
-        """Test process_bulk_update in execute mode."""
-        from app.schemas.availability_window import BulkUpdateRequest
-
-        future_date = date.today() + timedelta(days=30)
-        mock_slot = MagicMock()
-        mock_slot.id = generate_ulid()
-        service.slot_manager.create_slot.return_value = mock_slot
-
-        update_data = BulkUpdateRequest(
-            validate_only=False,
-            operations=[
-                SlotOperation(
-                    action="add",
-                    date=future_date,
-                    start_time=time(9, 0),
-                    end_time=time(10, 0),
-                ),
-            ],
-        )
-
-        with patch(
-            "app.services.bulk_operation_service.get_user_today_by_id"
-        ) as mock_today:
-            mock_today.return_value = date.today()
-
-            with patch(
-                "app.repositories.availability_day_repository.AvailabilityDayRepository"
-            ) as mock_repo:
-                mock_repo.return_value.get_day_bits.return_value = None
-
-                with patch(
-                    "app.services.bulk_operation_service.invalidate_on_availability_change"
-                ):
-                    result = service.process_bulk_update(
-                        instructor_id=generate_ulid(),
-                        update_data=update_data,
-                    )
-
-        assert "successful" in result
-
-
-class TestValidateBulkOperations:
-    """Test _validate_bulk_operations method."""
-
-    @pytest.fixture
-    def mock_db(self) -> MagicMock:
-        db = MagicMock()
-        mock_user = MagicMock()
-        mock_user.id = generate_ulid()
-        mock_user.timezone = "America/New_York"
-        mock_query = MagicMock()
-        mock_filter = MagicMock()
-        mock_filter.first.return_value = mock_user
-        mock_query.filter.return_value = mock_filter
-        db.query.return_value = mock_query
-        db.begin_nested = MagicMock()
-        db.begin_nested.return_value.__enter__ = MagicMock()
-        db.begin_nested.return_value.__exit__ = MagicMock()
-        return db
-
-    @pytest.fixture
-    def service(self, mock_db: MagicMock) -> Any:
-        from app.services.bulk_operation_service import BulkOperationService
-
-        service = BulkOperationService(
-            db=mock_db,
-            slot_manager=MagicMock(),
-            conflict_checker=MagicMock(),
-            cache_service=MagicMock(),
-        )
-        service.repository = MagicMock()
-        return service
-
-    def test_validate_with_multiple_operations(
-        self, service: Any, mock_db: MagicMock
-    ) -> None:
-        """Test validation with multiple operations."""
-        from app.schemas.availability_window import BulkUpdateRequest
-
-        future_date = date.today() + timedelta(days=30)
-        update_data = BulkUpdateRequest(
-            validate_only=True,
-            operations=[
-                SlotOperation(
-                    action="add",
-                    date=future_date,
-                    start_time=time(9, 0),
-                    end_time=time(10, 0),
-                ),
-                SlotOperation(
-                    action="add",
-                    date=future_date,
-                    start_time=time(11, 0),
-                    end_time=time(12, 0),
-                ),
-            ],
-        )
-
-        with patch(
-            "app.services.bulk_operation_service.get_user_today_by_id"
-        ) as mock_today:
-            mock_today.return_value = date.today()
-
-            with patch(
-                "app.repositories.availability_day_repository.AvailabilityDayRepository"
-            ) as mock_repo:
-                mock_repo.return_value.get_day_bits.return_value = None
-
-                result = service._validate_bulk_operations(
-                    instructor_id=generate_ulid(),
-                    update_data=update_data,
-                )
-
-        # Verify rollback was called
-        mock_db.rollback.assert_called()
-        assert "results" in result
-
-
-class TestExecuteBulkOperations:
-    """Test _execute_bulk_operations method."""
-
-    @pytest.fixture
-    def mock_db(self) -> MagicMock:
-        db = MagicMock()
-        mock_user = MagicMock()
-        mock_user.id = generate_ulid()
-        mock_user.timezone = "America/New_York"
-        mock_query = MagicMock()
-        mock_filter = MagicMock()
-        mock_filter.first.return_value = mock_user
-        mock_query.filter.return_value = mock_filter
-        db.query.return_value = mock_query
-        db.begin_nested = MagicMock()
-        db.begin_nested.return_value.__enter__ = MagicMock()
-        db.begin_nested.return_value.__exit__ = MagicMock()
-        return db
-
-    @pytest.fixture
-    def service(self, mock_db: MagicMock) -> Any:
-        from app.services.bulk_operation_service import BulkOperationService
-
-        service = BulkOperationService(
-            db=mock_db,
-            slot_manager=MagicMock(),
-            conflict_checker=MagicMock(),
-            cache_service=MagicMock(),
-        )
-        service.repository = MagicMock()
-        return service
-
-    def test_execute_all_operations_fail(
-        self, service: Any, mock_db: MagicMock
-    ) -> None:
-        """Test execution when all operations fail."""
-        from app.schemas.availability_window import BulkUpdateRequest
-
-        # Operation with missing fields will fail
-        update_data = BulkUpdateRequest(
-            validate_only=False,
-            operations=[
-                SlotOperation(action="add"),  # Missing fields
-            ],
-        )
-
-        result = service._execute_bulk_operations(
-            instructor_id=generate_ulid(),
-            update_data=update_data,
-        )
-
-        assert result["successful"] == 0
-        assert result["failed"] >= 1
-
-    def test_execute_with_successful_operations(
-        self, service: Any, mock_db: MagicMock
-    ) -> None:
-        """Test execution with successful operations."""
-        from app.schemas.availability_window import BulkUpdateRequest
-
-        future_date = date.today() + timedelta(days=30)
-        mock_slot = MagicMock()
-        mock_slot.id = generate_ulid()
-        service.slot_manager.create_slot.return_value = mock_slot
-
-        update_data = BulkUpdateRequest(
-            validate_only=False,
-            operations=[
-                SlotOperation(
-                    action="add",
-                    date=future_date,
-                    start_time=time(9, 0),
-                    end_time=time(10, 0),
-                ),
-            ],
-        )
-
-        with patch(
-            "app.services.bulk_operation_service.get_user_today_by_id"
-        ) as mock_today:
-            mock_today.return_value = date.today()
-
-            with patch(
-                "app.repositories.availability_day_repository.AvailabilityDayRepository"
-            ) as mock_repo:
-                mock_repo.return_value.get_day_bits.return_value = None
-
-                with patch(
-                    "app.services.bulk_operation_service.invalidate_on_availability_change"
-                ):
-                    result = service._execute_bulk_operations(
-                        instructor_id=generate_ulid(),
-                        update_data=update_data,
-                    )
-
-        assert result["successful"] >= 1
-
-
-class TestProcessOperations:
-    """Test _process_operations method."""
-
-    @pytest.fixture
-    def mock_db(self) -> MagicMock:
-        db = MagicMock()
-        mock_user = MagicMock()
-        mock_user.id = generate_ulid()
-        mock_user.timezone = "America/New_York"
-        mock_query = MagicMock()
-        mock_filter = MagicMock()
-        mock_filter.first.return_value = mock_user
-        mock_query.filter.return_value = mock_filter
-        db.query.return_value = mock_query
-        return db
-
-    @pytest.fixture
-    def service(self, mock_db: MagicMock) -> Any:
-        from app.services.bulk_operation_service import BulkOperationService
-
-        service = BulkOperationService(
-            db=mock_db,
-            slot_manager=MagicMock(),
-            conflict_checker=MagicMock(),
-            cache_service=MagicMock(),
-        )
-        service.repository = MagicMock()
-        return service
-
-    def test_process_with_exception(self, service: Any) -> None:
-        """Test processing when operation raises exception."""
-        # Create operation that will trigger an exception
-        operation = MagicMock()
-        operation.action = "add"
-        operation.date = None
-        operation.start_time = None
-        operation.end_time = None
-
-        # Mock _process_single_operation to raise
-        with patch.object(
-            service, "_process_single_operation"
-        ) as mock_process:
-            mock_process.side_effect = Exception("Test exception")
-
-            results, successful, failed = service._process_operations(
-                instructor_id=generate_ulid(),
-                operations=[operation],
-                validate_only=False,
-            )
-
-        assert len(results) == 1
-        assert results[0].status == "failed"
-        assert failed == 1
-        assert successful == 0
-
-    def test_process_mixed_success_failure(self, service: Any) -> None:
-        """Test processing with mix of success and failure."""
-        from app.schemas.availability_window import OperationResult
-
-        # Create mock to return different results
-        def mock_process_single(
-            instructor_id: str,
-            operation: Any,
-            operation_index: int,
-            validate_only: bool,
-        ) -> OperationResult:
-            if operation_index == 0:
-                return OperationResult(
-                    operation_index=operation_index,
-                    action="add",
-                    status="success",
-                )
-            else:
-                return OperationResult(
-                    operation_index=operation_index,
-                    action="add",
-                    status="failed",
-                    reason="Test failure",
-                )
-
-        with patch.object(
-            service, "_process_single_operation", side_effect=mock_process_single
-        ):
-            results, successful, failed = service._process_operations(
-                instructor_id=generate_ulid(),
-                operations=[MagicMock(), MagicMock()],
-                validate_only=False,
-            )
-
-        assert len(results) == 2
-        assert successful == 1
-        assert failed == 1
-
-
-class TestInvalidateAffectedCache:
-    """Test _invalidate_affected_cache method."""
-
-    @pytest.fixture
-    def mock_db(self) -> MagicMock:
-        return MagicMock()
-
-    @pytest.fixture
-    def mock_cache_service(self) -> MagicMock:
-        cache = MagicMock()
-        cache.invalidate_instructor_availability = MagicMock()
-        cache.delete_pattern = MagicMock()
-        return cache
-
-    @pytest.fixture
-    def service(
-        self, mock_db: MagicMock, mock_cache_service: MagicMock
-    ) -> Any:
-        from app.services.bulk_operation_service import BulkOperationService
-
-        service = BulkOperationService(
-            db=mock_db,
-            slot_manager=MagicMock(),
-            conflict_checker=MagicMock(),
-            cache_service=mock_cache_service,
-        )
-        return service
-
-    def test_no_cache_service(self, mock_db: MagicMock) -> None:
-        """Test when no cache service configured."""
-        from app.services.bulk_operation_service import BulkOperationService
-
-        service = BulkOperationService(
-            db=mock_db,
-            slot_manager=MagicMock(),
-            conflict_checker=MagicMock(),
-            cache_service=None,
-        )
-
-        # Should not raise
-        service._invalidate_affected_cache(
-            instructor_id=generate_ulid(),
-            operations=[],
-            results=[],
-        )
-
-    def test_invalidate_with_affected_dates(
-        self, service: Any, mock_cache_service: MagicMock
-    ) -> None:
-        """Test cache invalidation with affected dates."""
-        from app.schemas.availability_window import OperationResult
-
-        operations = [
-            SlotOperation(
-                action="add",
-                date=date(2026, 12, 25),
-                start_time=time(9, 0),
-                end_time=time(10, 0),
-            ),
-        ]
-        results = [
-            OperationResult(
-                operation_index=0,
-                action="add",
-                status="success",
-            ),
-        ]
-
-        service._invalidate_affected_cache(
-            instructor_id=generate_ulid(),
-            operations=operations,
-            results=results,
-        )
-
-        mock_cache_service.invalidate_instructor_availability.assert_called()
-
-    def test_invalidate_remove_without_dates(
-        self, service: Any, mock_cache_service: MagicMock
-    ) -> None:
-        """Test cache invalidation for remove operations without dates."""
-        from app.schemas.availability_window import OperationResult
-
-        operations = [
-            SlotOperation(
-                action="remove",
-                slot_id="some_id",
-            ),
-        ]
-        results = [
-            OperationResult(
-                operation_index=0,
-                action="remove",
-                status="success",
-            ),
-        ]
-
-        service._invalidate_affected_cache(
-            instructor_id=generate_ulid(),
-            operations=operations,
-            results=results,
-        )
-
-        mock_cache_service.delete_pattern.assert_called()
-
-
-class TestExtractAffectedDates:
-    """Test _extract_affected_dates method."""
-
-    @pytest.fixture
-    def service(self) -> Any:
-        from app.services.bulk_operation_service import BulkOperationService
-
-        mock_db = MagicMock()
-        return BulkOperationService(
-            db=mock_db,
-            slot_manager=MagicMock(),
-            conflict_checker=MagicMock(),
-            cache_service=MagicMock(),
-        )
-
-    def test_extract_with_date_object(self, service: Any) -> None:
-        """Test extracting dates from operations with date objects."""
-        from app.schemas.availability_window import OperationResult
-
-        operations = [
-            SlotOperation(
-                action="add",
-                date=date(2026, 12, 25),
-                start_time=time(9, 0),
-                end_time=time(10, 0),
-            ),
-        ]
-        results = [
-            OperationResult(
-                operation_index=0,
-                action="add",
-                status="success",
-            ),
-        ]
-
-        affected_dates = service._extract_affected_dates(operations, results)
-
-        assert date(2026, 12, 25) in affected_dates
-
-    def test_extract_with_date_string(self, service: Any) -> None:
-        """Test extracting dates from operations with date strings."""
-        from app.schemas.availability_window import OperationResult
-
-        # Create operation with string date
-        operation = MagicMock()
-        operation.action = "add"
-        operation.date = "2026-12-25"
-        operation.slot_id = None
-
-        results = [
-            OperationResult(
-                operation_index=0,
-                action="add",
-                status="success",
-            ),
-        ]
-
-        affected_dates = service._extract_affected_dates([operation], results)
-
-        assert date(2026, 12, 25) in affected_dates
-
-    def test_extract_skips_failed_operations(self, service: Any) -> None:
-        """Test that failed operations are skipped."""
-        from app.schemas.availability_window import OperationResult
-
-        operations = [
-            SlotOperation(
-                action="add",
-                date=date(2026, 12, 25),
-                start_time=time(9, 0),
-                end_time=time(10, 0),
-            ),
-        ]
-        results = [
-            OperationResult(
-                operation_index=0,
-                action="add",
-                status="failed",
-                reason="Some error",
-            ),
-        ]
-
-        affected_dates = service._extract_affected_dates(operations, results)
-
-        assert len(affected_dates) == 0
-
-    def test_extract_with_remove_and_slot_id(self, service: Any) -> None:
-        """Test extracting dates from remove operations with slot_id."""
-        from app.schemas.availability_window import OperationResult
-
-        operations = [
-            SlotOperation(
-                action="remove",
-                slot_id="some_id",
-                date=None,
-            ),
-        ]
-        results = [
-            OperationResult(
-                operation_index=0,
-                action="remove",
-                status="success",
-            ),
-        ]
-
-        affected_dates = service._extract_affected_dates(operations, results)
-
-        # Should return empty since no date was provided
-        assert len(affected_dates) == 0
-
-
-class TestCreateOperationSummary:
-    """Test _create_operation_summary method."""
-
-    @pytest.fixture
-    def service(self) -> Any:
-        from app.services.bulk_operation_service import BulkOperationService
-
-        mock_db = MagicMock()
-        return BulkOperationService(
-            db=mock_db,
-            slot_manager=MagicMock(),
-            conflict_checker=MagicMock(),
-            cache_service=MagicMock(),
-        )
-
-    def test_create_summary(self, service: Any) -> None:
-        """Test creating operation summary."""
-        from app.schemas.availability_window import OperationResult
-
-        results = [
-            OperationResult(
-                operation_index=0,
-                action="add",
-                status="success",
-            ),
-            OperationResult(
-                operation_index=1,
-                action="add",
-                status="failed",
-                reason="Error",
-            ),
-        ]
-
-        summary = service._create_operation_summary(
-            results=results,
-            successful=1,
-            failed=1,
-            skipped=0,
-        )
-
-        assert summary["successful"] == 1
-        assert summary["failed"] == 1
-        assert summary["skipped"] == 0
-        assert len(summary["results"]) == 2
 
 
 class TestValidateWeekChanges:
@@ -1668,7 +618,7 @@ class TestValidateWeekChanges:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -1744,7 +694,7 @@ class TestGetExistingWeekWindows:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -1778,7 +728,7 @@ class TestGenerateOperationsFromStates:
         mock_db = MagicMock()
         return BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -1888,7 +838,7 @@ class TestValidateOperations:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -1927,45 +877,31 @@ class TestValidateOperations:
         assert results[0].date == future_date
 
     def test_validate_remove_operations(self, service: Any) -> None:
-        """Test validating remove operations."""
+        """Test validating remove operations using bitmap window."""
         operations = [
             SlotOperation(
                 action="remove",
-                slot_id="some_id",
-            ),
-        ]
-
-        service.repository.get_slot_for_instructor.return_value = None
-
-        results = service._validate_operations(
-            instructor_id=generate_ulid(),
-            operations=operations,
-        )
-
-        assert len(results) == 1
-        assert results[0].action == "remove"
-        assert results[0].slot_id == "some_id"
-
-    def test_validate_update_operations(self, service: Any) -> None:
-        """Test validating update operations."""
-        operations = [
-            SlotOperation(
-                action="update",
-                slot_id="some_id",
+                date=date.today() + timedelta(days=30),
                 start_time=time(9, 0),
                 end_time=time(10, 0),
             ),
         ]
 
-        service.repository.get_slot_for_instructor.return_value = None
+        with patch.object(
+            service, "_get_existing_week_windows"
+        ) as mock_get_windows:
+            future_date = (date.today() + timedelta(days=30)).isoformat()
+            mock_get_windows.return_value = {
+                future_date: [{"start_time": "09:00:00", "end_time": "10:00:00"}]
+            }
 
-        results = service._validate_operations(
-            instructor_id=generate_ulid(),
-            operations=operations,
-        )
+            results = service._validate_operations(
+                instructor_id=generate_ulid(),
+                operations=operations,
+            )
 
         assert len(results) == 1
-        assert results[0].action == "update"
+        assert results[0].action == "remove"
 
 
 class TestGenerateValidationSummary:
@@ -1978,7 +914,7 @@ class TestGenerateValidationSummary:
         mock_db = MagicMock()
         return BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -2037,7 +973,7 @@ class TestGenerateValidationWarnings:
         mock_db = MagicMock()
         return BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -2078,257 +1014,7 @@ class TestGenerateValidationWarnings:
         assert len(warnings) == 0
 
 
-class TestNullTransaction:
-    """Test _null_transaction context manager."""
 
-    @pytest.fixture
-    def service(self) -> Any:
-        from app.services.bulk_operation_service import BulkOperationService
-
-        mock_db = MagicMock()
-        return BulkOperationService(
-            db=mock_db,
-            slot_manager=MagicMock(),
-            conflict_checker=MagicMock(),
-            cache_service=MagicMock(),
-        )
-
-    def test_null_transaction(self, service: Any) -> None:
-        """Test null transaction context manager."""
-        with service._null_transaction() as db:
-            assert db == service.db
-
-
-class TestExecuteSlotUpdate:
-    """Test _execute_slot_update method."""
-
-    @pytest.fixture
-    def service(self) -> Any:
-        from app.services.bulk_operation_service import BulkOperationService
-
-        mock_db = MagicMock()
-        service = BulkOperationService(
-            db=mock_db,
-            slot_manager=MagicMock(),
-            conflict_checker=MagicMock(),
-            cache_service=MagicMock(),
-        )
-        return service
-
-    def test_validate_only_returns_none(self, service: Any) -> None:
-        """Test that validate_only=True returns None."""
-        mock_slot = MagicMock()
-        operation = SlotOperation(action="update", slot_id="some_id")
-
-        result = service._execute_slot_update(
-            mock_slot, operation, time(9, 0), time(10, 0), validate_only=True
-        )
-
-        assert result is None
-        service.slot_manager.update_slot.assert_not_called()
-
-    def test_successful_update(self, service: Any) -> None:
-        """Test successful slot update."""
-        mock_slot = MagicMock()
-        mock_updated_slot = MagicMock()
-        service.slot_manager.update_slot.return_value = mock_updated_slot
-
-        operation = SlotOperation(action="update", slot_id="some_id")
-
-        result = service._execute_slot_update(
-            mock_slot, operation, time(9, 0), time(10, 0), validate_only=False
-        )
-
-        assert result == mock_updated_slot
-        service.slot_manager.update_slot.assert_called_once()
-
-    def test_slot_manager_not_configured(self, service: Any) -> None:
-        """Test error when slot manager is None."""
-        service.slot_manager = None
-        mock_slot = MagicMock()
-        operation = SlotOperation(action="update", slot_id="some_id")
-
-        with pytest.raises(Exception) as exc_info:
-            service._execute_slot_update(
-                mock_slot, operation, time(9, 0), time(10, 0), validate_only=False
-            )
-
-        assert "Slot manager not configured" in str(exc_info.value)
-
-    def test_update_failure(self, service: Any) -> None:
-        """Test handling update failure."""
-        service.slot_manager.update_slot.side_effect = Exception("Update failed")
-        mock_slot = MagicMock()
-        operation = SlotOperation(action="update", slot_id="some_id")
-
-        with pytest.raises(Exception) as exc_info:
-            service._execute_slot_update(
-                mock_slot, operation, time(9, 0), time(10, 0), validate_only=False
-            )
-
-        assert "Failed to update slot" in str(exc_info.value)
-
-
-class TestProcessUpdateOperationFull:
-    """Additional tests for _process_update_operation method."""
-
-    @pytest.fixture
-    def mock_db(self) -> MagicMock:
-        db = MagicMock()
-        return db
-
-    @pytest.fixture
-    def service(self, mock_db: MagicMock) -> Any:
-        from app.services.bulk_operation_service import BulkOperationService
-
-        service = BulkOperationService(
-            db=mock_db,
-            slot_manager=MagicMock(),
-            conflict_checker=MagicMock(),
-            cache_service=MagicMock(),
-        )
-        service.repository = MagicMock()
-        return service
-
-    def test_timing_validation_failure(self, service: Any) -> None:
-        """Test update operation with timing validation failure."""
-        mock_slot = MagicMock()
-        mock_slot.start_time = time(9, 0)
-        mock_slot.end_time = time(10, 0)
-        service.repository.get_slot_for_instructor.return_value = mock_slot
-
-        # Create operation with only start_time (no end_time)
-        # The slot's end_time (10:00) is before our new start_time (11:00)
-        operation = SlotOperation(
-            action="update",
-            slot_id="existing_id",
-            start_time=time(11, 0),  # New start after existing end
-        )
-
-        result = service._process_update_operation(
-            instructor_id=generate_ulid(),
-            operation=operation,
-            operation_index=0,
-            validate_only=False,
-        )
-
-        assert result.status == "failed"
-        assert "must be after start time" in result.reason
-
-    def test_validate_only_success(self, service: Any) -> None:
-        """Test update operation with validate_only=True."""
-        mock_slot = MagicMock()
-        mock_slot.start_time = time(9, 0)
-        mock_slot.end_time = time(10, 0)
-        service.repository.get_slot_for_instructor.return_value = mock_slot
-
-        operation = SlotOperation(
-            action="update",
-            slot_id="existing_id",
-            start_time=time(9, 0),
-            end_time=time(11, 0),
-        )
-
-        result = service._process_update_operation(
-            instructor_id=generate_ulid(),
-            operation=operation,
-            operation_index=0,
-            validate_only=True,
-        )
-
-        assert result.status == "success"
-        assert "Validation passed" in result.reason
-
-    def test_execution_success(self, service: Any) -> None:
-        """Test successful update operation execution."""
-        mock_slot = MagicMock()
-        mock_slot.start_time = time(9, 0)
-        mock_slot.end_time = time(10, 0)
-        service.repository.get_slot_for_instructor.return_value = mock_slot
-
-        mock_updated_slot = MagicMock()
-        service.slot_manager.update_slot.return_value = mock_updated_slot
-
-        operation = SlotOperation(
-            action="update",
-            slot_id="existing_id",
-            start_time=time(9, 0),
-            end_time=time(11, 0),
-        )
-
-        result = service._process_update_operation(
-            instructor_id=generate_ulid(),
-            operation=operation,
-            operation_index=0,
-            validate_only=False,
-        )
-
-        assert result.status == "success"
-        assert result.slot_id == "existing_id"
-
-    def test_execution_failure(self, service: Any) -> None:
-        """Test update operation with execution failure."""
-        mock_slot = MagicMock()
-        mock_slot.start_time = time(9, 0)
-        mock_slot.end_time = time(10, 0)
-        service.repository.get_slot_for_instructor.return_value = mock_slot
-        service.slot_manager.update_slot.side_effect = Exception("Update failed")
-
-        operation = SlotOperation(
-            action="update",
-            slot_id="existing_id",
-            start_time=time(9, 0),
-            end_time=time(11, 0),
-        )
-
-        result = service._process_update_operation(
-            instructor_id=generate_ulid(),
-            operation=operation,
-            operation_index=0,
-            validate_only=False,
-        )
-
-        assert result.status == "failed"
-
-
-class TestProcessRemoveOperationFull:
-    """Additional tests for _process_remove_operation method."""
-
-    @pytest.fixture
-    def mock_db(self) -> MagicMock:
-        db = MagicMock()
-        return db
-
-    @pytest.fixture
-    def service(self, mock_db: MagicMock) -> Any:
-        from app.services.bulk_operation_service import BulkOperationService
-
-        service = BulkOperationService(
-            db=mock_db,
-            slot_manager=MagicMock(),
-            conflict_checker=MagicMock(),
-            cache_service=MagicMock(),
-        )
-        service.repository = MagicMock()
-        return service
-
-    def test_execution_success(self, service: Any) -> None:
-        """Test successful remove operation execution."""
-        mock_slot = MagicMock()
-        mock_slot.id = "existing_id"
-        service.repository.get_slot_for_instructor.return_value = mock_slot
-
-        operation = SlotOperation(action="remove", slot_id="existing_id")
-
-        result = service._process_remove_operation(
-            instructor_id=generate_ulid(),
-            operation=operation,
-            operation_index=0,
-            validate_only=False,
-        )
-
-        assert result.status == "success"
-        service.slot_manager.delete_slot.assert_called()
 
 
 class TestValidateRemoveOperationStringTimes:
@@ -2341,7 +1027,7 @@ class TestValidateRemoveOperationStringTimes:
         mock_db = MagicMock()
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -2407,7 +1093,7 @@ class TestProcessSingleOperationRouting:
 
         service = BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -2445,41 +1131,29 @@ class TestProcessSingleOperationRouting:
 
     def test_routes_to_remove(self, service: Any) -> None:
         """Test routing to remove operation."""
-        operation = SlotOperation(action="remove", slot_id="some_id")
-
-        service.repository.get_slot_for_instructor.return_value = MagicMock()
-
-        result = service._process_single_operation(
-            instructor_id=generate_ulid(),
-            operation=operation,
-            operation_index=0,
-            validate_only=True,
+        operation = SlotOperation(
+            action="remove",
+            date=date.today() + timedelta(days=30),
+            start_time=time(9, 0),
+            end_time=time(10, 0),
         )
+
+        with patch.object(
+            service, "_get_existing_week_windows"
+        ) as mock_get_windows:
+            future_date = (date.today() + timedelta(days=30)).isoformat()
+            mock_get_windows.return_value = {
+                future_date: [{"start_time": "09:00:00", "end_time": "10:00:00"}]
+            }
+
+            result = service._process_single_operation(
+                instructor_id=generate_ulid(),
+                operation=operation,
+                operation_index=0,
+                validate_only=True,
+            )
 
         assert result.action == "remove"
-
-    def test_routes_to_update(self, service: Any) -> None:
-        """Test routing to update operation."""
-        mock_slot = MagicMock()
-        mock_slot.start_time = time(9, 0)
-        mock_slot.end_time = time(10, 0)
-        service.repository.get_slot_for_instructor.return_value = mock_slot
-
-        operation = SlotOperation(
-            action="update",
-            slot_id="some_id",
-            start_time=time(9, 0),
-            end_time=time(11, 0),
-        )
-
-        result = service._process_single_operation(
-            instructor_id=generate_ulid(),
-            operation=operation,
-            operation_index=0,
-            validate_only=True,
-        )
-
-        assert result.action == "update"
 
 
 class TestTodayPastTimeSlot:
@@ -2504,7 +1178,7 @@ class TestTodayPastTimeSlot:
 
         return BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -2562,7 +1236,7 @@ class TestGenerateWeekOperationsNoneDefaults:
 
         return BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -2622,7 +1296,7 @@ class TestValidateRemoveOperationStringTimesExtra:
 
         return BulkOperationService(
             db=mock_db,
-            slot_manager=MagicMock(),
+
             conflict_checker=MagicMock(),
             cache_service=MagicMock(),
         )
@@ -2669,49 +1343,3 @@ class TestValidateRemoveOperationStringTimesExtra:
         assert slot is None
         assert error is not None
         assert "Invalid window time" in error
-
-
-@pytest.mark.unit
-class TestProcessUpdateSlotNone:
-    """Cover _process_update_operation slot is None (L852-853)."""
-
-    @pytest.fixture
-    def mock_db(self) -> MagicMock:
-        db = MagicMock()
-        mock_user = MagicMock()
-        mock_user.id = generate_ulid()
-        mock_user.timezone = "America/New_York"
-        mock_query = MagicMock()
-        mock_filter = MagicMock()
-        mock_filter.first.return_value = mock_user
-        mock_query.filter.return_value = mock_filter
-        db.query.return_value = mock_query
-        return db
-
-    @pytest.fixture
-    def service(self, mock_db: MagicMock) -> Any:
-        from app.services.bulk_operation_service import BulkOperationService
-
-        return BulkOperationService(
-            db=mock_db,
-            slot_manager=MagicMock(),
-            conflict_checker=MagicMock(),
-            cache_service=MagicMock(),
-        )
-
-    def test_slot_none_returns_failed(self, service: Any) -> None:
-        """L852-858: _find_slot_for_update returns (None, None) -> failed result."""
-        instructor_id = generate_ulid()
-        operation = MagicMock()
-        operation.action = "update"
-        operation.slot_id = "SLOT_01"
-        operation.start_time = time(9, 0)
-        operation.end_time = time(10, 0)
-
-        with patch.object(service, "_find_slot_for_update", return_value=(None, None)):
-            result = service._process_update_operation(
-                instructor_id, operation, 0, validate_only=False
-            )
-
-        assert result.status == "failed"
-        assert "could not be loaded" in result.reason

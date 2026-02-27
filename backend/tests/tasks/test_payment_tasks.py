@@ -81,6 +81,28 @@ def _apply_utc_timezone_context(booking: Any) -> None:
     booking.lesson_timezone = "UTC"
     booking.instructor_tz_at_booking = "UTC"
     booking.student_tz_at_booking = "UTC"
+    # Set booking_start_utc and booking_end_utc from booking_date + start_time/end_time
+    # (production code now reads these directly)
+    if hasattr(booking, "booking_date") and hasattr(booking, "start_time"):
+        try:
+            _date = booking.booking_date
+            _start = booking.start_time
+            if isinstance(_date, date) and isinstance(_start, time):
+                booking.booking_start_utc = datetime.combine(
+                    _date, _start, tzinfo=timezone.utc
+                )
+        except (TypeError, AttributeError):
+            pass
+    if hasattr(booking, "booking_date") and hasattr(booking, "end_time"):
+        try:
+            _date = booking.booking_date
+            _end = booking.end_time
+            if isinstance(_date, date) and isinstance(_end, time):
+                booking.booking_end_utc = datetime.combine(
+                    _date, _end, tzinfo=timezone.utc
+                )
+        except (TypeError, AttributeError):
+            pass
 
 
 @contextmanager
@@ -161,9 +183,9 @@ class TestPaymentTasks:
         mock_instructor_profile = MagicMock()
         mock_instructor_profile.id = "instructor_profile_id"
 
-        with patch("app.tasks.payment_tasks.RepositoryFactory.get_payment_repository", return_value=mock_payment_repo):
+        with patch("app.tasks.payment_tasks.RepositoryFactory.create_payment_repository", return_value=mock_payment_repo):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository", return_value=mock_booking_repo
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository", return_value=mock_booking_repo
             ):
                 with patch(
                     "app.repositories.instructor_profile_repository.InstructorProfileRepository"
@@ -255,9 +277,9 @@ class TestPaymentTasks:
         mock_instructor_profile = MagicMock()
         mock_instructor_profile.id = "instructor_profile_id"
 
-        with patch("app.tasks.payment_tasks.RepositoryFactory.get_payment_repository", return_value=mock_payment_repo):
+        with patch("app.tasks.payment_tasks.RepositoryFactory.create_payment_repository", return_value=mock_payment_repo):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository", return_value=mock_booking_repo
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository", return_value=mock_booking_repo
             ):
                 with patch(
                     "app.repositories.instructor_profile_repository.InstructorProfileRepository"
@@ -275,20 +297,17 @@ class TestPaymentTasks:
         assert result["success"] == 1
         assert booking.payment_detail.payment_status == "authorized"
 
-    def test_get_booking_start_utc_handles_dst_fall_back(self):
-        """DST fall-back ambiguity resolves to the first occurrence."""
+    def test_get_booking_start_utc_returns_booking_start_utc(self):
+        """_get_booking_start_utc returns booking.booking_start_utc directly."""
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
-        booking.booking_start_utc = None
-        booking.booking_date = date(2025, 11, 2)
-        booking.start_time = time(1, 30)
-        booking.lesson_timezone = "America/New_York"
+        expected = datetime(2025, 11, 2, 5, 30, tzinfo=timezone.utc)
+        booking.booking_start_utc = expected
 
         result = _get_booking_start_utc(booking)
 
+        assert result is expected
         assert result.tzinfo == timezone.utc
-        assert result.hour == 5
-        assert result.minute == 30
 
     @patch("app.tasks.payment_tasks.StripeService")
     @patch("app.database.SessionLocal")
@@ -356,9 +375,9 @@ class TestPaymentTasks:
         mock_instructor_profile = MagicMock()
         mock_instructor_profile.id = "instructor_profile_id"
 
-        with patch("app.tasks.payment_tasks.RepositoryFactory.get_payment_repository", return_value=mock_payment_repo):
+        with patch("app.tasks.payment_tasks.RepositoryFactory.create_payment_repository", return_value=mock_payment_repo):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository", return_value=mock_booking_repo
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository", return_value=mock_booking_repo
             ):
                 with patch(
                     "app.repositories.instructor_profile_repository.InstructorProfileRepository"
@@ -450,9 +469,9 @@ class TestPaymentTasks:
         mock_instructor_profile = MagicMock()
         mock_instructor_profile.id = "instructor_profile_id"
 
-        with patch("app.tasks.payment_tasks.RepositoryFactory.get_payment_repository", return_value=mock_payment_repo):
+        with patch("app.tasks.payment_tasks.RepositoryFactory.create_payment_repository", return_value=mock_payment_repo):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository", return_value=mock_booking_repo
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository", return_value=mock_booking_repo
             ):
                 with patch(
                     "app.repositories.instructor_profile_repository.InstructorProfileRepository"
@@ -539,9 +558,9 @@ class TestPaymentTasks:
         mock_booking_repo = MagicMock()
         mock_booking_repo.get_bookings_for_payment_retry.return_value = [booking]
 
-        with patch("app.tasks.payment_tasks.RepositoryFactory.get_payment_repository", return_value=mock_payment_repo):
+        with patch("app.tasks.payment_tasks.RepositoryFactory.create_payment_repository", return_value=mock_payment_repo):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository", return_value=mock_booking_repo
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository", return_value=mock_booking_repo
             ):
                 with patch("app.tasks.payment_tasks.NotificationService") as mock_notification_service:
                     notification_instance = MagicMock()
@@ -683,9 +702,9 @@ class TestPaymentTasks:
         mock_booking_repo.get_bookings_for_payment_capture.return_value = [booking]
         mock_booking_repo.get_bookings_for_auto_completion.return_value = []
 
-        with patch("app.tasks.payment_tasks.RepositoryFactory.get_payment_repository", return_value=mock_payment_repo):
+        with patch("app.tasks.payment_tasks.RepositoryFactory.create_payment_repository", return_value=mock_payment_repo):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository", return_value=mock_booking_repo
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository", return_value=mock_booking_repo
             ):
                 with patch(
                     "app.repositories.booking_repository.BookingRepository.ensure_payment",
@@ -934,9 +953,9 @@ class TestPaymentTasks:
         mock_booking_repo = MagicMock()
         mock_booking_repo.get_bookings_for_payment_authorization.return_value = []  # No overdue bookings
 
-        with patch("app.tasks.payment_tasks.RepositoryFactory.get_payment_repository", return_value=mock_payment_repo):
+        with patch("app.tasks.payment_tasks.RepositoryFactory.create_payment_repository", return_value=mock_payment_repo):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository", return_value=mock_booking_repo
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository", return_value=mock_booking_repo
             ):
                 # Mock recent event
                 mock_event = MagicMock()
@@ -974,9 +993,9 @@ class TestPaymentTasks:
         mock_booking_repo = MagicMock()
         mock_booking_repo.get_bookings_for_payment_authorization.return_value = overdue_bookings
 
-        with patch("app.tasks.payment_tasks.RepositoryFactory.get_payment_repository", return_value=mock_payment_repo):
+        with patch("app.tasks.payment_tasks.RepositoryFactory.create_payment_repository", return_value=mock_payment_repo):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository", return_value=mock_booking_repo
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository", return_value=mock_booking_repo
             ):
                 # Mock query for last auth event
                 mock_query = MagicMock()
@@ -1040,11 +1059,11 @@ class TestPaymentTasks:
         )
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch(
@@ -1096,11 +1115,11 @@ class TestPaymentTasks:
         mock_booking_repo.get_bookings_for_payment_authorization.return_value = [booking]
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 result = process_scheduled_authorizations()
@@ -1136,11 +1155,11 @@ class TestPaymentTasks:
         mock_booking_repo.get_bookings_for_payment_authorization.return_value = [booking]
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch(
@@ -1195,11 +1214,11 @@ class TestPaymentTasks:
         mock_booking_repo.get_bookings_for_payment_retry.return_value = [booking]
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch("app.tasks.payment_tasks.NotificationService") as mock_notification:
@@ -1260,11 +1279,11 @@ class TestPaymentTasks:
         mock_booking_repo.get_bookings_for_payment_retry.return_value = [booking]
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch("app.tasks.payment_tasks.NotificationService"):
@@ -1484,12 +1503,11 @@ class TestPaymentTasks:
         booking.instructor.timezone = "America/New_York"
 
         now = datetime.now(timezone.utc)
-        # Use 30 hours to account for timezone offset (EST is UTC-5)
-        # When we interpret the time as Eastern and convert to UTC, we add 5 hours
-        # So 30 hours ago becomes 25 hours ago after timezone conversion
-        lesson_end = now - timedelta(hours=30)
-        booking.booking_date = lesson_end.date()
-        booking.end_time = lesson_end.time().replace(tzinfo=None)
+        # Use 30 hours to ensure auto-complete cutoff is exceeded
+        lesson_end_utc = now - timedelta(hours=30)
+        booking.booking_date = lesson_end_utc.date()
+        booking.end_time = lesson_end_utc.time().replace(tzinfo=None)
+        booking.booking_end_utc = lesson_end_utc
         booking.payment_detail.payment_intent_id = "pi_test_auto"
 
         # Setup query mock to return the booking for direct db.query() calls
@@ -1514,11 +1532,11 @@ class TestPaymentTasks:
         }
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch("app.tasks.payment_tasks.StripeService", return_value=mock_stripe_service):
@@ -1562,9 +1580,10 @@ class TestPaymentTasks:
 
         now = datetime.now(timezone.utc)
         # Use 30 hours to ensure auto-complete cutoff is exceeded
-        lesson_end = now - timedelta(hours=30)
-        booking.booking_date = lesson_end.date()
-        booking.end_time = lesson_end.time()
+        lesson_end_utc = now - timedelta(hours=30)
+        booking.booking_date = lesson_end_utc.date()
+        booking.end_time = lesson_end_utc.time()
+        booking.booking_end_utc = lesson_end_utc
         booking.payment_detail.payment_intent_id = "pi_test_end_time"
 
         # Setup query mock to return the booking for direct db.query() calls
@@ -1588,11 +1607,11 @@ class TestPaymentTasks:
         }
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch("app.tasks.payment_tasks.StripeService", return_value=mock_stripe_service):
@@ -1602,7 +1621,7 @@ class TestPaymentTasks:
                     ):
                         capture_completed_lessons()
 
-        # lesson_end should match the UTC helper for legacy bookings
+        # lesson_end should match booking_end_utc (now returned directly)
         expected_completed_at = _get_booking_end_utc(booking)
         assert booking.completed_at == expected_completed_at
 
@@ -1642,11 +1661,11 @@ class TestPaymentTasks:
         mock_booking_repo.get_bookings_with_expired_auth.return_value = [booking]
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch("app.tasks.payment_tasks.StripeService"):
@@ -1689,11 +1708,11 @@ class TestPaymentTasks:
         mock_booking_repo.get_bookings_with_expired_auth.return_value = [booking]
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch("app.tasks.payment_tasks.StripeService"):
@@ -1730,11 +1749,11 @@ class TestPaymentTasks:
         mock_booking_repo.get_by_id.return_value = booking
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch("app.tasks.payment_tasks.StripeService") as mock_stripe_service:
@@ -1777,11 +1796,11 @@ class TestPaymentTasks:
         mock_booking_repo.get_by_id.return_value = booking
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch("app.tasks.payment_tasks.StripeService") as mock_stripe_service:
@@ -1813,11 +1832,11 @@ class TestPaymentTasks:
         mock_booking_repo.get_by_id.return_value = booking
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch("app.tasks.payment_tasks.StripeService") as mock_stripe_service:
@@ -1853,11 +1872,11 @@ class TestPaymentTasks:
         mock_booking_repo.get_by_id.return_value = booking
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch("app.tasks.payment_tasks.StripeService") as mock_stripe_service:
@@ -1993,11 +2012,11 @@ class TestPaymentTasks:
         )
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch(
@@ -2055,11 +2074,11 @@ class TestPaymentTasks:
         mock_booking_repo.get_bookings_for_payment_retry.return_value = [booking]
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch("app.tasks.payment_tasks.NotificationService") as mock_notification:
@@ -2173,11 +2192,11 @@ class TestPaymentTasks:
         mock_booking_repo.get_by_id.return_value = None
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch("app.tasks.payment_tasks.StripeService"):
@@ -2196,9 +2215,9 @@ class TestPaymentTasks:
         mock_booking_repo = MagicMock()
         mock_booking_repo.get_bookings_for_payment_authorization.return_value = []
 
-        with patch("app.tasks.payment_tasks.RepositoryFactory.get_payment_repository", return_value=mock_payment_repo):
+        with patch("app.tasks.payment_tasks.RepositoryFactory.create_payment_repository", return_value=mock_payment_repo):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository", return_value=mock_booking_repo
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository", return_value=mock_booking_repo
             ):
                 mock_event = MagicMock()
                 mock_event.created_at = datetime.now(timezone.utc) - timedelta(hours=3)
@@ -2249,11 +2268,11 @@ class TestPaymentTasks:
         mock_booking_repo.get_bookings_for_payment_authorization.return_value = [booking]
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch(
@@ -2312,11 +2331,11 @@ class TestPaymentTasks:
         mock_booking_repo.get_bookings_for_payment_authorization.return_value = [booking]
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch(
@@ -2378,11 +2397,11 @@ class TestPaymentTasks:
         mock_instructor_profile.id = "profile_missing_account"
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch(
@@ -2442,11 +2461,11 @@ class TestPaymentTasks:
         )
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch(
@@ -2517,11 +2536,11 @@ class TestPaymentTasks:
         mock_metrics.inc_credits_applied.side_effect = Exception("metrics down")
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch(
@@ -2565,11 +2584,11 @@ class TestPaymentTasks:
         mock_booking_repo.get_bookings_for_payment_retry.return_value = [booking]
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 result = retry_failed_authorizations()
@@ -2612,11 +2631,11 @@ class TestPaymentTasks:
         mock_booking_repo.get_bookings_for_payment_retry.return_value = [booking]
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch("app.tasks.payment_tasks.StripeService"):
@@ -2761,11 +2780,11 @@ class TestPaymentTasks:
         mock_booking_repo.get_bookings_with_expired_auth.return_value = []
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch("app.tasks.payment_tasks.StripeService"):
@@ -2799,6 +2818,9 @@ class TestPaymentTasks:
         lesson_end = now - timedelta(hours=30)
         booking.booking_date = lesson_end.date()
         booking.end_time = lesson_end.time()
+        booking.booking_end_utc = datetime.combine(
+            lesson_end.date(), lesson_end.time(), tzinfo=timezone.utc
+        )
         booking.payment_detail.payment_intent_id = "pi_test_auto_fail"
 
         # Setup query mock to return the booking for direct db.query() calls
@@ -2813,11 +2835,11 @@ class TestPaymentTasks:
         mock_booking_repo.get_bookings_with_expired_auth.return_value = []
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch("app.tasks.payment_tasks.StripeService"):
@@ -2858,11 +2880,11 @@ class TestPaymentTasks:
         mock_booking_repo.get_bookings_with_expired_auth.return_value = []
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch("app.tasks.payment_tasks.StripeService"):
@@ -2907,11 +2929,11 @@ class TestPaymentTasks:
         mock_booking_repo.get_bookings_with_expired_auth.return_value = [booking]
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch("app.tasks.payment_tasks.StripeService"):
@@ -2960,11 +2982,11 @@ class TestPaymentTasks:
         mock_booking_repo.get_bookings_with_expired_auth.return_value = [booking]
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch("app.tasks.payment_tasks.StripeService"):
@@ -3000,11 +3022,11 @@ class TestPaymentTasks:
         mock_booking_repo.get_bookings_with_expired_auth.return_value = [booking]
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch("app.tasks.payment_tasks.StripeService"):
@@ -3037,11 +3059,11 @@ class TestPaymentTasks:
         mock_booking_repo.get_bookings_with_expired_auth.return_value = []
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch("app.tasks.payment_tasks.StripeService"):
@@ -3118,17 +3140,20 @@ class TestPaymentTasks:
         lesson_time = now + timedelta(hours=6)
         booking.booking_date = lesson_time.date()
         booking.start_time = lesson_time.time()
+        booking.booking_start_utc = datetime.combine(
+            lesson_time.date(), lesson_time.time(), tzinfo=timezone.utc
+        )
 
         mock_payment_repo = MagicMock()
         mock_booking_repo = MagicMock()
         mock_booking_repo.get_by_id.return_value = booking
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch("app.tasks.payment_tasks.StripeService") as mock_stripe_service:
@@ -3168,17 +3193,20 @@ class TestPaymentTasks:
         lesson_time = now + timedelta(hours=6)
         booking.booking_date = lesson_time.date()
         booking.start_time = lesson_time.time()
+        booking.booking_start_utc = datetime.combine(
+            lesson_time.date(), lesson_time.time(), tzinfo=timezone.utc
+        )
 
         mock_payment_repo = MagicMock()
         mock_booking_repo = MagicMock()
         mock_booking_repo.get_by_id.return_value = booking
 
         with patch(
-            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
             return_value=mock_payment_repo,
         ):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
                 return_value=mock_booking_repo,
             ):
                 with patch("app.tasks.payment_tasks.StripeService") as mock_stripe_service:
@@ -3207,9 +3235,9 @@ class TestPaymentTasks:
 
         mock_db.query.side_effect = Exception("query failed")
 
-        with patch("app.tasks.payment_tasks.RepositoryFactory.get_payment_repository", return_value=mock_payment_repo):
+        with patch("app.tasks.payment_tasks.RepositoryFactory.create_payment_repository", return_value=mock_payment_repo):
             with patch(
-                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository", return_value=mock_booking_repo
+                "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository", return_value=mock_booking_repo
             ):
                 result = check_authorization_health()
 
