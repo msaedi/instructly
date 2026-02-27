@@ -262,6 +262,73 @@ describe('InteractiveGrid', () => {
 
       expect(onBitsChange).not.toHaveBeenCalled();
     });
+
+    it('moves focus right with ArrowRight', () => {
+      render(<InteractiveGrid {...defaultProps} startHour={9} endHour={10} />);
+
+      const firstCell = document.querySelector<HTMLButtonElement>(
+        '[data-row-index="0"][data-col-index="0"]'
+      );
+      const nextCell = document.querySelector<HTMLButtonElement>(
+        '[data-row-index="0"][data-col-index="1"]'
+      );
+
+      if (!firstCell || !nextCell) {
+        throw new Error('Expected grid cells for ArrowRight test');
+      }
+
+      firstCell.focus();
+      fireEvent.keyDown(firstCell, { key: 'ArrowRight' });
+
+      expect(document.activeElement).toBe(nextCell);
+    });
+
+    it('moves focus down with ArrowDown and back up with ArrowUp', () => {
+      render(<InteractiveGrid {...defaultProps} startHour={9} endHour={10} />);
+
+      const firstRowCell = document.querySelector<HTMLButtonElement>(
+        '[data-row-index="0"][data-col-index="0"]'
+      );
+      const secondRowCell = document.querySelector<HTMLButtonElement>(
+        '[data-row-index="1"][data-col-index="0"]'
+      );
+
+      if (!firstRowCell || !secondRowCell) {
+        throw new Error('Expected grid cells for ArrowUp/ArrowDown test');
+      }
+
+      firstRowCell.focus();
+      fireEvent.keyDown(firstRowCell, { key: 'ArrowDown' });
+      expect(document.activeElement).toBe(secondRowCell);
+
+      fireEvent.keyDown(secondRowCell, { key: 'ArrowUp' });
+      expect(document.activeElement).toBe(firstRowCell);
+    });
+
+    it('moves focus to row boundaries with Home and End', () => {
+      render(<InteractiveGrid {...defaultProps} startHour={9} endHour={10} />);
+
+      const middleCell = document.querySelector<HTMLButtonElement>(
+        '[data-row-index="0"][data-col-index="3"]'
+      );
+      const firstCell = document.querySelector<HTMLButtonElement>(
+        '[data-row-index="0"][data-col-index="0"]'
+      );
+      const lastCell = document.querySelector<HTMLButtonElement>(
+        '[data-row-index="0"][data-col-index="6"]'
+      );
+
+      if (!middleCell || !firstCell || !lastCell) {
+        throw new Error('Expected grid cells for Home/End test');
+      }
+
+      middleCell.focus();
+      fireEvent.keyDown(middleCell, { key: 'End' });
+      expect(document.activeElement).toBe(lastCell);
+
+      fireEvent.keyDown(lastCell, { key: 'Home' });
+      expect(document.activeElement).toBe(firstCell);
+    });
   });
 
   describe('drag selection', () => {
@@ -594,6 +661,30 @@ describe('InteractiveGrid', () => {
   });
 
   describe('accessibility', () => {
+    it('grid container has role=grid with instructional aria-label', () => {
+      render(<InteractiveGrid {...defaultProps} startHour={9} endHour={10} />);
+
+      const grid = screen.getByRole('grid', {
+        name: 'Weekly availability editor. Use arrow keys to navigate between time slots.',
+      });
+      expect(grid).toBeInTheDocument();
+    });
+
+    it('day headers have role=columnheader', () => {
+      render(<InteractiveGrid {...defaultProps} startHour={9} endHour={10} />);
+
+      const headers = screen.getAllByRole('columnheader');
+      expect(headers.length).toBeGreaterThan(0);
+    });
+
+    it('time gutter headers have role=rowheader', () => {
+      render(<InteractiveGrid {...defaultProps} startHour={9} endHour={10} />);
+
+      const rowHeaders = screen.getAllByRole('rowheader');
+      expect(rowHeaders.length).toBeGreaterThan(0);
+      expect(rowHeaders[0]).toHaveTextContent('9:00');
+    });
+
     it('cells have role=gridcell', () => {
       render(<InteractiveGrid {...defaultProps} startHour={9} endHour={10} />);
 

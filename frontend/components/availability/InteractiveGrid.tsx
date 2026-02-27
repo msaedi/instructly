@@ -109,6 +109,7 @@ export default function InteractiveGrid({
   const [pendingByDate, setPendingByDate] = useState<Record<string, Set<number>>>({});
   const rafRef = useRef<number | null>(null);
   const lastHoverRowRef = useRef<{ date: string; row: number } | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   const applyImmediate = useCallback(
     (date: string, slotIndex: number, desired: boolean) => {
@@ -248,6 +249,7 @@ export default function InteractiveGrid({
     const dateInfo = weekDates[activeDayIndex] ?? weekDates[0];
     return dateInfo ? [dateInfo] : [];
   }, [isMobile, activeDayIndex, weekDates]);
+  const columnCount = displayDates.length;
 
   const { isoDate: todayIso, minutes: nowMinutes } = nowInfo;
 
@@ -324,19 +326,68 @@ export default function InteractiveGrid({
     [finishDrag]
   );
 
-  const handleKeyToggle = useCallback(
-    (event: ReactKeyboardEvent<HTMLButtonElement>, date: string, slotIndex: number) => {
-      if (event.key !== ' ' && event.key !== 'Enter') return;
+  const focusGridCell = useCallback((rowIndex: number, columnIndex: number) => {
+    const targetCell = gridRef.current?.querySelector<HTMLButtonElement>(
+      `[data-row-index="${rowIndex}"][data-col-index="${columnIndex}"]`
+    );
+    targetCell?.focus();
+  }, []);
+
+  const handleCellKeyDown = useCallback(
+    (
+      event: ReactKeyboardEvent<HTMLButtonElement>,
+      date: string,
+      slotIndex: number,
+      rowIndex: number,
+      columnIndex: number
+    ) => {
+      if (event.key === ' ' || event.key === 'Enter') {
+        event.preventDefault();
+        const desired = !isSlotSelected(weekBits[date], slotIndex);
+        applyImmediate(date, slotIndex, desired);
+        return;
+      }
+
+      let nextRowIndex = rowIndex;
+      let nextColumnIndex = columnIndex;
+      switch (event.key) {
+        case 'ArrowLeft':
+          nextColumnIndex = Math.max(0, columnIndex - 1);
+          break;
+        case 'ArrowRight':
+          nextColumnIndex = Math.min(columnCount - 1, columnIndex + 1);
+          break;
+        case 'ArrowUp':
+          nextRowIndex = Math.max(0, rowIndex - 1);
+          break;
+        case 'ArrowDown':
+          nextRowIndex = Math.min(rows - 1, rowIndex + 1);
+          break;
+        case 'Home':
+          nextColumnIndex = 0;
+          break;
+        case 'End':
+          nextColumnIndex = Math.max(0, columnCount - 1);
+          break;
+        default:
+          return;
+      }
+
       event.preventDefault();
-      const desired = !isSlotSelected(weekBits[date], slotIndex);
-      applyImmediate(date, slotIndex, desired);
+      if (nextRowIndex === rowIndex && nextColumnIndex === columnIndex) {
+        return;
+      }
+      focusGridCell(nextRowIndex, nextColumnIndex);
     },
-    [applyImmediate, weekBits]
+    [applyImmediate, columnCount, focusGridCell, rows, weekBits]
   );
 
   return (
     <div className="w-full overflow-x-auto">
       <div
+        ref={gridRef}
+        role="grid"
+        aria-label="Weekly availability editor. Use arrow keys to navigate between time slots."
         className="grid"
         style={{
           gridTemplateColumns: `80px repeat(${displayDates.length}, minmax(0, 1fr))`,
@@ -355,7 +406,7 @@ export default function InteractiveGrid({
           );
           const isPastDate = info.fullDate < todayIso;
           return (
-            <div key={info.fullDate} className={headerClasses}>
+            <div key={info.fullDate} className={headerClasses} role="columnheader">
               {idx > 0 && (
                 <span className="absolute left-0 bottom-0 w-px bg-gray-200" style={{ height: '50%' }} />
               )}
@@ -397,6 +448,7 @@ export default function InteractiveGrid({
             return (
               <div
                 key={`time-${row}`}
+                role="rowheader"
                 className={clsx(
                   'flex items-center border-b border-gray-200 text-xs text-gray-500',
                   isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8',
@@ -446,6 +498,8 @@ export default function InteractiveGrid({
                     data-testid="availability-cell"
                     data-date={date}
                     data-time={`${String(labelHour).padStart(2, '0')}:${labelMinute}:00`}
+                    data-row-index={row}
+                    data-col-index={columnIndex}
                     aria-selected={selected}
                     aria-disabled={behaviourPast}
                     aria-label={ariaLabel}
@@ -465,7 +519,7 @@ export default function InteractiveGrid({
                     onMouseLeave={(event) => {
                       if (event.buttons === 0) finishDrag();
                     }}
-                    onKeyDown={(event) => handleKeyToggle(event, date, slotIndex)}
+                    onKeyDown={(event) => handleCellKeyDown(event, date, slotIndex, row, columnIndex)}
                   >
                     {booked && (
                       <span className="pointer-events-none absolute inset-0 rounded-sm bg-[repeating-linear-gradient(45deg,rgba(156,163,175,0.35),rgba(156,163,175,0.35)_6px,rgba(156,163,175,0.2)_6px,rgba(156,163,175,0.2)_12px)]" />
