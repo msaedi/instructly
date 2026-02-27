@@ -243,4 +243,5 @@ describe('DeleteProfileModal', () => {
     const input = screen.getByPlaceholderText(/type delete here/i);
     expect(input).toHaveAttribute('aria-describedby', 'delete-confirmation-help');
   });
+
 });

@@ -145,6 +145,22 @@ describe('UpcomingLessons', () => {
     });
   });
 
+  describe('Error state', () => {
+    it('returns null when API returns an error (line 61)', () => {
+      // Line 61: error path returns null silently
+      mockUseUpcomingBookings.mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: new Error('Network failure'),
+      } as unknown as ReturnType<typeof useUpcomingBookings>);
+
+      const { container } = render(<UpcomingLessons />, {
+        wrapper: createWrapper(),
+      });
+      expect(container).toBeEmptyDOMElement();
+    });
+  });
+
   describe('Empty state', () => {
     it('returns null when no bookings', async () => {
       mockUseUpcomingBookings.mockReturnValue({

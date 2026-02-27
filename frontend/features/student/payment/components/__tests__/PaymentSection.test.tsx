@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PaymentSection } from '../PaymentSection';
@@ -107,6 +107,8 @@ jest.mock('../PaymentConfirmation', () => {
         {onCreditsAccordionToggle && <button onClick={() => onCreditsAccordionToggle(true)}>Expand Credits</button>}
         {onCreditsAccordionToggle && <button onClick={() => onCreditsAccordionToggle(false)}>Collapse Credits</button>}
         {onClearFloorViolation && <button onClick={onClearFloorViolation}>Clear Floor Violation</button>}
+        {onBookingUpdate && <button onClick={() => onBookingUpdate((prev) => ({ ...prev, duration: 90, instructorId: '' }))}>Update Booking Clear Instructor</button>}
+        {onBookingUpdate && <button onClick={() => onBookingUpdate((prev) => ({ ...prev, bookingId: '', instructorId: '' }))}>Clear Booking Identity</button>}
       </div>
     );
   };
@@ -11757,6 +11759,420 @@ describe('PaymentSection', () => {
       // instead of gracefully showing the error to the user.
       const testError = new Error('Stripe declined');
       expect(() => onError(testError)).not.toThrow();
+    });
+  });
+
+  describe('refreshCreditBalance catch block (line 455)', () => {
+    it('logs error when refetchCredits throws during payment success', async () => {
+      const onSuccess = jest.fn();
+      const goToStep = jest.fn();
+      const refetchMock = jest.fn().mockRejectedValue(new Error('Refetch failed'));
+      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-credits-err', status: 'pending' });
+
+      useCreateBookingMock.mockReturnValue({
+        createBooking: createBookingMock,
+        error: null,
+        reset: jest.fn(),
+      });
+
+      // Credits cover full amount so shouldProcessCheckout = true but amountDue = 0
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDITS,
+        creditsToUse: 115,
+        error: null,
+        goToStep,
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      useCreditsMock.mockReturnValue({
+        data: { available: 200, expires_at: null },
+        isLoading: false,
+        refetch: refetchMock,
+      });
+
+      usePricingPreviewControllerMock.mockReturnValue({
+        preview: {
+          base_price_cents: 10000,
+          student_fee_cents: 1500,
+          student_pay_cents: 0,
+          credit_applied_cents: 11500,
+          line_items: [],
+        },
+        error: null,
+        loading: false,
+        applyCredit: jest.fn(),
+        requestPricingPreview: jest.fn(),
+        lastAppliedCreditCents: 11500,
+      });
+
+      paymentServiceMock.createCheckout.mockResolvedValue({
+        payment_intent_id: 'pi_credit_err',
+        application_fee: 0,
+        success: true,
+        status: 'succeeded',
+        amount: 0,
+        client_secret: 'secret',
+        requires_action: false,
+      });
+
+      render(
+        <PaymentSection {...defaultProps} onSuccess={onSuccess} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Confirm Payment'));
+
+      // Payment should succeed even though refreshCreditBalance fails internally
+      await waitFor(() => {
+        expect(goToStep).toHaveBeenCalledWith(PaymentStep.SUCCESS);
+      });
+    });
+  });
+
+  describe('normalizeDateForComparison with empty trimmed string (line 553)', () => {
+    it('treats whitespace-only date as null when comparing booking updates', async () => {
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep: jest.fn(),
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      // Booking with whitespace-only date string — normalizeDateForComparison will
+      // trim it and return null at line 553.
+      const bookingEmptyDate = {
+        ...mockBookingData,
+        date: '   ' as unknown as Date,
+      };
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={bookingEmptyDate} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      // Trigger booking update with a real date — comparison between prev (whitespace date) and
+      // next (Date object) exercises line 553 for the prevBooking.
+      fireEvent.click(screen.getByText('Update Date'));
+
+      expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+    });
+  });
+
+  describe('normalizeTimeForComparison with falsy value (line 572)', () => {
+    it('normalizes falsy startTime without crashing', async () => {
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep: jest.fn(),
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      // Pass booking without startTime to exercise the !value return in normalizeTimeForComparison
+      const bookingNoStartTime = {
+        ...mockBookingData,
+        startTime: '',
+      };
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={bookingNoStartTime} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      // Trigger a booking update to call determinePreviewCause with empty startTime
+      fireEvent.click(screen.getByText('Update Time'));
+
+      expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+    });
+  });
+
+  describe('normalizeDurationForComparison with non-number non-string (line 598)', () => {
+    it('returns null for boolean duration value', async () => {
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep: jest.fn(),
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      // Pass booking with non-numeric duration
+      const bookingBadDuration = {
+        ...mockBookingData,
+        duration: true as unknown as number,
+      };
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={bookingBadDuration} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      // Update duration via mock button — comparison will use normalizeDurationForComparison
+      // on prevBooking (which has true as duration, hitting line 598)
+      fireEvent.click(screen.getByText('Update Booking'));
+
+      expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+    });
+  });
+
+  describe('pending preview cause awaiting quote payload (lines 678-681)', () => {
+    it('does not trigger preview refresh when quoteSelection is null', async () => {
+      // The effect at line 673 depends on [quoteSelection, requestPricingPreview].
+      // To hit lines 678-681: pendingPreviewCauseRef must be set AND quoteSelection null.
+      // Strategy: use onBookingUpdate to change duration (sets cause) AND clear instructorId
+      // (makes quoteSelection null) in a single update. On the next render, the effect fires
+      // with pendingPreviewCauseRef set and quoteSelection null → hits lines 678-681.
+
+      const requestPricingPreview = jest.fn();
+
+      usePricingPreviewControllerMock.mockReturnValue({
+        preview: {
+          base_price_cents: 10000,
+          student_fee_cents: 1500,
+          student_pay_cents: 11500,
+          credit_applied_cents: 0,
+          line_items: [],
+        },
+        error: null,
+        loading: false,
+        applyCredit: jest.fn(),
+        requestPricingPreview,
+        lastAppliedCreditCents: 0,
+      });
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep: jest.fn(),
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      // Click "Update Booking Clear Instructor" which changes duration to 90 (sets cause)
+      // AND clears instructorId to '' (makes quoteSelection null on next render).
+      // The updater sets pendingPreviewCauseRef synchronously. Then React re-renders,
+      // quoteSelection recomputes as null, and the effect runs entering lines 678-681.
+      fireEvent.click(screen.getByText('Update Booking Clear Instructor'));
+
+      // Give React time to rerender and run the effect
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      // requestPricingPreview should NOT have been called because quoteSelection was null
+      // (the effect returned early at line 681).
+      expect(requestPricingPreview).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('creditToggle off clears floorViolationMessage (line 840)', () => {
+    it('clears floor violation when toggling credits off after a 422 violation', async () => {
+      // credit_applied_cents:5000 → lastSuccessfulCreditCents=5000, creditSliderCents=5000.
+      // Auto-apply sees previewCredits>0 and exits without calling applyCredit.
+      // Manually change credit → applyCredit rejects 422 → floorViolationMessage set,
+      // creditSliderCents falls back to 5000. Then toggle off → line 840.
+      const applyCredit = jest.fn().mockRejectedValue({
+        response: { status: 422 },
+        problem: { detail: 'Price floor violation' },
+      });
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep: jest.fn(),
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      usePricingPreviewControllerMock.mockReturnValue({
+        preview: {
+          base_price_cents: 10000,
+          student_fee_cents: 1500,
+          student_pay_cents: 6500,
+          credit_applied_cents: 5000,
+          line_items: [],
+        },
+        error: null,
+        loading: false,
+        applyCredit,
+        requestPricingPreview: jest.fn(),
+        lastAppliedCreditCents: 5000,
+      });
+
+      useCreditsMock.mockReturnValue({
+        data: { available: 50, expires_at: null },
+        isLoading: false,
+        refetch: jest.fn(),
+      });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      // Trigger a credit change to call applyCredit → 422 rejection sets floor violation.
+      // "Change Credit Amount" calls onCreditAmountChange(25) → 2500 cents ≠ 5000.
+      fireEvent.click(screen.getByText('Change Credit Amount'));
+
+      await waitFor(() => {
+        expect(applyCredit).toHaveBeenCalled();
+      });
+
+      // Allow state flush from async rejection
+      await act(async () => {});
+
+      // creditSliderCents=5000 (fallback), floorViolationMessage truthy → toggle off hits line 840.
+      fireEvent.click(screen.getByText('Toggle Credits'));
+
+      expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+    });
+  });
+
+  describe('handleCreditAmountChange clears floor violation (line 874)', () => {
+    it('clears floor violation when decreasing credit amount below lastSuccessful', async () => {
+      // credit_applied_cents:5000 → lastSuccessfulCreditCents=5000.
+      // Manually trigger credit change → 422 → floorViolationMessage set.
+      // Then decrease credit amount: clampedCents(500) < lastSuccessfulCreditCents(5000)
+      // → line 874 executes.
+      const applyCredit = jest.fn().mockRejectedValue({
+        response: { status: 422 },
+        problem: { detail: 'Below price floor' },
+      });
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep: jest.fn(),
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      usePricingPreviewControllerMock.mockReturnValue({
+        preview: {
+          base_price_cents: 10000,
+          student_fee_cents: 1500,
+          student_pay_cents: 6500,
+          credit_applied_cents: 5000,
+          line_items: [],
+        },
+        error: null,
+        loading: false,
+        applyCredit,
+        requestPricingPreview: jest.fn(),
+        lastAppliedCreditCents: 5000,
+      });
+
+      useCreditsMock.mockReturnValue({
+        data: { available: 50, expires_at: null },
+        isLoading: false,
+        refetch: jest.fn(),
+      });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      // Trigger a credit change → applyCredit rejects 422 → sets floorViolationMessage.
+      fireEvent.click(screen.getByText('Change Credit Amount'));
+
+      await waitFor(() => {
+        expect(applyCredit).toHaveBeenCalled();
+      });
+
+      // Allow async state updates to flush
+      await act(async () => {});
+
+      // "Decrease Credit Amount" button calls onCreditAmountChange(5) → 500 cents.
+      // floorViolationMessage is truthy AND 500 < 5000 (lastSuccessfulCreditCents)
+      // → line 874: setFloorViolationMessage(null) executes.
+      fireEvent.click(screen.getByText('Decrease Credit Amount'));
+
+      expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+    });
+  });
+
+  describe('creditDecisionKey null cleanup effect (lines 928-932)', () => {
+    it('resets credit state when instructorId is cleared and bookingId is empty', async () => {
+      // To hit lines 928-932 the creditDecisionKey must transition from non-null to null.
+      // Strategy: start with bookingId='' so bookingDraftId derives from quoteSelection hash.
+      // creditDecisionKey starts non-null (quoteSelection-based key).
+      // Then use "Clear Booking Identity" which clears instructorId → quoteSelection=null.
+      // With bookingDraftId=null AND quoteSelection=null → creditDecisionKey=null.
+      // Effect detects ref !== null vs key === null → enters lines 928-932.
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep: jest.fn(),
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      const bookingNoId = {
+        ...mockBookingData,
+        bookingId: '',
+      };
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={bookingNoId} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      // "Clear Booking Identity" sets bookingId='' and instructorId='' in updatedBookingData.
+      // bookingDraftId = '' || '' || null = null; quoteSelection = null (no instructor).
+      // creditDecisionKey = computeCreditStorageKey({ null, null }) = null.
+      fireEvent.click(screen.getByText('Clear Booking Identity'));
+
+      // Give React time to rerender and run the effect
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
     });
   });
 });

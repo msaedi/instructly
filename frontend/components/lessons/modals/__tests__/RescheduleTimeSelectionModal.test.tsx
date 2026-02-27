@@ -25,6 +25,14 @@ jest.mock('@/features/shared/api/client', () => ({
   },
 }));
 
+// Mock @/lib/ts/safe with actual implementations but allow overriding at()
+const actualSafe = jest.requireActual('@/lib/ts/safe') as Record<string, unknown>;
+const atMock = jest.fn(actualSafe['at'] as (...args: unknown[]) => unknown);
+jest.mock('@/lib/ts/safe', () => ({
+  ...jest.requireActual('@/lib/ts/safe'),
+  at: (...args: unknown[]) => atMock(...args),
+}));
+
 jest.mock('@/components/user/UserAvatar', () => ({
   UserAvatar: ({ user }: { user: { first_name: string } }) => (
     <div data-testid="user-avatar">{user.first_name}</div>
@@ -205,6 +213,8 @@ describe('RescheduleTimeSelectionModal', () => {
     jest.setSystemTime(new Date('2025-01-18T12:00:00Z'));
     calendarOnDateSelect = null;
     getInstructorAvailabilityMock.mockResolvedValue(mockAvailabilityResponse);
+    // Reset atMock to use the real implementation
+    atMock.mockImplementation(actualSafe['at'] as (...args: unknown[]) => unknown);
   });
 
   afterEach(() => {
@@ -1964,6 +1974,150 @@ describe('RescheduleTimeSelectionModal', () => {
           end_date: expect.any(String),
         })
       );
+    });
+  });
+
+  describe('reducer default branch via useReducer spy (line 97)', () => {
+    it('returns unchanged state for an unknown action type', () => {
+      // Capture the reducer function passed to useReducer
+      let capturedReducer: ((state: unknown, action: unknown) => unknown) | null = null;
+      const originalUseReducer = React.useReducer;
+      const spy = jest.spyOn(React, 'useReducer') as jest.SpyInstance;
+      spy.mockImplementation(
+        (reducer: (state: unknown, action: unknown) => unknown, initialState: unknown) => {
+          capturedReducer = reducer;
+          // Restore after capturing so subsequent renders use the real useReducer
+          spy.mockRestore();
+          return originalUseReducer(
+            reducer as unknown as React.Reducer<never, never>,
+            initialState as never,
+          );
+        }
+      );
+
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      // The reducer should have been captured
+      expect(capturedReducer).not.toBeNull();
+
+      // Test the default branch with an unknown action type
+      const testState = {
+        loadingAvailability: false,
+        loadingTimeSlots: false,
+        selectedDate: null,
+        selectedTime: null,
+        showTimeDropdown: false,
+        timeSlots: [] as string[],
+        availableDates: [] as string[],
+        availabilityData: null,
+        availabilityError: null,
+      };
+
+      // Dispatch an unknown action type
+      const result = capturedReducer!(testState, { type: 'UNKNOWN_ACTION' });
+      expect(result).toBe(testState); // Should return same state reference
+    });
+  });
+
+  describe('firstDate guard - at() returns undefined (lines 291-302)', () => {
+    it('dispatches AVAILABILITY_LOAD_SUCCESS with null selectedDate when at(datesWithSlots, 0) returns undefined', async () => {
+      // Override atMock to return undefined when called with a date-string array
+      // This simulates at(datesWithSlots, 0) returning undefined at line 288
+      const realAt = actualSafe['at'] as (...args: unknown[]) => unknown;
+      atMock.mockImplementation((...args: unknown[]) => {
+        const arr = args[0] as unknown[];
+        const idx = args[1] as number;
+        if (
+          Array.isArray(arr) &&
+          arr.length > 0 &&
+          typeof arr[0] === 'string' &&
+          /^\d{4}-\d{2}-\d{2}$/.test(arr[0] as string) &&
+          idx === 0
+        ) {
+          // This is the at(datesWithSlots, 0) call - return undefined
+          return undefined;
+        }
+        return realAt(...args);
+      });
+
+      const validResponse = {
+        status: 200,
+        data: {
+          availability_by_date: {
+            '2025-01-20': {
+              date: '2025-01-20',
+              available_slots: [
+                { start_time: '09:00', end_time: '12:00' },
+              ],
+              is_blackout: false,
+            },
+          },
+        },
+      };
+      getInstructorAvailabilityMock.mockResolvedValue(validResponse);
+
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        // Component should still render calendar (AVAILABILITY_LOAD_SUCCESS dispatched)
+        expect(screen.getAllByTestId('calendar').length).toBeGreaterThan(0);
+      });
+
+      // selectedDate should be null since firstDate was undefined
+      // No time dropdown should appear
+      expect(screen.queryAllByTestId('time-dropdown')).toHaveLength(0);
+    });
+  });
+
+  describe('firstDateData guard - availabilityByDate[firstDate] undefined (lines 307-318)', () => {
+    it('dispatches AVAILABILITY_LOAD_SUCCESS with null selectedDate when firstDateData is undefined', async () => {
+      // Strategy: Create availability data where the first date passes the filter loop
+      // (dateData is valid during iteration) but returns undefined when accessed
+      // at line 304. We use a getter that returns a valid object only on the first access
+      // and undefined on the second access.
+
+      let accessCount = 0;
+      const dateEntry = {
+        date: '2025-01-20',
+        available_slots: [
+          { start_time: '09:00', end_time: '12:00' },
+        ],
+        is_blackout: false,
+      };
+
+      const availabilityByDate: Record<string, unknown> = {};
+      Object.defineProperty(availabilityByDate, '2025-01-20', {
+        get() {
+          accessCount++;
+          // Access 1: line 259 during iteration (returns valid data so date is added to datesWithSlots)
+          // Access 2: line 304 after iteration (should return undefined to trigger guard)
+          if (accessCount <= 1) {
+            return dateEntry;
+          }
+          return undefined;
+        },
+        enumerable: true,
+        configurable: true,
+      });
+
+      const edgeCaseResponse = {
+        status: 200,
+        data: {
+          availability_by_date: availabilityByDate,
+        },
+      };
+      getInstructorAvailabilityMock.mockResolvedValue(edgeCaseResponse);
+
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        // Component should render - the guard catches the undefined and dispatches success with null date
+        expect(screen.getAllByTestId('calendar').length).toBeGreaterThan(0);
+      });
+
+      // selectedDate should be null since firstDateData was undefined
+      // No time dropdown should be visible
+      expect(screen.queryAllByTestId('time-dropdown')).toHaveLength(0);
     });
   });
 });

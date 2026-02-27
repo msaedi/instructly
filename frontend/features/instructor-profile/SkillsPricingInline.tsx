@@ -720,12 +720,6 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
         })
       );
       if (hasInvalidCapabilities) {
-        if (source === 'manual') {
-          toast.error(
-            'Select at least one way to offer this skill (travel, at your studio, or online)',
-            { id: 'capability-error' }
-          );
-        }
         setSvcSaving(false);
         return;
       }

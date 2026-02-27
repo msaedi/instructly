@@ -93,6 +93,35 @@ describe('NotificationBar', () => {
     jest.useRealTimers();
   });
 
+  it('falls back to empty object when sessionStorage has corrupted JSON (line 22)', async () => {
+    // Line 22: catch block when JSON.parse throws on invalid sessionStorage data
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2025-01-10T10:00:00Z'));
+
+    // Mock sessionStorage to return invalid JSON
+    Object.defineProperty(window, 'sessionStorage', {
+      value: {
+        getItem: jest.fn(() => '{corrupted-json'),
+        setItem: jest.fn(),
+      },
+      configurable: true,
+    });
+
+    useAuthMock.mockReturnValue({
+      user: { credits_balance: 25, created_at: '2025-01-09T10:00:00Z' },
+      isAuthenticated: true,
+    });
+
+    render(<NotificationBar />);
+
+    jest.runOnlyPendingTimers();
+    // Should still render notification (corrupted dismissals are ignored)
+    await waitFor(() => {
+      expect(screen.getByText(/You have \$25 in credits!/i)).toBeInTheDocument();
+    });
+    jest.useRealTimers();
+  });
+
   it('hides dismissed notifications within 24 hours', async () => {
     jest.useFakeTimers();
     const now = new Date('2025-01-10T10:00:00Z').getTime();

@@ -265,6 +265,27 @@ describe('storeBookingIntent', () => {
 
     sessionStorage.setItem = originalSetItem;
   });
+
+  it('logs the error details when storage fails (line 125)', () => {
+    const loggerMod = jest.requireMock('@/lib/logger') as { logger: { error: jest.Mock } };
+    loggerMod.logger.error.mockClear();
+
+    const storageError = new Error('QuotaExceededError');
+    jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw storageError;
+    });
+
+    storeBookingIntent({
+      instructorId: 'inst-123',
+      date: '2024-12-25',
+      time: '14:00',
+      duration: 60,
+    });
+
+    expect(loggerMod.logger.error).toHaveBeenCalledWith('Failed to store booking intent', storageError);
+
+    jest.restoreAllMocks();
+  });
 });
 
 describe('getBookingIntent', () => {
@@ -340,5 +361,21 @@ describe('clearBookingIntent', () => {
     expect(() => clearBookingIntent()).not.toThrow();
 
     sessionStorage.removeItem = originalRemoveItem;
+  });
+
+  it('logs the error details when removeItem fails (line 163)', () => {
+    const loggerMod = jest.requireMock('@/lib/logger') as { logger: { error: jest.Mock } };
+    loggerMod.logger.error.mockClear();
+
+    const removeError = new Error('SecurityError');
+    jest.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+      throw removeError;
+    });
+
+    clearBookingIntent();
+
+    expect(loggerMod.logger.error).toHaveBeenCalledWith('Failed to clear booking intent', removeError);
+
+    jest.restoreAllMocks();
   });
 });

@@ -160,6 +160,20 @@ describe('FilterSelectionForm', () => {
     expect(container.innerHTML).toBe('');
   });
 
+  it('shows error message when filter data fails to load (line 51)', async () => {
+    // Line 51: isError path renders error text
+    getFiltersMock.mockRejectedValue(new Error('Server error'));
+
+    render(
+      <FilterSelectionForm subcategoryId="sub-1" selections={{}} onChange={jest.fn()} />,
+      { wrapper: Wrapper },
+    );
+
+    expect(
+      await screen.findByText('Could not load filter options. Please try again.'),
+    ).toBeInTheDocument();
+  });
+
   it('renders nothing when no filters available', async () => {
     getFiltersMock.mockResolvedValue({ data: [], status: 200 });
     const { container } = render(

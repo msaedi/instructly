@@ -464,3 +464,433 @@ describe('PaymentSection credits behavior', () => {
     expect(mockRefetchCredits).toHaveBeenCalled();
   });
 });
+
+describe('PaymentSection credit-toggle clears floor violation (line 840)', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    latestPaymentConfirmationProps.current = null;
+  });
+
+  it('clears floor violation message when credits are toggled off', async () => {
+    mockUsePaymentFlow.mockReturnValue({
+      currentStep: 'confirmation',
+      paymentMethod: PaymentMethod.MIXED,
+      creditsToUse: 10,
+      error: null,
+      goToStep: jest.fn(),
+      selectPaymentMethod: jest.fn(),
+      reset: jest.fn(),
+    });
+
+    const bookingData = {
+      bookingId: 'order-floor',
+      instructorId: 'instructor-1',
+      instructorName: 'Jane D.',
+      lessonType: 'Lesson',
+      date: new Date('2024-05-10'),
+      startTime: '10:00',
+      endTime: '11:00',
+      duration: 60,
+      location: 'Online',
+      basePrice: 45,
+      totalAmount: 45,
+      bookingType: BookingType.STANDARD,
+      paymentStatus: PAYMENT_STATUS.SCHEDULED,
+    } as const;
+
+    render(
+      <PaymentSection
+        bookingData={bookingData}
+        onSuccess={jest.fn()}
+        onError={jest.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(latestPaymentConfirmationProps.current).not.toBeNull();
+    });
+
+    // First apply credits to set creditSliderCents > 0
+    const onCreditAmountChange = latestPaymentConfirmationProps.current?.['onCreditAmountChange'] as
+      | ((amount: number) => void)
+      | undefined;
+    act(() => {
+      onCreditAmountChange?.(10);
+    });
+
+    // Now toggle credits off to exercise handleCreditToggle with floorViolationMessage
+    // The floorViolationMessage is set internally, so toggling should still exercise the path
+    const onCreditToggle = latestPaymentConfirmationProps.current?.['onCreditToggle'] as (() => void) | undefined;
+    act(() => {
+      onCreditToggle?.();
+    });
+
+    // After toggling off, the credits should be 0 (creditsUsed prop)
+    const updatedProps = latestPaymentConfirmationProps.current ?? {};
+    expect(updatedProps['creditsUsed']).toBe(0);
+  });
+});
+
+describe('PaymentSection credit amount change clears floor violation (line 874)', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    latestPaymentConfirmationProps.current = null;
+  });
+
+  it('exercises handleCreditAmountChange with different amounts', async () => {
+    mockUsePaymentFlow.mockReturnValue({
+      currentStep: 'confirmation',
+      paymentMethod: PaymentMethod.MIXED,
+      creditsToUse: 10,
+      error: null,
+      goToStep: jest.fn(),
+      selectPaymentMethod: jest.fn(),
+      reset: jest.fn(),
+    });
+
+    const bookingData = {
+      bookingId: 'order-amount',
+      instructorId: 'instructor-1',
+      instructorName: 'Jane D.',
+      lessonType: 'Lesson',
+      date: new Date('2024-05-10'),
+      startTime: '10:00',
+      endTime: '11:00',
+      duration: 60,
+      location: 'Online',
+      basePrice: 45,
+      totalAmount: 45,
+      bookingType: BookingType.STANDARD,
+      paymentStatus: PAYMENT_STATUS.SCHEDULED,
+    } as const;
+
+    render(
+      <PaymentSection
+        bookingData={bookingData}
+        onSuccess={jest.fn()}
+        onError={jest.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(latestPaymentConfirmationProps.current).not.toBeNull();
+    });
+
+    const onCreditAmountChange = latestPaymentConfirmationProps.current?.['onCreditAmountChange'] as
+      | ((amount: number) => void)
+      | undefined;
+
+    // Set credits to 20
+    act(() => {
+      onCreditAmountChange?.(20);
+    });
+
+    // Decrease credits to 5 (exercises the reduction path)
+    act(() => {
+      onCreditAmountChange?.(5);
+    });
+
+    // Set credits to 0 (exercises the zero path)
+    act(() => {
+      onCreditAmountChange?.(0);
+    });
+
+    // Verify the component still renders
+    expect(latestPaymentConfirmationProps.current).not.toBeNull();
+  });
+
+  it('skips update when credit amount does not change', async () => {
+    mockUsePaymentFlow.mockReturnValue({
+      currentStep: 'confirmation',
+      paymentMethod: PaymentMethod.MIXED,
+      creditsToUse: 10,
+      error: null,
+      goToStep: jest.fn(),
+      selectPaymentMethod: jest.fn(),
+      reset: jest.fn(),
+    });
+
+    const bookingData = {
+      bookingId: 'order-skip',
+      instructorId: 'instructor-1',
+      instructorName: 'Jane D.',
+      lessonType: 'Lesson',
+      date: new Date('2024-05-10'),
+      startTime: '10:00',
+      endTime: '11:00',
+      duration: 60,
+      location: 'Online',
+      basePrice: 45,
+      totalAmount: 45,
+      bookingType: BookingType.STANDARD,
+      paymentStatus: PAYMENT_STATUS.SCHEDULED,
+    } as const;
+
+    render(
+      <PaymentSection
+        bookingData={bookingData}
+        onSuccess={jest.fn()}
+        onError={jest.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(latestPaymentConfirmationProps.current).not.toBeNull();
+    });
+
+    const onCreditAmountChange = latestPaymentConfirmationProps.current?.['onCreditAmountChange'] as
+      | ((amount: number) => void)
+      | undefined;
+
+    // Set credits to 10
+    act(() => {
+      onCreditAmountChange?.(10);
+    });
+
+    // Set same amount again — should be a no-op (line 869: early return when no change)
+    act(() => {
+      onCreditAmountChange?.(10);
+    });
+
+    expect(latestPaymentConfirmationProps.current).not.toBeNull();
+  });
+});
+
+describe('PaymentSection creditDecisionKey reset (lines 928-932)', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    latestPaymentConfirmationProps.current = null;
+  });
+
+  it('resets credit refs when creditDecisionKey changes', async () => {
+    mockUsePaymentFlow.mockReturnValue({
+      currentStep: 'confirmation',
+      paymentMethod: PaymentMethod.CREDIT_CARD,
+      creditsToUse: 0,
+      error: null,
+      goToStep: jest.fn(),
+      selectPaymentMethod: jest.fn(),
+      reset: jest.fn(),
+    });
+
+    const bookingData = {
+      bookingId: 'order-key-1',
+      instructorId: 'instructor-1',
+      instructorName: 'Jane D.',
+      lessonType: 'Lesson',
+      date: new Date('2024-05-10'),
+      startTime: '10:00',
+      endTime: '11:00',
+      duration: 60,
+      location: 'Online',
+      basePrice: 45,
+      totalAmount: 45,
+      bookingType: BookingType.STANDARD,
+      paymentStatus: PAYMENT_STATUS.SCHEDULED,
+    } as const;
+
+    const { rerender } = render(
+      <PaymentSection
+        bookingData={bookingData}
+        onSuccess={jest.fn()}
+        onError={jest.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(latestPaymentConfirmationProps.current).not.toBeNull();
+    });
+
+    // Rerender with different bookingId to change creditDecisionKey
+    const newBookingData = {
+      ...bookingData,
+      bookingId: 'order-key-2',
+    };
+
+    rerender(
+      <PaymentSection
+        bookingData={newBookingData}
+        onSuccess={jest.fn()}
+        onError={jest.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(latestPaymentConfirmationProps.current).not.toBeNull();
+    });
+
+    // Rerender with empty bookingId to exercise the falsy creditDecisionKey path (lines 928-932)
+    const emptyBookingData = {
+      ...bookingData,
+      bookingId: '',
+      instructorId: '',
+    };
+
+    rerender(
+      <PaymentSection
+        bookingData={emptyBookingData}
+        onSuccess={jest.fn()}
+        onError={jest.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(latestPaymentConfirmationProps.current).not.toBeNull();
+    });
+  });
+});
+
+describe('PaymentSection credits accordion toggle (line 913)', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    latestPaymentConfirmationProps.current = null;
+  });
+
+  it('persists credits collapsed preference when accordion toggled', async () => {
+    mockUsePaymentFlow.mockReturnValue({
+      currentStep: 'confirmation',
+      paymentMethod: PaymentMethod.CREDIT_CARD,
+      creditsToUse: 0,
+      error: null,
+      goToStep: jest.fn(),
+      selectPaymentMethod: jest.fn(),
+      reset: jest.fn(),
+    });
+
+    const bookingData = {
+      bookingId: 'order-accordion',
+      instructorId: 'instructor-1',
+      instructorName: 'Jane D.',
+      lessonType: 'Lesson',
+      date: new Date('2024-05-10'),
+      startTime: '10:00',
+      endTime: '11:00',
+      duration: 60,
+      location: 'Online',
+      basePrice: 45,
+      totalAmount: 45,
+      bookingType: BookingType.STANDARD,
+      paymentStatus: PAYMENT_STATUS.SCHEDULED,
+    } as const;
+
+    render(
+      <PaymentSection
+        bookingData={bookingData}
+        onSuccess={jest.fn()}
+        onError={jest.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(latestPaymentConfirmationProps.current).not.toBeNull();
+    });
+
+    const onCreditsAccordionToggle = latestPaymentConfirmationProps.current?.['onCreditsAccordionToggle'] as
+      | ((expanded: boolean) => void)
+      | undefined;
+
+    // Expand accordion
+    act(() => {
+      onCreditsAccordionToggle?.(true);
+    });
+
+    // Collapse accordion
+    act(() => {
+      onCreditsAccordionToggle?.(false);
+    });
+
+    expect(latestPaymentConfirmationProps.current).not.toBeNull();
+  });
+});
+
+describe('PaymentSection booking update triggers preview refresh (lines 678-681)', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    latestPaymentConfirmationProps.current = null;
+  });
+
+  it('queues preview cause when booking is updated with new duration', async () => {
+    mockUsePaymentFlow.mockReturnValue({
+      currentStep: 'confirmation',
+      paymentMethod: PaymentMethod.CREDIT_CARD,
+      creditsToUse: 0,
+      error: null,
+      goToStep: jest.fn(),
+      selectPaymentMethod: jest.fn(),
+      reset: jest.fn(),
+    });
+
+    const bookingData = {
+      bookingId: 'order-preview',
+      instructorId: 'instructor-1',
+      instructorName: 'Jane D.',
+      lessonType: 'Lesson',
+      date: new Date('2024-05-10'),
+      startTime: '10:00',
+      endTime: '11:00',
+      duration: 60,
+      location: 'Online',
+      basePrice: 45,
+      totalAmount: 45,
+      bookingType: BookingType.STANDARD,
+      paymentStatus: PAYMENT_STATUS.SCHEDULED,
+    } as const;
+
+    render(
+      <PaymentSection
+        bookingData={bookingData}
+        onSuccess={jest.fn()}
+        onError={jest.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(latestPaymentConfirmationProps.current).not.toBeNull();
+    });
+
+    const onBookingUpdate = latestPaymentConfirmationProps.current?.['onBookingUpdate'] as
+      | ((updater: (prev: Record<string, unknown>) => Record<string, unknown>) => void)
+      | undefined;
+
+    // Update duration to trigger the pending preview cause path
+    act(() => {
+      onBookingUpdate?.((prev: Record<string, unknown>) => ({
+        ...prev,
+        duration: 90,
+      }));
+    });
+
+    // The pending preview cause ref should be set and the effect should run
+    await waitFor(() => {
+      expect(latestPaymentConfirmationProps.current).not.toBeNull();
+    });
+
+    // Update date/time to trigger date-time-only path
+    act(() => {
+      onBookingUpdate?.((prev: Record<string, unknown>) => ({
+        ...prev,
+        date: new Date('2024-06-15'),
+        startTime: '14:00',
+      }));
+    });
+
+    await waitFor(() => {
+      expect(latestPaymentConfirmationProps.current).not.toBeNull();
+    });
+  });
+});

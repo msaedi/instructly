@@ -792,6 +792,31 @@ describe('useWeekSchedule', () => {
       expect(result.current.message?.text).toContain('detail');
     });
 
+    it('returns undefined when JSON.stringify throws (line 71, circular ref)', async () => {
+      // Create a circular reference object that has no string detail, no array detail, no message
+      const circular: Record<string, unknown> = { unexpected: true };
+      circular['self'] = circular; // circular reference causes JSON.stringify to throw
+
+      mockFetchWithAuth.mockImplementationOnce(async () => ({
+        ok: false,
+        status: 422,
+        statusText: 'Unprocessable Entity',
+        json: async () => circular,
+        headers: { get: () => null },
+      }));
+
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      // extractDetailFromResponse returns undefined because JSON.stringify throws,
+      // so the fallback is response.statusText
+      expect(result.current.message?.type).toBe('error');
+      expect(result.current.message?.text).toContain('Unprocessable Entity');
+    });
+
     it('handles non-Error thrown in catch block', async () => {
       mockFetchWithAuth.mockImplementationOnce(async () => {
         throw 'string-thrown-error';

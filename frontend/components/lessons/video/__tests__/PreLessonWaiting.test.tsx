@@ -198,4 +198,75 @@ describe('PreLessonWaiting', () => {
 
     expect(screen.getByText('Joining as Alice')).toBeInTheDocument();
   });
+
+  describe('CountdownPill urgency colors', () => {
+    it('shows red pill when join window closes within 60 seconds', () => {
+      mockCountdowns(
+        { secondsLeft: 0, isExpired: true, formatted: '00:00' },
+        { secondsLeft: 45, isExpired: false, formatted: '00:45' }
+      );
+
+      render(<PreLessonWaiting {...defaultProps} />);
+
+      const pill = screen.getByText(/Window closes in 00:45/);
+      expect(pill.className).toContain('bg-red-100');
+      expect(pill.className).toContain('text-red-700');
+      // Should NOT have gray or amber styles
+      expect(pill.className).not.toContain('bg-gray-100');
+      expect(pill.className).not.toContain('bg-amber-100');
+    });
+
+    it('shows red pill at the exact 60-second boundary', () => {
+      mockCountdowns(
+        { secondsLeft: 0, isExpired: true, formatted: '00:00' },
+        { secondsLeft: 60, isExpired: false, formatted: '01:00' }
+      );
+
+      render(<PreLessonWaiting {...defaultProps} />);
+
+      const pill = screen.getByText(/Window closes in 01:00/);
+      expect(pill.className).toContain('bg-red-100');
+    });
+
+    it('shows amber pill when join window closes within 5 minutes (but > 60s)', () => {
+      mockCountdowns(
+        { secondsLeft: 0, isExpired: true, formatted: '00:00' },
+        { secondsLeft: 180, isExpired: false, formatted: '03:00' }
+      );
+
+      render(<PreLessonWaiting {...defaultProps} />);
+
+      const pill = screen.getByText(/Window closes in 03:00/);
+      expect(pill.className).toContain('bg-amber-100');
+      expect(pill.className).toContain('text-amber-700');
+      // Should NOT have gray or red styles
+      expect(pill.className).not.toContain('bg-gray-100');
+      expect(pill.className).not.toContain('bg-red-100');
+    });
+
+    it('shows amber pill at the exact 300-second boundary', () => {
+      mockCountdowns(
+        { secondsLeft: 0, isExpired: true, formatted: '00:00' },
+        { secondsLeft: 300, isExpired: false, formatted: '05:00' }
+      );
+
+      render(<PreLessonWaiting {...defaultProps} />);
+
+      const pill = screen.getByText(/Window closes in 05:00/);
+      expect(pill.className).toContain('bg-amber-100');
+    });
+
+    it('shows gray pill when more than 5 minutes remain', () => {
+      mockCountdowns(
+        { secondsLeft: 0, isExpired: true, formatted: '00:00' },
+        { secondsLeft: 600, isExpired: false, formatted: '10:00' }
+      );
+
+      render(<PreLessonWaiting {...defaultProps} />);
+
+      const pill = screen.getByText(/Window closes in 10:00/);
+      expect(pill.className).toContain('bg-gray-100');
+      expect(pill.className).toContain('text-gray-700');
+    });
+  });
 });

@@ -776,6 +776,119 @@ describe('useUserMessageStream', () => {
     });
   });
 
+  describe('connect guard when already connecting (lines 282-289)', () => {
+    it('skips connect when eventSourceRef already exists', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      const es = getLatestEventSource();
+      act(() => { es.emit('connected'); });
+
+      // At this point eventSourceRef.current is set.
+      // A second connect attempt (e.g., if isAuthenticated re-triggers)
+      // should skip because hasExistingConnection is true.
+      const instanceCount = MockEventSource.instances.length;
+
+      // Force reconnect by changing auth and back
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        user: { id: 'user-1', first_name: 'John' },
+        checkAuth: mockCheckAuth,
+      });
+
+      // No new EventSource should be created
+      expect(MockEventSource.instances.length).toBe(instanceCount);
+      expect(result.current.isConnected).toBe(true);
+    });
+  });
+
+  describe('error handler suppressed log paths (lines 494, 508)', () => {
+    it('suppresses error log when authRejected ref is true (line 494)', async () => {
+      // First connect succeeds with a 401 on SSE token,
+      // setting authRejectedRef = true. Then we make auth appear valid again
+      // so connect() fires, but this time the token also returns 401 again.
+      // Actually, a simpler approach: connect, then get a 401 on reconnect token
+      // which sets authRejectedRef. Then a stale onerror fires.
+
+      // Step 1: Connect successfully
+      const { result } = renderHook(() => useUserMessageStream());
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      const es = getLatestEventSource();
+      act(() => { es.emit('connected'); });
+      expect(result.current.isConnected).toBe(true);
+
+      // Step 2: Trigger error to start reconnect cycle
+      act(() => { es.triggerError(); });
+      expect(result.current.isConnected).toBe(false);
+
+      // Step 3: During reconnect, token returns 401 which sets authRejectedRef = true
+      mockFetchWithAuth.mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: async () => ({}),
+      });
+
+      await act(async () => {
+        jest.advanceTimersByTime(3000);
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // authRejectedRef should now be true; no new EventSource created
+      expect(result.current.connectionError).toBe('Not authenticated');
+    });
+
+    it('suppresses duplicate error logs after first (line 508)', async () => {
+      renderHook(() => useUserMessageStream());
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      const es = getLatestEventSource();
+      act(() => { es.emit('connected'); });
+
+      // First error — sets connectionErrorLoggedRef to true
+      act(() => { es.triggerError(); });
+
+      // Re-connect to get a new EventSource
+      mockFetchWithAuth.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ token: 'sse-token-456' }),
+      });
+
+      await act(async () => {
+        jest.advanceTimersByTime(3000);
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // Ensure a new EventSource was created
+      expect(MockEventSource.instances.length).toBeGreaterThan(1);
+      const es2 = getLatestEventSource();
+      act(() => { es2.emit('connected'); });
+
+      // Second error after reconnect — connectionErrorLoggedRef is already true
+      // so it takes the suppressed debug path (line 508)
+      act(() => { es2.triggerError(); });
+
+      expect(es2.readyState).toBe(2); // CLOSED
+    });
+  });
+
   describe('cleanup on unmount', () => {
     it('closes EventSource and clears timers on unmount', async () => {
       const { unmount } = renderHook(() => useUserMessageStream());

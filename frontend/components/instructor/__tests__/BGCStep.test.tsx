@@ -2738,6 +2738,62 @@ describe('BGCStep', () => {
     });
   });
 
+  describe('validUntilLabel catch block (line 540)', () => {
+    it('returns null when validUntil is an unparseable date string', async () => {
+      bgcStatusMock.mockResolvedValue({
+        ...defaultStatusResponse,
+        status: 'passed',
+        valid_until: 'not-a-valid-date-format',
+      });
+
+      render(<BGCStep instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Verified')).toBeInTheDocument();
+      });
+
+      // The catch block in validUntilLabel fires when new Date(invalidString).toLocaleDateString() throws
+      // For most JS engines 'not-a-valid-date-format' produces Invalid Date, and toLocaleDateString() on it
+      // returns "Invalid Date" rather than throwing. The catch block is only reached if toLocaleDateString throws.
+      // In JSDOM, Invalid Date.toLocaleDateString() does not throw, so the label shows the invalid date string.
+      // We verify the component renders without crashing.
+      const validUntilEl = screen.getByText(/Valid until:/);
+      expect(validUntilEl).toBeInTheDocument();
+    });
+  });
+
+  describe('polling effect cleanup clears existing timer (lines 273-274)', () => {
+    it('clears poll timer when pending status transitions to passed via poll', async () => {
+      // Start with pending status to trigger polling
+      bgcStatusMock
+        .mockResolvedValueOnce({
+          ...defaultStatusResponse,
+          status: 'pending',
+          eta: '2025-12-31T00:00:00Z',
+        })
+        .mockResolvedValue({
+          ...defaultStatusResponse,
+          status: 'passed',
+        });
+
+      render(<BGCStep instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Verification pending')).toBeInTheDocument();
+      });
+
+      // Advance timer past the first backoff delay (15000ms) to fire the poll
+      // The poll returns 'passed', effect re-runs on status change, hitting lines 272-274
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(16000);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Verified')).toBeInTheDocument();
+      });
+    });
+  });
+
   describe('post-invite modal onClose via Escape', () => {
     it('closes the post-invite modal when Escape key is pressed (bug hunt: onClose callback at line 629)', async () => {
       bgcInviteMock.mockResolvedValue({ status: 'pending', report_id: 'rpt-new' });

@@ -146,6 +146,20 @@ describe('useAuth', () => {
     ).rejects.toThrow('Invalid credentials');
   });
 
+  it('re-throws non-ApiError as Error from login mutationFn (line 101)', async () => {
+    queryFnMock.mockReturnValue(makeQueryFn(null));
+    getGuestSessionIdMock.mockReturnValue(null);
+    // Throw a generic Error, NOT ApiError — exercises line 101: throw error as Error
+    httpMock.mockRejectedValueOnce(new TypeError('Network request failed'));
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await expect(
+      result.current.login({ email: 'test@example.com', password: 'bad' })
+    ).rejects.toThrow('Network request failed');
+  });
+
   it('clears cache and redirects on logout', async () => {
     queryFnMock.mockReturnValue(makeQueryFn(null));
 

@@ -393,6 +393,41 @@ describe('useCreateBooking', () => {
       expect(mockCreateBookingImperative).not.toHaveBeenCalled();
     });
 
+    it('falls back to 0 when parseInt throws in duration calculation (line 61)', async () => {
+      // Force the catch branch by making String() on start_time return something
+      // that causes split to produce values that parseInt can't handle in a way
+      // that triggers the catch. We use an object with a toString that throws on second call.
+      const originalParseInt = global.parseInt;
+      let callCount = 0;
+      jest.spyOn(global, 'parseInt').mockImplementation((...args) => {
+        callCount++;
+        // Throw on the first call inside the IIFE (after String().split())
+        if (callCount <= 2) {
+          throw new Error('Simulated parseInt failure');
+        }
+        return originalParseInt(...args);
+      });
+
+      const { result } = renderHook(() => useCreateBooking());
+
+      await act(async () => {
+        await result.current.createBooking({
+          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
+          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
+          booking_date: '2024-01-15',
+          start_time: '10:00:00',
+          end_time: '11:00:00',
+          location_type: 'neutral_location',
+        } as Parameters<typeof result.current.createBooking>[0]);
+      });
+
+      // When catch fires, duration = 0 -> error
+      expect(result.current.error).toBe('selected_duration is required to create a booking');
+      expect(mockCreateBookingImperative).not.toHaveBeenCalled();
+
+      jest.restoreAllMocks();
+    });
+
     it('handles negative duration when end_time is before start_time', async () => {
       const { result } = renderHook(() => useCreateBooking());
 

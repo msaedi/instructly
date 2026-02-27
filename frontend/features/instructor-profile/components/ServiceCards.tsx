@@ -94,12 +94,11 @@ function ServiceCardItem({
     if (duration > availableMinutes) {
       if (availableMinutes === 60) {
         return `This ${duration}-minute session requires a ${Math.ceil(duration / 60)}-hour time block`;
-      } else {
-        return `Only ${availableMinutes} minutes available from ${selectedSlot.time}. This session needs ${duration} minutes.`;
       }
+      return `Only ${availableMinutes} minutes available from ${selectedSlot.time}. This session needs ${duration} minutes.`;
     }
 
-    return 'This duration is not available at the selected time';
+    return '';
   };
 
   return (

@@ -281,6 +281,8 @@ import { queryKeys } from '@/lib/react-query/queryClient';
 
 // Mock the bookings service — useCancelBooking returns an Orval mutation
 const mockMutate = jest.fn();
+const mockRescheduleMutate = jest.fn();
+const mockRescheduleMutateAsync = jest.fn().mockResolvedValue({});
 jest.mock('@/src/api/services/bookings', () => ({
   useCancelBooking: () => ({
     mutate: mockMutate,
@@ -292,18 +294,27 @@ jest.mock('@/src/api/services/bookings', () => ({
     data: undefined,
     reset: jest.fn(),
   }),
+  useRescheduleBooking: () => ({
+    mutate: mockRescheduleMutate,
+    mutateAsync: mockRescheduleMutateAsync,
+    isPending: false,
+    isError: false,
+    isSuccess: false,
+    error: null,
+    data: undefined,
+    reset: jest.fn(),
+  }),
   useBookingsList: jest.fn(),
   useBookingsHistory: jest.fn(),
   useCancelledBookings: jest.fn(),
   useBooking: jest.fn(),
-  useRescheduleBooking: jest.fn(),
   useCompleteBooking: jest.fn(),
   useMarkBookingNoShow: jest.fn(),
   fetchBookingsList: jest.fn(),
 }));
 
 // Must import AFTER jest.mock
-import { useCancelLesson } from '../useMyLessons';
+import { useCancelLesson, useRescheduleLesson } from '../useMyLessons';
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -313,6 +324,63 @@ function createWrapper() {
     React.createElement(QueryClientProvider, { client: queryClient }, children);
   return { queryClient, wrapper };
 }
+
+describe('useRescheduleLesson — calculateDurationMinutes guard (line 265)', () => {
+  beforeEach(() => {
+    mockRescheduleMutate.mockReset();
+    mockRescheduleMutateAsync.mockReset().mockResolvedValue({});
+  });
+
+  it('passes selected_duration=0 when endTime is null-like (exercises line 265)', async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useRescheduleLesson(), { wrapper });
+
+    // Capture the mutateAsync args
+    mockRescheduleMutateAsync.mockResolvedValue({});
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        lessonId: 'booking-1',
+        newDate: '2025-06-01',
+        newStartTime: '',
+        newEndTime: '10:00',
+      });
+    });
+
+    // When startTime is empty, calculateDurationMinutes returns 0
+    expect(mockRescheduleMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          selected_duration: 0,
+        }),
+      })
+    );
+  });
+
+  it('passes selected_duration=0 when both times are empty', async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useRescheduleLesson(), { wrapper });
+
+    mockRescheduleMutateAsync.mockResolvedValue({});
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        lessonId: 'booking-2',
+        newDate: '2025-06-01',
+        newStartTime: '',
+        newEndTime: '',
+      });
+    });
+
+    expect(mockRescheduleMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          selected_duration: 0,
+        }),
+      })
+    );
+  });
+});
 
 describe('useCancelLesson availability cache invalidation', () => {
   beforeEach(() => {

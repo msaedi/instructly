@@ -2050,6 +2050,31 @@ describe('CheckoutFlow', () => {
       expect(payButton).toHaveTextContent('Pay $0.30');
     });
 
+    it('disables pay button when Stripe is not initialized (lines 110-111 guard)', async () => {
+      // Override useStripe to return null
+      const stripeMock = jest.requireMock('@stripe/react-stripe-js') as Record<string, unknown>;
+      const originalUseStripe = stripeMock['useStripe'];
+      stripeMock['useStripe'] = () => null;
+
+      render(
+        <CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Booking Summary')).toBeInTheDocument();
+      });
+
+      // The Pay button should be disabled when stripe is null,
+      // which prevents processPayment from running (lines 110-111 are
+      // a defensive guard behind this disabled state).
+      const payButton = screen.getByRole('button', { name: /Pay/ });
+      expect(payButton).toBeDisabled();
+
+      // Restore
+      stripeMock['useStripe'] = originalUseStripe;
+    });
+
     it('displays Pay $NaN when pricing preview returns NaN student_pay_cents', async () => {
       // BUG-HUNTING: When pricingPreview has NaN student_pay_cents,
       // the component computes NaN / 100 = NaN, typeof NaN === 'number' so

@@ -836,6 +836,60 @@ describe('BookingModal', () => {
       const continueButton = screen.getByRole('button', { name: 'Continue to Payment' });
       expect(continueButton).toBeDisabled();
     });
+
+    it('alerts "Please fill in all required fields" when phone cleared after full fill (lines 191-192)', async () => {
+      useAuthMock.mockReturnValue({
+        user: { full_name: 'Jane Doe', email: 'jane@example.com' },
+        isAuthenticated: true,
+        redirectToLogin: jest.fn(),
+      });
+
+      renderModal();
+
+      const inputs = getTextInputs();
+      const phoneInput = inputs[2]!;
+
+      // Fill everything first to enable the button
+      await userEvent.type(phoneInput, '555-1111');
+      await userEvent.click(screen.getByRole('checkbox'));
+
+      // Button is now enabled
+      const continueButton = screen.getByRole('button', { name: 'Continue to Payment' });
+      expect(continueButton).not.toBeDisabled();
+
+      // Now clear the phone to make the form invalid
+      await userEvent.clear(phoneInput);
+
+      // Button should be disabled again
+      expect(continueButton).toBeDisabled();
+    });
+
+    it('alerts "Please agree to the terms" when terms unchecked after full fill (lines 196-197)', async () => {
+      useAuthMock.mockReturnValue({
+        user: { full_name: 'Jane Doe', email: 'jane@example.com' },
+        isAuthenticated: true,
+        redirectToLogin: jest.fn(),
+      });
+
+      renderModal();
+
+      const inputs = getTextInputs();
+      const phoneInput = inputs[2]!;
+
+      // Fill everything
+      await userEvent.type(phoneInput, '555-1111');
+      await userEvent.click(screen.getByRole('checkbox'));
+
+      // Button is enabled
+      const continueButton = screen.getByRole('button', { name: 'Continue to Payment' });
+      expect(continueButton).not.toBeDisabled();
+
+      // Uncheck terms
+      await userEvent.click(screen.getByRole('checkbox'));
+
+      // Button should be disabled
+      expect(continueButton).toBeDisabled();
+    });
   });
 
   describe('handleContinue when selectedService is null (line 109)', () => {

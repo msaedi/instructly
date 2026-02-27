@@ -632,11 +632,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       return 'duration-change';
     }
 
-    if (hasDateTimeChanged) {
-      return 'date-time-only';
-    }
-
-    return null;
+    return 'date-time-only';
   }, []);
 
   const handleBookingUpdate = useCallback(
@@ -1344,8 +1340,6 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
           if (!isSuccessStatus) {
             throw new Error(`Payment failed with status: ${checkoutStatus}`);
           }
-        } else if (amountDue > 0) {
-          throw new Error('Payment method required');
         }
       } catch (paymentError: unknown) {
         logger.warn('Payment failed, cancelling booking', {

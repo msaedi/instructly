@@ -822,6 +822,7 @@ describe('useReactions', () => {
       expect(result.current.userReactions['msg-rapid-1']).toBe('👍');
       expect(result.current.userReactions['msg-rapid-2']).toBe('❤️');
     });
+
   });
 
   describe('initialization does not override existing local state', () => {

@@ -534,6 +534,49 @@ describe('usePaymentFlow', () => {
       expect(onError).toHaveBeenCalled();
     });
 
+    it('clears existing redirect timeout when processPayment succeeds again (line 117)', async () => {
+      const booking = createTestBooking();
+      const mockFetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ paymentIntentId: 'pi_123' }),
+      });
+      global.fetch = mockFetch;
+
+      const { result } = renderHook(() => usePaymentFlow({ booking }));
+
+      act(() => {
+        result.current.selectPaymentMethod(PaymentMethod.CREDIT_CARD, 'card-123');
+      });
+
+      // First successful payment - schedules a redirect timeout
+      await act(async () => {
+        await result.current.processPayment();
+      });
+
+      expect(result.current.currentStep).toBe(PaymentStep.SUCCESS);
+
+      // Reset to allow second payment (simulates retry scenario)
+      act(() => {
+        result.current.selectPaymentMethod(PaymentMethod.CREDIT_CARD, 'card-123');
+      });
+
+      // Second successful payment - should clear the previous timeout (line 117)
+      await act(async () => {
+        await result.current.processPayment();
+      });
+
+      expect(result.current.currentStep).toBe(PaymentStep.SUCCESS);
+
+      // Only one redirect should happen after advancing timers
+      act(() => {
+        jest.advanceTimersByTime(3000);
+      });
+
+      // The first timeout was cleared, so only the second one fires
+      expect(mockPush).toHaveBeenCalledTimes(1);
+      expect(mockPush).toHaveBeenCalledWith('/student/lessons');
+    });
+
     it('handles non-Error exceptions', async () => {
       const booking = createTestBooking();
       const mockFetch = jest.fn().mockRejectedValue('String error');

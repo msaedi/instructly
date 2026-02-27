@@ -157,6 +157,36 @@ describe('ValidationPreviewModal', () => {
     expect(onConfirm).toHaveBeenCalled();
   });
 
+  it('renders unknown action strings verbatim (default case in formatAction)', () => {
+    // Line 86: default branch in formatAction switch — returns raw action string
+    const resultsWithUnknownAction: WeekValidationResponse = {
+      ...baseResults,
+      details: [
+        {
+          operation_index: 0,
+          action: 'merge' as never, // unknown action to exercise the default case
+          date: '2025-01-01',
+          start_time: '10:00',
+          end_time: '11:00',
+          reason: 'Valid',
+        },
+      ],
+    };
+
+    render(
+      <ValidationPreviewModal
+        isOpen
+        validationResults={resultsWithUnknownAction}
+        onClose={onClose}
+        onConfirm={onConfirm}
+      />
+    );
+
+    // The unknown action 'merge' should be rendered as-is (not prefixed with +/-/↻)
+    // It appears within a span alongside date/time info, so use a substring matcher
+    expect(screen.getByText((content) => content.includes('merge'))).toBeInTheDocument();
+  });
+
   it('disables actions and shows saving state', () => {
     render(
       <ValidationPreviewModal

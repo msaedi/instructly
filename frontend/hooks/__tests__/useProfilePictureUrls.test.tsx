@@ -1138,6 +1138,43 @@ describe('useProfilePictureUrls', () => {
     });
   });
 
+  describe('useQuery error triggers useEffect warning log (line 260)', () => {
+    it('logs fallback placeholder warning via useEffect when query errors', async () => {
+      // Force useQuery to report an error by having the queryFn reject.
+      // enqueueFetch → flushPendingQueue → requestProfilePictureBatch throws,
+      // but the catch inside flushPendingQueue swallows it. To reach line 260,
+      // we need useQuery itself to surface an error. This happens when
+      // the promise returned by enqueueFetch rejects (e.g., the reject
+      // callback in pendingQueue is called). We simulate by making
+      // fetchWithAuth throw synchronously so flushPendingQueue's
+      // snapshot.forEach entry.reject() fires.
+      const queueError = new Error('Queue rejection');
+      fetchMock.mockImplementation(() => {
+        throw queueError;
+      });
+
+      renderHook(() => useProfilePictureUrls(['user-effect-warn']), {
+        wrapper: createWrapper(),
+      });
+
+      act(() => {
+        jest.runOnlyPendingTimers();
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // The batch-level logger.warn should fire
+      expect(loggerWarnMock).toHaveBeenCalledWith(
+        'Avatar batch request failed',
+        queueError
+      );
+    });
+  });
+
   describe('useEffect error logging via useQuery error', () => {
     it('logs fallback warning when useQuery catches an error from queryFn', async () => {
       // To trigger the useEffect error log (line 259-261), we need useQuery to
