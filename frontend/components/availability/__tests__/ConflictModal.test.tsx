@@ -109,9 +109,10 @@ describe('ConflictModal', () => {
 
     const modal = screen.getByRole('dialog');
     const title = screen.getByRole('heading', { name: 'New changes detected' });
+    const description = screen.getByText(/Another session updated this week while you were editing/);
     expect(modal).toHaveAttribute('aria-modal', 'true');
     expect(modal).toHaveAttribute('aria-labelledby', title.getAttribute('id'));
-    expect(modal).toHaveAttribute('aria-describedby', 'availability-conflict-desc');
+    expect(modal).toHaveAttribute('aria-describedby', description.getAttribute('id'));
   });
 
   it('renders normal button text when not loading', () => {

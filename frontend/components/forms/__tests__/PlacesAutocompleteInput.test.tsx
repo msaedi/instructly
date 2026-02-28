@@ -675,6 +675,7 @@ describe('PlacesAutocompleteInput', () => {
         const listboxId = input.getAttribute('aria-controls');
         expect(listboxId).toBeTruthy();
         expect(screen.getByRole('listbox')).toHaveAttribute('id', listboxId);
+        expect(screen.getByRole('listbox', { name: /location suggestions/i })).toBeInTheDocument();
       });
 
       jest.useRealTimers();

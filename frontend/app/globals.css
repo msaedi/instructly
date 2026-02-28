@@ -388,6 +388,10 @@ select {
   z-index: 999;
 }
 
+#main-content:focus {
+  outline: none;
+}
+
 /* Reduced Motion Support */
 @media (prefers-reduced-motion: reduce) {
   *,

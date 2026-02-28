@@ -22,6 +22,7 @@ export default function ConflictModal({
   isOverwriting = false,
 }: ConflictModalProps) {
   const titleId = useId();
+  const descriptionId = useId();
 
   if (!open) return null;
 
@@ -36,7 +37,7 @@ export default function ConflictModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        aria-describedby="availability-conflict-desc"
+        aria-describedby={descriptionId}
         data-testid="conflict-modal"
         className="relative w-full max-w-md rounded-lg bg-white p-6 shadow-xl"
       >
@@ -51,7 +52,7 @@ export default function ConflictModal({
         <h3 id={titleId} className="text-lg font-semibold text-gray-900">
           New changes detected
         </h3>
-        <p id="availability-conflict-desc" className="mt-2 text-sm text-gray-600">
+        <p id={descriptionId} className="mt-2 text-sm text-gray-600">
           Another session updated this week while you were editing. Refresh to keep their edits,
           or overwrite to push your current plan.
           {serverVersion && (
