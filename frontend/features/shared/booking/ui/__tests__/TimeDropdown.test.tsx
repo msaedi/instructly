@@ -19,9 +19,17 @@ describe('TimeDropdown', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    jest
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback: FrameRequestCallback): number => {
+        callback(0);
+        return 1;
+      });
+    jest.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
   });
 
   afterEach(() => {
+    jest.restoreAllMocks();
     jest.useRealTimers();
   });
 
@@ -152,6 +160,152 @@ describe('TimeDropdown', () => {
       act(() => {
         jest.advanceTimersByTime(200);
       });
+    });
+  });
+
+  describe('Accessibility and keyboard', () => {
+    it('provides listbox semantics on trigger and options', () => {
+      render(<TimeDropdown {...defaultProps} />);
+      const trigger = screen.getByRole('button', { name: /select time/i });
+
+      expect(trigger).toHaveAttribute('aria-haspopup', 'listbox');
+      expect(trigger).toHaveAttribute('aria-expanded', 'false');
+
+      fireEvent.click(trigger);
+
+      expect(trigger).toHaveAttribute('aria-expanded', 'true');
+      expect(screen.getByRole('listbox', { name: /select lesson time/i })).toBeInTheDocument();
+      expect(screen.getAllByRole('option')).toHaveLength(defaultProps.timeSlots.length);
+    });
+
+    it('supports arrow key navigation and home/end in the listbox', () => {
+      render(<TimeDropdown {...defaultProps} />);
+      const trigger = screen.getByRole('button', { name: /select time/i });
+
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+
+      const listbox = screen.getByRole('listbox');
+      let options = screen.getAllByRole('option');
+      expect(options[0]).toHaveAttribute('tabindex', '0');
+
+      fireEvent.keyDown(listbox, { key: 'ArrowDown' });
+      options = screen.getAllByRole('option');
+      expect(options[1]).toHaveAttribute('tabindex', '0');
+
+      fireEvent.keyDown(listbox, { key: 'Home' });
+      options = screen.getAllByRole('option');
+      expect(options[0]).toHaveAttribute('tabindex', '0');
+
+      fireEvent.keyDown(listbox, { key: 'End' });
+      options = screen.getAllByRole('option');
+      expect(options[options.length - 1]).toHaveAttribute('tabindex', '0');
+    });
+
+    it('handles trigger enter/space open-close behavior and escape close', () => {
+      render(<TimeDropdown {...defaultProps} />);
+      const trigger = screen.getByRole('button', { name: /select time/i });
+
+      fireEvent.keyDown(trigger, { key: ' ' });
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+      let options = screen.getAllByRole('option');
+      expect(options[1]).toHaveAttribute('tabindex', '0');
+
+      fireEvent.keyDown(trigger, { key: 'Enter' });
+      act(() => {
+        jest.advanceTimersByTime(200);
+      });
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
+      options = screen.getAllByRole('option');
+      expect(options[0]).toHaveAttribute('tabindex', '0');
+
+      fireEvent.keyDown(trigger, { key: 'Escape' });
+      act(() => {
+        jest.advanceTimersByTime(200);
+      });
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    });
+
+    it('handles trigger ArrowUp behavior when closed and open', () => {
+      render(<TimeDropdown {...defaultProps} />);
+      const trigger = screen.getByRole('button', { name: /select time/i });
+
+      fireEvent.keyDown(trigger, { key: 'ArrowUp' });
+      let options = screen.getAllByRole('option');
+      expect(options[options.length - 1]).toHaveAttribute('tabindex', '0');
+
+      fireEvent.keyDown(trigger, { key: 'ArrowUp' });
+      options = screen.getAllByRole('option');
+      expect(options[options.length - 2]).toHaveAttribute('tabindex', '0');
+    });
+
+    it('handles listbox ArrowUp and option focus/mouse enter callbacks', () => {
+      render(<TimeDropdown {...defaultProps} />);
+      const trigger = screen.getByRole('button', { name: /select time/i });
+
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+      const listbox = screen.getByRole('listbox');
+
+      fireEvent.keyDown(listbox, { key: 'ArrowUp' });
+      let options = screen.getAllByRole('option');
+      expect(options[0]).toHaveAttribute('tabindex', '0');
+
+      const optionAtIndex2 = options.at(2);
+      expect(optionAtIndex2).toBeDefined();
+      if (!optionAtIndex2) {
+        throw new Error('Expected option at index 2');
+      }
+      fireEvent.mouseEnter(optionAtIndex2);
+      options = screen.getAllByRole('option');
+      expect(options[2]).toHaveAttribute('tabindex', '0');
+
+      const optionAtIndex1 = options.at(1);
+      expect(optionAtIndex1).toBeDefined();
+      if (!optionAtIndex1) {
+        throw new Error('Expected option at index 1');
+      }
+      fireEvent.focus(optionAtIndex1);
+      options = screen.getAllByRole('option');
+      expect(options[1]).toHaveAttribute('tabindex', '0');
+    });
+
+    it('selects with Enter and returns focus to trigger', () => {
+      const onTimeSelect = jest.fn();
+      render(<TimeDropdown {...defaultProps} onTimeSelect={onTimeSelect} />);
+      const trigger = screen.getByRole('button', { name: /select time/i });
+
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+      fireEvent.keyDown(screen.getByRole('listbox'), { key: 'ArrowDown' });
+      fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Enter' });
+
+      expect(onTimeSelect).toHaveBeenCalledWith('10:00 AM');
+      act(() => {
+        jest.advanceTimersByTime(200);
+      });
+      expect(trigger).toHaveFocus();
+    });
+
+    it('closes with Escape and returns focus to trigger', () => {
+      render(<TimeDropdown {...defaultProps} />);
+      const trigger = screen.getByRole('button', { name: /select time/i });
+
+      fireEvent.click(trigger);
+      fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' });
+
+      act(() => {
+        jest.advanceTimersByTime(200);
+      });
+      expect(trigger).toHaveFocus();
+    });
+
+    it('does not open on keydown when disabled', () => {
+      render(<TimeDropdown {...defaultProps} disabled={true} />);
+      const trigger = screen.getByRole('button');
+      fireEvent.keyDown(trigger, { key: 'Enter' });
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
     });
   });
 

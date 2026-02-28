@@ -140,11 +140,10 @@ describe('TimeSelectionModal preselected initialization', () => {
     const timeButtons = await screen.findAllByRole('button', { name: /2:00pm/i });
     expect(timeButtons.length).toBeGreaterThan(0);
 
-    const selectedDayButtons = await screen.findAllByRole('button', {
-      name: '18',
-      pressed: true,
-    });
-    expect(selectedDayButtons.length).toBeGreaterThan(0);
+    const selectedDayButtons = await screen.findAllByTestId('cal-day-2030-10-18');
+    expect(
+      selectedDayButtons.some((button) => button.getAttribute('aria-selected') === 'true'),
+    ).toBe(true);
   });
 
   it('falls back to first slot when preselected time is unavailable (Monday buffer scenario)', async () => {

@@ -1241,7 +1241,7 @@ export default function TimeSelectionModal({
               fallbackBgColor="#F3E8FF"
               fallbackTextColor="#7E22CE"
             />
-            <p className="text-base font-bold text-black">
+            <p className="text-base font-bold text-gray-900 dark:text-white">
               {getInstructorDisplayName()}&apos;s availability
             </p>
           </div>
@@ -1361,10 +1361,7 @@ export default function TimeSelectionModal({
           >
             {/* Desktop Header */}
             <div className="flex items-center justify-between p-8 pb-0">
-              <h2
-                className="text-2xl font-medium text-gray-900 dark:text-white"
-                style={{ color: '#333333' }}
-              >
+              <h2 className="text-2xl font-medium text-gray-900 dark:text-white">
                 Set your lesson date & time
               </h2>
               <button
@@ -1385,7 +1382,7 @@ export default function TimeSelectionModal({
                 fallbackBgColor="#F3E8FF"
                 fallbackTextColor="#7E22CE"
               />
-              <p className="text-base font-bold text-black">
+              <p className="text-base font-bold text-gray-900 dark:text-white">
                 {getInstructorDisplayName()}&apos;s availability
               </p>
             </div>

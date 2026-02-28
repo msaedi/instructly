@@ -79,6 +79,10 @@ export const PlacesAutocompleteInput = forwardRef<HTMLInputElement, PlacesAutoco
     const [highlightIndex, setHighlightIndex] = useState<number>(-1);
 
     const listboxId = useId();
+    const activeOptionId =
+      open && highlightIndex >= 0 && highlightIndex < suggestions.length
+        ? `${listboxId}-option-${highlightIndex}`
+        : undefined;
 
     useEffect(() => {
       return () => {
@@ -289,6 +293,8 @@ export const PlacesAutocompleteInput = forwardRef<HTMLInputElement, PlacesAutoco
           aria-autocomplete="list"
           aria-expanded={open}
           aria-controls={listboxId}
+          aria-activedescendant={activeOptionId}
+          aria-haspopup="listbox"
           role="combobox"
           className={cn(
             'w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-[#7E22CE]/10 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500',
@@ -305,9 +311,11 @@ export const PlacesAutocompleteInput = forwardRef<HTMLInputElement, PlacesAutoco
               const displayText = getDisplayText(suggestion);
               if (!displayText) return null;
               const isHighlighted = index === highlightIndex;
+              const optionId = `${listboxId}-option-${index}`;
               return (
                 <button
                   key={suggestion.place_id}
+                  id={optionId}
                   type="button"
                   role="option"
                   aria-selected={isHighlighted}

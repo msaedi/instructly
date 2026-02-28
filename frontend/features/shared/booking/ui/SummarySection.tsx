@@ -84,13 +84,13 @@ export default function SummarySection({
     <div className="w-full">
       <div className="text-center">
         {/* Request for header */}
-        <p className="text-sm mb-1" style={{ color: '#666666' }}>
+        <p className="text-sm mb-1 text-gray-600 dark:text-gray-300">
           Request for:
         </p>
 
         {/* Date and Time */}
         {selectedDate && selectedTime && (
-          <p className="text-lg font-bold mb-1" style={{ color: '#333333', fontSize: '18px' }}>
+          <p className="text-[18px] font-bold mb-1 text-gray-900 dark:text-gray-100">
             {formatDate(selectedDate, selectedTime)}
           </p>
         )}
@@ -98,7 +98,7 @@ export default function SummarySection({
         {/* Duration and Pricing */}
         {selectedDuration && (
           <div className="mb-4">
-            <p className="text-base" style={{ color: '#333333', fontSize: '16px' }}>
+            <p className="text-base text-gray-800 dark:text-gray-200">
               {selectedDuration} min
               {!pricingPreview && price > 0 ? ` · $${price}` : ''}
             </p>
@@ -168,14 +168,7 @@ export default function SummarySection({
         )}
 
         {/* Helper Text */}
-        <p
-          className="mt-4 text-sm leading-relaxed px-2"
-          style={{
-            color: '#666666',
-            fontSize: '13px',
-            lineHeight: '1.4',
-          }}
-        >
+        <p className="mt-4 px-2 text-[13px] leading-[1.4] text-gray-600 dark:text-gray-300">
           Next, confirm your details and start learning
         </p>
       </div>
