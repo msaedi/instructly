@@ -207,7 +207,7 @@ test.describe('Referral surfaces', () => {
 
     await page.goto(`${base}/login`, { waitUntil: 'domcontentloaded' });
     await page.getByLabel(/email/i).fill(studentEmail);
-    await page.getByLabel(/password/i).fill(studentPassword);
+    await page.getByLabel('Password', { exact: true }).fill(studentPassword);
     await page.getByRole('button', { name: /log in|sign in|submit/i }).click();
     await page.waitForTimeout(500);
 

@@ -159,7 +159,7 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
   }, [shareUrl, summary]);
 
   return (
-    <main className="space-y-8">
+    <div className="space-y-8">
       {!hideHeader && (
         <header className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -310,6 +310,6 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
       </section>
 
       {/* Footer terms removed per embedded design */}
-    </main>
+    </div>
   );
 }

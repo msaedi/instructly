@@ -21,6 +21,7 @@ import re
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, TypedDict, Union, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from jwt import PyJWTError
 from sqlalchemy.orm import Session
 import ulid
 
@@ -301,6 +302,8 @@ def public_logout(
                 description="User logout",
                 request=request,
             )
+    except PyJWTError:
+        logger.debug("Logout audit skipped: session cookie was not a valid JWT")
     except Exception:
         logger.warning("Audit log write failed for logout", exc_info=True)
     return resp

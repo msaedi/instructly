@@ -46,12 +46,12 @@ export class SearchResultsPage {
   }
 
   async waitForResults() {
-    // Wait for either results or error message
+    // Ensure navigation to search page completed before checking content
+    await this.page.waitForURL(/\/search/, { timeout: 10000 });
     await this.page.waitForLoadState('domcontentloaded');
-    // Wait for main content to load - handle both success and error states
-    // Use Playwright's or() for multiple selectors
+    // Wait for either results or error/empty states
     await this.page
-      .locator('[data-testid="instructor-card"], main h3, :text("Failed to load search results"), [data-testid="no-results"]')
+      .locator('[data-testid="instructor-card"], :text("Failed to load search results"), [data-testid="no-results"]')
       .first()
       .waitFor({ state: 'visible' });
   }
