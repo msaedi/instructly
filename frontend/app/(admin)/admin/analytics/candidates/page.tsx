@@ -127,7 +127,7 @@ export default function CandidatesAnalyticsDashboard() {
               {/* Top Services Table */}
               <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Top Services by Candidate Frequency</h3>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Top Services by Candidate Frequency</h2>
                   <BarChart3 className="h-5 w-5 text-indigo-600" />
                 </div>
                 {!topServices || topServices.length === 0 ? (
@@ -267,7 +267,7 @@ function CategoryTrendsChart({ data, loading }: { data: CandidateCategoryTrend[]
   return (
     <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Category Trends</h3>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Category Trends</h2>
         <Table className="h-5 w-5 text-indigo-600" />
       </div>
       {loading ? (
@@ -308,7 +308,7 @@ function ScoreDistributionCard({
   return (
     <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Score Distribution</h3>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Score Distribution</h2>
       </div>
       {loading ? (
         <div className="animate-pulse h-40 bg-gray-100 dark:bg-gray-800 rounded" />

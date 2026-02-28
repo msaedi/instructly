@@ -1024,6 +1024,22 @@ html {
   border-color: rgb(216 180 254 / 1) !important;
 }
 
+.insta-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: var(--modal-backdrop);
+}
+
+.insta-dialog-panel {
+  background-color: rgb(255 255 255 / 0.95);
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.22);
+  border-radius: 0.75rem;
+}
+
+.dark .insta-dialog-panel {
+  background-color: rgb(17 24 39 / 0.95);
+}
+
 .insta-onboarding-header {
   margin-bottom: 1rem;
   padding: 1rem;

@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { fetchWithAuth } from '@/lib/api';
 import type { ApiErrorResponse } from '@/features/shared/api/types';
 import { extractApiErrorMessage } from '@/lib/apiErrors';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 export default function ChangePasswordModal({ onClose }: { onClose: () => void }) {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -11,7 +12,15 @@ export default function ChangePasswordModal({ onClose }: { onClose: () => void }
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const modalRef = useRef<HTMLDivElement | null>(null);
+  const titleId = useId();
   const canSubmit = !loading && newPassword.length >= 8 && newPassword === confirmPassword && currentPassword.length >= 6;
+
+  useFocusTrap({
+    isOpen: true,
+    containerRef: modalRef,
+    onEscape: onClose,
+  });
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -33,9 +42,16 @@ export default function ChangePasswordModal({ onClose }: { onClose: () => void }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
-        <h3 className="text-lg font-semibold text-gray-900">Change password</h3>
+    <div className="insta-dialog-backdrop z-50 flex items-center justify-center p-4">
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="insta-dialog-panel w-full max-w-md p-6"
+      >
+        <h3 id={titleId} className="text-lg font-semibold text-gray-900">Change password</h3>
         {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
         <div className="mt-4 space-y-3">
           <div>

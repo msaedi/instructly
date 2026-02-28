@@ -88,13 +88,13 @@ export default function CodebaseMetricsPage() {
             </div>
 
             <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Overview</h3>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Overview</h2>
               <p className="text-sm text-gray-600 dark:text-gray-400">Backend Files: {data?.backend.total_files?.toLocaleString() ?? '—'} • Frontend Files: {data?.frontend.total_files?.toLocaleString() ?? '—'}</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 mt-8">
               <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Backend (Python)</h3>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Backend (Python)</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Files: {data?.backend.total_files?.toLocaleString() ?? '—'} • Lines: {data?.backend.total_lines?.toLocaleString() ?? '—'}</p>
                 <div className="space-y-3">
                   {data && (Object.entries(data.backend.categories || {}) as [string, CodebaseCategoryStats][])?.map(([name, stats]) => (
@@ -109,7 +109,7 @@ export default function CodebaseMetricsPage() {
                 </div>
               </div>
               <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Frontend (TS/JS)</h3>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Frontend (TS/JS)</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Files: {data?.frontend.total_files?.toLocaleString() ?? '—'} • Lines: {data?.frontend.total_lines?.toLocaleString() ?? '—'}</p>
                 <div className="space-y-3">
                   {data && (Object.entries(data.frontend.categories || {}) as [string, CodebaseCategoryStats][])?.map(([name, stats]) => (
@@ -126,7 +126,7 @@ export default function CodebaseMetricsPage() {
             </div>
 
             <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Git Statistics</h3>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Git Statistics</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
                 <div className="p-4 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/70 dark:bg-gray-900/30"><div className="text-gray-500 dark:text-gray-400">Contributors</div><div className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">{data?.git.unique_contributors ?? '—'}</div></div>
                 <div className="p-4 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/70 dark:bg-gray-900/30"><div className="text-gray-500 dark:text-gray-400">First commit</div><div className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">{data?.git.first_commit ?? '—'}</div></div>
@@ -137,7 +137,7 @@ export default function CodebaseMetricsPage() {
 
             <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Total Files Over Time</h3>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Total Files Over Time</h2>
                 <div className="h-64">
                   {history && history.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
@@ -155,7 +155,7 @@ export default function CodebaseMetricsPage() {
                 </div>
               </div>
               <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Total Lines Over Time</h3>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Total Lines Over Time</h2>
                 <div className="h-64">
                   {history && history.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
@@ -175,7 +175,7 @@ export default function CodebaseMetricsPage() {
                 </div>
               </div>
               <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Total Commits Over Time</h3>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Total Commits Over Time</h2>
                 <div className="h-64">
                   {history && history.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">

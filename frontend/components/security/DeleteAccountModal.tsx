@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { fetchAPI, fetchWithAuth } from '@/lib/api';
 import type { ApiErrorResponse } from '@/features/shared/api/types';
 import { extractApiErrorMessage } from '@/lib/apiErrors';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 type Props = {
   email: string;
@@ -18,8 +19,18 @@ export default function DeleteAccountModal({ email, onClose, onDeleted }: Props)
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const modalRef = useRef<HTMLDivElement | null>(null);
+  const titleId = useId();
+  const confirmId = useId();
+  const passwordId = useId();
 
   const canSubmit = confirmText.trim().toUpperCase() === 'DELETE' && password.length >= 6 && !submitting;
+
+  useFocusTrap({
+    isOpen: true,
+    containerRef: modalRef,
+    onEscape: onClose,
+  });
 
   const handleSubmit = async () => {
     setError(null);
@@ -65,21 +76,32 @@ export default function DeleteAccountModal({ email, onClose, onDeleted }: Props)
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+    <div className="insta-dialog-backdrop z-50 flex items-center justify-center p-4">
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="insta-dialog-panel w-full max-w-md p-6"
+      >
         <div className="mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Delete Account</h3>
+          <h3 id={titleId} className="text-lg font-semibold text-gray-900">Delete Account</h3>
           <p className="mt-2 text-sm text-gray-600">This action cannot be undone. Type DELETE to confirm and enter your password.</p>
         </div>
         <div className="space-y-3">
+          <label htmlFor={confirmId} className="sr-only">Type DELETE to confirm</label>
           <input
+            id={confirmId}
             placeholder="Type DELETE to confirm"
             className="w-full rounded-md border px-3 py-2 text-sm"
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}
           />
           <div className="relative">
+            <label htmlFor={passwordId} className="sr-only">Password</label>
             <input
+              id={passwordId}
               type={showPassword ? 'text' : 'password'}
               placeholder="Password"
               className="w-full rounded-md border px-3 py-2 pr-10 text-sm"

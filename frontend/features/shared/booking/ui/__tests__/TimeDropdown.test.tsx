@@ -161,6 +161,18 @@ describe('TimeDropdown', () => {
         jest.advanceTimersByTime(200);
       });
     });
+
+    it('cleans up pending close timeout on unmount', () => {
+      const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
+      const { unmount } = render(<TimeDropdown {...defaultProps} />);
+
+      fireEvent.click(screen.getByRole('button'));
+      fireEvent.click(screen.getByText('9:00 AM'));
+      unmount();
+
+      expect(clearTimeoutSpy).toHaveBeenCalled();
+      clearTimeoutSpy.mockRestore();
+    });
   });
 
   describe('Accessibility and keyboard', () => {

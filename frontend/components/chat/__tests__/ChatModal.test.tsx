@@ -76,6 +76,19 @@ describe('ChatModal', () => {
     expect(screen.getByTestId('mock-chat')).toBeInTheDocument();
   });
 
+  it('uses aria-labelledby tied to the visible heading', () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ChatModal {...baseProps} />
+      </QueryClientProvider>
+    );
+
+    const dialog = screen.getByRole('dialog', { name: /chat with student a/i });
+    const heading = screen.getByRole('heading', { name: /chat with student a/i });
+    expect(dialog).toHaveAttribute('aria-labelledby', heading.getAttribute('id'));
+    expect(dialog).not.toHaveAttribute('aria-label');
+  });
+
   it('moves initial focus to first focusable element in modal', () => {
     render(
       <QueryClientProvider client={queryClient}>
@@ -330,7 +343,7 @@ describe('ChatModal', () => {
         </QueryClientProvider>
       );
 
-      const dialog = screen.getByRole('dialog', { name: 'Chat' });
+      const dialog = screen.getByRole('dialog', { name: /chat with student a/i });
       expect(dialog).toHaveFocus();
 
       fireEvent.keyDown(document, { key: 'Tab' });

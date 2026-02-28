@@ -47,6 +47,21 @@ export default function Calendar({
   onDateSelect,
   onMonthChange,
 }: CalendarProps) {
+  const [todayKey, setTodayKey] = useState(() => new Date().toDateString());
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      const nextTodayKey = new Date().toDateString();
+      setTodayKey((previousTodayKey) =>
+        previousTodayKey === nextTodayKey ? previousTodayKey : nextTodayKey,
+      );
+    }, 60_000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
   // Handle pre-selection on mount
   useEffect(() => {
     if (preSelectedDate && !selectedDate) {
@@ -59,10 +74,10 @@ export default function Calendar({
   }, [preSelectedDate, selectedDate, availableDates, onDateSelect]);
 
   const today = useMemo(() => {
-    const now = new Date();
+    const now = new Date(todayKey);
     now.setHours(0, 0, 0, 0);
     return now;
-  }, []);
+  }, [todayKey]);
 
   // Get the first day of the month
   const firstDay = useMemo(
@@ -129,6 +144,7 @@ export default function Calendar({
 
   const [focusedDate, setFocusedDate] = useState<string | null>(null);
   const dayRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const hasInteractedRef = useRef(false);
 
   const initialFocusDate = useMemo(() => {
     if (!visibleCells.length) {
@@ -148,6 +164,9 @@ export default function Calendar({
     focusedDate && dayCellByDate.has(focusedDate) ? focusedDate : initialFocusDate;
 
   useEffect(() => {
+    if (!hasInteractedRef.current) {
+      return;
+    }
     if (!activeFocusedDate) {
       return;
     }
@@ -208,6 +227,7 @@ export default function Calendar({
   };
 
   const handleDayKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, cell: DayCell) => {
+    hasInteractedRef.current = true;
     const isSelectable = cell.isAvailable && !cell.isPast;
 
     if (event.key === 'ArrowLeft') {
@@ -284,30 +304,35 @@ export default function Calendar({
         </div>
       </div>
 
-      {/* Day Headers */}
-      <div className="grid grid-cols-7 mb-2" role="row">
-        {dayHeaders.map((day) => (
-          <div
-            key={day}
-            role="columnheader"
-            className="text-center text-xs uppercase text-gray-500 dark:text-gray-400"
-          >
-            {day}
-          </div>
-        ))}
-      </div>
-
       {/* Calendar Grid */}
       <div
         role="grid"
         aria-label={currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
         className="space-y-1"
       >
+        <div className="grid grid-cols-7 mb-2" role="row">
+          {dayHeaders.map((day) => (
+            <div
+              key={day}
+              role="columnheader"
+              className="text-center text-xs uppercase text-gray-500 dark:text-gray-400"
+            >
+              {day}
+            </div>
+          ))}
+        </div>
         {rows.map((row, rowIndex) => (
           <div key={`week-${rowIndex}`} role="row" className="grid grid-cols-7 gap-1">
             {row.map((cell, index) => {
               if (cell.isHidden) {
-                return <div key={`empty-${rowIndex}-${index}`} className="h-9" />;
+                return (
+                  <div
+                    key={`empty-${rowIndex}-${index}`}
+                    role="gridcell"
+                    aria-disabled="true"
+                    className="h-9"
+                  />
+                );
               }
 
               const isSelectable = cell.isAvailable && !cell.isPast;

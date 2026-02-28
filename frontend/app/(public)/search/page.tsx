@@ -685,6 +685,7 @@ function SearchPageInner() {
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [liveAnnouncement, setLiveAnnouncement] = useState('');
   const selectedSortIndex = SORT_OPTIONS.findIndex((option) => option.value === sortOption);
+  const sortListboxId = 'search-sort-listbox';
   const currentSortTriggerLabel =
     SORT_OPTIONS.find((option) => option.value === sortOption)?.triggerLabel ?? 'Recommended';
 
@@ -692,7 +693,6 @@ function SearchPageInner() {
     setShowSortDropdown(false);
     setActiveSortIndex(-1);
     if (restoreFocus) {
-      sortTriggerRef.current?.focus();
       requestAnimationFrame(() => {
         sortTriggerRef.current?.focus();
       });
@@ -1950,9 +1950,9 @@ function SearchPageInner() {
                         type="button"
                         onClick={handleSortToggle}
                         onKeyDown={handleSortTriggerKeyDown}
-                        aria-label="Sort results"
                         aria-haspopup="listbox"
                         aria-expanded={showSortDropdown}
+                        aria-controls={sortListboxId}
                         className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} border border-gray-300 bg-white text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-1 cursor-pointer transition-colors`}
                       >
                         <span>{currentSortTriggerLabel}</span>
@@ -1963,6 +1963,7 @@ function SearchPageInner() {
                         ? createPortal(
                             <div
                               ref={sortMenuRef}
+                              id={sortListboxId}
                               role="listbox"
                               aria-label="Sort results"
                               onKeyDown={handleSortListboxKeyDown}
@@ -1978,6 +1979,7 @@ function SearchPageInner() {
                                   id={`search-sort-option-${option.value}`}
                                   type="button"
                                   role="option"
+                                  tabIndex={activeSortIndex === index ? 0 : -1}
                                   aria-selected={sortOption === option.value}
                                   onFocus={() => setActiveSortIndex(index)}
                                   onMouseEnter={() => setActiveSortIndex(index)}

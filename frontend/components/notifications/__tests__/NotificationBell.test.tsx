@@ -39,7 +39,12 @@ jest.mock('../NotificationItem', () => ({
     onRead: () => void;
     onDelete: () => void;
   }) => (
-    <div data-testid={`notification-${notification.id}`} data-notification-item="true" tabIndex={0}>
+    <div
+      data-testid={`notification-${notification.id}`}
+      data-notification-item="true"
+      role="menuitem"
+      tabIndex={0}
+    >
       <span>{notification.title}</span>
       <button onClick={onRead}>Mark Read</button>
       <button onClick={onDelete}>Delete</button>
@@ -153,6 +158,29 @@ describe('NotificationBell', () => {
 
       await user.click(button);
       expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    });
+
+    it('renders notification entries as menuitems inside the menu', async () => {
+      const user = userEvent.setup();
+      const notifications = [createNotification({ id: 'menu-1', title: 'Menu item notification' })];
+
+      mockUseNotifications.mockReturnValue({
+        notifications,
+        unreadCount: 1,
+        isLoading: false,
+        error: null,
+        markAsRead: mockMarkAsRead,
+        markAllAsRead: mockMarkAllAsRead,
+        deleteNotification: mockDeleteNotification,
+        clearAll: mockClearAll,
+      });
+
+      render(<NotificationBell />);
+      await user.click(screen.getByRole('button', { name: /Notifications/ }));
+
+      const menu = screen.getByRole('menu');
+      expect(menu).toBeInTheDocument();
+      expect(screen.getByRole('menuitem')).toHaveAttribute('data-notification-item', 'true');
     });
 
     it('closes dropdown when clicking outside', async () => {

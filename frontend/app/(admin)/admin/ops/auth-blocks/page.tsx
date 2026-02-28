@@ -477,10 +477,10 @@ export default function AuthBlocksPage() {
             {/* Auth Issues List */}
             <div className="rounded-2xl shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
               <div className="p-6 border-b border-gray-200/70 dark:border-gray-700/60">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
                   <AlertTriangle className="h-5 w-5" />
                   Auth Issues
-                </h3>
+                </h2>
               </div>
               <div className="p-6">
                 {loading ? (

@@ -725,6 +725,25 @@ describe('PlacesAutocompleteInput', () => {
 
       jest.useRealTimers();
     });
+
+    it('keeps listbox options out of tab order when using aria-activedescendant', async () => {
+      jest.useFakeTimers();
+
+      render(<PlacesAutocompleteInput {...defaultProps} value="123 Main" />);
+
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+      });
+
+      await waitFor(() => {
+        const options = screen.getAllByRole('option');
+        options.forEach((option) => {
+          expect(option).toHaveAttribute('tabindex', '-1');
+        });
+      });
+
+      jest.useRealTimers();
+    });
   });
 
   describe('suggestion scope', () => {

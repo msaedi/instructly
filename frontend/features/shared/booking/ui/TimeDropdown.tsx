@@ -27,6 +27,7 @@ export default function TimeDropdown({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listboxId = useId();
   const hasNoTimes = timeSlots.length === 0;
   const hasSingleTime = timeSlots.length === 1;
@@ -51,6 +52,10 @@ export default function TimeDropdown({
 
   // Handle open/close with animation
   const handleOpen = useCallback((preferredIndex?: number) => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
     const fallbackIndex = selectedIndex >= 0 ? selectedIndex : 0;
     const nextIndex =
       typeof preferredIndex === 'number' ? getClampedIndex(preferredIndex) : fallbackIndex;
@@ -61,15 +66,20 @@ export default function TimeDropdown({
   }, [getClampedIndex, selectedIndex]);
 
   const handleClose = useCallback((restoreFocus = false) => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
     setIsAnimating(false);
     setActiveIndex(-1);
-    setTimeout(() => {
+    closeTimeoutRef.current = setTimeout(() => {
       setIsOpen(false);
       if (restoreFocus) {
         requestAnimationFrame(() => {
           buttonRef.current?.focus();
         });
       }
+      closeTimeoutRef.current = null;
     }, 150); // Wait for animation
   }, []);
 
@@ -116,6 +126,14 @@ export default function TimeDropdown({
       cancelAnimationFrame(rafId);
     };
   }, [activeIndex, isOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Auto-select if only one time available
   useEffect(() => {

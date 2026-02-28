@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import React from 'react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ChangePasswordModal from '../ChangePasswordModal';
 import { fetchWithAuth } from '@/lib/api';
@@ -40,6 +41,58 @@ describe('ChangePasswordModal', () => {
     expect(screen.getByLabelText('Current password')).toHaveAttribute('id', 'current-password');
     expect(screen.getByLabelText('New password')).toHaveAttribute('id', 'new-password');
     expect(screen.getByLabelText('Confirm new password')).toHaveAttribute('id', 'confirm-password');
+  });
+
+  it('renders with dialog semantics wired to the heading', () => {
+    renderModal();
+
+    const dialog = screen.getByRole('dialog', { name: /change password/i });
+    const heading = screen.getByRole('heading', { name: /change password/i });
+
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(dialog).toHaveAttribute('aria-labelledby', heading.getAttribute('id'));
+  });
+
+  it('traps focus inside the dialog when tabbing', () => {
+    renderModal();
+
+    const firstInput = screen.getByLabelText('Current password');
+    const cancelButton = screen.getByRole('button', { name: 'Cancel' });
+
+    cancelButton.focus();
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(firstInput).toHaveFocus();
+
+    firstInput.focus();
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(cancelButton).toHaveFocus();
+  });
+
+  it('closes on Escape and restores focus to the opener', async () => {
+    const user = userEvent.setup();
+
+    function Harness() {
+      const [open, setOpen] = React.useState(false);
+      return (
+        <div>
+          <button type="button" onClick={() => setOpen(true)}>
+            Open change password
+          </button>
+          {open ? <ChangePasswordModal onClose={() => setOpen(false)} /> : null}
+        </div>
+      );
+    }
+
+    render(<Harness />);
+    const opener = screen.getByRole('button', { name: 'Open change password' });
+    await user.click(opener);
+
+    expect(screen.getByRole('dialog', { name: /change password/i })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /change password/i })).not.toBeInTheDocument();
+    });
+    expect(opener).toHaveFocus();
   });
 
   it('calls onClose when cancel is clicked', async () => {

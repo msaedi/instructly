@@ -241,16 +241,22 @@ describe('Search results map pins', () => {
       expect(mockPublicApi.searchWithNaturalLanguage).toHaveBeenCalled();
     });
 
-    const trigger = screen.getByRole('button', { name: 'Sort results' });
+    const trigger = screen.getByRole('button', { name: /recommended/i });
     expect(trigger).toHaveAttribute('aria-haspopup', 'listbox');
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    const listboxId = trigger.getAttribute('aria-controls');
+    expect(listboxId).toBeTruthy();
 
     trigger.focus();
     fireEvent.keyDown(trigger, { key: 'ArrowDown' });
 
     const listbox = await screen.findByRole('listbox', { name: 'Sort results' });
+    expect(listbox).toHaveAttribute('id', listboxId);
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
     expect(within(listbox).getAllByRole('option')).toHaveLength(4);
+    within(listbox).getAllByRole('option').forEach((option) => {
+      expect(option).toHaveAttribute('tabindex');
+    });
 
     fireEvent.keyDown(listbox, { key: 'Enter' });
     await waitFor(() => {
@@ -264,7 +270,9 @@ describe('Search results map pins', () => {
     await waitFor(() => {
       expect(screen.queryByRole('listbox', { name: 'Sort results' })).not.toBeInTheDocument();
     });
-    expect(trigger).toHaveFocus();
+    await waitFor(() => {
+      expect(trigger).toHaveFocus();
+    });
   });
 
   it('renders the rate limit banner as an alert for 429 responses', async () => {

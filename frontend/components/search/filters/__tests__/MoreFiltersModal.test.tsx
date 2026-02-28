@@ -67,6 +67,22 @@ describe('MoreFiltersModal', () => {
     expect(screen.getByText('Skill Level')).toBeInTheDocument();
   });
 
+  it('uses aria-labelledby instead of aria-label for the dialog name', () => {
+    render(
+      <MoreFiltersModal
+        isOpen={true}
+        onClose={onClose}
+        filters={DEFAULT_FILTERS}
+        onFiltersChange={onFiltersChange}
+      />
+    );
+
+    const dialog = screen.getByRole('dialog', { name: /more filters/i });
+    const heading = screen.getByRole('heading', { name: /more filters/i });
+    expect(dialog).toHaveAttribute('aria-labelledby', heading.getAttribute('id'));
+    expect(dialog).not.toHaveAttribute('aria-label');
+  });
+
   it('traps focus and returns focus to the opener on close', async () => {
     const user = userEvent.setup();
 

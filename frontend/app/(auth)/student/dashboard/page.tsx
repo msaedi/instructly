@@ -630,7 +630,6 @@ function StudentDashboardContent() {
                             <Link
                               href={`/instructors/${fav.id}`}
                               className="block cursor-pointer"
-                              aria-label={`View profile for ${name}`}
                             >
                               <div className="flex items-start gap-4">
                                 <UserAvatar

@@ -318,6 +318,7 @@ export const PlacesAutocompleteInput = forwardRef<HTMLInputElement, PlacesAutoco
                   id={optionId}
                   type="button"
                   role="option"
+                  tabIndex={-1}
                   aria-selected={isHighlighted}
                   className={cn(
                     'flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-purple-50 focus:bg-purple-50',

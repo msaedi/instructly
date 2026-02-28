@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, useId } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, ArrowLeft } from 'lucide-react';
 import { UserAvatar } from '@/components/user/UserAvatar';
@@ -549,6 +549,7 @@ export default function TimeSelectionModal({
   const isSelectionComplete = Boolean(selectedDate && selectedTime && !priceFloorViolation);
 
   const modalRef = useRef<HTMLDivElement>(null);
+  const desktopTitleId = useId();
   const previousActiveElement = useRef<HTMLElement | null>(null);
 
   // Get instructor first name and last initial
@@ -1358,10 +1359,13 @@ export default function TimeSelectionModal({
             tabIndex={-1}
             className="relative bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-[720px] max-h-[90vh] flex flex-col animate-slideUp"
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={desktopTitleId}
           >
             {/* Desktop Header */}
             <div className="flex items-center justify-between p-8 pb-0">
-              <h2 className="text-2xl font-medium text-gray-900 dark:text-white">
+              <h2 id={desktopTitleId} className="text-2xl font-medium text-gray-900 dark:text-white">
                 Set your lesson date & time
               </h2>
               <button

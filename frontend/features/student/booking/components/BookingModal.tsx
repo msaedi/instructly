@@ -1,7 +1,7 @@
 // frontend/features/student/booking/components/BookingModal.tsx
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, MapPin, Clock, DollarSign, User, Mail, Phone, MessageSquare } from 'lucide-react';
 import { BookingModalProps, Service } from '../types';
@@ -14,15 +14,8 @@ import { getServiceAreaBoroughs, getServiceAreaDisplay } from '@/lib/profileServ
 import { BookingPayment, PAYMENT_STATUS } from '@/features/student/payment/types';
 import { BookingType } from '@/features/shared/types/booking';
 import { determineBookingType } from '@/features/shared/utils/paymentCalculations';
-
-const FOCUSABLE_SELECTOR = [
-  'button:not([disabled])',
-  'a[href]',
-  'input:not([disabled]):not([type="hidden"])',
-  'select:not([disabled])',
-  'textarea:not([disabled])',
-  '[tabindex]:not([tabindex="-1"])',
-].join(', ');
+import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useScrollLock } from '@/hooks/useScrollLock';
 
 type BookingFormErrors = Partial<{
   name: string;
@@ -63,7 +56,6 @@ export default function BookingModal({
   }));
   const [errors, setErrors] = useState<BookingFormErrors>({});
   const modalRef = useRef<HTMLDivElement | null>(null);
-  const previousActiveElementRef = useRef<HTMLElement | null>(null);
   const serviceAreaBoroughs = getServiceAreaBoroughs(instructor);
   const serviceAreaDisplay = getServiceAreaDisplay(instructor) || 'NYC';
   const primaryServiceArea = serviceAreaBoroughs[0] ?? serviceAreaDisplay;
@@ -87,6 +79,13 @@ export default function BookingModal({
     onClose();
   }, [onClose, resetState]);
 
+  useFocusTrap({
+    isOpen,
+    containerRef: modalRef,
+    onEscape: handleClose,
+  });
+  useScrollLock(isOpen);
+
   const clearFieldError = useCallback((field: keyof BookingFormErrors) => {
     setErrors((prev) => {
       if (!prev[field]) return prev;
@@ -95,92 +94,6 @@ export default function BookingModal({
       return next;
     });
   }, []);
-
-  const getFocusableElements = useCallback((): HTMLElement[] => {
-    if (!modalRef.current) return [];
-    const elements = Array.from(modalRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
-    return elements.filter((element) => {
-      if (element.getAttribute('aria-hidden') === 'true') return false;
-      if (element.hasAttribute('hidden')) return false;
-      if (element.tabIndex < 0) return false;
-      if (element instanceof HTMLButtonElement && element.disabled) return false;
-      if (element instanceof HTMLInputElement && element.disabled) return false;
-      if (element instanceof HTMLSelectElement && element.disabled) return false;
-      if (element instanceof HTMLTextAreaElement && element.disabled) return false;
-      return true;
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    previousActiveElementRef.current = document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null;
-
-    const focusableElements = getFocusableElements();
-    const firstFocusableElement = focusableElements[0];
-    if (firstFocusableElement) {
-      firstFocusableElement.focus();
-    } else {
-      modalRef.current?.focus();
-    }
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        handleClose();
-        return;
-      }
-
-      if (e.key !== 'Tab') return;
-
-      const modalElement = modalRef.current;
-      if (!modalElement) return;
-
-      const currentFocusableElements = getFocusableElements();
-      if (!currentFocusableElements.length) {
-        e.preventDefault();
-        modalElement.focus();
-        return;
-      }
-
-      const firstElement = currentFocusableElements[0];
-      const lastElement = currentFocusableElements[currentFocusableElements.length - 1];
-      const activeElement = document.activeElement as HTMLElement | null;
-
-      if (!activeElement || !modalElement.contains(activeElement)) {
-        e.preventDefault();
-        (e.shiftKey ? lastElement : firstElement)?.focus();
-        return;
-      }
-
-      if (e.shiftKey && activeElement === firstElement) {
-        e.preventDefault();
-        lastElement?.focus();
-        return;
-      }
-
-      if (!e.shiftKey && activeElement === lastElement) {
-        e.preventDefault();
-        firstElement?.focus();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      const previousActiveElement = previousActiveElementRef.current;
-      if (
-        previousActiveElement &&
-        document.contains(previousActiveElement) &&
-        typeof previousActiveElement.focus === 'function'
-      ) {
-        previousActiveElement.focus();
-      }
-    };
-  }, [getFocusableElements, handleClose, isOpen]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -419,13 +332,12 @@ export default function BookingModal({
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center z-50 p-4"
-      style={{ backgroundColor: 'var(--modal-backdrop)' }}
+      className="insta-dialog-backdrop flex items-center justify-center z-50 p-4"
       onClick={handleOverlayClick}
     >
       <div
         ref={modalRef}
-        className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto"
+        className="insta-dialog-panel bg-white dark:bg-gray-800 max-w-md w-full max-h-[90vh] overflow-y-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="booking-modal-title"

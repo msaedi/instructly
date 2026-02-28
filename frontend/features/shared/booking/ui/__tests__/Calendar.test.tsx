@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import Calendar from '../Calendar';
 
 describe('Calendar', () => {
@@ -214,6 +214,18 @@ describe('Calendar', () => {
       render(<Calendar {...defaultProps} />);
       const today = screen.getByTestId('cal-day-2024-01-10');
       expect(today).toHaveClass('font-bold');
+    });
+
+    it('re-evaluates today key on interval ticks without changing state on same day', () => {
+      render(<Calendar {...defaultProps} />);
+      const today = screen.getByTestId('cal-day-2024-01-10');
+      expect(today).toHaveClass('font-bold');
+
+      act(() => {
+        jest.advanceTimersByTime(60_000);
+      });
+
+      expect(screen.getByTestId('cal-day-2024-01-10')).toHaveClass('font-bold');
     });
   });
 
