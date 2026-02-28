@@ -1469,6 +1469,7 @@ export default function EditProfileModal({
                           className="flex items-center justify-between cursor-pointer"
                           onClick={async () => { await toggleBoroughOpen(borough); }}
                           aria-expanded={isOpen}
+                          aria-label={`${borough} neighborhoods`}
                           role="button"
                           tabIndex={0}
                           onKeyDown={async (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); await toggleBoroughOpen(borough); } }}

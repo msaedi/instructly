@@ -104,7 +104,7 @@ export function BookingList({
         {Array.from({ length: 2 }).map((_, idx) => (
           <Card
             key={`booking-skeleton-${idx}`}
-            className="animate-pulse rounded-xl border border-gray-200 bg-white p-4"
+            className="animate-pulse p-4 insta-surface-card"
           >
             <div className="h-4 w-1/3 rounded bg-gray-200" />
             <div className="mt-2 h-4 w-1/4 rounded bg-gray-100" />
@@ -118,7 +118,7 @@ export function BookingList({
   if (!data || data.length === 0) {
     return (
       <div
-        className="rounded-xl border border-dashed border-gray-300 bg-white p-6 text-center"
+        className="rounded-xl border border-dashed border-gray-300 p-6 text-center insta-surface-card"
         data-testid={`${dataTestId}-empty`}
       >
         <p className="text-base font-semibold text-gray-900">{emptyTitle}</p>
@@ -150,7 +150,7 @@ export function BookingList({
         return (
           <Card
             key={booking.id}
-            className={`rounded-xl border border-gray-200 bg-white p-4 shadow-sm${isClickable ? ' cursor-pointer transition-shadow hover:shadow-lg' : ''}`}
+            className={`p-4 insta-surface-card${isClickable ? ' cursor-pointer transition-shadow hover:shadow-lg' : ''}`}
             data-testid="booking-card"
             {...(isClickable ? { onClick: () => onViewDetails(booking.id) } : {})}
           >

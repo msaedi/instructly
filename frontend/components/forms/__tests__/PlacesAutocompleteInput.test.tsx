@@ -675,6 +675,72 @@ describe('PlacesAutocompleteInput', () => {
         const listboxId = input.getAttribute('aria-controls');
         expect(listboxId).toBeTruthy();
         expect(screen.getByRole('listbox')).toHaveAttribute('id', listboxId);
+        expect(screen.getByRole('listbox', { name: /location suggestions/i })).toBeInTheDocument();
+      });
+
+      jest.useRealTimers();
+    });
+
+    it('updates aria-activedescendant for the highlighted option and clears on escape', async () => {
+      jest.useFakeTimers();
+
+      render(<PlacesAutocompleteInput {...defaultProps} value="123 Main" />);
+
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+      });
+
+      const input = screen.getByRole('combobox');
+
+      await waitFor(() => {
+        expect(screen.getByRole('listbox')).toBeInTheDocument();
+      });
+
+      fireEvent.keyDown(input, { key: 'ArrowDown' });
+      const firstOption = screen.getAllByRole('option')[0];
+      expect(firstOption).toHaveAttribute('id');
+      expect(input).toHaveAttribute('aria-activedescendant', firstOption?.id ?? '');
+
+      fireEvent.keyDown(input, { key: 'Escape' });
+      expect(input).not.toHaveAttribute('aria-activedescendant');
+
+      jest.useRealTimers();
+    });
+
+    it('assigns stable ids to listbox options', async () => {
+      jest.useFakeTimers();
+
+      render(<PlacesAutocompleteInput {...defaultProps} value="123 Main" />);
+
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+      });
+
+      await waitFor(() => {
+        const options = screen.getAllByRole('option');
+        options.forEach((option, index) => {
+          expect(option).toHaveAttribute('id');
+          expect(option.id).toMatch(new RegExp(`-option-${index}$`));
+        });
+      });
+
+      jest.useRealTimers();
+    });
+
+    it('keeps listbox options out of tab order when using aria-activedescendant', async () => {
+      jest.useFakeTimers();
+
+      render(<PlacesAutocompleteInput {...defaultProps} value="123 Main" />);
+
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+      });
+
+      await waitFor(() => {
+        const options = screen.getAllByRole('option');
+        options.forEach((option) => {
+          expect(option).toHaveAttribute('tabindex', '-1');
+        });
       });
 
       jest.useRealTimers();

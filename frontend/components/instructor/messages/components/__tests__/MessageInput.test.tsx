@@ -25,6 +25,7 @@ describe('MessageInput', () => {
       render(<MessageInput {...defaultProps} />);
 
       expect(screen.getByPlaceholderText('Type your message...')).toBeInTheDocument();
+      expect(screen.getByLabelText('Type a message')).toBeInTheDocument();
     });
 
     it('renders attachment button', () => {
@@ -36,7 +37,7 @@ describe('MessageInput', () => {
     it('renders send button', () => {
       render(<MessageInput {...defaultProps} />);
 
-      const sendButton = screen.getByRole('button', { name: '' });
+      const sendButton = screen.getByRole('button', { name: /send message/i });
       expect(sendButton).toBeInTheDocument();
     });
 
@@ -70,8 +71,7 @@ describe('MessageInput', () => {
       const onSend = jest.fn();
       render(<MessageInput {...defaultProps} onSend={onSend} />);
 
-      const sendButtons = screen.getAllByRole('button');
-      const sendButton = sendButtons[sendButtons.length - 1]!; // Last button is send
+      const sendButton = screen.getByRole('button', { name: /send message/i });
       fireEvent.click(sendButton);
 
       expect(onSend).toHaveBeenCalled();
@@ -80,8 +80,7 @@ describe('MessageInput', () => {
     it('disables send button when isSendDisabled is true', () => {
       render(<MessageInput {...defaultProps} isSendDisabled={true} />);
 
-      const sendButtons = screen.getAllByRole('button');
-      const sendButton = sendButtons[sendButtons.length - 1];
+      const sendButton = screen.getByRole('button', { name: /send message/i });
       expect(sendButton).toBeDisabled();
     });
   });
@@ -192,6 +191,7 @@ describe('MessageInput', () => {
 
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
       expect(fileInput).toHaveAttribute('multiple');
+      expect(fileInput).toHaveAttribute('aria-label', 'Attach file');
     });
 
     it('hides the file input element', () => {

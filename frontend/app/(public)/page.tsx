@@ -211,12 +211,12 @@ export default function HomePage() {
   return (
     <div className="min-h-screen relative" suppressHydrationWarning>
       {/* Navigation - matching search results page */}
-      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+      <header role="banner" className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link href="/" className="inline-block">
-            <h1 data-testid="home-brand" className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">
+            <span data-testid="home-brand" className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">
               iNSTAiNSTRU
-            </h1>
+            </span>
           </Link>
           <div className="pr-4">
             {isClient && isAuthenticated ? (
@@ -586,7 +586,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4">
           <div className="grid grid-cols-4 gap-8 mb-8">
             <div>
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-4">Discover</h3>
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100 mb-4">Discover</h2>
               <ul className="space-y-2">
                 <li>
                   <Link
@@ -615,7 +615,7 @@ export default function HomePage() {
               </ul>
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-4">Support</h3>
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100 mb-4">Support</h2>
               <ul className="space-y-2">
                 <li>
                   <Link
@@ -644,7 +644,7 @@ export default function HomePage() {
               </ul>
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-4">Company</h3>
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100 mb-4">Company</h2>
               <ul className="space-y-2">
                 <li>
                   <Link
@@ -683,9 +683,9 @@ export default function HomePage() {
               </ul>
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-4">
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100 mb-4">
                 Download our app
-              </h3>
+              </h2>
               <div className="space-y-2">
                 <button className="bg-black dark:bg-gray-700 text-white px-4 py-2 rounded-lg">
                   App Store

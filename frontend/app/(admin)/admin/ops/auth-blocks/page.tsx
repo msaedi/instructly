@@ -388,7 +388,7 @@ export default function AuthBlocksPage() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-12 gap-6">
           <aside className="col-span-12 md:col-span-3 lg:col-span-3">
             <AdminSidebar />
@@ -477,10 +477,10 @@ export default function AuthBlocksPage() {
             {/* Auth Issues List */}
             <div className="rounded-2xl shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
               <div className="p-6 border-b border-gray-200/70 dark:border-gray-700/60">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
                   <AlertTriangle className="h-5 w-5" />
                   Auth Issues
-                </h3>
+                </h2>
               </div>
               <div className="p-6">
                 {loading ? (
@@ -518,7 +518,7 @@ export default function AuthBlocksPage() {
             </div>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

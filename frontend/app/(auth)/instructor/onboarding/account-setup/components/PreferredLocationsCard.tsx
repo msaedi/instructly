@@ -35,17 +35,21 @@ export function PreferredLocationsCard({
   neutralPlaces,
   setNeutralPlaces,
 }: PreferredLocationsCardProps) {
+  const isOnboarding = context === 'onboarding';
   const collapsible = context !== 'onboarding' && typeof onToggle === 'function';
   const expanded = collapsible ? Boolean(isOpen) : true;
+  const cardClassName = isOnboarding
+    ? 'insta-surface-card p-4 sm:p-6'
+    : 'p-4 sm:p-6 insta-surface-card';
 
   const header = (
-    <div className="flex items-center gap-3">
+    <div className="insta-dashboard-accordion-leading">
       <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
         <Building2 className="w-6 h-6 text-[#7E22CE]" />
       </div>
       <div className="flex flex-col text-left">
-        <span className="text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Class Locations</span>
-        <span className="text-sm text-gray-500">List studio or shared spaces where you regularly teach.</span>
+        <span className="insta-dashboard-accordion-title">Class Locations</span>
+        <span className="insta-dashboard-accordion-subtitle">List studio or shared spaces where you regularly teach.</span>
       </div>
     </div>
   );
@@ -76,17 +80,17 @@ export function PreferredLocationsCard({
   };
 
   return (
-    <section className="bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
+    <section className={cardClassName}>
       {collapsible ? (
         <button
           type="button"
-          className="w-full flex items-center justify-between mb-4 text-left"
+          className={`insta-dashboard-accordion-trigger ${expanded ? 'mb-4' : ''}`}
           onClick={onToggle}
           aria-expanded={expanded}
           data-testid="preferred-places-card"
         >
           {header}
-          <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`} />
         </button>
       ) : (
         <div className="mb-4" data-testid="preferred-places-card">
@@ -97,8 +101,8 @@ export function PreferredLocationsCard({
       {expanded && (
         <div className="space-y-6" data-testid="preferred-places-card">
           <div>
-            <p className="text-gray-600 mt-1 mb-2">Where You Teach (Optional)</p>
-            <p className="text-xs text-gray-600 mb-2">Have a studio, gym, or home address where you can host lessons? Add it here.</p>
+            <p className="text-gray-600 dark:text-gray-400 mt-1 mb-2">Where You Teach (Optional)</p>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">Have a studio, gym, or home address where you can host lessons? Add it here.</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start mt-3 sm:mt-0">
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
@@ -159,8 +163,8 @@ export function PreferredLocationsCard({
           </div>
 
           <div>
-            <p className="text-gray-600 mt-1 mb-2">Preferred Public Spaces (Optional)</p>
-            <p className="text-xs text-gray-600 mb-2">Know public spaces that work well for your lessons (library, coffee shop, court, park)? Add them here.</p>
+            <p className="text-gray-600 dark:text-gray-400 mt-1 mb-2">Preferred Public Spaces (Optional)</p>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">Know public spaces that work well for your lessons (library, coffee shop, court, park)? Add them here.</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">

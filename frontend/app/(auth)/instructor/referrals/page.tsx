@@ -23,7 +23,7 @@ const UserProfileDropdown = dynamic(() => import('@/components/UserProfileDropdo
 });
 
 const badgeStyles: Record<'gray' | 'yellow' | 'blue' | 'green' | 'red', string> = {
-  gray: 'bg-gray-100 text-gray-700',
+  gray: 'bg-gray-100 text-gray-700 dark:text-gray-300',
   yellow: 'bg-yellow-100 text-yellow-700',
   blue: 'bg-blue-100 text-blue-700',
   green: 'bg-green-100 text-green-700',
@@ -139,25 +139,27 @@ export default function InstructorReferralsPage() {
   const referredItems = referredData?.instructors ?? [];
 
   const foundingMessage = stats.isFoundingPhase ? (
-    <div className="bg-gradient-to-r from-purple-50 to-white border border-purple-200 rounded-xl p-4">
-      <div className="flex items-start gap-3">
-        <Gift className="h-5 w-5 text-[#7E22CE] mt-0.5" />
+    <div className="insta-surface-card p-4">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="font-semibold text-[#4B1178]">Founding Phase Bonus</h3>
-          <p className="text-sm text-purple-900 mt-1">
-            Earn <span className="font-semibold">{formatCents(stats.currentBonusCents)}</span> per referral while
-            founding spots remain. Only{' '}
-            <span className="font-semibold">{stats.foundingSpotsRemaining}</span> left.
+          <h2 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300">Founding Phase Bonus</h2>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+            Earn <span className="font-semibold text-gray-900 dark:text-white">{formatCents(stats.currentBonusCents)}</span>{' '}
+            per referral while founding spots remain. Only{' '}
+            <span className="font-semibold text-gray-900 dark:text-white">{stats.foundingSpotsRemaining}</span> left.
           </p>
+        </div>
+        <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
+          <Gift className="h-5 w-5 text-[#7E22CE]" />
         </div>
       </div>
     </div>
   ) : null;
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen insta-dashboard-page">
       {!embedded && (
-        <header className="relative bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+        <header className="relative px-6 py-4 insta-dashboard-header">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/instructor/dashboard" className="inline-block">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">
@@ -204,18 +206,18 @@ export default function InstructorReferralsPage() {
         <div className="space-y-6">
           {foundingMessage}
 
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+          <div className="p-6 insta-surface-card">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                <h3 className="text-sm uppercase tracking-wide text-gray-500">Your referral link</h3>
-                <p className="mt-2 text-sm font-semibold text-gray-900 break-all">{stats.referralLink}</p>
-                <p className="mt-1 text-xs text-gray-500">Code: {stats.referralCode}</p>
+                <h2 className="text-sm uppercase tracking-wide text-gray-500 dark:text-gray-400">Your referral link</h2>
+                <p className="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100 break-all">{stats.referralLink}</p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Code: {stats.referralCode}</p>
               </div>
               <div className="flex flex-col sm:flex-row gap-2">
                 <button
                   type="button"
                   onClick={handleCopyLink}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#7E22CE] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#6b1fb8]"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#7E22CE] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#6b1fb8] insta-primary-btn"
                 >
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                   {copied ? 'Copied' : 'Copy link'}
@@ -223,7 +225,7 @@ export default function InstructorReferralsPage() {
                 <button
                   type="button"
                   onClick={handleShare}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 sm:hidden"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 shadow-sm transition hover:bg-gray-50 sm:hidden insta-secondary-btn"
                 >
                   <ExternalLink className="h-4 w-4" />
                   Share
@@ -232,49 +234,49 @@ export default function InstructorReferralsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <Users className="h-5 w-5 text-[#7E22CE]" />
-                </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6">
+            <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-3 sm:p-6 h-32 sm:h-40">
+              <div className="flex items-start justify-between h-full">
                 <div>
-                  <p className="text-sm text-gray-500">Total referred</p>
-                  <p className="text-2xl font-semibold text-gray-900">{stats.totalReferred}</p>
+                  <p className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Total referred</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{stats.totalReferred}</p>
+                </div>
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                  <Users className="h-5 w-5 sm:h-6 sm:w-6 text-[#7E22CE]" />
                 </div>
               </div>
             </div>
 
-            <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-yellow-100 rounded-lg">
-                  <Clock className="h-5 w-5 text-yellow-600" />
-                </div>
+            <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-3 sm:p-6 h-32 sm:h-40">
+              <div className="flex items-start justify-between h-full">
                 <div>
-                  <p className="text-sm text-gray-500">Pending payouts</p>
-                  <p className="text-2xl font-semibold text-gray-900">{stats.pendingPayouts}</p>
-                  <p className="text-xs text-gray-500">{stats.completedPayouts} paid out</p>
+                  <p className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Pending payouts</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{stats.pendingPayouts}</p>
+                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">{stats.completedPayouts} paid out</p>
+                </div>
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                  <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-[#7E22CE]" />
                 </div>
               </div>
             </div>
 
-            <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <DollarSign className="h-5 w-5 text-green-600" />
-                </div>
+            <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-3 sm:p-6 h-32 sm:h-40">
+              <div className="flex items-start justify-between h-full">
                 <div>
-                  <p className="text-sm text-gray-500">Total earned</p>
-                  <p className="text-2xl font-semibold text-gray-900">{formatCents(stats.totalEarnedCents)}</p>
+                  <p className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Total earned</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{formatCents(stats.totalEarnedCents)}</p>
+                </div>
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                  <DollarSign className="h-5 w-5 sm:h-6 sm:w-6 text-[#7E22CE]" />
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
+          <div className="insta-surface-card">
             <div className="p-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Referred instructors</h3>
-              <p className="text-sm text-gray-500 mt-1">{referredCount} total referrals</p>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Referred instructors</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{referredCount} total referrals</p>
             </div>
 
             {referredLoading ? (
@@ -294,8 +296,8 @@ export default function InstructorReferralsPage() {
             ) : referredItems.length === 0 ? (
               <div className="p-8 text-center">
                 <Users className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-600">No referrals yet</p>
-                <p className="text-sm text-gray-400 mt-1">Share your link to start earning.</p>
+                <p className="text-gray-600 dark:text-gray-400">No referrals yet</p>
+                <p className="text-sm text-gray-400 dark:text-gray-400 mt-1">Share your link to start earning.</p>
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
@@ -317,11 +319,11 @@ export default function InstructorReferralsPage() {
                           </span>
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900">
+                          <p className="font-medium text-gray-900 dark:text-gray-100">
                             {instructor.firstName} {instructor.lastInitial}.
                           </p>
-                          <p className="text-sm text-gray-500">Referred {formatDate(instructor.referredAt)}</p>
-                          <p className="text-xs text-gray-400">{timelineText}</p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Referred {formatDate(instructor.referredAt)}</p>
+                          <p className="text-xs text-gray-400 dark:text-gray-400">{timelineText}</p>
                         </div>
                       </div>
 
@@ -342,9 +344,9 @@ export default function InstructorReferralsPage() {
             )}
           </div>
 
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">How it works</h3>
-            <ol className="space-y-3 text-gray-700">
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 insta-surface-card">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">How it works</h2>
+            <ol className="space-y-3 text-gray-700 dark:text-gray-300">
               <li className="flex items-start gap-3">
                 <span className="flex-shrink-0 h-6 w-6 bg-[#7E22CE] text-white rounded-full flex items-center justify-center text-sm font-semibold">
                   1

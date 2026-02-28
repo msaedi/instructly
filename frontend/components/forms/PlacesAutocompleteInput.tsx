@@ -79,6 +79,10 @@ export const PlacesAutocompleteInput = forwardRef<HTMLInputElement, PlacesAutoco
     const [highlightIndex, setHighlightIndex] = useState<number>(-1);
 
     const listboxId = useId();
+    const activeOptionId =
+      open && highlightIndex >= 0 && highlightIndex < suggestions.length
+        ? `${listboxId}-option-${highlightIndex}`
+        : undefined;
 
     useEffect(() => {
       return () => {
@@ -289,6 +293,8 @@ export const PlacesAutocompleteInput = forwardRef<HTMLInputElement, PlacesAutoco
           aria-autocomplete="list"
           aria-expanded={open}
           aria-controls={listboxId}
+          aria-activedescendant={activeOptionId}
+          aria-haspopup="listbox"
           role="combobox"
           className={cn(
             'w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-[#7E22CE]/10 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500',
@@ -299,17 +305,21 @@ export const PlacesAutocompleteInput = forwardRef<HTMLInputElement, PlacesAutoco
           <div
             id={listboxId}
             role="listbox"
+            aria-label="Location suggestions"
             className="absolute z-50 mt-2 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg"
           >
             {suggestions.map((suggestion, index) => {
               const displayText = getDisplayText(suggestion);
               if (!displayText) return null;
               const isHighlighted = index === highlightIndex;
+              const optionId = `${listboxId}-option-${index}`;
               return (
                 <button
                   key={suggestion.place_id}
+                  id={optionId}
                   type="button"
                   role="option"
+                  tabIndex={-1}
                   aria-selected={isHighlighted}
                   className={cn(
                     'flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-purple-50 focus:bg-purple-50',

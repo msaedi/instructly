@@ -55,8 +55,12 @@ export function ServiceAreasCard({
   isNYC,
   formatNeighborhoodName,
 }: ServiceAreasCardProps) {
+  const isOnboarding = context === 'onboarding';
   const collapsible = context !== 'onboarding' && typeof onToggle === 'function';
   const expanded = collapsible ? Boolean(isOpen) : true;
+  const cardClassName = isOnboarding
+    ? 'insta-surface-card p-4 sm:p-6'
+    : 'p-4 sm:p-6 insta-surface-card';
   const resolvedTitle = title ?? 'Service Areas';
   const resolvedSubtitle = subtitle ?? 'Select the neighborhoods where you’re available for lessons.';
   const resolvedHelperText = helperText ?? 'Select the neighborhoods where you teach';
@@ -64,13 +68,13 @@ export function ServiceAreasCard({
   const bulkActionsEnabled = typeof showBulkActions === 'boolean' ? showBulkActions : selectionMode !== 'single';
 
   const header = (
-    <div className="flex items-center gap-3">
+    <div className="insta-dashboard-accordion-leading">
       <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
         <MapPin className="w-6 h-6 text-[#7E22CE]" />
       </div>
       <div className="flex flex-col text-left">
-        <span className="text-xl sm:text-lg font-bold sm:font-semibold text-gray-900 dark:text-gray-100">{resolvedTitle}</span>
-        <span className="text-sm text-gray-500 dark:text-gray-400">{resolvedSubtitle}</span>
+        <span className="insta-dashboard-accordion-title">{resolvedTitle}</span>
+        <span className="insta-dashboard-accordion-subtitle">{resolvedSubtitle}</span>
       </div>
     </div>
   );
@@ -95,11 +99,11 @@ export function ServiceAreasCard({
   }, [nycBoroughs, boroughNeighborhoods, globalNeighborhoodFilter]);
 
   return (
-    <section className="bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6 dark:bg-gray-900/70 dark:border-gray-800/80">
+    <section className={cardClassName}>
       {collapsible ? (
         <button
           type="button"
-          className="w-full flex items-center justify-between mb-4 text-left"
+          className={`insta-dashboard-accordion-trigger ${expanded ? 'mb-4' : ''}`}
           onClick={onToggle}
           aria-expanded={expanded}
           data-testid="service-areas-card"
@@ -142,7 +146,7 @@ export function ServiceAreasCard({
                       className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
                         checked
                           ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-700/80'
+                          : 'bg-gray-100 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-700/80'
                       }`}
                     >
                       <span className="truncate text-left">{n['name'] || nid}</span>
@@ -223,7 +227,7 @@ export function ServiceAreasCard({
                             </button>
                             <button
                               type="button"
-                              className="text-sm px-3 py-1 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800/70"
+                              className="text-sm px-3 py-1 rounded-md border border-gray-300 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800/70"
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 const listNow = boroughNeighborhoods[borough] || (await loadBoroughNeighborhoods(borough));
@@ -254,7 +258,7 @@ export function ServiceAreasCard({
                                 className={`inline-flex items-center justify-between w-full min-w-0 px-2 py-1 text-xs rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
                                   checked
                                     ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-700/80'
+                                    : 'bg-gray-100 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-700/80'
                                 }`}
                               >
                                 <span className="truncate text-left">{label}</span>
@@ -273,7 +277,7 @@ export function ServiceAreasCard({
               </div>
             </div>
           ) : (
-            <div className="mt-2 rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-400">
+            <div className="mt-2 rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-600 dark:text-gray-400 dark:border-gray-700">
               Your city is not yet supported for granular neighborhoods. We’ll add it soon.
             </div>
           )}

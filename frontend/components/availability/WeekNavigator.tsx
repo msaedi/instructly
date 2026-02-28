@@ -87,7 +87,7 @@ export default function WeekNavigator({
 
   return (
     <div
-      className="mb-6 bg-white rounded-lg border border-gray-200 p-5 shadow-sm ring-1 ring-purple-100"
+      className="mb-6 p-5 insta-surface-card insta-availability-week-nav"
       data-testid="week-header"
       data-week-start={weekStartISO}
     >
@@ -99,7 +99,7 @@ export default function WeekNavigator({
           className="p-2 hover:bg-gray-100 rounded-lg transition-colors
                    disabled:opacity-50 disabled:cursor-not-allowed
                    focus:outline-none focus:ring-2 focus:ring-offset-2
-                   focus:ring-indigo-500"
+                   focus:ring-[#7E22CE]"
           title="Previous week"
           aria-label="Go to previous week"
         >
@@ -128,7 +128,7 @@ export default function WeekNavigator({
           className="p-2 hover:bg-gray-100 rounded-lg transition-colors
                    disabled:opacity-50 disabled:cursor-not-allowed
                    focus:outline-none focus:ring-2 focus:ring-offset-2
-                   focus:ring-indigo-500"
+                   focus:ring-[#7E22CE]"
           title="Next week"
           aria-label="Go to next week"
         >

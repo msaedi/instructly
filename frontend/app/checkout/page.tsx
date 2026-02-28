@@ -17,7 +17,7 @@ function CheckoutContent() {
   const promoApplied = (params.get('promo') ?? params.get('promoApplied')) === '1';
 
   return (
-    <main className="mx-auto flex min-h-[70vh] w-full max-w-3xl flex-col gap-6 px-4 py-12 sm:px-6 lg:px-8">
+    <div className="mx-auto flex min-h-[70vh] w-full max-w-3xl flex-col gap-6 px-4 py-12 sm:px-6 lg:px-8">
       <header className="space-y-2">
         <p className="text-sm font-medium uppercase tracking-[0.18em] text-gray-500">Checkout</p>
         <h1 className="text-3xl font-bold text-gray-900">Apply referral credit</h1>
@@ -40,7 +40,7 @@ function CheckoutContent() {
         </p>
         <p className="mt-1 font-mono text-[11px] text-gray-600">/checkout?orderId=ORDER123&subtotalCents=8200</p>
       </div>
-    </main>
+    </div>
   );
 }
 
@@ -48,9 +48,9 @@ export default function CheckoutPage() {
   return (
     <Suspense
       fallback={
-        <main className="mx-auto flex min-h-[70vh] w-full max-w-3xl items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
+        <div className="mx-auto flex min-h-[70vh] w-full max-w-3xl items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
           <p className="text-sm text-gray-500">Loading checkout preview…</p>
-        </main>
+        </div>
       }
     >
       <CheckoutContent />

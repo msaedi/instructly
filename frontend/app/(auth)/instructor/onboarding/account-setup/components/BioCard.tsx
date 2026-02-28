@@ -54,23 +54,26 @@ export function BioCard({
   const isOnboarding = context === 'onboarding';
   const collapsible = context !== 'onboarding' && typeof onToggle === 'function';
   const expanded = collapsible ? Boolean(isOpen) : true;
+  const cardClassName = isOnboarding
+    ? 'insta-surface-card p-4 sm:p-6'
+    : 'p-4 sm:p-6 insta-surface-card';
   const showInlinePhotoUpload = embedded || isOnboarding;
   const showBioWarning = showMinCharHint && bioTouched && bioTooShort;
   const yearsValue = allowEmptyYears && profile.years_experience === 0 ? '' : profile.years_experience;
 
   const header = (
-    <div className="w-full flex items-center justify-between text-left">
-      <div className="flex items-center gap-3">
+    <div className="insta-dashboard-accordion-trigger">
+      <div className="insta-dashboard-accordion-leading">
         <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
           <BookOpen className="w-6 h-6 text-[#7E22CE]" />
         </div>
         <div className="flex flex-col text-left">
-          <span className="text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Profile Details</span>
-          <span className="text-sm text-gray-500">Tell students about your experience, style, and teaching approach.</span>
+          <span className="insta-dashboard-accordion-title">Profile Details</span>
+          <span className="insta-dashboard-accordion-subtitle">Tell students about your experience, style, and teaching approach.</span>
         </div>
       </div>
       {collapsible && (
-        <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`} />
       )}
     </div>
   );
@@ -90,9 +93,14 @@ export function BioCard({
   };
 
   return (
-    <section className="bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
+    <section className={cardClassName}>
       {collapsible ? (
-        <button type="button" className="w-full flex items-center justify-between mb-4 text-left" onClick={onToggle} aria-expanded={expanded}>
+        <button
+          type="button"
+          className={`w-full text-left ${expanded ? 'mb-4' : ''}`}
+          onClick={onToggle}
+          aria-expanded={expanded}
+        >
           {header}
         </button>
       ) : (
@@ -118,7 +126,7 @@ export function BioCard({
             </div>
           )}
           <div className="mb-2">
-            <p className="text-gray-600 mt-1">{bioLabel}</p>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">{bioLabel}</p>
           </div>
           <div>
             <div className="relative">
@@ -132,7 +140,7 @@ export function BioCard({
                 maxLength={maxBioChars}
               />
               {showMinCharHint && minBioChars > 0 && (
-                <div className="pointer-events-none absolute bottom-2 right-3 text-[10px] text-gray-500 z-10 bg-white/80 px-1">
+                <div className="pointer-events-none absolute bottom-2 right-3 text-[10px] text-gray-500 dark:text-gray-400 z-10 bg-white/80 px-1">
                   Minimum {minBioChars} characters
                 </div>
               )}
@@ -141,13 +149,13 @@ export function BioCard({
               <div className="mt-1 text-xs text-red-600">Your bio is under {minBioChars} characters. You can still save and complete it later.</div>
             )}
             {showCharCount && (
-              <div className="mt-1 text-xs text-gray-500">
+              <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 {profile.bio.length}{maxBioChars ? `/${maxBioChars}` : ''} characters
               </div>
             )}
             <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label htmlFor="details_years_experience" className="block text-sm text-gray-600 mb-1">{yearsLabel}</label>
+                <label htmlFor="details_years_experience" className="block text-sm text-gray-600 dark:text-gray-400 mb-1">{yearsLabel}</label>
                 <input
                   id="details_years_experience"
                   type="number"

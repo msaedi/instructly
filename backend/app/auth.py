@@ -488,7 +488,7 @@ async def get_current_user(
         # Preserve explicit HTTPExceptions (e.g., Not authenticated)
         raise http_exc
     except PyJWTError as e:
-        logger.error(f"JWT validation error: {str(e)}")
+        logger.warning("JWT validation error: %s", e)
         raise invalid_credentials
     except Exception as e:
         logger.error("Unexpected error in token validation: %s", e, exc_info=True)

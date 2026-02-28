@@ -53,7 +53,7 @@ export function ConversationList({
       {/* Search and compose */}
       <div className="p-4 border-b border-gray-200 flex items-center gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-400" />
           <input
             type="text"
             value={searchQuery}
@@ -85,7 +85,7 @@ export function ConversationList({
                 onMessageDisplayChange('inbox');
               }}
               className={`text-xs font-medium rounded-full px-2.5 py-1 transition-colors ${
-                isActive ? 'bg-[#7E22CE] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                isActive ? 'bg-[#7E22CE] text-white' : 'bg-gray-100 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
               }`}
             >
               {option.label}
@@ -98,7 +98,7 @@ export function ConversationList({
           className={`text-xs font-medium rounded-full px-2.5 py-1 transition-colors ${
             messageDisplay === 'archived'
               ? 'bg-[#7E22CE] text-white'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              : 'bg-gray-100 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
           }`}
         >
           Archived
@@ -109,7 +109,7 @@ export function ConversationList({
           className={`text-xs font-medium rounded-full px-2.5 py-1 transition-colors ${
             messageDisplay === 'trash'
               ? 'bg-[#7E22CE] text-white'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              : 'bg-gray-100 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
           }`}
         >
           Trash
@@ -119,14 +119,14 @@ export function ConversationList({
       {/* Conversation list */}
       <div className="flex-1 min-h-0 overflow-y-auto">
         {isLoading && conversations.length === 0 ? (
-          <div className="p-4 text-sm text-gray-500">Loading conversations...</div>
+          <div className="p-4 text-sm text-gray-500 dark:text-gray-400">Loading conversations...</div>
         ) : (
           <>
             {error && (
               <div className="px-4 py-2 text-xs text-red-500">{error}</div>
             )}
             {conversations.length > 0 ? (
-              <ul className="divide-y divide-gray-100">
+              <ul className="insta-thread-list">
                 {conversations.map((conversation) => (
                   <ConversationItem
                     key={conversation.id}
@@ -142,7 +142,7 @@ export function ConversationList({
                 ))}
               </ul>
             ) : (
-              <div className="p-4 text-sm text-gray-500">No conversations found.</div>
+              <div className="p-4 text-sm text-gray-500 dark:text-gray-400">No conversations found.</div>
             )}
           </>
         )}

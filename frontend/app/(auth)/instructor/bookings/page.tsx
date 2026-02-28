@@ -116,9 +116,9 @@ function BookingsPageImpl() {
   const isActionPending = completeBooking.isPending || markNoShow.isPending;
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen insta-dashboard-page">
       {!embedded && (
-        <header className="relative border-b border-gray-200 bg-white px-4 py-4 backdrop-blur-sm sm:px-6">
+        <header className="relative px-4 py-4 sm:px-6 insta-dashboard-header">
           <div className="flex max-w-full items-center justify-between">
             <Link href="/instructor/dashboard" className="inline-block">
               <h1 className="pl-0 text-3xl font-bold text-[#7E22CE] transition-colors hover:text-[#7E22CE] sm:pl-4">
@@ -157,7 +157,7 @@ function BookingsPageImpl() {
           subtitle="Track upcoming sessions and review completed lessons all in one place."
         />
 
-        <div className="mt-6 rounded-lg border border-gray-200 bg-white shadow-sm">
+        <div className="mt-6 insta-surface-card">
           <div role="tablist" aria-label="Bookings tabs" className="flex border-b border-gray-200">
             {(['upcoming', 'past'] as const).map((tab) => (
               <button
@@ -166,7 +166,7 @@ function BookingsPageImpl() {
                 role="tab"
                 aria-selected={activeTab === tab}
                 className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                  activeTab === tab ? 'border-b-2 border-[#7E22CE] text-[#7E22CE]' : 'text-gray-600 hover:text-[#7E22CE]'
+                  activeTab === tab ? 'border-b-2 border-[#7E22CE] text-[#7E22CE]' : 'text-gray-600 dark:text-gray-400 hover:text-[#7E22CE]'
                 }`}
                 onClick={() => handleTabChange(tab)}
               >
@@ -206,9 +206,9 @@ function BookingsPageImpl() {
             <div className="mb-4">
               <div className="mb-2 flex items-center gap-2 text-amber-600">
                 <AlertTriangle className="h-6 w-6" />
-                <h3 className="text-lg font-semibold text-gray-900">Report No-Show</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Report No-Show</h3>
               </div>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 Are you sure you want to mark this lesson as a no-show? This indicates that
                 <span className="font-medium">
                   {' '}
@@ -218,7 +218,7 @@ function BookingsPageImpl() {
                 </span>{' '}
                 did not attend the scheduled lesson.
               </p>
-              <p className="mt-2 text-sm text-gray-500">The student will still be charged for the lesson.</p>
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">The student will still be charged for the lesson.</p>
             </div>
             <div className="flex justify-end gap-3">
               <button

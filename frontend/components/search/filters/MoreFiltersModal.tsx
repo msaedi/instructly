@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 
 import {
@@ -11,6 +11,8 @@ import {
   type SkillLevelOption,
 } from '../filterTypes';
 import { logger } from '@/lib/logger';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useScrollLock } from '@/hooks/useScrollLock';
 
 const DURATION_OPTIONS = [
   { value: 30, label: '30 min' },
@@ -26,7 +28,6 @@ const RATING_OPTIONS = [
 
 const EMPTY_TAXONOMY_CONTENT_FILTERS: TaxonomyContentFilterDefinition[] = [];
 const EMPTY_SUGGESTED_CONTENT_FILTERS: ContentFilterSelections = {};
-
 function FilterChipGroup<T extends string | number>({
   label,
   options,
@@ -124,6 +125,8 @@ function MoreFiltersModalContent({
   const [draft, setDraft] = useState(() =>
     buildInitialDraft(filters, taxonomyContentFilters, suggestedContentFilters)
   );
+  const modalRef = useRef<HTMLDivElement | null>(null);
+  const titleId = useId();
 
   useEffect(() => {
     if (process.env.NODE_ENV === 'production') return;
@@ -132,6 +135,12 @@ function MoreFiltersModalContent({
       taxonomyContentFilterKeys: taxonomyContentFilters.map((filter) => filter.key),
     });
   }, [taxonomyContentFilters]);
+
+  useFocusTrap({
+    isOpen: true,
+    containerRef: modalRef,
+    onEscape: onClose,
+  });
 
   const toggleArrayValue = <T,>(list: T[], value: T): T[] =>
     list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
@@ -161,16 +170,18 @@ function MoreFiltersModalContent({
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
+      <div className="insta-dialog-backdrop bg-black/50" onClick={onClose} aria-hidden="true" />
 
       <div
-        className="relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 max-h-[85vh] flex flex-col"
+        ref={modalRef}
+        className="insta-dialog-panel relative w-full max-w-md mx-4 max-h-[85vh] flex flex-col"
         role="dialog"
         aria-modal="true"
-        aria-label="More filters"
+        aria-labelledby={titleId}
+        tabIndex={-1}
       >
         <div className="flex items-center justify-between p-4 border-b border-gray-100">
-          <h2 className="text-lg font-semibold">More filters</h2>
+          <h2 id={titleId} className="text-lg font-semibold">More filters</h2>
           <button
             type="button"
             onClick={onClose}
@@ -320,6 +331,7 @@ export function MoreFiltersModal({
   taxonomyContentFilters = EMPTY_TAXONOMY_CONTENT_FILTERS,
   suggestedContentFilters = EMPTY_SUGGESTED_CONTENT_FILTERS,
 }: MoreFiltersModalProps) {
+  useScrollLock(isOpen);
   if (!isOpen) return null;
 
   return (

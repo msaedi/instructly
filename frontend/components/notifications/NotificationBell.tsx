@@ -135,7 +135,7 @@ export function NotificationBell({
         aria-haspopup="menu"
         aria-label={unreadCount > 0 ? `Notifications (${badgeLabel} unread)` : 'Notifications'}
         title="Notifications"
-        className="group relative inline-flex items-center justify-center h-10 w-10 rounded-full text-[#7E22CE] transition-colors duration-150 focus:outline-none"
+        className="group relative inline-flex items-center justify-center h-10 w-10 rounded-full text-[#7E22CE] transition-colors duration-150"
       >
         <Bell
           className="h-6 w-6 transition-colors group-hover:fill-current"
@@ -155,7 +155,7 @@ export function NotificationBell({
           aria-live="polite"
           aria-label="Notifications"
           onKeyDown={handleMenuKeyDown}
-          className="absolute right-0 mt-2 w-80 rounded-lg border border-gray-200 bg-white shadow-lg z-50"
+          className="insta-header-dropdown absolute right-0 mt-2 w-80 rounded-lg z-50"
         >
           <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2">
             <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>

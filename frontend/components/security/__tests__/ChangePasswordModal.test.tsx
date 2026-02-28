@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import React from 'react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ChangePasswordModal from '../ChangePasswordModal';
 import { fetchWithAuth } from '@/lib/api';
@@ -15,16 +16,11 @@ const renderModal = (props?: { onClose?: jest.Mock }) => {
   return { onClose };
 };
 const getPasswordInputs = (): [HTMLInputElement, HTMLInputElement, HTMLInputElement] => {
-  const labels = ['Current password', 'New password', 'Confirm new password'];
-  const inputs = labels.map((labelText) => {
-    const label = screen.getByText(labelText);
-    const input = label.parentElement?.querySelector('input');
-    if (!input) {
-      throw new Error(`Missing input for ${labelText}`);
-    }
-    return input as HTMLInputElement;
-  });
-  return inputs as [HTMLInputElement, HTMLInputElement, HTMLInputElement];
+  return [
+    screen.getByLabelText('Current password') as HTMLInputElement,
+    screen.getByLabelText('New password') as HTMLInputElement,
+    screen.getByLabelText('Confirm new password') as HTMLInputElement,
+  ];
 };
 
 describe('ChangePasswordModal', () => {
@@ -37,6 +33,66 @@ describe('ChangePasswordModal', () => {
 
     const saveButton = screen.getByRole('button', { name: 'Save password' });
     expect(saveButton).toBeDisabled();
+  });
+
+  it('associates labels with matching password input ids', () => {
+    renderModal();
+
+    expect(screen.getByLabelText('Current password')).toHaveAttribute('id', 'current-password');
+    expect(screen.getByLabelText('New password')).toHaveAttribute('id', 'new-password');
+    expect(screen.getByLabelText('Confirm new password')).toHaveAttribute('id', 'confirm-password');
+  });
+
+  it('renders with dialog semantics wired to the heading', () => {
+    renderModal();
+
+    const dialog = screen.getByRole('dialog', { name: /change password/i });
+    const heading = screen.getByRole('heading', { name: /change password/i });
+
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(dialog).toHaveAttribute('aria-labelledby', heading.getAttribute('id'));
+  });
+
+  it('traps focus inside the dialog when tabbing', () => {
+    renderModal();
+
+    const firstInput = screen.getByLabelText('Current password');
+    const cancelButton = screen.getByRole('button', { name: 'Cancel' });
+
+    cancelButton.focus();
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(firstInput).toHaveFocus();
+
+    firstInput.focus();
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(cancelButton).toHaveFocus();
+  });
+
+  it('closes on Escape and restores focus to the opener', async () => {
+    const user = userEvent.setup();
+
+    function Harness() {
+      const [open, setOpen] = React.useState(false);
+      return (
+        <div>
+          <button type="button" onClick={() => setOpen(true)}>
+            Open change password
+          </button>
+          {open ? <ChangePasswordModal onClose={() => setOpen(false)} /> : null}
+        </div>
+      );
+    }
+
+    render(<Harness />);
+    const opener = screen.getByRole('button', { name: 'Open change password' });
+    await user.click(opener);
+
+    expect(screen.getByRole('dialog', { name: /change password/i })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /change password/i })).not.toBeInTheDocument();
+    });
+    expect(opener).toHaveFocus();
   });
 
   it('calls onClose when cancel is clicked', async () => {
@@ -83,7 +139,7 @@ describe('ChangePasswordModal', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save password' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Invalid password')).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent('Invalid password');
     });
   });
 
@@ -100,7 +156,7 @@ describe('ChangePasswordModal', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save password' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Network error.')).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent('Network error.');
     });
   });
 
@@ -120,7 +176,7 @@ describe('ChangePasswordModal', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save password' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Failed to change password.')).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent('Failed to change password.');
     });
   });
 

@@ -30,7 +30,7 @@ export default async function InviteClaimPage({ searchParams }: { searchParams?:
 
   if (!token) {
     return (
-      <main className="min-h-screen bg-[#F9F5FF] flex items-center justify-center px-4 py-12">
+      <div className="min-h-screen bg-[#F9F5FF] flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-lg rounded-3xl bg-white shadow-2xl p-8 space-y-6 text-center">
           <p className="text-sm font-semibold tracking-widest text-[#7E22CE] uppercase">
             iNSTAiNSTRU
@@ -47,7 +47,7 @@ export default async function InviteClaimPage({ searchParams }: { searchParams?:
             .
           </p>
         </div>
-      </main>
+      </div>
     );
   }
 

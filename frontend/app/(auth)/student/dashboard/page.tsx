@@ -374,7 +374,7 @@ function StudentDashboardContent() {
                   {/* Account Information */}
                   <div>
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900">Account Information</h3>
+                      <h2 className="text-lg font-semibold text-gray-900">Account Information</h2>
                       <button
                         className="text-sm font-medium text-[#7E22CE] hover:text-[#7E22CE] cursor-pointer"
                         onClick={() => {
@@ -442,7 +442,7 @@ function StudentDashboardContent() {
                   <div className="border-b border-gray-200 mb-6"></div>
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-lg font-semibold text-gray-900">Addresses</h3>
+                      <h2 className="text-lg font-semibold text-gray-900">Addresses</h2>
                       <button
                         className="text-sm font-medium text-[#7E22CE] hover:text-[#7E22CE] cursor-pointer"
                         onClick={() => setShowAddressModal({ mode: 'create' })}
@@ -531,7 +531,7 @@ function StudentDashboardContent() {
                   {/* Security */}
                   <div className="border-b border-gray-200 mb-6"></div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Security</h3>
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Security</h2>
                     <div className="flex flex-wrap gap-3">
                       <button
                         className="rounded-lg bg-gray-100 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-200 hover:text-gray-900 transition-all cursor-pointer"
@@ -560,7 +560,7 @@ function StudentDashboardContent() {
                   {/* Account Management (placeholder) */}
                   <div className="border-b border-gray-200 mb-6"></div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Account Management</h3>
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Account Management</h2>
                     <div className="flex flex-wrap gap-3">
                       <button
                         className="py-2.5 px-4 rounded-lg text-sm font-medium bg-white border border-[#7E22CE] text-[#7E22CE] hover:bg-purple-50 transition-colors cursor-pointer"
@@ -625,46 +625,51 @@ function StudentDashboardContent() {
                         return (
                           <div
                             key={fav.id}
-                            className="relative rounded-xl border border-gray-200 p-4 pr-10 hover:shadow-sm hover:bg-gray-50 transition-all cursor-pointer"
-                            onClick={() => router.push(`/instructors/${fav.id}`)}
+                            className="relative rounded-xl border border-gray-200 p-4 pr-10 hover:shadow-sm hover:bg-gray-50 transition-all"
                           >
-                            <div className="flex items-start gap-4">
-                              <UserAvatar
-                                user={{
-                                  id: fav.id,
-                                  ...((fav.first_name || fav.profile?.user?.first_name) && {
-                                    first_name: fav.first_name || fav.profile?.user?.first_name || ''
-                                  }),
-                                  ...(fav.last_name && { last_name: fav.last_name }),
-                                  ...(fav.email && { email: fav.email }),
-                                  // Keep avatar glyph fallback; do not pass non-existent fields from minimal API
-                                }}
-                                size={48}
-                                className="h-12 w-12"
-                              />
-                              <div>
-                                <p className="font-semibold text-gray-900">{name}</p>
-                                {(primarySubject || yearsExp) && (
-                                  <p className="mt-1 text-xs text-gray-700">
-                                    {primarySubject ? <span>{primarySubject}</span> : null}
-                                    {primarySubject && yearsExp ? <span> · </span> : null}
-                                    {yearsExp ? <span>{yearsExp} yrs experience</span> : null}
-                                  </p>
-                                )}
-                                {(primaryArea || typeof primaryRate === 'number') && (
-                                  <p className="mt-1 text-xs text-gray-600">
-                                    {primaryArea ? <span>{primaryArea}</span> : null}
-                                    {primaryArea && typeof primaryRate === 'number' ? <span> · </span> : null}
-                                    {typeof primaryRate === 'number' ? <span>${primaryRate}/hour</span> : null}
-                                  </p>
-                                )}
+                            <Link
+                              href={`/instructors/${fav.id}`}
+                              className="block cursor-pointer"
+                            >
+                              <div className="flex items-start gap-4">
+                                <UserAvatar
+                                  user={{
+                                    id: fav.id,
+                                    ...((fav.first_name || fav.profile?.user?.first_name) && {
+                                      first_name: fav.first_name || fav.profile?.user?.first_name || ''
+                                    }),
+                                    ...(fav.last_name && { last_name: fav.last_name }),
+                                    ...(fav.email && { email: fav.email }),
+                                    // Keep avatar glyph fallback; do not pass non-existent fields from minimal API
+                                  }}
+                                  size={48}
+                                  className="h-12 w-12"
+                                />
+                                <div>
+                                  <p className="font-semibold text-gray-900">{name}</p>
+                                  {(primarySubject || yearsExp) && (
+                                    <p className="mt-1 text-xs text-gray-700">
+                                      {primarySubject ? <span>{primarySubject}</span> : null}
+                                      {primarySubject && yearsExp ? <span> · </span> : null}
+                                      {yearsExp ? <span>{yearsExp} yrs experience</span> : null}
+                                    </p>
+                                  )}
+                                  {(primaryArea || typeof primaryRate === 'number') && (
+                                    <p className="mt-1 text-xs text-gray-600">
+                                      {primaryArea ? <span>{primaryArea}</span> : null}
+                                      {primaryArea && typeof primaryRate === 'number' ? <span> · </span> : null}
+                                      {typeof primaryRate === 'number' ? <span>${primaryRate}/hour</span> : null}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
-                            </div>
+                            </Link>
                             <button
                               className="absolute top-2 right-2 p-1 text-gray-500 hover:text-gray-700 cursor-pointer"
                               aria-label="Remove favorite"
                               title="Remove"
                               onClick={async (e) => {
+                                e.preventDefault();
                                 e.stopPropagation();
                                 try {
                                   await favoritesApi.remove(fav.id);
@@ -1157,7 +1162,7 @@ function NotificationsTab() {
       </div>
 
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Notification Preferences</h3>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Notification Preferences</h2>
 
         <div className="space-y-4">
           <div className="grid grid-cols-4 gap-4 pb-3 border-b border-gray-200">
@@ -1372,7 +1377,7 @@ function NotificationsTab() {
       </div>
 
       <div className="border-t border-gray-200 pt-6">
-        <h4 className="font-medium text-gray-900 mb-4">Lesson Reminder Timing</h4>
+        <h3 className="font-medium text-gray-900 mb-4">Lesson Reminder Timing</h3>
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-700">Send reminders</span>
           <div className="relative">
@@ -1402,7 +1407,7 @@ function NotificationsTab() {
       </div>
 
       <div className="border-t border-gray-200 pt-6">
-        <h4 className="font-medium text-gray-900 mb-4">Quiet Hours</h4>
+        <h3 className="font-medium text-gray-900 mb-4">Quiet Hours</h3>
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-700">Mute notifications between</span>
@@ -1802,8 +1807,7 @@ function DeleteAccountModal({ email, onClose, onDeleted }: { email: string; onCl
             />
             <button
               type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:text-[#7E22CE]"
-              style={{ outline: 'none', boxShadow: 'none' }}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
@@ -2046,8 +2050,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
             />
             <button
               type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:text-[#7E22CE]"
-              style={{ outline: 'none', boxShadow: 'none' }}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
               onClick={() => setShowPasswords((v) => !v)}
               aria-label={showPasswords ? 'Hide passwords' : 'Show passwords'}
             >

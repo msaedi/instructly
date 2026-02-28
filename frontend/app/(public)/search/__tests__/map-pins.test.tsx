@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import SearchResultsPage from '../page';
@@ -207,5 +207,77 @@ describe('Search results map pins', () => {
         instructorId: 'inst-1',
       });
     });
+  });
+
+  it('supports listbox semantics and keyboard interaction for sort options', async () => {
+    const queryClient = createTestQueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SearchResultsPage />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(mockPublicApi.searchWithNaturalLanguage).toHaveBeenCalled();
+    });
+
+    const trigger = screen.getByRole('button', { name: /recommended/i });
+    expect(trigger).toHaveAttribute('aria-haspopup', 'listbox');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    const listboxId = trigger.getAttribute('aria-controls');
+    expect(listboxId).toBeTruthy();
+
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+
+    const listbox = await screen.findByRole('listbox', { name: 'Sort results' });
+    expect(listbox).toHaveAttribute('id', listboxId);
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(within(listbox).getAllByRole('option')).toHaveLength(4);
+    within(listbox).getAllByRole('option').forEach((option) => {
+      expect(option).toHaveAttribute('tabindex');
+    });
+
+    fireEvent.keyDown(listbox, { key: 'Enter' });
+    await waitFor(() => {
+      expect(trigger).toHaveTextContent('Price: Low');
+      expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    });
+
+    fireEvent.click(trigger);
+    const reopenedListbox = await screen.findByRole('listbox', { name: 'Sort results' });
+    fireEvent.keyDown(reopenedListbox, { key: 'Escape' });
+    await waitFor(() => {
+      expect(screen.queryByRole('listbox', { name: 'Sort results' })).not.toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(trigger).toHaveFocus();
+    });
+
+    fireEvent.click(trigger);
+    const tabListbox = await screen.findByRole('listbox', { name: 'Sort results' });
+    fireEvent.keyDown(tabListbox, { key: 'Tab' });
+    await waitFor(() => {
+      expect(screen.queryByRole('listbox', { name: 'Sort results' })).not.toBeInTheDocument();
+    });
+  });
+
+  it('renders the rate limit banner as an alert for 429 responses', async () => {
+    mockPublicApi.searchWithNaturalLanguage.mockResolvedValueOnce({
+      status: 429,
+      error: 'Our hamsters are sprinting. Please try again shortly.',
+      retryAfterSeconds: 12,
+    });
+
+    const queryClient = createTestQueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SearchResultsPage />
+      </QueryClientProvider>
+    );
+
+    const banner = await screen.findByTestId('rate-limit-banner');
+    expect(banner).toHaveAttribute('role', 'alert');
+    expect(banner).toHaveTextContent('Give them 12s');
   });
 });

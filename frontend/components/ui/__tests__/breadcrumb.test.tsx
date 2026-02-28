@@ -35,6 +35,7 @@ describe('Breadcrumb', () => {
     );
 
     expect(container.querySelectorAll('svg').length).toBe(2);
+    expect(container.querySelectorAll('svg[aria-hidden="true"][focusable="false"]').length).toBe(2);
   });
 
   it('applies custom className', () => {

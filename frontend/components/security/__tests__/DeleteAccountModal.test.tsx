@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import React from 'react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DeleteAccountModal from '../DeleteAccountModal';
 import { fetchAPI, fetchWithAuth } from '@/lib/api';
@@ -40,7 +41,7 @@ describe('DeleteAccountModal', () => {
   it('toggles password visibility', async () => {
     renderModal();
 
-    const passwordInput = screen.getByPlaceholderText('Password') as HTMLInputElement;
+    const passwordInput = screen.getByLabelText('Password') as HTMLInputElement;
     expect(passwordInput.type).toBe('password');
 
     await userEvent.click(screen.getByRole('button', { name: 'Show password' }));
@@ -54,13 +55,13 @@ describe('DeleteAccountModal', () => {
     fetchApiMock.mockResolvedValueOnce({ ok: false });
     renderModal();
 
-    await userEvent.type(screen.getByPlaceholderText('Type DELETE to confirm'), 'DELETE');
-    await userEvent.type(screen.getByPlaceholderText('Password'), 'password');
+    await userEvent.type(screen.getByLabelText('Type DELETE to confirm'), 'DELETE');
+    await userEvent.type(screen.getByLabelText('Password'), 'password');
 
     await userEvent.click(screen.getByRole('button', { name: 'Delete My Account' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Incorrect password.')).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent('Incorrect password.');
     });
   });
 
@@ -74,13 +75,13 @@ describe('DeleteAccountModal', () => {
 
     renderModal();
 
-    await userEvent.type(screen.getByPlaceholderText('Type DELETE to confirm'), 'DELETE');
-    await userEvent.type(screen.getByPlaceholderText('Password'), 'password');
+    await userEvent.type(screen.getByLabelText('Type DELETE to confirm'), 'DELETE');
+    await userEvent.type(screen.getByLabelText('Password'), 'password');
 
     await userEvent.click(screen.getByRole('button', { name: 'Delete My Account' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Cannot delete')).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent('Cannot delete');
     });
   });
 
@@ -89,8 +90,8 @@ describe('DeleteAccountModal', () => {
     fetchWithAuthMock.mockResolvedValueOnce({ ok: true });
     const { onDeleted } = renderModal();
 
-    await userEvent.type(screen.getByPlaceholderText('Type DELETE to confirm'), 'DELETE');
-    await userEvent.type(screen.getByPlaceholderText('Password'), 'password');
+    await userEvent.type(screen.getByLabelText('Type DELETE to confirm'), 'DELETE');
+    await userEvent.type(screen.getByLabelText('Password'), 'password');
 
     await userEvent.click(screen.getByRole('button', { name: 'Delete My Account' }));
 
@@ -115,13 +116,13 @@ describe('DeleteAccountModal', () => {
 
     renderModal();
 
-    await userEvent.type(screen.getByPlaceholderText('Type DELETE to confirm'), 'DELETE');
-    await userEvent.type(screen.getByPlaceholderText('Password'), 'password');
+    await userEvent.type(screen.getByLabelText('Type DELETE to confirm'), 'DELETE');
+    await userEvent.type(screen.getByLabelText('Password'), 'password');
 
     await userEvent.click(screen.getByRole('button', { name: 'Delete My Account' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Failed to delete account. Please try again later.')).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent('Failed to delete account. Please try again later.');
     });
   });
 
@@ -135,13 +136,13 @@ describe('DeleteAccountModal', () => {
 
     renderModal();
 
-    await userEvent.type(screen.getByPlaceholderText('Type DELETE to confirm'), 'DELETE');
-    await userEvent.type(screen.getByPlaceholderText('Password'), 'password');
+    await userEvent.type(screen.getByLabelText('Type DELETE to confirm'), 'DELETE');
+    await userEvent.type(screen.getByLabelText('Password'), 'password');
 
     await userEvent.click(screen.getByRole('button', { name: 'Delete My Account' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Failed to delete account. Please try again later.')).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent('Failed to delete account. Please try again later.');
     });
   });
 
@@ -150,21 +151,21 @@ describe('DeleteAccountModal', () => {
 
     renderModal();
 
-    await userEvent.type(screen.getByPlaceholderText('Type DELETE to confirm'), 'DELETE');
-    await userEvent.type(screen.getByPlaceholderText('Password'), 'password');
+    await userEvent.type(screen.getByLabelText('Type DELETE to confirm'), 'DELETE');
+    await userEvent.type(screen.getByLabelText('Password'), 'password');
 
     await userEvent.click(screen.getByRole('button', { name: 'Delete My Account' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Unexpected error. Please try again.')).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent('Unexpected error. Please try again.');
     });
   });
 
   it('enables submit button when DELETE typed in different case and password >= 6 chars', async () => {
     renderModal();
 
-    await userEvent.type(screen.getByPlaceholderText('Type DELETE to confirm'), 'delete');
-    await userEvent.type(screen.getByPlaceholderText('Password'), 'password');
+    await userEvent.type(screen.getByLabelText('Type DELETE to confirm'), 'delete');
+    await userEvent.type(screen.getByLabelText('Password'), 'password');
 
     const deleteButton = screen.getByRole('button', { name: 'Delete My Account' });
     expect(deleteButton).not.toBeDisabled();
@@ -173,8 +174,8 @@ describe('DeleteAccountModal', () => {
   it('keeps submit disabled when password is shorter than 6 characters', async () => {
     renderModal();
 
-    await userEvent.type(screen.getByPlaceholderText('Type DELETE to confirm'), 'DELETE');
-    await userEvent.type(screen.getByPlaceholderText('Password'), '12345');
+    await userEvent.type(screen.getByLabelText('Type DELETE to confirm'), 'DELETE');
+    await userEvent.type(screen.getByLabelText('Password'), '12345');
 
     const deleteButton = screen.getByRole('button', { name: 'Delete My Account' });
     expect(deleteButton).toBeDisabled();
@@ -190,13 +191,71 @@ describe('DeleteAccountModal', () => {
 
     renderModal();
 
-    await userEvent.type(screen.getByPlaceholderText('Type DELETE to confirm'), 'DELETE');
-    await userEvent.type(screen.getByPlaceholderText('Password'), 'password');
+    await userEvent.type(screen.getByLabelText('Type DELETE to confirm'), 'DELETE');
+    await userEvent.type(screen.getByLabelText('Password'), 'password');
 
     await userEvent.click(screen.getByRole('button', { name: 'Delete My Account' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Failed to delete account. Please try again later.')).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent('Failed to delete account. Please try again later.');
     });
+  });
+
+  it('renders with dialog semantics wired to the heading', () => {
+    renderModal();
+
+    const dialog = screen.getByRole('dialog', { name: /delete account/i });
+    const heading = screen.getByRole('heading', { name: /delete account/i });
+
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(dialog).toHaveAttribute('aria-labelledby', heading.getAttribute('id'));
+  });
+
+  it('traps focus inside the dialog when tabbing', () => {
+    renderModal();
+
+    const firstInput = screen.getByLabelText('Type DELETE to confirm');
+    const cancelButton = screen.getByRole('button', { name: 'Cancel' });
+
+    cancelButton.focus();
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(firstInput).toHaveFocus();
+
+    firstInput.focus();
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(cancelButton).toHaveFocus();
+  });
+
+  it('closes on Escape and restores focus to the opener', async () => {
+    const user = userEvent.setup();
+
+    function Harness() {
+      const [open, setOpen] = React.useState(false);
+      return (
+        <div>
+          <button type="button" onClick={() => setOpen(true)}>
+            Open delete account
+          </button>
+          {open ? (
+            <DeleteAccountModal
+              email="user@example.com"
+              onClose={() => setOpen(false)}
+              onDeleted={jest.fn()}
+            />
+          ) : null}
+        </div>
+      );
+    }
+
+    render(<Harness />);
+    const opener = screen.getByRole('button', { name: 'Open delete account' });
+    await user.click(opener);
+
+    expect(screen.getByRole('dialog', { name: /delete account/i })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /delete account/i })).not.toBeInTheDocument();
+    });
+    expect(opener).toHaveFocus();
   });
 });

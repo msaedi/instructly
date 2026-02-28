@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LessonCard } from '../LessonCard';
 import type { Booking } from '@/types/booking';
@@ -221,6 +222,31 @@ describe('LessonCard', () => {
       );
 
       expect(screen.getByText('See lesson details')).toBeInTheDocument();
+    });
+
+    it('keeps the inner "See lesson details" button as the keyboard path without wrapper button semantics', async () => {
+      const user = userEvent.setup();
+      const onViewDetails = jest.fn();
+      const { Wrapper } = createWrapper();
+      render(
+        <Wrapper>
+          <LessonCard
+            lesson={mockBooking}
+            isCompleted={false}
+            onViewDetails={onViewDetails}
+          />
+        </Wrapper>
+      );
+
+      const card = screen.getByTestId('lesson-card');
+      expect(card).not.toHaveAttribute('role', 'button');
+      expect(card).not.toHaveAttribute('tabindex', '0');
+
+      const detailsButton = screen.getByRole('button', { name: /see lesson details/i });
+      detailsButton.focus();
+      await user.keyboard('{Enter}');
+
+      expect(onViewDetails).toHaveBeenCalledTimes(1);
     });
   });
 

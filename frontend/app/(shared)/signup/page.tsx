@@ -537,7 +537,7 @@ function SignUpForm() {
   return (
     <div className="mt-0 sm:mt-4 sm:mx-auto sm:w-full sm:max-w-md">
       {/* Mobile: no card chrome; Desktop: keep card with shadow */}
-      <div className="bg-transparent sm:bg-white dark:bg-transparent sm:dark:bg-gray-800 py-4 md:py-8 px-0 sm:px-10 sm:shadow sm:rounded-lg">
+      <div className="insta-surface-card py-4 md:py-8 px-0 sm:px-10 sm:shadow">
         <div className="text-center mb-1 md:mb-2">
           <Link href="/" onClick={() => logger.info('Navigating to home from signup inside box')}>
             <h1 className="text-4xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors">{BRAND.name}</h1>
@@ -593,7 +593,7 @@ function SignUpForm() {
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
             <div className="mt-1">
               <input id="email" name="email" type="email" autoComplete="email" autoCapitalize="none" autoCorrect="off" inputMode="email" required value={formData.email} onChange={handleChange} onBlur={handleEmailBlur} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.email} aria-describedby={errors.email ? 'email-error' : undefined} />
-              {errors.email && (<p id="email-error" role="alert" aria-live="polite" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.email}</p>)}
+              {errors.email && (<p id="email-error" role="alert" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.email}</p>)}
             </div>
           </div>
 
@@ -604,7 +604,7 @@ function SignUpForm() {
               <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Phone Number</label>
               <div className="mt-1">
                 <input id="phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" required placeholder="(555) 555-5555" value={formData.phone} onChange={handleChange} onBlur={handlePhoneBlur} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.phone} aria-describedby={errors.phone ? 'phone-error' : undefined} />
-                {errors.phone && (<p id="phone-error" role="alert" aria-live="polite" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.phone}</p>)}
+                {errors.phone && (<p id="phone-error" role="alert" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.phone}</p>)}
               </div>
             </div>
 
@@ -614,7 +614,7 @@ function SignUpForm() {
               <div className="mt-1">
                 <input id="zipCode" name="zipCode" type="text" inputMode="numeric" pattern="\\d{5}" autoComplete="postal-code" required placeholder="10001" maxLength={5} value={formData.zipCode} onChange={handleChange} onBlur={handleZipBlur} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.zipCode} aria-describedby={errors.zipCode ? 'zipCode-error' : undefined} />
                 {errors.zipCode && (
-                  <p id="zipCode-error" role="alert" aria-live="polite" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.zipCode}</p>
+                  <p id="zipCode-error" role="alert" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.zipCode}</p>
                 )}
               </div>
             </div>
@@ -628,8 +628,8 @@ function SignUpForm() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-0 top-1/2 -translate-y-1/2 -mt-2.5 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:text-[#7E22CE]"
-                style={{ outline: 'none', boxShadow: 'none' }}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                className="absolute right-0 top-1/2 -translate-y-1/2 -mt-2.5 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
                 disabled={isLoading}
               >
                 {showPassword ? (<EyeOff className="h-5 w-5" aria-hidden="true" />) : (<Eye className="h-5 w-5" aria-hidden="true" />)}
@@ -672,7 +672,7 @@ function SignUpForm() {
                 Privacy Policy
               </Link>
             </p>
-            <button type="submit" disabled={isLoading} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#7E22CE] hover:bg-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed dark:bg-purple-600 dark:hover:bg-[#7E22CE]">{isLoading ? 'Creating account...' : (isInstructorFlow ? 'Sign up as Instructor' : 'Sign up as Student')}</button>
+            <button type="submit" disabled={isLoading} className="insta-primary-btn w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed">{isLoading ? 'Creating account...' : (isInstructorFlow ? 'Sign up as Instructor' : 'Sign up as Student')}</button>
 
             {/* Instructor CTAs placed tight under the button */}
             {isInstructorFlow && (

@@ -225,6 +225,15 @@ describe('StudentHeader', () => {
     expect(screen.getByRole('link', { name: /rewards/i })).toBeInTheDocument();
   });
 
+  it('retains the audited dark-mode nav text class for contrast compliance evidence', () => {
+    usePathnameMock.mockReturnValue('/');
+
+    render(<StudentHeader />);
+
+    const searchLink = screen.getByRole('link', { name: /^search$/i });
+    expect(searchLink.className).toContain('dark:text-gray-300');
+  });
+
   it('hides search on nested lessons pages like /student/lessons/123', () => {
     usePathnameMock.mockReturnValue('/student/lessons/abc-123');
 

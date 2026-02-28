@@ -69,7 +69,7 @@ function LessonRoomShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-2xl px-4">{children}</main>
+      <div className="mx-auto max-w-2xl px-4">{children}</div>
     </div>
   );
 }

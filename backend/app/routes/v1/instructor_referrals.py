@@ -93,6 +93,10 @@ class FoundingStatusResponse(BaseModel):
 def _get_referral_link(code: str, vanity_slug: Optional[str] = None) -> str:
     slug = vanity_slug or code
     base = (settings.frontend_url or "").strip()
+    local_beta_base = (settings.local_beta_frontend_origin or "").strip()
+    if local_beta_base and settings.site_mode in {"local", "beta-local"}:
+        base = local_beta_base
+
     return f"{base.rstrip('/')}/r/{slug}" if base else f"/r/{slug}"
 
 

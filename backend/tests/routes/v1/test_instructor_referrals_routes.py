@@ -1,9 +1,13 @@
 """Tests for instructor referral API endpoints."""
 
-from app.core.config import settings
+from types import SimpleNamespace
+
+import pytest
+
+import app.routes.v1.instructor_referrals as instructor_referrals_routes
 
 
-def test_get_referral_stats_returns_stats(client, auth_headers_instructor):
+def test_get_referral_stats_returns_stats(client, auth_headers_instructor, test_instructor):
     response = client.get(
         "/api/v1/instructor-referrals/stats",
         headers=auth_headers_instructor,
@@ -23,21 +27,39 @@ def test_get_referral_stats_returns_stats(client, auth_headers_instructor):
     assert "current_bonus_cents" in data
 
 
-def test_get_referral_stats_creates_code(client, auth_headers_instructor):
-    response = client.get(
-        "/api/v1/instructor-referrals/stats",
-        headers=auth_headers_instructor,
+@pytest.mark.parametrize(
+    "site_mode,frontend_url,local_beta_origin,expected_base",
+    [
+        ("local", "http://localhost:3000", "http://beta-local.instainstru.com:3000", "http://beta-local.instainstru.com:3000"),
+        ("local", "http://localhost:3000", "", "http://localhost:3000"),
+        ("beta-local", "https://beta-local.instainstru.com:3000", "http://beta-local.instainstru.com:3000", "http://beta-local.instainstru.com:3000"),
+        ("beta", "https://beta.instainstru.com", "http://beta-local.instainstru.com:3000", "https://beta.instainstru.com"),
+        ("preview", "https://preview.instainstru.com", "http://beta-local.instainstru.com:3000", "https://preview.instainstru.com"),
+        ("prod", "https://www.instainstru.com", "http://beta-local.instainstru.com:3000", "https://www.instainstru.com"),
+    ],
+)
+def test_get_referral_stats_creates_code(
+    monkeypatch,
+    site_mode,
+    frontend_url,
+    local_beta_origin,
+    expected_base,
+):
+    monkeypatch.setattr(
+        instructor_referrals_routes,
+        "settings",
+        SimpleNamespace(
+            site_mode=site_mode,
+            frontend_url=frontend_url,
+            local_beta_frontend_origin=local_beta_origin,
+        ),
     )
 
-    assert response.status_code == 200
-    data = response.json()
-    assert data["referral_code"]
-    assert "/r/" in data["referral_link"]
-    if settings.frontend_url:
-        assert settings.frontend_url.rstrip("/") in data["referral_link"]
+    referral_link = instructor_referrals_routes._get_referral_link("ABCD1234")
+    assert referral_link.startswith(f"{expected_base.rstrip('/')}/r/")
 
 
-def test_get_referral_stats_requires_instructor(client, auth_headers_student):
+def test_get_referral_stats_requires_instructor(client, auth_headers_student, test_student):
     response = client.get(
         "/api/v1/instructor-referrals/stats",
         headers=auth_headers_student,
@@ -50,7 +72,7 @@ def test_get_referral_stats_requires_authentication(client):
     assert response.status_code in (401, 403)
 
 
-def test_get_referred_instructors_returns_empty_list(client, auth_headers_instructor):
+def test_get_referred_instructors_returns_empty_list(client, auth_headers_instructor, test_instructor):
     response = client.get(
         "/api/v1/instructor-referrals/referred",
         headers=auth_headers_instructor,
@@ -63,7 +85,7 @@ def test_get_referred_instructors_returns_empty_list(client, auth_headers_instru
     assert isinstance(data["instructors"], list)
 
 
-def test_get_referred_instructors_requires_instructor(client, auth_headers_student):
+def test_get_referred_instructors_requires_instructor(client, auth_headers_student, test_student):
     response = client.get(
         "/api/v1/instructor-referrals/referred",
         headers=auth_headers_student,
@@ -71,7 +93,7 @@ def test_get_referred_instructors_requires_instructor(client, auth_headers_stude
     assert response.status_code == 403
 
 
-def test_get_popup_data_returns_payload(client, auth_headers_instructor):
+def test_get_popup_data_returns_payload(client, auth_headers_instructor, test_instructor):
     response = client.get(
         "/api/v1/instructor-referrals/popup-data",
         headers=auth_headers_instructor,
@@ -87,7 +109,7 @@ def test_get_popup_data_returns_payload(client, auth_headers_instructor):
     assert "referral_link" in data
 
 
-def test_get_popup_data_requires_instructor(client, auth_headers_student):
+def test_get_popup_data_requires_instructor(client, auth_headers_student, test_student):
     response = client.get(
         "/api/v1/instructor-referrals/popup-data",
         headers=auth_headers_student,

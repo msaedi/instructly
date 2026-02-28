@@ -16,8 +16,8 @@ jest.mock('@/components/Modal', () => ({
     footer?: React.ReactNode;
   }) =>
     isOpen ? (
-      <div role="dialog">
-        {title && <div>{title}</div>}
+      <div role="dialog" aria-modal="true" aria-labelledby={title ? 'background-check-title' : undefined}>
+        {title && <div id="background-check-title">{title}</div>}
         {children}
         {footer}
       </div>

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState, useMemo } from 'react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import Modal from '@/components/Modal';
-import { Download, DollarSign, Info, ArrowLeft } from 'lucide-react';
+import { Download, DollarSign, Info, ArrowLeft, Calendar, Briefcase, Clock } from 'lucide-react';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import { fetchWithAuth } from '@/lib/api';
 import { logger } from '@/lib/logger';
@@ -40,10 +40,10 @@ function EarningsPageImpl() {
         <button
           type="button"
           onClick={() => setOpen((p) => !p)}
-          className="w-full h-11 rounded-lg border border-gray-300 px-3 pr-9 bg-white text-gray-800 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500 flex items-center justify-between"
+          className="w-full h-11 rounded-lg border border-gray-300 px-3 pr-9 bg-white text-gray-800 dark:text-gray-200 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500 flex items-center justify-between"
         >
           <span>{selected}</span>
-          <svg className="w-5 h-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
             <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.25 8.29a.75.75 0 01-.02-1.08z" clipRule="evenodd" />
           </svg>
         </button>
@@ -68,7 +68,7 @@ function EarningsPageImpl() {
                   } ${
                     value === opt.value && opt.value !== ''
                       ? 'bg-purple-100 text-[#7E22CE] ring-1 ring-inset ring-[#D4B5F0] font-semibold'
-                      : 'text-gray-800'
+                      : 'text-gray-800 dark:text-gray-200'
                   }`}
                 >
                   {opt.label}
@@ -175,10 +175,10 @@ function EarningsPageImpl() {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen insta-dashboard-page">
       {/* Header hidden when embedded */}
       {!embedded && (
-        <header className="relative bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
+        <header className="relative px-4 sm:px-6 py-4 insta-dashboard-header">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/instructor/dashboard" className="inline-block">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
@@ -227,40 +227,68 @@ function EarningsPageImpl() {
 
         {/* Stat Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-8">
-          <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
-            <h3 className="text-xs sm:text-sm font-medium text-gray-600 tracking-wide mb-2 uppercase">Total Lessons</h3>
-            <p className="text-3xl font-bold text-[#7E22CE] uppercase">{isLoadingEarnings ? '—' : formatAmount(totalLessonValue)}</p>
+          <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-3 sm:p-6 h-32 sm:h-40">
+            <div className="flex items-start justify-between h-full">
+              <div>
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Total Lessons</h3>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{isLoadingEarnings ? '—' : formatAmount(totalLessonValue)}</p>
+              </div>
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
+              </div>
+            </div>
           </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
-            <h3 className="text-xs sm:text-sm font-medium text-gray-600 tracking-wide mb-2 uppercase">Net Earnings</h3>
-            <p className="text-3xl font-bold text-[#7E22CE] uppercase">{isLoadingEarnings ? '—' : formatAmount(netEarnings)}</p>
+          <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-3 sm:p-6 h-32 sm:h-40">
+            <div className="flex items-start justify-between h-full">
+              <div>
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Net Earnings</h3>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{isLoadingEarnings ? '—' : formatAmount(netEarnings)}</p>
+              </div>
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
+              </div>
+            </div>
           </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
-            <h3 className="text-xs sm:text-sm font-medium text-gray-600 tracking-wide mb-2 uppercase">Service count</h3>
-            <p className="text-3xl font-bold text-[#7E22CE] uppercase">{isLoadingEarnings ? '—' : resolvedServiceCount}</p>
+          <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-3 sm:p-6 h-32 sm:h-40">
+            <div className="flex items-start justify-between h-full">
+              <div>
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Service count</h3>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{isLoadingEarnings ? '—' : resolvedServiceCount}</p>
+              </div>
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <Briefcase className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
+              </div>
+            </div>
           </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
-            <h3 className="text-xs sm:text-sm font-medium text-gray-600 tracking-wide mb-2 uppercase">Hours invoiced</h3>
-            <p className="text-3xl font-bold text-[#7E22CE] uppercase">
-              {isLoadingEarnings ? '—' : formatHours(resolvedHoursInvoiced)}
-            </p>
+          <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-3 sm:p-6 h-32 sm:h-40">
+            <div className="flex items-start justify-between h-full">
+              <div>
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Hours invoiced</h3>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+                  {isLoadingEarnings ? '—' : formatHours(resolvedHoursInvoiced)}
+                </p>
+              </div>
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="bg-white rounded-lg border border-gray-200">
+        <div className="insta-surface-card">
           <div className="border-b border-gray-200 px-4 sm:px-6 pt-4">
               <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
               <button
                 onClick={() => setActiveTab('invoices')}
-                className={`px-2 py-2 text-xs sm:text-sm font-medium ${activeTab === 'invoices' ? 'text-[#7E22CE] border-b-2 border-[#7E22CE]' : 'text-gray-600 hover:text-[#7E22CE]'}`}
+                className={`px-2 py-2 text-xs sm:text-sm font-medium ${activeTab === 'invoices' ? 'text-[#7E22CE] border-b-2 border-[#7E22CE]' : 'text-gray-600 dark:text-gray-400 hover:text-[#7E22CE]'}`}
               >
                 Invoices
               </button>
               <button
                 onClick={() => setActiveTab('payouts')}
-                className={`px-2 py-2 text-xs sm:text-sm font-medium ${activeTab === 'payouts' ? 'text-[#7E22CE] border-b-2 border-[#7E22CE]' : 'text-gray-600 hover:text-[#7E22CE]'}`}
+                className={`px-2 py-2 text-xs sm:text-sm font-medium ${activeTab === 'payouts' ? 'text-[#7E22CE] border-b-2 border-[#7E22CE]' : 'text-gray-600 dark:text-gray-400 hover:text-[#7E22CE]'}`}
               >
                 Payouts
               </button>
@@ -279,12 +307,12 @@ function EarningsPageImpl() {
           <div className="p-4 sm:p-6">
             {activeTab === 'invoices' ? (
               invoices.length === 0 ? (
-                <div className="text-sm text-gray-600">You haven&apos;t submitted any invoices yet</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">You haven&apos;t submitted any invoices yet</div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200 text-sm">
                     <thead>
-                      <tr className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      <tr className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                         <th className="py-2 pr-4">Date</th>
                         <th className="py-2 pr-4">Student</th>
                         <th className="py-2 pr-4">Service</th>
@@ -312,27 +340,27 @@ function EarningsPageImpl() {
                               return 'bg-red-50 text-red-700';  // Payment failed
                             case 'refunded':
                             case 'cancelled':
-                              return 'bg-gray-50 text-gray-600';  // Reversed/cancelled
+                              return 'bg-gray-50 text-gray-600 dark:text-gray-400';  // Reversed/cancelled
                             default:
-                              return 'bg-gray-50 text-gray-600';  // Unknown status
+                              return 'bg-gray-50 text-gray-600 dark:text-gray-400';  // Unknown status
                           }
                         };
                         const statusColor = getStatusColor(invoice.status);
                         return (
                           <tr key={`${invoice.booking_id}-${invoice.created_at}`}>
-                            <td className="py-3 pr-4 text-gray-900">
+                            <td className="py-3 pr-4 text-gray-900 dark:text-gray-100">
                               {formatInvoiceDate(invoice.lesson_date, invoice.start_time)}
                             </td>
-                            <td className="py-3 pr-4 text-gray-700">{invoice.student_name ?? 'Student'}</td>
-                            <td className="py-3 pr-4 text-gray-700">{invoice.service_name ?? 'Lesson'}</td>
-                            <td className="py-3 pr-4 text-gray-700">{formatDuration(invoice.duration_minutes)}</td>
-                            <td className="py-3 pr-4 font-semibold text-gray-900">{formatCents(invoice.lesson_price_cents)}</td>
-                            <td className="py-3 pr-4 text-gray-700">
+                            <td className="py-3 pr-4 text-gray-700 dark:text-gray-300">{invoice.student_name ?? 'Student'}</td>
+                            <td className="py-3 pr-4 text-gray-700 dark:text-gray-300">{invoice.service_name ?? 'Lesson'}</td>
+                            <td className="py-3 pr-4 text-gray-700 dark:text-gray-300">{formatDuration(invoice.duration_minutes)}</td>
+                            <td className="py-3 pr-4 font-semibold text-gray-900 dark:text-gray-100">{formatCents(invoice.lesson_price_cents)}</td>
+                            <td className="py-3 pr-4 text-gray-700 dark:text-gray-300">
                               {formatCents(invoice.platform_fee_cents)}
-                              <span className="text-gray-400 text-xs ml-1">({platformFeePct}%)</span>
+                              <span className="text-gray-400 dark:text-gray-400 text-xs ml-1">({platformFeePct}%)</span>
                             </td>
                             <td className="py-3 pr-4 font-semibold text-[#7E22CE]">{formatCents(invoice.instructor_share_cents)}</td>
-                            <td className="py-3 pr-4 text-gray-700">{formatCents(invoice.tip_cents)}</td>
+                            <td className="py-3 pr-4 text-gray-700 dark:text-gray-300">{formatCents(invoice.tip_cents)}</td>
                             <td className="py-3 pr-4">
                               <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor}`}>
                                 {formatStatusLabel(invoice.status)}
@@ -346,26 +374,26 @@ function EarningsPageImpl() {
                 </div>
               )
             ) : isLoadingPayouts ? (
-              <div className="text-sm text-gray-600">Loading payouts...</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Loading payouts...</div>
             ) : !payoutsData?.payouts || payoutsData.payouts.length === 0 ? (
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
                 No payouts yet. Your lesson earnings will be sent to your bank account automatically.
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <div className="mb-4 flex gap-6 text-sm">
                   <div>
-                    <span className="text-gray-600">Total Paid: </span>
+                    <span className="text-gray-600 dark:text-gray-400">Total Paid: </span>
                     <span className="font-semibold text-emerald-700">{formatCents(payoutsData.total_paid_cents)}</span>
                   </div>
                   <div>
-                    <span className="text-gray-600">Pending: </span>
+                    <span className="text-gray-600 dark:text-gray-400">Pending: </span>
                     <span className="font-semibold text-amber-700">{formatCents(payoutsData.total_pending_cents)}</span>
                   </div>
                 </div>
                 <table className="min-w-full divide-y divide-gray-200 text-sm">
                   <thead>
-                    <tr className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <tr className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                       <th className="py-2 pr-4">Date</th>
                       <th className="py-2 pr-4">Amount</th>
                       <th className="py-2 pr-4">Status</th>
@@ -385,7 +413,7 @@ function EarningsPageImpl() {
                           case 'canceled':
                             return 'bg-red-50 text-red-700';
                           default:
-                            return 'bg-gray-50 text-gray-600';
+                            return 'bg-gray-50 text-gray-600 dark:text-gray-400';
                         }
                       };
                       const statusColor = getPayoutStatusColor(payout.status);
@@ -393,7 +421,7 @@ function EarningsPageImpl() {
                       const arrivalDate = payout.arrival_date ? new Date(payout.arrival_date) : null;
                       return (
                         <tr key={payout.id}>
-                          <td className="py-3 pr-4 text-gray-900">
+                          <td className="py-3 pr-4 text-gray-900 dark:text-gray-100">
                             {createdDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                           </td>
                           <td className="py-3 pr-4 font-semibold text-[#7E22CE]">{formatCents(payout.amount_cents)}</td>
@@ -405,7 +433,7 @@ function EarningsPageImpl() {
                               <span className="ml-2 text-xs text-red-600">{payout.failure_message}</span>
                             )}
                           </td>
-                          <td className="py-3 pr-4 text-gray-700">
+                          <td className="py-3 pr-4 text-gray-700 dark:text-gray-300">
                             {arrivalDate ? arrivalDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
                           </td>
                         </tr>
@@ -421,76 +449,76 @@ function EarningsPageImpl() {
       <Modal isOpen={infoOpen} onClose={() => setInfoOpen(false)} title="How payouts work" size="lg">
         <div className="space-y-5">
           <section>
-            <h3 className="text-lg font-semibold text-gray-900">Payment timeline</h3>
-            <p className="text-gray-700 mt-1">Payouts typically arrive in your bank account 4–8 business days after you invoice a service.</p>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Payment timeline</h3>
+            <p className="text-gray-700 dark:text-gray-300 mt-1">Payouts typically arrive in your bank account 4–8 business days after you invoice a service.</p>
           </section>
           <section>
-            <h3 className="text-lg font-semibold text-gray-900">Tips</h3>
-            <p className="text-gray-700 mt-1">Students can add a tip up to 24 hours after invoice. Tips submitted after 24 hours will be included in a separate payout.</p>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Tips</h3>
+            <p className="text-gray-700 dark:text-gray-300 mt-1">Students can add a tip up to 24 hours after invoice. Tips submitted after 24 hours will be included in a separate payout.</p>
           </section>
           <section>
-            <h3 className="text-lg font-semibold text-gray-900">Bulk payouts</h3>
-            <p className="text-gray-700 mt-1">If you invoice more than one service in a day, you may receive a bulk payout for those services. Manual payments and tips may also be included in a bulk payout.</p>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Bulk payouts</h3>
+            <p className="text-gray-700 dark:text-gray-300 mt-1">If you invoice more than one service in a day, you may receive a bulk payout for those services. Manual payments and tips may also be included in a bulk payout.</p>
           </section>
           <section>
-            <h3 className="text-lg font-semibold text-gray-900">Split payouts</h3>
-            <p className="text-gray-700 mt-1">For services on which a student applies a discount or account credit, you may see your payment in two separate payouts.</p>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Split payouts</h3>
+            <p className="text-gray-700 dark:text-gray-300 mt-1">For services on which a student applies a discount or account credit, you may see your payment in two separate payouts.</p>
           </section>
           <section>
-            <h3 className="text-lg font-semibold text-gray-900">Sample timeline and statuses</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Sample timeline and statuses</h3>
             <div className="mt-3 divide-y divide-gray-200 rounded-lg border border-gray-200 overflow-hidden">
               <div className="grid grid-cols-[10rem_1fr] gap-3 p-3">
                 <div>
                   <span className="px-2 py-1 rounded-md bg-emerald-100 text-emerald-800 text-xs font-semibold inline-block">SUBMITTED</span>
-                  <div className="text-xs text-gray-600">24 hours</div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400">24 hours</div>
                 </div>
-                <div className="text-gray-700">After submission, the invoice is in review to allow the student to add a tip.</div>
+                <div className="text-gray-700 dark:text-gray-300">After submission, the invoice is in review to allow the student to add a tip.</div>
               </div>
               <div className="grid grid-cols-[10rem_1fr] gap-3 p-3">
                 <div>
                   <span className="px-2 py-1 rounded-md bg-emerald-100 text-emerald-800 text-xs font-semibold inline-block">COLLECTING</span>
-                  <div className="text-xs text-gray-600">After 24 hours</div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400">After 24 hours</div>
                 </div>
-                <div className="text-gray-700">The student is charged for the service.</div>
+                <div className="text-gray-700 dark:text-gray-300">The student is charged for the service.</div>
               </div>
               <div className="grid grid-cols-[10rem_1fr] gap-3 p-3">
                 <div>
                   <span className="px-2 py-1 rounded-md bg-emerald-100 text-emerald-800 text-xs font-semibold inline-block">SENDING</span>
-                  <div className="text-xs text-gray-600">1 business day</div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400">1 business day</div>
                 </div>
-                <div className="text-gray-700">Stripe has successfully charged the student and is sending the payout to your bank account.</div>
+                <div className="text-gray-700 dark:text-gray-300">Stripe has successfully charged the student and is sending the payout to your bank account.</div>
               </div>
               <div className="grid grid-cols-[10rem_1fr] gap-3 p-3">
                 <div>
                   <span className="px-2 py-1 rounded-md bg-emerald-100 text-emerald-800 text-xs font-semibold inline-block">SENT</span>
-                  <div className="text-xs text-gray-600">3–5 business days</div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400">3–5 business days</div>
                 </div>
-                <div className="text-gray-700">The payout has been sent to your bank account. It may take a couple days to appear.</div>
+                <div className="text-gray-700 dark:text-gray-300">The payout has been sent to your bank account. It may take a couple days to appear.</div>
               </div>
             </div>
           </section>
           <section>
-            <h3 className="text-lg font-semibold text-gray-900">Special cases</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Special cases</h3>
             <div className="mt-3 space-y-3">
               <div>
                 <span className="px-2 py-1 rounded-md bg-rose-100 text-rose-800 text-xs font-semibold inline-block">BANK ISSUE</span>
-                <p className="text-gray-700 mt-1">There was an issue with your bank account. Please check your account settings that your bank account and routing numbers are correct.</p>
+                <p className="text-gray-700 dark:text-gray-300 mt-1">There was an issue with your bank account. Please check your account settings that your bank account and routing numbers are correct.</p>
               </div>
               <div>
                 <span className="px-2 py-1 rounded-md bg-rose-100 text-rose-800 text-xs font-semibold inline-block">CHARGE FAIL</span>
-                <p className="text-gray-700 mt-1">If your student fails to pay for a service, click Request Payment in your invoice history and we will review.</p>
+                <p className="text-gray-700 dark:text-gray-300 mt-1">If your student fails to pay for a service, click Request Payment in your invoice history and we will review.</p>
               </div>
               <div>
                 <span className="px-2 py-1 rounded-md bg-emerald-100 text-emerald-800 text-xs font-semibold inline-block">IN REVIEW</span>
-                <p className="text-gray-700 mt-1">We&apos;re reviewing your request for payment. Please allow 5 business days.</p>
+                <p className="text-gray-700 dark:text-gray-300 mt-1">We&apos;re reviewing your request for payment. Please allow 5 business days.</p>
               </div>
               <div>
                 <span className="px-2 py-1 rounded-md bg-emerald-100 text-emerald-800 text-xs font-semibold inline-block">PAID BY iNSTAiNSTRU</span>
-                <p className="text-gray-700 mt-1">iNSTAiNSTRU may pay for the service due to the student&apos;s payment method failing.</p>
+                <p className="text-gray-700 dark:text-gray-300 mt-1">iNSTAiNSTRU may pay for the service due to the student&apos;s payment method failing.</p>
               </div>
               <div>
                 <span className="px-2 py-1 rounded-md bg-rose-100 text-rose-800 text-xs font-semibold inline-block">SERVICE NOT PAID</span>
-                <p className="text-gray-700 mt-1">Your request was not approved. Please reach out to support for help.</p>
+                <p className="text-gray-700 dark:text-gray-300 mt-1">Your request was not approved. Please reach out to support for help.</p>
               </div>
             </div>
           </section>
@@ -506,10 +534,10 @@ function EarningsPageImpl() {
         noPadding
       >
         <div className="px-5 py-4">
-          <p className="text-gray-700 mb-3">Choose a time range and a file type:</p>
+          <p className="text-gray-700 dark:text-gray-300 mb-3">Choose a time range and a file type:</p>
           <div className="space-y-3">
             <div>
-              <label className="block text-sm text-gray-600 mb-1">Year</label>
+              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Year</label>
               <SimpleDropdown
                 value={exportYear}
                 onChange={setExportYear}
@@ -518,7 +546,7 @@ function EarningsPageImpl() {
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-600 mb-1">File Type</label>
+              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">File Type</label>
               <SimpleDropdown
                 value={exportType}
                 onChange={(v) => setExportType(v as 'csv' | 'pdf' | '')}
@@ -535,7 +563,7 @@ function EarningsPageImpl() {
             <button
               disabled={!exportYear || !exportType || sendingExport}
               onClick={handleExport}
-              className="inline-flex items-center justify-center h-10 px-4 rounded-lg bg-[#7E22CE] text-white disabled:opacity-50"
+              className="inline-flex items-center justify-center h-10 px-4 rounded-lg bg-[#7E22CE] text-white disabled:opacity-50 insta-primary-btn"
             >
               {sendingExport ? 'Exporting…' : 'Download Report'}
             </button>

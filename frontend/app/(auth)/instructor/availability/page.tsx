@@ -423,10 +423,10 @@ function AvailabilityPageImpl() {
   ), [currentWeekStart, navigateWeek, isLoading, hasPendingChanges]);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen insta-dashboard-page">
       {/* Header hidden when embedded */}
       {!embedded && (
-        <header className="relative bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+        <header className="relative px-6 py-4 insta-dashboard-header">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/instructor/dashboard" className="inline-block">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
@@ -460,14 +460,14 @@ function AvailabilityPageImpl() {
           subtitle="Map out the days and hours you’re available so students can book the right times."
         />
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="p-6 insta-surface-card insta-availability-panel">
         {header}
 
       {/* Tip below the week navigator */}
-      <div className="mb-3 rounded-md border border-purple-100 bg-purple-50 px-3 py-2 relative">
-        <p className="text-sm font-medium text-gray-800">Tip: Click any cell to mark yourself available</p>
-        <p className="text-xs text-gray-700">Most instructors start with 10–15 hours/week</p>
-        <p className="absolute bottom-2 right-3 text-[11px] text-gray-500">Last updated: <span>{lastUpdatedLocal || '—'}</span></p>
+      <div className="insta-availability-tip mb-3 rounded-md px-3 py-2 relative">
+        <p className="text-sm font-medium">Tip: Click any cell to mark yourself available</p>
+        <p className="text-xs">Most instructors start with 10–15 hours/week</p>
+        <p className="absolute bottom-2 right-3 text-[11px]">Last updated: <span>{lastUpdatedLocal || '—'}</span></p>
       </div>
 
       {/* Quick nav */}
@@ -477,7 +477,7 @@ function AvailabilityPageImpl() {
           onClick={() => {
             goToCurrentWeek();
           }}
-          className="px-3 py-1 rounded-md border border-purple-200 bg-purple-50 text-[#7E22CE] text-sm hover:bg-purple-100"
+          className="px-3 py-1 rounded-md text-sm insta-secondary-btn"
         >
           Today
         </button>
@@ -487,7 +487,7 @@ function AvailabilityPageImpl() {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         {/* Repeat dropdown */}
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-700">Repeat this schedule:</span>
+          <span className="text-sm text-gray-700 dark:text-gray-300">Repeat this schedule:</span>
           <div className="relative inline-flex items-center">
             <Select value={String(repeatWeeks)} onValueChange={(v) => setRepeatWeeks(parseInt(v, 10))}>
               <SelectTrigger className="h-8 w-24 sm:w-28">
@@ -516,7 +516,7 @@ function AvailabilityPageImpl() {
             const persisted = await persistWeek();
             if (!persisted) return;
           }}
-          className="inline-flex items-center justify-center px-3 py-1 rounded-md text-white bg-[#7E22CE] hover:!bg-[#7E22CE] text-sm whitespace-nowrap"
+          className="inline-flex items-center justify-center px-3 py-1 rounded-md text-white text-sm whitespace-nowrap insta-primary-btn"
         >
           Apply
         </button>
@@ -524,8 +524,8 @@ function AvailabilityPageImpl() {
         {/* Hour range controls */}
         <div className="ml-auto flex items-center gap-2">
           <div className="flex flex-col leading-tight mr-1">
-            <span className="text-sm text-gray-700">Teaching window</span>
-            <span className="text-[11px] text-gray-500 -mt-0.5">Business Hours</span>
+            <span className="text-sm text-gray-700 dark:text-gray-300">Teaching window</span>
+            <span className="text-[11px] text-gray-500 dark:text-gray-400 -mt-0.5">Business Hours</span>
           </div>
           <div className="relative inline-flex items-center">
             <Select value={String(startHour)} onValueChange={(v) => {
@@ -541,7 +541,7 @@ function AvailabilityPageImpl() {
               </SelectContent>
             </Select>
           </div>
-          <span className="text-gray-500">to</span>
+          <span className="text-gray-500 dark:text-gray-400">to</span>
           <div className="relative inline-flex items-center">
             <Select value={String(endHour)} onValueChange={(v) => {
               const ev = parseInt(v, 10);
@@ -578,7 +578,7 @@ function AvailabilityPageImpl() {
             <button
               key={d.fullDate}
               onClick={() => setActiveDay(i)}
-              className={`px-3 py-2 rounded-full text-sm border ${i === activeDay ? 'bg-[#7E22CE] text-white border-[#7E22CE]' : 'bg-white text-gray-700 border-gray-300'}`}
+              className={`px-3 py-2 rounded-full text-sm border ${i === activeDay ? 'bg-[#7E22CE] text-white border-[#7E22CE]' : 'bg-white text-gray-700 dark:text-gray-300 border-gray-300'}`}
             >
               {d.date.toLocaleDateString('en-US', { weekday: 'short' })}
             </button>
@@ -625,16 +625,16 @@ function AvailabilityPageImpl() {
 
   {hasPendingChanges && (
       <div className="fixed bottom-4 left-1/2 z-40 w-full max-w-3xl -translate-x-1/2 px-4">
-        <div className="flex items-center justify-between gap-4 rounded-full border border-gray-200 bg-white px-6 py-3 shadow-lg">
-          <div className="text-sm text-gray-800">
+        <div className="flex items-center justify-between gap-4 rounded-full border border-gray-200 bg-white px-6 py-3 shadow-lg insta-surface-card">
+          <div className="text-sm text-gray-800 dark:text-gray-200">
             <div className="font-medium">Unsaved changes</div>
-            <div className="text-xs text-gray-500">Past-day edits are historical and included in copies.</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">Past-day edits are historical and included in copies.</div>
           </div>
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={handleDiscardChanges}
-              className="rounded-full border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+              className="rounded-full border border-gray-300 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 insta-secondary-btn"
             >
               Discard
             </button>
@@ -642,7 +642,7 @@ function AvailabilityPageImpl() {
               type="button"
               onClick={handleSaveWeek}
               disabled={isSaving || !hasPendingChanges}
-              className="rounded-full bg-[#7E22CE] px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#6b1ebe] disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-full bg-[#7E22CE] px-5 py-2 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60 insta-primary-btn"
             >
               {isSaving ? 'Saving…' : 'Save Week'}
             </button>

@@ -101,6 +101,7 @@ export default function InteractiveGrid({
   allowPastEditing = false,
 }: InteractiveGridProps) {
   const rows = useMemo(() => (endHour - startHour) * HALF_HOURS_PER_HOUR, [startHour, endHour]);
+  const [activeCell, setActiveCell] = useState({ row: 0, col: 0 });
 
   const [isDragging, setIsDragging] = useState(false);
   const [dragValue, setDragValue] = useState<boolean | null>(null);
@@ -109,6 +110,7 @@ export default function InteractiveGrid({
   const [pendingByDate, setPendingByDate] = useState<Record<string, Set<number>>>({});
   const rafRef = useRef<number | null>(null);
   const lastHoverRowRef = useRef<{ date: string; row: number } | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   const applyImmediate = useCallback(
     (date: string, slotIndex: number, desired: boolean) => {
@@ -248,6 +250,15 @@ export default function InteractiveGrid({
     const dateInfo = weekDates[activeDayIndex] ?? weekDates[0];
     return dateInfo ? [dateInfo] : [];
   }, [isMobile, activeDayIndex, weekDates]);
+  const columnCount = displayDates.length;
+  const clampedActiveCell = useMemo(() => {
+    const maxRow = Math.max(rows - 1, 0);
+    const maxCol = Math.max(columnCount - 1, 0);
+    return {
+      row: Math.min(Math.max(activeCell.row, 0), maxRow),
+      col: Math.min(Math.max(activeCell.col, 0), maxCol),
+    };
+  }, [activeCell.col, activeCell.row, columnCount, rows]);
 
   const { isoDate: todayIso, minutes: nowMinutes } = nowInfo;
 
@@ -275,8 +286,16 @@ export default function InteractiveGrid({
   );
 
   const handleMouseDown = useCallback(
-    (event: ReactMouseEvent<HTMLButtonElement>, date: string, row: number, slotIndex: number) => {
+    (
+      event: ReactMouseEvent<HTMLButtonElement>,
+      date: string,
+      row: number,
+      columnIndex: number,
+      slotIndex: number
+    ) => {
       event.preventDefault();
+      if (isPastSlot(date, slotIndex)) return;
+      setActiveCell({ row, col: columnIndex });
       const desired = !isSlotSelected(weekBits[date], slotIndex);
       pendingRef.current = {};
       setIsDragging(true);
@@ -285,7 +304,7 @@ export default function InteractiveGrid({
       lastHoverRowRef.current = { date, row };
       applyImmediate(date, slotIndex, desired);
     },
-    [applyImmediate, weekBits]
+    [applyImmediate, isPastSlot, weekBits]
   );
 
   const handleMouseEnter = useCallback(
@@ -324,177 +343,232 @@ export default function InteractiveGrid({
     [finishDrag]
   );
 
-  const handleKeyToggle = useCallback(
-    (event: ReactKeyboardEvent<HTMLButtonElement>, date: string, slotIndex: number) => {
-      if (event.key !== ' ' && event.key !== 'Enter') return;
+  const focusGridCell = useCallback((rowIndex: number, columnIndex: number) => {
+    const maxRow = Math.max(rows - 1, 0);
+    const maxCol = Math.max(columnCount - 1, 0);
+    const nextRow = Math.min(Math.max(rowIndex, 0), maxRow);
+    const nextCol = Math.min(Math.max(columnIndex, 0), maxCol);
+    setActiveCell({ row: nextRow, col: nextCol });
+    const targetCell = gridRef.current?.querySelector<HTMLButtonElement>(
+      `[data-row-index="${nextRow}"][data-col-index="${nextCol}"]`
+    );
+    targetCell?.focus();
+  }, [columnCount, rows]);
+
+  const handleCellKeyDown = useCallback(
+    (
+      event: ReactKeyboardEvent<HTMLButtonElement>,
+      date: string,
+      slotIndex: number,
+      rowIndex: number,
+      columnIndex: number
+    ) => {
+      if (event.key === ' ' || event.key === 'Enter') {
+        event.preventDefault();
+        if (isPastSlot(date, slotIndex)) return;
+        const desired = !isSlotSelected(weekBits[date], slotIndex);
+        applyImmediate(date, slotIndex, desired);
+        return;
+      }
+
+      let nextRowIndex = rowIndex;
+      let nextColumnIndex = columnIndex;
+      switch (event.key) {
+        case 'ArrowLeft':
+          nextColumnIndex = Math.max(0, columnIndex - 1);
+          break;
+        case 'ArrowRight':
+          nextColumnIndex = Math.min(columnCount - 1, columnIndex + 1);
+          break;
+        case 'ArrowUp':
+          nextRowIndex = Math.max(0, rowIndex - 1);
+          break;
+        case 'ArrowDown':
+          nextRowIndex = Math.min(rows - 1, rowIndex + 1);
+          break;
+        case 'Home':
+          nextColumnIndex = 0;
+          break;
+        case 'End':
+          nextColumnIndex = Math.max(0, columnCount - 1);
+          break;
+        default:
+          return;
+      }
+
       event.preventDefault();
-      const desired = !isSlotSelected(weekBits[date], slotIndex);
-      applyImmediate(date, slotIndex, desired);
+      if (nextRowIndex === rowIndex && nextColumnIndex === columnIndex) {
+        return;
+      }
+      focusGridCell(nextRowIndex, nextColumnIndex);
     },
-    [applyImmediate, weekBits]
+    [applyImmediate, columnCount, focusGridCell, isPastSlot, rows, weekBits]
   );
 
   return (
     <div className="w-full overflow-x-auto">
       <div
-        className="grid"
+        ref={gridRef}
+        role="grid"
+        aria-label="Weekly availability editor. Use arrow keys to navigate between time slots."
+        className="relative grid"
         style={{
           gridTemplateColumns: `80px repeat(${displayDates.length}, minmax(0, 1fr))`,
           columnGap: '0px',
         }}
       >
-        {/* Corner spacer */}
-        <div className="sticky left-0 top-0 z-20 bg-white/80 backdrop-blur px-2 py-1 border-r border-gray-200" />
-        {displayDates.map((info, idx) => {
-          const isToday = info.fullDate === todayIso;
-          const dateObj = info.date;
-          const dow = dateObj.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
-          const dayNum = dateObj.getDate();
-          const headerClasses = clsx(
-            'relative sticky top-0 z-20 bg-white/80 backdrop-blur px-2 pt-1 pb-0 text-center'
-          );
-          const isPastDate = info.fullDate < todayIso;
-          return (
-            <div key={info.fullDate} className={headerClasses}>
-              {idx > 0 && (
-                <span className="absolute left-0 bottom-0 w-px bg-gray-200" style={{ height: '50%' }} />
-              )}
-              {idx === displayDates.length - 1 && (
-                <span className="absolute right-0 bottom-0 w-px bg-gray-200" style={{ height: '50%' }} />
-              )}
-              <div
-                className={clsx(
-                  'text-[10px] tracking-wide uppercase',
-                  isPastDate ? 'text-gray-400' : 'text-gray-500'
+        <div role="row" className="contents">
+          <div
+            role="columnheader"
+            aria-hidden="true"
+            className="sticky left-0 top-0 z-20 bg-white/80 dark:bg-gray-900/70 backdrop-blur px-2 py-1 border-r border-gray-200 dark:border-gray-700"
+          />
+          {displayDates.map((info, idx) => {
+            const isToday = info.fullDate === todayIso;
+            const dateObj = info.date;
+            const dow = dateObj.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+            const dayNum = dateObj.getDate();
+            const headerClasses = clsx(
+              'relative sticky top-0 z-20 bg-white/80 dark:bg-gray-900/70 backdrop-blur px-2 pt-1 pb-0 text-center'
+            );
+            const isPastDate = info.fullDate < todayIso;
+            return (
+              <div key={info.fullDate} className={headerClasses} role="columnheader">
+                {idx > 0 && (
+                  <span className="absolute left-0 bottom-0 w-px bg-gray-200 dark:bg-gray-700" style={{ height: '50%' }} />
                 )}
-              >
-                {dow}
-              </div>
-              <div className="mt-0.5">
-                <span
+                {idx === displayDates.length - 1 && (
+                  <span className="absolute right-0 bottom-0 w-px bg-gray-200 dark:bg-gray-700" style={{ height: '50%' }} />
+                )}
+                <div
                   className={clsx(
-                    'inline-flex items-center justify-center text-2xl font-medium',
-                    isToday
-                      ? 'border-2 border-[#7E22CE] rounded-md px-1 py-0 leading-none text-[#111827]'
-                      : isPastDate
-                        ? 'text-gray-400'
-                        : 'text-gray-900'
+                    'text-[10px] tracking-wide uppercase',
+                    isPastDate ? 'text-gray-400' : 'text-gray-500'
                   )}
                 >
-                  {dayNum}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Time gutter */}
-        <div className="sticky left-0 z-10 flex flex-col bg-white/80 px-2 py-1 backdrop-blur border-r border-gray-200">
-          {Array.from({ length: rows }, (_, row) => {
-            const showLabel = row % HALF_HOURS_PER_HOUR === 0;
-            const labelHour = Math.floor(row / HALF_HOURS_PER_HOUR) + startHour;
-            const isFirst = row === 0;
-            return (
-              <div
-                key={`time-${row}`}
-                className={clsx(
-                  'flex items-center border-b border-gray-200 text-xs text-gray-500',
-                  isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8',
-                  isFirst && 'border-t border-gray-200'
-                )}
-              >
-                {showLabel ? HOURS_LABEL(labelHour) : ''}
+                  {dow}
+                </div>
+                <div className="mt-0.5">
+                  <span
+                    className={clsx(
+                      'inline-flex items-center justify-center text-2xl font-medium',
+                      isToday
+                        ? 'border-2 border-[#7E22CE] rounded-md px-1 py-0 leading-none text-[#111827] dark:text-white'
+                        : isPastDate
+                          ? 'text-gray-400'
+                          : 'text-gray-900'
+                    )}
+                  >
+                    {dayNum}
+                  </span>
+                </div>
               </div>
             );
           })}
         </div>
 
-        {/* Day grids */}
-        {displayDates.map((info, columnIndex) => {
-          const date = info.fullDate;
-          const dayBits = weekBits[date] ?? newEmptyBits();
-          const isToday = date === todayIso;
-          const windowStartMinutes = startHour * 60;
-          const windowEndMinutes = endHour * 60;
-          const totalMinutes = Math.max(0, windowEndMinutes - windowStartMinutes);
-          const withinWindow = nowMinutes >= windowStartMinutes && nowMinutes <= windowEndMinutes;
-          const relativeMinutes = nowMinutes - windowStartMinutes;
-          const topPercent = totalMinutes > 0 ? (relativeMinutes / totalMinutes) * 100 : 0;
-          const showNowLine = isToday && withinWindow && totalMinutes > 0;
-          const pendingForDate = pendingByDate[date];
-          const isLastColumn = columnIndex === displayDates.length - 1;
-          return (
-            <div key={date} className="relative flex flex-col">
-              {Array.from({ length: rows }, (_, row) => {
-                const slotIndex = getSlotIndex(startHour, row);
-                const booked = isSlotBooked(bookedSlots, date, row, startHour);
-                const behaviourPast = isPastSlot(date, slotIndex);
-                const selected = isSlotSelected(dayBits, slotIndex);
-                const isPreview = !!pendingForDate?.has(slotIndex);
-                const visualPast = isPastForStyle(date, slotIndex);
-                const fillClass = selected ? 'bg-[#EDE3FA]' : visualPast ? 'bg-gray-50' : 'bg-white';
-                const fadeClass = visualPast ? 'opacity-70' : 'opacity-100';
-                const labelHour = startHour + Math.floor(row / HALF_HOURS_PER_HOUR);
-                const labelMinute = row % 2 === 1 ? '30' : '00';
-                const weekdayLabel = info.date.toLocaleDateString('en-US', { weekday: 'long' });
-                const ariaLabel = `${weekdayLabel} ${String(labelHour).padStart(2, '0')}:${labelMinute}`;
-                return (
-                  <button
-                    key={`${date}-${row}`}
-                    type="button"
-                    role="gridcell"
-                    data-testid="availability-cell"
-                    data-date={date}
-                    data-time={`${String(labelHour).padStart(2, '0')}:${labelMinute}:00`}
-                    aria-selected={selected}
-                    aria-disabled={behaviourPast}
-                    aria-label={ariaLabel}
-                    className={clsx(
-                      'group relative w-full flex-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-[#7E22CE] cursor-pointer',
-                      'border-b border-l border-gray-200',
-                      isLastColumn && 'border-r border-gray-200',
-                      row === 0 && 'border-t border-gray-200',
-                      isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8',
-                      isPreview && 'ring-2 ring-[#D4B5F0] ring-inset',
-                      fillClass,
-                      fadeClass
-                    )}
-                    onMouseDown={(event) => handleMouseDown(event, date, row, slotIndex)}
-                    onMouseEnter={(event) => handleMouseEnter(event, date, row, slotIndex)}
-                    onMouseUp={handleMouseUp}
-                    onMouseLeave={(event) => {
-                      if (event.buttons === 0) finishDrag();
-                    }}
-                    onKeyDown={(event) => handleKeyToggle(event, date, slotIndex)}
-                  >
-                    {booked && (
-                      <span className="pointer-events-none absolute inset-0 rounded-sm bg-[repeating-linear-gradient(45deg,rgba(156,163,175,0.35),rgba(156,163,175,0.35)_6px,rgba(156,163,175,0.2)_6px,rgba(156,163,175,0.2)_12px)]" />
-                    )}
-                    <span className="sr-only">
-                      {info.date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                    </span>
-                    <span className="absolute inset-x-1 bottom-1 text-[10px] text-gray-400 opacity-0 transition-opacity group-hover:opacity-100">
-                      {selected ? 'Selected' : booked ? 'Booked' : 'Available'}
-                    </span>
-                  </button>
-                );
-              })}
-              {showNowLine && (
-                <>
-                  <div
-                    className="now-line"
-                    data-testid="now-line"
-                    style={{ top: `${topPercent}%` }}
-                  />
-                  <span
-                    className="now-dot"
-                    style={{ top: `${topPercent}%`, left: '0' }}
-                  />
-                </>
+        {Array.from({ length: rows }, (_, row) => (
+          <div key={`grid-row-${row}`} role="row" className="contents">
+            <div
+              role="rowheader"
+              className={clsx(
+                'sticky left-0 z-10 flex items-center bg-white/80 dark:bg-gray-900/70 px-2 py-1 backdrop-blur border-r border-gray-200 dark:border-gray-700 border-b border-gray-200 dark:border-gray-700 text-xs text-gray-500',
+                isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8',
+                row === 0 && 'border-t border-gray-200 dark:border-gray-700'
               )}
+            >
+              {row % HALF_HOURS_PER_HOUR === 0 ? HOURS_LABEL(Math.floor(row / HALF_HOURS_PER_HOUR) + startHour) : ''}
             </div>
-          );
-        })}
+            {displayDates.map((info, columnIndex) => {
+              const date = info.fullDate;
+              const dayBits = weekBits[date] ?? newEmptyBits();
+              const pendingForDate = pendingByDate[date];
+              const slotIndex = getSlotIndex(startHour, row);
+              const booked = isSlotBooked(bookedSlots, date, row, startHour);
+              const behaviourPast = isPastSlot(date, slotIndex);
+              const selected = isSlotSelected(dayBits, slotIndex);
+              const isPreview = !!pendingForDate?.has(slotIndex);
+              const visualPast = isPastForStyle(date, slotIndex);
+              const fillClass = selected
+                ? 'bg-[#EDE3FA] dark:bg-purple-500/25'
+                : visualPast
+                  ? 'bg-gray-50 dark:bg-gray-800/60'
+                  : 'bg-white dark:bg-gray-900/60';
+              const fadeClass = visualPast ? 'opacity-70' : 'opacity-100';
+              const labelHour = startHour + Math.floor(row / HALF_HOURS_PER_HOUR);
+              const labelMinute = row % 2 === 1 ? '30' : '00';
+              const weekdayLabel = info.date.toLocaleDateString('en-US', { weekday: 'long' });
+              const ariaLabel = `${weekdayLabel} ${String(labelHour).padStart(2, '0')}:${labelMinute}`;
+              const isLastColumn = columnIndex === displayDates.length - 1;
+              const isToday = date === todayIso;
+              const windowStartMinutes = startHour * 60;
+              const windowEndMinutes = endHour * 60;
+              const withinWindow = nowMinutes >= windowStartMinutes && nowMinutes <= windowEndMinutes;
+              const relativeMinutes = nowMinutes - windowStartMinutes;
+              const nowRow = Math.floor(relativeMinutes / 30);
+              const nowOffsetPercent = ((relativeMinutes % 30) / 30) * 100;
+              const showNowMarker = isToday && withinWindow && row === Math.max(0, Math.min(rows - 1, nowRow));
+
+              return (
+                <button
+                  key={`${date}-${row}`}
+                  type="button"
+                  role="gridcell"
+                  data-testid="availability-cell"
+                  data-date={date}
+                  data-time={`${String(labelHour).padStart(2, '0')}:${labelMinute}:00`}
+                  data-row-index={row}
+                  data-col-index={columnIndex}
+                  aria-selected={selected}
+                  aria-disabled={behaviourPast}
+                  aria-label={ariaLabel}
+                  tabIndex={clampedActiveCell.row === row && clampedActiveCell.col === columnIndex ? 0 : -1}
+                  className={clsx(
+                    'group relative w-full flex-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-[#7E22CE] cursor-pointer',
+                    'border-b border-l border-gray-200 dark:border-gray-700',
+                    isLastColumn && 'border-r border-gray-200 dark:border-gray-700',
+                    row === 0 && 'border-t border-gray-200 dark:border-gray-700',
+                    isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8',
+                    isPreview && 'ring-2 ring-[#D4B5F0] ring-inset',
+                    fillClass,
+                    fadeClass
+                  )}
+                  onMouseDown={(event) => handleMouseDown(event, date, row, columnIndex, slotIndex)}
+                  onMouseEnter={(event) => handleMouseEnter(event, date, row, slotIndex)}
+                  onMouseUp={handleMouseUp}
+                  onMouseLeave={(event) => {
+                    if (event.buttons === 0) finishDrag();
+                  }}
+                  onFocus={() => setActiveCell({ row, col: columnIndex })}
+                  onKeyDown={(event) => handleCellKeyDown(event, date, slotIndex, row, columnIndex)}
+                >
+                  {booked && (
+                    <span className="pointer-events-none absolute inset-0 rounded-sm bg-[repeating-linear-gradient(45deg,rgba(156,163,175,0.35),rgba(156,163,175,0.35)_6px,rgba(156,163,175,0.2)_6px,rgba(156,163,175,0.2)_12px)]" />
+                  )}
+                  {showNowMarker && (
+                    <>
+                      <div
+                        className="now-line"
+                        data-testid="now-line"
+                        style={{ top: `${nowOffsetPercent}%` }}
+                      />
+                      <span
+                        className="now-dot"
+                        style={{ top: `${nowOffsetPercent}%`, left: '0' }}
+                      />
+                    </>
+                  )}
+                  <span className="sr-only">
+                    {info.date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                  </span>
+                  <span className="absolute inset-x-1 bottom-1 text-[10px] text-gray-400 dark:text-gray-500 opacity-0 transition-opacity group-hover:opacity-100">
+                    {selected ? 'Selected' : booked ? 'Booked' : 'Available'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ))}
       </div>
     </div>
   );

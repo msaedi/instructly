@@ -6193,16 +6193,16 @@ describe('SkillsPricingInline', () => {
 
       // Before filtering, both Piano and Guitar should be in the accordion grid
       // Service buttons render as "{name} +" or "{name} ✓"
-      expect(screen.getByText(/^Piano \+$/)).toBeInTheDocument();
-      expect(screen.getByText(/^Guitar \+$/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /piano\s*\+/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /guitar\s*\+/i })).toBeInTheDocument();
 
       // Type in the filter
       const filterInput = screen.getByPlaceholderText(/search skills/i);
       await userEvent.type(filterInput, 'Piano');
 
       // Only Piano should be visible in the accordion; Guitar filtered out
-      expect(screen.getByText(/^Piano \+$/)).toBeInTheDocument();
-      expect(screen.queryByText(/^Guitar \+$/)).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /piano\s*\+/i })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /guitar\s*\+/i })).not.toBeInTheDocument();
     });
 
     it('age group click handler early-returns when group is not eligible (branch 160, line 1050)', async () => {
@@ -7240,7 +7240,7 @@ describe('SkillsPricingInline', () => {
       // The filter ternary evaluates `skillsFilter ? ... : true`
       // skillsFilter is '' so it takes the `true` branch (shows all services)
       await waitFor(() => {
-        expect(screen.getByText(/^Piano \+$/)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /piano\s*\+/i })).toBeInTheDocument();
       });
     });
   });

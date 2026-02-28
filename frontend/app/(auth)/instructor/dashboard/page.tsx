@@ -17,7 +17,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import Modal from '@/components/Modal';
-import { Calendar, SquareArrowDownLeft, DollarSign, Eye, MessageSquare, Menu, X, ChevronDown } from 'lucide-react';
+import { Calendar, SquareArrowDownLeft, DollarSign, Eye, MessageSquare, Menu, X, ChevronDown, User } from 'lucide-react';
 import { useInstructorAvailability } from '@/hooks/queries/useInstructorAvailability';
 import { getCurrentWeekRange } from '@/types/common';
 import { useInstructorBookings } from '@/hooks/queries/useInstructorBookings';
@@ -41,6 +41,7 @@ import { withApiBase } from '@/lib/apiBase';
 import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import type { ConversationListResponse } from '@/types/conversation';
 import { FoundingBadge } from '@/components/ui/FoundingBadge';
+import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import type { ApiErrorResponse, components } from '@/features/shared/api/types';
 import { extractApiErrorMessage } from '@/lib/apiErrors';
 
@@ -132,7 +133,7 @@ function DashboardPopover({
         )}
       </button>
       {isOpen && (
-        <div role="menu" className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+        <div role="menu" className="insta-header-dropdown absolute right-0 mt-2 w-80 rounded-lg z-50">
           {children}
         </div>
       )}
@@ -686,7 +687,7 @@ export default function InstructorDashboardNew() {
   // After mount, show a client-rendered spinner while loading
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen insta-dashboard-page flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#7E22CE]" />
       </div>
     );
@@ -694,8 +695,8 @@ export default function InstructorDashboardNew() {
 
   if (error) {
     return (
-      <div className="min-h-screen">
-        <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+      <div className="min-h-screen insta-dashboard-page">
+        <header className="insta-dashboard-header px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link
               href="/instructor/dashboard"
@@ -707,7 +708,7 @@ export default function InstructorDashboardNew() {
                 setIsMobileMenuOpen(false);
               }}
             >
-              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+              <span className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</span>
             </Link>
             <div className="pr-4">
               <UserProfileDropdown hideDashboardItem />
@@ -715,12 +716,12 @@ export default function InstructorDashboardNew() {
           </div>
         </header>
         <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
-          <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
-            <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
-            <p className="text-gray-600 mb-6">{error}</p>
+          <div className="insta-surface-card p-6 text-center">
+            <h1 className="text-2xl font-bold text-red-600 mb-4">Error</h1>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">{error}</p>
             <Link
               href="/signup?redirect=%2Finstructor%2Fonboarding%2Fstep-2"
-              className="inline-block px-6 py-2.5 bg-[#7E22CE] text-white rounded-lg"
+              className="insta-primary-btn inline-block px-6 py-2.5 text-white rounded-lg"
               onClick={() => logger.debug('Navigating to signup with redirect to step-2 from error state')}
             >
               Complete Profile Setup
@@ -734,9 +735,9 @@ export default function InstructorDashboardNew() {
   if (!profile) return null;
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen insta-dashboard-page">
       {/* Header - matching other pages */}
-      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
+      <header className="insta-dashboard-header px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link
             href="/instructor/dashboard"
@@ -748,7 +749,7 @@ export default function InstructorDashboardNew() {
               setIsMobileMenuOpen(false);
             }}
           >
-            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
+            <span className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</span>
           </Link>
           <div className="flex items-center gap-2 pr-0 sm:pr-4">
             <DashboardPopover
@@ -766,12 +767,12 @@ export default function InstructorDashboardNew() {
               <ul className="max-h-80 overflow-auto p-2 space-y-2">
                 {unreadConversations.length === 0 ? (
                   <>
-                    <li className="px-2 py-2 text-sm text-gray-600">
+                    <li className="px-2 py-2 text-sm text-gray-600 dark:text-gray-400">
                       No unread messages.
                     </li>
                     <li>
                       <button
-                        className="w-full text-left text-sm text-gray-700 px-2 py-2 hover:bg-gray-50 rounded"
+                        className="w-full text-left text-sm text-gray-700 dark:text-gray-300 px-2 py-2 hover:bg-gray-50 rounded"
                         onClick={() => {
                           setShowMessages(false);
                           router.push('/instructor/messages');
@@ -795,8 +796,8 @@ export default function InstructorDashboardNew() {
                           }}
                           className="w-full rounded-lg px-3 py-2 text-left hover:bg-gray-50"
                         >
-                          <p className="text-sm font-medium text-gray-900 truncate">{otherName}</p>
-                          <p className="text-xs text-gray-500 truncate">{preview}</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{otherName}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{preview}</p>
                         </button>
                       </li>
                     );
@@ -913,7 +914,7 @@ export default function InstructorDashboardNew() {
         <div ref={gridRef} className="grid grid-cols-12 gap-6">
           {/* Sidebar (duplicate for small screens hidden above) */}
           <aside className="hidden md:block col-span-12 md:col-span-3" style={{ marginTop: sidebarOffset }}>
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
+            <div className="insta-surface-card p-4">
               <nav>
                 <ul className="space-y-1">
                   <li>
@@ -1037,51 +1038,49 @@ export default function InstructorDashboardNew() {
               <>
 
         {/* Welcome bar */}
-        <div ref={titleCardRef} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6 sm:p-8 mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-1">
-            <div className="flex items-center gap-3 min-w-0">
-              <div aria-hidden="true" className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center select-none">
-                <svg className="w-6 h-6 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              </div>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-3 mb-2">
-                  <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
-                    Welcome back, {profile.user?.first_name || 'Instructor'}!
-                  </h1>
-                  {profile?.is_founding_instructor && <FoundingBadge size="md" />}
-                </div>
-                <p className="text-gray-600 dark:text-gray-400 text-sm">Your profile, schedule, and earnings at a glance</p>
-              </div>
-            </div>
-            <div className="sm:ml-auto">
-              {(() => {
-                const releaseTs = Date.UTC(2025, 11, 1, 0, 0, 0);
-                const isEnabled = Date.now() >= releaseTs;
-                return (
-                  <button
-                    onClick={() => { if (profile) router.push(`/instructors/${profile.user_id}`); }}
-                    disabled={!isEnabled}
-                    aria-disabled={!isEnabled}
-                    title={isEnabled ? 'View your public instructor page' : 'Public profile available Dec 1, 2025'}
-                    className={`profile-view-btn w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors ${isEnabled ? 'bg-white border border-purple-200 text-[#7E22CE] hover:bg-gray-50 hover:border-purple-300 dark:hover:bg-gray-700 dark:hover:border-purple-500' : 'bg-gray-100 border border-gray-300 text-gray-400 cursor-not-allowed'}`}
-                  >
-                    <Eye className="h-4 w-4" />
-                    <span>Public profile</span>
-                  </button>
-                );
-              })()}
-            </div>
-          </div>
-        </div>
+        <SectionHeroCard
+          ref={titleCardRef}
+          icon={User}
+          headingAs="h1"
+          title={`Welcome back, ${profile.user?.first_name || 'Instructor'}!`}
+          titleNode={
+            <span className="flex flex-wrap items-center gap-3">
+              <span>Welcome back, {profile.user?.first_name || 'Instructor'}!</span>
+              {profile?.is_founding_instructor ? <FoundingBadge size="md" /> : null}
+            </span>
+          }
+          titleClassName="text-3xl font-bold text-gray-800 dark:text-gray-100"
+          subtitle="Your profile, schedule, and earnings at a glance"
+          subtitleClassName="text-gray-600 dark:text-gray-400 text-sm"
+          actions={(() => {
+            const releaseTs = Date.UTC(2025, 11, 1, 0, 0, 0);
+            const isEnabled = Date.now() >= releaseTs;
+            return (
+              <button
+                onClick={() => { if (profile) router.push(`/instructors/${profile.user_id}`); }}
+                disabled={!isEnabled}
+                aria-disabled={!isEnabled}
+                title={isEnabled ? 'View your public instructor page' : 'Public profile available Dec 1, 2025'}
+                className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  isEnabled
+                    ? 'insta-secondary-btn'
+                    : 'bg-gray-100 border border-gray-300 text-gray-400 dark:text-gray-400 cursor-not-allowed dark:bg-gray-800/70 dark:border-gray-700'
+                }`}
+              >
+                <Eye className="h-4 w-4" />
+                <span>Public profile</span>
+              </button>
+            );
+          })()}
+        />
 
         {/* Snapshot Cards directly under header */}
+        <h2 className="sr-only">Overview</h2>
         <div className="grid grid-cols-3 gap-3 sm:gap-6 mb-8">
           {/* Bookings card - clickable button, navigates to past tab since it shows completed count */}
           <button
             onClick={() => router.push('/instructor/dashboard?panel=bookings&tab=past', { scroll: false })}
-            className="stat-card group block h-32 w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-left transition-all hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-purple-300 dark:hover:border-purple-600 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] sm:h-40 sm:rounded-lg sm:p-6"
+            className="stat-card insta-dashboard-stat-card group block h-32 w-full rounded-md p-3 text-left transition-all hover:border-purple-300 dark:hover:border-purple-600 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] sm:h-40 sm:rounded-lg sm:p-6"
             aria-label="Open bookings"
           >
             <div className="flex items-start justify-between h-full">
@@ -1101,7 +1100,7 @@ export default function InstructorDashboardNew() {
           {/* Earnings card - clickable with outline icon */}
           <button
             onClick={() => handlePanelChange('earnings')}
-            className="stat-card group block w-full text-left bg-white dark:bg-gray-800 rounded-md sm:rounded-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-6 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-purple-300 dark:hover:border-purple-600 h-32 sm:h-40 transition-all focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+            className="stat-card insta-dashboard-stat-card group block w-full text-left rounded-md sm:rounded-lg p-3 sm:p-6 hover:border-purple-300 dark:hover:border-purple-600 h-32 sm:h-40 transition-all focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
             aria-label="Open earnings"
           >
             <div className="flex items-start justify-between h-full">
@@ -1117,7 +1116,7 @@ export default function InstructorDashboardNew() {
           {/* Reviews card - clickable with outline icon */}
           <button
             onClick={() => handlePanelChange('reviews')}
-            className="stat-card group block w-full text-left bg-white dark:bg-gray-800 rounded-md sm:rounded-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-6 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-purple-300 dark:hover:border-purple-600 h-32 sm:h-40 transition-all focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+            className="stat-card insta-dashboard-stat-card group block w-full text-left rounded-md sm:rounded-lg p-3 sm:p-6 hover:border-purple-300 dark:hover:border-purple-600 h-32 sm:h-40 transition-all focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
             aria-label="Open reviews"
           >
             <div className="flex items-start justify-between h-full">
@@ -1144,7 +1143,7 @@ export default function InstructorDashboardNew() {
 
         <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           {/* Stripe Status Card */}
-          <div id="payments-setup" className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 sm:p-6 h-full flex flex-col relative">
+          <div id="payments-setup" className="insta-surface-card p-5 sm:p-6 h-full flex flex-col relative">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-start gap-3">
                 <div className="relative group">
@@ -1170,15 +1169,15 @@ export default function InstructorDashboardNew() {
                   <div
                     role="tooltip"
                     id="refresh-status-tip"
-                    className="pointer-events-none absolute z-50 left-1/2 -translate-x-1/2 top-full mt-2 whitespace-nowrap rounded-md bg-white text-gray-800 text-xs shadow-lg border border-gray-200 px-2 py-1 opacity-0 translate-y-1 group-hover:opacity-100 group-focus-within:opacity-100 group-hover:translate-y-0 group-focus-within:translate-y-0 transition-all duration-150"
+                    className="pointer-events-none absolute z-50 left-1/2 -translate-x-1/2 top-full mt-2 whitespace-nowrap rounded-md bg-white text-gray-800 dark:text-gray-200 text-xs shadow-lg border border-gray-200 px-2 py-1 opacity-0 translate-y-1 group-hover:opacity-100 group-focus-within:opacity-100 group-hover:translate-y-0 group-focus-within:translate-y-0 transition-all duration-150"
                   >
                     Refresh status
                   </div>
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Payments Setup</h2>
-                  <p className="text-gray-600 text-xs mt-0.5">Manage your payouts securely</p>
-                  <p className="text-gray-500 text-[11px]">Powered by Stripe</p>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Payments Setup</h2>
+                  <p className="text-gray-600 dark:text-gray-400 text-xs mt-0.5">Manage your payouts securely</p>
+                  <p className="text-gray-500 dark:text-gray-400 text-[11px]">Powered by Stripe</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -1187,7 +1186,7 @@ export default function InstructorDashboardNew() {
                 </span>
               </div>
             </div>
-              <p className="text-gray-600 text-sm mb-4">Your Stripe account setup status.</p>
+              <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">Your Stripe account setup status.</p>
             {connectStatus ? (() => {
               const chargesEnabled = Boolean(connectStatus?.charges_enabled);
               const payoutsEnabled = Boolean(connectStatus?.payouts_enabled);
@@ -1198,7 +1197,7 @@ export default function InstructorDashboardNew() {
               return (
                 <div>
                   <ul className="grid grid-cols-2 gap-2">
-                    <li className={`flex items-center gap-2 text-sm ${chargesEnabled ? 'text-gray-700' : 'text-gray-500'}`}>
+                    <li className={`flex items-center gap-2 text-sm ${chargesEnabled ? 'text-gray-700 dark:text-gray-300' : 'text-gray-500 dark:text-gray-400'}`}>
                       {chargesEnabled ? (
                         <svg className="w-4 h-4 text-[#7E22CE]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -1208,7 +1207,7 @@ export default function InstructorDashboardNew() {
                       )}
                       <span>Payments enabled</span>
                     </li>
-                    <li className={`flex items-center gap-2 text-sm ${detailsSubmitted ? 'text-gray-700' : 'text-gray-500'}`}>
+                    <li className={`flex items-center gap-2 text-sm ${detailsSubmitted ? 'text-gray-700 dark:text-gray-300' : 'text-gray-500 dark:text-gray-400'}`}>
                       {detailsSubmitted ? (
                         <svg className="w-4 h-4 text-[#7E22CE]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -1218,7 +1217,7 @@ export default function InstructorDashboardNew() {
                       )}
                       <span>Bank details verified</span>
                     </li>
-                    <li className={`flex items-center gap-2 text-sm ${payoutsEnabled ? 'text-gray-700' : 'text-gray-500'}`}>
+                    <li className={`flex items-center gap-2 text-sm ${payoutsEnabled ? 'text-gray-700 dark:text-gray-300' : 'text-gray-500 dark:text-gray-400'}`}>
                       {payoutsEnabled ? (
                         <svg className="w-4 h-4 text-[#7E22CE]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -1228,7 +1227,7 @@ export default function InstructorDashboardNew() {
                       )}
                       <span>Payouts active</span>
                     </li>
-                    <li className={`flex items-center gap-2 text-sm ${onboardingCompleted ? 'text-gray-700' : 'text-gray-500'}`}>
+                    <li className={`flex items-center gap-2 text-sm ${onboardingCompleted ? 'text-gray-700 dark:text-gray-300' : 'text-gray-500 dark:text-gray-400'}`}>
                       {onboardingCompleted ? (
                         <svg className="w-4 h-4 text-[#7E22CE]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -1240,7 +1239,7 @@ export default function InstructorDashboardNew() {
                     </li>
                   </ul>
                   {!allGood && (
-                    <div className="mt-3 text-xs text-gray-600">Finish Stripe setup to start receiving payouts.</div>
+                    <div className="mt-3 text-xs text-gray-600 dark:text-gray-400">Finish Stripe setup to start receiving payouts.</div>
                   )}
                 </div>
               );
@@ -1275,15 +1274,15 @@ export default function InstructorDashboardNew() {
                     }
                   }}
                   disabled={isStartingStripeOnboarding}
-                  className="inline-flex items-center px-3 py-2 text-sm rounded-lg border border-purple-200 bg-purple-50 text-[#7E22CE] disabled:opacity-60"
+                  className="insta-secondary-btn inline-flex items-center px-3 py-2 text-sm rounded-lg disabled:opacity-60"
                 >
                   {isStartingStripeOnboarding ? 'Opening…' : 'Complete Stripe onboarding'}
                 </button>
               )}
               {/* Payouts and Instant Payout */}
               <div className="mt-auto border-t border-gray-200 pt-4">
-                <h3 className="text-lg font-semibold text-gray-700 mb-1">Stripe Payouts</h3>
-                <p className="text-gray-600 text-xs mb-2">Access your Stripe Express dashboard to view payouts and account settings.</p>
+                <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1">Stripe Payouts</h3>
+                <p className="text-gray-600 dark:text-gray-400 text-xs mb-2">Access your Stripe Express dashboard to view payouts and account settings.</p>
                 <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 sm:justify-end">
                   <button
                     onClick={async () => {
@@ -1306,7 +1305,7 @@ export default function InstructorDashboardNew() {
                         alert('Unable to open Stripe dashboard right now.');
                       }
                     }}
-                    className="inline-flex items-center justify-center h-10 px-4 text-base rounded-lg border border-purple-200 bg-purple-50 text-[#7E22CE] w-full sm:w-auto"
+                    className="insta-secondary-btn inline-flex items-center justify-center h-10 px-4 text-base rounded-lg w-full sm:w-auto"
                   >
                     View Payouts
                   </button>
@@ -1325,7 +1324,7 @@ export default function InstructorDashboardNew() {
                         alert('Instant payout request error');
                       }
                     }}
-                    className="inline-flex items-center justify-center h-10 px-4 text-base rounded-lg bg-[#7E22CE] text-white whitespace-nowrap w-full sm:w-auto sm:min-w-[13rem]"
+                    className="insta-primary-btn inline-flex items-center justify-center h-10 px-4 text-base rounded-lg text-white whitespace-nowrap w-full sm:w-auto sm:min-w-[13rem]"
                   >
                     Request Instant Payout
                   </button>
@@ -1335,7 +1334,7 @@ export default function InstructorDashboardNew() {
           </div>
 
         {/* Manage Availability card (only icon is clickable) */}
-          <div className="p-5 sm:p-6 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow h-full flex flex-col relative">
+          <div className="insta-surface-card p-5 sm:p-6 hover:shadow-md transition-shadow h-full flex flex-col relative">
             <div className="flex items-start gap-4 w-full">
               <button
                 onClick={() => handlePanelChange('availability')}
@@ -1346,8 +1345,8 @@ export default function InstructorDashboardNew() {
                 <Calendar className="relative w-6 h-6 text-[#7E22CE] transition-transform duration-150 ease-out group-hover:scale-110" />
               </button>
               <div>
-                <h3 className="text-lg font-semibold text-gray-700">Manage Availability</h3>
-                <p className="text-gray-600 text-sm">Set your weekly schedule and available hours</p>
+                <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Manage Availability</h3>
+                <p className="text-gray-600 dark:text-gray-400 text-sm">Set your weekly schedule and available hours</p>
               </div>
             </div>
             <div className="mt-8 sm:mt-10 flex items-center gap-8 sm:gap-12 justify-center">
@@ -1355,20 +1354,20 @@ export default function InstructorDashboardNew() {
                 <div className="w-28 h-28 rounded-full bg-purple-50 border border-purple-200 text-[#7E22CE] flex items-center justify-center text-2xl font-bold" title="Available hours this week">
                   {availableHours}h
                 </div>
-                <span className="mt-2 text-sm text-gray-600">Available</span>
+                <span className="mt-2 text-sm text-gray-600 dark:text-gray-400">Available</span>
               </div>
               <div className="flex flex-col items-center">
-                <div className="w-28 h-28 rounded-full bg-gray-50 border border-gray-200 text-gray-700 flex items-center justify-center text-2xl font-bold" title="Booked hours this week">
+                <div className="w-28 h-28 rounded-full bg-gray-50 border border-gray-200 text-gray-700 dark:text-gray-300 flex items-center justify-center text-2xl font-bold" title="Booked hours this week">
                   {bookedHours}h
                 </div>
-                <span className="mt-2 text-sm text-gray-600">Booked</span>
+                <span className="mt-2 text-sm text-gray-600 dark:text-gray-400">Booked</span>
               </div>
           </div>
             <div className="mt-auto border-t border-gray-200 pt-4">
             <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 sm:justify-end">
               <button
                 type="button"
-                className="inline-flex items-center justify-center h-10 px-4 text-base rounded-lg bg-[#7E22CE] text-white whitespace-nowrap w-full sm:w-auto sm:min-w-[13rem]"
+                className="insta-primary-btn inline-flex items-center justify-center h-10 px-4 text-base rounded-lg text-white whitespace-nowrap w-full sm:w-auto sm:min-w-[13rem]"
                 onClick={() => handlePanelChange('availability')}
               >
                 Open Calendar
@@ -1445,11 +1444,11 @@ export default function InstructorDashboardNew() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
               </svg>
             </div>
-            <h2 className="text-lg font-semibold text-gray-700 self-center">Identity Verification</h2>
-            <p className="text-gray-600 mt-2 col-span-2">Verify your identity with a government-issued ID and a selfie</p>
+            <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300 self-center">Identity Verification</h2>
+            <p className="text-gray-600 dark:text-gray-400 mt-2 col-span-2">Verify your identity with a government-issued ID and a selfie</p>
 
             <div className="mt-2 col-span-2 grid grid-cols-[1fr_auto] gap-4 items-end">
-              <div className="space-y-2 text-sm text-gray-500">
+              <div className="space-y-2 text-sm text-gray-500 dark:text-gray-400">
                 <div className="flex items-center gap-2">
                   <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1462,7 +1461,7 @@ export default function InstructorDashboardNew() {
                   </svg>
                   <span>Secure & encrypted</span>
                 </div>
-                <p className="text-xs text-gray-500 mt-2">Your information is safe and will only be used for verification purposes.</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Your information is safe and will only be used for verification purposes.</p>
               </div>
 
               <button
@@ -1483,7 +1482,7 @@ export default function InstructorDashboardNew() {
                   window.location.href = `https://verify.stripe.com/start/${session.client_secret}`;
                 } catch {}
                 }}
-                className="inline-flex items-center justify-center w-56 whitespace-nowrap px-4 py-2 rounded-lg text-white bg-[#7E22CE] hover:bg-[#7E22CE] transition-colors font-medium"
+                className="insta-primary-btn inline-flex items-center justify-center w-56 whitespace-nowrap px-4 py-2 rounded-lg text-white transition-colors font-medium"
               >
                 Start Verification
               </button>
@@ -1501,23 +1500,23 @@ export default function InstructorDashboardNew() {
                 </svg>
               </div>
               <div className="flex-1">
-                <h2 className="text-lg font-semibold text-gray-700">Background Check</h2>
-                <p className="text-gray-600 mt-1 text-sm">Upload your background check document</p>
+                <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Background Check</h2>
+                <p className="text-gray-600 dark:text-gray-400 mt-1 text-sm">Upload your background check document</p>
 
                 <div className="mt-2 grid grid-cols-[1fr_auto] items-end gap-4">
                   <div>
-                    <p className="text-xs text-gray-500">We accept background checks from Checkr, Sterling, or NYC DOE.</p>
-                    <p className="mt-2 text-xs text-gray-500">All uploaded files are securely encrypted and will remain confidential</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">We accept background checks from Checkr, Sterling, or NYC DOE.</p>
+                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">All uploaded files are securely encrypted and will remain confidential</p>
                     <div className="mt-4">
-                      <p className="text-xs text-gray-500 whitespace-nowrap mb-1">File Requirements:</p>
-                      <ul className="list-disc pl-5 text-xs text-gray-500 space-y-1">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap mb-1">File Requirements:</p>
+                      <ul className="list-disc pl-5 text-xs text-gray-500 dark:text-gray-400 space-y-1">
                         <li className="whitespace-nowrap">Formats: PDF, JPG, PNG</li>
                         <li className="whitespace-nowrap">Maximum size: 10 MB</li>
                       </ul>
                     </div>
                   </div>
                   <div className="flex justify-end">
-                    <label className="inline-flex items-center justify-center w-40 px-4 py-2.5 rounded-lg bg-purple-50 border border-purple-200 text-[#7E22CE] font-medium hover:bg-purple-100 transition-colors cursor-pointer">
+                    <label className="insta-secondary-btn inline-flex items-center justify-center w-40 px-4 py-2.5 rounded-lg font-medium transition-colors cursor-pointer">
                       <input
                         type="file"
                         accept=".pdf,.png,.jpg,.jpeg"

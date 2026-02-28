@@ -8,7 +8,7 @@ export default function SentryExamplePage() {
   };
 
   return (
-    <main style={{ padding: '2rem' }}>
+    <div style={{ padding: '2rem' }}>
       <h1>Sentry Example Page</h1>
       <p>Click the button below to send a test event to Sentry.</p>
       <button
@@ -18,6 +18,6 @@ export default function SentryExamplePage() {
       >
         Trigger Sentry Error
       </button>
-    </main>
+    </div>
   );
 }

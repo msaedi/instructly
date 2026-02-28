@@ -276,6 +276,7 @@ async def test_logout_all_devices_revokes_current_token(monkeypatch, test_studen
     revoked: list[tuple[str, int]] = []
     revoke_kwargs: list[dict[str, object]] = []
     invalidation_triggers: list[str | None] = []
+    deleted_cookie_domains: list[str | None] = []
 
     class _Repo:
         def invalidate_all_tokens(self, _user_id: str, **_kwargs):
@@ -298,18 +299,32 @@ async def test_logout_all_devices_revokes_current_token(monkeypatch, test_studen
         lambda *_args, **_kwargs: {"jti": "token-jti", "exp": 9999999999},
     )
     monkeypatch.setattr(account_routes, "TokenBlacklistService", lambda: _Blacklist())
+    monkeypatch.setattr(
+        account_routes,
+        "delete_refresh_cookie",
+        lambda _response, domain=None: deleted_cookie_domains.append(domain) or "rid",
+    )
 
-    request = SimpleNamespace(headers={"authorization": "Bearer token"}, cookies={})
+    request = SimpleNamespace(
+        headers={
+            "authorization": "Bearer token",
+            "origin": "http://beta-local.instainstru.com:3000",
+        },
+        cookies={},
+    )
     resp_obj = SimpleNamespace(set_cookie=lambda **_kw: None, delete_cookie=lambda **_kw: None)
     result = await account_routes.logout_all_devices(request, resp_obj, test_student, db)
     assert result.message == "All sessions have been logged out"
     assert revoked == [("token-jti", 9999999999)]
     assert invalidation_triggers == ["logout_all_devices"]
     assert revoke_kwargs == [{"trigger": "logout_all_devices", "emit_metric": False}]
+    assert deleted_cookie_domains == [".instainstru.com"]
 
 
 @pytest.mark.asyncio
 async def test_logout_all_devices_without_token_still_succeeds(monkeypatch, test_student, db):
+    deleted_cookie_domains: list[str | None] = []
+
     class _Repo:
         def invalidate_all_tokens(self, _user_id: str, **_kwargs):
             return True
@@ -319,11 +334,17 @@ async def test_logout_all_devices_without_token_still_succeeds(monkeypatch, test
         "create_user_repository",
         lambda _db: _Repo(),
     )
+    monkeypatch.setattr(
+        account_routes,
+        "delete_refresh_cookie",
+        lambda _response, domain=None: deleted_cookie_domains.append(domain) or "rid",
+    )
 
     request = SimpleNamespace(headers={}, cookies={})
     resp_obj = SimpleNamespace(set_cookie=lambda **_kw: None, delete_cookie=lambda **_kw: None)
     result = await account_routes.logout_all_devices(request, resp_obj, test_student, db)
     assert result.message == "All sessions have been logged out"
+    assert deleted_cookie_domains == [None]
 
 
 @pytest.mark.asyncio

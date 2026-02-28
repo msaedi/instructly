@@ -31,6 +31,7 @@ from app.services.search_history_service import SearchHistoryService
 from app.services.token_blacklist_service import TokenBlacklistService
 from app.services.two_factor_auth_service import TwoFactorAuthService
 from app.utils.cookies import (
+    effective_cookie_domain,
     session_cookie_candidates,
     set_auth_cookies,
 )
@@ -138,10 +139,11 @@ def setup_verify(
         # Belt-and-suspenders: blacklist current token JTI for immediate rejection
         _blacklist_current_token(request, trigger="2fa_enable")
         # On successful re-setup, ensure trust cookie is cleared; user can re-trust on next verify
+        domain = effective_cookie_domain(request.headers.get("origin"))
         response.delete_cookie(
             key="tfa_trusted",
             path="/",
-            domain=None,  # Keep None so it matches current host
+            domain=domain,
             secure=bool(settings.session_cookie_secure),
             samesite="lax",
         )
@@ -199,10 +201,11 @@ def disable(
         # Belt-and-suspenders: blacklist current token JTI for immediate rejection
         _blacklist_current_token(request, trigger="2fa_disable")
         # Invalidate any trusted-browser cookie on disable
+        domain = effective_cookie_domain(request.headers.get("origin"))
         response.delete_cookie(
             key="tfa_trusted",
             path="/",
-            domain=None,
+            domain=domain,
             secure=bool(settings.session_cookie_secure),
             samesite="lax",
         )
@@ -326,8 +329,10 @@ def verify_login(
         data={"sub": user.id, "email": user.email},
         expires_delta=timedelta(days=settings.refresh_token_lifetime_days),
     )
+    origin = request.headers.get("origin")
+    cookie_domain = effective_cookie_domain(origin)
     # Write session + refresh cookies
-    set_auth_cookies(response, access_token, refresh_token)
+    set_auth_cookies(response, access_token, refresh_token, origin=origin)
 
     guest_session_id = payload.get("guest_session_id")
     if guest_session_id:
@@ -356,6 +361,7 @@ def verify_login(
             secure=bool(settings.session_cookie_secure),
             samesite=settings.session_cookie_samesite or "lax",
             path="/",
+            domain=cookie_domain,
         )
     try:
         AuditService(tfa_service.db).log(

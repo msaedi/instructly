@@ -10,7 +10,7 @@
  * Handles proper focus management and accessibility.
  */
 
-import { useEffect } from 'react';
+import { useId, useRef } from 'react';
 import { X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Chat } from './Chat';
@@ -19,6 +19,8 @@ import { cn } from '@/lib/utils';
 import { withApiBaseForRequest } from '@/lib/apiBase';
 import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import type { CreateConversationResponse } from '@/types/conversation';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useScrollLock } from '@/hooks/useScrollLock';
 
 interface ChatModalProps {
   isOpen: boolean;
@@ -47,30 +49,15 @@ export function ChatModal({
   lessonDate,
   isReadOnly = false,
 }: ChatModalProps) {
-  // Handle escape key and mounting
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
+  const modalRef = useRef<HTMLDivElement | null>(null);
+  const titleId = useId();
 
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      // Prevent body scroll on mobile
-      document.body.style.overflow = 'hidden';
-
-      return () => {
-        document.removeEventListener('keydown', handleEscape);
-        document.body.style.overflow = '';
-      };
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = '';
-    };
-  }, [isOpen, onClose]);
+  useFocusTrap({
+    isOpen,
+    containerRef: modalRef,
+    onEscape: onClose,
+  });
+  useScrollLock(isOpen);
 
   const { data: conversationData, isLoading: isLoadingConversation } = useQuery({
     queryKey: ['conversation-for-instructor', instructorId],
@@ -98,15 +85,16 @@ export function ChatModal({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-opacity dark:bg-black/60"
+        className="insta-dialog-backdrop z-50 bg-black/40 backdrop-blur-sm transition-opacity dark:bg-black/60"
         onClick={onClose}
         aria-hidden="true"
       />
 
       {/* Modal/Drawer */}
       <div
+        ref={modalRef}
         className={cn(
-          'fixed z-50 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 shadow-2xl transition-all border border-gray-300 overflow-hidden flex h-full flex-col',
+          'insta-dialog-panel fixed z-50 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 shadow-2xl transition-all border border-gray-300 overflow-hidden flex h-full flex-col',
           'dark:bg-gray-900/90 dark:supports-[backdrop-filter]:bg-gray-900/75 dark:border-gray-600 dark:shadow-xl',
           // Mobile: Full-screen drawer from bottom
           'inset-x-0 bottom-0 h-[92dvh] rounded-3xl',
@@ -118,12 +106,13 @@ export function ChatModal({
         )}
         role="dialog"
         aria-modal="true"
-        aria-label="Chat"
+        aria-labelledby={titleId}
+        tabIndex={-1}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-200 px-4 pt-5 pb-3 sm:px-6 sm:pt-6 sm:pb-4 dark:border-gray-800 pt-[max(env(safe-area-inset-top),theme(spacing.5))] bg-[#EDE7F6]">
           <div className="flex-1">
-            <h2 className="text-base sm:text-lg font-bold text-gray-900 tracking-tight dark:text-gray-100">
+            <h2 id={titleId} className="text-base sm:text-lg font-bold text-gray-900 tracking-tight dark:text-gray-100">
               Chat with {otherUserName}
             </h2>
             {lessonTitle && (

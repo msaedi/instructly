@@ -63,7 +63,7 @@ export default function DatabaseOpsPage() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-12 gap-6">
           <aside className="col-span-12 md:col-span-3 lg:col-span-3">
             <AdminSidebar />
@@ -107,7 +107,7 @@ export default function DatabaseOpsPage() {
             </div>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

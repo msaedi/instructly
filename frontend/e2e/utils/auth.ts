@@ -20,7 +20,7 @@ const DEFAULT_API_BASE =
 export async function uiLoginAsAdmin(page: Page, loginPath = '/login') {
   await page.goto(loginPath, { waitUntil: 'domcontentloaded' });
   await page.getByLabel(/email/i).fill(ADMIN_EMAIL);
-  await page.getByLabel(/password/i).fill(ADMIN_PASSWORD);
+  await page.getByLabel('Password', { exact: true }).fill(ADMIN_PASSWORD);
   await page.getByRole('button', { name: /sign in|log in|submit/i }).click();
   await page.waitForLoadState('domcontentloaded');
 }

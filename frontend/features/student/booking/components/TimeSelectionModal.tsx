@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, useId } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, ArrowLeft } from 'lucide-react';
 import { UserAvatar } from '@/components/user/UserAvatar';
@@ -19,6 +19,8 @@ import TimeDropdown from '@/features/shared/booking/ui/TimeDropdown';
 import DurationButtons from '@/features/shared/booking/ui/DurationButtons';
 import SummarySection from '@/features/shared/booking/ui/SummarySection';
 import { usePricingFloors } from '@/lib/pricing/usePricingFloors';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useScrollLock } from '@/hooks/useScrollLock';
 import {
   computeBasePriceCents,
   computePriceFloorCents,
@@ -548,8 +550,11 @@ export default function TimeSelectionModal({
 
   const isSelectionComplete = Boolean(selectedDate && selectedTime && !priceFloorViolation);
 
-  const modalRef = useRef<HTMLDivElement>(null);
-  const previousActiveElement = useRef<HTMLElement | null>(null);
+  const mobileModalRef = useRef<HTMLDivElement>(null);
+  const desktopModalRef = useRef<HTMLDivElement>(null);
+  const desktopTitleId = useId();
+  const mobileTitleId = useId();
+  const [isDesktopViewport, setIsDesktopViewport] = useState(false);
 
   // Get instructor first name and last initial
   const getInstructorDisplayName = () => {
@@ -672,42 +677,37 @@ export default function TimeSelectionModal({
     setDate,
   ]);
 
-  // Handle escape key
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
 
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      // Store the currently focused element
-      previousActiveElement.current = document.activeElement as HTMLElement;
-      // Focus the modal
-      modalRef.current?.focus();
+    const media = window.matchMedia('(min-width: 768px)');
+    const syncViewport = () => setIsDesktopViewport(media.matches);
+    syncViewport();
+
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', syncViewport);
+      return () => media.removeEventListener('change', syncViewport);
     }
 
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      // Restore focus when modal closes
-      if (!isOpen && previousActiveElement.current) {
-        previousActiveElement.current.focus();
-      }
-    };
-  }, [isOpen, onClose]);
+    media.addListener(syncViewport);
+    return () => media.removeListener(syncViewport);
+  }, []);
 
-  // Body scroll lock
-  useEffect(() => {
-    if (isOpen) {
-      const originalStyle = window.getComputedStyle(document.body).overflow;
-      document.body.style.overflow = 'hidden';
-      return () => {
-        document.body.style.overflow = originalStyle;
-      };
-    }
-    return undefined;
-  }, [isOpen]);
+  useFocusTrap({
+    isOpen: isOpen && !isDesktopViewport,
+    containerRef: mobileModalRef,
+    onEscape: onClose,
+    initialFocus: 'first',
+  });
+
+  useFocusTrap({
+    isOpen: isOpen && isDesktopViewport,
+    containerRef: desktopModalRef,
+    onEscape: onClose,
+    initialFocus: 'first',
+  });
+
+  useScrollLock(isOpen);
 
   // Handle backdrop click
   const handleBackdropClick = (e: React.MouseEvent) => {
@@ -1215,7 +1215,16 @@ export default function TimeSelectionModal({
   return (
     <>
       {/* Mobile Full Screen View */}
-      <div className="md:hidden fixed inset-0 z-50 bg-white dark:bg-gray-900">
+      <div
+        ref={mobileModalRef}
+        className="md:hidden fixed inset-0 z-50 bg-white dark:bg-gray-900"
+        style={{ zIndex: 1200 }}
+        role={!isDesktopViewport ? 'dialog' : undefined}
+        aria-modal={!isDesktopViewport ? true : undefined}
+        aria-labelledby={!isDesktopViewport ? mobileTitleId : undefined}
+        aria-hidden={isDesktopViewport}
+        tabIndex={-1}
+      >
         <div className="h-full flex flex-col">
           {/* Mobile Header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
@@ -1226,7 +1235,7 @@ export default function TimeSelectionModal({
             >
               <ArrowLeft className="h-6 w-6 text-gray-600 dark:text-gray-400" />
             </button>
-            <h2 className="text-2xl font-medium text-gray-900 dark:text-white">
+            <h2 id={mobileTitleId} className="text-2xl font-medium text-gray-900 dark:text-white">
               Set your lesson date & time
             </h2>
             <div className="w-10" /> {/* Spacer for centering */}
@@ -1241,7 +1250,7 @@ export default function TimeSelectionModal({
               fallbackBgColor="#F3E8FF"
               fallbackTextColor="#7E22CE"
             />
-            <p className="text-base font-bold text-black">
+            <p className="text-base font-bold text-gray-900 dark:text-white">
               {getInstructorDisplayName()}&apos;s availability
             </p>
           </div>
@@ -1342,6 +1351,7 @@ export default function TimeSelectionModal({
       {/* Desktop Modal View */}
       <div
         className="hidden md:block fixed inset-0 z-50 overflow-y-auto"
+        style={{ zIndex: 1200 }}
         onClick={handleBackdropClick}
       >
         <div className="flex min-h-screen items-center justify-center p-4">
@@ -1353,17 +1363,18 @@ export default function TimeSelectionModal({
 
           {/* Modal */}
           <div
-            ref={modalRef}
+            ref={desktopModalRef}
             tabIndex={-1}
             className="relative bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-[720px] max-h-[90vh] flex flex-col animate-slideUp"
             onClick={(e) => e.stopPropagation()}
+            role={isDesktopViewport ? 'dialog' : undefined}
+            aria-modal={isDesktopViewport ? true : undefined}
+            aria-labelledby={isDesktopViewport ? desktopTitleId : undefined}
+            aria-hidden={!isDesktopViewport}
           >
             {/* Desktop Header */}
             <div className="flex items-center justify-between p-8 pb-0">
-              <h2
-                className="text-2xl font-medium text-gray-900 dark:text-white"
-                style={{ color: '#333333' }}
-              >
+              <h2 id={desktopTitleId} className="text-2xl font-medium text-gray-900 dark:text-white">
                 Set your lesson date & time
               </h2>
               <button
@@ -1384,7 +1395,7 @@ export default function TimeSelectionModal({
                 fallbackBgColor="#F3E8FF"
                 fallbackTextColor="#7E22CE"
               />
-              <p className="text-base font-bold text-black">
+              <p className="text-base font-bold text-gray-900 dark:text-white">
                 {getInstructorDisplayName()}&apos;s availability
               </p>
             </div>

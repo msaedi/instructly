@@ -276,7 +276,7 @@ test.describe('Login routing without 2FA', () => {
       await hydrationReady;
       await waitForFormInteractivity(page);
       await page.getByLabel(/email/i).fill(scenario.user.email);
-      await page.getByLabel(/password/i).fill(scenario.user.password);
+      await page.getByLabel('Password', { exact: true }).fill(scenario.user.password);
       await Promise.all([
         page.waitForURL(regexFromPath(scenario.expected), { timeout: 10000 }),
         page.getByRole('button', { name: /sign in/i }).click(),
@@ -320,7 +320,7 @@ test.describe('2FA flows', () => {
     await hydrationReady;
     await waitForFormInteractivity(page);
     await page.getByLabel(/email/i).fill(USERS.instructor2fa.email);
-    await page.getByLabel(/password/i).fill(USERS.instructor2fa.password);
+    await page.getByLabel('Password', { exact: true }).fill(USERS.instructor2fa.password);
     await page.getByRole('button', { name: /sign in/i }).click();
     await expect(page.getByLabel(/6-digit code/i)).toBeVisible();
 
@@ -366,7 +366,7 @@ test.describe('2FA flows', () => {
     await hydrationReady;
     await waitForFormInteractivity(page);
     await page.getByLabel(/email/i).fill(USERS.instructor2fa.email);
-    await page.getByLabel(/password/i).fill(USERS.instructor2fa.password);
+    await page.getByLabel('Password', { exact: true }).fill(USERS.instructor2fa.password);
     await page.getByRole('button', { name: /sign in/i }).click();
     await expect(page.getByLabel(/Backup code/i)).toBeVisible();
 

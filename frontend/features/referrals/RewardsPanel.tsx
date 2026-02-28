@@ -159,7 +159,7 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
   }, [shareUrl, summary]);
 
   return (
-    <main className="space-y-8">
+    <div className="space-y-8">
       {!hideHeader && (
         <header className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -185,7 +185,7 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
                 readOnly
                 value={summary ? shareUrl : ''}
                 placeholder="Loading…"
-                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800"
+                className="mt-1 w-full px-3 py-2 text-sm insta-form-input"
                 aria-label="Referral link"
               />
             </div>
@@ -196,7 +196,7 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
               type="button"
               onClick={handleShare}
               disabled={!summary || isProcessing !== null}
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-white border border-purple-200 text-[#7E22CE] px-4 py-2 text-sm font-semibold transition hover:bg-purple-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 insta-secondary-btn"
             >
               <Share2 className="h-4 w-4" aria-hidden="true" />
               Share
@@ -256,7 +256,7 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
           )}
 
           {!isLoading && !loadError && rewardsForTab.length === 0 && (
-            <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-600">
+            <div className="rounded-lg px-4 py-6 text-center text-sm insta-empty-state-note">
               {emptyCopy[activeTab]}
             </div>
           )}
@@ -310,6 +310,6 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
       </section>
 
       {/* Footer terms removed per embedded design */}
-    </main>
+    </div>
   );
 }

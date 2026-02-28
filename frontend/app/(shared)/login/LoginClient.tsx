@@ -332,7 +332,7 @@ function LoginForm({ redirect }: { redirect: string }) {
 
   return (
     <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-      <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
+      <div className="insta-surface-card py-8 px-4 shadow sm:px-10">
         <div className="text-center mb-6">
           <Link href="/" onClick={() => logger.debug('Navigating to home from login inside box')}>
             <h1 className="text-4xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors">
@@ -359,8 +359,8 @@ function LoginForm({ redirect }: { redirect: string }) {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:text-[#7E22CE]"
-                    style={{ outline: 'none', boxShadow: 'none' }}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
                     disabled={isSubmitting}
                   >
                     {showPassword ? (<EyeOff className="h-5 w-5" aria-hidden="true" />) : (<Eye className="h-5 w-5" aria-hidden="true" />)}
@@ -408,7 +408,7 @@ function LoginForm({ redirect }: { redirect: string }) {
               <button
                 type="submit"
                 disabled={isSubmitting || (captchaRequired && !captchaToken) || !!rateLimitedUntil}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#7E22CE] hover:bg-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="insta-primary-btn w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {rateLimitedUntil
                   ? getButtonWaitLabel(rateLimitSecondsRemaining)
@@ -443,7 +443,7 @@ function LoginForm({ redirect }: { redirect: string }) {
             </div>
             {errors['twofa'] && (<p className="text-sm text-red-600" role="alert">{errors['twofa']}</p>)}
             <div>
-              <button type="submit" disabled={isVerifying2FA} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#7E22CE] hover:bg-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+              <button type="submit" disabled={isVerifying2FA} className="insta-primary-btn w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
                 {isVerifying2FA ? 'Verifying…' : 'Verify & Continue'}
               </button>
             </div>

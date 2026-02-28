@@ -52,6 +52,13 @@ import {
 const IS_TAXONOMY_DEBUG_ENABLED = process.env.NODE_ENV !== 'production';
 
 type SortOption = 'recommended' | 'price_asc' | 'price_desc' | 'rating';
+const SORT_OPTIONS: Array<{ value: SortOption; triggerLabel: string; menuLabel: string }> = [
+  { value: 'recommended', triggerLabel: 'Recommended', menuLabel: 'Recommended' },
+  { value: 'price_asc', triggerLabel: 'Price: Low', menuLabel: 'Price: Low to High' },
+  { value: 'price_desc', triggerLabel: 'Price: High', menuLabel: 'Price: High to Low' },
+  { value: 'rating', triggerLabel: 'Top Rated', menuLabel: 'Highest Rated' },
+];
+
 type AggregatedSearchData = {
   instructors: Instructor[];
   totalResults: number;
@@ -63,6 +70,7 @@ function RateLimitBanner({ rateLimit }: { rateLimit: { seconds: number } | null 
   return (
     <div
       data-testid="rate-limit-banner"
+      role="alert"
       className="mb-4 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-900 px-3 py-2 text-sm"
     >
       Our hamsters are sprinting. Give them {rateLimit.seconds}s.
@@ -664,14 +672,66 @@ function SearchPageInner() {
   const [sortOption, setSortOption] = useState<SortOption>(sortParam);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const sortDropdownRef = useRef<HTMLDivElement>(null);
+  const sortTriggerRef = useRef<HTMLButtonElement | null>(null);
   const sortMenuRef = useRef<HTMLDivElement | null>(null);
+  const sortDropdownRafRef = useRef<number | null>(null);
+  const sortOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [sortPosition, setSortPosition] = useState<{ top: number; left: number } | null>(null);
+  const [activeSortIndex, setActiveSortIndex] = useState(-1);
   const isClient = useSyncExternalStore(
     () => () => undefined,
     () => true,
     () => false
   );
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
+  const [liveAnnouncement, setLiveAnnouncement] = useState('');
+  const selectedSortIndex = SORT_OPTIONS.findIndex((option) => option.value === sortOption);
+  const sortListboxId = 'search-sort-listbox';
+  const currentSortTriggerLabel =
+    SORT_OPTIONS.find((option) => option.value === sortOption)?.triggerLabel ?? 'Recommended';
+
+  const closeSortDropdown = useCallback((restoreFocus = false) => {
+    setShowSortDropdown(false);
+    setActiveSortIndex(-1);
+    if (restoreFocus) {
+      if (sortDropdownRafRef.current !== null) {
+        cancelAnimationFrame(sortDropdownRafRef.current);
+      }
+      sortDropdownRafRef.current = requestAnimationFrame(() => {
+        sortTriggerRef.current?.focus();
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (sortDropdownRafRef.current !== null) {
+        cancelAnimationFrame(sortDropdownRafRef.current);
+      }
+    };
+  }, []);
+
+  const openSortDropdown = useCallback(
+    (preferredIndex?: number) => {
+      if (sortTriggerRef.current) {
+        const rect = sortTriggerRef.current.getBoundingClientRect();
+        setSortPosition({
+          top: rect.bottom + 8,
+          left: rect.left,
+        });
+      }
+
+      const fallbackIndex = selectedSortIndex >= 0 ? selectedSortIndex : 0;
+      const nextIndex =
+        typeof preferredIndex === 'number'
+          ? Math.max(0, Math.min(preferredIndex, SORT_OPTIONS.length - 1))
+          : fallbackIndex;
+
+      setActiveSortIndex(nextIndex);
+      setShowSortDropdown(true);
+    },
+    [selectedSortIndex]
+  );
 
   const handleSortChange = useCallback((nextSort: SortOption) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -685,6 +745,10 @@ function SearchPageInner() {
     router.push(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
   }, [searchParams, pathname, router]);
 
+  useEffect(() => {
+    setSortOption(sortParam);
+  }, [sortParam]);
+
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -692,29 +756,145 @@ function SearchPageInner() {
       const inButton = sortDropdownRef.current?.contains(target);
       const inMenu = sortMenuRef.current?.contains(target);
       if (!inButton && !inMenu) {
-        setShowSortDropdown(false);
+        closeSortDropdown();
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [closeSortDropdown]);
+
+  useEffect(() => {
+    if (!showSortDropdown) return;
+
+    const fallbackIndex = selectedSortIndex >= 0 ? selectedSortIndex : 0;
+    const focusIndex = activeSortIndex >= 0 ? activeSortIndex : fallbackIndex;
+
+    const rafId = requestAnimationFrame(() => {
+      sortOptionRefs.current[focusIndex]?.focus();
+    });
+
+    return () => {
+      cancelAnimationFrame(rafId);
+    };
+  }, [activeSortIndex, selectedSortIndex, showSortDropdown]);
+
+  const selectSortOptionAtIndex = useCallback((index: number) => {
+    const option = SORT_OPTIONS[index];
+    if (!option) return;
+
+    handleSortChange(option.value);
+    closeSortDropdown(true);
+  }, [closeSortDropdown, handleSortChange]);
 
   const handleSortToggle = useCallback(() => {
-    setShowSortDropdown((prev) => {
-      const next = !prev;
-      if (next && sortDropdownRef.current) {
-        const button = sortDropdownRef.current.querySelector('button');
-        if (button) {
-          const rect = button.getBoundingClientRect();
-          setSortPosition({
-            top: rect.bottom + 8,
-            left: rect.left,
-          });
-        }
+    if (showSortDropdown) {
+      closeSortDropdown(true);
+      return;
+    }
+    openSortDropdown();
+  }, [closeSortDropdown, openSortDropdown, showSortDropdown]);
+
+  const handleSortTriggerKeyDown = useCallback((event: React.KeyboardEvent<HTMLButtonElement>) => {
+    const lastIndex = SORT_OPTIONS.length - 1;
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      if (showSortDropdown) {
+        closeSortDropdown(true);
+      } else {
+        openSortDropdown();
       }
-      return next;
-    });
-  }, []);
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (showSortDropdown) {
+        setActiveSortIndex((prev) => {
+          const next = prev < 0 ? 0 : Math.min(prev + 1, lastIndex);
+          return next;
+        });
+      } else {
+        const start = selectedSortIndex >= 0 ? selectedSortIndex : -1;
+        openSortDropdown(Math.min(start + 1, lastIndex));
+      }
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (showSortDropdown) {
+        setActiveSortIndex((prev) => {
+          const next = prev < 0 ? lastIndex : Math.max(prev - 1, 0);
+          return next;
+        });
+      } else {
+        const start = selectedSortIndex >= 0 ? selectedSortIndex : SORT_OPTIONS.length;
+        openSortDropdown(Math.max(start - 1, 0));
+      }
+      return;
+    }
+
+    if (event.key === 'Escape' && showSortDropdown) {
+      event.preventDefault();
+      closeSortDropdown(true);
+    }
+  }, [closeSortDropdown, openSortDropdown, selectedSortIndex, showSortDropdown]);
+
+  const handleSortListboxKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    const lastIndex = SORT_OPTIONS.length - 1;
+
+    if (event.key === 'Tab') {
+      closeSortDropdown();
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeSortDropdown(true);
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setActiveSortIndex((prev) => {
+        if (prev < 0) return 0;
+        return Math.min(prev + 1, lastIndex);
+      });
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActiveSortIndex((prev) => {
+        if (prev < 0) return lastIndex;
+        return Math.max(prev - 1, 0);
+      });
+      return;
+    }
+
+    if (event.key === 'Home') {
+      event.preventDefault();
+      setActiveSortIndex(0);
+      return;
+    }
+
+    if (event.key === 'End') {
+      event.preventDefault();
+      setActiveSortIndex(lastIndex);
+      return;
+    }
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      const indexToSelect = activeSortIndex >= 0
+        ? activeSortIndex
+        : selectedSortIndex >= 0
+          ? selectedSortIndex
+          : 0;
+      selectSortOptionAtIndex(indexToSelect);
+    }
+  }, [activeSortIndex, closeSortDropdown, selectedSortIndex, selectSortOptionAtIndex]);
 
   const searchParamsString = searchParams.toString();
   const query = searchParams.get('q') || '';
@@ -1501,6 +1681,27 @@ function SearchPageInner() {
     return sorted;
   }, [filteredInstructors, sortOption]);
 
+  useEffect(() => {
+    if (loading) {
+      setLiveAnnouncement('Loading instructors...');
+      return;
+    }
+
+    if (errorMessage) {
+      setLiveAnnouncement(errorMessage);
+      return;
+    }
+
+    if (sortedInstructors.length === 0) {
+      setLiveAnnouncement('0 instructors found');
+      return;
+    }
+
+    setLiveAnnouncement(
+      `${sortedInstructors.length} ${sortedInstructors.length === 1 ? 'instructor' : 'instructors'} found`
+    );
+  }, [errorMessage, loading, sortedInstructors.length]);
+
   // Handle map bounds change
   const handleMapBoundsChange = useCallback((bounds: unknown) => {
     if (!bounds) return;
@@ -1699,13 +1900,14 @@ function SearchPageInner() {
       <header ref={headerRef} className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-4 py-2 md:px-6 md:py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link href="/" className="inline-block">
-            <h1 className="text-2xl md:text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-2 md:pl-4">iNSTAiNSTRU</h1>
+            <span className="text-2xl md:text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-2 md:pl-4">iNSTAiNSTRU</span>
           </Link>
           <div className="pr-2 md:pr-4">
             <UserProfileDropdown />
           </div>
         </div>
       </header>
+      <h1 className="sr-only">Search Instructors</h1>
 
       {/* Main Content Area */}
       <div className={`${isStacked ? 'grid grid-cols-1' : ''} xl:flex xl:flex-row xl:min-h-[calc(100vh-5rem)] xl:h-auto`}
@@ -1726,6 +1928,7 @@ function SearchPageInner() {
                 taxonomyContentFilters={taxonomyContentFilters}
                 suggestedContentFilters={suggestedContentFilters}
                 onFiltersChange={(nextFilters) => {
+                  setLiveAnnouncement('Filters applied, loading results...');
                   const params = new URLSearchParams(searchParamsString);
                   const nextSkillLevelCsv = buildSkillLevelParam(
                     nextFilters.skillLevel,
@@ -1761,16 +1964,16 @@ function SearchPageInner() {
                     <span className={`${isStacked ? 'text-xs hidden' : 'text-xs md:text-sm'} text-gray-600 whitespace-nowrap hidden sm:inline`}>Sort:</span>
                     <div className="relative">
                       <button
+                        ref={sortTriggerRef}
                         type="button"
                         onClick={handleSortToggle}
-                        className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1 cursor-pointer transition-colors`}
+                        onKeyDown={handleSortTriggerKeyDown}
+                        aria-haspopup="listbox"
+                        aria-expanded={showSortDropdown}
+                        aria-controls={sortListboxId}
+                        className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} border border-gray-300 bg-white text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-1 cursor-pointer transition-colors`}
                       >
-                        <span>
-                          {sortOption === 'recommended' && 'Recommended'}
-                          {sortOption === 'price_asc' && 'Price: Low'}
-                          {sortOption === 'price_desc' && 'Price: High'}
-                          {sortOption === 'rating' && 'Top Rated'}
-                        </span>
+                        <span>{currentSortTriggerLabel}</span>
                         <ChevronDown className={`h-3 w-3 text-gray-500 transition-transform ${showSortDropdown ? 'rotate-180' : ''}`} />
                       </button>
 
@@ -1778,29 +1981,34 @@ function SearchPageInner() {
                         ? createPortal(
                             <div
                               ref={sortMenuRef}
+                              id={sortListboxId}
+                              role="listbox"
+                              aria-label="Sort results"
+                              onKeyDown={handleSortListboxKeyDown}
                               className="fixed bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-[9999] min-w-[180px] w-auto"
                               style={{ top: sortPosition.top, left: sortPosition.left }}
                             >
-                              {[
-                                { value: 'recommended', label: 'Recommended' },
-                                { value: 'price_asc', label: 'Price: Low to High' },
-                                { value: 'price_desc', label: 'Price: High to Low' },
-                                { value: 'rating', label: 'Highest Rated' },
-                              ].map((option) => (
+                              {SORT_OPTIONS.map((option, index) => (
                                 <button
                                   key={option.value}
-                                  type="button"
-                                  onClick={() => {
-                                    handleSortChange(option.value as SortOption);
-                                    setShowSortDropdown(false);
+                                  ref={(element) => {
+                                    sortOptionRefs.current[index] = element;
                                   }}
+                                  id={`search-sort-option-${option.value}`}
+                                  type="button"
+                                  role="option"
+                                  tabIndex={activeSortIndex === index ? 0 : -1}
+                                  aria-selected={sortOption === option.value}
+                                  onFocus={() => setActiveSortIndex(index)}
+                                  onMouseEnter={() => setActiveSortIndex(index)}
+                                  onClick={() => selectSortOptionAtIndex(index)}
                                   className={`block w-full px-4 py-2 text-left text-sm whitespace-nowrap transition-colors ${
                                     sortOption === option.value
                                       ? 'bg-purple-50 text-[#7E22CE] font-medium'
                                       : 'text-gray-700 hover:bg-gray-50'
                                   }`}
                                 >
-                                  {option.label}
+                                  {option.menuLabel}
                                 </button>
                               ))}
                             </div>,
@@ -1819,6 +2027,14 @@ function SearchPageInner() {
             <div ref={listRef} className={`overflow-y-auto px-6 py-2 md:py-6 h-full max-h-full xl:h-[calc(100vh-15rem)] ${isStacked ? 'snap-y snap-mandatory' : ''} overscroll-contain scrollbar-hide`} style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
               {/* Rate limit banner */}
               <RateLimitBanner rateLimit={rateLimit} />
+              <p
+                data-testid="search-results-live-region"
+                className="sr-only"
+                aria-live="polite"
+                aria-atomic="true"
+              >
+                {liveAnnouncement}
+              </p>
 
             {/* Kids banner */}
             {activeAudience === 'kids' && (

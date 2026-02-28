@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import InteractiveGrid from '../InteractiveGrid';
 import type { WeekBits, WeekDateInfo, DayOfWeek } from '@/types/availability';
 import type { BookedSlotPreview } from '@/types/booking';
@@ -36,6 +37,7 @@ describe('InteractiveGrid', () => {
     weekDates: mockWeekDates,
     weekBits: {} as WeekBits,
     onBitsChange: jest.fn(),
+    allowPastEditing: true,
   };
 
   beforeEach(() => {
@@ -106,8 +108,14 @@ describe('InteractiveGrid', () => {
     });
 
     it('marks selected cells with aria-selected', () => {
+      const selectedDate = mockWeekDates[0]!.fullDate;
+      const slotIndex = 18; // 9:00 AM
+      const byteIndex = Math.floor(slotIndex / 8);
+      const bitIndex = slotIndex % 8;
       const weekBits: WeekBits = {
-        '2030-01-07': new Uint8Array([0, 0, 1, 0, 0]),
+        [selectedDate]: new Uint8Array(Array.from({ length: 180 }, (_, i) =>
+          i === byteIndex ? (1 << bitIndex) : 0
+        )),
       };
 
       render(
@@ -123,7 +131,7 @@ describe('InteractiveGrid', () => {
       const selectedCells = cells.filter(
         (cell) => cell.getAttribute('aria-selected') === 'true'
       );
-      expect(selectedCells.length).toBeGreaterThanOrEqual(0);
+      expect(selectedCells).toHaveLength(1);
     });
 
     it('does not call onBitsChange when clicking already selected cell during drag', () => {
@@ -203,7 +211,7 @@ describe('InteractiveGrid', () => {
   });
 
   describe('keyboard interaction', () => {
-    it('toggles selection on Enter key', async () => {
+    it('toggles selection on Enter key', () => {
       const onBitsChange = jest.fn();
       render(
         <InteractiveGrid
@@ -216,14 +224,13 @@ describe('InteractiveGrid', () => {
 
       const cells = screen.getAllByTestId('availability-cell');
       const firstCell = cells[0];
-      if (firstCell) {
-        fireEvent.keyDown(firstCell, { key: 'Enter' });
-      }
+      expect(firstCell).toBeTruthy();
+      fireEvent.keyDown(firstCell!, { key: 'Enter' });
 
       expect(onBitsChange).toHaveBeenCalled();
     });
 
-    it('toggles selection on Space key', async () => {
+    it('toggles selection on Space key', () => {
       const onBitsChange = jest.fn();
       render(
         <InteractiveGrid
@@ -236,9 +243,8 @@ describe('InteractiveGrid', () => {
 
       const cells = screen.getAllByTestId('availability-cell');
       const firstCell = cells[0];
-      if (firstCell) {
-        fireEvent.keyDown(firstCell, { key: ' ' });
-      }
+      expect(firstCell).toBeTruthy();
+      fireEvent.keyDown(firstCell!, { key: ' ' });
 
       expect(onBitsChange).toHaveBeenCalled();
     });
@@ -256,11 +262,182 @@ describe('InteractiveGrid', () => {
 
       const cells = screen.getAllByTestId('availability-cell');
       const firstCell = cells[0];
-      if (firstCell) {
-        fireEvent.keyDown(firstCell, { key: 'a' });
-      }
+      expect(firstCell).toBeTruthy();
+      fireEvent.keyDown(firstCell!, { key: 'a' });
 
       expect(onBitsChange).not.toHaveBeenCalled();
+    });
+
+    it('moves focus right with ArrowRight', () => {
+      render(<InteractiveGrid {...defaultProps} startHour={9} endHour={10} />);
+
+      const firstCell = document.querySelector<HTMLButtonElement>(
+        '[data-row-index="0"][data-col-index="0"]'
+      );
+      const nextCell = document.querySelector<HTMLButtonElement>(
+        '[data-row-index="0"][data-col-index="1"]'
+      );
+      expect(firstCell).toBeTruthy();
+      expect(nextCell).toBeTruthy();
+
+      firstCell!.focus();
+      fireEvent.keyDown(firstCell!, { key: 'ArrowRight' });
+
+      expect(document.activeElement).toBe(nextCell);
+    });
+
+    it('moves focus left with ArrowLeft', () => {
+      render(<InteractiveGrid {...defaultProps} startHour={9} endHour={10} />);
+
+      const secondCell = document.querySelector<HTMLButtonElement>(
+        '[data-row-index="0"][data-col-index="1"]'
+      );
+      const firstCell = document.querySelector<HTMLButtonElement>(
+        '[data-row-index="0"][data-col-index="0"]'
+      );
+      expect(secondCell).toBeTruthy();
+      expect(firstCell).toBeTruthy();
+
+      secondCell!.focus();
+      fireEvent.keyDown(secondCell!, { key: 'ArrowLeft' });
+      expect(document.activeElement).toBe(firstCell);
+    });
+
+    it('moves focus down with ArrowDown', () => {
+      render(<InteractiveGrid {...defaultProps} startHour={9} endHour={11} />);
+
+      const firstRowCell = document.querySelector<HTMLButtonElement>(
+        '[data-row-index="0"][data-col-index="0"]'
+      );
+      const secondRowCell = document.querySelector<HTMLButtonElement>(
+        '[data-row-index="1"][data-col-index="0"]'
+      );
+      expect(firstRowCell).toBeTruthy();
+      expect(secondRowCell).toBeTruthy();
+
+      firstRowCell!.focus();
+      fireEvent.keyDown(firstRowCell!, { key: 'ArrowDown' });
+      expect(document.activeElement).toBe(secondRowCell);
+    });
+
+    it('moves focus up with ArrowUp', () => {
+      render(<InteractiveGrid {...defaultProps} startHour={9} endHour={11} />);
+
+      const firstRowCell = document.querySelector<HTMLButtonElement>(
+        '[data-row-index="0"][data-col-index="0"]'
+      );
+      const secondRowCell = document.querySelector<HTMLButtonElement>(
+        '[data-row-index="1"][data-col-index="0"]'
+      );
+      expect(firstRowCell).toBeTruthy();
+      expect(secondRowCell).toBeTruthy();
+
+      secondRowCell!.focus();
+      fireEvent.keyDown(secondRowCell!, { key: 'ArrowUp' });
+      expect(document.activeElement).toBe(firstRowCell);
+    });
+
+    it('ArrowRight at last column keeps focus in place', () => {
+      render(<InteractiveGrid {...defaultProps} startHour={9} endHour={10} />);
+
+      const lastCell = document.querySelector<HTMLButtonElement>(
+        '[data-row-index="0"][data-col-index="6"]'
+      );
+      expect(lastCell).toBeTruthy();
+
+      lastCell!.focus();
+      fireEvent.keyDown(lastCell!, { key: 'ArrowRight' });
+      expect(document.activeElement).toBe(lastCell);
+    });
+
+    it('ArrowLeft at first column keeps focus in place', () => {
+      render(<InteractiveGrid {...defaultProps} startHour={9} endHour={10} />);
+
+      const firstCell = document.querySelector<HTMLButtonElement>(
+        '[data-row-index="0"][data-col-index="0"]'
+      );
+      expect(firstCell).toBeTruthy();
+
+      firstCell!.focus();
+      fireEvent.keyDown(firstCell!, { key: 'ArrowLeft' });
+      expect(document.activeElement).toBe(firstCell);
+    });
+
+    it('ArrowDown at last row keeps focus in place', () => {
+      render(<InteractiveGrid {...defaultProps} startHour={9} endHour={10} />);
+
+      const lastRowCell = document.querySelector<HTMLButtonElement>(
+        '[data-row-index="1"][data-col-index="0"]'
+      );
+      expect(lastRowCell).toBeTruthy();
+
+      lastRowCell!.focus();
+      fireEvent.keyDown(lastRowCell!, { key: 'ArrowDown' });
+      expect(document.activeElement).toBe(lastRowCell);
+    });
+
+    it('ArrowUp at first row keeps focus in place', () => {
+      render(<InteractiveGrid {...defaultProps} startHour={9} endHour={10} />);
+
+      const firstRowCell = document.querySelector<HTMLButtonElement>(
+        '[data-row-index="0"][data-col-index="0"]'
+      );
+      expect(firstRowCell).toBeTruthy();
+
+      firstRowCell!.focus();
+      fireEvent.keyDown(firstRowCell!, { key: 'ArrowUp' });
+      expect(document.activeElement).toBe(firstRowCell);
+    });
+
+    it('moves focus to row boundaries with Home and End', () => {
+      render(<InteractiveGrid {...defaultProps} startHour={9} endHour={10} />);
+
+      const middleCell = document.querySelector<HTMLButtonElement>(
+        '[data-row-index="0"][data-col-index="3"]'
+      );
+      const firstCell = document.querySelector<HTMLButtonElement>(
+        '[data-row-index="0"][data-col-index="0"]'
+      );
+      const lastCell = document.querySelector<HTMLButtonElement>(
+        '[data-row-index="0"][data-col-index="6"]'
+      );
+      expect(middleCell).toBeTruthy();
+      expect(firstCell).toBeTruthy();
+      expect(lastCell).toBeTruthy();
+
+      middleCell!.focus();
+      fireEvent.keyDown(middleCell!, { key: 'End' });
+      expect(document.activeElement).toBe(lastCell);
+
+      fireEvent.keyDown(lastCell!, { key: 'Home' });
+      expect(document.activeElement).toBe(firstCell);
+    });
+
+    it('keeps exactly one tabbable grid cell and Tab exits the grid', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      render(
+        <div>
+          <button type="button">Before grid</button>
+          <InteractiveGrid {...defaultProps} startHour={9} endHour={10} />
+          <button type="button">After grid</button>
+        </div>
+      );
+
+      const tabbableCells = screen
+        .getAllByTestId('availability-cell')
+        .filter((cell) => cell.getAttribute('tabindex') === '0');
+      expect(tabbableCells).toHaveLength(1);
+
+      const beforeButton = screen.getByRole('button', { name: 'Before grid' });
+      const afterButton = screen.getByRole('button', { name: 'After grid' });
+
+      beforeButton.focus();
+      await user.tab();
+      expect(tabbableCells[0]).toHaveFocus();
+
+      await user.tab();
+      expect(afterButton).toHaveFocus();
     });
   });
 
@@ -525,6 +702,7 @@ describe('InteractiveGrid', () => {
       render(
         <InteractiveGrid
           {...defaultProps}
+          allowPastEditing={false}
           startHour={9}
           endHour={10}
         />
@@ -555,6 +733,57 @@ describe('InteractiveGrid', () => {
       );
       // With allowPastEditing, no cells should be disabled
       expect(disabledCells.length).toBe(0);
+    });
+
+    it('does not toggle past slot on mouse interaction when disabled', () => {
+      const onBitsChange = jest.fn();
+      jest.setSystemTime(new Date('2030-01-09T14:00:00'));
+
+      render(
+        <InteractiveGrid
+          {...defaultProps}
+          onBitsChange={onBitsChange}
+          allowPastEditing={false}
+          startHour={9}
+          endHour={10}
+        />
+      );
+
+      const disabledCell = screen
+        .getAllByTestId('availability-cell')
+        .find((cell) => cell.getAttribute('aria-disabled') === 'true');
+      expect(disabledCell).toBeTruthy();
+
+      fireEvent.mouseDown(disabledCell!);
+      fireEvent.mouseUp(disabledCell!);
+
+      expect(onBitsChange).not.toHaveBeenCalled();
+    });
+
+    it('does not toggle past slot on Enter/Space when disabled', () => {
+      const onBitsChange = jest.fn();
+      jest.setSystemTime(new Date('2030-01-09T14:00:00'));
+
+      render(
+        <InteractiveGrid
+          {...defaultProps}
+          onBitsChange={onBitsChange}
+          allowPastEditing={false}
+          startHour={9}
+          endHour={10}
+        />
+      );
+
+      const disabledCell = screen
+        .getAllByTestId('availability-cell')
+        .find((cell) => cell.getAttribute('aria-disabled') === 'true');
+      expect(disabledCell).toBeTruthy();
+      disabledCell!.focus();
+
+      fireEvent.keyDown(disabledCell!, { key: 'Enter' });
+      fireEvent.keyDown(disabledCell!, { key: ' ' });
+
+      expect(onBitsChange).not.toHaveBeenCalled();
     });
   });
 
@@ -594,6 +823,30 @@ describe('InteractiveGrid', () => {
   });
 
   describe('accessibility', () => {
+    it('grid container has role=grid with instructional aria-label', () => {
+      render(<InteractiveGrid {...defaultProps} startHour={9} endHour={10} />);
+
+      const grid = screen.getByRole('grid', {
+        name: 'Weekly availability editor. Use arrow keys to navigate between time slots.',
+      });
+      expect(grid).toBeInTheDocument();
+    });
+
+    it('day headers have role=columnheader', () => {
+      render(<InteractiveGrid {...defaultProps} startHour={9} endHour={10} />);
+
+      const headers = screen.getAllByRole('columnheader');
+      expect(headers.length).toBeGreaterThan(0);
+    });
+
+    it('time gutter headers have role=rowheader', () => {
+      render(<InteractiveGrid {...defaultProps} startHour={9} endHour={10} />);
+
+      const rowHeaders = screen.getAllByRole('rowheader');
+      expect(rowHeaders.length).toBeGreaterThan(0);
+      expect(rowHeaders[0]).toHaveTextContent('9:00');
+    });
+
     it('cells have role=gridcell', () => {
       render(<InteractiveGrid {...defaultProps} startHour={9} endHour={10} />);
 

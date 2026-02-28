@@ -79,10 +79,10 @@ function ReviewsPageImpl() {
 
   const filterLabel = filter === 'all' ? 'All reviews' : `${filter} stars`;
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen insta-dashboard-page">
       {/* Header hidden when embedded */}
       {!embedded && (
-        <header className="relative bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
+        <header className="relative px-4 sm:px-6 py-4 insta-dashboard-header">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/instructor/dashboard" className="inline-block">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
@@ -124,24 +124,24 @@ function ReviewsPageImpl() {
         />
 
         {/* Ratings summary */}
-        <div className="bg-white rounded-lg p-6 border border-gray-200">
+        <div className="p-6 insta-surface-card">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Reviews</h2>
-              <p className="text-gray-600 text-sm">{loading ? 'Loading…' : `${totalReviews} total`}</p>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Reviews</h2>
+              <p className="text-gray-600 dark:text-gray-400 text-sm">{loading ? 'Loading…' : `${totalReviews} total`}</p>
               {confidenceDisplay && (
                 <span className="mt-2 inline-flex items-center rounded-full border border-purple-200 bg-purple-50 px-3 py-1 text-xs font-medium text-[#7E22CE]">
                   {confidenceDisplay}
                 </span>
               )}
             </div>
-            <div className="flex items-baseline gap-2 text-gray-900">
+            <div className="flex items-baseline gap-2 text-gray-900 dark:text-gray-100">
               <Star className={`h-6 w-6 ${averageRating != null ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
               <span className="text-3xl font-bold">
                 {loading ? '—' : averageRatingDisplay ?? '—'}
               </span>
               {averageRating != null && (
-                <span className="text-sm text-gray-500 font-medium">({averageRating.toFixed(2)})</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">({averageRating.toFixed(2)})</span>
               )}
             </div>
           </div>
@@ -179,7 +179,7 @@ function ReviewsPageImpl() {
                         className={`w-full text-left px-3 py-2 rounded-md transition-colors cursor-pointer ${
                           hoveredOpt === opt ? 'bg-purple-50 text-[#7E22CE]' : ''
                         } ${
-                          filter === opt ? 'bg-purple-100 text-[#7E22CE] font-semibold' : 'text-gray-800'
+                          filter === opt ? 'bg-purple-100 text-[#7E22CE] font-semibold' : 'text-gray-800 dark:text-gray-200'
                         }`}
                       >
                         {opt === 'all' ? 'All reviews' : `${opt} stars`}
@@ -198,7 +198,7 @@ function ReviewsPageImpl() {
                 setPage(1);
               }}
               className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
-                withCommentsOnly ? 'border-purple-300 bg-purple-50 text-[#7E22CE]' : 'border-gray-300 bg-white text-gray-700'
+                withCommentsOnly ? 'border-purple-300 bg-purple-50 text-[#7E22CE]' : 'border-gray-300 bg-white text-gray-700 dark:text-gray-300'
               }`}
             >
               {withCommentsOnly ? <span className="inline-block h-3 w-3 rounded-full bg-[#7E22CE]" /> : <span className="inline-block h-3 w-3 rounded-full border border-gray-300" />}
@@ -207,7 +207,7 @@ function ReviewsPageImpl() {
           </div>
 
           {showEmptyState && (
-            <div className="mt-6 space-y-3 text-gray-500">
+            <div className="mt-6 space-y-3 text-gray-500 dark:text-gray-400">
               <p>You don’t have any reviews yet — but you’re just getting started!</p>
               <p>Happy students leave great feedback. After each lesson, kindly remind them to rate their experience.</p>
             </div>
@@ -232,20 +232,20 @@ function ReviewsPageImpl() {
               {reviews.length > 0 && (
                 <div className="grid grid-cols-1 gap-4">
                   {reviews.map((review) => (
-                    <article key={review.id} className="p-4 bg-white rounded-lg border border-gray-200">
+                    <article key={review.id} className="p-4 insta-surface-card">
                       <div className="flex items-start gap-3">
                         <StarRating rating={review.rating} />
                         <div className="flex-1">
                           <div className="flex flex-wrap items-baseline gap-2">
-                            <span className="text-sm font-medium text-gray-900">{review.reviewer_display_name || 'Student'}</span>
-                            <span className="text-xs text-gray-500">
+                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{review.reviewer_display_name || 'Student'}</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
                               {formatDistanceToNow(new Date(review.created_at), { addSuffix: true })}
                             </span>
                           </div>
                           {review.review_text ? (
-                            <p className="text-sm text-gray-700 mt-1">{review.review_text}</p>
+                            <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">{review.review_text}</p>
                           ) : (
-                            <p className="text-xs text-gray-500 mt-1">No written feedback</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">No written feedback</p>
                           )}
                         </div>
                       </div>
@@ -263,16 +263,16 @@ function ReviewsPageImpl() {
               type="button"
               onClick={() => setPage((prev) => Math.max(1, prev - 1))}
               disabled={page === 1 || reviewsFetching}
-              className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 disabled:opacity-50 insta-secondary-btn"
             >
               <span>Previous</span>
             </button>
-            <span className="text-sm text-gray-600">Page {page}</span>
+            <span className="text-sm text-gray-600 dark:text-gray-400">Page {page}</span>
             <button
               type="button"
               onClick={() => setPage((prev) => prev + 1)}
               disabled={!reviewsData?.has_next || reviewsFetching}
-              className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 disabled:opacity-50 insta-secondary-btn"
             >
               <span>Next</span>
             </button>

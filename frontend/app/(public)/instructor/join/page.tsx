@@ -100,17 +100,17 @@ function JoinInner() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative transition-colors duration-200">
+    <div className="min-h-screen insta-onboarding-page flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative transition-colors duration-200">
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white/95 dark:bg-gray-900/80 py-8 px-4 shadow-[0_20px_40px_rgba(126,34,206,0.12)] rounded-[28px] border border-white/60 dark:border-gray-800/60 backdrop-blur-sm sm:px-10 transition-colors duration-200">
+        <div className="insta-flow-panel bg-white/80 dark:bg-gray-900/80 py-8 px-4 sm:px-10 transition-colors duration-200">
           <div className="text-center mb-6">
             <h1 className="text-4xl font-bold text-[#7E22CE] transition-colors">
               {BRAND.name}
             </h1>
-            <h2 className="text-2xl font-bold mb-2 text-gray-900 dark:text-gray-100 mt-3">
+            <h2 className="text-2xl font-bold mb-2 insta-onboarding-strong-text mt-3">
               Founding Instructor Program
             </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-300 mt-3">
+            <p className="text-sm insta-onboarding-subtitle mt-3">
               You&apos;ve been selected for early access to iNSTAiNSTRU <span className="text-xs">NYC&apos;s most selective instant-booking marketplace for instructors & students</span>
             </p>
           </div>
@@ -123,7 +123,7 @@ function JoinInner() {
               <input
                 id="invite"
                 data-testid="invite-code-input"
-                className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="mt-1 block w-full px-3 py-2 h-10 insta-form-input focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)]"
                 placeholder="Enter code (e.g. ZBB5-MWQP)"
                 value={formattedCode}
                 onChange={(e) => handleInputChange(e.target.value)}
@@ -156,13 +156,13 @@ function JoinInner() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full flex justify-center items-center h-12 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#7E22CE] hover:bg-[#7E22CE] focus:bg-[#7E22CE] active:bg-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-60 disabled:cursor-not-allowed transform-gpu will-change-transform transition-all antialiased"
+              className="insta-primary-btn w-full flex justify-center items-center h-12 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-60 disabled:cursor-not-allowed transform-gpu will-change-transform transition-all antialiased"
             >
               {submitting ? 'Verifying…' : 'Join!'}
             </button>
           </form>
           <div className="mt-8">
-            <div className="mt-4 rounded-lg border border-gray-100 bg-gray-50 px-4 py-5 text-center text-xs text-gray-600 space-y-3">
+            <div className="mt-4 rounded-lg px-4 py-5 text-center text-xs text-gray-600 dark:text-gray-400 space-y-3 insta-empty-state-note">
               <p>
                 By clicking Join, you agree to iNSTAiNSTRU&apos;s{' '}
                 <a href="/legal#terms" className="focus-link text-[#7E22CE] hover:text-[#7E22CE]">
@@ -186,7 +186,7 @@ function JoinInner() {
               </p>
             </div>
           </div>
-          <p className="mt-6 text-xs text-gray-500 text-center">
+          <p className="mt-6 text-xs text-gray-500 dark:text-gray-400 text-center">
             Already have an account?{' '}
             <a href="/login" className="focus-link text-[#7E22CE] hover:underline">Sign in</a>
           </p>

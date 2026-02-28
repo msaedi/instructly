@@ -131,6 +131,15 @@ describe('Verification page', () => {
     expect(screen.queryByText(/choose file/i)).not.toBeInTheDocument();
   });
 
+  it('keeps peer section headings at h2 level', async () => {
+    renderWithClient(<Step4Verification />);
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { level: 2, name: /identity verification/i })).toBeInTheDocument()
+    );
+    expect(screen.getByRole('heading', { level: 2, name: /background check/i })).toBeInTheDocument();
+  });
+
   it('navigates back to status when coming from status', async () => {
     currentSearchParams = new URLSearchParams('from=status');
     renderWithClient(<Step4Verification />);

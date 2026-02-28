@@ -1,5 +1,6 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import BookingModal from '../BookingModal';
 import type { Instructor } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
@@ -70,7 +71,6 @@ describe('BookingModal', () => {
   beforeEach(() => {
     useRouterMock.mockReturnValue({ push: pushMock });
     pushMock.mockReset();
-    jest.spyOn(window, 'alert').mockImplementation(() => undefined);
     const storage: Record<string, string> = {};
     Object.defineProperty(window, 'sessionStorage', {
       value: {
@@ -89,10 +89,6 @@ describe('BookingModal', () => {
       },
       configurable: true,
     });
-  });
-
-  afterEach(() => {
-    (window.alert as jest.Mock).mockRestore();
   });
 
   describe('visibility', () => {
@@ -218,10 +214,9 @@ describe('BookingModal', () => {
 
       const continueButton = screen.getByRole('button', { name: 'Continue to Payment' });
       expect(continueButton).toBeDisabled();
-      expect(window.alert).not.toHaveBeenCalled();
     });
 
-    it('shows alert when required fields are missing on submit', async () => {
+    it('keeps submit disabled when required fields are missing', async () => {
       useAuthMock.mockReturnValue({
         user: { full_name: '', email: '' },
         isAuthenticated: true,
@@ -678,7 +673,7 @@ describe('BookingModal', () => {
       expect(continueButton).toBeDisabled();
     });
 
-    it('alerts when submitting without a selected service', async () => {
+    it('shows inline error when submitting without a selected service', async () => {
       useAuthMock.mockReturnValue({
         user: { full_name: 'Jane Doe', email: 'jane@example.com' },
         isAuthenticated: true,
@@ -699,7 +694,15 @@ describe('BookingModal', () => {
 
       await userEvent.click(screen.getByRole('button', { name: 'Continue to Payment' }));
 
-      expect(window.alert).toHaveBeenCalledWith('Please select a service');
+      const serviceError = await screen.findByText('Please select a service');
+      expect(screen.getByText('Please fix 1 error below.')).toBeInTheDocument();
+      expect(serviceError).toHaveAttribute('id', 'booking-service-error');
+      expect(serviceError).toHaveAttribute('role', 'alert');
+      expect(serviceError).not.toHaveAttribute('aria-live');
+      expect(screen.getByRole('button', { name: 'Continue to Payment' })).toHaveAttribute(
+        'aria-describedby',
+        expect.stringContaining('booking-service-error')
+      );
     });
 
     it('handles instructor with missing service area', () => {
@@ -722,8 +725,8 @@ describe('BookingModal', () => {
     });
   });
 
-  describe('form submission validation alerts', () => {
-    it('alerts when phone is missing on submit attempt', async () => {
+  describe('form submission validation states', () => {
+    it('keeps button disabled when phone is missing on submit attempt', async () => {
       useAuthMock.mockReturnValue({
         user: { full_name: 'Jane Doe', email: 'jane@example.com' },
         isAuthenticated: true,
@@ -778,6 +781,96 @@ describe('BookingModal', () => {
   });
 
   describe('keyboard and accessibility', () => {
+    it('renders with dialog semantics', () => {
+      useAuthMock.mockReturnValue({
+        user: null,
+        isAuthenticated: false,
+        redirectToLogin: jest.fn(),
+      });
+
+      renderModal();
+
+      const dialog = screen.getByRole('dialog');
+      const heading = screen.getByRole('heading', { name: 'Confirm Your Lesson' });
+      expect(dialog).toHaveAttribute('aria-modal', 'true');
+      const labelledBy = dialog.getAttribute('aria-labelledby');
+      expect(labelledBy).toBeTruthy();
+      expect(heading).toHaveAttribute('id', labelledBy);
+    });
+
+    it('moves initial focus inside modal when opened', () => {
+      useAuthMock.mockReturnValue({
+        user: null,
+        isAuthenticated: false,
+        redirectToLogin: jest.fn(),
+      });
+
+      renderModal();
+
+      expect(screen.getByRole('button', { name: 'Close modal' })).toHaveFocus();
+    });
+
+    it('traps focus when tabbing forward and backward', async () => {
+      useAuthMock.mockReturnValue({
+        user: { full_name: 'Jane Doe', email: 'jane@example.com' },
+        isAuthenticated: true,
+        redirectToLogin: jest.fn(),
+      });
+
+      renderModal();
+      const inputs = getTextInputs();
+      const phoneInput = inputs[2]!;
+      await userEvent.type(phoneInput, '555-1111');
+      await userEvent.click(screen.getByRole('checkbox'));
+
+      const closeButton = screen.getByRole('button', { name: 'Close modal' });
+      const submitButton = screen.getByRole('button', { name: 'Continue to Payment' });
+
+      submitButton.focus();
+      fireEvent.keyDown(submitButton, { key: 'Tab' });
+      expect(closeButton).toHaveFocus();
+
+      closeButton.focus();
+      fireEvent.keyDown(closeButton, { key: 'Tab', shiftKey: true });
+      expect(submitButton).toHaveFocus();
+    });
+
+    it('closes on Escape and returns focus to the opener', async () => {
+      useAuthMock.mockReturnValue({
+        user: null,
+        isAuthenticated: false,
+        redirectToLogin: jest.fn(),
+      });
+
+      const user = userEvent.setup();
+
+      function ModalHarness() {
+        const [open, setOpen] = useState(false);
+        return (
+          <div>
+            <button onClick={() => setOpen(true)}>Open booking modal</button>
+            <BookingModal
+              isOpen={open}
+              onClose={() => setOpen(false)}
+              onContinueToBooking={jest.fn()}
+              instructor={instructor}
+              selectedDate="2025-01-01"
+              selectedTime="10:00"
+            />
+          </div>
+        );
+      }
+
+      render(<ModalHarness />);
+      const opener = screen.getByRole('button', { name: 'Open booking modal' });
+      await user.click(opener);
+
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      await user.keyboard('{Escape}');
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(opener).toHaveFocus();
+    });
+
     it('handles form inputs correctly', async () => {
       useAuthMock.mockReturnValue({
         user: { full_name: 'Test User', email: 'test@example.com' },
@@ -811,7 +904,7 @@ describe('BookingModal', () => {
   });
 
   describe('handleBookingSubmit defensive validation (lines 190-197)', () => {
-    // The button is disabled when fields are empty, so these alert branches
+    // The button is disabled when fields are empty, so these defensive branches
     // are defensive code. We verify that the disabled state is correct.
 
     it('button stays disabled when name is cleared after being filled', async () => {
@@ -837,7 +930,7 @@ describe('BookingModal', () => {
       expect(continueButton).toBeDisabled();
     });
 
-    it('alerts "Please fill in all required fields" when phone cleared after full fill (lines 191-192)', async () => {
+    it('keeps button disabled when phone is cleared after full fill', async () => {
       useAuthMock.mockReturnValue({
         user: { full_name: 'Jane Doe', email: 'jane@example.com' },
         isAuthenticated: true,
@@ -864,7 +957,7 @@ describe('BookingModal', () => {
       expect(continueButton).toBeDisabled();
     });
 
-    it('alerts "Please agree to the terms" when terms unchecked after full fill (lines 196-197)', async () => {
+    it('keeps button disabled when terms are unchecked after full fill', async () => {
       useAuthMock.mockReturnValue({
         user: { full_name: 'Jane Doe', email: 'jane@example.com' },
         isAuthenticated: true,
@@ -909,7 +1002,6 @@ describe('BookingModal', () => {
       renderModal({ instructor: instructorNoServices });
 
       // The continue button is disabled, use fireEvent to bypass
-      const { fireEvent } = await import('@testing-library/react');
       const continueButton = screen.getByRole('button', { name: 'Continue to Booking' });
       fireEvent.click(continueButton);
 

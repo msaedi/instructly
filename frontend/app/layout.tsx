@@ -15,6 +15,7 @@ import { headers } from 'next/headers';
 import { BackgroundProvider } from '@/lib/config/backgroundProvider';
 import { APP_URL, APP_ENV, NODE_ENV, ENABLE_LOGGING } from '@/lib/publicEnv';
 import { AxiomWebVitals } from 'next-axiom';
+import SkipToMainLink from '@/components/SkipToMainLink';
 // Analytics moved to client-only Providers to avoid SSR hydration mismatch
 
 /**
@@ -136,6 +137,22 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const themeSyncScript = `(() => {
+    try {
+      const root = document.documentElement;
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const applyThemeClass = () => {
+        root.classList.toggle('dark', mediaQuery.matches);
+      };
+      applyThemeClass();
+      if (typeof mediaQuery.addEventListener === 'function') {
+        mediaQuery.addEventListener('change', applyThemeClass);
+      } else if (typeof mediaQuery.addListener === 'function') {
+        mediaQuery.addListener(applyThemeClass);
+      }
+    } catch {}
+  })();`;
+
   const betaConfig = getBetaConfigFromHeaders(await headers());
   // Log layout initialization in development
   logger.debug('Root layout initialized', {
@@ -146,8 +163,9 @@ export default async function RootLayout({
   });
 
   return (
-    <html lang="en" className="h-full">
+    <html lang="en" className="h-full" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: themeSyncScript }} />
         <link rel="preconnect" href="https://assets.instainstru.com" crossOrigin="" />
         {/* Leaflet CSS */}
         <link
@@ -161,6 +179,7 @@ export default async function RootLayout({
         className={`h-full antialiased bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 ${_geistSans.variable} ${_geistMono.variable}`}
         style={{ isolation: 'isolate' }}
       >
+        <SkipToMainLink />
         <BackgroundProvider>
           {/* Global fixed background with blur-up and readability overlay */}
           <GlobalBackground />
@@ -174,7 +193,7 @@ export default async function RootLayout({
               - Theme provider
             */}
             <Providers>
-              {children}
+              <main id="main-content" tabIndex={-1}>{children}</main>
               <Analytics />
               <SpeedInsights />
               <AxiomWebVitals />

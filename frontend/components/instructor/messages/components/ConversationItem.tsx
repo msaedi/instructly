@@ -76,7 +76,7 @@ export function ConversationItem({
         type="button"
         onClick={() => onSelect(conversation.id)}
         className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
-          isActive ? 'bg-purple-50' : 'hover:bg-gray-50'
+          isActive ? 'bg-purple-50 dark:bg-purple-900/40' : 'hover:bg-gray-50 dark:hover:bg-gray-800/60'
         }`}
       >
         <div className="relative">
@@ -88,17 +88,17 @@ export function ConversationItem({
           {unreadDot}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-900 truncate">
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
             {isCompose ? 'New Message' : conversation.name}
           </p>
-          <p className="text-xs text-gray-500 truncate">
+          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
             {conversation.lastMessage || (isCompose ? 'Draft a message' : '')}
           </p>
         </div>
         {!isCompose && (
-          <div className="flex flex-col items-end gap-1 text-xs text-gray-400">
+          <div className="flex flex-col items-end gap-1 text-xs text-gray-400 dark:text-gray-400">
             {conversationDate ? (
-              <span className="text-[11px] text-gray-500 leading-none">
+              <span className="text-[11px] text-gray-500 dark:text-gray-400 leading-none">
                 {conversationDate}
               </span>
             ) : (
@@ -137,7 +137,7 @@ export function ConversationItem({
             aria-label="Archive conversation"
             title="Archive conversation"
             onClick={handleArchiveClick}
-            className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 transition-colors hover:bg-purple-50 hover:text-[#7E22CE]"
+            className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 dark:text-gray-400 transition-colors hover:bg-purple-50 hover:text-[#7E22CE]"
           >
             <Archive className="w-4 h-4" />
           </button>
@@ -146,7 +146,7 @@ export function ConversationItem({
             aria-label="Delete conversation"
             title="Delete conversation"
             onClick={handleDeleteClick}
-            className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600"
+            className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 dark:text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
           >
             <Trash2 className="w-4 h-4" />
           </button>

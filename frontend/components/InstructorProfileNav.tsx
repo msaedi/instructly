@@ -25,6 +25,7 @@ export default function InstructorProfileNav({ instructorName }: InstructorProfi
             <button
               onClick={handleBackClick}
               className="mr-4 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              aria-label="Go back"
             >
               <ChevronLeft className="h-6 w-6 text-gray-600 dark:text-gray-300" />
             </button>

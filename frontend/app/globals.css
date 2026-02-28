@@ -157,125 +157,146 @@ body {
 /* Font variables are already available via CSS custom properties */
 
 /* Dark Mode Support */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: 222 47% 11%;
-    --foreground: #f3f4f6; /* Gray 100 */
-    --background-secondary: #1f2937; /* Gray 800 */
-    --foreground-secondary: #9ca3af; /* Gray 400 */
+/* Class-based dark mode support */
+.dark {
+  --background: 222 47% 11%;
+  --foreground: #f3f4f6; /* Gray 100 */
+  --background-secondary: #1f2937; /* Gray 800 */
+  --foreground-secondary: #9ca3af; /* Gray 400 */
 
-    /* Adjusted brand colors for dark mode - match brand purple */
-    --color-primary: #7E22CE; /* Brand Purple */
-    --color-primary-hover: #7E22CE; /* Keep solid on hover */
-    --color-primary-light: #312e81; /* Indigo 900 */
+  /* Adjusted brand colors for dark mode - match brand purple */
+  --color-primary: #7E22CE; /* Brand Purple */
+  --color-primary-hover: #7E22CE; /* Keep solid on hover */
+  --color-primary-light: #312e81; /* Indigo 900 */
 
-    /* Adjusted semantic colors for dark mode */
-    --color-success: #059669;
-    --color-warning: #d97706;
-    --color-error: #dc2626;
-    --color-info: #2563eb;
+  /* Adjusted semantic colors for dark mode */
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-error: #dc2626;
+  --color-info: #2563eb;
 
-    /* Adjusted shadows for dark mode */
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.5);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5);
-  }
+  /* Adjusted shadows for dark mode */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.5);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+}
 
-  /* Force dark backgrounds on common elements */
-  body {
-    background-color: #111827 !important; /* Gray 900 */
-    color: #f3f4f6 !important; /* Gray 100 */
-  }
+.dark body {
+  background-color: #111827 !important; /* Gray 900 */
+  color: #f3f4f6 !important; /* Gray 100 */
+}
 
-  /* Ensure all white backgrounds become dark */
-  .bg-white {
-    background-color: #1f2937 !important; /* Gray 800 */
-  }
+.dark .bg-white {
+  background-color: #1f2937 !important; /* Gray 800 */
+}
 
-  .bg-gray-50 {
-    background-color: #111827 !important; /* Gray 900 */
-  }
+.dark .bg-gray-50 {
+  background-color: #111827 !important; /* Gray 900 */
+}
 
-  /* Fix text colors */
-.text-gray-900 {
-    color: #f3f4f6 !important; /* Gray 100 */
-  }
+.dark .text-gray-900 {
+  color: #f3f4f6 !important; /* Gray 100 */
+}
 
-  .text-gray-600 {
-    color: #9ca3af !important; /* Gray 400 */
-  }
+.dark .text-gray-600 {
+  color: #9ca3af !important; /* Gray 400 */
+}
 
-  /* Fix borders */
-  .border-gray-100,
-  .border-gray-200,
-  .border-gray-300 {
-    border-color: #374151 !important; /* Gray 700 */
-  }
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-gray-300 {
+  border-color: #374151 !important; /* Gray 700 */
+}
 
-  /* Availability Grid Dark Mode Fixes */
-  /* Available slots (green) */
-  .bg-green-500 {
-    background-color: #059669 !important; /* Emerald 600 - darker green */
-  }
+.dark .bg-green-500 {
+  background-color: #059669 !important; /* Emerald 600 - darker green */
+}
 
-  /* Unavailable slots (gray/white) */
-  .bg-gray-200,
-  .bg-gray-100 {
-    background-color: #374151 !important; /* Gray 700 */
-  }
+.dark .bg-gray-200,
+.dark .bg-gray-100 {
+  background-color: #374151 !important; /* Gray 700 */
+}
 
-  /* Booked slots */
-  .bg-red-100 {
-    background-color: #991b1b !important; /* Red 800 - lighter than 900 */
-    color: #fee2e2 !important; /* Red 100 - much lighter text */
-  }
+.dark .bg-red-100 {
+  background-color: #991b1b !important; /* Red 800 - lighter than 900 */
+  color: #fee2e2 !important; /* Red 100 - much lighter text */
+}
 
-  /* Ensure all text in booked slots is visible */
-  .bg-red-100 * {
-    color: #fee2e2 !important; /* Red 100 */
-  }
+.dark .bg-red-100 * {
+  color: #fee2e2 !important; /* Red 100 */
+}
 
-  .bg-orange-100 {
-    background-color: #92400e !important; /* Amber 800 - lighter than 900 */
-    color: #fef3c7 !important; /* Amber 100 - much lighter text */
-  }
+.dark .bg-orange-100 {
+  background-color: #92400e !important; /* Amber 800 - lighter than 900 */
+  color: #fef3c7 !important; /* Amber 100 - much lighter text */
+}
 
-  .bg-orange-100 * {
-    color: #fef3c7 !important; /* Amber 100 */
-  }
+.dark .bg-orange-100 * {
+  color: #fef3c7 !important; /* Amber 100 */
+}
 
-  /* How it works section */
-  .bg-blue-50 {
-    background-color: #1e3a8a !important; /* Blue 900 */
-    color: #e0e7ff !important; /* Indigo 100 - better contrast */
-  }
+.dark .bg-blue-50 {
+  background-color: #1e3a8a !important; /* Blue 900 */
+  color: #e0e7ff !important; /* Indigo 100 - better contrast */
+}
 
-  /* Ensure all text in blue boxes is visible */
-  .bg-blue-50 * {
-    color: #e0e7ff !important; /* Indigo 100 */
-  }
+.dark .bg-blue-50 * {
+  color: #e0e7ff !important; /* Indigo 100 */
+}
 
-  /* Text in light backgrounds needs to be light in dark mode */
-  .text-green-700 {
-    color: #34d399 !important; /* Emerald 400 */
-  }
+.dark .text-green-700 {
+  color: #34d399 !important; /* Emerald 400 */
+}
 
-  .text-gray-700 {
-    color: #d1d5db !important; /* Gray 300 */
-  }
+.dark .text-gray-700 {
+  color: #d1d5db !important; /* Gray 300 */
+}
 
-  .text-gray-500 {
-    color: #9ca3af !important; /* Gray 400 */
-  }
+.dark .text-gray-500 {
+  color: #9ca3af !important; /* Gray 400 */
+}
 
-  .text-gray-400 {
-    color: #d1d5db !important; /* Gray 300 */
-  }
+.dark .text-gray-400 {
+  color: #d1d5db !important; /* Gray 300 */
+}
 
-  /* Calendar grid header */
-  .text-gray-600 {
-    color: #9ca3af !important; /* Gray 400 */
-  }
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: #1f2937; /* Gray 800 */
+  color: #f3f4f6; /* Gray 100 */
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #9ca3af; /* Gray 400 */
+}
+
+.dark input:focus,
+.dark textarea:focus,
+.dark select:focus {
+  border-color: var(--color-primary);
+  background-color: #111827; /* Gray 900 */
+}
+
+.dark button.stat-card.bg-white:not(:disabled):hover,
+.dark button.stat-card:not(:disabled):hover {
+  background-color: rgb(55 65 81) !important; /* gray-700 */
+  border-color: rgb(147 51 234) !important; /* purple-600 */
+}
+
+.dark button.profile-view-btn.bg-white:not(:disabled):hover,
+.dark button.profile-view-btn:not(:disabled):hover {
+  background-color: rgb(55 65 81) !important; /* gray-700 */
+  border-color: rgb(168 85 247) !important; /* purple-500 */
+}
+
+.dark .autofill-fix:-webkit-autofill,
+.dark .autofill-fix:-webkit-autofill:hover,
+.dark .autofill-fix:-webkit-autofill:focus,
+.dark .autofill-fix:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #374151 inset !important;
+  -webkit-text-fill-color: #f9fafb !important;
 }
 
 /* Base Styles */
@@ -298,28 +319,6 @@ select {
 }
 
 /* Dark mode specific input styles */
-@media (prefers-color-scheme: dark) {
-  input,
-  textarea,
-  select {
-    background-color: #1f2937; /* Gray 800 */
-    color: #f3f4f6; /* Gray 100 */
-    /* Note: border-color omitted - let Tailwind utilities control borders */
-  }
-
-  input::placeholder,
-  textarea::placeholder {
-    color: #9ca3af; /* Gray 400 */
-  }
-
-  /* Focus styles for dark mode */
-  input:focus,
-  textarea:focus,
-  select:focus {
-    border-color: var(--color-primary);
-    background-color: #111827; /* Gray 900 */
-  }
-}
 
 /* Selection Styles */
 ::selection {
@@ -364,12 +363,14 @@ select {
 
 /* Skip to Main Content Link (Accessibility) */
 .skip-to-main {
-  position: absolute;
-  left: -999px;
+  position: fixed;
+  top: 0;
+  left: 0;
   width: 1px;
   height: 1px;
-  top: auto;
-  z-index: -999;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .skip-to-main:focus,
@@ -378,11 +379,17 @@ select {
   top: 0;
   width: auto;
   height: auto;
+  overflow: visible;
+  clip-path: none;
   padding: var(--spacing-sm);
   background: var(--background);
   color: var(--foreground);
   text-decoration: underline;
   z-index: 999;
+}
+
+#main-content:focus {
+  outline: none;
 }
 
 /* Reduced Motion Support */
@@ -590,27 +597,11 @@ button.stat-card:not(:disabled):hover {
   border-color: rgb(216 180 254) !important; /* purple-300 */
 }
 
-@media (prefers-color-scheme: dark) {
-  button.stat-card.bg-white:not(:disabled):hover,
-  button.stat-card:not(:disabled):hover {
-    background-color: rgb(55 65 81) !important; /* gray-700 */
-    border-color: rgb(147 51 234) !important; /* purple-600 */
-  }
-}
-
 /* Public profile button - explicit hover styles */
 button.profile-view-btn.bg-white:not(:disabled):hover,
 button.profile-view-btn:not(:disabled):hover {
   background-color: rgb(249 250 251) !important; /* gray-50 */
   border-color: rgb(216 180 254) !important; /* purple-300 */
-}
-
-@media (prefers-color-scheme: dark) {
-  button.profile-view-btn.bg-white:not(:disabled):hover,
-  button.profile-view-btn:not(:disabled):hover {
-    background-color: rgb(55 65 81) !important; /* gray-700 */
-    border-color: rgb(168 85 247) !important; /* purple-500 */
-  }
 }
 
 /* Ensure full-pill hover area for neighborhood chips */
@@ -642,7 +633,6 @@ button:not(:disabled):active,
 [role="button"]:not(:disabled):active {
   transform: scale(1.0);
 }
-
 
 /* Avoid text blurring on touch when pressing buttons by disabling transform on tap */
 @media (hover: none) {
@@ -837,16 +827,6 @@ html {
   transition: background-color 5000s ease-in-out 0s;
 }
 
-@media (prefers-color-scheme: dark) {
-  .autofill-fix:-webkit-autofill,
-  .autofill-fix:-webkit-autofill:hover,
-  .autofill-fix:-webkit-autofill:focus,
-  .autofill-fix:-webkit-autofill:active {
-    -webkit-box-shadow: 0 0 0 1000px #374151 inset !important;
-    -webkit-text-fill-color: #f9fafb !important;
-  }
-}
-
 /* Purple highlighting for time input fields */
 .time-input-purple::-webkit-datetime-edit-hour-field:focus,
 .time-input-purple::-webkit-datetime-edit-minute-field:focus,
@@ -897,8 +877,9 @@ html {
 }
 
 .focus-link:focus-visible {
-  outline: none;
-  box-shadow: none;
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px rgba(91, 33, 182, 0.15);
   color: #5b21b6;
   font-weight: 600;
   text-decoration-thickness: 3px;
@@ -945,4 +926,410 @@ html {
   white-space: normal;
   word-break: break-word;
   line-height: 1.4;
+}
+
+@layer components {
+
+/* Shared translucent surface/button utilities for auth/onboarding/dashboard */
+/*
+ * Edge-to-edge mobile card pattern: cards render borderless and transparent
+ * on mobile viewports to fill the screen edge-to-edge, matching iOS/Android
+ * native list conventions. Visual card affordance (background, border, radius)
+ * is restored at the sm: breakpoint via responsive overrides below.
+ *
+ * Rendering matrix:
+ * - mobile + light: transparent, borderless, no radius
+ * - sm+ + light: white translucent surface with border/radius
+ * - mobile + dark: transparent, borderless, no radius
+ * - sm+ + dark: dark translucent surface with border/radius
+ * - dashboard pages: explicit dashboard overrides apply a slightly stronger
+ *   card treatment on top of the base surface rules.
+ */
+.insta-surface-card {
+  background-color: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.insta-flow-panel {
+  background-color: rgb(255 255 255 / 0.95);
+  border: 1px solid rgb(255 255 255 / 0.6);
+  border-radius: 1.75rem;
+  box-shadow: 0 20px 40px rgba(126, 34, 206, 0.12);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.dark .insta-flow-panel {
+  background-color: rgb(17 24 39 / 0.8);
+  border-color: rgb(31 41 55 / 0.6);
+}
+
+@media (min-width: 640px) {
+  .insta-surface-card {
+    background-color: rgb(255 255 255 / 0.9);
+    border: 1px solid rgb(229 231 235 / 1);
+    border-radius: 0.5rem;
+  }
+}
+
+.dark .insta-surface-card {
+  background-color: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+@media (min-width: 640px) {
+  .dark .insta-surface-card {
+    background-color: rgb(17 24 39 / 0.7);
+    border: 1px solid rgb(31 41 55 / 0.8);
+    border-radius: 0.5rem;
+  }
+}
+
+.insta-primary-btn {
+  background-color: rgba(126, 34, 206, 0.9);
+}
+
+.insta-primary-btn:hover {
+  background-color: #7e22ce;
+}
+
+.insta-form-input {
+  border: 1px solid rgb(209 213 219 / 0.9);
+  border-radius: 0.5rem;
+  background-color: transparent;
+  color: #374151;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.insta-form-input::placeholder {
+  color: #9ca3af;
+}
+
+.insta-form-input:focus {
+  border-color: rgb(126 34 206 / 0.55);
+}
+
+.dark .insta-form-input {
+  border-color: rgb(75 85 99 / 0.8);
+  background-color: transparent;
+  color: #e5e7eb;
+}
+
+.dark .insta-form-input::placeholder {
+  color: #9ca3af;
+}
+
+.insta-form-input-readonly {
+  background-color: rgb(243 244 246 / 0.28);
+  color: #9ca3af;
+  -webkit-text-fill-color: #9ca3af;
+}
+
+.dark .insta-form-input-readonly {
+  background-color: rgb(31 41 55 / 0.26);
+  color: #9ca3af;
+  -webkit-text-fill-color: #9ca3af;
+}
+
+.insta-dashboard-accordion-trigger {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  text-align: left;
+}
+
+.insta-dashboard-accordion-leading {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  text-align: left;
+}
+
+.insta-dashboard-accordion-title {
+  display: block;
+  color: #111827;
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  font-weight: 700;
+}
+
+.insta-dashboard-accordion-subtitle {
+  display: block;
+  margin-top: 0.25rem;
+  color: #6b7280;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+@media (min-width: 640px) {
+  .insta-dashboard-accordion-title {
+    font-size: 1.125rem;
+    line-height: 1.5rem;
+    font-weight: 600;
+  }
+}
+
+.dark .insta-dashboard-accordion-title {
+  color: #f3f4f6;
+}
+
+.dark .insta-dashboard-accordion-subtitle {
+  color: #9ca3af;
+}
+
+.insta-dashboard-accordion-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.insta-dashboard-accordion-stack--dividers {
+  display: block;
+}
+
+@media (min-width: 640px) {
+  .insta-dashboard-accordion-stack--dividers {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+}
+
+.insta-secondary-btn {
+  color: #7e22ce;
+  background-color: rgb(255 255 255 / 0.82);
+  border: 1px solid rgb(233 213 255 / 1);
+}
+
+.insta-secondary-btn:hover {
+  color: #7e22ce;
+  background-color: rgb(250 245 255 / 0.92);
+  border-color: rgb(216 180 254 / 1);
+}
+
+.dark .insta-secondary-btn {
+  color: #e9d5ff;
+  background-color: rgb(15 23 42 / 0.62);
+  border-color: rgb(167 139 250 / 0.5);
+}
+
+.dark .insta-secondary-btn:hover {
+  color: #f3e8ff;
+  background-color: rgb(30 41 59 / 0.78);
+  border-color: rgb(196 181 253 / 0.7);
+}
+
+.insta-empty-state-note {
+  border: 1px solid rgb(229 231 235 / 0.8);
+  background-color: rgb(255 255 255 / 0.72);
+  color: #4b5563;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.dark .insta-empty-state-note {
+  border-color: rgb(55 65 81 / 0.78);
+  background-color: rgb(15 23 42 / 0.48);
+  color: #d1d5db;
+}
+
+.insta-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: var(--modal-backdrop);
+}
+
+.insta-dialog-panel {
+  background-color: rgb(255 255 255 / 0.95);
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.22);
+  border-radius: 0.75rem;
+}
+
+.dark .insta-dialog-panel {
+  background-color: rgb(17 24 39 / 0.95);
+}
+
+.insta-onboarding-header {
+  margin-bottom: 1rem;
+  padding: 1rem;
+}
+
+@media (min-width: 640px) {
+  .insta-onboarding-header {
+    margin-bottom: 1.5rem;
+    padding: 1.5rem;
+  }
+}
+
+.insta-onboarding-title {
+  margin-bottom: 0.5rem;
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.dark .insta-onboarding-title {
+  color: #f3f4f6;
+}
+
+.insta-onboarding-subtitle {
+  color: #6b7280;
+}
+
+.dark .insta-onboarding-subtitle {
+  color: #9ca3af;
+}
+
+.insta-onboarding-strong-text {
+  color: #111827;
+}
+
+.dark .insta-onboarding-strong-text {
+  color: #f3f4f6;
+}
+
+.insta-onboarding-divider {
+  height: 1px;
+  margin-left: -1rem;
+  margin-right: -1rem;
+  background-color: rgb(229 231 235 / 0.8);
+}
+
+.dark .insta-onboarding-divider {
+  background-color: rgb(55 65 81 / 0.8);
+}
+
+@media (min-width: 640px) {
+  .insta-onboarding-divider {
+    display: none;
+  }
+}
+
+.insta-onboarding-benefit-card {
+  border-radius: 0.5rem;
+  border: 1px solid rgb(243 232 255);
+  background-color: rgb(250 245 255);
+  padding: 1rem;
+}
+
+.insta-onboarding-benefit-icon {
+  border-radius: 9999px;
+  background-color: rgb(243 232 255);
+  color: #9333ea;
+}
+
+.insta-onboarding-benefit-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #111827;
+}
+
+.insta-onboarding-benefit-copy {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: #4b5563;
+}
+
+.dark .insta-onboarding-benefit-card {
+  border-color: rgb(126 34 206 / 0.45);
+  background-color: rgb(88 28 135 / 0.22);
+}
+
+.dark .insta-onboarding-benefit-icon {
+  background-color: rgb(126 34 206 / 0.3);
+  color: #e9d5ff;
+}
+
+.dark .insta-onboarding-benefit-title {
+  color: #f9fafb;
+}
+
+.dark .insta-onboarding-benefit-copy {
+  color: #d1d5db;
+}
+
+.insta-dashboard-header {
+  background-color: rgb(255 255 255 / 0.9);
+  border-bottom: 1px solid rgb(229 231 235 / 1);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.dark .insta-dashboard-header {
+  background-color: rgb(17 24 39 / 0.7);
+  border-bottom-color: rgb(31 41 55 / 0.8);
+}
+
+.insta-dashboard-page .insta-surface-card {
+  background-color: rgb(255 255 255 / 0.9);
+  border: 1px solid rgb(229 231 235 / 1);
+  border-radius: 0.75rem;
+}
+
+.insta-dashboard-page .insta-dashboard-stat-card {
+  background-color: rgb(255 255 255 / 0.9);
+  border: 1px solid rgb(229 231 235 / 1);
+}
+
+.dark .insta-dashboard-page .insta-surface-card {
+  background-color: rgb(17 24 39 / 0.7);
+  border-color: rgb(31 41 55 / 0.8);
+}
+
+.dark .insta-dashboard-page .insta-dashboard-stat-card {
+  background-color: rgb(17 24 39 / 0.7);
+  border-color: rgb(31 41 55 / 0.8);
+}
+
+.insta-header-dropdown {
+  background-color: rgb(255 255 255 / 0.9);
+  border: 1px solid rgb(229 231 235 / 1);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.dark .insta-header-dropdown {
+  background-color: rgb(17 24 39 / 0.7);
+  border-color: rgb(31 41 55 / 0.8);
+  box-shadow: 0 12px 28px rgba(2, 6, 23, 0.45);
+}
+
+.insta-availability-panel {
+  overflow: hidden;
+}
+
+.insta-availability-week-nav {
+  box-shadow: none;
+}
+
+.insta-availability-tip {
+  border: 1px solid rgb(233 213 255 / 0.85);
+  background-color: rgb(250 245 255 / 0.9);
+  color: #1f2937;
+}
+
+.insta-availability-tip p {
+  color: inherit;
+}
+
+.dark .insta-availability-tip {
+  border-color: rgb(126 34 206 / 0.45);
+  background-color: rgb(88 28 135 / 0.22);
+  color: #e5e7eb;
+}
+
+.insta-thread-list > * + * {
+  border-top: 1px solid rgb(229 231 235 / 0.65);
+}
+
+.dark .insta-thread-list > * + * {
+  border-top-color: rgb(55 65 81 / 0.75);
+}
 }

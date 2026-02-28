@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback, useId, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 
 interface TimeDropdownProps {
@@ -23,8 +23,20 @@ export default function TimeDropdown({
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   const [isAnimating, setIsAnimating] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const listboxId = useId();
+  const hasNoTimes = timeSlots.length === 0;
+  const hasSingleTime = timeSlots.length === 1;
+  const selectedIndex = selectedTime ? timeSlots.findIndex((time) => time === selectedTime) : -1;
+
+  const getClampedIndex = useCallback(
+    (index: number) => Math.max(0, Math.min(index, timeSlots.length - 1)),
+    [timeSlots.length],
+  );
 
   // Calculate dropdown position
   useEffect(() => {
@@ -39,15 +51,45 @@ export default function TimeDropdown({
   }, [isOpen]);
 
   // Handle open/close with animation
-  const handleOpen = () => {
-    setIsOpen(true);
-    setIsAnimating(true);
-  };
+  const handleOpen = useCallback((preferredIndex?: number) => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+    const fallbackIndex = selectedIndex >= 0 ? selectedIndex : 0;
+    const nextIndex =
+      typeof preferredIndex === 'number' ? getClampedIndex(preferredIndex) : fallbackIndex;
 
-  const handleClose = () => {
+    setActiveIndex(nextIndex);
+    setIsAnimating(true);
+    setIsOpen(true);
+  }, [getClampedIndex, selectedIndex]);
+
+  const handleClose = useCallback((restoreFocus = false) => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
     setIsAnimating(false);
-    setTimeout(() => setIsOpen(false), 150); // Wait for animation
-  };
+    setActiveIndex(-1);
+    closeTimeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+      if (restoreFocus) {
+        requestAnimationFrame(() => {
+          buttonRef.current?.focus();
+        });
+      }
+      closeTimeoutRef.current = null;
+    }, 150); // Wait for animation
+  }, []);
+
+  const handleSelect = useCallback(
+    (time: string) => {
+      onTimeSelect(time);
+      handleClose(true);
+    },
+    [handleClose, onTimeSelect],
+  );
 
   // Handle clicking outside
   useEffect(() => {
@@ -69,7 +111,29 @@ export default function TimeDropdown({
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isOpen]);
+  }, [handleClose, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || activeIndex < 0) {
+      return;
+    }
+
+    const rafId = requestAnimationFrame(() => {
+      optionRefs.current[activeIndex]?.focus();
+    });
+
+    return () => {
+      cancelAnimationFrame(rafId);
+    };
+  }, [activeIndex, isOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Auto-select if only one time available
   useEffect(() => {
@@ -81,9 +145,6 @@ export default function TimeDropdown({
   if (!isVisible) {
     return null;
   }
-
-  const hasNoTimes = timeSlots.length === 0;
-  const hasSingleTime = timeSlots.length === 1;
 
   // Format display text
   const getDisplayText = () => {
@@ -102,6 +163,99 @@ export default function TimeDropdown({
     return 'Select time';
   };
 
+  const handleTriggerKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (disabled || hasNoTimes || isLoading) {
+      return;
+    }
+
+    const lastIndex = timeSlots.length - 1;
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      if (isOpen) {
+        handleClose(true);
+      } else {
+        handleOpen();
+      }
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (isOpen) {
+        setActiveIndex((prev) => (prev < 0 ? 0 : Math.min(prev + 1, lastIndex)));
+      } else {
+        const nextIndex = selectedIndex >= 0 ? Math.min(selectedIndex + 1, lastIndex) : 0;
+        handleOpen(nextIndex);
+      }
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (isOpen) {
+        setActiveIndex((prev) => (prev < 0 ? lastIndex : Math.max(prev - 1, 0)));
+      } else {
+        const nextIndex = selectedIndex >= 0 ? Math.max(selectedIndex - 1, 0) : lastIndex;
+        handleOpen(nextIndex);
+      }
+      return;
+    }
+
+    if (event.key === 'Escape' && isOpen) {
+      event.preventDefault();
+      handleClose(true);
+    }
+  };
+
+  const handleListboxKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const lastIndex = timeSlots.length - 1;
+
+    if (event.key === 'Tab') {
+      handleClose(false);
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      handleClose(true);
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setActiveIndex((prev) => (prev < 0 ? 0 : Math.min(prev + 1, lastIndex)));
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActiveIndex((prev) => (prev < 0 ? lastIndex : Math.max(prev - 1, 0)));
+      return;
+    }
+
+    if (event.key === 'Home') {
+      event.preventDefault();
+      setActiveIndex(0);
+      return;
+    }
+
+    if (event.key === 'End') {
+      event.preventDefault();
+      setActiveIndex(lastIndex);
+      return;
+    }
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      const indexToSelect = activeIndex >= 0 ? activeIndex : selectedIndex >= 0 ? selectedIndex : 0;
+      const time = timeSlots[indexToSelect];
+      if (time) {
+        handleSelect(time);
+      }
+    }
+  };
+
   // Render dropdown menu using portal
   const renderDropdown = () => {
     if (!isOpen || hasNoTimes || typeof window === 'undefined') return null;
@@ -109,6 +263,10 @@ export default function TimeDropdown({
     return createPortal(
       <div
         ref={dropdownRef}
+        id={listboxId}
+        role="listbox"
+        aria-label="Select lesson time"
+        onKeyDown={handleListboxKeyDown}
         className={`bg-white rounded-lg shadow-xl border border-gray-200 ${
           isAnimating ? 'animate-dropdownOpen' : 'animate-dropdownClose'
         }`}
@@ -125,9 +283,18 @@ export default function TimeDropdown({
           {timeSlots.map((time, index) => (
             <button
               key={time}
+              ref={(element) => {
+                optionRefs.current[index] = element;
+              }}
+              id={`${listboxId}-option-${index}`}
+              type="button"
+              role="option"
+              tabIndex={activeIndex === index ? 0 : -1}
+              aria-selected={selectedTime === time}
+              onFocus={() => setActiveIndex(index)}
+              onMouseEnter={() => setActiveIndex(index)}
               onClick={() => {
-                onTimeSelect(time);
-                handleClose();
+                handleSelect(time);
               }}
               className={`
                 w-full text-left px-4 py-3 transition-all duration-150
@@ -172,14 +339,20 @@ export default function TimeDropdown({
       {/* Dropdown Button */}
       <button
         ref={buttonRef}
+        type="button"
         onClick={() =>
-          !disabled && !hasNoTimes && !isLoading && (isOpen ? handleClose() : handleOpen())
+          !disabled && !hasNoTimes && !isLoading && (isOpen ? handleClose(true) : handleOpen())
         }
+        onKeyDown={handleTriggerKeyDown}
         disabled={disabled || hasNoTimes || isLoading}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        aria-controls={isOpen ? listboxId : undefined}
         className={`
           w-full h-11 px-4 py-3 text-left rounded-lg border border-gray-300
           flex items-center justify-between
           transition-colors
+          ${hasNoTimes || isLoading ? 'text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-gray-100'}
           ${
             hasNoTimes
               ? 'bg-gray-100 dark:bg-gray-800 cursor-not-allowed'
@@ -190,7 +363,6 @@ export default function TimeDropdown({
         `}
         style={{
           fontSize: '16px',
-          color: hasNoTimes || isLoading ? '#999999' : '#333333',
           fontStyle: hasNoTimes && !isLoading ? 'italic' : 'normal',
         }}
       >

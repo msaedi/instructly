@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { X } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -20,6 +21,9 @@ export default function ConflictModal({
   isRefreshing = false,
   isOverwriting = false,
 }: ConflictModalProps) {
+  const titleId = useId();
+  const descriptionId = useId();
+
   if (!open) return null;
 
   return (
@@ -32,8 +36,8 @@ export default function ConflictModal({
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="availability-conflict-title"
-        aria-describedby="availability-conflict-desc"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
         data-testid="conflict-modal"
         className="relative w-full max-w-md rounded-lg bg-white p-6 shadow-xl"
       >
@@ -45,10 +49,10 @@ export default function ConflictModal({
         >
           <X className="h-4 w-4" />
         </button>
-        <h3 id="availability-conflict-title" className="text-lg font-semibold text-gray-900">
+        <h3 id={titleId} className="text-lg font-semibold text-gray-900">
           New changes detected
         </h3>
-        <p id="availability-conflict-desc" className="mt-2 text-sm text-gray-600">
+        <p id={descriptionId} className="mt-2 text-sm text-gray-600">
           Another session updated this week while you were editing. Refresh to keep their edits,
           or overwrite to push your current plan.
           {serverVersion && (

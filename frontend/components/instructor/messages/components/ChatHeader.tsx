@@ -97,7 +97,7 @@ export function ChatHeader({
       <div className="flex-shrink-0 p-4 border-b border-gray-200">
         <div className="flex flex-col gap-3">
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">To:</span>
+            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">To:</span>
             {composeRecipient ? (
               <span className="inline-flex items-center gap-2 rounded-full bg-purple-50 border border-purple-200 px-3 py-1 text-sm text-[#7E22CE]">
                 {composeRecipient.name}
@@ -129,15 +129,15 @@ export function ChatHeader({
                             onClick={() => onComposeRecipientSelect(suggestion)}
                             className="w-full px-3 py-2 text-left text-sm hover:bg-purple-50"
                           >
-                            <span className="font-medium text-gray-900">{suggestion.name}</span>
-                            <span className="block text-xs text-gray-500">
+                            <span className="font-medium text-gray-900 dark:text-gray-100">{suggestion.name}</span>
+                            <span className="block text-xs text-gray-500 dark:text-gray-400">
                               {suggestion.type === 'platform' ? 'Platform' : 'Student'}
                             </span>
                           </button>
                         </li>
                       ))
                     ) : (
-                      <li className="px-3 py-2 text-xs text-gray-500">No contacts found</li>
+                      <li className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">No contacts found</li>
                     )}
                   </ul>
                 )}
@@ -172,8 +172,8 @@ export function ChatHeader({
             {activeConversation?.avatar}
           </div>
           <div>
-            <h3 className="font-medium text-gray-900">{activeConversation?.name}</h3>
-            <p className="text-xs text-gray-500">
+            <h3 className="font-medium text-gray-900 dark:text-gray-100">{activeConversation?.name}</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
               {activeConversation?.type === 'platform' ? 'Platform' : 'Student'}
             </p>
           </div>
@@ -194,10 +194,11 @@ export function ChatHeader({
               <button
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 onClick={() => setShowThreadMenu((v) => !v)}
+                aria-label="More options"
                 aria-expanded={showThreadMenu}
                 aria-haspopup="menu"
               >
-                <MoreVertical className="w-4 h-4 text-gray-500" />
+                <MoreVertical className="w-4 h-4 text-gray-500 dark:text-gray-400" />
               </button>
               {showThreadMenu && (
                 <div
@@ -205,7 +206,7 @@ export function ChatHeader({
                   className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-40"
                 >
                   <div className="p-3 border-b border-gray-100">
-                    <p className="text-sm font-medium text-gray-900">Booking Info</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Booking Info</p>
                   </div>
                   <div className="p-3">
                     {nextBooking ? (
@@ -220,9 +221,9 @@ export function ChatHeader({
 
                         {/* Next booking details in purple container */}
                         <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
-                          <p className="text-sm font-medium text-gray-900">{nextBooking.service_name}</p>
-                          <p className="text-xs text-gray-500">{formatDateShort(nextBooking.date)}, {formatTime12h(nextBooking.start_time)}</p>
-                          <p className="text-[10px] text-gray-400 font-mono mt-1 truncate">{nextBooking.id}</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{nextBooking.service_name}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{formatDateShort(nextBooking.date)}, {formatTime12h(nextBooking.start_time)}</p>
+                          <p className="text-[10px] text-gray-400 dark:text-gray-400 font-mono mt-1 truncate">{nextBooking.id}</p>
                         </div>
 
                         {/* Expand/collapse for more bookings */}
@@ -244,16 +245,16 @@ export function ChatHeader({
                           <div className="space-y-2 pt-2">
                             {remainingBookings.map((booking) => (
                               <div key={booking.id} className="p-2.5 bg-gray-50 rounded-lg border border-gray-200">
-                                <p className="text-sm font-medium text-gray-900">{booking.service_name}</p>
-                                <p className="text-xs text-gray-500">{formatDateShort(booking.date)}, {formatTime12h(booking.start_time)}</p>
-                                <p className="text-[10px] text-gray-400 font-mono mt-1 truncate">{booking.id}</p>
+                                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{booking.service_name}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">{formatDateShort(booking.date)}, {formatTime12h(booking.start_time)}</p>
+                                <p className="text-[10px] text-gray-400 dark:text-gray-400 font-mono mt-1 truncate">{booking.id}</p>
                               </div>
                             ))}
                           </div>
                         )}
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-500">No upcoming bookings</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">No upcoming bookings</p>
                     )}
                   </div>
                 </div>

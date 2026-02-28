@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import List, Optional
+from urllib.parse import urlparse
 
 from fastapi import Response
 
@@ -49,6 +50,26 @@ def refresh_cookie_base_name(site_mode: Optional[str] = None) -> str:
     return "rid"
 
 
+def effective_cookie_domain(origin: str | None = None) -> str | None:
+    """Determine cookie domain, dynamically handling beta-local subdomain access.
+
+    Hosted/production modes already have ``session_cookie_domain`` set to
+    ``.instainstru.com`` by ``_derive_cookie_policy``.  In local mode the
+    setting is ``None`` — fine for ``localhost`` but breaks cross-subdomain
+    access when the request originates from ``beta-local.instainstru.com``.
+    This helper detects that case via the *Origin* header and returns
+    ``.instainstru.com`` so the cookie is shared between frontend and API
+    subdomains.
+    """
+    if settings.session_cookie_domain:
+        return settings.session_cookie_domain
+    if origin:
+        host = (urlparse(origin).hostname or "").lower()
+        if host == "instainstru.com" or host.endswith(".instainstru.com"):
+            return ".instainstru.com"
+    return None
+
+
 def set_session_cookie(
     response: Response,
     name: str,
@@ -69,7 +90,8 @@ def set_session_cookie(
         value: Cookie payload.
         max_age: Optional ``Max-Age`` to set.
         expires: Optional ``Expires`` timestamp/value.
-        domain: Explicit domain override; falls back to ``settings.session_cookie_domain``.
+        domain: Cookie domain resolved by caller (typically via
+            :func:`effective_cookie_domain`). Pass ``None`` for host-only cookies.
 
     Returns:
         The actual cookie name written to the response headers.
@@ -87,8 +109,6 @@ def set_session_cookie(
     }
 
     cookie_domain = domain
-    if cookie_domain is None:
-        cookie_domain = settings.session_cookie_domain
 
     if cookie_name.startswith("__Host-"):
         cookie_domain = None
@@ -113,7 +133,12 @@ def set_refresh_cookie(
     expires: Optional[datetime | int] = None,
     domain: Optional[str] = None,
 ) -> str:
-    """Set the refresh token cookie scoped to the refresh endpoint path."""
+    """Set the refresh token cookie scoped to the refresh endpoint path.
+
+    Args:
+        domain: Cookie domain resolved by caller (typically via
+            :func:`effective_cookie_domain`). Pass ``None`` for host-only cookies.
+    """
 
     cookie_name = refresh_cookie_base_name()
 
@@ -127,8 +152,6 @@ def set_refresh_cookie(
     }
 
     cookie_domain = domain
-    if cookie_domain is None:
-        cookie_domain = settings.session_cookie_domain
 
     if cookie_name.startswith("__Host-"):
         cookie_domain = None
@@ -145,28 +168,48 @@ def set_refresh_cookie(
     return cookie_name
 
 
-def set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
+def set_auth_cookies(
+    response: Response,
+    access_token: str,
+    refresh_token: str,
+    *,
+    origin: str | None = None,
+) -> None:
     """Set both access and refresh cookies on a response.
 
     Shared helper used by all login paths (login, login-with-session, 2FA verify).
+
+    Args:
+        origin: The request ``Origin`` header.  Passed to
+            :func:`effective_cookie_domain` so the cookie domain is set
+            correctly when the request comes from a ``*.instainstru.com``
+            subdomain in local mode.
     """
+    domain = effective_cookie_domain(origin)
     set_session_cookie(
         response,
         session_cookie_base_name(settings.site_mode),
         access_token,
         max_age=settings.access_token_expire_minutes * 60,
-        domain=settings.session_cookie_domain,
+        domain=domain,
     )
     set_refresh_cookie(
         response,
         refresh_token,
         max_age=settings.refresh_token_lifetime_days * 24 * 60 * 60,
-        domain=settings.session_cookie_domain,
+        domain=domain,
     )
 
 
 def delete_refresh_cookie(response: Response, *, domain: Optional[str] = None) -> str:
-    """Delete the refresh token cookie using its scoped refresh path."""
+    """Delete the refresh token cookie using its scoped refresh path.
+
+    This helper intentionally keeps a defensive fallback to
+    ``settings.session_cookie_domain`` when ``domain`` is omitted.
+    Set-cookie helpers are caller-resolved via ``effective_cookie_domain``, but
+    delete-cookie paths favor robustness so stale cookies can still be cleared
+    even if a caller forgets to pass ``domain`` explicitly.
+    """
 
     cookie_name = refresh_cookie_base_name()
     cookie_domain = domain if domain is not None else settings.session_cookie_domain

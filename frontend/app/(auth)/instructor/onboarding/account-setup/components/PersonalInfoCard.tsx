@@ -21,21 +21,24 @@ export function PersonalInfoCard({
   const isOnboarding = context === 'onboarding';
   const collapsible = !isOnboarding && typeof onToggle === 'function';
   const expanded = collapsible ? Boolean(isOpen) : true;
+  const cardClassName = isOnboarding
+    ? 'insta-surface-card p-4 sm:p-6'
+    : 'p-4 sm:p-6 insta-surface-card';
 
   const header = (
-    <div className="w-full flex items-center justify-between text-left">
-      <div className="flex items-center gap-3">
+    <div className="insta-dashboard-accordion-trigger">
+      <div className="insta-dashboard-accordion-leading">
         <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
           <UserIcon className="w-6 h-6 text-[#7E22CE]" />
         </div>
         <div className="flex flex-col text-left">
-          <span className="text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Personal Information</span>
-          <span className="text-sm text-gray-500">Basic details that appear on your profile and booking receipts.</span>
+          <span className="insta-dashboard-accordion-title">Personal Information</span>
+          <span className="insta-dashboard-accordion-subtitle">Basic details that appear on your profile and booking receipts.</span>
         </div>
       </div>
       {collapsible && (
         <ChevronDown
-          className={`w-5 h-5 text-gray-600 transition-transform ${expanded ? 'rotate-180' : ''}`}
+          className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
         />
       )}
     </div>
@@ -46,11 +49,11 @@ export function PersonalInfoCard({
   };
 
   return (
-    <section className="bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
+    <section className={cardClassName}>
       {collapsible ? (
         <button
           type="button"
-          className="mb-4"
+          className={`w-full text-left ${expanded ? 'mb-4' : ''}`}
           onClick={onToggle}
           aria-expanded={expanded}
         >
@@ -63,7 +66,7 @@ export function PersonalInfoCard({
       {expanded && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="py-2">
-            <label htmlFor="first_name" className="text-gray-600 mb-2 block">First Name</label>
+            <label htmlFor="first_name" className="text-gray-600 dark:text-gray-400 mb-2 block">First Name</label>
             <input
               id="first_name"
               type="text"
@@ -74,7 +77,7 @@ export function PersonalInfoCard({
             />
           </div>
           <div className="py-2">
-            <label htmlFor="last_name" className="text-gray-600 mb-2 block">Last Name</label>
+            <label htmlFor="last_name" className="text-gray-600 dark:text-gray-400 mb-2 block">Last Name</label>
             <input
               id="last_name"
               type="text"
@@ -85,7 +88,7 @@ export function PersonalInfoCard({
             />
           </div>
           <div className="py-2">
-            <label htmlFor="postal_code" className="text-gray-600 mb-2 block">ZIP Code</label>
+            <label htmlFor="postal_code" className="text-gray-600 dark:text-gray-400 mb-2 block">ZIP Code</label>
             <input
               id="postal_code"
               type="text"

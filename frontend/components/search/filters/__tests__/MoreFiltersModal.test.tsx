@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 
@@ -65,6 +65,122 @@ describe('MoreFiltersModal', () => {
     expect(screen.getByRole('dialog', { name: /more filters/i })).toBeInTheDocument();
     expect(screen.getByText('Duration')).toBeInTheDocument();
     expect(screen.getByText('Skill Level')).toBeInTheDocument();
+  });
+
+  it('uses aria-labelledby instead of aria-label for the dialog name', () => {
+    render(
+      <MoreFiltersModal
+        isOpen={true}
+        onClose={onClose}
+        filters={DEFAULT_FILTERS}
+        onFiltersChange={onFiltersChange}
+      />
+    );
+
+    const dialog = screen.getByRole('dialog', { name: /more filters/i });
+    const heading = screen.getByRole('heading', { name: /more filters/i });
+    expect(dialog).toHaveAttribute('aria-labelledby', heading.getAttribute('id'));
+    expect(dialog).not.toHaveAttribute('aria-label');
+  });
+
+  it('traps focus and returns focus to the opener on close', async () => {
+    const user = userEvent.setup();
+
+    function ModalHarness() {
+      const [open, setOpen] = React.useState(false);
+      return (
+        <div>
+          <button type="button" onClick={() => setOpen(true)}>
+            Open more filters
+          </button>
+          <MoreFiltersModal
+            isOpen={open}
+            onClose={() => setOpen(false)}
+            filters={DEFAULT_FILTERS}
+            onFiltersChange={onFiltersChange}
+          />
+        </div>
+      );
+    }
+
+    render(<ModalHarness />);
+    const opener = screen.getByRole('button', { name: 'Open more filters' });
+
+    await user.click(opener);
+    const dialog = screen.getByRole('dialog', { name: /more filters/i });
+    const closeButton = screen.getByRole('button', { name: /close more filters/i });
+    const applyButton = screen.getByRole('button', { name: 'Apply' });
+
+    expect(dialog).toBeInTheDocument();
+    expect(closeButton).toHaveFocus();
+
+    applyButton.focus();
+    fireEvent.keyDown(applyButton, { key: 'Tab' });
+    expect(closeButton).toHaveFocus();
+
+    closeButton.focus();
+    fireEvent.keyDown(closeButton, { key: 'Tab', shiftKey: true });
+    expect(applyButton).toHaveFocus();
+
+    await user.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /more filters/i })).not.toBeInTheDocument();
+    });
+    expect(opener).toHaveFocus();
+  });
+
+  it('falls back to focusing the dialog when no focusable elements are detected', () => {
+    const originalQuerySelectorAll = HTMLDivElement.prototype.querySelectorAll;
+    const emptyNodeList = document.createDocumentFragment().querySelectorAll('*');
+    const querySelectorSpy = jest.spyOn(HTMLDivElement.prototype, 'querySelectorAll').mockImplementation(function (this: HTMLDivElement, selector: string) {
+      if (this.getAttribute('role') === 'dialog') {
+        return emptyNodeList as unknown as NodeListOf<Element>;
+      }
+      return originalQuerySelectorAll.call(this, selector);
+    });
+
+    try {
+      render(
+        <MoreFiltersModal
+          isOpen={true}
+          onClose={onClose}
+          filters={DEFAULT_FILTERS}
+          onFiltersChange={onFiltersChange}
+        />
+      );
+
+      const dialog = screen.getByRole('dialog', { name: /more filters/i });
+      expect(dialog).toHaveFocus();
+
+      fireEvent.keyDown(document, { key: 'Tab' });
+      expect(dialog).toHaveFocus();
+    } finally {
+      querySelectorSpy.mockRestore();
+    }
+  });
+
+  it('moves focus back into the modal when tab is pressed from outside', () => {
+    const outsideButton = document.createElement('button');
+    outsideButton.type = 'button';
+    outsideButton.textContent = 'Outside focus';
+    document.body.appendChild(outsideButton);
+
+    render(
+      <MoreFiltersModal
+        isOpen={true}
+        onClose={onClose}
+        filters={DEFAULT_FILTERS}
+        onFiltersChange={onFiltersChange}
+      />
+    );
+
+    outsideButton.focus();
+    expect(outsideButton).toHaveFocus();
+
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(screen.getByRole('button', { name: /close more filters/i })).toHaveFocus();
+
+    outsideButton.remove();
   });
 
   it('skips suggested content filters when the filter key is already populated (continue branch)', async () => {

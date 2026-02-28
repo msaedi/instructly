@@ -1,3 +1,4 @@
+import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Modal from '../Modal';
@@ -152,10 +153,9 @@ describe('Modal', () => {
       render(<Modal {...defaultProps} onClose={onClose} />);
 
       // Click on the overlay (the backdrop)
-      const overlay = document.querySelector('.bg-black\\/30');
-      if (overlay) {
-        await user.click(overlay);
-      }
+      const overlay = document.querySelector('.insta-dialog-backdrop');
+      expect(overlay).toBeInTheDocument();
+      await user.click(overlay as Element);
 
       await waitFor(() => {
         expect(onClose).toHaveBeenCalled();
@@ -169,10 +169,9 @@ describe('Modal', () => {
       render(<Modal {...defaultProps} onClose={onClose} closeOnBackdrop={false} />);
 
       // Click on the overlay
-      const overlay = document.querySelector('.bg-black\\/30');
-      if (overlay) {
-        await user.click(overlay);
-      }
+      const overlay = document.querySelector('.insta-dialog-backdrop');
+      expect(overlay).toBeInTheDocument();
+      await user.click(overlay as Element);
 
       // Give some time to ensure it would have closed if it was going to
       await new Promise((r) => setTimeout(r, 100));
@@ -192,6 +191,44 @@ describe('Modal', () => {
       await new Promise((r) => setTimeout(r, 100));
 
       expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('restores focus to trigger on close (Radix default behavior)', async () => {
+      const user = userEvent.setup();
+
+      function Harness() {
+        const [isOpen, setIsOpen] = React.useState(false);
+        return (
+          <div>
+            <button type="button" onClick={() => setIsOpen(true)}>
+              Open modal
+            </button>
+            <Modal
+              isOpen={isOpen}
+              onClose={() => setIsOpen(false)}
+              title="Focus Test Modal"
+            >
+              <div>Modal Content</div>
+            </Modal>
+          </div>
+        );
+      }
+
+      render(<Harness />);
+
+      const opener = screen.getByRole('button', { name: 'Open modal' });
+      await user.click(opener);
+      expect(await screen.findByRole('dialog')).toBeInTheDocument();
+
+      const closeBtn = screen.getByRole('button', { name: /close modal/i });
+      await user.click(closeBtn);
+
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(opener).toHaveFocus();
+      });
     });
   });
 

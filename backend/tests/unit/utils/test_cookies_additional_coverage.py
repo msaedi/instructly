@@ -99,7 +99,7 @@ def test_set_session_cookie_includes_domain(monkeypatch):
         ),
     )
 
-    name = cookies.set_session_cookie(response, "sid", "value")
+    name = cookies.set_session_cookie(response, "sid", "value", domain="example.com")
 
     assert name == "sid"
     kwargs = response.set_cookie.call_args.kwargs
@@ -137,7 +137,7 @@ def test_set_refresh_cookie_scoped_path(monkeypatch):
         ),
     )
 
-    name = cookies.set_refresh_cookie(response, "refresh-token")
+    name = cookies.set_refresh_cookie(response, "refresh-token", domain=".instainstru.com")
     assert name == "rid_preview"
     kwargs = response.set_cookie.call_args.kwargs
     assert kwargs["path"] == "/api/v1/auth/refresh"

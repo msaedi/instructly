@@ -178,20 +178,21 @@ export default function OnboardingStatusPage() {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen insta-onboarding-page">
       {/* Use shared OnboardingProgressHeader - status page is a summary, allow clicking all steps */}
       <OnboardingProgressHeader activeStep="verify-identity" stepStatus={stepStatus} allowClickAll />
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         {/* Page Header */}
-        <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200">
-          <h1 className="text-3xl font-bold text-gray-600 mb-2">Onboarding Status</h1>
-          <p className="text-gray-600">Finish these steps to go live.</p>
+        <div className="insta-surface-card insta-onboarding-header">
+          <h1 className="insta-onboarding-title">Onboarding Status</h1>
+          <p className="insta-onboarding-subtitle">Finish these steps to go live.</p>
         </div>
+        <div className="insta-onboarding-divider" />
 
         {pendingRequired.length > 0 && (
-          <div className="bg-white rounded-lg p-4 mb-6 border border-gray-200 blink-card text-center">
-            <p className="text-sm text-gray-800 font-medium">
+          <div className="insta-surface-card p-4 mb-6 blink-card text-center">
+            <p className="text-sm insta-onboarding-strong-text font-medium">
               You&apos;re close! Finish {formatList(pendingLabels)} to go live.
             </p>
             <div className="mt-3 flex flex-wrap gap-2 justify-center">
@@ -232,13 +233,13 @@ export default function OnboardingStatusPage() {
         )}
 
         {instructorProfileId ? (
-          <div id="bgc-step-card" className="bg-white rounded-lg border border-gray-200 p-6">
+          <div id="bgc-step-card" className="insta-surface-card p-6">
             <div className="flex items-start gap-3 mb-4">
               <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center">
                 <ShieldCheck className="w-6 h-6 text-emerald-600" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Background check</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Background check</h2>
                 <p className="text-sm text-muted-foreground">Invite yourself via Checkr to complete your screening.</p>
               </div>
             </div>
@@ -281,7 +282,7 @@ export default function OnboardingStatusPage() {
           <button
             disabled={!canGoLive || saving}
             onClick={goLive}
-            className="px-8 py-4 text-lg rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+            className="insta-primary-btn px-8 py-4 text-lg rounded-lg text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
           >
             {canGoLive ? '🎉 Go live' : 'Complete required steps to go live'}
           </button>

@@ -208,6 +208,6 @@ describe('Availability palette mapping', () => {
     );
 
     expect(paletteClasses.length).toBeGreaterThan(0);
-    expect(classes.slice(-2)).toEqual(['bg-[#EDE3FA]', 'opacity-100']);
+    expect(classes.slice(-3)).toEqual(['bg-[#EDE3FA]', 'dark:bg-purple-500/25', 'opacity-100']);
   });
 });
