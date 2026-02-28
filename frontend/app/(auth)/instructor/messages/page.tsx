@@ -750,7 +750,7 @@ export default function MessagesPage() {
                 )}
               </button>
               {showMessages && (
-                <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                <div className="insta-header-dropdown absolute right-0 mt-2 w-80 rounded-lg z-50">
                   <ul className="max-h-80 overflow-auto p-2 space-y-2">
                     {globalUnreadConversations.length === 0 ? (
                       <>

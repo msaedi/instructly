@@ -1283,6 +1283,20 @@ html {
   border-color: rgb(31 41 55 / 0.8);
 }
 
+.insta-header-dropdown {
+  background-color: rgb(255 255 255 / 0.9);
+  border: 1px solid rgb(229 231 235 / 1);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.dark .insta-header-dropdown {
+  background-color: rgb(17 24 39 / 0.7);
+  border-color: rgb(31 41 55 / 0.8);
+  box-shadow: 0 12px 28px rgba(2, 6, 23, 0.45);
+}
+
 .insta-availability-panel {
   overflow: hidden;
 }
