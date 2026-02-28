@@ -71,8 +71,7 @@ describe('MessageInput', () => {
       const onSend = jest.fn();
       render(<MessageInput {...defaultProps} onSend={onSend} />);
 
-      const sendButtons = screen.getAllByRole('button');
-      const sendButton = sendButtons[sendButtons.length - 1]!; // Last button is send
+      const sendButton = screen.getByRole('button', { name: /send message/i });
       fireEvent.click(sendButton);
 
       expect(onSend).toHaveBeenCalled();
@@ -81,8 +80,7 @@ describe('MessageInput', () => {
     it('disables send button when isSendDisabled is true', () => {
       render(<MessageInput {...defaultProps} isSendDisabled={true} />);
 
-      const sendButtons = screen.getAllByRole('button');
-      const sendButton = sendButtons[sendButtons.length - 1];
+      const sendButton = screen.getByRole('button', { name: /send message/i });
       expect(sendButton).toBeDisabled();
     });
   });

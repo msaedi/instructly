@@ -363,12 +363,14 @@ select {
 
 /* Skip to Main Content Link (Accessibility) */
 .skip-to-main {
-  position: absolute;
-  left: -999px;
+  position: fixed;
+  top: 0;
+  left: 0;
   width: 1px;
   height: 1px;
-  top: auto;
-  z-index: -999;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .skip-to-main:focus,
@@ -869,8 +871,9 @@ html {
 }
 
 .focus-link:focus-visible {
-  outline: none;
-  box-shadow: none;
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px rgba(91, 33, 182, 0.15);
   color: #5b21b6;
   font-weight: 600;
   text-decoration-thickness: 3px;
@@ -927,6 +930,14 @@ html {
  * on mobile viewports to fill the screen edge-to-edge, matching iOS/Android
  * native list conventions. Visual card affordance (background, border, radius)
  * is restored at the sm: breakpoint via responsive overrides below.
+ *
+ * Rendering matrix:
+ * - mobile + light: transparent, borderless, no radius
+ * - sm+ + light: white translucent surface with border/radius
+ * - mobile + dark: transparent, borderless, no radius
+ * - sm+ + dark: dark translucent surface with border/radius
+ * - dashboard pages: explicit dashboard overrides apply a slightly stronger
+ *   card treatment on top of the base surface rules.
  */
 .insta-surface-card {
   background-color: transparent;

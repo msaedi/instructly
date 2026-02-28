@@ -209,26 +209,6 @@ describe('Search results map pins', () => {
     });
   });
 
-  it('announces results in a polite live region', async () => {
-    const queryClient = createTestQueryClient();
-    render(
-      <QueryClientProvider client={queryClient}>
-        <SearchResultsPage />
-      </QueryClientProvider>
-    );
-
-    await waitFor(() => {
-      expect(mockPublicApi.searchWithNaturalLanguage).toHaveBeenCalled();
-    });
-
-    const liveRegion = screen.getByTestId('search-results-live-region');
-    expect(liveRegion).toHaveAttribute('aria-live', 'polite');
-    expect(liveRegion).toHaveAttribute('aria-atomic', 'true');
-    await waitFor(() => {
-      expect(liveRegion).toHaveTextContent('1 instructor found');
-    });
-  });
-
   it('supports listbox semantics and keyboard interaction for sort options', async () => {
     const queryClient = createTestQueryClient();
     render(
@@ -272,6 +252,13 @@ describe('Search results map pins', () => {
     });
     await waitFor(() => {
       expect(trigger).toHaveFocus();
+    });
+
+    fireEvent.click(trigger);
+    const tabListbox = await screen.findByRole('listbox', { name: 'Sort results' });
+    fireEvent.keyDown(tabListbox, { key: 'Tab' });
+    await waitFor(() => {
+      expect(screen.queryByRole('listbox', { name: 'Sort results' })).not.toBeInTheDocument();
     });
   });
 

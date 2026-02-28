@@ -185,6 +185,14 @@ class TestEffectiveCookieDomainSecurityHardening:
         monkeypatch.setattr(cookies, "settings", _local_settings())
         assert cookies.effective_cookie_domain("not-a-url") is None
 
+    def test_rejects_javascript_scheme_origin(self, monkeypatch):
+        monkeypatch.setattr(cookies, "settings", _local_settings())
+        assert cookies.effective_cookie_domain("javascript:alert(1)") is None
+
+    def test_rejects_data_scheme_origin(self, monkeypatch):
+        monkeypatch.setattr(cookies, "settings", _local_settings())
+        assert cookies.effective_cookie_domain("data:text/plain,instainstru.com") is None
+
 
 # ===================================================================
 # set_auth_cookies — integration with effective_cookie_domain

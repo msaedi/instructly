@@ -63,6 +63,9 @@ describe('ChatModal', () => {
 
   afterEach(() => {
     document.body.style.overflow = '';
+    document
+      .querySelectorAll('[data-test-body-node="chat-modal-test"]')
+      .forEach((node) => node.remove());
   });
 
   it('renders modal when isOpen is true', () => {
@@ -128,8 +131,7 @@ describe('ChatModal', () => {
       </QueryClientProvider>
     );
 
-    // Find the backdrop by its aria-hidden attribute
-    const backdrop = document.querySelector('[aria-hidden="true"]');
+    const backdrop = document.querySelector('.insta-dialog-backdrop');
     expect(backdrop).toBeInTheDocument();
     fireEvent.click(backdrop!);
 
@@ -355,6 +357,7 @@ describe('ChatModal', () => {
 
   it('moves focus back into the modal when tab is pressed from outside', () => {
     const outsideButton = document.createElement('button');
+    outsideButton.setAttribute('data-test-body-node', 'chat-modal-test');
     outsideButton.type = 'button';
     outsideButton.textContent = 'Outside trigger';
     document.body.appendChild(outsideButton);
@@ -371,11 +374,11 @@ describe('ChatModal', () => {
     fireEvent.keyDown(document, { key: 'Tab' });
     expect(screen.getByLabelText('Close chat')).toHaveFocus();
 
-    outsideButton.remove();
   });
 
   it('returns focus to trigger element when modal closes', () => {
     const trigger = document.createElement('button');
+    trigger.setAttribute('data-test-body-node', 'chat-modal-test');
     trigger.textContent = 'Open chat';
     document.body.appendChild(trigger);
     trigger.focus();
@@ -397,7 +400,6 @@ describe('ChatModal', () => {
     );
 
     expect(trigger).toHaveFocus();
-    trigger.remove();
   });
 
   it('adds and removes keydown event listener correctly', () => {

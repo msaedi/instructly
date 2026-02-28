@@ -202,7 +202,14 @@ def set_auth_cookies(
 
 
 def delete_refresh_cookie(response: Response, *, domain: Optional[str] = None) -> str:
-    """Delete the refresh token cookie using its scoped refresh path."""
+    """Delete the refresh token cookie using its scoped refresh path.
+
+    This helper intentionally keeps a defensive fallback to
+    ``settings.session_cookie_domain`` when ``domain`` is omitted.
+    Set-cookie helpers are caller-resolved via ``effective_cookie_domain``, but
+    delete-cookie paths favor robustness so stale cookies can still be cleared
+    even if a caller forgets to pass ``domain`` explicitly.
+    """
 
     cookie_name = refresh_cookie_base_name()
     cookie_domain = domain if domain is not None else settings.session_cookie_domain

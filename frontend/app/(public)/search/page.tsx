@@ -844,6 +844,11 @@ function SearchPageInner() {
   const handleSortListboxKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     const lastIndex = SORT_OPTIONS.length - 1;
 
+    if (event.key === 'Tab') {
+      closeSortDropdown();
+      return;
+    }
+
     if (event.key === 'Escape') {
       event.preventDefault();
       closeSortDropdown(true);

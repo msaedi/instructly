@@ -79,36 +79,36 @@ const createTestQueryClient = () =>
     },
   });
 
-const createResolvedSearchResponse = () => ({
+const createSearchResult = (index: number) => ({
+  instructor_id: `inst-${index + 1}`,
+  relevance_score: 0.9 - index * 0.01,
+  instructor: {
+    first_name: `Ava${index + 1}`,
+    last_initial: 'L',
+    bio_snippet: '',
+    profile_picture_url: '',
+    verified: false,
+    is_founding_instructor: false,
+    years_experience: 4,
+    teaching_locations: [],
+  },
+  rating: { average: 4.7, count: 12 },
+  coverage_areas: [],
+  best_match: {
+    service_id: `svc-${index + 1}`,
+    service_catalog_id: 'cat-1',
+    name: 'Piano Lessons',
+    description: '',
+    price_per_hour: 60,
+    offers_at_location: false,
+  },
+  other_matches: [],
+});
+
+const createResolvedSearchResponse = (count = 1) => ({
   data: {
-    results: [
-      {
-        instructor_id: 'inst-1',
-        relevance_score: 0.9,
-        instructor: {
-          first_name: 'Ava',
-          last_initial: 'L',
-          bio_snippet: '',
-          profile_picture_url: '',
-          verified: false,
-          is_founding_instructor: false,
-          years_experience: 4,
-          teaching_locations: [],
-        },
-        rating: { average: 4.7, count: 12 },
-        coverage_areas: [],
-        best_match: {
-          service_id: 'svc-1',
-          service_catalog_id: 'cat-1',
-          name: 'Piano Lessons',
-          description: '',
-          price_per_hour: 60,
-          offers_at_location: false,
-        },
-        other_matches: [],
-      },
-    ],
-    meta: { total_results: 1 },
+    results: Array.from({ length: count }, (_, index) => createSearchResult(index)),
+    meta: { total_results: count },
   },
   status: 200,
 });
@@ -212,6 +212,38 @@ describe('Search live region announcements', () => {
 
     await waitFor(() => {
       expect(liveRegion).toHaveTextContent('1 instructor found');
+    });
+  });
+
+  it('announces plural result counts', async () => {
+    mockPublicApi.searchWithNaturalLanguage.mockResolvedValueOnce(createResolvedSearchResponse(3));
+
+    const queryClient = createTestQueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SearchResultsPage />
+      </QueryClientProvider>
+    );
+
+    const liveRegion = screen.getByTestId('search-results-live-region');
+    await waitFor(() => {
+      expect(liveRegion).toHaveTextContent('3 instructors found');
+    });
+  });
+
+  it('announces zero results', async () => {
+    mockPublicApi.searchWithNaturalLanguage.mockResolvedValueOnce(createResolvedSearchResponse(0));
+
+    const queryClient = createTestQueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SearchResultsPage />
+      </QueryClientProvider>
+    );
+
+    const liveRegion = screen.getByTestId('search-results-live-region');
+    await waitFor(() => {
+      expect(liveRegion).toHaveTextContent('0 instructors found');
     });
   });
 });

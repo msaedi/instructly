@@ -153,10 +153,9 @@ describe('Modal', () => {
       render(<Modal {...defaultProps} onClose={onClose} />);
 
       // Click on the overlay (the backdrop)
-      const overlay = document.querySelector('.bg-black\\/30');
-      if (overlay) {
-        await user.click(overlay);
-      }
+      const overlay = document.querySelector('.insta-dialog-backdrop');
+      expect(overlay).toBeInTheDocument();
+      await user.click(overlay as Element);
 
       await waitFor(() => {
         expect(onClose).toHaveBeenCalled();
@@ -170,10 +169,9 @@ describe('Modal', () => {
       render(<Modal {...defaultProps} onClose={onClose} closeOnBackdrop={false} />);
 
       // Click on the overlay
-      const overlay = document.querySelector('.bg-black\\/30');
-      if (overlay) {
-        await user.click(overlay);
-      }
+      const overlay = document.querySelector('.insta-dialog-backdrop');
+      expect(overlay).toBeInTheDocument();
+      await user.click(overlay as Element);
 
       // Give some time to ensure it would have closed if it was going to
       await new Promise((r) => setTimeout(r, 100));

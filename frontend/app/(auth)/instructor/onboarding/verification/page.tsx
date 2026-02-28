@@ -289,7 +289,7 @@ export default function Step4Verification() {
                 <ShieldCheck className="w-6 h-6 text-[#7E22CE]" />
               </div>
               <div>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">Background check</h3>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Background check</h2>
                 <p className="text-sm text-muted-foreground mt-1">Start your Checkr background screening to unlock bookings.</p>
               </div>
             </div>

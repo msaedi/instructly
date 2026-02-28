@@ -31,6 +31,7 @@ def test_get_referral_stats_returns_stats(client, auth_headers_instructor, test_
     "site_mode,frontend_url,local_beta_origin,expected_base",
     [
         ("local", "http://localhost:3000", "http://beta-local.instainstru.com:3000", "http://beta-local.instainstru.com:3000"),
+        ("local", "http://localhost:3000", "", "http://localhost:3000"),
         ("beta-local", "https://beta-local.instainstru.com:3000", "http://beta-local.instainstru.com:3000", "http://beta-local.instainstru.com:3000"),
         ("beta", "https://beta.instainstru.com", "http://beta-local.instainstru.com:3000", "https://beta.instainstru.com"),
         ("preview", "https://preview.instainstru.com", "http://beta-local.instainstru.com:3000", "https://preview.instainstru.com"),
