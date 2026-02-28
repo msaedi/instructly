@@ -316,7 +316,7 @@ describe('ChatModal', () => {
   it('falls back to focusing the dialog when no focusable elements are detected', () => {
     const originalQuerySelectorAll = HTMLDivElement.prototype.querySelectorAll;
     const emptyNodeList = document.createDocumentFragment().querySelectorAll('*');
-    const querySelectorSpy = jest.spyOn(HTMLDivElement.prototype, 'querySelectorAll').mockImplementation(function (selector: string) {
+    const querySelectorSpy = jest.spyOn(HTMLDivElement.prototype, 'querySelectorAll').mockImplementation(function (this: HTMLDivElement, selector: string) {
       if (this.getAttribute('role') === 'dialog') {
         return emptyNodeList as unknown as NodeListOf<Element>;
       }
