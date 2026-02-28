@@ -156,11 +156,10 @@ describe('PaymentMethods', () => {
     mockUseInvalidatePaymentMethods.mockReturnValue(invalidate);
     (paymentService.deletePaymentMethod as jest.Mock).mockResolvedValue({});
 
-    const { container } = render(<PaymentMethods userId="user-1" />);
+    render(<PaymentMethods userId="user-1" />);
 
-    const deleteButton = container.querySelector('button.text-red-600') as HTMLButtonElement | null;
-    expect(deleteButton).toBeInTheDocument();
-    await user.click(deleteButton!);
+    const deleteButton = screen.getByRole('button', { name: /delete payment method ending in 1111/i });
+    await user.click(deleteButton);
     expect(screen.getByTestId('delete-modal')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /confirm delete/i }));
 
@@ -181,11 +180,10 @@ describe('PaymentMethods', () => {
     });
     (paymentService.deletePaymentMethod as jest.Mock).mockRejectedValue(new Error('fail'));
 
-    const { container } = render(<PaymentMethods userId="user-1" />);
+    render(<PaymentMethods userId="user-1" />);
 
-    const deleteButton = container.querySelector('button.text-red-600') as HTMLButtonElement | null;
-    expect(deleteButton).toBeInTheDocument();
-    await user.click(deleteButton!);
+    const deleteButton = screen.getByRole('button', { name: /delete payment method ending in 2222/i });
+    await user.click(deleteButton);
     await user.click(screen.getByRole('button', { name: /confirm delete/i }));
 
     expect(await screen.findByText(/failed to delete payment method/i)).toBeInTheDocument();

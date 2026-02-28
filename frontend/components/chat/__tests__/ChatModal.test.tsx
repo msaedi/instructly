@@ -313,6 +313,54 @@ describe('ChatModal', () => {
     expect(chatActionButton).toHaveFocus();
   });
 
+  it('falls back to focusing the dialog when no focusable elements are detected', () => {
+    const originalQuerySelectorAll = HTMLDivElement.prototype.querySelectorAll;
+    const emptyNodeList = document.createDocumentFragment().querySelectorAll('*');
+    const querySelectorSpy = jest.spyOn(HTMLDivElement.prototype, 'querySelectorAll').mockImplementation(function (selector: string) {
+      if (this.getAttribute('role') === 'dialog') {
+        return emptyNodeList as unknown as NodeListOf<Element>;
+      }
+      return originalQuerySelectorAll.call(this, selector);
+    });
+
+    try {
+      render(
+        <QueryClientProvider client={queryClient}>
+          <ChatModal {...baseProps} />
+        </QueryClientProvider>
+      );
+
+      const dialog = screen.getByRole('dialog', { name: 'Chat' });
+      expect(dialog).toHaveFocus();
+
+      fireEvent.keyDown(document, { key: 'Tab' });
+      expect(dialog).toHaveFocus();
+    } finally {
+      querySelectorSpy.mockRestore();
+    }
+  });
+
+  it('moves focus back into the modal when tab is pressed from outside', () => {
+    const outsideButton = document.createElement('button');
+    outsideButton.type = 'button';
+    outsideButton.textContent = 'Outside trigger';
+    document.body.appendChild(outsideButton);
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ChatModal {...baseProps} />
+      </QueryClientProvider>
+    );
+
+    outsideButton.focus();
+    expect(outsideButton).toHaveFocus();
+
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(screen.getByLabelText('Close chat')).toHaveFocus();
+
+    outsideButton.remove();
+  });
+
   it('returns focus to trigger element when modal closes', () => {
     const trigger = document.createElement('button');
     trigger.textContent = 'Open chat';

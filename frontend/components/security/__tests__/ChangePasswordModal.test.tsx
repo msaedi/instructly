@@ -15,16 +15,11 @@ const renderModal = (props?: { onClose?: jest.Mock }) => {
   return { onClose };
 };
 const getPasswordInputs = (): [HTMLInputElement, HTMLInputElement, HTMLInputElement] => {
-  const labels = ['Current password', 'New password', 'Confirm new password'];
-  const inputs = labels.map((labelText) => {
-    const label = screen.getByText(labelText);
-    const input = label.parentElement?.querySelector('input');
-    if (!input) {
-      throw new Error(`Missing input for ${labelText}`);
-    }
-    return input as HTMLInputElement;
-  });
-  return inputs as [HTMLInputElement, HTMLInputElement, HTMLInputElement];
+  return [
+    screen.getByLabelText('Current password') as HTMLInputElement,
+    screen.getByLabelText('New password') as HTMLInputElement,
+    screen.getByLabelText('Confirm new password') as HTMLInputElement,
+  ];
 };
 
 describe('ChangePasswordModal', () => {
@@ -37,6 +32,14 @@ describe('ChangePasswordModal', () => {
 
     const saveButton = screen.getByRole('button', { name: 'Save password' });
     expect(saveButton).toBeDisabled();
+  });
+
+  it('associates labels with matching password input ids', () => {
+    renderModal();
+
+    expect(screen.getByLabelText('Current password')).toHaveAttribute('id', 'current-password');
+    expect(screen.getByLabelText('New password')).toHaveAttribute('id', 'new-password');
+    expect(screen.getByLabelText('Confirm new password')).toHaveAttribute('id', 'confirm-password');
   });
 
   it('calls onClose when cancel is clicked', async () => {

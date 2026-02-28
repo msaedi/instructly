@@ -39,16 +39,16 @@ export default function ChangePasswordModal({ onClose }: { onClose: () => void }
         {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
         <div className="mt-4 space-y-3">
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Current password</label>
-            <input type="password" className="w-full rounded-md border px-3 py-2 text-sm" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
+            <label htmlFor="current-password" className="block text-xs text-gray-500 mb-1">Current password</label>
+            <input id="current-password" type="password" className="w-full rounded-md border px-3 py-2 text-sm" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">New password</label>
-            <input type="password" className="w-full rounded-md border px-3 py-2 text-sm" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+            <label htmlFor="new-password" className="block text-xs text-gray-500 mb-1">New password</label>
+            <input id="new-password" type="password" className="w-full rounded-md border px-3 py-2 text-sm" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Confirm new password</label>
-            <input type="password" className="w-full rounded-md border px-3 py-2 text-sm" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+            <label htmlFor="confirm-password" className="block text-xs text-gray-500 mb-1">Confirm new password</label>
+            <input id="confirm-password" type="password" className="w-full rounded-md border px-3 py-2 text-sm" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
           </div>
         </div>
         <div className="mt-5 flex justify-end gap-3">

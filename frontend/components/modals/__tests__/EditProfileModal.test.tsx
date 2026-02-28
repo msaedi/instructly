@@ -4692,6 +4692,17 @@ describe('EditProfileModal', () => {
 
       (global.fetch as jest.Mock).mockRestore?.();
     });
+
+    it('exposes an explicit accessible name on borough accordion headers', async () => {
+      render(
+        <EditProfileModal {...defaultProps} variant="areas" />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /manhattan neighborhoods/i })).toBeInTheDocument();
+      });
+    });
   });
 
   describe('handleSubmit with address changes', () => {

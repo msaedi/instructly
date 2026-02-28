@@ -113,6 +113,60 @@ describe('MoreFiltersModal', () => {
     expect(opener).toHaveFocus();
   });
 
+  it('falls back to focusing the dialog when no focusable elements are detected', () => {
+    const originalQuerySelectorAll = HTMLDivElement.prototype.querySelectorAll;
+    const emptyNodeList = document.createDocumentFragment().querySelectorAll('*');
+    const querySelectorSpy = jest.spyOn(HTMLDivElement.prototype, 'querySelectorAll').mockImplementation(function (selector: string) {
+      if (this.getAttribute('role') === 'dialog') {
+        return emptyNodeList as unknown as NodeListOf<Element>;
+      }
+      return originalQuerySelectorAll.call(this, selector);
+    });
+
+    try {
+      render(
+        <MoreFiltersModal
+          isOpen={true}
+          onClose={onClose}
+          filters={DEFAULT_FILTERS}
+          onFiltersChange={onFiltersChange}
+        />
+      );
+
+      const dialog = screen.getByRole('dialog', { name: /more filters/i });
+      expect(dialog).toHaveFocus();
+
+      fireEvent.keyDown(document, { key: 'Tab' });
+      expect(dialog).toHaveFocus();
+    } finally {
+      querySelectorSpy.mockRestore();
+    }
+  });
+
+  it('moves focus back into the modal when tab is pressed from outside', () => {
+    const outsideButton = document.createElement('button');
+    outsideButton.type = 'button';
+    outsideButton.textContent = 'Outside focus';
+    document.body.appendChild(outsideButton);
+
+    render(
+      <MoreFiltersModal
+        isOpen={true}
+        onClose={onClose}
+        filters={DEFAULT_FILTERS}
+        onFiltersChange={onFiltersChange}
+      />
+    );
+
+    outsideButton.focus();
+    expect(outsideButton).toHaveFocus();
+
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(screen.getByRole('button', { name: /close more filters/i })).toHaveFocus();
+
+    outsideButton.remove();
+  });
+
   it('skips suggested content filters when the filter key is already populated (continue branch)', async () => {
     const user = userEvent.setup();
     // Pre-populate the 'goal' filter so suggested values for 'goal' are skipped

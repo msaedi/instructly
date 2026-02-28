@@ -335,6 +335,7 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId: _userId }) => {
                 <Button
                   variant="ghost"
                   size="sm"
+                  aria-label={`Delete payment method ending in ${method.last4}`}
                   onClick={() => {
                     setMethodToDelete(method);
                     setDeleteModalOpen(true);

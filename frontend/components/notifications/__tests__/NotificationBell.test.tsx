@@ -84,6 +84,13 @@ describe('NotificationBell', () => {
       expect(button).toBeInTheDocument();
     });
 
+    it('does not suppress the default/global focus outline class on the trigger', () => {
+      render(<NotificationBell />);
+
+      const button = screen.getByRole('button', { name: 'Notifications' });
+      expect(button.className).not.toContain('focus:outline-none');
+    });
+
     it('shows badge when there are unread notifications', () => {
       mockUseNotifications.mockReturnValue({
         notifications: [],
