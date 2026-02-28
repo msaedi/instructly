@@ -27,7 +27,7 @@ describe('InstructorProfileNav', () => {
     const user = userEvent.setup();
     render(<InstructorProfileNav instructorName="Jamie Doe" />);
 
-    await user.click(screen.getAllByRole('button')[0]!);
+    await user.click(screen.getByRole('button', { name: /go back/i }));
     expect(back).toHaveBeenCalled();
   });
 
@@ -35,7 +35,7 @@ describe('InstructorProfileNav', () => {
     const user = userEvent.setup();
     render(<InstructorProfileNav instructorName="Jamie Doe" />);
 
-    await user.click(screen.getByRole('button', { name: /back/i }));
+    await user.click(screen.getByRole('button', { name: /^back$/i }));
     expect(back).toHaveBeenCalled();
   });
 

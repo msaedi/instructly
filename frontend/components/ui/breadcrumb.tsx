@@ -44,7 +44,13 @@ export function Breadcrumb({ items, className }: BreadcrumbProps) {
                   </span>
                 )}
               </li>
-              {!isLast && <ChevronRight className="h-4 w-4 text-gray-400 dark:text-gray-600" />}
+              {!isLast && (
+                <ChevronRight
+                  className="h-4 w-4 text-gray-400 dark:text-gray-600"
+                  aria-hidden="true"
+                  focusable="false"
+                />
+              )}
             </React.Fragment>
           );
         })}
