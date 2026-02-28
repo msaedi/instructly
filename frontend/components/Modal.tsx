@@ -63,7 +63,9 @@ const Modal: React.FC<ModalProps> = ({
   allowOverflow = false,
   autoHeight = false,
 }) => {
-  // Note: Radix Dialog manages focus trap, aria-hiding, and body scroll lock.
+  // Radix handles focus trap and scroll locking.
+  // This controlled modal does not always render a Dialog.Trigger, so we keep
+  // a lightweight fallback target for close autofocus.
   const previousActiveElementRef = React.useRef<HTMLElement | null>(null);
 
   React.useEffect(() => {
@@ -99,17 +101,6 @@ const Modal: React.FC<ModalProps> = ({
         if (!nextOpen) {
           logger.debug('Modal closed via onOpenChange');
           onClose();
-          const previousActiveElement = previousActiveElementRef.current;
-          if (
-            previousActiveElement &&
-            typeof previousActiveElement.focus === 'function'
-          ) {
-            requestAnimationFrame(() => {
-              if (document.contains(previousActiveElement)) {
-                previousActiveElement.focus();
-              }
-            });
-          }
         }
       }}
    >
@@ -118,6 +109,13 @@ const Modal: React.FC<ModalProps> = ({
         <Dialog.Content
           className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
           aria-modal="true"
+          onCloseAutoFocus={(event) => {
+            const target = previousActiveElementRef.current;
+            if (target && typeof target.focus === 'function' && document.contains(target)) {
+              event.preventDefault();
+              target.focus();
+            }
+          }}
           onEscapeKeyDown={(e) => {
             if (!closeOnEscape) {
               e.preventDefault();

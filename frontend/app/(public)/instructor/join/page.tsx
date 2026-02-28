@@ -102,7 +102,7 @@ function JoinInner() {
   return (
     <div className="min-h-screen insta-onboarding-page flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative transition-colors duration-200">
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="insta-flow-panel py-8 px-4 sm:px-10 transition-colors duration-200">
+        <div className="insta-flow-panel bg-white/80 dark:bg-gray-900/80 py-8 px-4 sm:px-10 transition-colors duration-200">
           <div className="text-center mb-6">
             <h1 className="text-4xl font-bold text-[#7E22CE] transition-colors">
               {BRAND.name}
@@ -123,7 +123,7 @@ function JoinInner() {
               <input
                 id="invite"
                 data-testid="invite-code-input"
-                className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="mt-1 block w-full px-3 py-2 h-10 insta-form-input focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)]"
                 placeholder="Enter code (e.g. ZBB5-MWQP)"
                 value={formattedCode}
                 onChange={(e) => handleInputChange(e.target.value)}
@@ -162,7 +162,7 @@ function JoinInner() {
             </button>
           </form>
           <div className="mt-8">
-            <div className="mt-4 rounded-lg border border-gray-100 bg-gray-50 px-4 py-5 text-center text-xs text-gray-600 space-y-3">
+            <div className="mt-4 rounded-lg px-4 py-5 text-center text-xs text-gray-600 dark:text-gray-400 space-y-3 insta-empty-state-note">
               <p>
                 By clicking Join, you agree to iNSTAiNSTRU&apos;s{' '}
                 <a href="/legal#terms" className="focus-link text-[#7E22CE] hover:text-[#7E22CE]">
@@ -186,7 +186,7 @@ function JoinInner() {
               </p>
             </div>
           </div>
-          <p className="mt-6 text-xs text-gray-500 text-center">
+          <p className="mt-6 text-xs text-gray-500 dark:text-gray-400 text-center">
             Already have an account?{' '}
             <a href="/login" className="focus-link text-[#7E22CE] hover:underline">Sign in</a>
           </p>

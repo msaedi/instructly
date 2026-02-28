@@ -171,7 +171,7 @@ export function TemplateEditor({
                       onChange={(event) => onTemplateSubjectChange(current.id, event.target.value)}
                       placeholder="Template title"
                       aria-label="Template title"
-                      className="template-title-input w-full bg-transparent text-lg font-semibold insta-onboarding-strong-text border-none outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 placeholder:text-gray-400"
+                      className="template-title-input w-full bg-transparent text-lg font-semibold insta-onboarding-strong-text border-none outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 placeholder:text-gray-400 dark:text-gray-400"
                     />
                   </div>
                   <p className="text-xs insta-onboarding-subtitle mt-1">Last updated manually.</p>

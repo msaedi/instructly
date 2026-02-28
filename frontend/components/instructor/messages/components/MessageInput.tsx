@@ -42,7 +42,7 @@ export function MessageInput({
 
   if (messageDisplay !== 'inbox') {
     return (
-      <div className="p-6 border-t border-gray-200 text-sm text-gray-500">
+      <div className="p-6 border-t border-gray-200 text-sm text-gray-500 dark:text-gray-400">
         {messageDisplay === 'archived'
           ? 'Archived messages are read-only.'
           : 'Trashed messages are read-only.'}
@@ -53,7 +53,7 @@ export function MessageInput({
   // Show read-only message when there are no upcoming bookings
   if (!hasUpcomingBookings) {
     return (
-      <div className="p-6 border-t border-gray-200 text-center text-sm text-gray-500">
+      <div className="p-6 border-t border-gray-200 text-center text-sm text-gray-500 dark:text-gray-400">
         This lesson has ended. Chat is view-only.
       </div>
     );
@@ -63,7 +63,7 @@ export function MessageInput({
     <div className="p-4 border-t border-gray-200 space-y-3">
       {/* Typing indicator */}
       {typingUserName && (
-        <div className="px-1 pb-1 text-xs text-gray-500">
+        <div className="px-1 pb-1 text-xs text-gray-500 dark:text-gray-400">
           {typingUserName} is typing...
         </div>
       )}
@@ -96,7 +96,7 @@ export function MessageInput({
       <div className="flex items-center gap-2">
         <button
           type="button"
-          className="h-10 w-10 flex items-center justify-center rounded-full border border-gray-300 text-gray-500 hover:text-[#7E22CE] hover:border-[#D4B5F0] transition-colors"
+          className="h-10 w-10 flex items-center justify-center rounded-full border border-gray-300 text-gray-500 dark:text-gray-400 hover:text-[#7E22CE] hover:border-[#D4B5F0] transition-colors"
           title="Attach file"
           aria-label="Attach file"
           onClick={() => fileInputRef.current?.click()}

@@ -98,7 +98,7 @@ export default function Step3PaymentSetup() {
       {loading ? (
         <div className="flex flex-col items-center justify-center py-16">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
-          <p className="mt-4 text-gray-600 font-medium">Loading payment setup...</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-400 font-medium">Loading payment setup...</p>
         </div>
       ) : (
         <div className="space-y-0 sm:space-y-6">
@@ -106,21 +106,21 @@ export default function Step3PaymentSetup() {
           <div className="relative">
             <div className="insta-surface-card relative overflow-hidden p-4 sm:p-0">
               {/* Card Header with Icon */}
-              <div className="bg-white p-0 sm:p-6">
+              <div className="p-0 sm:p-6">
                 <div className="grid grid-cols-[3rem_1fr] gap-4">
                   <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                     <svg className="w-6 h-6 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                     </svg>
                   </div>
-                  <h2 className="text-xl font-bold text-gray-900 self-center">Connect Your Bank Account</h2>
-                  <p className="text-gray-600 mt-2 col-span-2">You&apos;ll be redirected to Stripe to link your bank account securely. Once connected, payments from students will be deposited directly to you.</p>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 self-center">Connect Your Bank Account</h2>
+                  <p className="text-gray-600 dark:text-gray-400 mt-2 col-span-2">You&apos;ll be redirected to Stripe to link your bank account securely. Once connected, payments from students will be deposited directly to you.</p>
                 </div>
               </div>
 
               {/* Benefits Section */}
               <div className="px-0 sm:px-8 pt-4 pb-8">
-                <p className="text-gray-600 mb-2">What to expect</p>
+                <p className="text-gray-600 dark:text-gray-400 mb-2">What to expect</p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="insta-onboarding-benefit-card">
                     <div className="flex items-start gap-3">
@@ -202,7 +202,7 @@ export default function Step3PaymentSetup() {
                           <>Connect with Stripe →</>
                         )}
                       </button>
-                      <p className="text-xs text-gray-500 mt-3">You&apos;ll be redirected to Stripe&apos;s secure portal</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">You&apos;ll be redirected to Stripe&apos;s secure portal</p>
                     </div>
                   </div>
                 )}

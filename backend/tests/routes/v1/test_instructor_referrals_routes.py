@@ -33,8 +33,15 @@ def test_get_referral_stats_creates_code(client, auth_headers_instructor):
     data = response.json()
     assert data["referral_code"]
     assert "/r/" in data["referral_link"]
-    if settings.frontend_url:
-        assert settings.frontend_url.rstrip("/") in data["referral_link"]
+    frontend_is_localhost = settings.frontend_url.startswith("http://localhost") or settings.frontend_url.startswith("https://localhost")
+    expected_base = (
+        settings.local_beta_frontend_origin
+        if settings.local_beta_frontend_origin
+        and (settings.site_mode == "local" or (settings.site_mode != "prod" and frontend_is_localhost))
+        else settings.frontend_url
+    )
+    if expected_base:
+        assert expected_base.rstrip("/") in data["referral_link"]
 
 
 def test_get_referral_stats_requires_instructor(client, auth_headers_student):

@@ -87,7 +87,7 @@ export default function WeekNavigator({
 
   return (
     <div
-      className="mb-6 bg-white rounded-lg border border-gray-200 p-5 shadow-sm insta-surface-card insta-availability-week-nav"
+      className="mb-6 p-5 insta-surface-card insta-availability-week-nav"
       data-testid="week-header"
       data-week-start={weekStartISO}
     >

@@ -69,7 +69,7 @@ function WelcomeInner() {
   return (
     <div className="min-h-screen insta-onboarding-page flex flex-col justify-center py-12 sm:px-6 lg:px-8 cursor-default">
       <div className="sm:mx-auto sm:w-full sm:max-w-2xl">
-        <div className="insta-flow-panel py-10 px-8 sm:rounded-[28px]">
+        <div className="insta-flow-panel bg-white/80 dark:bg-gray-900/80 py-10 px-8 sm:rounded-[28px]">
           <div className="text-center mb-4">
             <h1 className="text-3xl font-bold tracking-tight text-[#7E22CE]">{`iNSTAiNSTRU`}</h1>
             <p className="text-2xl font-semibold insta-onboarding-strong-text mt-4">
@@ -77,27 +77,27 @@ function WelcomeInner() {
             </p>
             <div className="h-px w-full bg-gradient-to-r from-transparent via-[#7E22CE] to-transparent mt-4" />
           </div>
-          <div className="text-center text-gray-600 mb-6 space-y-2">
-            <p className="text-lg font-semibold text-gray-900">
+          <div className="text-center text-gray-600 dark:text-gray-400 mb-6 space-y-2">
+            <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               We’re thrilled to have you on iNSTAiNSTRU
             </p>
             <p className="text-base">
               Over 500 students searched for instructors in NYC this week.
             </p>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               Next up, create your profile so you’re launch-ready; we’ll alert you the moment booking goes live!
             </p>
           </div>
 
           <div className="space-y-4 text-gray-900 dark:text-gray-100 text-left">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Founding Instructor Perks</h2>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Founding Instructor Perks</h2>
 
             <div className="space-y-4">
               <div className="flex gap-3">
                 <CheckIcon className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
                 <div>
-                  <h3 className="font-semibold text-gray-900">Lifetime Lowest Rate</h3>
-                  <p className="text-gray-600 text-sm">
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-100">Lifetime Lowest Rate</h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">
                     Lock in our lowest rate—permanently. Whatever the floor is, you&apos;re on it. Forever.
                     Currently that&apos;s 8%. Standard instructors start at 15% and work their way down. You don&apos;t.
                   </p>
@@ -107,8 +107,8 @@ function WelcomeInner() {
               <div className="flex gap-3">
                 <CheckIcon className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
                 <div>
-                  <h3 className="font-semibold text-gray-900">Founding Instructor Badge</h3>
-                  <p className="text-gray-600 text-sm">
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-100">Founding Instructor Badge</h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">
                     A Founding Instructor badge on your profile marks you as one of the first 100.
                     It can&apos;t be achieved later.
                   </p>
@@ -118,8 +118,8 @@ function WelcomeInner() {
               <div className="flex gap-3">
                 <CheckIcon className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
                 <div>
-                  <h3 className="font-semibold text-gray-900">Priority Visibility</h3>
-                  <p className="text-gray-600 text-sm">
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-100">Priority Visibility</h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">
                     Higher placement in search results during our NYC launch. More visibility means
                     more bookings while we grow together.
                   </p>
@@ -129,8 +129,8 @@ function WelcomeInner() {
               <div className="flex gap-3">
                 <CheckIcon className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
                 <div>
-                  <h3 className="font-semibold text-gray-900">Availability Commitment</h3>
-                  <p className="text-gray-600 text-sm">
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-100">Availability Commitment</h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">
                     Founding Instructors commit to posting availability—10 hours per week, across 3+ days,
                     during 8am–8pm. This ensures students always find real options when they search.
                   </p>
@@ -138,7 +138,7 @@ function WelcomeInner() {
               </div>
             </div>
 
-            <p className="text-sm text-gray-600 italic mt-6">
+            <p className="text-sm text-gray-600 dark:text-gray-400 italic mt-6">
               Only 100 founding instructors will ever exist.
             </p>
           </div>
@@ -152,8 +152,8 @@ function WelcomeInner() {
             </Link>
           </div>
 
-          <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-300">
-            <p className="text-sm text-gray-500">
+          <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400 dark:text-gray-300">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               Have questions? Email us at{' '}
               <a href="mailto:hello@instainstru.com" className="text-purple-600 hover:underline">
                 hello@instainstru.com

@@ -239,7 +239,7 @@ export default function OnboardingStatusPage() {
                 <ShieldCheck className="w-6 h-6 text-emerald-600" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Background check</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Background check</h2>
                 <p className="text-sm text-muted-foreground">Invite yourself via Checkr to complete your screening.</p>
               </div>
             </div>

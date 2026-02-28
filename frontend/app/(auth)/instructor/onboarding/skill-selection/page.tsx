@@ -921,7 +921,7 @@ function Step3SkillsPricingInner() {
         <div className="insta-surface-card mt-0 sm:mt-6 p-4 sm:p-6">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
+              <div className="flex items-center gap-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                   <BookOpen className="w-6 h-6 text-[#7E22CE]" />
                 </div>
@@ -931,7 +931,7 @@ function Step3SkillsPricingInner() {
           </div>
 
           <div className="mt-2 space-y-4">
-            <p className="text-gray-600 mt-1 mb-2">Select the service categories you teach</p>
+            <p className="text-gray-600 dark:text-gray-400 mt-1 mb-2">Select the service categories you teach</p>
 
             <div className="mb-3">
               <input
@@ -977,7 +977,7 @@ function Step3SkillsPricingInner() {
 
             {skillsFilter.trim().length > 0 && (
               <div className="mb-3">
-                <div className="text-sm text-gray-700 mb-2">Results</div>
+                <div className="text-sm text-gray-700 dark:text-gray-300 mb-2">Results</div>
                 <div className="flex flex-wrap gap-2">
                   {allCatalogServices
                     .filter((service) =>
@@ -998,7 +998,7 @@ function Step3SkillsPricingInner() {
                           className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
                             selectedFlag
                               ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              : 'bg-gray-100 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
                           }`}
                         >
                           <span className="truncate text-left">{service.name}</span>
@@ -1009,7 +1009,7 @@ function Step3SkillsPricingInner() {
                   {allCatalogServices.filter((service) =>
                     service.name.toLowerCase().includes(skillsFilter.toLowerCase())
                   ).length === 0 && (
-                    <div className="text-sm text-gray-500">No matches found</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">No matches found</div>
                   )}
                 </div>
               </div>
@@ -1030,7 +1030,7 @@ function Step3SkillsPricingInner() {
                   className="rounded-lg overflow-hidden border border-gray-200 bg-white"
                 >
                   <button
-                    className="w-full px-4 py-3 flex items-center justify-between text-gray-700 hover:bg-gray-50 transition-colors"
+                    className="w-full px-4 py-3 flex items-center justify-between text-gray-700 dark:text-gray-300 hover:bg-gray-50 transition-colors"
                     onClick={() =>
                       setCollapsed((previous) => ({
                         ...previous,
@@ -1040,7 +1040,7 @@ function Step3SkillsPricingInner() {
                   >
                     <span className="font-bold">{category.name}</span>
                     <svg
-                      className={`h-4 w-4 text-gray-600 transition-transform ${
+                      className={`h-4 w-4 text-gray-600 dark:text-gray-400 transition-transform ${
                         isCollapsed ? '' : 'rotate-180'
                       }`}
                       fill="none"
@@ -1059,7 +1059,7 @@ function Step3SkillsPricingInner() {
                   {!isCollapsed && (
                     <div className="p-4 space-y-4">
                       {categoryGroups.length === 0 ? (
-                        <div className="text-sm text-gray-500">
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
                           No services available in this category yet.
                         </div>
                       ) : (
@@ -1090,13 +1090,13 @@ function Step3SkillsPricingInner() {
                                       [collapseKey]: !(previous[collapseKey] ?? false),
                                     }))
                                   }
-                                  className="w-full px-1 py-1.5 flex items-center justify-between text-left text-gray-600 hover:bg-gray-50 rounded-md transition-colors"
+                                  className="w-full px-1 py-1.5 flex items-center justify-between text-left text-gray-600 dark:text-gray-400 hover:bg-gray-50 rounded-md transition-colors"
                                 >
-                                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                                     {group.subcategory_name}
                                   </span>
                                   <svg
-                                    className={`h-4 w-4 text-gray-500 transition-transform ${
+                                    className={`h-4 w-4 text-gray-500 dark:text-gray-400 transition-transform ${
                                       isSubcategoryCollapsed ? '' : 'rotate-180'
                                     }`}
                                     fill="none"
@@ -1131,7 +1131,7 @@ function Step3SkillsPricingInner() {
                                         className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
                                           selectedFlag
                                             ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]'
-                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                            : 'bg-gray-100 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
                                         }`}
                                       >
                                         <span className="truncate text-left">{service.name}</span>
@@ -1160,7 +1160,7 @@ function Step3SkillsPricingInner() {
         <div className="insta-surface-card mt-0 sm:mt-8 p-4 sm:p-6">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
+              <div className="flex items-center gap-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                   <CheckSquare className="w-6 h-6 text-[#7E22CE]" />
                 </div>
@@ -1170,7 +1170,7 @@ function Step3SkillsPricingInner() {
           </div>
 
           {selected.length === 0 ? (
-            <p className="text-gray-500">You can add skills now or later.</p>
+            <p className="text-gray-500 dark:text-gray-400">You can add skills now or later.</p>
           ) : (
             <div className="grid gap-4">
               {selected.map((service) => {
@@ -1206,13 +1206,13 @@ function Step3SkillsPricingInner() {
                   >
                     <div className="flex items-start justify-between mb-4">
                       <div>
-                        <div className="text-lg font-medium text-gray-900">{service.name}</div>
+                        <div className="text-lg font-medium text-gray-900 dark:text-gray-100">{service.name}</div>
                         <div className="flex items-center gap-3 mt-2">
                           <div className="flex items-center gap-1">
                             <span className="text-2xl font-bold text-[#7E22CE]">
                               ${service.hourly_rate || '0'}
                             </span>
-                            <span className="text-sm text-gray-600">/hour</span>
+                            <span className="text-sm text-gray-600 dark:text-gray-400">/hour</span>
                           </div>
                         </div>
                       </div>
@@ -1227,7 +1227,7 @@ function Step3SkillsPricingInner() {
                         className={`w-8 h-8 flex items-center justify-center rounded-full bg-white border transition-colors ${
                           isInstructorLive && selected.length <= 1
                             ? 'border-gray-200 text-gray-300 cursor-not-allowed'
-                            : 'border-gray-300 text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-300'
+                            : 'border-gray-300 text-gray-600 dark:text-gray-400 hover:bg-red-50 hover:text-red-600 hover:border-red-300'
                         }`}
                         onClick={() => removeService(service.catalog_service_id)}
                       >
@@ -1249,9 +1249,9 @@ function Step3SkillsPricingInner() {
 
                     <div className="mb-4 bg-white rounded-lg p-3 border border-gray-200">
                       <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium text-gray-700">Hourly Rate:</span>
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Hourly Rate:</span>
                         <div className="flex items-center gap-1">
-                          <span className="text-gray-500">$</span>
+                          <span className="text-gray-500 dark:text-gray-400">$</span>
                           <input
                             type="number"
                             min={1}
@@ -1270,12 +1270,12 @@ function Step3SkillsPricingInner() {
                               )
                             }
                           />
-                          <span className="text-gray-500">/hr</span>
+                          <span className="text-gray-500 dark:text-gray-400">/hr</span>
                         </div>
                       </div>
 
                       {service.hourly_rate && Number(service.hourly_rate) > 0 && (
-                        <div className="mt-2 text-xs text-gray-600">
+                        <div className="mt-2 text-xs text-gray-600 dark:text-gray-400">
                           You&apos;ll earn{' '}
                           <span className="font-semibold text-[#7E22CE]">
                             ${Number(Number(service.hourly_rate) * instructorTakeHomePct).toFixed(2)}
@@ -1301,7 +1301,7 @@ function Step3SkillsPricingInner() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                       <div className="bg-white rounded-lg p-3 border border-gray-200">
-                        <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">
+                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">
                           Age Groups
                         </label>
                         <div className="grid grid-cols-2 gap-2">
@@ -1333,10 +1333,10 @@ function Step3SkillsPricingInner() {
                                 }}
                                 className={`px-2 py-2 text-sm rounded-md border transition-colors ${
                                   !isEligible
-                                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-70'
+                                    ? 'bg-gray-100 text-gray-400 dark:text-gray-400 border-gray-200 cursor-not-allowed opacity-70'
                                     : isSelected
                                     ? 'bg-purple-100 text-[#7E22CE] border-purple-300'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border-transparent'
+                                    : 'bg-gray-100 text-gray-700 dark:text-gray-300 hover:bg-gray-200 border-transparent'
                                 }`}
                               >
                                 {AUDIENCE_LABELS[ageGroup]}
@@ -1347,7 +1347,7 @@ function Step3SkillsPricingInner() {
                       </div>
 
                       <div className="bg-white rounded-lg p-3 border border-gray-200">
-                        <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">
+                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">
                           How do you offer this skill?
                         </label>
                         <div className="space-y-3">
@@ -1371,10 +1371,10 @@ function Step3SkillsPricingInner() {
                                 >
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
-                                      <p className="text-sm font-medium text-gray-700">
+                                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
                                         I travel to students
                                       </p>
-                                      <p className="text-xs text-gray-500">
+                                      <p className="text-xs text-gray-500 dark:text-gray-400">
                                         (Within your service areas)
                                       </p>
                                     </div>
@@ -1395,7 +1395,7 @@ function Step3SkillsPricingInner() {
                                     />
                                   </div>
                                   {travelMessage && (
-                                    <p className="mt-1 text-xs text-gray-500">{travelMessage}</p>
+                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{travelMessage}</p>
                                   )}
                                 </div>
 
@@ -1407,10 +1407,10 @@ function Step3SkillsPricingInner() {
                                 >
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
-                                      <p className="text-sm font-medium text-gray-700">
+                                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
                                         Students come to me
                                       </p>
-                                      <p className="text-xs text-gray-500">
+                                      <p className="text-xs text-gray-500 dark:text-gray-400">
                                         (At your teaching location)
                                       </p>
                                     </div>
@@ -1434,7 +1434,7 @@ function Step3SkillsPricingInner() {
                                     />
                                   </div>
                                   {atLocationMessage && (
-                                    <p className="mt-1 text-xs text-gray-500">
+                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                       {atLocationMessage}
                                     </p>
                                   )}
@@ -1443,10 +1443,10 @@ function Step3SkillsPricingInner() {
                                 <div className="rounded-md border border-gray-200 p-3">
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
-                                      <p className="text-sm font-medium text-gray-700">
+                                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
                                         Online lessons
                                       </p>
-                                      <p className="text-xs text-gray-500">(Video call)</p>
+                                      <p className="text-xs text-gray-500 dark:text-gray-400">(Video call)</p>
                                     </div>
                                     <ToggleSwitch
                                       checked={service.offers_online}
@@ -1476,7 +1476,7 @@ function Step3SkillsPricingInner() {
                       </div>
 
                       <div className="bg-white rounded-lg p-3 border border-gray-200">
-                        <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">
+                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">
                           Session Duration
                         </label>
                         <div className="flex gap-1">
@@ -1514,7 +1514,7 @@ function Step3SkillsPricingInner() {
                               className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
                                 service.duration_options.includes(duration)
                                   ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
-                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                  : 'bg-gray-100 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
                               }`}
                             >
                               {duration}m
@@ -1524,7 +1524,7 @@ function Step3SkillsPricingInner() {
                       </div>
 
                       <div className="bg-white rounded-lg p-3 border border-gray-200">
-                        <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">
+                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">
                           Skill Level
                         </label>
                         <div className="flex gap-1">
@@ -1555,7 +1555,7 @@ function Step3SkillsPricingInner() {
                                 className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
                                   isSelected
                                     ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    : 'bg-gray-100 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
                                 }`}
                               >
                                 {level === 'beginner'
@@ -1589,7 +1589,7 @@ function Step3SkillsPricingInner() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
-                        <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1 block">
+                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1 block">
                           Description (Optional)
                         </label>
                         <textarea
@@ -1610,7 +1610,7 @@ function Step3SkillsPricingInner() {
                       </div>
 
                       <div>
-                        <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1 block">
+                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1 block">
                           Equipment (Optional)
                         </label>
                         <textarea
@@ -1640,7 +1640,7 @@ function Step3SkillsPricingInner() {
         <div className="insta-surface-card mt-0 sm:mt-8 p-4 sm:p-6">
           <div className="flex items-start justify-between mb-2">
             <div>
-              <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
+              <div className="flex items-center gap-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                   <Lightbulb className="w-6 h-6 text-[#7E22CE]" />
                 </div>
@@ -1665,7 +1665,7 @@ function Step3SkillsPricingInner() {
               Submit request
             </button>
           </div>
-          {requestSuccess && <div className="mt-2 text-sm text-gray-900">{requestSuccess}</div>}
+          {requestSuccess && <div className="mt-2 text-sm text-gray-900 dark:text-gray-100">{requestSuccess}</div>}
         </div>
 
         <div className="mt-8 flex items-center justify-end gap-3">

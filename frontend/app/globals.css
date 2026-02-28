@@ -157,125 +157,146 @@ body {
 /* Font variables are already available via CSS custom properties */
 
 /* Dark Mode Support */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: 222 47% 11%;
-    --foreground: #f3f4f6; /* Gray 100 */
-    --background-secondary: #1f2937; /* Gray 800 */
-    --foreground-secondary: #9ca3af; /* Gray 400 */
+/* Class-based dark mode support */
+.dark {
+  --background: 222 47% 11%;
+  --foreground: #f3f4f6; /* Gray 100 */
+  --background-secondary: #1f2937; /* Gray 800 */
+  --foreground-secondary: #9ca3af; /* Gray 400 */
 
-    /* Adjusted brand colors for dark mode - match brand purple */
-    --color-primary: #7E22CE; /* Brand Purple */
-    --color-primary-hover: #7E22CE; /* Keep solid on hover */
-    --color-primary-light: #312e81; /* Indigo 900 */
+  /* Adjusted brand colors for dark mode - match brand purple */
+  --color-primary: #7E22CE; /* Brand Purple */
+  --color-primary-hover: #7E22CE; /* Keep solid on hover */
+  --color-primary-light: #312e81; /* Indigo 900 */
 
-    /* Adjusted semantic colors for dark mode */
-    --color-success: #059669;
-    --color-warning: #d97706;
-    --color-error: #dc2626;
-    --color-info: #2563eb;
+  /* Adjusted semantic colors for dark mode */
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-error: #dc2626;
+  --color-info: #2563eb;
 
-    /* Adjusted shadows for dark mode */
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.5);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5);
-  }
+  /* Adjusted shadows for dark mode */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.5);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+}
 
-  /* Force dark backgrounds on common elements */
-  body {
-    background-color: #111827 !important; /* Gray 900 */
-    color: #f3f4f6 !important; /* Gray 100 */
-  }
+.dark body {
+  background-color: #111827 !important; /* Gray 900 */
+  color: #f3f4f6 !important; /* Gray 100 */
+}
 
-  /* Ensure all white backgrounds become dark */
-  .bg-white {
-    background-color: #1f2937 !important; /* Gray 800 */
-  }
+.dark .bg-white {
+  background-color: #1f2937 !important; /* Gray 800 */
+}
 
-  .bg-gray-50 {
-    background-color: #111827 !important; /* Gray 900 */
-  }
+.dark .bg-gray-50 {
+  background-color: #111827 !important; /* Gray 900 */
+}
 
-  /* Fix text colors */
-.text-gray-900 {
-    color: #f3f4f6 !important; /* Gray 100 */
-  }
+.dark .text-gray-900 {
+  color: #f3f4f6 !important; /* Gray 100 */
+}
 
-  .text-gray-600 {
-    color: #9ca3af !important; /* Gray 400 */
-  }
+.dark .text-gray-600 {
+  color: #9ca3af !important; /* Gray 400 */
+}
 
-  /* Fix borders */
-  .border-gray-100,
-  .border-gray-200,
-  .border-gray-300 {
-    border-color: #374151 !important; /* Gray 700 */
-  }
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-gray-300 {
+  border-color: #374151 !important; /* Gray 700 */
+}
 
-  /* Availability Grid Dark Mode Fixes */
-  /* Available slots (green) */
-  .bg-green-500 {
-    background-color: #059669 !important; /* Emerald 600 - darker green */
-  }
+.dark .bg-green-500 {
+  background-color: #059669 !important; /* Emerald 600 - darker green */
+}
 
-  /* Unavailable slots (gray/white) */
-  .bg-gray-200,
-  .bg-gray-100 {
-    background-color: #374151 !important; /* Gray 700 */
-  }
+.dark .bg-gray-200,
+.dark .bg-gray-100 {
+  background-color: #374151 !important; /* Gray 700 */
+}
 
-  /* Booked slots */
-  .bg-red-100 {
-    background-color: #991b1b !important; /* Red 800 - lighter than 900 */
-    color: #fee2e2 !important; /* Red 100 - much lighter text */
-  }
+.dark .bg-red-100 {
+  background-color: #991b1b !important; /* Red 800 - lighter than 900 */
+  color: #fee2e2 !important; /* Red 100 - much lighter text */
+}
 
-  /* Ensure all text in booked slots is visible */
-  .bg-red-100 * {
-    color: #fee2e2 !important; /* Red 100 */
-  }
+.dark .bg-red-100 * {
+  color: #fee2e2 !important; /* Red 100 */
+}
 
-  .bg-orange-100 {
-    background-color: #92400e !important; /* Amber 800 - lighter than 900 */
-    color: #fef3c7 !important; /* Amber 100 - much lighter text */
-  }
+.dark .bg-orange-100 {
+  background-color: #92400e !important; /* Amber 800 - lighter than 900 */
+  color: #fef3c7 !important; /* Amber 100 - much lighter text */
+}
 
-  .bg-orange-100 * {
-    color: #fef3c7 !important; /* Amber 100 */
-  }
+.dark .bg-orange-100 * {
+  color: #fef3c7 !important; /* Amber 100 */
+}
 
-  /* How it works section */
-  .bg-blue-50 {
-    background-color: #1e3a8a !important; /* Blue 900 */
-    color: #e0e7ff !important; /* Indigo 100 - better contrast */
-  }
+.dark .bg-blue-50 {
+  background-color: #1e3a8a !important; /* Blue 900 */
+  color: #e0e7ff !important; /* Indigo 100 - better contrast */
+}
 
-  /* Ensure all text in blue boxes is visible */
-  .bg-blue-50 * {
-    color: #e0e7ff !important; /* Indigo 100 */
-  }
+.dark .bg-blue-50 * {
+  color: #e0e7ff !important; /* Indigo 100 */
+}
 
-  /* Text in light backgrounds needs to be light in dark mode */
-  .text-green-700 {
-    color: #34d399 !important; /* Emerald 400 */
-  }
+.dark .text-green-700 {
+  color: #34d399 !important; /* Emerald 400 */
+}
 
-  .text-gray-700 {
-    color: #d1d5db !important; /* Gray 300 */
-  }
+.dark .text-gray-700 {
+  color: #d1d5db !important; /* Gray 300 */
+}
 
-  .text-gray-500 {
-    color: #9ca3af !important; /* Gray 400 */
-  }
+.dark .text-gray-500 {
+  color: #9ca3af !important; /* Gray 400 */
+}
 
-  .text-gray-400 {
-    color: #d1d5db !important; /* Gray 300 */
-  }
+.dark .text-gray-400 {
+  color: #d1d5db !important; /* Gray 300 */
+}
 
-  /* Calendar grid header */
-  .text-gray-600 {
-    color: #9ca3af !important; /* Gray 400 */
-  }
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: #1f2937; /* Gray 800 */
+  color: #f3f4f6; /* Gray 100 */
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #9ca3af; /* Gray 400 */
+}
+
+.dark input:focus,
+.dark textarea:focus,
+.dark select:focus {
+  border-color: var(--color-primary);
+  background-color: #111827; /* Gray 900 */
+}
+
+.dark button.stat-card.bg-white:not(:disabled):hover,
+.dark button.stat-card:not(:disabled):hover {
+  background-color: rgb(55 65 81) !important; /* gray-700 */
+  border-color: rgb(147 51 234) !important; /* purple-600 */
+}
+
+.dark button.profile-view-btn.bg-white:not(:disabled):hover,
+.dark button.profile-view-btn:not(:disabled):hover {
+  background-color: rgb(55 65 81) !important; /* gray-700 */
+  border-color: rgb(168 85 247) !important; /* purple-500 */
+}
+
+.dark .autofill-fix:-webkit-autofill,
+.dark .autofill-fix:-webkit-autofill:hover,
+.dark .autofill-fix:-webkit-autofill:focus,
+.dark .autofill-fix:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #374151 inset !important;
+  -webkit-text-fill-color: #f9fafb !important;
 }
 
 /* Base Styles */
@@ -298,28 +319,6 @@ select {
 }
 
 /* Dark mode specific input styles */
-@media (prefers-color-scheme: dark) {
-  input,
-  textarea,
-  select {
-    background-color: #1f2937; /* Gray 800 */
-    color: #f3f4f6; /* Gray 100 */
-    /* Note: border-color omitted - let Tailwind utilities control borders */
-  }
-
-  input::placeholder,
-  textarea::placeholder {
-    color: #9ca3af; /* Gray 400 */
-  }
-
-  /* Focus styles for dark mode */
-  input:focus,
-  textarea:focus,
-  select:focus {
-    border-color: var(--color-primary);
-    background-color: #111827; /* Gray 900 */
-  }
-}
 
 /* Selection Styles */
 ::selection {
@@ -590,27 +589,11 @@ button.stat-card:not(:disabled):hover {
   border-color: rgb(216 180 254) !important; /* purple-300 */
 }
 
-@media (prefers-color-scheme: dark) {
-  button.stat-card.bg-white:not(:disabled):hover,
-  button.stat-card:not(:disabled):hover {
-    background-color: rgb(55 65 81) !important; /* gray-700 */
-    border-color: rgb(147 51 234) !important; /* purple-600 */
-  }
-}
-
 /* Public profile button - explicit hover styles */
 button.profile-view-btn.bg-white:not(:disabled):hover,
 button.profile-view-btn:not(:disabled):hover {
   background-color: rgb(249 250 251) !important; /* gray-50 */
   border-color: rgb(216 180 254) !important; /* purple-300 */
-}
-
-@media (prefers-color-scheme: dark) {
-  button.profile-view-btn.bg-white:not(:disabled):hover,
-  button.profile-view-btn:not(:disabled):hover {
-    background-color: rgb(55 65 81) !important; /* gray-700 */
-    border-color: rgb(168 85 247) !important; /* purple-500 */
-  }
 }
 
 /* Ensure full-pill hover area for neighborhood chips */
@@ -642,7 +625,6 @@ button:not(:disabled):active,
 [role="button"]:not(:disabled):active {
   transform: scale(1.0);
 }
-
 
 /* Avoid text blurring on touch when pressing buttons by disabling transform on tap */
 @media (hover: none) {
@@ -837,16 +819,6 @@ html {
   transition: background-color 5000s ease-in-out 0s;
 }
 
-@media (prefers-color-scheme: dark) {
-  .autofill-fix:-webkit-autofill,
-  .autofill-fix:-webkit-autofill:hover,
-  .autofill-fix:-webkit-autofill:focus,
-  .autofill-fix:-webkit-autofill:active {
-    -webkit-box-shadow: 0 0 0 1000px #374151 inset !important;
-    -webkit-text-fill-color: #f9fafb !important;
-  }
-}
-
 /* Purple highlighting for time input fields */
 .time-input-purple::-webkit-datetime-edit-hour-field:focus,
 .time-input-purple::-webkit-datetime-edit-minute-field:focus,
@@ -947,60 +919,54 @@ html {
   line-height: 1.4;
 }
 
+@layer components {
+
 /* Shared translucent surface/button utilities for auth/onboarding/dashboard */
+/*
+ * Edge-to-edge mobile card pattern: cards render borderless and transparent
+ * on mobile viewports to fill the screen edge-to-edge, matching iOS/Android
+ * native list conventions. Visual card affordance (background, border, radius)
+ * is restored at the sm: breakpoint via responsive overrides below.
+ */
 .insta-surface-card {
-  background-color: transparent !important;
-  border: 0 !important;
-  border-radius: 0 !important;
+  background-color: transparent;
+  border: 0;
+  border-radius: 0;
 }
 
 .insta-flow-panel {
-  background-color: rgb(255 255 255 / 0.95) !important;
-  border: 1px solid rgb(255 255 255 / 0.6) !important;
-  border-radius: 1.75rem !important;
-  box-shadow: 0 20px 40px rgba(126, 34, 206, 0.12) !important;
+  background-color: rgb(255 255 255 / 0.95);
+  border: 1px solid rgb(255 255 255 / 0.6);
+  border-radius: 1.75rem;
+  box-shadow: 0 20px 40px rgba(126, 34, 206, 0.12);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
 }
 
 .dark .insta-flow-panel {
-  background-color: rgb(17 24 39 / 0.8) !important;
-  border-color: rgb(31 41 55 / 0.6) !important;
-}
-
-@media (prefers-color-scheme: dark) {
-  .insta-flow-panel {
-    background-color: rgb(17 24 39 / 0.8) !important;
-    border-color: rgb(31 41 55 / 0.6) !important;
-  }
+  background-color: rgb(17 24 39 / 0.8);
+  border-color: rgb(31 41 55 / 0.6);
 }
 
 @media (min-width: 640px) {
   .insta-surface-card {
-    background-color: rgb(255 255 255 / 0.9) !important;
-    border: 1px solid rgb(229 231 235 / 1) !important;
-    border-radius: 0.5rem !important;
+    background-color: rgb(255 255 255 / 0.9);
+    border: 1px solid rgb(229 231 235 / 1);
+    border-radius: 0.5rem;
   }
 }
 
 .dark .insta-surface-card {
-  background-color: transparent !important;
-  border: 0 !important;
-  border-radius: 0 !important;
+  background-color: transparent;
+  border: 0;
+  border-radius: 0;
 }
 
 @media (min-width: 640px) {
   .dark .insta-surface-card {
-    background-color: rgb(17 24 39 / 0.7) !important;
-    border: 1px solid rgb(31 41 55 / 0.8) !important;
-    border-radius: 0.5rem !important;
-  }
-}
-
-@media (min-width: 640px) and (prefers-color-scheme: dark) {
-  .insta-surface-card {
-    background-color: rgb(17 24 39 / 0.7) !important;
-    border-color: rgb(31 41 55 / 0.8) !important;
+    background-color: rgb(17 24 39 / 0.7);
+    border: 1px solid rgb(31 41 55 / 0.8);
+    border-radius: 0.5rem;
   }
 }
 
@@ -1010,6 +976,45 @@ html {
 
 .insta-primary-btn:hover {
   background-color: #7e22ce;
+}
+
+.insta-form-input {
+  border: 1px solid rgb(209 213 219 / 0.9);
+  border-radius: 0.5rem;
+  background-color: transparent;
+  color: #374151;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.insta-form-input::placeholder {
+  color: #9ca3af;
+}
+
+.insta-form-input:focus {
+  border-color: rgb(126 34 206 / 0.55);
+}
+
+.dark .insta-form-input {
+  border-color: rgb(75 85 99 / 0.8);
+  background-color: transparent;
+  color: #e5e7eb;
+}
+
+.dark .insta-form-input::placeholder {
+  color: #9ca3af;
+}
+
+.insta-form-input-readonly {
+  background-color: rgb(243 244 246 / 0.28);
+  color: #9ca3af;
+  -webkit-text-fill-color: #9ca3af;
+}
+
+.dark .insta-form-input-readonly {
+  background-color: rgb(31 41 55 / 0.26);
+  color: #9ca3af;
+  -webkit-text-fill-color: #9ca3af;
 }
 
 .insta-dashboard-accordion-trigger {
@@ -1079,15 +1084,41 @@ html {
 }
 
 .insta-secondary-btn {
-  color: #7e22ce !important;
-  background-color: rgb(255 255 255 / 0.9) !important;
-  border: 1px solid rgb(233 213 255 / 1) !important;
+  color: #7e22ce;
+  background-color: rgb(255 255 255 / 0.82);
+  border: 1px solid rgb(233 213 255 / 1);
 }
 
 .insta-secondary-btn:hover {
-  color: #7e22ce !important;
-  background-color: #ffffff !important;
-  border-color: rgb(216 180 254 / 1) !important;
+  color: #7e22ce;
+  background-color: rgb(250 245 255 / 0.92);
+  border-color: rgb(216 180 254 / 1);
+}
+
+.dark .insta-secondary-btn {
+  color: #e9d5ff;
+  background-color: rgb(15 23 42 / 0.62);
+  border-color: rgb(167 139 250 / 0.5);
+}
+
+.dark .insta-secondary-btn:hover {
+  color: #f3e8ff;
+  background-color: rgb(30 41 59 / 0.78);
+  border-color: rgb(196 181 253 / 0.7);
+}
+
+.insta-empty-state-note {
+  border: 1px solid rgb(229 231 235 / 0.8);
+  background-color: rgb(255 255 255 / 0.72);
+  color: #4b5563;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.dark .insta-empty-state-note {
+  border-color: rgb(55 65 81 / 0.78);
+  background-color: rgb(15 23 42 / 0.48);
+  color: #d1d5db;
 }
 
 .insta-dialog-backdrop {
@@ -1130,12 +1161,6 @@ html {
   color: #f3f4f6;
 }
 
-@media (prefers-color-scheme: dark) {
-  .insta-onboarding-title {
-    color: #f3f4f6;
-  }
-}
-
 .insta-onboarding-subtitle {
   color: #6b7280;
 }
@@ -1144,24 +1169,12 @@ html {
   color: #9ca3af;
 }
 
-@media (prefers-color-scheme: dark) {
-  .insta-onboarding-subtitle {
-    color: #9ca3af;
-  }
-}
-
 .insta-onboarding-strong-text {
   color: #111827;
 }
 
 .dark .insta-onboarding-strong-text {
   color: #f3f4f6;
-}
-
-@media (prefers-color-scheme: dark) {
-  .insta-onboarding-strong-text {
-    color: #f3f4f6;
-  }
 }
 
 .insta-onboarding-divider {
@@ -1175,65 +1188,9 @@ html {
   background-color: rgb(55 65 81 / 0.8);
 }
 
-@media (prefers-color-scheme: dark) {
-  .insta-onboarding-divider {
-    background-color: rgb(55 65 81 / 0.8);
-  }
-}
-
 @media (min-width: 640px) {
   .insta-onboarding-divider {
     display: none;
-  }
-}
-
-.dark .insta-onboarding-page .text-gray-900 {
-  color: #f3f4f6 !important;
-}
-
-.dark .insta-onboarding-page .text-gray-800 {
-  color: #e5e7eb !important;
-}
-
-.dark .insta-onboarding-page .text-gray-700 {
-  color: #d1d5db !important;
-}
-
-.dark .insta-onboarding-page .text-gray-600 {
-  color: #9ca3af !important;
-}
-
-.dark .insta-onboarding-page .text-gray-500 {
-  color: #9ca3af !important;
-}
-
-.dark .insta-onboarding-page .text-gray-400 {
-  color: #9ca3af !important;
-}
-
-@media (prefers-color-scheme: dark) {
-  .insta-onboarding-page .text-gray-900 {
-    color: #f3f4f6 !important;
-  }
-
-  .insta-onboarding-page .text-gray-800 {
-    color: #e5e7eb !important;
-  }
-
-  .insta-onboarding-page .text-gray-700 {
-    color: #d1d5db !important;
-  }
-
-  .insta-onboarding-page .text-gray-600 {
-    color: #9ca3af !important;
-  }
-
-  .insta-onboarding-page .text-gray-500 {
-    color: #9ca3af !important;
-  }
-
-  .insta-onboarding-page .text-gray-400 {
-    color: #9ca3af !important;
   }
 }
 
@@ -1280,49 +1237,22 @@ html {
   color: #d1d5db;
 }
 
-@media (prefers-color-scheme: dark) {
-  .insta-onboarding-benefit-card {
-    border-color: rgb(126 34 206 / 0.45);
-    background-color: rgb(88 28 135 / 0.22);
-  }
-
-  .insta-onboarding-benefit-icon {
-    background-color: rgb(126 34 206 / 0.3);
-    color: #e9d5ff;
-  }
-
-  .insta-onboarding-benefit-title {
-    color: #f9fafb;
-  }
-
-  .insta-onboarding-benefit-copy {
-    color: #d1d5db;
-  }
-}
-
 .insta-dashboard-header {
-  background-color: rgb(255 255 255 / 0.9) !important;
-  border-bottom: 1px solid rgb(229 231 235 / 1) !important;
+  background-color: rgb(255 255 255 / 0.9);
+  border-bottom: 1px solid rgb(229 231 235 / 1);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
 
 .dark .insta-dashboard-header {
-  background-color: rgb(17 24 39 / 0.7) !important;
-  border-bottom-color: rgb(31 41 55 / 0.8) !important;
-}
-
-@media (prefers-color-scheme: dark) {
-  .insta-dashboard-header {
-    background-color: rgb(17 24 39 / 0.7) !important;
-    border-bottom-color: rgb(31 41 55 / 0.8) !important;
-  }
+  background-color: rgb(17 24 39 / 0.7);
+  border-bottom-color: rgb(31 41 55 / 0.8);
 }
 
 .insta-dashboard-page .insta-surface-card {
-  background-color: rgb(255 255 255 / 0.9) !important;
-  border: 1px solid rgb(229 231 235 / 1) !important;
-  border-radius: 0.75rem !important;
+  background-color: rgb(255 255 255 / 0.9);
+  border: 1px solid rgb(229 231 235 / 1);
+  border-radius: 0.75rem;
 }
 
 .insta-dashboard-page .insta-dashboard-stat-card {
@@ -1331,8 +1261,8 @@ html {
 }
 
 .dark .insta-dashboard-page .insta-surface-card {
-  background-color: rgb(17 24 39 / 0.7) !important;
-  border-color: rgb(31 41 55 / 0.8) !important;
+  background-color: rgb(17 24 39 / 0.7);
+  border-color: rgb(31 41 55 / 0.8);
 }
 
 .dark .insta-dashboard-page .insta-dashboard-stat-card {
@@ -1340,66 +1270,12 @@ html {
   border-color: rgb(31 41 55 / 0.8);
 }
 
-@media (prefers-color-scheme: dark) {
-  .insta-dashboard-page .insta-surface-card {
-    background-color: rgb(17 24 39 / 0.7) !important;
-    border-color: rgb(31 41 55 / 0.8) !important;
-  }
-
-  .insta-dashboard-page .insta-dashboard-stat-card {
-    background-color: rgb(17 24 39 / 0.7);
-    border-color: rgb(31 41 55 / 0.8);
-  }
-}
-
-.dark .insta-dashboard-page .text-gray-900 {
-  color: #f3f4f6 !important;
-}
-
-.dark .insta-dashboard-page .text-gray-800 {
-  color: #e5e7eb !important;
-}
-
-.dark .insta-dashboard-page .text-gray-700 {
-  color: #d1d5db !important;
-}
-
-.dark .insta-dashboard-page .text-gray-600 {
-  color: #9ca3af !important;
-}
-
-.dark .insta-dashboard-page .text-gray-500 {
-  color: #9ca3af !important;
-}
-
-@media (prefers-color-scheme: dark) {
-  .insta-dashboard-page .text-gray-900 {
-    color: #f3f4f6 !important;
-  }
-
-  .insta-dashboard-page .text-gray-800 {
-    color: #e5e7eb !important;
-  }
-
-  .insta-dashboard-page .text-gray-700 {
-    color: #d1d5db !important;
-  }
-
-  .insta-dashboard-page .text-gray-600 {
-    color: #9ca3af !important;
-  }
-
-  .insta-dashboard-page .text-gray-500 {
-    color: #9ca3af !important;
-  }
-}
-
 .insta-availability-panel {
   overflow: hidden;
 }
 
 .insta-availability-week-nav {
-  box-shadow: none !important;
+  box-shadow: none;
 }
 
 .insta-availability-tip {
@@ -1418,14 +1294,6 @@ html {
   color: #e5e7eb;
 }
 
-@media (prefers-color-scheme: dark) {
-  .insta-availability-tip {
-    border-color: rgb(126 34 206 / 0.45);
-    background-color: rgb(88 28 135 / 0.22);
-    color: #e5e7eb;
-  }
-}
-
 .insta-thread-list > * + * {
   border-top: 1px solid rgb(229 231 235 / 0.65);
 }
@@ -1433,9 +1301,4 @@ html {
 .dark .insta-thread-list > * + * {
   border-top-color: rgb(55 65 81 / 0.75);
 }
-
-@media (prefers-color-scheme: dark) {
-  .insta-thread-list > * + * {
-    border-top-color: rgb(55 65 81 / 0.75);
-  }
 }

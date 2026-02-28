@@ -230,11 +230,11 @@ export default function Step4Verification() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
                 </svg>
               </div>
-              <h2 className="text-xl font-bold text-gray-900 self-center">Identity verification</h2>
-              <p className="text-gray-600 mt-2 col-span-2">Verify your identity with a government-issued ID and a selfie.</p>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 self-center">Identity verification</h2>
+              <p className="text-gray-600 dark:text-gray-400 mt-2 col-span-2">Verify your identity with a government-issued ID and a selfie.</p>
 
               <div className="mt-4 col-span-2 grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-4 sm:items-end">
-                <div className="space-y-2 text-sm text-gray-500">
+                <div className="space-y-2 text-sm text-gray-500 dark:text-gray-400">
                   <div className="flex items-center gap-2">
                     <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -289,7 +289,7 @@ export default function Step4Verification() {
                 <ShieldCheck className="w-6 h-6 text-[#7E22CE]" />
               </div>
               <div>
-                <h3 className="text-xl font-bold text-gray-900">Background check</h3>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">Background check</h3>
                 <p className="text-sm text-muted-foreground mt-1">Start your Checkr background screening to unlock bookings.</p>
               </div>
             </div>
@@ -302,7 +302,7 @@ export default function Step4Verification() {
                 }
               />
             ) : (
-              <p className="text-sm text-gray-500">Loading background check status…</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Loading background check status…</p>
             )}
           </section>
         </div>

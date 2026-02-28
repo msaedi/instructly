@@ -136,6 +136,22 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const themeSyncScript = `(() => {
+    try {
+      const root = document.documentElement;
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const applyThemeClass = () => {
+        root.classList.toggle('dark', mediaQuery.matches);
+      };
+      applyThemeClass();
+      if (typeof mediaQuery.addEventListener === 'function') {
+        mediaQuery.addEventListener('change', applyThemeClass);
+      } else if (typeof mediaQuery.addListener === 'function') {
+        mediaQuery.addListener(applyThemeClass);
+      }
+    } catch {}
+  })();`;
+
   const betaConfig = getBetaConfigFromHeaders(await headers());
   // Log layout initialization in development
   logger.debug('Root layout initialized', {
@@ -146,8 +162,9 @@ export default async function RootLayout({
   });
 
   return (
-    <html lang="en" className="h-full">
+    <html lang="en" className="h-full" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: themeSyncScript }} />
         <link rel="preconnect" href="https://assets.instainstru.com" crossOrigin="" />
         {/* Leaflet CSS */}
         <link

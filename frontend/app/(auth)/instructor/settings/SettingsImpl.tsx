@@ -224,11 +224,11 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
 
   const renderPushStatus = () => (
     <div className="mt-2 space-y-1 text-xs">
-      {!pushSupported && <p className="text-gray-500">Push notifications are not supported in this browser.</p>}
+      {!pushSupported && <p className="text-gray-500 dark:text-gray-400">Push notifications are not supported in this browser.</p>}
       {pushPermission === 'denied' && (
         <p className="text-amber-600">Enable notifications in your browser settings to receive push alerts.</p>
       )}
-      {pushLoading && <p className="text-gray-500">Updating push notifications…</p>}
+      {pushLoading && <p className="text-gray-500 dark:text-gray-400">Updating push notifications…</p>}
       {pushError && <p className="text-red-600">{pushError}</p>}
     </div>
   );
@@ -303,8 +303,8 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
       <div className="space-y-4">
         <div className="rounded-lg border border-gray-200 p-3 space-y-3">
           <div>
-            <label className="block text-sm font-medium text-gray-900">Phone number (for SMS)</label>
-            <p className="text-xs text-gray-500">Add and verify a phone number to receive SMS alerts.</p>
+            <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">Phone number (for SMS)</label>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Add and verify a phone number to receive SMS alerts.</p>
           </div>
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <input
@@ -312,7 +312,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
               value={smsPhone}
               onChange={(event) => setSmsPhone(event.target.value)}
               placeholder="+1 (555) 123-4567"
-              className="w-full max-w-sm px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
+              className="w-full max-w-sm px-3 py-2 insta-form-input focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
             />
             <button
               type="button"
@@ -333,7 +333,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 value={smsCode}
                 onChange={(event) => setSmsCode(event.target.value.replace(/\D/g, ''))}
                 placeholder="Enter 6-digit code"
-                className="w-full max-w-sm px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
+                className="w-full max-w-sm px-3 py-2 insta-form-input focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
                 maxLength={6}
               />
               <button
@@ -350,7 +350,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 disabled={sendVerification.isPending || resendCooldown > 0}
                 className={`min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
                   resendCooldown > 0 || sendVerification.isPending
-                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    ? 'bg-gray-200 text-gray-400 dark:text-gray-400 cursor-not-allowed'
                     : 'bg-[#7E22CE] text-white hover:bg-[#6b1fb8] insta-primary-btn'
                 }`}
               >
@@ -366,8 +366,8 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         <div className="rounded-lg border border-gray-200 p-3">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-sm font-medium text-gray-900">Push notifications on this device</p>
-              <p className="text-xs text-gray-500">
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Push notifications on this device</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
                 Enable push notifications in this browser to receive alerts.
               </p>
             </div>
@@ -377,16 +377,16 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         </div>
         <div className="space-y-4">
           <div className="grid grid-cols-4 gap-4 pb-3 border-b border-gray-200">
-            <div className="text-sm font-medium text-gray-700">Notification Type</div>
-            <div className="text-sm font-medium text-gray-700 text-center">Email</div>
-            <div className="text-sm font-medium text-gray-700 text-center">SMS</div>
-            <div className="text-sm font-medium text-gray-700 text-center">Push</div>
+            <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Notification Type</div>
+            <div className="text-sm font-medium text-gray-700 dark:text-gray-300 text-center">Email</div>
+            <div className="text-sm font-medium text-gray-700 dark:text-gray-300 text-center">SMS</div>
+            <div className="text-sm font-medium text-gray-700 dark:text-gray-300 text-center">Push</div>
           </div>
 
           <div className="grid grid-cols-4 gap-4 items-start py-2">
             <div>
-              <div className="font-medium text-gray-900">Lesson Updates</div>
-              <div className="text-xs text-gray-500">Booking confirmations, reminders, cancellations</div>
+              <div className="font-medium text-gray-900 dark:text-gray-100">Lesson Updates</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Booking confirmations, reminders, cancellations</div>
             </div>
             <div className="flex justify-center">
               {renderPreferenceToggle('lesson_updates', 'email')}
@@ -401,8 +401,8 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
 
           <div className="grid grid-cols-4 gap-4 items-start py-2">
             <div>
-              <div className="font-medium text-gray-900">Messages</div>
-              <div className="text-xs text-gray-500">Direct messages from students</div>
+              <div className="font-medium text-gray-900 dark:text-gray-100">Messages</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Direct messages from students</div>
             </div>
             <div className="flex justify-center">
               {renderPreferenceToggle('messages', 'email')}
@@ -420,8 +420,8 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
 
           <div className="grid grid-cols-4 gap-4 items-start py-2">
             <div>
-              <div className="font-medium text-gray-900">Reviews</div>
-              <div className="text-xs text-gray-500">New reviews, review responses</div>
+              <div className="font-medium text-gray-900 dark:text-gray-100">Reviews</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">New reviews, review responses</div>
             </div>
             <div className="flex justify-center">
               {renderPreferenceToggle('reviews', 'email')}
@@ -436,8 +436,8 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
 
           <div className="grid grid-cols-4 gap-4 items-start py-2">
             <div>
-              <div className="font-medium text-gray-900">Tips &amp; Updates</div>
-              <div className="text-xs text-gray-500">Platform tips and learning resources</div>
+              <div className="font-medium text-gray-900 dark:text-gray-100">Tips &amp; Updates</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Platform tips and learning resources</div>
             </div>
             <div className="flex justify-center">
               {renderPreferenceToggle('learning_tips', 'email')}
@@ -452,8 +452,8 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
 
           <div className="grid grid-cols-4 gap-4 items-start py-2">
             <div>
-              <div className="font-medium text-gray-900">System Updates</div>
-              <div className="text-xs text-gray-500">
+              <div className="font-medium text-gray-900 dark:text-gray-100">System Updates</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">
                 Important platform notices and policy changes
               </div>
             </div>
@@ -470,8 +470,8 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
 
           <div className="grid grid-cols-4 gap-4 items-start py-2">
             <div>
-              <div className="font-medium text-gray-900">Promotional</div>
-              <div className="text-xs text-gray-500">Discounts, special offers, new features</div>
+              <div className="font-medium text-gray-900 dark:text-gray-100">Promotional</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Discounts, special offers, new features</div>
             </div>
             <div className="flex justify-center">
               {renderPreferenceToggle('promotional', 'email')}
@@ -571,7 +571,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   return (
     <div className={embedded ? 'insta-dashboard-page' : 'min-h-screen insta-dashboard-page'}>
       {!embedded && (
-        <header className="relative bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4 insta-dashboard-header">
+        <header className="relative px-4 sm:px-6 py-4 insta-dashboard-header">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/instructor/dashboard" className="inline-block">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">
@@ -605,7 +605,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         />
 
         <div className="insta-dashboard-accordion-stack">
-        <div className="bg-white rounded-lg border border-gray-200 p-6 insta-surface-card">
+        <div className="p-6 insta-surface-card">
           {embedded ? (
             <>
               <button
@@ -623,52 +623,51 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                     <span className="insta-dashboard-accordion-subtitle">Update your contact info and preferred ZIP.</span>
                   </div>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openAccount ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openAccount ? 'rotate-180' : ''}`} />
               </button>
               {openAccount && (
                 <div className="mt-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs text-gray-600 mb-1">Name</label>
+                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Name</label>
                       <input
                         type="text"
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
+                        className="w-full px-3 py-2 insta-form-input focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">Email</label>
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Email</label>
                       <input
                         type="email"
                         value={email}
                         readOnly
                         disabled
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-400 placeholder:text-gray-400 cursor-not-allowed pointer-events-none select-none"
-                        style={{ WebkitTextFillColor: '#9CA3AF' }}
+                        className="w-full px-3 py-2 insta-form-input insta-form-input-readonly cursor-not-allowed pointer-events-none select-none"
                         aria-readonly="true"
                         aria-disabled="true"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-600 mb-1">Mobile phone</label>
+                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Mobile phone</label>
                       <input
                         type="text"
                         value={mobile}
                         onChange={(e) => setMobile(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
+                        className="w-full px-3 py-2 insta-form-input focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-600 mb-1">ZIP code</label>
+                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">ZIP code</label>
                       <input
                         type="text"
                         value={zip}
                         onChange={(e) => setZip(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
+                        className="w-full px-3 py-2 insta-form-input focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
                       />
                     </div>
-                    {accountLoading && <div className="col-span-full text-xs text-gray-500">Loading…</div>}
+                    {accountLoading && <div className="col-span-full text-xs text-gray-500 dark:text-gray-400">Loading…</div>}
                   </div>
                   <div className="mt-4 flex justify-end">
                     <button
@@ -685,12 +684,12 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             </>
           ) : (
             <>
-              <h2 className="text-lg font-semibold text-gray-800 mb-4">Account Settings</h2>
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Account Settings</h2>
               <div className="space-y-4">
                 <div className="flex items-center justify-between py-3 border-b border-gray-100">
                   <div>
-                    <h3 className="text-sm font-medium text-gray-900">Profile Information</h3>
-                    <p className="text-sm text-gray-500">Update your personal details and bio</p>
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Profile Information</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Update your personal details and bio</p>
                   </div>
                   <Link href="/instructor/onboarding/account-setup" className="text-[#7E22CE] hover:text-[#6B1FA0] text-sm font-medium">
                     Edit
@@ -698,8 +697,8 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 </div>
                 <div className="flex items-center justify-between py-3 border-b border-gray-100">
                   <div>
-                    <h3 className="text-sm font-medium text-gray-900">Skills & Pricing</h3>
-                    <p className="text-sm text-gray-500">Manage your services and hourly rates</p>
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Skills & Pricing</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Manage your services and hourly rates</p>
                   </div>
                   <Link
                     href="/instructor/onboarding/skill-selection"
@@ -710,8 +709,8 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 </div>
                 <div className="flex items-center justify-between py-3 border-b border-gray-100">
                   <div>
-                    <h3 className="text-sm font-medium text-gray-900">Service Areas</h3>
-                    <p className="text-sm text-gray-500">Set where you can teach</p>
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Service Areas</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Set where you can teach</p>
                   </div>
                   <Link
                     href="/instructor/onboarding/skill-selection"
@@ -722,8 +721,8 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 </div>
                 <div className="flex items-center justify-between py-3 border-b border-gray-100">
                   <div>
-                    <h3 className="text-sm font-medium text-gray-900">Availability</h3>
-                    <p className="text-sm text-gray-500">Adjust your schedule and booking availability</p>
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Availability</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Adjust your schedule and booking availability</p>
                   </div>
                   <Link href="/instructor/availability" className="text-[#7E22CE] hover:text-[#6B1FA0] text-sm font-medium">
                     Edit
@@ -731,8 +730,8 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 </div>
                 <div className="flex items-center justify-between py-3 border-b border-gray-100">
                   <div>
-                    <h3 className="text-sm font-medium text-gray-900">Notifications</h3>
-                    <p className="text-sm text-gray-500">Choose how you want to be notified</p>
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Notifications</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Choose how you want to be notified</p>
                   </div>
                   <button
                     type="button"
@@ -748,7 +747,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         </div>
 
         {/* Referrals & rewards */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 insta-surface-card">
+        <div className="p-6 insta-surface-card">
           {embedded ? (
             <>
               <button
@@ -766,7 +765,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                     <span className="insta-dashboard-accordion-subtitle">Share your link to invite peers and earn rewards.</span>
                   </div>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openRefer ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openRefer ? 'rotate-180' : ''}`} />
               </button>
               {openRefer && (
                 <div className="mt-4">
@@ -789,7 +788,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 <Gift className="w-6 h-6 text-[#7E22CE]" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Refer instructors</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Refer instructors</h2>
               </div>
             </div>
             <div className="mt-4">
@@ -808,7 +807,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         </div>
 
         {embedded && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6 insta-surface-card">
+          <div className="p-6 insta-surface-card">
             <button
               type="button"
               className="insta-dashboard-accordion-trigger"
@@ -824,14 +823,14 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                   <span className="insta-dashboard-accordion-subtitle">Enable two-factor authentication for extra protection.</span>
                 </div>
               </div>
-              <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openSecurity ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openSecurity ? 'rotate-180' : ''}`} />
             </button>
             {openSecurity && (
               <div className="mt-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-900">Two‑factor authentication</p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Two‑factor authentication</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
                       Protect your account with a one‑time code from an authenticator app.
                     </p>
                   </div>
@@ -839,7 +838,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                     type="button"
                     className={`px-3 py-1.5 rounded-md text-sm font-medium ${
                       tfaEnabled
-                        ? 'border border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
+                        ? 'border border-gray-300 text-gray-700 dark:text-gray-300 bg-white hover:bg-gray-50'
                         : 'bg-[#7E22CE] text-white hover:bg-[#6b1fb8] insta-primary-btn'
                     } `}
                     onClick={() => setShowTfaModal(true)}
@@ -862,7 +861,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         )}
 
         {embedded && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6 insta-surface-card">
+          <div className="p-6 insta-surface-card">
             <button
               type="button"
               className="insta-dashboard-accordion-trigger"
@@ -878,14 +877,14 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                   <span className="insta-dashboard-accordion-subtitle">Pause or close your instructor account if needed.</span>
                 </div>
               </div>
-              <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openStatus ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openStatus ? 'rotate-180' : ''}`} />
             </button>
             {openStatus && (
               <div className="mt-4 flex items-center justify-end gap-2 sm:gap-3 flex-wrap">
                 <button
                   type="button"
                   onClick={() => setShowPauseModal(true)}
-                  className="inline-flex items-center justify-center gap-2 rounded-md bg-white border border-purple-200 text-[#7E22CE] px-4 py-2 text-sm font-semibold transition hover:bg-purple-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 insta-secondary-btn"
+                  className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 insta-secondary-btn"
                 >
                   Pause account
                 </button>
@@ -919,7 +918,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         )}
 
         {embedded && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6 insta-surface-card">
+          <div className="p-6 insta-surface-card">
             <button
               type="button"
               className="insta-dashboard-accordion-trigger"
@@ -935,7 +934,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                   <span className="insta-dashboard-accordion-subtitle">Keep your login secure with a strong password.</span>
                 </div>
               </div>
-              <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openPassword ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openPassword ? 'rotate-180' : ''}`} />
             </button>
             {openPassword && (
               <div className="mt-4 flex items-center justify-end">
@@ -952,7 +951,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
           </div>
         )}
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6 insta-surface-card">
+        <div className="p-6 insta-surface-card">
           {embedded ? (
             <>
               <button
@@ -970,12 +969,12 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                     <span className="insta-dashboard-accordion-subtitle">Choose how we contact you about lessons and updates.</span>
                   </div>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openPreferences ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openPreferences ? 'rotate-180' : ''}`} />
               </button>
               {openPreferences && (
                 <div className="mt-4">
                   <div className="py-1">
-                    <h3 className="text-sm font-medium text-gray-900 mb-2">Notifications</h3>
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">Notifications</h3>
                     {renderNotificationPreferences()}
                   </div>
                 </div>
@@ -983,9 +982,9 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             </>
           ) : (
             <>
-              <h2 className="text-lg font-semibold text-gray-800 mb-4">Preferences</h2>
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Preferences</h2>
               <div>
-                <h3 className="text-sm font-medium text-gray-900 mb-2">Notifications</h3>
+                <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">Notifications</h3>
                 {renderNotificationPreferences()}
               </div>
             </>
@@ -993,7 +992,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         </div>
 
         {embedded && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6 insta-surface-card">
+          <div className="p-6 insta-surface-card">
             <button
               type="button"
               className="insta-dashboard-accordion-trigger"
@@ -1009,10 +1008,10 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                   <span className="insta-dashboard-accordion-subtitle">Access legal resources and support information.</span>
                 </div>
               </div>
-              <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openAccount ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openAccount ? 'rotate-180' : ''}`} />
             </button>
             {openAccount && (
-              <div className="mt-3 text-sm text-gray-700 space-y-2">
+              <div className="mt-3 text-sm text-gray-700 dark:text-gray-300 space-y-2">
                 <div>
                   <a href="/acknowledgments" className="focus-link text-[#7E22CE] hover:text-[#7E22CE]">
                     Acknowledgments

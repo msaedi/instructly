@@ -23,7 +23,7 @@ export function PersonalInfoCard({
   const expanded = collapsible ? Boolean(isOpen) : true;
   const cardClassName = isOnboarding
     ? 'insta-surface-card p-4 sm:p-6'
-    : 'bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6 insta-surface-card';
+    : 'p-4 sm:p-6 insta-surface-card';
 
   const header = (
     <div className="insta-dashboard-accordion-trigger">
@@ -38,7 +38,7 @@ export function PersonalInfoCard({
       </div>
       {collapsible && (
         <ChevronDown
-          className={`w-5 h-5 text-gray-600 transition-transform ${expanded ? 'rotate-180' : ''}`}
+          className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
         />
       )}
     </div>
@@ -66,7 +66,7 @@ export function PersonalInfoCard({
       {expanded && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="py-2">
-            <label htmlFor="first_name" className="text-gray-600 mb-2 block">First Name</label>
+            <label htmlFor="first_name" className="text-gray-600 dark:text-gray-400 mb-2 block">First Name</label>
             <input
               id="first_name"
               type="text"
@@ -77,7 +77,7 @@ export function PersonalInfoCard({
             />
           </div>
           <div className="py-2">
-            <label htmlFor="last_name" className="text-gray-600 mb-2 block">Last Name</label>
+            <label htmlFor="last_name" className="text-gray-600 dark:text-gray-400 mb-2 block">Last Name</label>
             <input
               id="last_name"
               type="text"
@@ -88,7 +88,7 @@ export function PersonalInfoCard({
             />
           </div>
           <div className="py-2">
-            <label htmlFor="postal_code" className="text-gray-600 mb-2 block">ZIP Code</label>
+            <label htmlFor="postal_code" className="text-gray-600 dark:text-gray-400 mb-2 block">ZIP Code</label>
             <input
               id="postal_code"
               type="text"

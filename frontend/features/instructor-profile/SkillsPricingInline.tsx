@@ -855,18 +855,18 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
         <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">{error}</div>
       )}
       {svcLoading ? (
-        <div className="p-3 text-sm text-gray-600">Loading…</div>
+        <div className="p-3 text-sm text-gray-600 dark:text-gray-400">Loading…</div>
       ) : (
         <>
           {/* Categories and search (expandable) */}
-          <div className="rounded-lg border border-gray-200 bg-white p-4 mb-6 insta-surface-card">
-            <div className="flex items-center gap-3 text-xl sm:text-lg font-bold sm:font-semibold text-gray-900 mb-2">
+          <div className="p-4 mb-6 rounded-lg insta-surface-card">
+            <div className="flex items-center gap-3 text-xl sm:text-lg font-bold sm:font-semibold text-gray-900 dark:text-gray-100 mb-2">
               <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
                 <svg className="w-5 h-5 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v12m6-6H6" /></svg>
               </div>
               <span>Service categories</span>
             </div>
-            <p className="text-gray-600 mb-2 text-sm">Select the service categories you teach</p>
+            <p className="text-gray-600 dark:text-gray-400 mb-2 text-sm">Select the service categories you teach</p>
             <div className="mb-3">
               <input
                 type="text"
@@ -902,14 +902,14 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
             {/* Accordions */}
             <div className="space-y-3">
               {categories.map((cat) => (
-                <div key={cat.id} className="rounded-lg overflow-hidden border border-gray-200 bg-white insta-surface-card">
+                <div key={cat.id} className="rounded-lg overflow-hidden insta-surface-card">
                   <button
-                    className="w-full px-4 py-3 flex items-center justify-between text-gray-700 hover:bg-gray-50 transition-colors"
+                    className="w-full px-4 py-3 flex items-center justify-between text-gray-700 dark:text-gray-300 hover:bg-gray-50 transition-colors"
                     onClick={() => toggleCategory(cat.id)}
                     type="button"
                   >
                     <span className="font-bold">{cat.name}</span>
-                    <ChevronDown className={`h-4 w-4 text-gray-600 transition-transform ${collapsed[cat.id] ? '' : 'rotate-180'}`} />
+                    <ChevronDown className={`h-4 w-4 text-gray-600 dark:text-gray-400 transition-transform ${collapsed[cat.id] ? '' : 'rotate-180'}`} />
                   </button>
                   {!collapsed[cat.id] && (
                     <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -922,7 +922,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                               key={svc.id}
                               onClick={() => toggleServiceSelection(svc)}
                               className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold transition-colors no-hover-shadow appearance-none overflow-hidden focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 ${
-                                isSel ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                isSel ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]' : 'bg-gray-100 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
                               }`}
                               type="button"
                             >
@@ -953,14 +953,14 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
               return (
                 <div
                   key={`${s.catalog_service_id || s.name}-${index}`}
-                  className="p-4 bg-gray-50 border border-gray-200 rounded-lg insta-surface-card"
+                  className="p-4 rounded-lg insta-surface-card"
                 >
                 <div className="flex items-start justify-between mb-2">
                   <div>
-                    <div className="text-base font-medium text-gray-900">{s.service_catalog_name ?? s.name ?? 'Service'}</div>
+                    <div className="text-base font-medium text-gray-900 dark:text-gray-100">{s.service_catalog_name ?? s.name ?? 'Service'}</div>
                     <div className="flex items-center gap-1 mt-1">
                       <span className="text-xl font-bold text-[#7E22CE]">${s.hourly_rate || '0'}</span>
-                      <span className="text-xs text-gray-600">/hour</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">/hour</span>
                     </div>
                   </div>
                   <button
@@ -970,7 +970,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                     className={`w-8 h-8 flex items-center justify-center rounded-full bg-white border transition-colors ${
                       !canRemoveSkill()
                         ? 'border-gray-200 text-gray-300 cursor-not-allowed'
-                        : 'border-gray-300 text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-300'
+                        : 'border-gray-300 text-gray-600 dark:text-gray-400 hover:bg-red-50 hover:text-red-600 hover:border-red-300'
                     }`}
                     aria-label="Remove skill"
                   >
@@ -978,11 +978,11 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                   </button>
                 </div>
 
-                <div className="rounded-lg bg-white p-3 border border-gray-200 mb-3 insta-surface-card">
+                <div className="rounded-lg p-3 mb-3 insta-surface-card">
                   <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2">
-                    <span className="text-sm text-gray-600">Hourly Rate:</span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Hourly Rate:</span>
                     <div className="relative max-w-[220px]">
-                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-400" />
                       <input
                         type="number"
                         placeholder="Hourly rate"
@@ -1019,7 +1019,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                     <p className="mt-1 text-xs text-red-600">{priceError}</p>
                   )}
                   {s.hourly_rate && Number(s.hourly_rate) > 0 && (
-                    <div className="mt-2 text-xs text-gray-600">
+                    <div className="mt-2 text-xs text-gray-600 dark:text-gray-400">
                       You&apos;ll earn{' '}
                       <span className="font-semibold text-[#7E22CE]">
                         ${(Number(s.hourly_rate) * instructorTakeHomePct).toFixed(2)}
@@ -1030,8 +1030,8 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                  <div className="bg-white rounded-lg p-3 border border-gray-200 insta-surface-card">
-                    <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Age Groups</label>
+                  <div className="rounded-lg p-3 insta-surface-card">
+                    <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">Age Groups</label>
                     <div className="grid grid-cols-2 gap-1">
                       {ALL_AUDIENCE_GROUPS.map((group) => {
                         const selectedAgeGroups = s.filter_selections['age_groups'] ?? [];
@@ -1062,7 +1062,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                                 ? 'bg-gray-50 text-gray-300 cursor-not-allowed'
                                 : isSelected
                                 ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                : 'bg-gray-100 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
                             }`}
                             type="button"
                           >
@@ -1072,8 +1072,8 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                       })}
                     </div>
                   </div>
-                  <div className="bg-white rounded-lg p-3 border border-gray-200 insta-surface-card">
-                    <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">
+                  <div className="rounded-lg p-3 insta-surface-card">
+                    <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">
                       How do you offer this skill?
                     </label>
                     <div className="space-y-3">
@@ -1097,8 +1097,8 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                             >
                               <div className="flex items-start justify-between gap-3">
                                 <div>
-                                  <p className="text-sm font-medium text-gray-700">I travel to students</p>
-                                  <p className="text-xs text-gray-500">(Within your service areas)</p>
+                                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">I travel to students</p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">(Within your service areas)</p>
                                 </div>
                                 <ToggleSwitch
                                   checked={effectiveOffersTravel}
@@ -1115,7 +1115,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                                 />
                               </div>
                               {travelMessage && (
-                                <p className="mt-1 text-xs text-gray-500">{travelMessage}</p>
+                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{travelMessage}</p>
                               )}
                             </div>
                             <div
@@ -1126,8 +1126,8 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                             >
                               <div className="flex items-start justify-between gap-3">
                                 <div>
-                                  <p className="text-sm font-medium text-gray-700">Students come to me</p>
-                                  <p className="text-xs text-gray-500">(At your teaching location)</p>
+                                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Students come to me</p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">(At your teaching location)</p>
                                 </div>
                                 <ToggleSwitch
                                   checked={effectiveOffersAtLocation}
@@ -1144,14 +1144,14 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                                 />
                               </div>
                               {atLocationMessage && (
-                                <p className="mt-1 text-xs text-gray-500">{atLocationMessage}</p>
+                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{atLocationMessage}</p>
                               )}
                             </div>
                             <div className="rounded-md border border-gray-200 p-3">
                               <div className="flex items-start justify-between gap-3">
                                 <div>
-                                  <p className="text-sm font-medium text-gray-700">Online lessons</p>
-                                  <p className="text-xs text-gray-500">(Video call)</p>
+                                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Online lessons</p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">(Video call)</p>
                                 </div>
                                 <ToggleSwitch
                                   checked={s.offers_online}
@@ -1179,8 +1179,8 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                  <div className="bg-white rounded-lg p-3 border border-gray-200 insta-surface-card">
-                    <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Skill Levels</label>
+                  <div className="rounded-lg p-3 insta-surface-card">
+                    <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">Skill Levels</label>
                     <div className="flex gap-1">
                       {DEFAULT_SKILL_LEVELS.map((lvl) => {
                         const selectedLevels = s.filter_selections['skill_level'] ?? [...DEFAULT_SKILL_LEVELS];
@@ -1202,7 +1202,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                               };
                             }))}
                             className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
-                              isLvlSelected ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              isLvlSelected ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
                             }`}
                             type="button"
                           >
@@ -1212,8 +1212,8 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                       })}
                     </div>
                   </div>
-                  <div className="bg-white rounded-lg p-3 border border-gray-200 insta-surface-card">
-                    <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Session Duration</label>
+                  <div className="rounded-lg p-3 insta-surface-card">
+                    <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">Session Duration</label>
                     <div className="flex gap-1">
                       {[30, 45, 60, 90].map((d) => (
                         <button
@@ -1225,7 +1225,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                             return { ...x, duration_options: has ? x.duration_options.filter((v) => v !== d) : [...x.duration_options, d] };
                           }))}
                           className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
-                            s.duration_options.includes(d) ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            s.duration_options.includes(d) ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
                           }`}
                           type="button"
                         >
@@ -1238,7 +1238,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                   <div>
-                    <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1 block">Description (Optional)</label>
+                    <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1 block">Description (Optional)</label>
                     <textarea
                       rows={2}
                       className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 bg-white"
@@ -1248,7 +1248,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1 block">Equipment (Optional)</label>
+                    <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1 block">Equipment (Optional)</label>
                     <textarea
                       rows={2}
                       className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 bg-white"
@@ -1271,7 +1271,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
             })}
 
             {selectedServices.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                 <p>No services added yet. Add your first service above!</p>
               </div>
             )}
@@ -1284,7 +1284,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
               </div>
               <div>
                 <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Don&apos;t see your skill? We&apos;d love to add it!</p>
-                <p className="text-xs text-gray-600 dark:text-gray-300">Tell us what you teach and we&apos;ll consider adding it to the marketplace.</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-300">Tell us what you teach and we&apos;ll consider adding it to the marketplace.</p>
               </div>
             </div>
             <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
@@ -1308,9 +1308,9 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
               </button>
             </div>
           </div>
-          {requestSuccess && <p className="mt-2 text-xs text-gray-700 dark:text-gray-200">{requestSuccess}</p>}
+          {requestSuccess && <p className="mt-2 text-xs text-gray-700 dark:text-gray-300 dark:text-gray-200">{requestSuccess}</p>}
           {svcSaving && (
-            <p className="mt-3 text-xs text-gray-500">Saving changes…</p>
+            <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">Saving changes…</p>
           )}
         </>
       )}

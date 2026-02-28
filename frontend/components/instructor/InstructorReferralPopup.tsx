@@ -94,7 +94,6 @@ export function InstructorReferralPopup({ isLive }: InstructorReferralPopupProps
 
   const bonusAmount = formatCents(popupData.bonusAmountCents);
   const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
-
   return (
     <>
       <div

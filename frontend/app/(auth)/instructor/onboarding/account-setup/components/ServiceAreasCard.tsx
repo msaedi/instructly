@@ -60,7 +60,7 @@ export function ServiceAreasCard({
   const expanded = collapsible ? Boolean(isOpen) : true;
   const cardClassName = isOnboarding
     ? 'insta-surface-card p-4 sm:p-6'
-    : 'bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6 insta-surface-card';
+    : 'p-4 sm:p-6 insta-surface-card';
   const resolvedTitle = title ?? 'Service Areas';
   const resolvedSubtitle = subtitle ?? 'Select the neighborhoods where you’re available for lessons.';
   const resolvedHelperText = helperText ?? 'Select the neighborhoods where you teach';
@@ -109,7 +109,7 @@ export function ServiceAreasCard({
           data-testid="service-areas-card"
         >
           {header}
-          <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-300 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 dark:text-gray-300 transition-transform ${expanded ? 'rotate-180' : ''}`} />
         </button>
       ) : (
         <div className="flex items-center justify-between mb-4" data-testid="service-areas-card">
@@ -146,7 +146,7 @@ export function ServiceAreasCard({
                       className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
                         checked
                           ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-700/80'
+                          : 'bg-gray-100 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-700/80'
                       }`}
                     >
                       <span className="truncate text-left">{n['name'] || nid}</span>
@@ -208,9 +208,9 @@ export function ServiceAreasCard({
                           }
                         }}
                       >
-                        <div className="flex items-center gap-2 text-gray-800 dark:text-gray-100 font-medium">
+                        <div className="flex items-center gap-2 text-gray-800 dark:text-gray-200 dark:text-gray-100 font-medium">
                           <span className="tracking-wide text-xs sm:text-sm whitespace-nowrap">{borough}</span>
-                          <ChevronDown className={`h-4 w-4 text-gray-600 dark:text-gray-300 transition-transform ${isAccordionOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+                          <ChevronDown className={`h-4 w-4 text-gray-600 dark:text-gray-400 dark:text-gray-300 transition-transform ${isAccordionOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
                         </div>
                         {bulkActionsEnabled && (
                           <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
@@ -227,7 +227,7 @@ export function ServiceAreasCard({
                             </button>
                             <button
                               type="button"
-                              className="text-sm px-3 py-1 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800/70"
+                              className="text-sm px-3 py-1 rounded-md border border-gray-300 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800/70"
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 const listNow = boroughNeighborhoods[borough] || (await loadBoroughNeighborhoods(borough));
@@ -258,7 +258,7 @@ export function ServiceAreasCard({
                                 className={`inline-flex items-center justify-between w-full min-w-0 px-2 py-1 text-xs rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
                                   checked
                                     ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-700/80'
+                                    : 'bg-gray-100 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-700/80'
                                 }`}
                               >
                                 <span className="truncate text-left">{label}</span>
@@ -277,7 +277,7 @@ export function ServiceAreasCard({
               </div>
             </div>
           ) : (
-            <div className="mt-2 rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-400">
+            <div className="mt-2 rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-600 dark:text-gray-400 dark:border-gray-700 dark:text-gray-400">
               Your city is not yet supported for granular neighborhoods. We’ll add it soon.
             </div>
           )}

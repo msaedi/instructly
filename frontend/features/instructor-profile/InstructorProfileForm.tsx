@@ -809,7 +809,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
     <div className={rootClass}>
       {/* Header hidden in embedded or onboarding mode */}
       {showDashboardHeader && (
-        <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4 insta-dashboard-header">
+        <header className="px-4 sm:px-6 py-4 insta-dashboard-header">
           <div className="flex items-center justify-between max-w-full relative">
             <Link href="/instructor/dashboard" className="inline-block">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
@@ -828,18 +828,18 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
           <div style={{ height: 1 }} />
         )}
         {!embedded && loading && (
-          <div className="p-8 text-sm text-gray-500">Loading…</div>
+          <div className="p-8 text-sm text-gray-500 dark:text-gray-400">Loading…</div>
         )}
         {/* Page Header hidden in embedded mode */}
         {!embedded && !isOnboarding && (
           <>
             {/* Page Header - mobile: no card chrome; desktop: card */}
-            <div className="mb-2 sm:mb-8 bg-transparent border-0 rounded-none p-4 sm:bg-white sm:rounded-lg sm:p-6 sm:border sm:border-gray-200 insta-surface-card">
+            <div className="mb-2 sm:mb-8 p-4 sm:p-6 insta-surface-card">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div>
-                    <h1 className="text-3xl font-bold text-gray-800 mb-1 sm:mb-2 whitespace-nowrap">Profile</h1>
-                    <p className="text-gray-600 hidden sm:block">Manage your instructor profile information</p>
+                    <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-200 mb-1 sm:mb-2 whitespace-nowrap">Profile</h1>
+                    <p className="text-gray-600 dark:text-gray-400 hidden sm:block">Manage your instructor profile information</p>
                   </div>
                 </div>
                 {/* Desktop: keep upload in header */}
@@ -861,7 +861,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
             {/* Mobile: move upload below header */}
             <div className="p-4 pt-0 sm:hidden">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-gray-600 text-base leading-snug flex-1">Manage your instructor profile information</p>
+                <p className="text-gray-600 dark:text-gray-400 text-base leading-snug flex-1">Manage your instructor profile information</p>
                 <ProfilePictureUpload
                   ariaLabel="Upload profile photo"
                   trigger={
@@ -963,7 +963,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
             <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
 
             {/* Skills & Pricing Section */}
-            <div className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6 insta-surface-card">
+            <div className="p-4 sm:p-6 insta-surface-card">
               <button
                 type="button"
                 className={`insta-dashboard-accordion-trigger ${openSkills ? 'mb-4' : ''}`}
@@ -979,7 +979,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
                     <span className="insta-dashboard-accordion-subtitle">Manage the subjects you teach, durations, and rates students see.</span>
                   </div>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openSkills ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openSkills ? 'rotate-180' : ''}`} />
               </button>
               {openSkills && (
                 <div className="py-2">
@@ -992,7 +992,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
             <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
 
             {/* Experience Settings Section */}
-            <div className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6 insta-surface-card">
+            <div className="p-4 sm:p-6 insta-surface-card">
               <button
                 type="button"
                 className={`insta-dashboard-accordion-trigger ${openPreferences ? 'mb-4' : ''}`}
@@ -1008,15 +1008,15 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
                     <span className="insta-dashboard-accordion-subtitle">Fine-tune lead time, buffers, and other scheduling requirements.</span>
                   </div>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openPreferences ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openPreferences ? 'rotate-180' : ''}`} />
               </button>
               {openPreferences && (
                 <>
-                  <p className="text-gray-600 mt-1 mb-3">Control availability and booking preferences</p>
+                  <p className="text-gray-600 dark:text-gray-400 mt-1 mb-3">Control availability and booking preferences</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="bg-white rounded-lg">
                       <div className="flex items-center justify-between mb-2">
-                        <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Advance Notice (business hours)</label>
+                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">Advance Notice (business hours)</label>
                         <Tooltip.Provider delayDuration={150} skipDelayDuration={0}>
                           <Tooltip.Root>
                             <Tooltip.Trigger asChild>
@@ -1024,7 +1024,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
                                 <Info className="w-3.5 h-3.5" aria-hidden="true" />
                               </span>
                             </Tooltip.Trigger>
-                            <Tooltip.Content side="top" sideOffset={6} className="rounded-md bg-white border border-gray-200 px-2 py-1 text-xs text-gray-900 shadow-sm select-none max-w-xs">
+                            <Tooltip.Content side="top" sideOffset={6} className="rounded-md bg-white border border-gray-200 px-2 py-1 text-xs text-gray-900 dark:text-gray-100 shadow-sm select-none max-w-xs">
                               The minimum time required between booking and the start of a lesson. For example, if set to 2 hours, students can’t book a session that starts in less than 2 hours from now.
                               <Tooltip.Arrow className="fill-gray-200" />
                             </Tooltip.Content>
@@ -1048,7 +1048,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
                     </div>
                     <div className="bg-white rounded-lg">
                       <div className="flex items-center justify-between mb-2">
-                        <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Buffer Time (hours)</label>
+                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">Buffer Time (hours)</label>
                         <Tooltip.Provider delayDuration={150} skipDelayDuration={0}>
                           <Tooltip.Root>
                             <Tooltip.Trigger asChild>
@@ -1056,7 +1056,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
                                 <Info className="w-3.5 h-3.5" aria-hidden="true" />
                               </span>
                             </Tooltip.Trigger>
-                            <Tooltip.Content side="top" sideOffset={6} className="rounded-md bg-white border border-gray-200 px-2 py-1 text-xs text-gray-900 shadow-sm select-none max-w-xs">
+                            <Tooltip.Content side="top" sideOffset={6} className="rounded-md bg-white border border-gray-200 px-2 py-1 text-xs text-gray-900 dark:text-gray-100 shadow-sm select-none max-w-xs">
                               The minimum gap between two sessions. For example, if set to 15 minutes, and someone books 9:00–10:00, the next session will be bookable starting at 10:15.
                               <Tooltip.Arrow className="fill-gray-200" />
                             </Tooltip.Content>
