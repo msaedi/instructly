@@ -11,6 +11,7 @@ export default function SkipToMainLink() {
     const target = document.getElementById(targetId);
     if (!target) return;
 
+    event.preventDefault();
     target.focus();
   };
 

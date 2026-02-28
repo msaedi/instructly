@@ -294,6 +294,7 @@ export default function InteractiveGrid({
       slotIndex: number
     ) => {
       event.preventDefault();
+      if (isPastSlot(date, slotIndex)) return;
       setActiveCell({ row, col: columnIndex });
       const desired = !isSlotSelected(weekBits[date], slotIndex);
       pendingRef.current = {};
@@ -303,7 +304,7 @@ export default function InteractiveGrid({
       lastHoverRowRef.current = { date, row };
       applyImmediate(date, slotIndex, desired);
     },
-    [applyImmediate, weekBits]
+    [applyImmediate, isPastSlot, weekBits]
   );
 
   const handleMouseEnter = useCallback(
@@ -364,6 +365,7 @@ export default function InteractiveGrid({
     ) => {
       if (event.key === ' ' || event.key === 'Enter') {
         event.preventDefault();
+        if (isPastSlot(date, slotIndex)) return;
         const desired = !isSlotSelected(weekBits[date], slotIndex);
         applyImmediate(date, slotIndex, desired);
         return;
@@ -400,7 +402,7 @@ export default function InteractiveGrid({
       }
       focusGridCell(nextRowIndex, nextColumnIndex);
     },
-    [applyImmediate, columnCount, focusGridCell, rows, weekBits]
+    [applyImmediate, columnCount, focusGridCell, isPastSlot, rows, weekBits]
   );
 
   return (

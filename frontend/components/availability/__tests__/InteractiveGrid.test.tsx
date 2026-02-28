@@ -37,6 +37,7 @@ describe('InteractiveGrid', () => {
     weekDates: mockWeekDates,
     weekBits: {} as WeekBits,
     onBitsChange: jest.fn(),
+    allowPastEditing: true,
   };
 
   beforeEach(() => {
@@ -701,6 +702,7 @@ describe('InteractiveGrid', () => {
       render(
         <InteractiveGrid
           {...defaultProps}
+          allowPastEditing={false}
           startHour={9}
           endHour={10}
         />
@@ -731,6 +733,57 @@ describe('InteractiveGrid', () => {
       );
       // With allowPastEditing, no cells should be disabled
       expect(disabledCells.length).toBe(0);
+    });
+
+    it('does not toggle past slot on mouse interaction when disabled', () => {
+      const onBitsChange = jest.fn();
+      jest.setSystemTime(new Date('2030-01-09T14:00:00'));
+
+      render(
+        <InteractiveGrid
+          {...defaultProps}
+          onBitsChange={onBitsChange}
+          allowPastEditing={false}
+          startHour={9}
+          endHour={10}
+        />
+      );
+
+      const disabledCell = screen
+        .getAllByTestId('availability-cell')
+        .find((cell) => cell.getAttribute('aria-disabled') === 'true');
+      expect(disabledCell).toBeTruthy();
+
+      fireEvent.mouseDown(disabledCell!);
+      fireEvent.mouseUp(disabledCell!);
+
+      expect(onBitsChange).not.toHaveBeenCalled();
+    });
+
+    it('does not toggle past slot on Enter/Space when disabled', () => {
+      const onBitsChange = jest.fn();
+      jest.setSystemTime(new Date('2030-01-09T14:00:00'));
+
+      render(
+        <InteractiveGrid
+          {...defaultProps}
+          onBitsChange={onBitsChange}
+          allowPastEditing={false}
+          startHour={9}
+          endHour={10}
+        />
+      );
+
+      const disabledCell = screen
+        .getAllByTestId('availability-cell')
+        .find((cell) => cell.getAttribute('aria-disabled') === 'true');
+      expect(disabledCell).toBeTruthy();
+      disabledCell!.focus();
+
+      fireEvent.keyDown(disabledCell!, { key: 'Enter' });
+      fireEvent.keyDown(disabledCell!, { key: ' ' });
+
+      expect(onBitsChange).not.toHaveBeenCalled();
     });
   });
 

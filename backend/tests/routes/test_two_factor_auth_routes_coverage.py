@@ -356,6 +356,19 @@ def test_verify_login_success_with_trust_and_guest_conversion_error(db, test_stu
         "app.routes.v1.two_factor_auth.SearchHistoryService.convert_guest_searches_to_user",
         _convert_boom,
     )
+    captured_origin: dict[str, str | None] = {}
+    original_set_auth_cookies = routes.set_auth_cookies
+
+    def _capture_set_auth_cookies(response, access_token, refresh_token, *, origin=None):
+        captured_origin["value"] = origin
+        return original_set_auth_cookies(
+            response,
+            access_token,
+            refresh_token,
+            origin=origin,
+        )
+
+    monkeypatch.setattr(routes, "set_auth_cookies", _capture_set_auth_cookies)
 
     token = create_temp_token(
         {"sub": test_student.email, "tfa_pending": True, "guest_session_id": "guest"}
@@ -375,6 +388,7 @@ def test_verify_login_success_with_trust_and_guest_conversion_error(db, test_stu
     )
 
     assert result.model_dump() == {}
+    assert captured_origin["value"] == "http://beta-local.instainstru.com:3000"
     set_cookie_headers = response.headers.getlist("set-cookie")
     assert any("tfa_trusted" in cookie and "Domain=.instainstru.com" in cookie for cookie in set_cookie_headers)
     assert any("Path=/api/v1/auth/refresh" in cookie for cookie in set_cookie_headers)
@@ -386,6 +400,19 @@ def test_verify_login_trust_cookie_without_origin_is_host_only(db, test_student,
 
     auth_service = _AuthService(test_student)
     tfa_service = _TFAService(db, verify_ok=True)
+    captured_origin: dict[str, str | None] = {}
+    original_set_auth_cookies = routes.set_auth_cookies
+
+    def _capture_set_auth_cookies(response, access_token, refresh_token, *, origin=None):
+        captured_origin["value"] = origin
+        return original_set_auth_cookies(
+            response,
+            access_token,
+            refresh_token,
+            origin=origin,
+        )
+
+    monkeypatch.setattr(routes, "set_auth_cookies", _capture_set_auth_cookies)
     token = create_temp_token({"sub": test_student.email, "tfa_pending": True})
     response = Response()
 
@@ -398,6 +425,7 @@ def test_verify_login_trust_cookie_without_origin_is_host_only(db, test_student,
     )
 
     assert result.model_dump() == {}
+    assert captured_origin["value"] is None
     set_cookie_headers = response.headers.getlist("set-cookie")
     trusted_cookie = next((cookie for cookie in set_cookie_headers if "tfa_trusted=" in cookie), "")
     assert trusted_cookie

@@ -277,7 +277,7 @@ export function ServiceAreasCard({
               </div>
             </div>
           ) : (
-            <div className="mt-2 rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-600 dark:text-gray-400 dark:border-gray-700 dark:text-gray-400">
+            <div className="mt-2 rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-600 dark:text-gray-400 dark:border-gray-700">
               Your city is not yet supported for granular neighborhoods. We’ll add it soon.
             </div>
           )}

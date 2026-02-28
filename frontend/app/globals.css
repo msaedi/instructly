@@ -379,6 +379,8 @@ select {
   top: 0;
   width: auto;
   height: auto;
+  overflow: visible;
+  clip-path: none;
   padding: var(--spacing-sm);
   background: var(--background);
   color: var(--foreground);

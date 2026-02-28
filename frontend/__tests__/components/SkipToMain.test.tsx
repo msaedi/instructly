@@ -28,4 +28,22 @@ describe('SkipToMainLink', () => {
       expect(screen.getByRole('main')).toHaveFocus();
     });
   });
+
+  it('prevents default hash navigation while moving focus to #main-content', () => {
+    render(
+      <>
+        <SkipToMainLink />
+        <main id="main-content" tabIndex={-1}>
+          Main content
+        </main>
+      </>
+    );
+
+    const skipLink = screen.getByRole('link', { name: /skip to main content/i });
+    const clickEvent = new MouseEvent('click', { bubbles: true, cancelable: true });
+    const dispatchResult = skipLink.dispatchEvent(clickEvent);
+
+    expect(dispatchResult).toBe(false);
+    expect(screen.getByRole('main')).toHaveFocus();
+  });
 });

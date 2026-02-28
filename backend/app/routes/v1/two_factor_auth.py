@@ -329,8 +329,10 @@ def verify_login(
         data={"sub": user.id, "email": user.email},
         expires_delta=timedelta(days=settings.refresh_token_lifetime_days),
     )
+    origin = request.headers.get("origin")
+    cookie_domain = effective_cookie_domain(origin)
     # Write session + refresh cookies
-    set_auth_cookies(response, access_token, refresh_token, origin=request.headers.get("origin"))
+    set_auth_cookies(response, access_token, refresh_token, origin=origin)
 
     guest_session_id = payload.get("guest_session_id")
     if guest_session_id:
@@ -351,7 +353,6 @@ def verify_login(
     trust_header = request.headers.get("X-Trust-Browser", "false").lower() == "true"
     if trust_header:
         max_age = settings.two_factor_trust_days * 24 * 60 * 60
-        domain = effective_cookie_domain(request.headers.get("origin"))
         response.set_cookie(
             key="tfa_trusted",
             value="1",
@@ -360,7 +361,7 @@ def verify_login(
             secure=bool(settings.session_cookie_secure),
             samesite=settings.session_cookie_samesite or "lax",
             path="/",
-            domain=domain,
+            domain=cookie_domain,
         )
     try:
         AuditService(tfa_service.db).log(
