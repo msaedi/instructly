@@ -1215,7 +1215,7 @@ export default function TimeSelectionModal({
   return (
     <>
       {/* Mobile Full Screen View */}
-      <div className="md:hidden fixed inset-0 z-50 bg-white dark:bg-gray-900">
+      <div className="md:hidden fixed inset-0 z-50 bg-white dark:bg-gray-900" style={{ zIndex: 1200 }}>
         <div className="h-full flex flex-col">
           {/* Mobile Header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
@@ -1342,6 +1342,7 @@ export default function TimeSelectionModal({
       {/* Desktop Modal View */}
       <div
         className="hidden md:block fixed inset-0 z-50 overflow-y-auto"
+        style={{ zIndex: 1200 }}
         onClick={handleBackdropClick}
       >
         <div className="flex min-h-screen items-center justify-center p-4">

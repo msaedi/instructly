@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 
 import {
@@ -26,6 +26,14 @@ const RATING_OPTIONS = [
 
 const EMPTY_TAXONOMY_CONTENT_FILTERS: TaxonomyContentFilterDefinition[] = [];
 const EMPTY_SUGGESTED_CONTENT_FILTERS: ContentFilterSelections = {};
+const FOCUSABLE_SELECTOR = [
+  'button:not([disabled])',
+  'a[href]',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(', ');
 
 function FilterChipGroup<T extends string | number>({
   label,
@@ -124,6 +132,8 @@ function MoreFiltersModalContent({
   const [draft, setDraft] = useState(() =>
     buildInitialDraft(filters, taxonomyContentFilters, suggestedContentFilters)
   );
+  const modalRef = useRef<HTMLDivElement | null>(null);
+  const previousActiveElementRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (process.env.NODE_ENV === 'production') return;
@@ -132,6 +142,90 @@ function MoreFiltersModalContent({
       taxonomyContentFilterKeys: taxonomyContentFilters.map((filter) => filter.key),
     });
   }, [taxonomyContentFilters]);
+
+  const getFocusableElements = useCallback((): HTMLElement[] => {
+    if (!modalRef.current) return [];
+    const elements = Array.from(modalRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+    return elements.filter((element) => {
+      if (element.getAttribute('aria-hidden') === 'true') return false;
+      if (element.hasAttribute('hidden')) return false;
+      if (element.tabIndex < 0) return false;
+      if (element instanceof HTMLButtonElement && element.disabled) return false;
+      if (element instanceof HTMLInputElement && element.disabled) return false;
+      if (element instanceof HTMLSelectElement && element.disabled) return false;
+      if (element instanceof HTMLTextAreaElement && element.disabled) return false;
+      return true;
+    });
+  }, []);
+
+  useEffect(() => {
+    previousActiveElementRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+
+    const focusableElements = getFocusableElements();
+    const firstFocusableElement = focusableElements[0];
+    if (firstFocusableElement) {
+      firstFocusableElement.focus();
+    } else {
+      modalRef.current?.focus();
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (event.key !== 'Tab') return;
+
+      const modalElement = modalRef.current;
+      if (!modalElement) return;
+
+      const currentFocusableElements = getFocusableElements();
+      if (!currentFocusableElements.length) {
+        event.preventDefault();
+        modalElement.focus();
+        return;
+      }
+
+      const firstElement = currentFocusableElements[0];
+      const lastElement = currentFocusableElements[currentFocusableElements.length - 1];
+      const activeElement = document.activeElement as HTMLElement | null;
+
+      if (!activeElement || !modalElement.contains(activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? lastElement : firstElement)?.focus();
+        return;
+      }
+
+      if (event.shiftKey && activeElement === firstElement) {
+        event.preventDefault();
+        lastElement?.focus();
+        return;
+      }
+
+      if (!event.shiftKey && activeElement === lastElement) {
+        event.preventDefault();
+        firstElement?.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      const previousActiveElement = previousActiveElementRef.current;
+      if (
+        previousActiveElement &&
+        document.contains(previousActiveElement) &&
+        typeof previousActiveElement.focus === 'function'
+      ) {
+        previousActiveElement.focus();
+      }
+    };
+  }, [getFocusableElements, onClose]);
 
   const toggleArrayValue = <T,>(list: T[], value: T): T[] =>
     list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
@@ -164,10 +258,12 @@ function MoreFiltersModalContent({
       <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
 
       <div
+        ref={modalRef}
         className="relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 max-h-[85vh] flex flex-col"
         role="dialog"
         aria-modal="true"
         aria-label="More filters"
+        tabIndex={-1}
       >
         <div className="flex items-center justify-between p-4 border-b border-gray-100">
           <h2 className="text-lg font-semibold">More filters</h2>

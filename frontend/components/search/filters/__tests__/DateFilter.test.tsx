@@ -30,6 +30,16 @@ describe('DateFilter', () => {
     expect(screen.getByRole('button', { name: 'Date' })).toBeInTheDocument();
   });
 
+  it('uses a contrast-compliant placeholder class for the date input', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    await user.click(screen.getByRole('button', { name: 'Date' }));
+    const input = screen.getByLabelText('Select date');
+    expect(input).toHaveClass('placeholder:text-gray-500');
+    expect(input).not.toHaveClass('placeholder:text-gray-400');
+  });
+
   it('shows formatted date label when value is set', () => {
     render(<Harness initialValue="2025-03-15" />);
 

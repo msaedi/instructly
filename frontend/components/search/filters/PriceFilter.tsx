@@ -77,6 +77,7 @@ export function PriceFilter({
             min={PRICE_MIN}
             max={PRICE_MAX}
             value={draftMin}
+            aria-label="Minimum price per hour"
             onChange={(event) => {
               const next = Math.min(Number(event.target.value), draftMax - MIN_GAP);
               setDraftMin(next);
@@ -89,6 +90,7 @@ export function PriceFilter({
             min={PRICE_MIN}
             max={PRICE_MAX}
             value={draftMax}
+            aria-label="Maximum price per hour"
             onChange={(event) => {
               const next = Math.max(Number(event.target.value), draftMin + MIN_GAP);
               setDraftMax(next);
@@ -108,6 +110,7 @@ export function PriceFilter({
             <input
               type="number"
               value={draftMin}
+              aria-label="Minimum price"
               onChange={(event) => {
                 const next = Math.max(PRICE_MIN, Math.min(Number(event.target.value), draftMax - MIN_GAP));
                 setDraftMin(next);
@@ -121,6 +124,7 @@ export function PriceFilter({
             <input
               type="number"
               value={draftMax}
+              aria-label="Maximum price"
               onChange={(event) => {
                 const next = Math.min(PRICE_MAX, Math.max(Number(event.target.value), draftMin + MIN_GAP));
                 setDraftMax(next);

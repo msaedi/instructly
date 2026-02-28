@@ -43,6 +43,10 @@ describe('PriceFilter', () => {
     expect(screen.getByText('Price Range')).toBeInTheDocument();
     const sliders = screen.getAllByRole('slider');
     expect(sliders).toHaveLength(2);
+    expect(screen.getByRole('slider', { name: 'Minimum price per hour' })).toBeInTheDocument();
+    expect(screen.getByRole('slider', { name: 'Maximum price per hour' })).toBeInTheDocument();
+    expect(screen.getByRole('spinbutton', { name: 'Minimum price' })).toBeInTheDocument();
+    expect(screen.getByRole('spinbutton', { name: 'Maximum price' })).toBeInTheDocument();
   });
 
   it('enforces min gap when dragging the min range slider near max', async () => {
