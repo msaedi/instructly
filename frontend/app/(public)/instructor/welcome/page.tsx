@@ -152,7 +152,7 @@ function WelcomeInner() {
             </Link>
           </div>
 
-          <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400 dark:text-gray-300">
+          <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-300">
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Have questions? Email us at{' '}
               <a href="mailto:hello@instainstru.com" className="text-purple-600 hover:underline">

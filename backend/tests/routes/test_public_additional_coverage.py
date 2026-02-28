@@ -4,6 +4,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from types import SimpleNamespace
 
 from fastapi import HTTPException, Request, Response
+from jwt import PyJWTError
 import pytest
 
 import app.routes.v1.public as public_routes
@@ -175,6 +176,18 @@ def test_public_logout_handles_host_cookie(monkeypatch):
     )
 
 
+def test_public_logout_uses_origin_aware_domain_for_cookie_deletion(monkeypatch):
+    monkeypatch.setattr(public_routes, "session_cookie_candidates", lambda *_args, **_kwargs: ["session"])
+    response = public_routes.public_logout(
+        Response(),
+        _make_request({"origin": "http://beta-local.instainstru.com:3000"}),
+    )
+
+    assert response.status_code == 204
+    set_cookie_headers = [header.lower() for header in response.headers.getlist("set-cookie")]
+    assert any("domain=.instainstru.com" in header for header in set_cookie_headers)
+
+
 def test_public_logout_logs_audit_when_session_token_present(monkeypatch):
     monkeypatch.setattr(public_routes, "session_cookie_candidates", lambda *_args, **_kwargs: ["session"])
     monkeypatch.setattr(
@@ -279,6 +292,25 @@ def test_public_logout_ignores_audit_errors(monkeypatch):
 
     assert response.status_code == 204
     assert warning_messages == ["Audit log write failed for logout"]
+
+
+def test_public_logout_handles_pyjwt_error_and_still_clears_refresh_cookie(monkeypatch):
+    monkeypatch.setattr(public_routes, "session_cookie_candidates", lambda *_args, **_kwargs: ["session"])
+    monkeypatch.setattr(
+        public_routes,
+        "decode_access_token",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(PyJWTError("bad token")),
+    )
+
+    response = public_routes.public_logout(
+        Response(),
+        _make_request({"cookie": "session=not-a-jwt"}),
+        db=SimpleNamespace(),
+    )
+
+    assert response.status_code == 204
+    set_cookie_headers = response.headers.getlist("set-cookie")
+    assert any("/api/v1/auth/refresh" in header for header in set_cookie_headers)
 
 
 @pytest.mark.asyncio

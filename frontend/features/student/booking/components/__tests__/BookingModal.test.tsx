@@ -695,8 +695,10 @@ describe('BookingModal', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Continue to Payment' }));
 
       const serviceError = await screen.findByText('Please select a service');
+      expect(screen.getByText('Please fix 1 error below.')).toBeInTheDocument();
       expect(serviceError).toHaveAttribute('id', 'booking-service-error');
       expect(serviceError).toHaveAttribute('role', 'alert');
+      expect(serviceError).not.toHaveAttribute('aria-live');
       expect(screen.getByRole('button', { name: 'Continue to Payment' })).toHaveAttribute(
         'aria-describedby',
         expect.stringContaining('booking-service-error')
@@ -791,8 +793,9 @@ describe('BookingModal', () => {
       const dialog = screen.getByRole('dialog');
       const heading = screen.getByRole('heading', { name: 'Confirm Your Lesson' });
       expect(dialog).toHaveAttribute('aria-modal', 'true');
-      expect(dialog).toHaveAttribute('aria-labelledby', 'booking-modal-title');
-      expect(heading).toHaveAttribute('id', 'booking-modal-title');
+      const labelledBy = dialog.getAttribute('aria-labelledby');
+      expect(labelledBy).toBeTruthy();
+      expect(heading).toHaveAttribute('id', labelledBy);
     });
 
     it('moves initial focus inside modal when opened', () => {

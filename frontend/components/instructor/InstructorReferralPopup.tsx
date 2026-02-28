@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Check, Copy, Gift, Share2, Users, X } from 'lucide-react';
 
 import { shareOrCopy } from '@/features/shared/referrals/share';
@@ -18,6 +18,7 @@ interface InstructorReferralPopupProps {
 export function InstructorReferralPopup({ isLive }: InstructorReferralPopupProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [copied, setCopied] = useState(false);
+  const titleId = useId();
   const showTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -107,7 +108,7 @@ export function InstructorReferralPopup({ isLive }: InstructorReferralPopupProps
         className="fixed inset-0 z-50 flex items-center justify-center p-4"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="referral-popup-title"
+        aria-labelledby={titleId}
       >
         <div
           className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden animate-fade-in"
@@ -127,7 +128,7 @@ export function InstructorReferralPopup({ isLive }: InstructorReferralPopupProps
               <div className="p-2 bg-white/20 rounded-lg">
                 <Gift className="h-6 w-6" aria-hidden="true" />
               </div>
-              <h2 id="referral-popup-title" className="text-xl font-bold">
+              <h2 id={titleId} className="text-xl font-bold">
                 Earn {bonusAmount} Per Referral
               </h2>
             </div>

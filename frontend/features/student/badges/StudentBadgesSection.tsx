@@ -29,6 +29,7 @@ export function StudentBadgesPanel({
   modalOpen: boolean;
   onModalChange: (open: boolean) => void;
 }) {
+  const headingId = 'student-badges-heading';
   const grouped = useMemo(() => groupBadges(badges), [badges]);
   const totalEarned = grouped.earned.length;
 
@@ -74,10 +75,10 @@ export function StudentBadgesPanel({
     grouped.locked.length > 0;
 
   return (
-    <section aria-labelledby="student-badges-heading">
+    <section aria-labelledby={headingId}>
       <div className="flex items-center justify-between mb-2">
         <div>
-          <h3 id="student-badges-heading" className="text-lg font-semibold text-gray-900">
+          <h3 id={headingId} className="text-lg font-semibold text-gray-900">
             Achievements & Badges
           </h3>
           <p className="text-sm text-gray-600">Track your learning milestones in real time.</p>

@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import GlobalBackground from '@/components/ui/GlobalBackground';
 import Link from 'next/link';
 
 export default function WelcomeStep() {
   const ctaRef = useRef<HTMLAnchorElement | null>(null);
+  const titleId = useId();
 
   useEffect(() => {
     // Auto-focus CTA for a11y
@@ -24,7 +25,7 @@ export default function WelcomeStep() {
         <div
           role="dialog"
           aria-modal="true"
-          aria-labelledby="welcome-title"
+          aria-labelledby={titleId}
           className="insta-flow-panel bg-white/80 dark:bg-gray-900/80 w-full max-w-md sm:max-w-lg rounded-2xl p-8 sm:p-12 animate-scale-in"
         >
           {/* Success icon - brand yellow */}
@@ -34,7 +35,7 @@ export default function WelcomeStep() {
             </svg>
           </div>
 
-          <h1 id="welcome-title" className="text-2xl sm:text-3xl font-bold insta-onboarding-strong-text text-center mb-2">
+          <h1 id={titleId} className="text-2xl sm:text-3xl font-bold insta-onboarding-strong-text text-center mb-2">
             Welcome aboard!
           </h1>
           <p className="text-lg insta-onboarding-subtitle text-center mb-4">

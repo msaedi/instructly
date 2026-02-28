@@ -31,6 +31,7 @@ from app.services.search_history_service import SearchHistoryService
 from app.services.token_blacklist_service import TokenBlacklistService
 from app.services.two_factor_auth_service import TwoFactorAuthService
 from app.utils.cookies import (
+    effective_cookie_domain,
     session_cookie_candidates,
     set_auth_cookies,
 )
@@ -138,10 +139,11 @@ def setup_verify(
         # Belt-and-suspenders: blacklist current token JTI for immediate rejection
         _blacklist_current_token(request, trigger="2fa_enable")
         # On successful re-setup, ensure trust cookie is cleared; user can re-trust on next verify
+        domain = effective_cookie_domain(request.headers.get("origin"))
         response.delete_cookie(
             key="tfa_trusted",
             path="/",
-            domain=None,  # Keep None so it matches current host
+            domain=domain,
             secure=bool(settings.session_cookie_secure),
             samesite="lax",
         )
@@ -199,10 +201,11 @@ def disable(
         # Belt-and-suspenders: blacklist current token JTI for immediate rejection
         _blacklist_current_token(request, trigger="2fa_disable")
         # Invalidate any trusted-browser cookie on disable
+        domain = effective_cookie_domain(request.headers.get("origin"))
         response.delete_cookie(
             key="tfa_trusted",
             path="/",
-            domain=None,
+            domain=domain,
             secure=bool(settings.session_cookie_secure),
             samesite="lax",
         )
@@ -348,6 +351,7 @@ def verify_login(
     trust_header = request.headers.get("X-Trust-Browser", "false").lower() == "true"
     if trust_header:
         max_age = settings.two_factor_trust_days * 24 * 60 * 60
+        domain = effective_cookie_domain(request.headers.get("origin"))
         response.set_cookie(
             key="tfa_trusted",
             value="1",
@@ -356,6 +360,7 @@ def verify_login(
             secure=bool(settings.session_cookie_secure),
             samesite=settings.session_cookie_samesite or "lax",
             path="/",
+            domain=domain,
         )
     try:
         AuditService(tfa_service.db).log(

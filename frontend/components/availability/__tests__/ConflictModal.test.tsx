@@ -108,8 +108,9 @@ describe('ConflictModal', () => {
     render(<ConflictModal {...defaultProps} />);
 
     const modal = screen.getByRole('dialog');
+    const title = screen.getByRole('heading', { name: 'New changes detected' });
     expect(modal).toHaveAttribute('aria-modal', 'true');
-    expect(modal).toHaveAttribute('aria-labelledby', 'availability-conflict-title');
+    expect(modal).toHaveAttribute('aria-labelledby', title.getAttribute('id'));
     expect(modal).toHaveAttribute('aria-describedby', 'availability-conflict-desc');
   });
 

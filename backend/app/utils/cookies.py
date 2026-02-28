@@ -90,7 +90,8 @@ def set_session_cookie(
         value: Cookie payload.
         max_age: Optional ``Max-Age`` to set.
         expires: Optional ``Expires`` timestamp/value.
-        domain: Explicit domain override; falls back to ``settings.session_cookie_domain``.
+        domain: Cookie domain resolved by caller (typically via
+            :func:`effective_cookie_domain`). Pass ``None`` for host-only cookies.
 
     Returns:
         The actual cookie name written to the response headers.
@@ -108,8 +109,6 @@ def set_session_cookie(
     }
 
     cookie_domain = domain
-    if cookie_domain is None:
-        cookie_domain = settings.session_cookie_domain
 
     if cookie_name.startswith("__Host-"):
         cookie_domain = None
@@ -134,7 +133,12 @@ def set_refresh_cookie(
     expires: Optional[datetime | int] = None,
     domain: Optional[str] = None,
 ) -> str:
-    """Set the refresh token cookie scoped to the refresh endpoint path."""
+    """Set the refresh token cookie scoped to the refresh endpoint path.
+
+    Args:
+        domain: Cookie domain resolved by caller (typically via
+            :func:`effective_cookie_domain`). Pass ``None`` for host-only cookies.
+    """
 
     cookie_name = refresh_cookie_base_name()
 
@@ -148,8 +152,6 @@ def set_refresh_cookie(
     }
 
     cookie_domain = domain
-    if cookie_domain is None:
-        cookie_domain = settings.session_cookie_domain
 
     if cookie_name.startswith("__Host-"):
         cookie_domain = None

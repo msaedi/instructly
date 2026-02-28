@@ -853,7 +853,7 @@ export default function InstructorDashboardNew() {
                         className={`w-full text-left px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                           activePanel === item.key
                             ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 border border-purple-200 dark:border-purple-700'
-                            : 'text-gray-700 dark:text-gray-300 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300'
+                            : 'text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300'
                         }`}
                         aria-current={activePanel === item.key ? 'page' : undefined}
                       >
@@ -866,7 +866,7 @@ export default function InstructorDashboardNew() {
               <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
                 <button
                   type="button"
-                  className="flex w-full items-center justify-between px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 dark:text-gray-300 hover:text-[#7E22CE] dark:hover:text-purple-300"
+                  className="flex w-full items-center justify-between px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-[#7E22CE] dark:hover:text-purple-300"
                   onClick={() => setShowMoreMobile((prev) => !prev)}
                   aria-expanded={showMoreMobile}
                   aria-controls="mobile-nav-more"
@@ -888,7 +888,7 @@ export default function InstructorDashboardNew() {
                           className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
                             activePanel === item.key
                               ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 border border-purple-200 dark:border-purple-700'
-                              : 'text-gray-700 dark:text-gray-300 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300'
+                              : 'text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300'
                           }`}
                           aria-current={activePanel === item.key ? 'page' : undefined}
                         >
@@ -1064,7 +1064,7 @@ export default function InstructorDashboardNew() {
                 className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   isEnabled
                     ? 'insta-secondary-btn'
-                    : 'bg-gray-100 border border-gray-300 text-gray-400 dark:text-gray-400 cursor-not-allowed dark:bg-gray-800/70 dark:border-gray-700 dark:text-gray-500 dark:text-gray-400'
+                    : 'bg-gray-100 border border-gray-300 text-gray-400 dark:text-gray-400 cursor-not-allowed dark:bg-gray-800/70 dark:border-gray-700 dark:text-gray-400'
                 }`}
               >
                 <Eye className="h-4 w-4" />

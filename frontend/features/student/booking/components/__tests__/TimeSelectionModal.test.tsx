@@ -189,6 +189,22 @@ const getDateString = (daysFromToday: number): string => {
   return date.toISOString().split('T')[0] ?? '';
 };
 
+const mockViewport = (isDesktop: boolean) => {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: jest.fn().mockImplementation((query: string) => ({
+      matches: query === '(min-width: 768px)' ? isDesktop : false,
+      media: query,
+      onchange: null,
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    })),
+  });
+};
+
 const mockAvailabilityResponse = (dates: string[]) => {
   const availability_by_date: Record<string, { date: string; available_slots: Array<{ start_time: string; end_time: string }>; is_blackout: boolean }> = {};
   dates.forEach((date) => {
@@ -288,18 +304,18 @@ describe('TimeSelectionModal', () => {
 
   describe('close behavior', () => {
     it('calls onClose when desktop close button is clicked', async () => {
+      mockViewport(true);
       const user = userEvent.setup();
       const onClose = jest.fn();
       render(<TimeSelectionModal {...defaultProps} onClose={onClose} />);
 
-      const closeButtons = screen.getAllByRole('button', { name: /close/i });
-      if (closeButtons.length > 0) {
-        await user.click(closeButtons[0]!);
-        expect(onClose).toHaveBeenCalled();
-      }
+      const closeButton = screen.getByRole('button', { name: /close modal/i });
+      await user.click(closeButton);
+      expect(onClose).toHaveBeenCalled();
     });
 
     it('calls onClose when mobile back button is clicked', async () => {
+      mockViewport(false);
       const user = userEvent.setup();
       const onClose = jest.fn();
       render(<TimeSelectionModal {...defaultProps} onClose={onClose} />);
@@ -1942,7 +1958,8 @@ describe('TimeSelectionModal', () => {
   });
 
   describe('escape key handling', () => {
-    it('closes modal on Escape key press', async () => {
+    it('closes mobile modal on Escape key press', async () => {
+      mockViewport(false);
       const onClose = jest.fn();
       render(<TimeSelectionModal {...defaultProps} onClose={onClose} />);
 
@@ -1956,15 +1973,77 @@ describe('TimeSelectionModal', () => {
     });
   });
 
-  describe('focus management', () => {
-    it('restores focus when modal closes', async () => {
-      const { rerender } = render(<TimeSelectionModal {...defaultProps} isOpen={true} />);
+  describe('mobile dialog accessibility', () => {
+    it('renders mobile dialog semantics with labelled heading', () => {
+      mockViewport(false);
+      render(<TimeSelectionModal {...defaultProps} />);
 
-      // Close the modal
-      rerender(<TimeSelectionModal {...defaultProps} isOpen={false} />);
+      const dialog = screen.getByRole('dialog');
+      expect(dialog).toHaveAttribute('aria-modal', 'true');
+      const labelledBy = dialog.getAttribute('aria-labelledby');
+      expect(labelledBy).toBeTruthy();
+      expect(document.getElementById(labelledBy ?? '')).toHaveTextContent('Set your lesson date & time');
+    });
 
-      // Modal should not be visible
-      expect(screen.queryByTestId('summary-section')).not.toBeInTheDocument();
+    it('traps focus within the mobile dialog with Tab and Shift+Tab', () => {
+      mockViewport(false);
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      const dialog = screen.getByRole('dialog');
+      const focusableButtons = dialog.querySelectorAll<HTMLButtonElement>('button:not([disabled])');
+      const firstButton = focusableButtons[0];
+      const lastButton = focusableButtons[focusableButtons.length - 1];
+
+      expect(firstButton).toBeTruthy();
+      expect(lastButton).toBeTruthy();
+      if (!firstButton || !lastButton) {
+        throw new Error('Expected focusable buttons inside mobile dialog');
+      }
+
+      lastButton.focus();
+      fireEvent.keyDown(document, { key: 'Tab' });
+      expect(firstButton).toHaveFocus();
+
+      firstButton.focus();
+      fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+      expect(lastButton).toHaveFocus();
+    });
+  });
+
+  describe('viewport listener fallback', () => {
+    it('uses addListener/removeListener when addEventListener is unavailable', () => {
+      const addListener = jest.fn();
+      const removeListener = jest.fn();
+
+      Object.defineProperty(window, 'matchMedia', {
+        writable: true,
+        value: jest.fn().mockImplementation(() => ({
+          matches: false,
+          media: '(min-width: 768px)',
+          onchange: null,
+          addEventListener: undefined,
+          removeEventListener: undefined,
+          addListener,
+          removeListener,
+          dispatchEvent: jest.fn(),
+        })),
+      });
+
+      const { unmount } = render(<TimeSelectionModal {...defaultProps} />);
+      expect(addListener).toHaveBeenCalledTimes(1);
+
+      const listener = addListener.mock.calls[0]?.[0];
+      if (typeof listener === 'function') {
+        act(() => {
+          listener();
+        });
+      }
+
+      unmount();
+      expect(removeListener).toHaveBeenCalledTimes(1);
+      if (listener) {
+        expect(removeListener).toHaveBeenCalledWith(listener);
+      }
     });
   });
 

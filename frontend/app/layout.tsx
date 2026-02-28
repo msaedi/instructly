@@ -15,6 +15,7 @@ import { headers } from 'next/headers';
 import { BackgroundProvider } from '@/lib/config/backgroundProvider';
 import { APP_URL, APP_ENV, NODE_ENV, ENABLE_LOGGING } from '@/lib/publicEnv';
 import { AxiomWebVitals } from 'next-axiom';
+import SkipToMainLink from '@/components/SkipToMainLink';
 // Analytics moved to client-only Providers to avoid SSR hydration mismatch
 
 /**
@@ -178,9 +179,7 @@ export default async function RootLayout({
         className={`h-full antialiased bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 ${_geistSans.variable} ${_geistMono.variable}`}
         style={{ isolation: 'isolate' }}
       >
-        <a href="#main-content" className="skip-to-main">
-          Skip to main content
-        </a>
+        <SkipToMainLink />
         <BackgroundProvider>
           {/* Global fixed background with blur-up and readability overlay */}
           <GlobalBackground />
@@ -194,7 +193,7 @@ export default async function RootLayout({
               - Theme provider
             */}
             <Providers>
-              <main id="main-content">{children}</main>
+              <main id="main-content" tabIndex={-1}>{children}</main>
               <Analytics />
               <SpeedInsights />
               <AxiomWebVitals />

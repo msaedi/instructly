@@ -363,6 +363,34 @@ def test_verify_login_success_with_trust_and_guest_conversion_error(db, test_stu
     response = Response()
     result = routes.verify_login(
         TFAVerifyLoginRequest(temp_token=token, code="123"),
+        _make_request(
+            {
+                "X-Trust-Browser": "true",
+                "Origin": "http://beta-local.instainstru.com:3000",
+            }
+        ),
+        response,
+        auth_service=auth_service,
+        tfa_service=tfa_service,
+    )
+
+    assert result.model_dump() == {}
+    set_cookie_headers = response.headers.getlist("set-cookie")
+    assert any("tfa_trusted" in cookie and "Domain=.instainstru.com" in cookie for cookie in set_cookie_headers)
+    assert any("Path=/api/v1/auth/refresh" in cookie for cookie in set_cookie_headers)
+
+
+def test_verify_login_trust_cookie_without_origin_is_host_only(db, test_student, monkeypatch):
+    test_student.totp_enabled = True
+    db.commit()
+
+    auth_service = _AuthService(test_student)
+    tfa_service = _TFAService(db, verify_ok=True)
+    token = create_temp_token({"sub": test_student.email, "tfa_pending": True})
+    response = Response()
+
+    result = routes.verify_login(
+        TFAVerifyLoginRequest(temp_token=token, code="123"),
         _make_request({"X-Trust-Browser": "true"}),
         response,
         auth_service=auth_service,
@@ -371,8 +399,9 @@ def test_verify_login_success_with_trust_and_guest_conversion_error(db, test_stu
 
     assert result.model_dump() == {}
     set_cookie_headers = response.headers.getlist("set-cookie")
-    assert any("tfa_trusted" in cookie for cookie in set_cookie_headers)
-    assert any("Path=/api/v1/auth/refresh" in cookie for cookie in set_cookie_headers)
+    trusted_cookie = next((cookie for cookie in set_cookie_headers if "tfa_trusted=" in cookie), "")
+    assert trusted_cookie
+    assert "Domain=" not in trusted_cookie
 
 
 # ── Coverage tests for _extract_request_token (lines 60-62, 67) ──

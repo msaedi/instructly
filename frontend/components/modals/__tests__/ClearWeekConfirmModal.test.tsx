@@ -16,9 +16,10 @@ jest.mock('@/components/Modal', () => {
     children: React.ReactNode;
   }) => {
     if (!isOpen) return null;
+    const labelId = 'clear-week-confirm-modal-title';
     return (
-      <div role="dialog" aria-modal="true" data-testid="modal">
-        <h2>{title}</h2>
+      <div role="dialog" aria-modal="true" aria-labelledby={labelId} data-testid="modal">
+        <h2 id={labelId}>{title}</h2>
         <button onClick={onClose} aria-label="Close modal">
           Close
         </button>

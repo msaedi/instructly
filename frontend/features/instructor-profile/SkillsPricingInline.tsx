@@ -1284,7 +1284,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
               </div>
               <div>
                 <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Don&apos;t see your skill? We&apos;d love to add it!</p>
-                <p className="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-300">Tell us what you teach and we&apos;ll consider adding it to the marketplace.</p>
+                <p className="text-xs text-gray-600 dark:text-gray-300">Tell us what you teach and we&apos;ll consider adding it to the marketplace.</p>
               </div>
             </div>
             <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
@@ -1308,7 +1308,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
               </button>
             </div>
           </div>
-          {requestSuccess && <p className="mt-2 text-xs text-gray-700 dark:text-gray-300 dark:text-gray-200">{requestSuccess}</p>}
+          {requestSuccess && <p className="mt-2 text-xs text-gray-700 dark:text-gray-200">{requestSuccess}</p>}
           {svcSaving && (
             <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">Saving changes…</p>
           )}

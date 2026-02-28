@@ -20,9 +20,13 @@ function FocusTrapHarness({
   });
 
   if (!isOpen) return null;
+  const titleId = 'focus-trap-title';
 
   return (
-    <div ref={containerRef} role="dialog" tabIndex={-1}>
+    <div ref={containerRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
+      <h2 id={titleId} className="sr-only">
+        Focus trap test dialog
+      </h2>
       {includeFocusable ? (
         <>
           <button type="button">First</button>

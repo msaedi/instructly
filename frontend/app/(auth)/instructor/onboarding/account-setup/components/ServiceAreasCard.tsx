@@ -109,7 +109,7 @@ export function ServiceAreasCard({
           data-testid="service-areas-card"
         >
           {header}
-          <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 dark:text-gray-300 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-300 transition-transform ${expanded ? 'rotate-180' : ''}`} />
         </button>
       ) : (
         <div className="flex items-center justify-between mb-4" data-testid="service-areas-card">
@@ -208,9 +208,9 @@ export function ServiceAreasCard({
                           }
                         }}
                       >
-                        <div className="flex items-center gap-2 text-gray-800 dark:text-gray-200 dark:text-gray-100 font-medium">
+                        <div className="flex items-center gap-2 text-gray-800 dark:text-gray-100 font-medium">
                           <span className="tracking-wide text-xs sm:text-sm whitespace-nowrap">{borough}</span>
-                          <ChevronDown className={`h-4 w-4 text-gray-600 dark:text-gray-400 dark:text-gray-300 transition-transform ${isAccordionOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+                          <ChevronDown className={`h-4 w-4 text-gray-600 dark:text-gray-300 transition-transform ${isAccordionOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
                         </div>
                         {bulkActionsEnabled && (
                           <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>

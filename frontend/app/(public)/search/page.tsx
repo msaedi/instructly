@@ -674,6 +674,7 @@ function SearchPageInner() {
   const sortDropdownRef = useRef<HTMLDivElement>(null);
   const sortTriggerRef = useRef<HTMLButtonElement | null>(null);
   const sortMenuRef = useRef<HTMLDivElement | null>(null);
+  const sortDropdownRafRef = useRef<number | null>(null);
   const sortOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [sortPosition, setSortPosition] = useState<{ top: number; left: number } | null>(null);
   const [activeSortIndex, setActiveSortIndex] = useState(-1);
@@ -693,10 +694,21 @@ function SearchPageInner() {
     setShowSortDropdown(false);
     setActiveSortIndex(-1);
     if (restoreFocus) {
-      requestAnimationFrame(() => {
+      if (sortDropdownRafRef.current !== null) {
+        cancelAnimationFrame(sortDropdownRafRef.current);
+      }
+      sortDropdownRafRef.current = requestAnimationFrame(() => {
         sortTriggerRef.current?.focus();
       });
     }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (sortDropdownRafRef.current !== null) {
+        cancelAnimationFrame(sortDropdownRafRef.current);
+      }
+    };
   }, []);
 
   const openSortDropdown = useCallback(

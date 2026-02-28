@@ -1,7 +1,7 @@
 // frontend/features/student/booking/components/BookingModal.tsx
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useId, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, MapPin, Clock, DollarSign, User, Mail, Phone, MessageSquare } from 'lucide-react';
 import { BookingModalProps, Service } from '../types';
@@ -56,6 +56,7 @@ export default function BookingModal({
   }));
   const [errors, setErrors] = useState<BookingFormErrors>({});
   const modalRef = useRef<HTMLDivElement | null>(null);
+  const titleId = useId();
   const serviceAreaBoroughs = getServiceAreaBoroughs(instructor);
   const serviceAreaDisplay = getServiceAreaDisplay(instructor) || 'NYC';
   const primaryServiceArea = serviceAreaBoroughs[0] ?? serviceAreaDisplay;
@@ -329,6 +330,7 @@ export default function BookingModal({
     isBookingFormInvalid ? 'booking-submit-hint' : undefined,
     errors.service ? 'booking-service-error' : undefined,
   ].filter(Boolean).join(' ') || undefined;
+  const errorCount = Object.keys(errors).length;
 
   return (
     <div
@@ -340,12 +342,12 @@ export default function BookingModal({
         className="insta-dialog-panel bg-white dark:bg-gray-800 max-w-md w-full max-h-[90vh] overflow-y-auto"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="booking-modal-title"
+        aria-labelledby={titleId}
         tabIndex={-1}
       >
         {/* Header */}
         <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 id="booking-modal-title" className="text-xl font-semibold text-gray-900 dark:text-white">
+          <h2 id={titleId} className="text-xl font-semibold text-gray-900 dark:text-white">
             Confirm Your Lesson
           </h2>
           <button
@@ -366,6 +368,11 @@ export default function BookingModal({
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white">
                   Your Information
                 </h3>
+                {errorCount > 0 && (
+                  <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200">
+                    {`Please fix ${errorCount} ${errorCount === 1 ? 'error' : 'errors'} below.`}
+                  </div>
+                )}
 
                 {/* Name Field */}
                 <div>
@@ -386,7 +393,7 @@ export default function BookingModal({
                     aria-describedby={errors.name ? 'booking-name-error' : undefined}
                   />
                   {errors.name && (
-                    <p id="booking-name-error" role="alert" aria-live="assertive" className="mt-1 text-sm text-red-600 dark:text-red-400">
+                    <p id="booking-name-error" role="alert" className="mt-1 text-sm text-red-600 dark:text-red-400">
                       {errors.name}
                     </p>
                   )}
@@ -411,7 +418,7 @@ export default function BookingModal({
                     aria-describedby={errors.email ? 'booking-email-error' : undefined}
                   />
                   {errors.email && (
-                    <p id="booking-email-error" role="alert" aria-live="assertive" className="mt-1 text-sm text-red-600 dark:text-red-400">
+                    <p id="booking-email-error" role="alert" className="mt-1 text-sm text-red-600 dark:text-red-400">
                       {errors.email}
                     </p>
                   )}
@@ -436,7 +443,7 @@ export default function BookingModal({
                     aria-describedby={errors.phone ? 'booking-phone-error' : undefined}
                   />
                   {errors.phone && (
-                    <p id="booking-phone-error" role="alert" aria-live="assertive" className="mt-1 text-sm text-red-600 dark:text-red-400">
+                    <p id="booking-phone-error" role="alert" className="mt-1 text-sm text-red-600 dark:text-red-400">
                       {errors.phone}
                     </p>
                   )}
@@ -492,7 +499,7 @@ export default function BookingModal({
                   </label>
                 </div>
                 {errors.agreedToTerms && (
-                  <p id="booking-terms-error" role="alert" aria-live="assertive" className="mt-1 text-sm text-red-600 dark:text-red-400">
+                  <p id="booking-terms-error" role="alert" className="mt-1 text-sm text-red-600 dark:text-red-400">
                     {errors.agreedToTerms}
                   </p>
                 )}
@@ -511,7 +518,7 @@ export default function BookingModal({
                 Continue to Payment
               </button>
               {errors.service && (
-                <p id="booking-service-error" role="alert" aria-live="assertive" className="mt-1 text-sm text-red-600 dark:text-red-400">
+                <p id="booking-service-error" role="alert" className="mt-1 text-sm text-red-600 dark:text-red-400">
                   {errors.service}
                 </p>
               )}
