@@ -1,7 +1,7 @@
 // frontend/features/student/booking/components/BookingModal.tsx
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, MapPin, Clock, DollarSign, User, Mail, Phone, MessageSquare } from 'lucide-react';
 import { BookingModalProps, Service } from '../types';
@@ -14,6 +14,23 @@ import { getServiceAreaBoroughs, getServiceAreaDisplay } from '@/lib/profileServ
 import { BookingPayment, PAYMENT_STATUS } from '@/features/student/payment/types';
 import { BookingType } from '@/features/shared/types/booking';
 import { determineBookingType } from '@/features/shared/utils/paymentCalculations';
+
+const FOCUSABLE_SELECTOR = [
+  'button:not([disabled])',
+  'a[href]',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(', ');
+
+type BookingFormErrors = Partial<{
+  name: string;
+  email: string;
+  phone: string;
+  agreedToTerms: string;
+  service: string;
+}>;
 
 export default function BookingModal({
   isOpen,
@@ -44,11 +61,14 @@ export default function BookingModal({
     notes: '',
     agreedToTerms: false,
   }));
+  const [errors, setErrors] = useState<BookingFormErrors>({});
+  const modalRef = useRef<HTMLDivElement | null>(null);
+  const previousActiveElementRef = useRef<HTMLElement | null>(null);
   const serviceAreaBoroughs = getServiceAreaBoroughs(instructor);
   const serviceAreaDisplay = getServiceAreaDisplay(instructor) || 'NYC';
   const primaryServiceArea = serviceAreaBoroughs[0] ?? serviceAreaDisplay;
 
-  const resetState = () => {
+  const resetState = useCallback(() => {
     setSelectedService(defaultService);
     setDuration(defaultDuration);
     setShowBookingForm(isAuthenticated);
@@ -59,11 +79,108 @@ export default function BookingModal({
       notes: '',
       agreedToTerms: false,
     });
-  };
-  const handleClose = () => {
+    setErrors({});
+  }, [defaultDuration, defaultService, isAuthenticated, user?.email, user?.full_name]);
+
+  const handleClose = useCallback(() => {
     resetState();
     onClose();
-  };
+  }, [onClose, resetState]);
+
+  const clearFieldError = useCallback((field: keyof BookingFormErrors) => {
+    setErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  }, []);
+
+  const getFocusableElements = useCallback((): HTMLElement[] => {
+    if (!modalRef.current) return [];
+    const elements = Array.from(modalRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+    return elements.filter((element) => {
+      if (element.getAttribute('aria-hidden') === 'true') return false;
+      if (element.hasAttribute('hidden')) return false;
+      if (element.tabIndex < 0) return false;
+      if (element instanceof HTMLButtonElement && element.disabled) return false;
+      if (element instanceof HTMLInputElement && element.disabled) return false;
+      if (element instanceof HTMLSelectElement && element.disabled) return false;
+      if (element instanceof HTMLTextAreaElement && element.disabled) return false;
+      return true;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    previousActiveElementRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+
+    const focusableElements = getFocusableElements();
+    const firstFocusableElement = focusableElements[0];
+    if (firstFocusableElement) {
+      firstFocusableElement.focus();
+    } else {
+      modalRef.current?.focus();
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        handleClose();
+        return;
+      }
+
+      if (e.key !== 'Tab') return;
+
+      const modalElement = modalRef.current;
+      if (!modalElement) return;
+
+      const currentFocusableElements = getFocusableElements();
+      if (!currentFocusableElements.length) {
+        e.preventDefault();
+        modalElement.focus();
+        return;
+      }
+
+      const firstElement = currentFocusableElements[0];
+      const lastElement = currentFocusableElements[currentFocusableElements.length - 1];
+      const activeElement = document.activeElement as HTMLElement | null;
+
+      if (!activeElement || !modalElement.contains(activeElement)) {
+        e.preventDefault();
+        (e.shiftKey ? lastElement : firstElement)?.focus();
+        return;
+      }
+
+      if (e.shiftKey && activeElement === firstElement) {
+        e.preventDefault();
+        lastElement?.focus();
+        return;
+      }
+
+      if (!e.shiftKey && activeElement === lastElement) {
+        e.preventDefault();
+        firstElement?.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      const previousActiveElement = previousActiveElementRef.current;
+      if (
+        previousActiveElement &&
+        document.contains(previousActiveElement) &&
+        typeof previousActiveElement.focus === 'function'
+      ) {
+        previousActiveElement.focus();
+      }
+    };
+  }, [getFocusableElements, handleClose, isOpen]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -92,6 +209,7 @@ export default function BookingModal({
   const handleServiceChange = (service: Service) => {
     setSelectedService(service);
     setDuration(service.duration);
+    clearFieldError('service');
     logger.info('Service selected', {
       serviceId: service.id,
       skill: service.skill,
@@ -171,6 +289,7 @@ export default function BookingModal({
     }
 
     // If authenticated, show booking form
+    setErrors({});
     setShowBookingForm(true);
     if (user) {
       setBookingFormData((prev) => ({
@@ -186,21 +305,39 @@ export default function BookingModal({
   };
 
   const handleBookingSubmit = async () => {
-    // Validate form
-    if (!bookingFormData.name || !bookingFormData.email || !bookingFormData.phone) {
-      alert('Please fill in all required fields');
-      return;
+    const service = selectedService;
+    const nextErrors: BookingFormErrors = {};
+
+    if (!bookingFormData.name.trim()) {
+      nextErrors.name = 'Full name is required';
+    }
+
+    if (!bookingFormData.email.trim()) {
+      nextErrors.email = 'Email is required';
+    }
+
+    if (!bookingFormData.phone.trim()) {
+      nextErrors.phone = 'Phone number is required';
     }
 
     if (!bookingFormData.agreedToTerms) {
-      alert('Please agree to the terms and cancellation policy');
+      nextErrors.agreedToTerms = 'Please agree to the terms and cancellation policy';
+    }
+
+    if (!service) {
+      nextErrors.service = 'Please select a service';
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
       return;
     }
 
-    if (!selectedService) {
-      alert('Please select a service');
+    if (!service) {
       return;
     }
+
+    setErrors({});
 
     // Prepare booking data for confirmation page
     const bookingDate = new Date(selectedDate + 'T' + selectedTime);
@@ -212,7 +349,7 @@ export default function BookingModal({
       bookingId: '', // Will be set after creation
       instructorId: String(instructor.user_id),
       instructorName: `${instructor.user.first_name} ${instructor.user.last_initial}.`,
-      lessonType: selectedService.skill,
+      lessonType: service.skill,
       date: bookingDate,
       startTime: selectedTime,
       endTime: calculateEndTime(selectedTime, duration),
@@ -229,7 +366,7 @@ export default function BookingModal({
 
     // Store booking data in session storage for the confirmation page
     sessionStorage.setItem('bookingData', JSON.stringify(paymentBookingData));
-    sessionStorage.setItem('serviceId', String(selectedService.id));
+    sessionStorage.setItem('serviceId', String(service.id));
 
     // Store the selected slot info so it can be restored when going back
     sessionStorage.setItem('selectedSlot', JSON.stringify({
@@ -257,9 +394,28 @@ export default function BookingModal({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
+
+    if (name === 'agreedToTerms' && type === 'checkbox' && checked) {
+      clearFieldError('agreedToTerms');
+      return;
+    }
+
+    if ((name === 'name' || name === 'email' || name === 'phone') && value.trim()) {
+      clearFieldError(name);
+    }
   };
 
   if (!isOpen) return null;
+
+  const isBookingFormInvalid =
+    !bookingFormData.name.trim() ||
+    !bookingFormData.email.trim() ||
+    !bookingFormData.phone.trim() ||
+    !bookingFormData.agreedToTerms;
+  const submitDescribedBy = [
+    isBookingFormInvalid ? 'booking-submit-hint' : undefined,
+    errors.service ? 'booking-service-error' : undefined,
+  ].filter(Boolean).join(' ') || undefined;
 
   return (
     <div
@@ -267,10 +423,17 @@ export default function BookingModal({
       style={{ backgroundColor: 'var(--modal-backdrop)' }}
       onClick={handleOverlayClick}
     >
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+      <div
+        ref={modalRef}
+        className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="booking-modal-title"
+        tabIndex={-1}
+      >
         {/* Header */}
         <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+          <h2 id="booking-modal-title" className="text-xl font-semibold text-gray-900 dark:text-white">
             Confirm Your Lesson
           </h2>
           <button
@@ -294,11 +457,12 @@ export default function BookingModal({
 
                 {/* Name Field */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label htmlFor="booking-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     <User className="inline h-4 w-4 mr-1" />
                     Full Name *
                   </label>
                   <input
+                    id="booking-name"
                     type="text"
                     name="name"
                     value={bookingFormData.name}
@@ -306,16 +470,24 @@ export default function BookingModal({
                     required
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                     placeholder="John Doe"
+                    aria-invalid={!!errors.name}
+                    aria-describedby={errors.name ? 'booking-name-error' : undefined}
                   />
+                  {errors.name && (
+                    <p id="booking-name-error" role="alert" aria-live="assertive" className="mt-1 text-sm text-red-600 dark:text-red-400">
+                      {errors.name}
+                    </p>
+                  )}
                 </div>
 
                 {/* Email Field */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label htmlFor="booking-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     <Mail className="inline h-4 w-4 mr-1" />
                     Email *
                   </label>
                   <input
+                    id="booking-email"
                     type="email"
                     name="email"
                     value={bookingFormData.email}
@@ -323,16 +495,24 @@ export default function BookingModal({
                     required
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                     placeholder="john@example.com"
+                    aria-invalid={!!errors.email}
+                    aria-describedby={errors.email ? 'booking-email-error' : undefined}
                   />
+                  {errors.email && (
+                    <p id="booking-email-error" role="alert" aria-live="assertive" className="mt-1 text-sm text-red-600 dark:text-red-400">
+                      {errors.email}
+                    </p>
+                  )}
                 </div>
 
                 {/* Phone Field */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label htmlFor="booking-phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     <Phone className="inline h-4 w-4 mr-1" />
                     Phone Number *
                   </label>
                   <input
+                    id="booking-phone"
                     type="tel"
                     name="phone"
                     value={bookingFormData.phone}
@@ -340,16 +520,24 @@ export default function BookingModal({
                     required
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                     placeholder="(555) 123-4567"
+                    aria-invalid={!!errors.phone}
+                    aria-describedby={errors.phone ? 'booking-phone-error' : undefined}
                   />
+                  {errors.phone && (
+                    <p id="booking-phone-error" role="alert" aria-live="assertive" className="mt-1 text-sm text-red-600 dark:text-red-400">
+                      {errors.phone}
+                    </p>
+                  )}
                 </div>
 
                 {/* Notes Field */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label htmlFor="booking-notes" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     <MessageSquare className="inline h-4 w-4 mr-1" />
                     Special Requests or Notes
                   </label>
                   <textarea
+                    id="booking-notes"
                     name="notes"
                     value={bookingFormData.notes}
                     onChange={handleFormChange}
@@ -377,32 +565,44 @@ export default function BookingModal({
                 {/* Terms Agreement */}
                 <div className="flex items-start">
                   <input
+                    id="booking-terms"
                     type="checkbox"
                     name="agreedToTerms"
                     checked={bookingFormData.agreedToTerms}
                     onChange={handleFormChange}
                     className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    aria-invalid={!!errors.agreedToTerms}
+                    aria-describedby={errors.agreedToTerms ? 'booking-terms-error' : undefined}
                   />
-                  <label className="ml-2 text-sm text-gray-600 dark:text-gray-400">
+                  <label htmlFor="booking-terms" className="ml-2 text-sm text-gray-600 dark:text-gray-400">
                     I agree to the cancellation policy and terms of service. Free cancellation until
                     2 hours before the lesson.
                   </label>
                 </div>
+                {errors.agreedToTerms && (
+                  <p id="booking-terms-error" role="alert" aria-live="assertive" className="mt-1 text-sm text-red-600 dark:text-red-400">
+                    {errors.agreedToTerms}
+                  </p>
+                )}
               </div>
 
               {/* Form Button - Only Continue to Payment */}
+              <p id="booking-submit-hint" className="sr-only">
+                Complete all required fields and agree to the terms to continue to payment.
+              </p>
               <button
                 onClick={handleBookingSubmit}
-                disabled={
-                  !bookingFormData.name ||
-                  !bookingFormData.email ||
-                  !bookingFormData.phone ||
-                  !bookingFormData.agreedToTerms
-                }
+                disabled={isBookingFormInvalid}
                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-colors"
+                aria-describedby={submitDescribedBy}
               >
                 Continue to Payment
               </button>
+              {errors.service && (
+                <p id="booking-service-error" role="alert" aria-live="assertive" className="mt-1 text-sm text-red-600 dark:text-red-400">
+                  {errors.service}
+                </p>
+              )}
             </>
           ) : (
             <>
