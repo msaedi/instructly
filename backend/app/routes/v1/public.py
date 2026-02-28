@@ -47,7 +47,11 @@ from ...services.email import EmailService
 from ...services.instructor_service import InstructorService
 from ...services.token_blacklist_service import TokenBlacklistService
 from ...utils.bitset import SLOTS_PER_DAY
-from ...utils.cookies import delete_refresh_cookie, session_cookie_candidates
+from ...utils.cookies import (
+    _effective_cookie_domain,
+    delete_refresh_cookie,
+    session_cookie_candidates,
+)
 from ...utils.time_helpers import string_to_time
 from ...utils.time_utils import time_to_minutes
 
@@ -223,7 +227,7 @@ def public_logout(
     """
     secure_flag = bool(settings.session_cookie_secure)
     samesite = settings.session_cookie_samesite or "lax"
-    domain = settings.session_cookie_domain
+    domain = _effective_cookie_domain(request.headers.get("origin"))
 
     resp = Response(status_code=status.HTTP_204_NO_CONTENT)
 

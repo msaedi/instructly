@@ -556,7 +556,7 @@ async def login(
     record_login_result("success")
 
     # Step 8: Set access + refresh cookies
-    set_auth_cookies(response, access_token, refresh_token)
+    set_auth_cookies(response, access_token, refresh_token, origin=request.headers.get("origin"))
 
     if hasattr(cache_service, "get") and hasattr(cache_service, "set"):
         await _maybe_send_new_device_login_notification(
@@ -668,7 +668,7 @@ async def refresh_session_token(
         expires_delta=timedelta(days=settings.refresh_token_lifetime_days),
     )
 
-    set_auth_cookies(response, access_token, refresh_token)
+    set_auth_cookies(response, access_token, refresh_token, origin=request.headers.get("origin"))
     return SessionRefreshResponse(message="Session refreshed")
 
 
@@ -939,7 +939,7 @@ async def login_with_session(
     record_login_result("success")
 
     # Step 8: Set access + refresh cookies
-    set_auth_cookies(response, access_token, refresh_token)
+    set_auth_cookies(response, access_token, refresh_token, origin=request.headers.get("origin"))
 
     # Step 9: Convert guest searches if guest_session_id provided
     # Uses the separate `db` session (not auth_service.db which is closed)

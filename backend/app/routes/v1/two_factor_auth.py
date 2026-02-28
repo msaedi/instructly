@@ -327,7 +327,7 @@ def verify_login(
         expires_delta=timedelta(days=settings.refresh_token_lifetime_days),
     )
     # Write session + refresh cookies
-    set_auth_cookies(response, access_token, refresh_token)
+    set_auth_cookies(response, access_token, refresh_token, origin=request.headers.get("origin"))
 
     guest_session_id = payload.get("guest_session_id")
     if guest_session_id:
