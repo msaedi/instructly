@@ -722,9 +722,9 @@ export default function MessagesPage() {
     : null;
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
+    <div className="h-screen insta-dashboard-page flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4 flex-shrink-0">
+      <header className="insta-dashboard-header px-4 sm:px-6 py-4 flex-shrink-0">
         <div className="flex items-center justify-between max-w-full">
           <div className="flex items-center gap-4">
             <Link href="/instructor/dashboard" className="inline-block">
@@ -800,7 +800,7 @@ export default function MessagesPage() {
         </Link>
 
         {/* Title card */}
-        <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200">
+        <div className="insta-surface-card p-6 mb-6">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
               <MessageSquare className="w-6 h-6 text-[#7E22CE]" />
@@ -813,7 +813,7 @@ export default function MessagesPage() {
         </div>
 
         {/* Templates toggle */}
-        <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+        <div className="insta-surface-card p-4 mb-4">
           <button
             type="button"
             onClick={() => setMailSection(mailSection === 'templates' ? 'inbox' : 'templates')}
@@ -845,7 +845,7 @@ export default function MessagesPage() {
             onTemplatesUpdate={setTemplates}
           />
         ) : (
-          <div className="flex-1 bg-white rounded-lg border border-gray-200 overflow-hidden flex flex-col">
+          <div className="flex-1 insta-surface-card overflow-hidden flex flex-col">
             <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
               {/* Sidebar */}
               <ConversationList
@@ -890,7 +890,7 @@ export default function MessagesPage() {
                         <button
                           type="button"
                           onClick={() => handleRestoreConversation(selectedChat)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#7E22CE] bg-white border border-[#7E22CE] rounded-md hover:bg-purple-50 transition-colors"
+                          className="insta-secondary-btn inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
                         >
                           <Undo2 className="h-4 w-4" />
                           Restore to Inbox

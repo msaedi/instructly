@@ -946,3 +946,414 @@ html {
   word-break: break-word;
   line-height: 1.4;
 }
+
+/* Shared translucent surface/button utilities for auth/onboarding/dashboard */
+.insta-surface-card {
+  background-color: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+.insta-flow-panel {
+  background-color: rgb(255 255 255 / 0.95) !important;
+  border: 1px solid rgb(255 255 255 / 0.6) !important;
+  border-radius: 1.75rem !important;
+  box-shadow: 0 20px 40px rgba(126, 34, 206, 0.12) !important;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.dark .insta-flow-panel {
+  background-color: rgb(17 24 39 / 0.8) !important;
+  border-color: rgb(31 41 55 / 0.6) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .insta-flow-panel {
+    background-color: rgb(17 24 39 / 0.8) !important;
+    border-color: rgb(31 41 55 / 0.6) !important;
+  }
+}
+
+@media (min-width: 640px) {
+  .insta-surface-card {
+    background-color: rgb(255 255 255 / 0.9) !important;
+    border: 1px solid rgb(229 231 235 / 1) !important;
+    border-radius: 0.5rem !important;
+  }
+}
+
+.dark .insta-surface-card {
+  background-color: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+@media (min-width: 640px) {
+  .dark .insta-surface-card {
+    background-color: rgb(17 24 39 / 0.7) !important;
+    border: 1px solid rgb(31 41 55 / 0.8) !important;
+    border-radius: 0.5rem !important;
+  }
+}
+
+@media (min-width: 640px) and (prefers-color-scheme: dark) {
+  .insta-surface-card {
+    background-color: rgb(17 24 39 / 0.7) !important;
+    border-color: rgb(31 41 55 / 0.8) !important;
+  }
+}
+
+.insta-primary-btn {
+  background-color: rgba(126, 34, 206, 0.9);
+}
+
+.insta-primary-btn:hover {
+  background-color: #7e22ce;
+}
+
+.insta-secondary-btn {
+  color: #7e22ce !important;
+  background-color: rgb(255 255 255 / 0.9) !important;
+  border: 1px solid rgb(233 213 255 / 1) !important;
+}
+
+.insta-secondary-btn:hover {
+  color: #7e22ce !important;
+  background-color: #ffffff !important;
+  border-color: rgb(216 180 254 / 1) !important;
+}
+
+.insta-onboarding-header {
+  margin-bottom: 1rem;
+  padding: 1rem;
+}
+
+@media (min-width: 640px) {
+  .insta-onboarding-header {
+    margin-bottom: 1.5rem;
+    padding: 1.5rem;
+  }
+}
+
+.insta-onboarding-title {
+  margin-bottom: 0.5rem;
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.dark .insta-onboarding-title {
+  color: #f3f4f6;
+}
+
+@media (prefers-color-scheme: dark) {
+  .insta-onboarding-title {
+    color: #f3f4f6;
+  }
+}
+
+.insta-onboarding-subtitle {
+  color: #6b7280;
+}
+
+.dark .insta-onboarding-subtitle {
+  color: #9ca3af;
+}
+
+@media (prefers-color-scheme: dark) {
+  .insta-onboarding-subtitle {
+    color: #9ca3af;
+  }
+}
+
+.insta-onboarding-strong-text {
+  color: #111827;
+}
+
+.dark .insta-onboarding-strong-text {
+  color: #f3f4f6;
+}
+
+@media (prefers-color-scheme: dark) {
+  .insta-onboarding-strong-text {
+    color: #f3f4f6;
+  }
+}
+
+.insta-onboarding-divider {
+  height: 1px;
+  margin-left: -1rem;
+  margin-right: -1rem;
+  background-color: rgb(229 231 235 / 0.8);
+}
+
+.dark .insta-onboarding-divider {
+  background-color: rgb(55 65 81 / 0.8);
+}
+
+@media (prefers-color-scheme: dark) {
+  .insta-onboarding-divider {
+    background-color: rgb(55 65 81 / 0.8);
+  }
+}
+
+@media (min-width: 640px) {
+  .insta-onboarding-divider {
+    display: none;
+  }
+}
+
+.dark .insta-onboarding-page .text-gray-900 {
+  color: #f3f4f6 !important;
+}
+
+.dark .insta-onboarding-page .text-gray-800 {
+  color: #e5e7eb !important;
+}
+
+.dark .insta-onboarding-page .text-gray-700 {
+  color: #d1d5db !important;
+}
+
+.dark .insta-onboarding-page .text-gray-600 {
+  color: #9ca3af !important;
+}
+
+.dark .insta-onboarding-page .text-gray-500 {
+  color: #9ca3af !important;
+}
+
+.dark .insta-onboarding-page .text-gray-400 {
+  color: #9ca3af !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .insta-onboarding-page .text-gray-900 {
+    color: #f3f4f6 !important;
+  }
+
+  .insta-onboarding-page .text-gray-800 {
+    color: #e5e7eb !important;
+  }
+
+  .insta-onboarding-page .text-gray-700 {
+    color: #d1d5db !important;
+  }
+
+  .insta-onboarding-page .text-gray-600 {
+    color: #9ca3af !important;
+  }
+
+  .insta-onboarding-page .text-gray-500 {
+    color: #9ca3af !important;
+  }
+
+  .insta-onboarding-page .text-gray-400 {
+    color: #9ca3af !important;
+  }
+}
+
+.insta-onboarding-benefit-card {
+  border-radius: 0.5rem;
+  border: 1px solid rgb(243 232 255);
+  background-color: rgb(250 245 255);
+  padding: 1rem;
+}
+
+.insta-onboarding-benefit-icon {
+  border-radius: 9999px;
+  background-color: rgb(243 232 255);
+  color: #9333ea;
+}
+
+.insta-onboarding-benefit-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #111827;
+}
+
+.insta-onboarding-benefit-copy {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: #4b5563;
+}
+
+.dark .insta-onboarding-benefit-card {
+  border-color: rgb(126 34 206 / 0.45);
+  background-color: rgb(88 28 135 / 0.22);
+}
+
+.dark .insta-onboarding-benefit-icon {
+  background-color: rgb(126 34 206 / 0.3);
+  color: #e9d5ff;
+}
+
+.dark .insta-onboarding-benefit-title {
+  color: #f9fafb;
+}
+
+.dark .insta-onboarding-benefit-copy {
+  color: #d1d5db;
+}
+
+@media (prefers-color-scheme: dark) {
+  .insta-onboarding-benefit-card {
+    border-color: rgb(126 34 206 / 0.45);
+    background-color: rgb(88 28 135 / 0.22);
+  }
+
+  .insta-onboarding-benefit-icon {
+    background-color: rgb(126 34 206 / 0.3);
+    color: #e9d5ff;
+  }
+
+  .insta-onboarding-benefit-title {
+    color: #f9fafb;
+  }
+
+  .insta-onboarding-benefit-copy {
+    color: #d1d5db;
+  }
+}
+
+.insta-dashboard-header {
+  background-color: rgb(255 255 255 / 0.9) !important;
+  border-bottom: 1px solid rgb(229 231 235 / 1) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.dark .insta-dashboard-header {
+  background-color: rgb(17 24 39 / 0.7) !important;
+  border-bottom-color: rgb(31 41 55 / 0.8) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .insta-dashboard-header {
+    background-color: rgb(17 24 39 / 0.7) !important;
+    border-bottom-color: rgb(31 41 55 / 0.8) !important;
+  }
+}
+
+.insta-dashboard-page .insta-surface-card {
+  background-color: rgb(255 255 255 / 0.9) !important;
+  border: 1px solid rgb(229 231 235 / 1) !important;
+  border-radius: 0.75rem !important;
+}
+
+.insta-dashboard-page .insta-dashboard-stat-card {
+  background-color: rgb(255 255 255 / 0.9);
+  border: 1px solid rgb(229 231 235 / 1);
+}
+
+.dark .insta-dashboard-page .insta-surface-card {
+  background-color: rgb(17 24 39 / 0.7) !important;
+  border-color: rgb(31 41 55 / 0.8) !important;
+}
+
+.dark .insta-dashboard-page .insta-dashboard-stat-card {
+  background-color: rgb(17 24 39 / 0.7);
+  border-color: rgb(31 41 55 / 0.8);
+}
+
+@media (prefers-color-scheme: dark) {
+  .insta-dashboard-page .insta-surface-card {
+    background-color: rgb(17 24 39 / 0.7) !important;
+    border-color: rgb(31 41 55 / 0.8) !important;
+  }
+
+  .insta-dashboard-page .insta-dashboard-stat-card {
+    background-color: rgb(17 24 39 / 0.7);
+    border-color: rgb(31 41 55 / 0.8);
+  }
+}
+
+.dark .insta-dashboard-page .text-gray-900 {
+  color: #f3f4f6 !important;
+}
+
+.dark .insta-dashboard-page .text-gray-800 {
+  color: #e5e7eb !important;
+}
+
+.dark .insta-dashboard-page .text-gray-700 {
+  color: #d1d5db !important;
+}
+
+.dark .insta-dashboard-page .text-gray-600 {
+  color: #9ca3af !important;
+}
+
+.dark .insta-dashboard-page .text-gray-500 {
+  color: #9ca3af !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .insta-dashboard-page .text-gray-900 {
+    color: #f3f4f6 !important;
+  }
+
+  .insta-dashboard-page .text-gray-800 {
+    color: #e5e7eb !important;
+  }
+
+  .insta-dashboard-page .text-gray-700 {
+    color: #d1d5db !important;
+  }
+
+  .insta-dashboard-page .text-gray-600 {
+    color: #9ca3af !important;
+  }
+
+  .insta-dashboard-page .text-gray-500 {
+    color: #9ca3af !important;
+  }
+}
+
+.insta-availability-panel {
+  overflow: hidden;
+}
+
+.insta-availability-week-nav {
+  box-shadow: none !important;
+}
+
+.insta-availability-tip {
+  border: 1px solid rgb(233 213 255 / 0.85);
+  background-color: rgb(250 245 255 / 0.9);
+  color: #1f2937;
+}
+
+.insta-availability-tip p {
+  color: inherit;
+}
+
+.dark .insta-availability-tip {
+  border-color: rgb(126 34 206 / 0.45);
+  background-color: rgb(88 28 135 / 0.22);
+  color: #e5e7eb;
+}
+
+@media (prefers-color-scheme: dark) {
+  .insta-availability-tip {
+    border-color: rgb(126 34 206 / 0.45);
+    background-color: rgb(88 28 135 / 0.22);
+    color: #e5e7eb;
+  }
+}
+
+.insta-thread-list > * + * {
+  border-top: 1px solid rgb(229 231 235 / 0.65);
+}
+
+.dark .insta-thread-list > * + * {
+  border-top-color: rgb(55 65 81 / 0.75);
+}
+
+@media (prefers-color-scheme: dark) {
+  .insta-thread-list > * + * {
+    border-top-color: rgb(55 65 81 / 0.75);
+  }
+}

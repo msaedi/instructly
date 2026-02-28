@@ -116,9 +116,9 @@ function BookingsPageImpl() {
   const isActionPending = completeBooking.isPending || markNoShow.isPending;
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen insta-dashboard-page">
       {!embedded && (
-        <header className="relative border-b border-gray-200 bg-white px-4 py-4 backdrop-blur-sm sm:px-6">
+        <header className="relative border-b border-gray-200 bg-white px-4 py-4 backdrop-blur-sm sm:px-6 insta-dashboard-header">
           <div className="flex max-w-full items-center justify-between">
             <Link href="/instructor/dashboard" className="inline-block">
               <h1 className="pl-0 text-3xl font-bold text-[#7E22CE] transition-colors hover:text-[#7E22CE] sm:pl-4">
@@ -157,7 +157,7 @@ function BookingsPageImpl() {
           subtitle="Track upcoming sessions and review completed lessons all in one place."
         />
 
-        <div className="mt-6 rounded-lg border border-gray-200 bg-white shadow-sm">
+        <div className="mt-6 rounded-lg border border-gray-200 bg-white shadow-sm insta-surface-card">
           <div role="tablist" aria-label="Bookings tabs" className="flex border-b border-gray-200">
             {(['upcoming', 'past'] as const).map((tab) => (
               <button

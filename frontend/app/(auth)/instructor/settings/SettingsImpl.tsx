@@ -318,7 +318,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
               type="button"
               onClick={handleUpdatePhone}
               disabled={updatePhone.isPending}
-              className="min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              className="min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 insta-primary-btn"
             >
               {updatePhone.isPending ? 'Saving…' : 'Save'}
             </button>
@@ -340,7 +340,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 type="button"
                 onClick={handleConfirmVerification}
                 disabled={confirmVerification.isPending}
-                className="min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                className="min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 insta-primary-btn"
               >
                 {confirmVerification.isPending ? 'Verifying…' : 'Verify'}
               </button>
@@ -351,7 +351,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 className={`min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
                   resendCooldown > 0 || sendVerification.isPending
                     ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                    : 'bg-[#7E22CE] text-white hover:bg-[#6b1fb8]'
+                    : 'bg-[#7E22CE] text-white hover:bg-[#6b1fb8] insta-primary-btn'
                 }`}
               >
                 {resendCooldown > 0
@@ -569,9 +569,9 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   };
 
   return (
-    <div className={embedded ? '' : 'min-h-screen'}>
+    <div className={embedded ? 'insta-dashboard-page' : 'min-h-screen insta-dashboard-page'}>
       {!embedded && (
-        <header className="relative bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
+        <header className="relative bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4 insta-dashboard-header">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/instructor/dashboard" className="inline-block">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">
@@ -604,7 +604,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
           subtitle="Manage your personal details, security options, and platform preferences from one place."
         />
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="bg-white rounded-lg border border-gray-200 p-6 insta-surface-card">
           {embedded ? (
             <>
               <button
@@ -618,7 +618,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                     <Settings className="w-6 h-6 text-[#7E22CE]" />
                   </div>
                   <div>
-                    <span className="block text-lg font-semibold text-gray-900">Account details</span>
+                    <span className="block text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Account details</span>
                     <span className="mt-1 block text-sm text-gray-500">Update your contact info and preferred ZIP.</span>
                   </div>
                 </div>
@@ -674,7 +674,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                       type="button"
                       onClick={handleSaveAccount}
                       disabled={savingAccount}
-                      className="inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 insta-primary-btn"
                     >
                       {savingAccount ? 'Saving…' : 'Save changes'}
                     </button>
@@ -747,7 +747,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         </div>
 
         {/* Referrals & rewards */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mt-6">
+        <div className="bg-white rounded-lg border border-gray-200 p-6 mt-6 insta-surface-card">
           {embedded ? (
             <>
               <button
@@ -761,7 +761,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                     <Gift className="w-6 h-6 text-[#7E22CE]" />
                   </div>
                   <div>
-                    <span className="block text-lg font-semibold text-gray-900">Refer instructors</span>
+                    <span className="block text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Refer instructors</span>
                     <span className="mt-1 block text-sm text-gray-500">Share your link to invite peers and earn rewards.</span>
                   </div>
                 </div>
@@ -807,7 +807,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         </div>
 
         {embedded && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6 mt-4">
+          <div className="bg-white rounded-lg border border-gray-200 p-6 mt-4 insta-surface-card">
             <button
               type="button"
               className="w-full flex items-center justify-between text-left"
@@ -819,7 +819,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                   <Shield className="w-6 h-6 text-[#7E22CE]" />
                 </div>
                 <div>
-                  <span className="block text-lg font-semibold text-gray-900">Account security</span>
+                  <span className="block text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Account security</span>
                   <span className="mt-1 block text-sm text-gray-500">Enable two-factor authentication for extra protection.</span>
                 </div>
               </div>
@@ -839,7 +839,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                     className={`px-3 py-1.5 rounded-md text-sm font-medium ${
                       tfaEnabled
                         ? 'border border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
-                        : 'bg-[#7E22CE] text-white hover:bg-[#6b1fb8]'
+                        : 'bg-[#7E22CE] text-white hover:bg-[#6b1fb8] insta-primary-btn'
                     } `}
                     onClick={() => setShowTfaModal(true)}
                   >
@@ -861,7 +861,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         )}
 
         {embedded && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6 mt-4">
+          <div className="bg-white rounded-lg border border-gray-200 p-6 mt-4 insta-surface-card">
             <button
               type="button"
               className="w-full flex items-center justify-between text-left"
@@ -873,7 +873,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                   <Power className="w-6 h-6 text-[#7E22CE]" />
                 </div>
                 <div>
-                  <span className="block text-lg font-semibold text-gray-900">Account status</span>
+                  <span className="block text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Account status</span>
                   <span className="mt-1 block text-sm text-gray-500">Pause or close your instructor account if needed.</span>
                 </div>
               </div>
@@ -884,7 +884,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 <button
                   type="button"
                   onClick={() => setShowPauseModal(true)}
-                  className="inline-flex items-center justify-center gap-2 rounded-md bg-white border border-purple-200 text-[#7E22CE] px-4 py-2 text-sm font-semibold transition hover:bg-purple-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2"
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-white border border-purple-200 text-[#7E22CE] px-4 py-2 text-sm font-semibold transition hover:bg-purple-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 insta-secondary-btn"
                 >
                   Pause account
                 </button>
@@ -899,7 +899,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 <button
                   type="button"
                   onClick={() => setShowDeleteModal(true)}
-                  className="inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2"
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 insta-primary-btn"
                 >
                   Delete account
                 </button>
@@ -918,7 +918,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         )}
 
         {embedded && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6 mt-4">
+          <div className="bg-white rounded-lg border border-gray-200 p-6 mt-4 insta-surface-card">
             <button
               type="button"
               className="w-full flex items-center justify-between text-left"
@@ -930,7 +930,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                   <KeyRound className="w-6 h-6 text-[#7E22CE]" />
                 </div>
                 <div>
-                  <span className="block text-lg font-semibold text-gray-900">Password</span>
+                  <span className="block text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Password</span>
                   <span className="mt-1 block text-sm text-gray-500">Keep your login secure with a strong password.</span>
                 </div>
               </div>
@@ -941,7 +941,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 <button
                   type="button"
                   onClick={() => setShowChangePassword(true)}
-                  className="inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2"
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 insta-primary-btn"
                 >
                   Change password
                 </button>
@@ -951,7 +951,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
           </div>
         )}
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mt-6">
+        <div className="bg-white rounded-lg border border-gray-200 p-6 mt-6 insta-surface-card">
           {embedded ? (
             <>
               <button
@@ -965,7 +965,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                     <Settings className="w-6 h-6 text-[#7E22CE]" />
                   </div>
                   <div>
-                    <span className="block text-lg font-semibold text-gray-900">Preferences</span>
+                    <span className="block text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Preferences</span>
                     <span className="mt-1 block text-sm text-gray-500">Choose how we contact you about lessons and updates.</span>
                   </div>
                 </div>
@@ -992,7 +992,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         </div>
 
         {embedded && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6 mt-4">
+          <div className="bg-white rounded-lg border border-gray-200 p-6 mt-4 insta-surface-card">
             <button
               type="button"
               className="w-full flex items-center justify-between text-left"
@@ -1004,7 +1004,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                   <Settings className="w-6 h-6 text-[#7E22CE]" />
                 </div>
                 <div>
-                  <span className="block text-lg font-semibold text-gray-900">About</span>
+                  <span className="block text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">About</span>
                   <span className="mt-1 block text-sm text-gray-500">Access legal resources and support information.</span>
                 </div>
               </div>

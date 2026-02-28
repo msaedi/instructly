@@ -9,7 +9,7 @@ const LOGIN_BACKGROUND_MOBILE = getAuthBackground('default', 'mobile');
 
 const loginFallback = (
   <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-    <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+    <div className="insta-surface-card py-8 px-4 shadow sm:px-10">
       <div className="animate-pulse">
         <div className="h-10 bg-gray-200 rounded mb-4" />
         <div className="h-10 bg-gray-200 rounded mb-4" />

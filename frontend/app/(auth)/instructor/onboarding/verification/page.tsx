@@ -199,18 +199,18 @@ export default function Step4Verification() {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen insta-onboarding-page">
       <OnboardingProgressHeader activeStep="verify-identity" stepStatus={stepStatus} />
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
-        <div className="mb-4 sm:mb-8 bg-transparent border-0 rounded-none p-4 sm:bg-white sm:rounded-lg sm:p-6 sm:border sm:border-gray-200">
+        <div className="insta-surface-card insta-onboarding-header">
           <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Build trust with students</h1>
-            <p className="text-gray-600">Complete identity verification and your background check to finish onboarding.</p>
+            <h1 className="insta-onboarding-title">Build trust with students</h1>
+            <p className="insta-onboarding-subtitle">Complete identity verification and your background check to finish onboarding.</p>
           </div>
         </div>
         {/* Divider */}
-        <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
+        <div className="insta-onboarding-divider" />
 
         {refreshingIdentity && (
           <div className="mb-4 rounded-lg bg-purple-50 border border-purple-200 px-4 py-2 text-sm text-purple-700">
@@ -223,7 +223,7 @@ export default function Step4Verification() {
         )}
 
         <div className="grid gap-0 sm:gap-6">
-          <section className="relative bg-white rounded-none border-0 p-4 sm:bg-white sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
+          <section className="insta-surface-card relative p-4 sm:p-6">
             <div className="grid grid-cols-[3rem_1fr] gap-4">
               <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                 <svg className="w-6 h-6 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -259,7 +259,7 @@ export default function Step4Verification() {
                   onClick={startIdentity}
                   disabled={identityLoading || verificationComplete || identityInProgress}
                   aria-label="Start verification"
-                  className="w-full sm:w-auto mt-4 sm:mt-0 rounded-lg sm:rounded-md text-base sm:text-sm h-auto sm:h-10 px-4 py-2 bg-[#7E22CE] hover:bg-[#7E22CE] text-white shadow-sm"
+                  className="insta-primary-btn w-full sm:w-auto mt-4 sm:mt-0 rounded-lg sm:rounded-md text-base sm:text-sm h-auto sm:h-10 px-4 py-2 text-white shadow-sm"
                 >
                   {identityLoading ? (
                     <>
@@ -283,7 +283,7 @@ export default function Step4Verification() {
           {/* Divider */}
           <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
 
-          <section id="bgc-step-card" className="bg-white rounded-none border-0 p-4 sm:bg-white sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
+          <section id="bgc-step-card" className="insta-surface-card p-4 sm:p-6">
             <div className="flex items-start gap-3 mb-4">
               <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                 <ShieldCheck className="w-6 h-6 text-[#7E22CE]" />
@@ -311,13 +311,13 @@ export default function Step4Verification() {
           <button
             type="button"
             onClick={() => { router.push(fromStatus ? '/instructor/onboarding/status' : '/instructor/onboarding/payment-setup'); }}
-            className="w-40 px-5 py-2.5 rounded-lg text-[#7E22CE] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 justify-center"
+            className="insta-secondary-btn w-40 px-5 py-2.5 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 justify-center"
           >
             Skip for now
           </button>
           <button
             onClick={handleContinue}
-            className="w-56 whitespace-nowrap px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 shadow-sm justify-center"
+            className="insta-primary-btn w-56 whitespace-nowrap px-5 py-2.5 rounded-lg text-white disabled:opacity-50 shadow-sm justify-center"
           >
             Save & Continue
           </button>

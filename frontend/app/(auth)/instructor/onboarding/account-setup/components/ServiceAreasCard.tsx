@@ -55,8 +55,12 @@ export function ServiceAreasCard({
   isNYC,
   formatNeighborhoodName,
 }: ServiceAreasCardProps) {
+  const isOnboarding = context === 'onboarding';
   const collapsible = context !== 'onboarding' && typeof onToggle === 'function';
   const expanded = collapsible ? Boolean(isOpen) : true;
+  const cardClassName = isOnboarding
+    ? 'insta-surface-card p-4 sm:p-6'
+    : 'bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6 insta-surface-card';
   const resolvedTitle = title ?? 'Service Areas';
   const resolvedSubtitle = subtitle ?? 'Select the neighborhoods where you’re available for lessons.';
   const resolvedHelperText = helperText ?? 'Select the neighborhoods where you teach';
@@ -95,7 +99,7 @@ export function ServiceAreasCard({
   }, [nycBoroughs, boroughNeighborhoods, globalNeighborhoodFilter]);
 
   return (
-    <section className="bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6 dark:bg-gray-900/70 dark:border-gray-800/80">
+    <section className={cardClassName}>
       {collapsible ? (
         <button
           type="button"

@@ -100,17 +100,17 @@ function JoinInner() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative transition-colors duration-200">
+    <div className="min-h-screen insta-onboarding-page flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative transition-colors duration-200">
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white/95 dark:bg-gray-900/80 py-8 px-4 shadow-[0_20px_40px_rgba(126,34,206,0.12)] rounded-[28px] border border-white/60 dark:border-gray-800/60 backdrop-blur-sm sm:px-10 transition-colors duration-200">
+        <div className="insta-flow-panel py-8 px-4 sm:px-10 transition-colors duration-200">
           <div className="text-center mb-6">
             <h1 className="text-4xl font-bold text-[#7E22CE] transition-colors">
               {BRAND.name}
             </h1>
-            <h2 className="text-2xl font-bold mb-2 text-gray-900 dark:text-gray-100 mt-3">
+            <h2 className="text-2xl font-bold mb-2 insta-onboarding-strong-text mt-3">
               Founding Instructor Program
             </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-300 mt-3">
+            <p className="text-sm insta-onboarding-subtitle mt-3">
               You&apos;ve been selected for early access to iNSTAiNSTRU <span className="text-xs">NYC&apos;s most selective instant-booking marketplace for instructors & students</span>
             </p>
           </div>
@@ -156,7 +156,7 @@ function JoinInner() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full flex justify-center items-center h-12 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#7E22CE] hover:bg-[#7E22CE] focus:bg-[#7E22CE] active:bg-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-60 disabled:cursor-not-allowed transform-gpu will-change-transform transition-all antialiased"
+              className="insta-primary-btn w-full flex justify-center items-center h-12 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-60 disabled:cursor-not-allowed transform-gpu will-change-transform transition-all antialiased"
             >
               {submitting ? 'Verifying…' : 'Join!'}
             </button>

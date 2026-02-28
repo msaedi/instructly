@@ -79,10 +79,10 @@ function ReviewsPageImpl() {
 
   const filterLabel = filter === 'all' ? 'All reviews' : `${filter} stars`;
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen insta-dashboard-page">
       {/* Header hidden when embedded */}
       {!embedded && (
-        <header className="relative bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
+        <header className="relative bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4 insta-dashboard-header">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/instructor/dashboard" className="inline-block">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
@@ -124,7 +124,7 @@ function ReviewsPageImpl() {
         />
 
         {/* Ratings summary */}
-        <div className="bg-white rounded-lg p-6 border border-gray-200">
+        <div className="bg-white rounded-lg p-6 border border-gray-200 insta-surface-card">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-xl font-bold text-gray-900">Reviews</h2>
@@ -232,7 +232,7 @@ function ReviewsPageImpl() {
               {reviews.length > 0 && (
                 <div className="grid grid-cols-1 gap-4">
                   {reviews.map((review) => (
-                    <article key={review.id} className="p-4 bg-white rounded-lg border border-gray-200">
+                    <article key={review.id} className="p-4 bg-white rounded-lg border border-gray-200 insta-surface-card">
                       <div className="flex items-start gap-3">
                         <StarRating rating={review.rating} />
                         <div className="flex-1">
@@ -263,7 +263,7 @@ function ReviewsPageImpl() {
               type="button"
               onClick={() => setPage((prev) => Math.max(1, prev - 1))}
               disabled={page === 1 || reviewsFetching}
-              className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 disabled:opacity-50 insta-secondary-btn"
             >
               <span>Previous</span>
             </button>
@@ -272,7 +272,7 @@ function ReviewsPageImpl() {
               type="button"
               onClick={() => setPage((prev) => prev + 1)}
               disabled={!reviewsData?.has_next || reviewsFetching}
-              className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 disabled:opacity-50 insta-secondary-btn"
             >
               <span>Next</span>
             </button>

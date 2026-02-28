@@ -67,24 +67,24 @@ function WelcomeInner() {
   const signupHref = `/signup?role=instructor&founding=true${code ? `&invite_code=${encodeURIComponent(code)}` : ''}${email ? `&email=${encodeURIComponent(email)}` : ''}&redirect=${encodeURIComponent('/instructor/onboarding/welcome')}`;
 
   return (
-    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 cursor-default">
+    <div className="min-h-screen insta-onboarding-page flex flex-col justify-center py-12 sm:px-6 lg:px-8 cursor-default">
       <div className="sm:mx-auto sm:w-full sm:max-w-2xl">
-        <div className="bg-white dark:bg-gray-800 py-10 px-8 shadow sm:rounded-lg">
+        <div className="insta-flow-panel py-10 px-8 sm:rounded-[28px]">
           <div className="text-center mb-4">
             <h1 className="text-3xl font-bold tracking-tight text-[#7E22CE]">{`iNSTAiNSTRU`}</h1>
-            <p className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-4">
+            <p className="text-2xl font-semibold insta-onboarding-strong-text mt-4">
               Welcome to the Founding Instructor Program
             </p>
             <div className="h-px w-full bg-gradient-to-r from-transparent via-[#7E22CE] to-transparent mt-4" />
           </div>
-          <div className="text-center text-gray-600 dark:text-gray-300 mb-6 space-y-2">
-            <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          <div className="text-center text-gray-600 mb-6 space-y-2">
+            <p className="text-lg font-semibold text-gray-900">
               We’re thrilled to have you on iNSTAiNSTRU
             </p>
             <p className="text-base">
               Over 500 students searched for instructors in NYC this week.
             </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-gray-500">
               Next up, create your profile so you’re launch-ready; we’ll alert you the moment booking goes live!
             </p>
           </div>
@@ -146,7 +146,7 @@ function WelcomeInner() {
           <div className="mt-6 flex justify-center">
             <Link
               href={signupHref}
-              className="px-6 py-2 rounded-md text-white bg-[#7E22CE] hover:bg-[#7E22CE]"
+              className="insta-primary-btn px-6 py-2 rounded-md text-white"
             >
               Become a Founding Instructor
             </Link>

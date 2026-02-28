@@ -895,19 +895,19 @@ function Step3SkillsPricingInner() {
   const showError = Boolean(error) && !isLocationCapabilityError(error ?? '');
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen insta-onboarding-page">
       <OnboardingProgressHeader activeStep="skill-selection" stepStatus={stepStatus} />
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
-        <div className="mb-4 sm:mb-6 bg-white border-0 rounded-none p-4 sm:rounded-lg sm:p-6 sm:border sm:border-gray-200">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        <div className="insta-surface-card insta-onboarding-header">
+          <h1 className="insta-onboarding-title">
             What do you teach?
           </h1>
-          <p className="text-gray-600">
+          <p className="insta-onboarding-subtitle">
             Choose your skills and set your rates
           </p>
         </div>
-        <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
+        <div className="insta-onboarding-divider" />
 
         {catalogLoadError && (
           <div className="mt-4 rounded-md bg-red-50 text-red-700 px-4 py-2">
@@ -918,7 +918,7 @@ function Step3SkillsPricingInner() {
           <div className="mt-4 rounded-md bg-red-50 text-red-700 px-4 py-2">{error}</div>
         )}
 
-        <div className="mt-0 sm:mt-6 bg-white rounded-none border-0 p-4 sm:bg-white sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
+        <div className="insta-surface-card mt-0 sm:mt-6 p-4 sm:p-6">
           <div className="flex items-start justify-between mb-4">
             <div>
               <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
@@ -1155,9 +1155,9 @@ function Step3SkillsPricingInner() {
           </div>
         </div>
 
-        <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
+        <div className="insta-onboarding-divider" />
 
-        <div className="mt-0 sm:mt-8 bg-white rounded-none p-4 border-0 sm:bg-white sm:rounded-lg sm:p-6 sm:border sm:border-gray-200">
+        <div className="insta-surface-card mt-0 sm:mt-8 p-4 sm:p-6">
           <div className="flex items-start justify-between mb-4">
             <div>
               <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
@@ -1637,7 +1637,7 @@ function Step3SkillsPricingInner() {
           )}
         </div>
 
-        <div className="mt-0 sm:mt-8 bg-white rounded-none p-4 border-0 sm:bg-white sm:rounded-lg sm:p-6 sm:border sm:border-gray-200">
+        <div className="insta-surface-card mt-0 sm:mt-8 p-4 sm:p-6">
           <div className="flex items-start justify-between mb-2">
             <div>
               <div className="flex items-center gap-3 text-lg font-semibold text-gray-900">
@@ -1660,7 +1660,7 @@ function Step3SkillsPricingInner() {
             <button
               onClick={submitServiceRequest}
               disabled={!requestText.trim() || requestSubmitting}
-              className="px-4 py-2 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 shadow-sm"
+              className="insta-primary-btn px-4 py-2 rounded-lg text-white disabled:opacity-50 shadow-sm"
             >
               Submit request
             </button>
@@ -1674,14 +1674,14 @@ function Step3SkillsPricingInner() {
             onClick={() => {
               window.location.href = '/instructor/onboarding/verification';
             }}
-            className="w-40 px-5 py-2.5 rounded-lg text-[#7E22CE] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 justify-center"
+            className="insta-secondary-btn w-40 px-5 py-2.5 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 justify-center"
           >
             Skip for now
           </button>
           <button
             onClick={save}
             disabled={saving || hasFloorViolations}
-            className="w-56 whitespace-nowrap px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 shadow-sm justify-center"
+            className="insta-primary-btn w-56 whitespace-nowrap px-5 py-2.5 rounded-lg text-white disabled:opacity-50 shadow-sm justify-center"
           >
             {saving ? 'Saving...' : 'Save & Continue'}
           </button>

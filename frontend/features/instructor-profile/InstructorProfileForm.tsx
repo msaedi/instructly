@@ -803,13 +803,13 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
     : isOnboarding
       ? 'w-full mt-0 sm:mt-6 space-y-4 sm:space-y-6'
       : 'container mx-auto px-8 lg:px-32 py-8 max-w-6xl';
-  const rootClass = isOnboarding ? 'w-full' : 'min-h-screen';
+  const rootClass = isOnboarding ? 'w-full' : 'min-h-screen insta-dashboard-page';
 
   return (
     <div className={rootClass}>
       {/* Header hidden in embedded or onboarding mode */}
       {showDashboardHeader && (
-        <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
+        <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4 insta-dashboard-header">
           <div className="flex items-center justify-between max-w-full relative">
             <Link href="/instructor/dashboard" className="inline-block">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
@@ -834,7 +834,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
         {!embedded && !isOnboarding && (
           <>
             {/* Page Header - mobile: no card chrome; desktop: card */}
-            <div className="mb-2 sm:mb-8 bg-transparent border-0 rounded-none p-4 sm:bg-white sm:rounded-lg sm:p-6 sm:border sm:border-gray-200">
+            <div className="mb-2 sm:mb-8 bg-transparent border-0 rounded-none p-4 sm:bg-white sm:rounded-lg sm:p-6 sm:border sm:border-gray-200 insta-surface-card">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div>
@@ -963,7 +963,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
             <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
 
             {/* Skills & Pricing Section */}
-            <div className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
+            <div className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6 insta-surface-card">
               <button
                 type="button"
                 className="w-full flex items-center justify-between mb-4 text-left"
@@ -992,7 +992,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
             <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
 
             {/* Experience Settings Section */}
-            <div className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
+            <div className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6 insta-surface-card">
               <button
                 type="button"
                 className="w-full flex items-center justify-between mb-4 text-left"
@@ -1091,7 +1091,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
               type="button"
               onClick={() => { if (!saving && !savingServiceAreas) { void save(); } }}
               disabled={saving || savingServiceAreas}
-              className="w-40 whitespace-nowrap px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:bg-[#7E22CE] disabled:opacity-50 shadow-sm justify-center"
+              className="w-40 whitespace-nowrap px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:bg-[#7E22CE] disabled:opacity-50 shadow-sm justify-center insta-primary-btn"
             >
               {saving || savingServiceAreas ? 'Saving...' : 'Save Changes'}
             </button>

@@ -76,7 +76,7 @@ export function ConversationItem({
         type="button"
         onClick={() => onSelect(conversation.id)}
         className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
-          isActive ? 'bg-purple-50' : 'hover:bg-gray-50'
+          isActive ? 'bg-purple-50 dark:bg-purple-900/40' : 'hover:bg-gray-50 dark:hover:bg-gray-800/60'
         }`}
       >
         <div className="relative">

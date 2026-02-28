@@ -859,8 +859,8 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
       ) : (
         <>
           {/* Categories and search (expandable) */}
-          <div className="rounded-lg border border-gray-200 bg-white p-4 mb-6">
-            <div className="flex items-center gap-3 text-lg font-semibold text-gray-900 mb-2">
+          <div className="rounded-lg border border-gray-200 bg-white p-4 mb-6 insta-surface-card">
+            <div className="flex items-center gap-3 text-xl sm:text-lg font-bold sm:font-semibold text-gray-900 mb-2">
               <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
                 <svg className="w-5 h-5 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v12m6-6H6" /></svg>
               </div>
@@ -873,7 +873,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                 value={skillsFilter}
                 onChange={(e) => setSkillsFilter(e.target.value)}
                 placeholder="Search skills..."
-                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+                className="w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
               />
             </div>
             {/* Selected chips */}
@@ -902,7 +902,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
             {/* Accordions */}
             <div className="space-y-3">
               {categories.map((cat) => (
-                <div key={cat.id} className="rounded-lg overflow-hidden border border-gray-200 bg-white">
+                <div key={cat.id} className="rounded-lg overflow-hidden border border-gray-200 bg-white insta-surface-card">
                   <button
                     className="w-full px-4 py-3 flex items-center justify-between text-gray-700 hover:bg-gray-50 transition-colors"
                     onClick={() => toggleCategory(cat.id)}
@@ -921,12 +921,13 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                             <button
                               key={svc.id}
                               onClick={() => toggleServiceSelection(svc)}
-                              className={`px-3 py-2 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 whitespace-nowrap ${
-                                isSel ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold transition-colors no-hover-shadow appearance-none overflow-hidden focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 ${
+                                isSel ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                               }`}
                               type="button"
                             >
-                              {svc.name} {isSel ? '✓' : '+'}
+                              <span className="truncate text-left">{svc.name}</span>
+                              <span className="ml-2">{isSel ? '✓' : '+'}</span>
                             </button>
                           );
                         })}
@@ -952,7 +953,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
               return (
                 <div
                   key={`${s.catalog_service_id || s.name}-${index}`}
-                  className="p-4 bg-gray-50 border border-gray-200 rounded-lg"
+                  className="p-4 bg-gray-50 border border-gray-200 rounded-lg insta-surface-card"
                 >
                 <div className="flex items-start justify-between mb-2">
                   <div>
@@ -977,7 +978,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                   </button>
                 </div>
 
-                <div className="rounded-lg bg-white p-3 border border-gray-200 mb-3">
+                <div className="rounded-lg bg-white p-3 border border-gray-200 mb-3 insta-surface-card">
                   <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2">
                     <span className="text-sm text-gray-600">Hourly Rate:</span>
                     <div className="relative max-w-[220px]">
@@ -1029,7 +1030,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                  <div className="bg-white rounded-lg p-3 border border-gray-200 insta-surface-card">
                     <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Age Groups</label>
                     <div className="grid grid-cols-2 gap-1">
                       {ALL_AUDIENCE_GROUPS.map((group) => {
@@ -1071,7 +1072,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                       })}
                     </div>
                   </div>
-                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                  <div className="bg-white rounded-lg p-3 border border-gray-200 insta-surface-card">
                     <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">
                       How do you offer this skill?
                     </label>
@@ -1178,7 +1179,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                  <div className="bg-white rounded-lg p-3 border border-gray-200 insta-surface-card">
                     <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Skill Levels</label>
                     <div className="flex gap-1">
                       {DEFAULT_SKILL_LEVELS.map((lvl) => {
@@ -1211,7 +1212,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                       })}
                     </div>
                   </div>
-                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                  <div className="bg-white rounded-lg p-3 border border-gray-200 insta-surface-card">
                     <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Session Duration</label>
                     <div className="flex gap-1">
                       {[30, 45, 60, 90].map((d) => (

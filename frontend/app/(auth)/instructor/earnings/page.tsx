@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState, useMemo } from 'react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import Modal from '@/components/Modal';
-import { Download, DollarSign, Info, ArrowLeft } from 'lucide-react';
+import { Download, DollarSign, Info, ArrowLeft, Calendar, Briefcase, Clock } from 'lucide-react';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import { fetchWithAuth } from '@/lib/api';
 import { logger } from '@/lib/logger';
@@ -175,10 +175,10 @@ function EarningsPageImpl() {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen insta-dashboard-page">
       {/* Header hidden when embedded */}
       {!embedded && (
-        <header className="relative bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
+        <header className="relative bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4 insta-dashboard-header">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/instructor/dashboard" className="inline-block">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
@@ -227,28 +227,56 @@ function EarningsPageImpl() {
 
         {/* Stat Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-8">
-          <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
-            <h3 className="text-xs sm:text-sm font-medium text-gray-600 tracking-wide mb-2 uppercase">Total Lessons</h3>
-            <p className="text-3xl font-bold text-[#7E22CE] uppercase">{isLoadingEarnings ? '—' : formatAmount(totalLessonValue)}</p>
+          <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-3 sm:p-6 h-32 sm:h-40">
+            <div className="flex items-start justify-between h-full">
+              <div>
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Total Lessons</h3>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{isLoadingEarnings ? '—' : formatAmount(totalLessonValue)}</p>
+              </div>
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
+              </div>
+            </div>
           </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
-            <h3 className="text-xs sm:text-sm font-medium text-gray-600 tracking-wide mb-2 uppercase">Net Earnings</h3>
-            <p className="text-3xl font-bold text-[#7E22CE] uppercase">{isLoadingEarnings ? '—' : formatAmount(netEarnings)}</p>
+          <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-3 sm:p-6 h-32 sm:h-40">
+            <div className="flex items-start justify-between h-full">
+              <div>
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Net Earnings</h3>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{isLoadingEarnings ? '—' : formatAmount(netEarnings)}</p>
+              </div>
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
+              </div>
+            </div>
           </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
-            <h3 className="text-xs sm:text-sm font-medium text-gray-600 tracking-wide mb-2 uppercase">Service count</h3>
-            <p className="text-3xl font-bold text-[#7E22CE] uppercase">{isLoadingEarnings ? '—' : resolvedServiceCount}</p>
+          <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-3 sm:p-6 h-32 sm:h-40">
+            <div className="flex items-start justify-between h-full">
+              <div>
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Service count</h3>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{isLoadingEarnings ? '—' : resolvedServiceCount}</p>
+              </div>
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <Briefcase className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
+              </div>
+            </div>
           </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
-            <h3 className="text-xs sm:text-sm font-medium text-gray-600 tracking-wide mb-2 uppercase">Hours invoiced</h3>
-            <p className="text-3xl font-bold text-[#7E22CE] uppercase">
-              {isLoadingEarnings ? '—' : formatHours(resolvedHoursInvoiced)}
-            </p>
+          <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-3 sm:p-6 h-32 sm:h-40">
+            <div className="flex items-start justify-between h-full">
+              <div>
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Hours invoiced</h3>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+                  {isLoadingEarnings ? '—' : formatHours(resolvedHoursInvoiced)}
+                </p>
+              </div>
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="bg-white rounded-lg border border-gray-200">
+        <div className="bg-white rounded-lg border border-gray-200 insta-surface-card">
           <div className="border-b border-gray-200 px-4 sm:px-6 pt-4">
               <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -535,7 +563,7 @@ function EarningsPageImpl() {
             <button
               disabled={!exportYear || !exportType || sendingExport}
               onClick={handleExport}
-              className="inline-flex items-center justify-center h-10 px-4 rounded-lg bg-[#7E22CE] text-white disabled:opacity-50"
+              className="inline-flex items-center justify-center h-10 px-4 rounded-lg bg-[#7E22CE] text-white disabled:opacity-50 insta-primary-btn"
             >
               {sendingExport ? 'Exporting…' : 'Download Report'}
             </button>

@@ -537,7 +537,7 @@ function SignUpForm() {
   return (
     <div className="mt-0 sm:mt-4 sm:mx-auto sm:w-full sm:max-w-md">
       {/* Mobile: no card chrome; Desktop: keep card with shadow */}
-      <div className="bg-transparent sm:bg-white dark:bg-transparent sm:dark:bg-gray-800 py-4 md:py-8 px-0 sm:px-10 sm:shadow sm:rounded-lg">
+      <div className="insta-surface-card py-4 md:py-8 px-0 sm:px-10 sm:shadow">
         <div className="text-center mb-1 md:mb-2">
           <Link href="/" onClick={() => logger.info('Navigating to home from signup inside box')}>
             <h1 className="text-4xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors">{BRAND.name}</h1>
@@ -672,7 +672,7 @@ function SignUpForm() {
                 Privacy Policy
               </Link>
             </p>
-            <button type="submit" disabled={isLoading} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#7E22CE] hover:bg-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed dark:bg-purple-600 dark:hover:bg-[#7E22CE]">{isLoading ? 'Creating account...' : (isInstructorFlow ? 'Sign up as Instructor' : 'Sign up as Student')}</button>
+            <button type="submit" disabled={isLoading} className="insta-primary-btn w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed">{isLoading ? 'Creating account...' : (isInstructorFlow ? 'Sign up as Instructor' : 'Sign up as Student')}</button>
 
             {/* Instructor CTAs placed tight under the button */}
             {isInstructorFlow && (

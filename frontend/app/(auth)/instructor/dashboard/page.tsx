@@ -686,7 +686,7 @@ export default function InstructorDashboardNew() {
   // After mount, show a client-rendered spinner while loading
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen insta-dashboard-page flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#7E22CE]" />
       </div>
     );
@@ -694,8 +694,8 @@ export default function InstructorDashboardNew() {
 
   if (error) {
     return (
-      <div className="min-h-screen">
-        <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+      <div className="min-h-screen insta-dashboard-page">
+        <header className="insta-dashboard-header px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link
               href="/instructor/dashboard"
@@ -715,12 +715,12 @@ export default function InstructorDashboardNew() {
           </div>
         </header>
         <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
-          <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
+          <div className="insta-surface-card p-6 text-center">
             <h1 className="text-2xl font-bold text-red-600 mb-4">Error</h1>
             <p className="text-gray-600 mb-6">{error}</p>
             <Link
               href="/signup?redirect=%2Finstructor%2Fonboarding%2Fstep-2"
-              className="inline-block px-6 py-2.5 bg-[#7E22CE] text-white rounded-lg"
+              className="insta-primary-btn inline-block px-6 py-2.5 text-white rounded-lg"
               onClick={() => logger.debug('Navigating to signup with redirect to step-2 from error state')}
             >
               Complete Profile Setup
@@ -734,9 +734,9 @@ export default function InstructorDashboardNew() {
   if (!profile) return null;
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen insta-dashboard-page">
       {/* Header - matching other pages */}
-      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
+      <header className="insta-dashboard-header px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link
             href="/instructor/dashboard"
@@ -913,7 +913,7 @@ export default function InstructorDashboardNew() {
         <div ref={gridRef} className="grid grid-cols-12 gap-6">
           {/* Sidebar (duplicate for small screens hidden above) */}
           <aside className="hidden md:block col-span-12 md:col-span-3" style={{ marginTop: sidebarOffset }}>
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
+            <div className="insta-surface-card p-4">
               <nav>
                 <ul className="space-y-1">
                   <li>
@@ -1037,7 +1037,7 @@ export default function InstructorDashboardNew() {
               <>
 
         {/* Welcome bar */}
-        <div ref={titleCardRef} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6 sm:p-8 mb-6">
+        <div ref={titleCardRef} className="insta-surface-card p-6 sm:p-8 mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-1">
             <div className="flex items-center gap-3 min-w-0">
               <div aria-hidden="true" className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center select-none">
@@ -1065,7 +1065,11 @@ export default function InstructorDashboardNew() {
                     disabled={!isEnabled}
                     aria-disabled={!isEnabled}
                     title={isEnabled ? 'View your public instructor page' : 'Public profile available Dec 1, 2025'}
-                    className={`profile-view-btn w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors ${isEnabled ? 'bg-white border border-purple-200 text-[#7E22CE] hover:bg-gray-50 hover:border-purple-300 dark:hover:bg-gray-700 dark:hover:border-purple-500' : 'bg-gray-100 border border-gray-300 text-gray-400 cursor-not-allowed'}`}
+                    className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      isEnabled
+                        ? 'insta-secondary-btn'
+                        : 'bg-gray-100 border border-gray-300 text-gray-400 cursor-not-allowed dark:bg-gray-800/70 dark:border-gray-700 dark:text-gray-500'
+                    }`}
                   >
                     <Eye className="h-4 w-4" />
                     <span>Public profile</span>
@@ -1082,7 +1086,7 @@ export default function InstructorDashboardNew() {
           {/* Bookings card - clickable button, navigates to past tab since it shows completed count */}
           <button
             onClick={() => router.push('/instructor/dashboard?panel=bookings&tab=past', { scroll: false })}
-            className="stat-card group block h-32 w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-left transition-all hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-purple-300 dark:hover:border-purple-600 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] sm:h-40 sm:rounded-lg sm:p-6"
+            className="stat-card insta-dashboard-stat-card group block h-32 w-full rounded-md p-3 text-left transition-all hover:border-purple-300 dark:hover:border-purple-600 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] sm:h-40 sm:rounded-lg sm:p-6"
             aria-label="Open bookings"
           >
             <div className="flex items-start justify-between h-full">
@@ -1102,7 +1106,7 @@ export default function InstructorDashboardNew() {
           {/* Earnings card - clickable with outline icon */}
           <button
             onClick={() => handlePanelChange('earnings')}
-            className="stat-card group block w-full text-left bg-white dark:bg-gray-800 rounded-md sm:rounded-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-6 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-purple-300 dark:hover:border-purple-600 h-32 sm:h-40 transition-all focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+            className="stat-card insta-dashboard-stat-card group block w-full text-left rounded-md sm:rounded-lg p-3 sm:p-6 hover:border-purple-300 dark:hover:border-purple-600 h-32 sm:h-40 transition-all focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
             aria-label="Open earnings"
           >
             <div className="flex items-start justify-between h-full">
@@ -1118,7 +1122,7 @@ export default function InstructorDashboardNew() {
           {/* Reviews card - clickable with outline icon */}
           <button
             onClick={() => handlePanelChange('reviews')}
-            className="stat-card group block w-full text-left bg-white dark:bg-gray-800 rounded-md sm:rounded-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-6 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-purple-300 dark:hover:border-purple-600 h-32 sm:h-40 transition-all focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+            className="stat-card insta-dashboard-stat-card group block w-full text-left rounded-md sm:rounded-lg p-3 sm:p-6 hover:border-purple-300 dark:hover:border-purple-600 h-32 sm:h-40 transition-all focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
             aria-label="Open reviews"
           >
             <div className="flex items-start justify-between h-full">
@@ -1145,7 +1149,7 @@ export default function InstructorDashboardNew() {
 
         <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           {/* Stripe Status Card */}
-          <div id="payments-setup" className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 sm:p-6 h-full flex flex-col relative">
+          <div id="payments-setup" className="insta-surface-card p-5 sm:p-6 h-full flex flex-col relative">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-start gap-3">
                 <div className="relative group">
@@ -1276,7 +1280,7 @@ export default function InstructorDashboardNew() {
                     }
                   }}
                   disabled={isStartingStripeOnboarding}
-                  className="inline-flex items-center px-3 py-2 text-sm rounded-lg border border-purple-200 bg-purple-50 text-[#7E22CE] disabled:opacity-60"
+                  className="insta-secondary-btn inline-flex items-center px-3 py-2 text-sm rounded-lg disabled:opacity-60"
                 >
                   {isStartingStripeOnboarding ? 'Opening…' : 'Complete Stripe onboarding'}
                 </button>
@@ -1307,7 +1311,7 @@ export default function InstructorDashboardNew() {
                         alert('Unable to open Stripe dashboard right now.');
                       }
                     }}
-                    className="inline-flex items-center justify-center h-10 px-4 text-base rounded-lg border border-purple-200 bg-purple-50 text-[#7E22CE] w-full sm:w-auto"
+                    className="insta-secondary-btn inline-flex items-center justify-center h-10 px-4 text-base rounded-lg w-full sm:w-auto"
                   >
                     View Payouts
                   </button>
@@ -1326,7 +1330,7 @@ export default function InstructorDashboardNew() {
                         alert('Instant payout request error');
                       }
                     }}
-                    className="inline-flex items-center justify-center h-10 px-4 text-base rounded-lg bg-[#7E22CE] text-white whitespace-nowrap w-full sm:w-auto sm:min-w-[13rem]"
+                    className="insta-primary-btn inline-flex items-center justify-center h-10 px-4 text-base rounded-lg text-white whitespace-nowrap w-full sm:w-auto sm:min-w-[13rem]"
                   >
                     Request Instant Payout
                   </button>
@@ -1336,7 +1340,7 @@ export default function InstructorDashboardNew() {
           </div>
 
         {/* Manage Availability card (only icon is clickable) */}
-          <div className="p-5 sm:p-6 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow h-full flex flex-col relative">
+          <div className="insta-surface-card p-5 sm:p-6 hover:shadow-md transition-shadow h-full flex flex-col relative">
             <div className="flex items-start gap-4 w-full">
               <button
                 onClick={() => handlePanelChange('availability')}
@@ -1369,7 +1373,7 @@ export default function InstructorDashboardNew() {
             <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 sm:justify-end">
               <button
                 type="button"
-                className="inline-flex items-center justify-center h-10 px-4 text-base rounded-lg bg-[#7E22CE] text-white whitespace-nowrap w-full sm:w-auto sm:min-w-[13rem]"
+                className="insta-primary-btn inline-flex items-center justify-center h-10 px-4 text-base rounded-lg text-white whitespace-nowrap w-full sm:w-auto sm:min-w-[13rem]"
                 onClick={() => handlePanelChange('availability')}
               >
                 Open Calendar
@@ -1484,7 +1488,7 @@ export default function InstructorDashboardNew() {
                   window.location.href = `https://verify.stripe.com/start/${session.client_secret}`;
                 } catch {}
                 }}
-                className="inline-flex items-center justify-center w-56 whitespace-nowrap px-4 py-2 rounded-lg text-white bg-[#7E22CE] hover:bg-[#7E22CE] transition-colors font-medium"
+                className="insta-primary-btn inline-flex items-center justify-center w-56 whitespace-nowrap px-4 py-2 rounded-lg text-white transition-colors font-medium"
               >
                 Start Verification
               </button>
@@ -1518,7 +1522,7 @@ export default function InstructorDashboardNew() {
                     </div>
                   </div>
                   <div className="flex justify-end">
-                    <label className="inline-flex items-center justify-center w-40 px-4 py-2.5 rounded-lg bg-purple-50 border border-purple-200 text-[#7E22CE] font-medium hover:bg-purple-100 transition-colors cursor-pointer">
+                    <label className="insta-secondary-btn inline-flex items-center justify-center w-40 px-4 py-2.5 rounded-lg font-medium transition-colors cursor-pointer">
                       <input
                         type="file"
                         accept=".pdf,.png,.jpg,.jpeg"

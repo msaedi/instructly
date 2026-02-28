@@ -126,7 +126,7 @@ export function ConversationList({
               <div className="px-4 py-2 text-xs text-red-500">{error}</div>
             )}
             {conversations.length > 0 ? (
-              <ul className="divide-y divide-gray-100">
+              <ul className="insta-thread-list">
                 {conversations.map((conversation) => (
                   <ConversationItem
                     key={conversation.id}

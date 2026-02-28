@@ -21,6 +21,9 @@ export function PersonalInfoCard({
   const isOnboarding = context === 'onboarding';
   const collapsible = !isOnboarding && typeof onToggle === 'function';
   const expanded = collapsible ? Boolean(isOpen) : true;
+  const cardClassName = isOnboarding
+    ? 'insta-surface-card p-4 sm:p-6'
+    : 'bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6 insta-surface-card';
 
   const header = (
     <div className="w-full flex items-center justify-between text-left">
@@ -46,7 +49,7 @@ export function PersonalInfoCard({
   };
 
   return (
-    <section className="bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
+    <section className={cardClassName}>
       {collapsible ? (
         <button
           type="button"

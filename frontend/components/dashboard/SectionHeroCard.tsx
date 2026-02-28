@@ -15,7 +15,10 @@ type SectionHeroCardProps = {
 
 export function SectionHeroCard({ icon: Icon, title, subtitle, actions, className, id }: SectionHeroCardProps) {
   return (
-    <div id={id} className={cn('bg-white rounded-xl border border-gray-200 shadow-sm p-6 sm:p-8 mb-6', className)}>
+    <div
+      id={id}
+      className={cn('bg-white rounded-xl border border-gray-200 shadow-sm p-6 sm:p-8 mb-6 insta-surface-card', className)}
+    >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-4">
           <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center text-[#7E22CE]">

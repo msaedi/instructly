@@ -395,23 +395,23 @@ export default function InteractiveGrid({
         }}
       >
         {/* Corner spacer */}
-        <div className="sticky left-0 top-0 z-20 bg-white/80 backdrop-blur px-2 py-1 border-r border-gray-200" />
+        <div className="sticky left-0 top-0 z-20 bg-white/80 dark:bg-gray-900/70 backdrop-blur px-2 py-1 border-r border-gray-200 dark:border-gray-700" />
         {displayDates.map((info, idx) => {
           const isToday = info.fullDate === todayIso;
           const dateObj = info.date;
           const dow = dateObj.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
           const dayNum = dateObj.getDate();
           const headerClasses = clsx(
-            'relative sticky top-0 z-20 bg-white/80 backdrop-blur px-2 pt-1 pb-0 text-center'
+            'relative sticky top-0 z-20 bg-white/80 dark:bg-gray-900/70 backdrop-blur px-2 pt-1 pb-0 text-center'
           );
           const isPastDate = info.fullDate < todayIso;
           return (
             <div key={info.fullDate} className={headerClasses} role="columnheader">
               {idx > 0 && (
-                <span className="absolute left-0 bottom-0 w-px bg-gray-200" style={{ height: '50%' }} />
+                <span className="absolute left-0 bottom-0 w-px bg-gray-200 dark:bg-gray-700" style={{ height: '50%' }} />
               )}
               {idx === displayDates.length - 1 && (
-                <span className="absolute right-0 bottom-0 w-px bg-gray-200" style={{ height: '50%' }} />
+                <span className="absolute right-0 bottom-0 w-px bg-gray-200 dark:bg-gray-700" style={{ height: '50%' }} />
               )}
               <div
                 className={clsx(
@@ -426,7 +426,7 @@ export default function InteractiveGrid({
                   className={clsx(
                     'inline-flex items-center justify-center text-2xl font-medium',
                     isToday
-                      ? 'border-2 border-[#7E22CE] rounded-md px-1 py-0 leading-none text-[#111827]'
+                      ? 'border-2 border-[#7E22CE] rounded-md px-1 py-0 leading-none text-[#111827] dark:text-white'
                       : isPastDate
                         ? 'text-gray-400'
                         : 'text-gray-900'
@@ -440,7 +440,7 @@ export default function InteractiveGrid({
         })}
 
         {/* Time gutter */}
-        <div className="sticky left-0 z-10 flex flex-col bg-white/80 px-2 py-1 backdrop-blur border-r border-gray-200">
+        <div className="sticky left-0 z-10 flex flex-col bg-white/80 dark:bg-gray-900/70 px-2 py-1 backdrop-blur border-r border-gray-200 dark:border-gray-700">
           {Array.from({ length: rows }, (_, row) => {
             const showLabel = row % HALF_HOURS_PER_HOUR === 0;
             const labelHour = Math.floor(row / HALF_HOURS_PER_HOUR) + startHour;
@@ -450,9 +450,9 @@ export default function InteractiveGrid({
                 key={`time-${row}`}
                 role="rowheader"
                 className={clsx(
-                  'flex items-center border-b border-gray-200 text-xs text-gray-500',
+                  'flex items-center border-b border-gray-200 dark:border-gray-700 text-xs text-gray-500',
                   isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8',
-                  isFirst && 'border-t border-gray-200'
+                  isFirst && 'border-t border-gray-200 dark:border-gray-700'
                 )}
               >
                 {showLabel ? HOURS_LABEL(labelHour) : ''}
@@ -484,7 +484,11 @@ export default function InteractiveGrid({
                 const selected = isSlotSelected(dayBits, slotIndex);
                 const isPreview = !!pendingForDate?.has(slotIndex);
                 const visualPast = isPastForStyle(date, slotIndex);
-                const fillClass = selected ? 'bg-[#EDE3FA]' : visualPast ? 'bg-gray-50' : 'bg-white';
+                const fillClass = selected
+                  ? 'bg-[#EDE3FA] dark:bg-purple-500/25'
+                  : visualPast
+                    ? 'bg-gray-50 dark:bg-gray-800/60'
+                    : 'bg-white dark:bg-gray-900/60';
                 const fadeClass = visualPast ? 'opacity-70' : 'opacity-100';
                 const labelHour = startHour + Math.floor(row / HALF_HOURS_PER_HOUR);
                 const labelMinute = row % 2 === 1 ? '30' : '00';
@@ -505,9 +509,9 @@ export default function InteractiveGrid({
                     aria-label={ariaLabel}
                     className={clsx(
                       'group relative w-full flex-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-[#7E22CE] cursor-pointer',
-                      'border-b border-l border-gray-200',
-                      isLastColumn && 'border-r border-gray-200',
-                      row === 0 && 'border-t border-gray-200',
+                      'border-b border-l border-gray-200 dark:border-gray-700',
+                      isLastColumn && 'border-r border-gray-200 dark:border-gray-700',
+                      row === 0 && 'border-t border-gray-200 dark:border-gray-700',
                       isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8',
                       isPreview && 'ring-2 ring-[#D4B5F0] ring-inset',
                       fillClass,
@@ -527,7 +531,7 @@ export default function InteractiveGrid({
                     <span className="sr-only">
                       {info.date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                     </span>
-                    <span className="absolute inset-x-1 bottom-1 text-[10px] text-gray-400 opacity-0 transition-opacity group-hover:opacity-100">
+                    <span className="absolute inset-x-1 bottom-1 text-[10px] text-gray-400 dark:text-gray-500 opacity-0 transition-opacity group-hover:opacity-100">
                       {selected ? 'Selected' : booked ? 'Booked' : 'Available'}
                     </span>
                   </button>

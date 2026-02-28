@@ -54,6 +54,9 @@ export function BioCard({
   const isOnboarding = context === 'onboarding';
   const collapsible = context !== 'onboarding' && typeof onToggle === 'function';
   const expanded = collapsible ? Boolean(isOpen) : true;
+  const cardClassName = isOnboarding
+    ? 'insta-surface-card p-4 sm:p-6'
+    : 'bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6 insta-surface-card';
   const showInlinePhotoUpload = embedded || isOnboarding;
   const showBioWarning = showMinCharHint && bioTouched && bioTooShort;
   const yearsValue = allowEmptyYears && profile.years_experience === 0 ? '' : profile.years_experience;
@@ -90,7 +93,7 @@ export function BioCard({
   };
 
   return (
-    <section className="bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
+    <section className={cardClassName}>
       {collapsible ? (
         <button type="button" className="w-full flex items-center justify-between mb-4 text-left" onClick={onToggle} aria-expanded={expanded}>
           {header}
