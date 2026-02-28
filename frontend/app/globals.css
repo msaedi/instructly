@@ -1012,6 +1012,72 @@ html {
   background-color: #7e22ce;
 }
 
+.insta-dashboard-accordion-trigger {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  text-align: left;
+}
+
+.insta-dashboard-accordion-leading {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  text-align: left;
+}
+
+.insta-dashboard-accordion-title {
+  display: block;
+  color: #111827;
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  font-weight: 700;
+}
+
+.insta-dashboard-accordion-subtitle {
+  display: block;
+  margin-top: 0.25rem;
+  color: #6b7280;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+@media (min-width: 640px) {
+  .insta-dashboard-accordion-title {
+    font-size: 1.125rem;
+    line-height: 1.5rem;
+    font-weight: 600;
+  }
+}
+
+.dark .insta-dashboard-accordion-title {
+  color: #f3f4f6;
+}
+
+.dark .insta-dashboard-accordion-subtitle {
+  color: #9ca3af;
+}
+
+.insta-dashboard-accordion-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.insta-dashboard-accordion-stack--dividers {
+  display: block;
+}
+
+@media (min-width: 640px) {
+  .insta-dashboard-accordion-stack--dividers {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+}
+
 .insta-secondary-btn {
   color: #7e22ce !important;
   background-color: rgb(255 255 255 / 0.9) !important;

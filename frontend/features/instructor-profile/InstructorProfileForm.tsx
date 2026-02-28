@@ -892,7 +892,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
       {/* Success toast is shown as a floating element; banner removed for cleaner UI */}
 
       {/* Mobile: stacked white sections with mobile-only dividers; Desktop: spaced cards */}
-      <div className={embedded ? 'mt-0 sm:mt-0 sm:space-y-6' : 'mt-0 sm:mt-6 sm:space-y-6'}>
+      <div className={embedded ? 'mt-0 sm:mt-0 insta-dashboard-accordion-stack--dividers' : 'mt-0 sm:mt-6 insta-dashboard-accordion-stack--dividers'}>
         {/* Personal Information Section */}
         <PersonalInfoCard
           context={context}
@@ -966,17 +966,17 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
             <div className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6 insta-surface-card">
               <button
                 type="button"
-                className="w-full flex items-center justify-between mb-4 text-left"
+                className={`insta-dashboard-accordion-trigger ${openSkills ? 'mb-4' : ''}`}
                 onClick={() => setOpenSkills((v) => !v)}
                 aria-expanded={openSkills}
               >
-                <div className="flex items-center gap-3">
+                <div className="insta-dashboard-accordion-leading">
                   <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                     <BookOpen className="w-6 h-6 text-[#7E22CE]" />
                   </div>
                   <div className="flex flex-col text-left">
-                    <span className="text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Skills & Pricing</span>
-                    <span className="text-sm text-gray-500">Manage the subjects you teach, durations, and rates students see.</span>
+                    <span className="insta-dashboard-accordion-title">Skills & Pricing</span>
+                    <span className="insta-dashboard-accordion-subtitle">Manage the subjects you teach, durations, and rates students see.</span>
                   </div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openSkills ? 'rotate-180' : ''}`} />
@@ -995,17 +995,17 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
             <div className="bg-white sm:bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6 insta-surface-card">
               <button
                 type="button"
-                className="w-full flex items-center justify-between mb-4 text-left"
+                className={`insta-dashboard-accordion-trigger ${openPreferences ? 'mb-4' : ''}`}
                 onClick={() => setOpenPreferences((v) => !v)}
                 aria-expanded={openPreferences}
               >
-                <div className="flex items-center gap-3">
+                <div className="insta-dashboard-accordion-leading">
                   <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                     <SettingsIcon className="w-6 h-6 text-[#7E22CE]" />
                   </div>
                   <div className="flex flex-col text-left">
-                    <span className="text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Booking Preferences</span>
-                    <span className="text-sm text-gray-500">Fine-tune lead time, buffers, and other scheduling requirements.</span>
+                    <span className="insta-dashboard-accordion-title">Booking Preferences</span>
+                    <span className="insta-dashboard-accordion-subtitle">Fine-tune lead time, buffers, and other scheduling requirements.</span>
                   </div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openPreferences ? 'rotate-180' : ''}`} />

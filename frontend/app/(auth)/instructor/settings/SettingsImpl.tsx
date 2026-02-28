@@ -604,22 +604,23 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
           subtitle="Manage your personal details, security options, and platform preferences from one place."
         />
 
+        <div className="insta-dashboard-accordion-stack">
         <div className="bg-white rounded-lg border border-gray-200 p-6 insta-surface-card">
           {embedded ? (
             <>
               <button
                 type="button"
-                className="w-full flex items-center justify-between text-left"
+                className="insta-dashboard-accordion-trigger"
                 onClick={() => setOpenAccount((v) => !v)}
                 aria-expanded={openAccount}
               >
-                <div className="flex items-start gap-3 text-left">
+                <div className="insta-dashboard-accordion-leading">
                   <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                     <Settings className="w-6 h-6 text-[#7E22CE]" />
                   </div>
                   <div>
-                    <span className="block text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Account details</span>
-                    <span className="mt-1 block text-sm text-gray-500">Update your contact info and preferred ZIP.</span>
+                    <span className="insta-dashboard-accordion-title">Account details</span>
+                    <span className="insta-dashboard-accordion-subtitle">Update your contact info and preferred ZIP.</span>
                   </div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openAccount ? 'rotate-180' : ''}`} />
@@ -747,22 +748,22 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         </div>
 
         {/* Referrals & rewards */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mt-6 insta-surface-card">
+        <div className="bg-white rounded-lg border border-gray-200 p-6 insta-surface-card">
           {embedded ? (
             <>
               <button
                 type="button"
-                className="w-full flex items-start justify-between text-left"
+                className="insta-dashboard-accordion-trigger"
                 onClick={() => setOpenRefer((v) => !v)}
                 aria-expanded={openRefer}
               >
-                <div className="flex items-start gap-3 text-left">
+                <div className="insta-dashboard-accordion-leading">
                   <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                     <Gift className="w-6 h-6 text-[#7E22CE]" />
                   </div>
                   <div>
-                    <span className="block text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Refer instructors</span>
-                    <span className="mt-1 block text-sm text-gray-500">Share your link to invite peers and earn rewards.</span>
+                    <span className="insta-dashboard-accordion-title">Refer instructors</span>
+                    <span className="insta-dashboard-accordion-subtitle">Share your link to invite peers and earn rewards.</span>
                   </div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openRefer ? 'rotate-180' : ''}`} />
@@ -807,20 +808,20 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         </div>
 
         {embedded && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6 mt-4 insta-surface-card">
+          <div className="bg-white rounded-lg border border-gray-200 p-6 insta-surface-card">
             <button
               type="button"
-              className="w-full flex items-center justify-between text-left"
+              className="insta-dashboard-accordion-trigger"
               onClick={() => setOpenSecurity((v) => !v)}
               aria-expanded={openSecurity}
             >
-              <div className="flex items-start gap-3 text-left">
+              <div className="insta-dashboard-accordion-leading">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                   <Shield className="w-6 h-6 text-[#7E22CE]" />
                 </div>
                 <div>
-                  <span className="block text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Account security</span>
-                  <span className="mt-1 block text-sm text-gray-500">Enable two-factor authentication for extra protection.</span>
+                  <span className="insta-dashboard-accordion-title">Account security</span>
+                  <span className="insta-dashboard-accordion-subtitle">Enable two-factor authentication for extra protection.</span>
                 </div>
               </div>
               <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openSecurity ? 'rotate-180' : ''}`} />
@@ -861,20 +862,20 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         )}
 
         {embedded && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6 mt-4 insta-surface-card">
+          <div className="bg-white rounded-lg border border-gray-200 p-6 insta-surface-card">
             <button
               type="button"
-              className="w-full flex items-center justify-between text-left"
+              className="insta-dashboard-accordion-trigger"
               onClick={() => setOpenStatus((v) => !v)}
               aria-expanded={openStatus}
             >
-              <div className="flex items-start gap-3 text-left">
+              <div className="insta-dashboard-accordion-leading">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                   <Power className="w-6 h-6 text-[#7E22CE]" />
                 </div>
                 <div>
-                  <span className="block text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Account status</span>
-                  <span className="mt-1 block text-sm text-gray-500">Pause or close your instructor account if needed.</span>
+                  <span className="insta-dashboard-accordion-title">Account status</span>
+                  <span className="insta-dashboard-accordion-subtitle">Pause or close your instructor account if needed.</span>
                 </div>
               </div>
               <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openStatus ? 'rotate-180' : ''}`} />
@@ -918,20 +919,20 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         )}
 
         {embedded && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6 mt-4 insta-surface-card">
+          <div className="bg-white rounded-lg border border-gray-200 p-6 insta-surface-card">
             <button
               type="button"
-              className="w-full flex items-center justify-between text-left"
+              className="insta-dashboard-accordion-trigger"
               onClick={() => setOpenPassword((v) => !v)}
               aria-expanded={openPassword}
             >
-              <div className="flex items-start gap-3 text-left">
+              <div className="insta-dashboard-accordion-leading">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                   <KeyRound className="w-6 h-6 text-[#7E22CE]" />
                 </div>
                 <div>
-                  <span className="block text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Password</span>
-                  <span className="mt-1 block text-sm text-gray-500">Keep your login secure with a strong password.</span>
+                  <span className="insta-dashboard-accordion-title">Password</span>
+                  <span className="insta-dashboard-accordion-subtitle">Keep your login secure with a strong password.</span>
                 </div>
               </div>
               <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openPassword ? 'rotate-180' : ''}`} />
@@ -951,22 +952,22 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
           </div>
         )}
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mt-6 insta-surface-card">
+        <div className="bg-white rounded-lg border border-gray-200 p-6 insta-surface-card">
           {embedded ? (
             <>
               <button
                 type="button"
-                className="w-full flex items-center justify-between text-left"
+                className="insta-dashboard-accordion-trigger"
                 onClick={() => setOpenPreferences((v) => !v)}
                 aria-expanded={openPreferences}
               >
-                <div className="flex items-start gap-3 text-left">
+                <div className="insta-dashboard-accordion-leading">
                   <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                     <Settings className="w-6 h-6 text-[#7E22CE]" />
                   </div>
                   <div>
-                    <span className="block text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Preferences</span>
-                    <span className="mt-1 block text-sm text-gray-500">Choose how we contact you about lessons and updates.</span>
+                    <span className="insta-dashboard-accordion-title">Preferences</span>
+                    <span className="insta-dashboard-accordion-subtitle">Choose how we contact you about lessons and updates.</span>
                   </div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openPreferences ? 'rotate-180' : ''}`} />
@@ -992,20 +993,20 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         </div>
 
         {embedded && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6 mt-4 insta-surface-card">
+          <div className="bg-white rounded-lg border border-gray-200 p-6 insta-surface-card">
             <button
               type="button"
-              className="w-full flex items-center justify-between text-left"
+              className="insta-dashboard-accordion-trigger"
               onClick={() => setOpenAccount((v) => !v)}
               aria-expanded={openAccount}
             >
-              <div className="flex items-start gap-3 text-left">
+              <div className="insta-dashboard-accordion-leading">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
                   <Settings className="w-6 h-6 text-[#7E22CE]" />
                 </div>
                 <div>
-                  <span className="block text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">About</span>
-                  <span className="mt-1 block text-sm text-gray-500">Access legal resources and support information.</span>
+                  <span className="insta-dashboard-accordion-title">About</span>
+                  <span className="insta-dashboard-accordion-subtitle">Access legal resources and support information.</span>
                 </div>
               </div>
               <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openAccount ? 'rotate-180' : ''}`} />
@@ -1036,6 +1037,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             )}
           </div>
         )}
+        </div>
       </div>
     </div>
   );

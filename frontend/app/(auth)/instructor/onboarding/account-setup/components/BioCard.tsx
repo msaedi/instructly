@@ -62,14 +62,14 @@ export function BioCard({
   const yearsValue = allowEmptyYears && profile.years_experience === 0 ? '' : profile.years_experience;
 
   const header = (
-    <div className="w-full flex items-center justify-between text-left">
-      <div className="flex items-center gap-3">
+    <div className="insta-dashboard-accordion-trigger">
+      <div className="insta-dashboard-accordion-leading">
         <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
           <BookOpen className="w-6 h-6 text-[#7E22CE]" />
         </div>
         <div className="flex flex-col text-left">
-          <span className="text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Profile Details</span>
-          <span className="text-sm text-gray-500">Tell students about your experience, style, and teaching approach.</span>
+          <span className="insta-dashboard-accordion-title">Profile Details</span>
+          <span className="insta-dashboard-accordion-subtitle">Tell students about your experience, style, and teaching approach.</span>
         </div>
       </div>
       {collapsible && (
@@ -95,7 +95,12 @@ export function BioCard({
   return (
     <section className={cardClassName}>
       {collapsible ? (
-        <button type="button" className="w-full flex items-center justify-between mb-4 text-left" onClick={onToggle} aria-expanded={expanded}>
+        <button
+          type="button"
+          className={`w-full text-left ${expanded ? 'mb-4' : ''}`}
+          onClick={onToggle}
+          aria-expanded={expanded}
+        >
           {header}
         </button>
       ) : (

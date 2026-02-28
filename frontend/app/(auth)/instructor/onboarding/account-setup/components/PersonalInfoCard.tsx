@@ -26,14 +26,14 @@ export function PersonalInfoCard({
     : 'bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6 insta-surface-card';
 
   const header = (
-    <div className="w-full flex items-center justify-between text-left">
-      <div className="flex items-center gap-3">
+    <div className="insta-dashboard-accordion-trigger">
+      <div className="insta-dashboard-accordion-leading">
         <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
           <UserIcon className="w-6 h-6 text-[#7E22CE]" />
         </div>
         <div className="flex flex-col text-left">
-          <span className="text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Personal Information</span>
-          <span className="text-sm text-gray-500">Basic details that appear on your profile and booking receipts.</span>
+          <span className="insta-dashboard-accordion-title">Personal Information</span>
+          <span className="insta-dashboard-accordion-subtitle">Basic details that appear on your profile and booking receipts.</span>
         </div>
       </div>
       {collapsible && (
@@ -53,7 +53,7 @@ export function PersonalInfoCard({
       {collapsible ? (
         <button
           type="button"
-          className="w-full flex items-center justify-between mb-4 text-left"
+          className={`w-full text-left ${expanded ? 'mb-4' : ''}`}
           onClick={onToggle}
           aria-expanded={expanded}
         >
