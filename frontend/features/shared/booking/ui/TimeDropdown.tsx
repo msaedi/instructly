@@ -211,6 +211,11 @@ export default function TimeDropdown({
   const handleListboxKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     const lastIndex = timeSlots.length - 1;
 
+    if (event.key === 'Tab') {
+      handleClose(false);
+      return;
+    }
+
     if (event.key === 'Escape') {
       event.preventDefault();
       handleClose(true);

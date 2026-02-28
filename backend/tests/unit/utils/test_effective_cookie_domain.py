@@ -1,4 +1,4 @@
-"""Regression tests for _effective_cookie_domain and origin-aware set_auth_cookies.
+"""Regression tests for effective_cookie_domain and origin-aware set_auth_cookies.
 
 These tests ensure the dynamic cookie domain logic never regresses:
 - Production: session_cookie_domain is already set → Origin header is never read
@@ -49,7 +49,7 @@ def _hosted_settings(**overrides):
 
 
 # ===================================================================
-# _effective_cookie_domain — pure logic tests
+# effective_cookie_domain — pure logic tests
 # ===================================================================
 
 
@@ -59,24 +59,24 @@ class TestEffectiveCookieDomainProduction:
 
     def test_returns_configured_domain_when_set(self, monkeypatch):
         monkeypatch.setattr(cookies, "settings", _hosted_settings())
-        assert cookies._effective_cookie_domain() == ".instainstru.com"
+        assert cookies.effective_cookie_domain() == ".instainstru.com"
 
     def test_ignores_origin_when_domain_configured(self, monkeypatch):
         monkeypatch.setattr(cookies, "settings", _hosted_settings())
         # Even with a completely different origin, returns the configured domain
-        result = cookies._effective_cookie_domain("http://evil.example.com")
+        result = cookies.effective_cookie_domain("http://evil.example.com")
         assert result == ".instainstru.com"
 
     def test_ignores_none_origin_when_domain_configured(self, monkeypatch):
         monkeypatch.setattr(cookies, "settings", _hosted_settings())
-        assert cookies._effective_cookie_domain(None) == ".instainstru.com"
+        assert cookies.effective_cookie_domain(None) == ".instainstru.com"
 
     @pytest.mark.parametrize("mode", ["prod", "production", "beta", "preview"])
     def test_all_hosted_modes_short_circuit(self, monkeypatch, mode):
         monkeypatch.setattr(
             cookies, "settings", _hosted_settings(site_mode=mode)
         )
-        result = cookies._effective_cookie_domain("http://attacker.com")
+        result = cookies.effective_cookie_domain("http://attacker.com")
         assert result == ".instainstru.com"
 
 
@@ -85,37 +85,44 @@ class TestEffectiveCookieDomainLocal:
 
     def test_none_origin_returns_none(self, monkeypatch):
         monkeypatch.setattr(cookies, "settings", _local_settings())
-        assert cookies._effective_cookie_domain(None) is None
+        assert cookies.effective_cookie_domain(None) is None
 
     def test_empty_origin_returns_none(self, monkeypatch):
         monkeypatch.setattr(cookies, "settings", _local_settings())
-        assert cookies._effective_cookie_domain("") is None
+        assert cookies.effective_cookie_domain("") is None
 
     def test_localhost_origin_returns_none(self, monkeypatch):
         monkeypatch.setattr(cookies, "settings", _local_settings())
-        assert cookies._effective_cookie_domain("http://localhost:3000") is None
+        assert cookies.effective_cookie_domain("http://localhost:3000") is None
 
     def test_127_origin_returns_none(self, monkeypatch):
         monkeypatch.setattr(cookies, "settings", _local_settings())
-        assert cookies._effective_cookie_domain("http://127.0.0.1:3000") is None
+        assert cookies.effective_cookie_domain("http://127.0.0.1:3000") is None
 
     def test_beta_local_origin_returns_parent_domain(self, monkeypatch):
         monkeypatch.setattr(cookies, "settings", _local_settings())
-        result = cookies._effective_cookie_domain(
+        result = cookies.effective_cookie_domain(
             "http://beta-local.instainstru.com:3000"
         )
         assert result == ".instainstru.com"
 
     def test_api_beta_local_origin_returns_parent_domain(self, monkeypatch):
         monkeypatch.setattr(cookies, "settings", _local_settings())
-        result = cookies._effective_cookie_domain(
+        result = cookies.effective_cookie_domain(
             "http://api.beta-local.instainstru.com:8000"
+        )
+        assert result == ".instainstru.com"
+
+    def test_mixed_case_beta_local_origin_returns_parent_domain(self, monkeypatch):
+        monkeypatch.setattr(cookies, "settings", _local_settings())
+        result = cookies.effective_cookie_domain(
+            "http://Beta-Local.InstaInstru.COM:3000"
         )
         assert result == ".instainstru.com"
 
     def test_bare_instainstru_com_returns_parent_domain(self, monkeypatch):
         monkeypatch.setattr(cookies, "settings", _local_settings())
-        result = cookies._effective_cookie_domain("https://instainstru.com")
+        result = cookies.effective_cookie_domain("https://instainstru.com")
         assert result == ".instainstru.com"
 
 
@@ -125,7 +132,7 @@ class TestEffectiveCookieDomainSecurityHardening:
     def test_rejects_suffix_attack(self, monkeypatch):
         """evil.instainstru.com.attacker.com must NOT match."""
         monkeypatch.setattr(cookies, "settings", _local_settings())
-        result = cookies._effective_cookie_domain(
+        result = cookies.effective_cookie_domain(
             "http://evil.instainstru.com.attacker.com"
         )
         assert result is None
@@ -133,7 +140,7 @@ class TestEffectiveCookieDomainSecurityHardening:
     def test_rejects_prefix_attack(self, monkeypatch):
         """notinstainstru.com must NOT match."""
         monkeypatch.setattr(cookies, "settings", _local_settings())
-        result = cookies._effective_cookie_domain(
+        result = cookies.effective_cookie_domain(
             "http://notinstainstru.com"
         )
         assert result is None
@@ -141,7 +148,7 @@ class TestEffectiveCookieDomainSecurityHardening:
     def test_rejects_substring_in_path(self, monkeypatch):
         """Domain in path (not hostname) must NOT match."""
         monkeypatch.setattr(cookies, "settings", _local_settings())
-        result = cookies._effective_cookie_domain(
+        result = cookies.effective_cookie_domain(
             "http://evil.com/instainstru.com"
         )
         assert result is None
@@ -149,7 +156,7 @@ class TestEffectiveCookieDomainSecurityHardening:
     def test_rejects_substring_in_query(self, monkeypatch):
         """Domain in query string must NOT match."""
         monkeypatch.setattr(cookies, "settings", _local_settings())
-        result = cookies._effective_cookie_domain(
+        result = cookies.effective_cookie_domain(
             "http://evil.com?redirect=http://instainstru.com"
         )
         assert result is None
@@ -157,7 +164,7 @@ class TestEffectiveCookieDomainSecurityHardening:
     def test_rejects_substring_in_fragment(self, monkeypatch):
         """Domain in fragment must NOT match."""
         monkeypatch.setattr(cookies, "settings", _local_settings())
-        result = cookies._effective_cookie_domain(
+        result = cookies.effective_cookie_domain(
             "http://evil.com#instainstru.com"
         )
         assert result is None
@@ -165,22 +172,22 @@ class TestEffectiveCookieDomainSecurityHardening:
     def test_rejects_userinfo_attack(self, monkeypatch):
         """Domain in userinfo must NOT match."""
         monkeypatch.setattr(cookies, "settings", _local_settings())
-        result = cookies._effective_cookie_domain(
+        result = cookies.effective_cookie_domain(
             "http://instainstru.com@evil.com"
         )
         assert result is None
 
     def test_rejects_random_external_origin(self, monkeypatch):
         monkeypatch.setattr(cookies, "settings", _local_settings())
-        assert cookies._effective_cookie_domain("http://google.com") is None
+        assert cookies.effective_cookie_domain("http://google.com") is None
 
     def test_rejects_empty_hostname(self, monkeypatch):
         monkeypatch.setattr(cookies, "settings", _local_settings())
-        assert cookies._effective_cookie_domain("not-a-url") is None
+        assert cookies.effective_cookie_domain("not-a-url") is None
 
 
 # ===================================================================
-# set_auth_cookies — integration with _effective_cookie_domain
+# set_auth_cookies — integration with effective_cookie_domain
 # ===================================================================
 
 

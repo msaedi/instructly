@@ -101,6 +101,7 @@ export default function InteractiveGrid({
   allowPastEditing = false,
 }: InteractiveGridProps) {
   const rows = useMemo(() => (endHour - startHour) * HALF_HOURS_PER_HOUR, [startHour, endHour]);
+  const [activeCell, setActiveCell] = useState({ row: 0, col: 0 });
 
   const [isDragging, setIsDragging] = useState(false);
   const [dragValue, setDragValue] = useState<boolean | null>(null);
@@ -250,6 +251,14 @@ export default function InteractiveGrid({
     return dateInfo ? [dateInfo] : [];
   }, [isMobile, activeDayIndex, weekDates]);
   const columnCount = displayDates.length;
+  const clampedActiveCell = useMemo(() => {
+    const maxRow = Math.max(rows - 1, 0);
+    const maxCol = Math.max(columnCount - 1, 0);
+    return {
+      row: Math.min(Math.max(activeCell.row, 0), maxRow),
+      col: Math.min(Math.max(activeCell.col, 0), maxCol),
+    };
+  }, [activeCell.col, activeCell.row, columnCount, rows]);
 
   const { isoDate: todayIso, minutes: nowMinutes } = nowInfo;
 
@@ -277,8 +286,15 @@ export default function InteractiveGrid({
   );
 
   const handleMouseDown = useCallback(
-    (event: ReactMouseEvent<HTMLButtonElement>, date: string, row: number, slotIndex: number) => {
+    (
+      event: ReactMouseEvent<HTMLButtonElement>,
+      date: string,
+      row: number,
+      columnIndex: number,
+      slotIndex: number
+    ) => {
       event.preventDefault();
+      setActiveCell({ row, col: columnIndex });
       const desired = !isSlotSelected(weekBits[date], slotIndex);
       pendingRef.current = {};
       setIsDragging(true);
@@ -327,11 +343,16 @@ export default function InteractiveGrid({
   );
 
   const focusGridCell = useCallback((rowIndex: number, columnIndex: number) => {
+    const maxRow = Math.max(rows - 1, 0);
+    const maxCol = Math.max(columnCount - 1, 0);
+    const nextRow = Math.min(Math.max(rowIndex, 0), maxRow);
+    const nextCol = Math.min(Math.max(columnIndex, 0), maxCol);
+    setActiveCell({ row: nextRow, col: nextCol });
     const targetCell = gridRef.current?.querySelector<HTMLButtonElement>(
-      `[data-row-index="${rowIndex}"][data-col-index="${columnIndex}"]`
+      `[data-row-index="${nextRow}"][data-col-index="${nextCol}"]`
     );
     targetCell?.focus();
-  }, []);
+  }, [columnCount, rows]);
 
   const handleCellKeyDown = useCallback(
     (
@@ -499,6 +520,7 @@ export default function InteractiveGrid({
                   aria-selected={selected}
                   aria-disabled={behaviourPast}
                   aria-label={ariaLabel}
+                  tabIndex={clampedActiveCell.row === row && clampedActiveCell.col === columnIndex ? 0 : -1}
                   className={clsx(
                     'group relative w-full flex-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-[#7E22CE] cursor-pointer',
                     'border-b border-l border-gray-200 dark:border-gray-700',
@@ -509,12 +531,13 @@ export default function InteractiveGrid({
                     fillClass,
                     fadeClass
                   )}
-                  onMouseDown={(event) => handleMouseDown(event, date, row, slotIndex)}
+                  onMouseDown={(event) => handleMouseDown(event, date, row, columnIndex, slotIndex)}
                   onMouseEnter={(event) => handleMouseEnter(event, date, row, slotIndex)}
                   onMouseUp={handleMouseUp}
                   onMouseLeave={(event) => {
                     if (event.buttons === 0) finishDrag();
                   }}
+                  onFocus={() => setActiveCell({ row, col: columnIndex })}
                   onKeyDown={(event) => handleCellKeyDown(event, date, slotIndex, row, columnIndex)}
                 >
                   {booked && (

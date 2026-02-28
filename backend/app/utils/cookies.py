@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import List, Optional
+from urllib.parse import urlparse
 
 from fastapi import Response
 
@@ -49,7 +50,7 @@ def refresh_cookie_base_name(site_mode: Optional[str] = None) -> str:
     return "rid"
 
 
-def _effective_cookie_domain(origin: str | None = None) -> str | None:
+def effective_cookie_domain(origin: str | None = None) -> str | None:
     """Determine cookie domain, dynamically handling beta-local subdomain access.
 
     Hosted/production modes already have ``session_cookie_domain`` set to
@@ -63,8 +64,6 @@ def _effective_cookie_domain(origin: str | None = None) -> str | None:
     if settings.session_cookie_domain:
         return settings.session_cookie_domain
     if origin:
-        from urllib.parse import urlparse
-
         host = (urlparse(origin).hostname or "").lower()
         if host == "instainstru.com" or host.endswith(".instainstru.com"):
             return ".instainstru.com"
@@ -180,11 +179,11 @@ def set_auth_cookies(
 
     Args:
         origin: The request ``Origin`` header.  Passed to
-            :func:`_effective_cookie_domain` so the cookie domain is set
+            :func:`effective_cookie_domain` so the cookie domain is set
             correctly when the request comes from a ``*.instainstru.com``
             subdomain in local mode.
     """
-    domain = _effective_cookie_domain(origin)
+    domain = effective_cookie_domain(origin)
     set_session_cookie(
         response,
         session_cookie_base_name(settings.site_mode),

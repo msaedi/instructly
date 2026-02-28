@@ -283,6 +283,87 @@ describe('EditProfileModal', () => {
     });
   });
 
+  describe('dialog accessibility baseline', () => {
+    it('exposes dialog semantics with aria-modal and aria-labelledby', async () => {
+      render(
+        <EditProfileModal {...defaultProps} variant="areas" />,
+        { wrapper: createWrapper() }
+      );
+
+      const dialog = await screen.findByRole('dialog');
+      expect(dialog).toHaveAttribute('aria-modal', 'true');
+
+      const labelledBy = dialog.getAttribute('aria-labelledby');
+      expect(labelledBy).toBeTruthy();
+
+      const headingEl = labelledBy ? document.getElementById(labelledBy) : null;
+      expect(headingEl).toBeTruthy();
+      expect(headingEl).toHaveTextContent(/service areas|skills & pricing|modal/i);
+    });
+
+    it('traps focus with Tab and Shift+Tab', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <EditProfileModal {...defaultProps} variant="areas" />,
+        { wrapper: createWrapper() }
+      );
+
+      const dialog = await screen.findByRole('dialog');
+      const focusables = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => !el.hasAttribute('hidden') && el.getAttribute('aria-hidden') !== 'true');
+
+      expect(focusables.length).toBeGreaterThan(1);
+      const first = focusables[0]!;
+      const last = focusables[focusables.length - 1]!;
+
+      last.focus();
+      await user.tab();
+      expect(document.activeElement).toBe(first);
+
+      first.focus();
+      await user.tab({ shift: true });
+      expect(document.activeElement).toBe(last);
+    });
+
+    it('closes on Escape and restores focus to opener', async () => {
+      const user = userEvent.setup();
+
+      function Harness() {
+        const [open, setOpen] = React.useState(false);
+        return (
+          <div>
+            <button type="button" onClick={() => setOpen(true)}>
+              Open edit profile
+            </button>
+            <EditProfileModal
+              {...defaultProps}
+              variant="areas"
+              isOpen={open}
+              onClose={() => setOpen(false)}
+            />
+          </div>
+        );
+      }
+
+      render(<Harness />, { wrapper: createWrapper() });
+      const opener = screen.getByRole('button', { name: 'Open edit profile' });
+      await user.click(opener);
+      expect(await screen.findByRole('dialog')).toBeInTheDocument();
+
+      await user.keyboard('{Escape}');
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(opener).toHaveFocus();
+      });
+    });
+  });
+
   describe('close behavior', () => {
     it('calls onClose when close button is clicked', async () => {
       const user = userEvent.setup();

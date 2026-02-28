@@ -313,6 +313,25 @@ describe('TimeDropdown', () => {
       expect(trigger).toHaveFocus();
     });
 
+    it('closes with Tab and allows focus to move out naturally', () => {
+      render(
+        <div>
+          <TimeDropdown {...defaultProps} />
+          <button type="button">After dropdown</button>
+        </div>
+      );
+      const trigger = screen.getByRole('button', { name: /select time/i });
+      fireEvent.click(trigger);
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
+
+      fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Tab' });
+
+      act(() => {
+        jest.advanceTimersByTime(200);
+      });
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    });
+
     it('does not open on keydown when disabled', () => {
       render(<TimeDropdown {...defaultProps} disabled={true} />);
       const trigger = screen.getByRole('button');

@@ -117,7 +117,7 @@ export default function DeleteAccountModal({ email, onClose, onDeleted }: Props)
               {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
         </div>
         <div className="mt-5 flex justify-end gap-3">
           <button className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors" onClick={onClose} disabled={submitting}>Cancel</button>

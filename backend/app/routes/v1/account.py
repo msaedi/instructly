@@ -47,7 +47,11 @@ from ...services.audit_service import AuditService
 from ...services.cache_service import CacheService
 from ...services.sms_service import SMSService, SMSStatus
 from ...services.token_blacklist_service import TokenBlacklistService
-from ...utils.cookies import delete_refresh_cookie, session_cookie_candidates
+from ...utils.cookies import (
+    delete_refresh_cookie,
+    effective_cookie_domain,
+    session_cookie_candidates,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -308,7 +312,8 @@ async def logout_all_devices(
         except Exception:
             logger.warning("Failed to decode token during logout-all blacklist step", exc_info=True)
 
-    delete_refresh_cookie(response)
+    domain = effective_cookie_domain(request.headers.get("origin"))
+    delete_refresh_cookie(response, domain=domain)
     return SessionInvalidationResponse(message="All sessions have been logged out")
 
 

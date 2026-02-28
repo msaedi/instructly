@@ -64,6 +64,16 @@ const Modal: React.FC<ModalProps> = ({
   autoHeight = false,
 }) => {
   // Note: Radix Dialog manages focus trap, aria-hiding, and body scroll lock.
+  const previousActiveElementRef = React.useRef<HTMLElement | null>(null);
+
+  React.useEffect(() => {
+    if (!isOpen || typeof document === 'undefined') {
+      return;
+    }
+    previousActiveElementRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+  }, [isOpen]);
 
   // Size presets for modal width
   const sizeClasses = {
@@ -89,6 +99,17 @@ const Modal: React.FC<ModalProps> = ({
         if (!nextOpen) {
           logger.debug('Modal closed via onOpenChange');
           onClose();
+          const previousActiveElement = previousActiveElementRef.current;
+          if (
+            previousActiveElement &&
+            typeof previousActiveElement.focus === 'function'
+          ) {
+            requestAnimationFrame(() => {
+              if (document.contains(previousActiveElement)) {
+                previousActiveElement.focus();
+              }
+            });
+          }
         }
       }}
    >
@@ -96,6 +117,7 @@ const Modal: React.FC<ModalProps> = ({
         <Dialog.Overlay className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 transition-all duration-200" />
         <Dialog.Content
           className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+          aria-modal="true"
           onEscapeKeyDown={(e) => {
             if (!closeOnEscape) {
               e.preventDefault();

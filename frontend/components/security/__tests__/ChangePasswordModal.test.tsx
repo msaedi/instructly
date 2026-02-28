@@ -139,7 +139,7 @@ describe('ChangePasswordModal', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save password' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Invalid password')).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent('Invalid password');
     });
   });
 
@@ -156,7 +156,7 @@ describe('ChangePasswordModal', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save password' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Network error.')).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent('Network error.');
     });
   });
 
@@ -176,7 +176,7 @@ describe('ChangePasswordModal', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save password' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Failed to change password.')).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent('Failed to change password.');
     });
   });
 

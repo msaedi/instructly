@@ -52,7 +52,7 @@ export default function ChangePasswordModal({ onClose }: { onClose: () => void }
         className="insta-dialog-panel w-full max-w-md p-6"
       >
         <h3 id={titleId} className="text-lg font-semibold text-gray-900">Change password</h3>
-        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+        {error && <p role="alert" className="mt-2 text-sm text-red-600">{error}</p>}
         <div className="mt-4 space-y-3">
           <div>
             <label htmlFor="current-password" className="block text-xs text-gray-500 mb-1">Current password</label>
