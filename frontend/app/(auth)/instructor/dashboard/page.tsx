@@ -1064,7 +1064,7 @@ export default function InstructorDashboardNew() {
                 className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   isEnabled
                     ? 'insta-secondary-btn'
-                    : 'bg-gray-100 border border-gray-300 text-gray-400 dark:text-gray-400 cursor-not-allowed dark:bg-gray-800/70 dark:border-gray-700 dark:text-gray-400'
+                    : 'bg-gray-100 border border-gray-300 text-gray-400 dark:text-gray-400 cursor-not-allowed dark:bg-gray-800/70 dark:border-gray-700'
                 }`}
               >
                 <Eye className="h-4 w-4" />
@@ -1086,8 +1086,8 @@ export default function InstructorDashboardNew() {
             <div className="flex items-start justify-between h-full">
               <div>
                 <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2 group-hover:text-[#7E22CE] dark:group-hover:text-purple-300">Bookings</h3>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 dark:text-white group-hover:text-gray-900 dark:text-gray-100 dark:group-hover:text-white">{completedBookingsCount}</p>
-                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 group-hover:text-gray-600 dark:text-gray-400 dark:group-hover:text-gray-300 mt-1">
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white group-hover:text-gray-900 dark:group-hover:text-white">{completedBookingsCount}</p>
+                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 mt-1">
                   {(hasUpcomingBookings === false || completedBookingsCount === 0) ? 'No lessons scheduled today' : '\u00A0'}
                 </p>
               </div>
@@ -1106,7 +1106,7 @@ export default function InstructorDashboardNew() {
             <div className="flex items-start justify-between h-full">
               <div>
                 <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2 group-hover:text-[#7E22CE] dark:group-hover:text-purple-300">Earnings</h3>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 dark:text-white group-hover:text-gray-900 dark:text-gray-100 dark:group-hover:text-white">{earningsCardValue}</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white group-hover:text-gray-900 dark:group-hover:text-white">{earningsCardValue}</p>
               </div>
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
                 <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
@@ -1122,10 +1122,10 @@ export default function InstructorDashboardNew() {
             <div className="flex items-start justify-between h-full">
               <div>
                 <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2 group-hover:text-[#7E22CE] dark:group-hover:text-purple-300">Reviews</h3>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 dark:text-white group-hover:text-gray-900 dark:text-gray-100 dark:group-hover:text-white" data-testid="reviews-avg">
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white group-hover:text-gray-900 dark:group-hover:text-white" data-testid="reviews-avg">
                   {reviewAverageText}
                 </p>
-                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 group-hover:text-gray-600 dark:text-gray-400 dark:group-hover:text-gray-300 mt-1" data-testid="reviews-count">
+                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 mt-1" data-testid="reviews-count">
                   {reviewSubtitle}
                 </p>
               </div>

@@ -142,11 +142,11 @@ export default function InstructorReferralsPage() {
     <div className="insta-surface-card p-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300">Founding Phase Bonus</h3>
+          <h2 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300">Founding Phase Bonus</h2>
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Earn <span className="font-semibold text-gray-900 dark:text-gray-100 dark:text-white">{formatCents(stats.currentBonusCents)}</span>{' '}
+            Earn <span className="font-semibold text-gray-900 dark:text-white">{formatCents(stats.currentBonusCents)}</span>{' '}
             per referral while founding spots remain. Only{' '}
-            <span className="font-semibold text-gray-900 dark:text-gray-100 dark:text-white">{stats.foundingSpotsRemaining}</span> left.
+            <span className="font-semibold text-gray-900 dark:text-white">{stats.foundingSpotsRemaining}</span> left.
           </p>
         </div>
         <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
@@ -209,7 +209,7 @@ export default function InstructorReferralsPage() {
           <div className="p-6 insta-surface-card">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                <h3 className="text-sm uppercase tracking-wide text-gray-500 dark:text-gray-400">Your referral link</h3>
+                <h2 className="text-sm uppercase tracking-wide text-gray-500 dark:text-gray-400">Your referral link</h2>
                 <p className="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100 break-all">{stats.referralLink}</p>
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Code: {stats.referralCode}</p>
               </div>
@@ -239,7 +239,7 @@ export default function InstructorReferralsPage() {
               <div className="flex items-start justify-between h-full">
                 <div>
                   <p className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Total referred</p>
-                  <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 dark:text-white">{stats.totalReferred}</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{stats.totalReferred}</p>
                 </div>
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
                   <Users className="h-5 w-5 sm:h-6 sm:w-6 text-[#7E22CE]" />
@@ -251,7 +251,7 @@ export default function InstructorReferralsPage() {
               <div className="flex items-start justify-between h-full">
                 <div>
                   <p className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Pending payouts</p>
-                  <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 dark:text-white">{stats.pendingPayouts}</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{stats.pendingPayouts}</p>
                   <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">{stats.completedPayouts} paid out</p>
                 </div>
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
@@ -264,7 +264,7 @@ export default function InstructorReferralsPage() {
               <div className="flex items-start justify-between h-full">
                 <div>
                   <p className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Total earned</p>
-                  <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 dark:text-white">{formatCents(stats.totalEarnedCents)}</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{formatCents(stats.totalEarnedCents)}</p>
                 </div>
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
                   <DollarSign className="h-5 w-5 sm:h-6 sm:w-6 text-[#7E22CE]" />
@@ -275,7 +275,7 @@ export default function InstructorReferralsPage() {
 
           <div className="insta-surface-card">
             <div className="p-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Referred instructors</h3>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Referred instructors</h2>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{referredCount} total referrals</p>
             </div>
 
@@ -345,7 +345,7 @@ export default function InstructorReferralsPage() {
           </div>
 
           <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 insta-surface-card">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">How it works</h3>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">How it works</h2>
             <ol className="space-y-3 text-gray-700 dark:text-gray-300">
               <li className="flex items-start gap-3">
                 <span className="flex-shrink-0 h-6 w-6 bg-[#7E22CE] text-white rounded-full flex items-center justify-center text-sm font-semibold">

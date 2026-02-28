@@ -231,7 +231,7 @@ function EarningsPageImpl() {
             <div className="flex items-start justify-between h-full">
               <div>
                 <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Total Lessons</h3>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 dark:text-white">{isLoadingEarnings ? '—' : formatAmount(totalLessonValue)}</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{isLoadingEarnings ? '—' : formatAmount(totalLessonValue)}</p>
               </div>
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
                 <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
@@ -242,7 +242,7 @@ function EarningsPageImpl() {
             <div className="flex items-start justify-between h-full">
               <div>
                 <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Net Earnings</h3>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 dark:text-white">{isLoadingEarnings ? '—' : formatAmount(netEarnings)}</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{isLoadingEarnings ? '—' : formatAmount(netEarnings)}</p>
               </div>
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
                 <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
@@ -253,7 +253,7 @@ function EarningsPageImpl() {
             <div className="flex items-start justify-between h-full">
               <div>
                 <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Service count</h3>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 dark:text-white">{isLoadingEarnings ? '—' : resolvedServiceCount}</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{isLoadingEarnings ? '—' : resolvedServiceCount}</p>
               </div>
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
                 <Briefcase className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
@@ -264,7 +264,7 @@ function EarningsPageImpl() {
             <div className="flex items-start justify-between h-full">
               <div>
                 <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Hours invoiced</h3>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 dark:text-white">
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
                   {isLoadingEarnings ? '—' : formatHours(resolvedHoursInvoiced)}
                 </p>
               </div>
