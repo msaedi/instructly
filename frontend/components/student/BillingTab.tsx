@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Download,
   Loader2,
@@ -43,6 +43,23 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
   const [promoCode, setPromoCode] = useState('');
   const [isApplyingPromo, setIsApplyingPromo] = useState(false);
   const [showMoreTransactions, setShowMoreTransactions] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const syncDarkMode = () => {
+      setIsDarkMode(root.classList.contains('dark'));
+    };
+
+    syncDarkMode();
+
+    const observer = new MutationObserver(syncDarkMode);
+    observer.observe(root, { attributes: true, attributeFilter: ['class'] });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
 
   // Use shared credits hook with React Query
   const { data: creditBalance, isLoading: isLoadingCredits, refetch: refetchCredits } = useCredits();
@@ -177,6 +194,18 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
     }
   };
 
+  const creditCardStyle = isDarkMode
+    ? {
+      borderColor: 'rgba(192, 132, 252, 0.58)',
+      backgroundColor: 'rgba(88, 28, 135, 0.22)',
+      boxShadow: '0 10px 24px rgba(2, 6, 23, 0.32)',
+    }
+    : {
+      borderColor: 'rgba(216, 180, 254, 0.92)',
+      backgroundColor: 'rgba(245, 236, 255, 0.95)',
+      boxShadow: '0 8px 18px rgba(126, 34, 206, 0.08)',
+    };
+
   return (
     <div className="space-y-8">
       {/* Payment Methods Section */}
@@ -198,20 +227,20 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
             </div>
           </div>
         ) : creditBalance && creditBalance.available > 0 ? (
-          <div className="rounded-xl border border-gray-200 p-6 bg-purple-50">
+          <div className="rounded-xl border p-6" style={creditCardStyle}>
             <div className="space-y-2">
               <p className="text-2xl font-bold text-[#7E22CE]">
                 {formatCurrency(creditBalance.available)}
               </p>
-              <p className="text-sm text-purple-600">Available balance</p>
+              <p className="text-sm text-purple-600 dark:text-purple-200">Available balance</p>
               {creditBalance.expires_at ? (
-                <p className="text-xs text-purple-500">
+                <p className="text-xs text-purple-500 dark:text-purple-300">
                   Earliest expiry: {formatDate(creditBalance.expires_at)}
                 </p>
               ) : (
-                <p className="text-xs text-purple-500">No expiry on current credits</p>
+                <p className="text-xs text-purple-500 dark:text-purple-300">No expiry on current credits</p>
               )}
-              <p className="text-xs text-gray-600 mt-3">
+              <p className="text-xs text-gray-600 dark:text-gray-300 mt-3">
                 *Credits are automatically applied at checkout
               </p>
             </div>
