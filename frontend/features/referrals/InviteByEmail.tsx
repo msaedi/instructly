@@ -87,7 +87,7 @@ export default function InviteByEmail({ shareUrl, fromName }: InviteByEmailProps
 
   return (
     <form onSubmit={handleSubmit} className="space-y-2" aria-live="polite">
-      <label htmlFor="invite-emails" className="block text-sm font-medium text-gray-700">
+      <label htmlFor="invite-emails" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
         Invite friends by email
       </label>
       <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
@@ -97,7 +97,7 @@ export default function InviteByEmail({ shareUrl, fromName }: InviteByEmailProps
           value={inputValue}
           onChange={(event) => setInputValue(event.target.value)}
           placeholder="name@example.com, other@example.com"
-          className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40 disabled:cursor-not-allowed disabled:bg-gray-100"
+          className="flex-1 rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 shadow-sm focus:border-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40 disabled:cursor-not-allowed disabled:bg-gray-100"
           disabled={isSubmitting || !shareUrl}
           aria-describedby="invite-emails-hint"
           autoComplete="off"
@@ -110,10 +110,10 @@ export default function InviteByEmail({ shareUrl, fromName }: InviteByEmailProps
           {isSubmitting ? 'Sending…' : 'Send invites'}
         </button>
       </div>
-      <p id="invite-emails-hint" className="text-xs text-gray-500">
+      <p id="invite-emails-hint" className="text-xs text-gray-500 dark:text-gray-400">
         Send up to 10 emails at a time. Separate addresses with commas or spaces.
       </p>
-      <p className="min-h-[1rem] text-xs text-gray-500" role="status">
+      <p className="min-h-[1rem] text-xs text-gray-500 dark:text-gray-400" role="status">
         {statusMessage || (shareUrl ? '' : 'Referral link loading…')}
       </p>
     </form>

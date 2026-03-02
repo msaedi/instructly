@@ -7,7 +7,7 @@ interface ConnectionAuditProps {
 
 export default function ConnectionAuditSection({ audit }: ConnectionAuditProps) {
   if (!audit) {
-    return <div className="text-center text-gray-500">No audit data available</div>;
+    return <div className="text-center text-gray-500 dark:text-gray-400">No audit data available</div>;
   }
 
   const apiService = audit.service_connections?.api_service;
@@ -39,7 +39,7 @@ export default function ConnectionAuditSection({ audit }: ConnectionAuditProps) 
               <Globe className="h-5 w-5 text-blue-600" />
               <div>
                 <p className="font-medium">API Cache</p>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
                   {apiService?.host || 'Unknown'}
                 </p>
               </div>
@@ -47,8 +47,8 @@ export default function ConnectionAuditSection({ audit }: ConnectionAuditProps) 
             <span
               className={`px-2 py-1 text-xs rounded-full ${
                 apiService?.type === 'render_redis'
-                  ? 'bg-green-100 text-green-800'
-                  : 'bg-gray-100 text-gray-800'
+                  ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
               }`}
             >
               {apiService?.type || 'unknown'}
@@ -61,7 +61,7 @@ export default function ConnectionAuditSection({ audit }: ConnectionAuditProps) 
               <Database className="h-5 w-5 text-purple-600" />
               <div>
                 <p className="font-medium">Celery Broker</p>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
                   {celeryBroker?.host || 'Unknown'}
                 </p>
               </div>
@@ -69,8 +69,8 @@ export default function ConnectionAuditSection({ audit }: ConnectionAuditProps) 
             <span
               className={`px-2 py-1 text-xs rounded-full ${
                 celeryBroker?.type === 'render_redis'
-                  ? 'bg-green-100 text-green-800'
-                  : 'bg-gray-100 text-gray-800'
+                  ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
               }`}
             >
               {celeryBroker?.type || 'unknown'}
@@ -83,8 +83,8 @@ export default function ConnectionAuditSection({ audit }: ConnectionAuditProps) 
       <div>
         <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Active Connections</h4>
         <div className="text-center p-4 bg-gray-50 dark:bg-gray-800/60 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60">
-          <p className="text-sm text-gray-600">Render Redis</p>
-          <p className="text-2xl font-bold text-gray-900">{activeLocal}</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Render Redis</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{activeLocal}</p>
         </div>
       </div>
     </div>

@@ -152,8 +152,8 @@ export default function InstructorDashboard() {
   // Error state (no profile found)
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <nav className="bg-white shadow-sm border-b">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <nav className="bg-white dark:bg-gray-800 shadow-sm border-b">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
               <Link href="/" className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors">
@@ -164,9 +164,9 @@ export default function InstructorDashboard() {
           </div>
         </nav>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="bg-white rounded-lg shadow p-6 text-center">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 text-center">
             <h1 className="text-2xl font-bold text-red-600 mb-4">Error</h1>
-            <p className="text-gray-600 mb-6">{error}</p>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">{error}</p>
             <Link
               href="/become-instructor"
               className="inline-block px-6 py-2 bg-[#7E22CE] text-white rounded-md hover:bg-[#7E22CE] transition-colors"
@@ -186,9 +186,9 @@ export default function InstructorDashboard() {
   const displayName = getInstructorDisplayName(profile);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header with purple title */}
-      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4 sticky top-0 z-50">
+      <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4 sticky top-0 z-50">
         <div className="flex items-center justify-between max-w-full">
           <div className="flex items-center gap-4">
             <Link className="inline-block" href="/">
@@ -199,7 +199,7 @@ export default function InstructorDashboard() {
           </div>
           <button
             onClick={handleLogout}
-            className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+            className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 transition-colors"
           >
             <LogOut className="h-5 w-5 mr-2" />
             Log out
@@ -211,7 +211,7 @@ export default function InstructorDashboard() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Link
           href="/"
-          className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4 transition-colors"
+          className="inline-flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 mb-4 transition-colors"
           onClick={() => logger.debug('Navigating back to home')}
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
@@ -219,15 +219,15 @@ export default function InstructorDashboard() {
         </Link>
 
         {/* Welcome Section */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back, {displayName}!</h1>
-          <p className="text-gray-600">Manage your instructor profile and bookings</p>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-8">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">Welcome back, {displayName}!</h1>
+          <p className="text-gray-600 dark:text-gray-400">Manage your instructor profile and bookings</p>
         </div>
 
         {/* Onboarding Checklist */}
         <div className="mb-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Onboarding</h2>
-          <div className="bg-white rounded-lg shadow-sm p-6 space-y-4">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">Onboarding</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 space-y-4">
             <ChecklistRow
               label="Stripe Connect onboarding"
               ok={!!connectStatus?.onboarding_completed}
@@ -268,7 +268,7 @@ export default function InstructorDashboard() {
               >
                 Go live
               </button>
-              <p className="text-sm text-gray-500 mt-2">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
                 You can continue setting up from here. Going live requires payments enabled and at least one service.
               </p>
             </div>
@@ -277,30 +277,30 @@ export default function InstructorDashboard() {
 
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Total Bookings</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Total Bookings</h3>
             <p className="text-3xl font-bold text-[#7E22CE]">0</p>
-            <p className="text-sm text-gray-500 mt-1">Coming soon</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Coming soon</p>
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Rating</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Rating</h3>
             <div className="flex items-center gap-2">
               <Star className="h-6 w-6 text-yellow-400" fill="#facc15" aria-hidden="true" />
               <p className="text-3xl font-bold text-[#7E22CE]">{formattedRating}</p>
             </div>
-            <p className="text-sm text-gray-500 mt-1">{ratingSubtitle}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{ratingSubtitle}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Total Earnings</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Total Earnings</h3>
             <p className="text-3xl font-bold text-[#7E22CE]">$0</p>
-            <p className="text-sm text-gray-500 mt-1">Payment integration pending</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Payment integration pending</p>
           </div>
         </div>
 
         {/* Recent Reviews */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-8">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Recent Reviews</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Recent Reviews</h2>
             {profile?.user_id && totalReviews > 0 && (
               <Link
                 href={`/instructors/${profile.user_id}/reviews`}
@@ -316,8 +316,8 @@ export default function InstructorDashboard() {
             <div className="space-y-3">
               {Array.from({ length: 3 }).map((_, idx) => (
                 <div key={idx} className="animate-pulse space-y-2">
-                  <div className="h-3 w-24 bg-gray-200 rounded" />
-                  <div className="h-3 w-full bg-gray-200 rounded" />
+                  <div className="h-3 w-24 bg-gray-200 dark:bg-gray-700 rounded" />
+                  <div className="h-3 w-full bg-gray-200 dark:bg-gray-700 rounded" />
                 </div>
               ))}
             </div>
@@ -329,22 +329,22 @@ export default function InstructorDashboard() {
                 const reviewerName = review.reviewer_display_name?.trim() || 'Verified student';
                 const reviewText = review.review_text?.trim() || 'No written feedback provided.';
                 return (
-                  <div key={review.id} className="border border-gray-100 rounded-lg p-4">
+                  <div key={review.id} className="border border-gray-100 dark:border-gray-700 rounded-lg p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Star className="h-5 w-5 text-yellow-400" fill="#facc15" aria-hidden="true" />
-                        <span className="font-semibold text-gray-900">{review.rating.toFixed(1)}</span>
-                        <span className="text-xs text-gray-500">{relative}</span>
+                        <span className="font-semibold text-gray-900 dark:text-gray-100">{review.rating.toFixed(1)}</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">{relative}</span>
                       </div>
-                      <span className="text-sm text-gray-500">{reviewerName}</span>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">{reviewerName}</span>
                     </div>
-                    <p className="mt-3 text-sm text-gray-700 whitespace-pre-line">{reviewText}</p>
+                    <p className="mt-3 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line">{reviewText}</p>
                   </div>
                 );
               })}
             </div>
           ) : (
-            <p className="text-sm text-gray-500">No reviews yet. Once students leave feedback it will appear here.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">No reviews yet. Once students leave feedback it will appear here.</p>
           )}
         </div>
 
@@ -352,20 +352,20 @@ export default function InstructorDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <Link
             href="/instructor/availability"
-            className="block p-6 bg-white rounded-lg shadow hover:shadow-lg transition-shadow"
+            className="block p-6 bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow"
             onClick={() => logger.debug('Navigating to availability management')}
           >
             <div className="flex items-center gap-4">
               <Calendar className="w-8 h-8 text-[#7E22CE]" />
               <div>
                 <h3 className="text-lg font-semibold">Manage Availability</h3>
-                <p className="text-gray-600">Set your weekly schedule and available hours</p>
+                <p className="text-gray-600 dark:text-gray-400">Set your weekly schedule and available hours</p>
               </div>
             </div>
           </Link>
           {/* Placeholder for future quick actions */}
-          <div className="p-6 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300">
-            <div className="text-center text-gray-500">
+          <div className="p-6 bg-gray-100 dark:bg-gray-700 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-700">
+            <div className="text-center text-gray-500 dark:text-gray-400">
               <p className="font-semibold">More features coming soon</p>
               <p className="text-sm mt-1">Booking management, analytics, and more</p>
             </div>
@@ -373,9 +373,9 @@ export default function InstructorDashboard() {
         </div>
 
         {/* Profile Section */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-8">
           <div className="flex justify-between items-start mb-6">
-            <h2 className="text-xl font-bold text-gray-900">Profile Information</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Profile Information</h2>
             <button
               onClick={() => {
                 logger.debug('Opening edit profile modal');
@@ -391,23 +391,23 @@ export default function InstructorDashboard() {
           <div className="space-y-6">
             {/* Bio Section */}
             <div>
-              <h3 className="text-sm font-medium text-gray-500 mb-1">Bio</h3>
-              <p className="text-gray-900">{profile.bio}</p>
+              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Bio</h3>
+              <p className="text-gray-900 dark:text-gray-100">{profile.bio}</p>
             </div>
 
             {/* Services Section */}
             <div>
-              <h3 className="text-sm font-medium text-gray-500 mb-2">Skills and pricing</h3>
+              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Skills and pricing</h3>
               <div className="space-y-2">
                 {profile.services.map((service) => (
                   <div
                     key={service.id}
-                    className="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
+                    className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-900 rounded-lg"
                   >
                     <div>
                       <span className="font-medium">{service.skill}</span>
                       {service.description && (
-                        <p className="text-sm text-gray-600">{service.description}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">{service.description}</p>
                       )}
                     </div>
                     <span className="font-semibold text-[#7E22CE]">${service.hourly_rate}/hr</span>
@@ -419,8 +419,8 @@ export default function InstructorDashboard() {
             {/* Additional Info */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-1">Areas of Service</h3>
-                <p className="text-gray-900">
+                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Areas of Service</h3>
+                <p className="text-gray-900 dark:text-gray-100">
                   {(() => {
                     const boroughs = getServiceAreaBoroughs(profile);
                     return boroughs.length > 0 ? boroughs.join(', ') : 'Not specified';
@@ -428,8 +428,8 @@ export default function InstructorDashboard() {
                 </p>
               </div>
               <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-1">Experience</h3>
-                <p className="text-gray-900">{profile.years_experience} years</p>
+                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Experience</h3>
+                <p className="text-gray-900 dark:text-gray-100">{profile.years_experience} years</p>
               </div>
             </div>
           </div>
@@ -439,7 +439,7 @@ export default function InstructorDashboard() {
         <div className="flex flex-wrap gap-4">
           <button
             onClick={handleViewPublicProfile}
-            className="flex items-center px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+            className="flex items-center px-6 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 transition-colors"
           >
             <ExternalLink className="h-5 w-5 mr-2" />
             View Public Profile
@@ -505,14 +505,14 @@ function ChecklistRow({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between border border-gray-100 rounded-md px-4 py-3">
+    <div className="flex items-center justify-between border border-gray-100 dark:border-gray-700 rounded-md px-4 py-3">
       <div className="flex items-center gap-2">
         {ok ? (
           <CheckCircle2 className="w-5 h-5 text-green-600" />
         ) : (
           <XCircle className="w-5 h-5 text-gray-300" />
         )}
-        <span className="text-gray-800">{label}</span>
+        <span className="text-gray-800 dark:text-gray-200">{label}</span>
       </div>
       <div>{action}</div>
     </div>

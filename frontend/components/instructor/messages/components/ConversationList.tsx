@@ -49,17 +49,17 @@ export function ConversationList({
   onConversationDelete,
 }: ConversationListProps) {
   return (
-    <aside className="w-full lg:w-80 xl:w-96 border-b border-gray-200 lg:border-b-0 lg:border-r flex flex-col min-h-0 max-h-full overflow-hidden">
+    <aside className="w-full lg:w-80 xl:w-96 border-b border-gray-200 dark:border-gray-700 lg:border-b-0 lg:border-r flex flex-col min-h-0 max-h-full overflow-hidden">
       {/* Search and compose */}
-      <div className="p-4 border-b border-gray-200 flex items-center gap-2">
+      <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-300" />
           <input
             type="text"
             value={searchQuery}
             onChange={(event) => onSearchChange(event.target.value)}
             placeholder="Search conversations"
-            className="w-full rounded-full border border-gray-300 bg-white pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-[#7E22CE]"
+            className="w-full rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-[#7E22CE]"
           />
         </div>
         <button
@@ -73,7 +73,7 @@ export function ConversationList({
       </div>
 
       {/* Filters */}
-      <div className="px-4 py-3 border-b border-gray-200 flex flex-wrap gap-1.5 items-center">
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap gap-1.5 items-center">
         {FILTER_OPTIONS.map((option) => {
           const isActive = option.value === typeFilter && messageDisplay === 'inbox';
           return (
@@ -85,7 +85,7 @@ export function ConversationList({
                 onMessageDisplayChange('inbox');
               }}
               className={`text-xs font-medium rounded-full px-2.5 py-1 transition-colors ${
-                isActive ? 'bg-[#7E22CE] text-white' : 'bg-gray-100 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
+                isActive ? 'bg-[#7E22CE] text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
               }`}
             >
               {option.label}
@@ -98,7 +98,7 @@ export function ConversationList({
           className={`text-xs font-medium rounded-full px-2.5 py-1 transition-colors ${
             messageDisplay === 'archived'
               ? 'bg-[#7E22CE] text-white'
-              : 'bg-gray-100 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
           }`}
         >
           Archived
@@ -109,7 +109,7 @@ export function ConversationList({
           className={`text-xs font-medium rounded-full px-2.5 py-1 transition-colors ${
             messageDisplay === 'trash'
               ? 'bg-[#7E22CE] text-white'
-              : 'bg-gray-100 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
           }`}
         >
           Trash

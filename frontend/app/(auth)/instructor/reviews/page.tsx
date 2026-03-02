@@ -161,7 +161,7 @@ function ReviewsPageImpl() {
               {isFilterOpen && (
                 <ul
                   role="listbox"
-                  className="absolute z-10 mt-2 w-44 rounded-md border border-gray-200 bg-white shadow-md p-1"
+                  className="absolute z-10 mt-2 w-44 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-md p-1"
                 >
                   {(['all', 5, 4, 3, 2, 1] as const).map((opt) => (
                     <li key={String(opt)}>
@@ -198,10 +198,10 @@ function ReviewsPageImpl() {
                 setPage(1);
               }}
               className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
-                withCommentsOnly ? 'border-purple-300 bg-purple-50 text-[#7E22CE]' : 'border-gray-300 bg-white text-gray-700 dark:text-gray-300'
+                withCommentsOnly ? 'border-purple-300 bg-purple-50 text-[#7E22CE]' : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'
               }`}
             >
-              {withCommentsOnly ? <span className="inline-block h-3 w-3 rounded-full bg-[#7E22CE]" /> : <span className="inline-block h-3 w-3 rounded-full border border-gray-300" />}
+              {withCommentsOnly ? <span className="inline-block h-3 w-3 rounded-full bg-[#7E22CE]" /> : <span className="inline-block h-3 w-3 rounded-full border border-gray-300 dark:border-gray-700" />}
               With comments only
             </button>
           </div>
@@ -263,7 +263,7 @@ function ReviewsPageImpl() {
               type="button"
               onClick={() => setPage((prev) => Math.max(1, prev - 1))}
               disabled={page === 1 || reviewsFetching}
-              className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 disabled:opacity-50 insta-secondary-btn"
+              className="inline-flex items-center gap-2 rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 disabled:opacity-50 insta-secondary-btn"
             >
               <span>Previous</span>
             </button>
@@ -272,7 +272,7 @@ function ReviewsPageImpl() {
               type="button"
               onClick={() => setPage((prev) => prev + 1)}
               disabled={!reviewsData?.has_next || reviewsFetching}
-              className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 disabled:opacity-50 insta-secondary-btn"
+              className="inline-flex items-center gap-2 rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 disabled:opacity-50 insta-secondary-btn"
             >
               <span>Next</span>
             </button>

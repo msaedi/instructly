@@ -190,15 +190,15 @@ const PaymentForm: React.FC<{
     <div className="space-y-6">
       {/* Payment Method Selection */}
       <div className="space-y-3">
-        <h3 className="font-medium text-gray-900">Payment Method</h3>
+        <h3 className="font-medium text-gray-900 dark:text-gray-100">Payment Method</h3>
 
         {savedMethods.map((method) => (
           <label
             key={method.id}
             className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${
               selectedMethod === method.id
-                ? 'border-blue-500 bg-blue-50'
-                : 'border-gray-200 hover:border-gray-300'
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900 dark:text-indigo-200'
+                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
             }`}
           >
             <input
@@ -212,12 +212,12 @@ const PaymentForm: React.FC<{
               }}
               className="mr-3"
             />
-            <CreditCard className="h-5 w-5 mr-3 text-gray-400" />
+            <CreditCard className="h-5 w-5 mr-3 text-gray-400 dark:text-gray-300" />
             <div className="flex-1">
               <span className="font-medium">{method.brand}</span>
-              <span className="ml-2 text-gray-500">•••• {method.last4}</span>
+              <span className="ml-2 text-gray-500 dark:text-gray-400">•••• {method.last4}</span>
               {method.is_default && (
-                <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                <span className="ml-2 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded">
                   Default
                 </span>
               )}
@@ -228,8 +228,8 @@ const PaymentForm: React.FC<{
         <label
           className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${
             selectedMethod === 'new'
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-gray-200 hover:border-gray-300'
+              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900 dark:text-indigo-200'
+              : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
           }`}
         >
           <input
@@ -278,9 +278,9 @@ const PaymentForm: React.FC<{
               type="checkbox"
               checked={saveCard}
               onChange={(e) => setSaveCard(e.target.checked)}
-              className="rounded border-gray-300"
+              className="rounded border-gray-300 dark:border-gray-700"
             />
-            <span className="text-sm text-gray-700">Save card for future use</span>
+            <span className="text-sm text-gray-700 dark:text-gray-300">Save card for future use</span>
           </label>
         </div>
       )}
@@ -288,7 +288,7 @@ const PaymentForm: React.FC<{
       {/* CVV for saved cards */}
       {requiresCvv && selectedMethod !== 'new' && (
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
             Security Code (CVV)
           </label>
           <input
@@ -297,13 +297,13 @@ const PaymentForm: React.FC<{
             placeholder="123"
             value={cvv}
             onChange={(e) => setCvv(e.target.value.replace(/\D/g, ''))}
-            className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
       )}
 
       {/* Security Badge */}
-      <div className="flex items-center space-x-2 text-sm text-gray-500">
+      <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
         <Shield className="h-4 w-4" />
         <span>Your payment information is encrypted and secure</span>
       </div>
@@ -429,7 +429,7 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400 dark:text-gray-300" />
       </div>
     );
   }
@@ -439,7 +439,7 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
       <div className="text-center py-12">
         <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
         <h2 className="text-2xl font-semibold mb-2">Payment Successful!</h2>
-        <p className="text-gray-600">Your booking has been confirmed.</p>
+        <p className="text-gray-600 dark:text-gray-400">Your booking has been confirmed.</p>
       </div>
     );
   }
@@ -452,36 +452,36 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
 
         <div className="space-y-3">
           <div className="flex items-start space-x-3">
-            <User className="h-5 w-5 text-gray-400 mt-0.5" />
+            <User className="h-5 w-5 text-gray-400 dark:text-gray-300 mt-0.5" />
             <div>
               <p className="font-medium">Service</p>
-              <p className="text-gray-600">{booking.service_name}</p>
-              <p className="text-sm text-gray-500">with {booking.instructor_name}</p>
+              <p className="text-gray-600 dark:text-gray-400">{booking.service_name}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">with {booking.instructor_name}</p>
             </div>
           </div>
 
           <div className="flex items-start space-x-3">
-            <Calendar className="h-5 w-5 text-gray-400 mt-0.5" />
+            <Calendar className="h-5 w-5 text-gray-400 dark:text-gray-300 mt-0.5" />
             <div>
               <p className="font-medium">Date</p>
-              <p className="text-gray-600">{formatBookingDate(booking)}</p>
+              <p className="text-gray-600 dark:text-gray-400">{formatBookingDate(booking)}</p>
             </div>
           </div>
 
           <div className="flex items-start space-x-3">
-            <Clock className="h-5 w-5 text-gray-400 mt-0.5" />
+            <Clock className="h-5 w-5 text-gray-400 dark:text-gray-300 mt-0.5" />
             <div>
               <p className="font-medium">Time</p>
-              <p className="text-gray-600">
+              <p className="text-gray-600 dark:text-gray-400">
                 {formatBookingTimeRange(booking)}
               </p>
-              <p className="text-sm text-gray-500">{booking.duration_minutes} minutes</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{booking.duration_minutes} minutes</p>
             </div>
           </div>
 
           <div className="pt-3 border-t">
             <div className="space-y-2">
-              <div className="flex justify-between text-gray-600">
+              <div className="flex justify-between text-gray-600 dark:text-gray-400">
                 <span>Lesson ({durationMinutes} min)</span>
                 <span>{formatCentsToDisplay(previewBaseCents)}</span>
               </div>
@@ -500,7 +500,7 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
                     <div
                       key={`${item.label}-${item.amount_cents}`}
                       className={`flex justify-between text-sm ${
-                        isCredit ? 'text-green-600 dark:text-green-400' : 'text-gray-600'
+                        isCredit ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-gray-400'
                       }`}
                     >
                       {isServiceSupportLineItem ? (
@@ -511,7 +511,7 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
                               <Tooltip.Trigger asChild>
                                 <button
                                   type="button"
-                                  className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
+                                  className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 dark:text-gray-300 transition-colors hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
                                   aria-label="Learn about the Service & Support fee"
                                 >
                                   <Info className="h-3.5 w-3.5" aria-hidden="true" />
@@ -536,7 +536,7 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
                   );
                 })
               ) : (
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
                   <span className="inline-flex items-center gap-1" aria-label={serviceSupportFeeLabel}>
                     <span>{serviceSupportAnnotationLabel}</span>
                     <Tooltip.Provider delayDuration={150} skipDelayDuration={75}>
@@ -544,7 +544,7 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
                         <Tooltip.Trigger asChild>
                           <button
                             type="button"
-                            className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
+                            className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 dark:text-gray-300 transition-colors hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
                             aria-label="Learn about the Service & Support fee"
                           >
                             <Info className="h-3.5 w-3.5" aria-hidden="true" />
@@ -564,13 +564,13 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
                   and credits apply at checkout.
                 </p>
               )}
-              <div className="flex justify-between text-sm font-semibold text-gray-800">
+              <div className="flex justify-between text-sm font-semibold text-gray-800 dark:text-gray-200">
                 <span>Total</span>
                 <span>{formatCentsToDisplay(previewStudentPayCents)}</span>
               </div>
             </div>
             {isPricingPreviewLoading && (
-              <p className="mt-2 text-xs text-gray-500">Updating pricing…</p>
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Updating pricing…</p>
             )}
             {pricingPreviewError && (
               <p className="mt-2 text-xs text-red-600">{pricingPreviewError}</p>

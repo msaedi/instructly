@@ -10,7 +10,7 @@ const CATEGORY_STYLES: Record<string, { icon: typeof Bell; className: string }> 
   },
   messages: {
     icon: MessageSquare,
-    className: 'bg-blue-50 text-blue-600',
+    className: 'bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-indigo-200',
   },
   reviews: {
     icon: Star,
@@ -25,7 +25,7 @@ const CATEGORY_STYLES: Record<string, { icon: typeof Bell; className: string }> 
 export function NotificationIcon({ category }: { category: string }) {
   const config = CATEGORY_STYLES[category] ?? {
     icon: Bell,
-    className: 'bg-gray-100 text-gray-600',
+    className: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400',
   };
   const Icon = config.icon;
 

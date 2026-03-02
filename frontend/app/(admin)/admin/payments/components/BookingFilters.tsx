@@ -34,7 +34,7 @@ export default function BookingFilters({ filters, onChange }: BookingFiltersProp
       </div>
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="relative w-full lg:max-w-md">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-300" />
           <Input
             value={filters.search}
             onChange={(event) => onChange({ ...filters, search: event.target.value, page: 1 })}
@@ -44,7 +44,7 @@ export default function BookingFilters({ filters, onChange }: BookingFiltersProp
         </div>
         <div className="grid gap-3 md:grid-cols-3 lg:flex lg:items-center lg:gap-4">
           <div className="space-y-1">
-            <Label className="text-xs uppercase tracking-wide text-gray-500">Status</Label>
+            <Label className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Status</Label>
             <Select
               value={filters.status}
               onValueChange={(value) =>
@@ -64,7 +64,7 @@ export default function BookingFilters({ filters, onChange }: BookingFiltersProp
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs uppercase tracking-wide text-gray-500">Payment</Label>
+            <Label className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Payment</Label>
             <Select
               value={filters.payment_status}
               onValueChange={(value) =>
@@ -88,7 +88,7 @@ export default function BookingFilters({ filters, onChange }: BookingFiltersProp
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs uppercase tracking-wide text-gray-500">Date</Label>
+            <Label className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Date</Label>
             <Select
               value={filters.date_range}
               onValueChange={(value) =>
@@ -114,7 +114,7 @@ export default function BookingFilters({ filters, onChange }: BookingFiltersProp
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium text-gray-500">Quick filters:</span>
+        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Quick filters:</span>
         {quickFilters.map((filter) => {
           const active = filters.quick_filter === filter.value;
           return (

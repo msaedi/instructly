@@ -11,9 +11,9 @@ const loginFallback = (
   <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
     <div className="insta-surface-card py-8 px-4 shadow sm:px-10">
       <div className="animate-pulse">
-        <div className="h-10 bg-gray-200 rounded mb-4" />
-        <div className="h-10 bg-gray-200 rounded mb-4" />
-        <div className="h-10 bg-gray-200 rounded" />
+        <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded mb-4" />
+        <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded mb-4" />
+        <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded" />
       </div>
     </div>
   </div>

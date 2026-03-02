@@ -55,13 +55,13 @@ export function NotificationItem({ notification, onRead, onDelete }: Notificatio
         <NotificationIcon category={notification.category} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className={cn('text-sm text-gray-900', isUnread && 'font-medium')}>
+        <p className={cn('text-sm text-gray-900 dark:text-gray-100', isUnread && 'font-medium')}>
           {notification.title}
         </p>
         {notification.body && (
-          <p className="text-sm text-gray-500 truncate">{notification.body}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{notification.body}</p>
         )}
-        <p className="mt-1 text-xs text-gray-400">{timestamp}</p>
+        <p className="mt-1 text-xs text-gray-400 dark:text-gray-300">{timestamp}</p>
       </div>
       {isHovered && (
         <button

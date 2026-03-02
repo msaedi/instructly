@@ -34,7 +34,7 @@ export default function AuditLogTable({
     <div className="space-y-4">
       <div className="rounded-2xl bg-white/70 dark:bg-gray-900/50 ring-1 ring-gray-200/70 dark:ring-gray-700/60 shadow-sm overflow-x-auto">
         <table className="min-w-full text-sm">
-          <thead className="text-xs uppercase tracking-wide text-gray-500">
+          <thead className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
             <tr className="border-b border-gray-200/70 dark:border-gray-700/60">
               <th className="px-4 py-3 text-left">Time</th>
               <th className="px-4 py-3 text-left">Admin</th>
@@ -46,29 +46,29 @@ export default function AuditLogTable({
           <tbody className="divide-y divide-gray-200/70 dark:divide-gray-700/60">
             {entries.map((entry) => (
               <tr key={entry.id} className="hover:bg-gray-50/70 dark:hover:bg-gray-800/40">
-                <td className="px-4 py-4 text-gray-700">
-                  <div className="font-medium text-gray-900">{formatDateTime(entry.timestamp)}</div>
+                <td className="px-4 py-4 text-gray-700 dark:text-gray-300">
+                  <div className="font-medium text-gray-900 dark:text-gray-100">{formatDateTime(entry.timestamp)}</div>
                 </td>
                 <td className="px-4 py-4">
-                  <div className="text-sm text-gray-700">{entry.admin.email}</div>
+                  <div className="text-sm text-gray-700 dark:text-gray-300">{entry.admin.email}</div>
                 </td>
                 <td className="px-4 py-4">
                   <div className="font-semibold text-indigo-700">{actionLabels[entry.action]}</div>
                   {entry.reason ? (
-                    <div className="text-xs text-gray-500">Reason: {entry.reason}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Reason: {entry.reason}</div>
                   ) : null}
                   {entry.note ? (
-                    <div className="text-xs text-gray-500">Note: &quot;{entry.note}&quot;</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Note: &quot;{entry.note}&quot;</div>
                   ) : null}
                 </td>
-                <td className="px-4 py-4 text-gray-700">{entry.booking_id}</td>
-                <td className="px-4 py-4 text-gray-700">{formatCurrency(entry.amount)}</td>
+                <td className="px-4 py-4 text-gray-700 dark:text-gray-300">{entry.booking_id}</td>
+                <td className="px-4 py-4 text-gray-700 dark:text-gray-300">{formatCurrency(entry.amount)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-4 text-sm text-gray-500">
+      <div className="flex flex-wrap items-center justify-between gap-4 text-sm text-gray-500 dark:text-gray-400">
         <div>
           Showing {rangeStart}-{rangeEnd} of {total}
         </div>
@@ -77,7 +77,7 @@ export default function AuditLogTable({
             type="button"
             onClick={() => onPageChange(Math.max(1, page - 1))}
             disabled={page <= 1}
-            className="rounded-full px-3 py-1 text-xs font-medium ring-1 ring-gray-300 disabled:opacity-40"
+            className="rounded-full px-3 py-1 text-xs font-medium ring-1 ring-gray-300 dark:ring-gray-700 disabled:opacity-40"
           >
             Prev
           </button>
@@ -86,13 +86,13 @@ export default function AuditLogTable({
             type="button"
             onClick={() => onPageChange(Math.min(totalPages, page + 1))}
             disabled={page >= totalPages}
-            className="rounded-full px-3 py-1 text-xs font-medium ring-1 ring-gray-300 disabled:opacity-40"
+            className="rounded-full px-3 py-1 text-xs font-medium ring-1 ring-gray-300 dark:ring-gray-700 disabled:opacity-40"
           >
             Next
           </button>
         </div>
       </div>
-      <div className="text-sm text-gray-600">
+      <div className="text-sm text-gray-600 dark:text-gray-400">
         Summary: {summary.refunds_count} refunds ({formatCurrency(summary.refunds_total)}) |{' '}
         {summary.captures_count} captures ({formatCurrency(summary.captures_total)}) this month
       </div>

@@ -213,9 +213,9 @@ export default function BookingModalWithPayment({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+        <div className="sticky top-0 bg-white dark:bg-gray-800 border-b px-6 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             {currentStep !== 'select-time' && currentStep !== 'success' && (
               <button
@@ -250,7 +250,7 @@ export default function BookingModalWithPayment({
               {/* Service Selection */}
               {instructor.services.length > 1 && (
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Select Service
                   </label>
                   <select
@@ -262,7 +262,7 @@ export default function BookingModalWithPayment({
                         setDuration(service.duration);
                       }
                     }}
-                    className="w-full p-2 border border-gray-300 rounded-md"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-md"
                   >
                     {instructor.services.map((service) => (
                       <option key={service.id} value={service.id}>
@@ -276,15 +276,15 @@ export default function BookingModalWithPayment({
               {/* Session Details */}
               <div className="space-y-4 mb-6">
                 <div className="flex items-center space-x-3">
-                  <MapPin className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                  <MapPin className="h-5 w-5 text-gray-400 dark:text-gray-300" aria-hidden="true" />
                   <span>{serviceAreaDisplayFull}</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <Clock className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                  <Clock className="h-5 w-5 text-gray-400 dark:text-gray-300" aria-hidden="true" />
                   <span>{selectedDate} at {selectedTime}</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <DollarSign className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                  <DollarSign className="h-5 w-5 text-gray-400 dark:text-gray-300" aria-hidden="true" />
                   <span className="font-semibold">${totalPrice.toFixed(2)} total</span>
                 </div>
               </div>
@@ -303,57 +303,57 @@ export default function BookingModalWithPayment({
           {currentStep === 'booking-details' && showBookingForm && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Name *
                 </label>
                 <input
                   type="text"
                   value={bookingFormData.name}
                   onChange={(e) => setBookingFormData({ ...bookingFormData, name: e.target.value })}
-                  className="w-full p-2 border border-gray-300 rounded-md"
+                  className="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-md"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Email *
                 </label>
                 <input
                   type="email"
                   value={bookingFormData.email}
                   onChange={(e) => setBookingFormData({ ...bookingFormData, email: e.target.value })}
-                  className="w-full p-2 border border-gray-300 rounded-md"
+                  className="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-md"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Phone *
                 </label>
                 <input
                   type="tel"
                   value={bookingFormData.phone}
                   onChange={(e) => setBookingFormData({ ...bookingFormData, phone: e.target.value })}
-                  className="w-full p-2 border border-gray-300 rounded-md"
+                  className="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-md"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Notes (Optional)
                 </label>
                 <textarea
                   value={bookingFormData.notes}
                   onChange={(e) => setBookingFormData({ ...bookingFormData, notes: e.target.value })}
-                  className="w-full p-2 border border-gray-300 rounded-md"
+                  className="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-md"
                   rows={3}
                 />
               </div>
 
-              <div className="bg-gray-50 p-4 rounded-md">
+              <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-md">
                 <label className="flex items-start space-x-2">
                   <input
                     type="checkbox"
@@ -361,7 +361,7 @@ export default function BookingModalWithPayment({
                     onChange={(e) => setBookingFormData({ ...bookingFormData, agreedToTerms: e.target.checked })}
                     className="mt-1"
                   />
-                  <span className="text-sm text-gray-600">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
                     I agree to the terms of service and understand the cancellation policy.
                     Standard bookings can be cancelled up to 24 hours before the session for a full refund.
                   </span>
@@ -390,17 +390,17 @@ export default function BookingModalWithPayment({
           {currentStep === 'success' && (
             <div className="text-center py-8">
               <div className="mb-4">
-                <div className="mx-auto h-16 w-16 bg-green-100 rounded-full flex items-center justify-center">
-                  <svg className="h-8 w-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="mx-auto h-16 w-16 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
+                  <svg className="h-8 w-8 text-green-600 dark:text-green-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
               </div>
               <h3 className="text-2xl font-semibold mb-2">Booking Confirmed!</h3>
-              <p className="text-gray-600 mb-4">
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
                 Your session has been booked successfully. You&apos;ll receive a confirmation email shortly.
               </p>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
                 Redirecting to your dashboard...
               </p>
             </div>

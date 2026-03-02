@@ -37,7 +37,7 @@ export function ReviewsSection({ instructorId }: ReviewsSectionProps) {
   if (isLoading) {
     return (
       <section>
-        <h2 className="text-lg text-gray-600 mb-4">Reviews</h2>
+        <h2 className="text-lg text-gray-600 dark:text-gray-400 mb-4">Reviews</h2>
         <div className="space-y-4">
           {[1, 2].map((i) => (
             <Card key={i}>
@@ -57,7 +57,7 @@ export function ReviewsSection({ instructorId }: ReviewsSectionProps) {
   if (error || !data) {
     return (
       <section>
-        <h2 className="text-lg text-gray-600 mb-4">Reviews</h2>
+        <h2 className="text-lg text-gray-600 dark:text-gray-400 mb-4">Reviews</h2>
         <Card>
           <CardContent className="py-8 text-center">
             <p className="text-muted-foreground">Unable to load reviews</p>
@@ -70,7 +70,7 @@ export function ReviewsSection({ instructorId }: ReviewsSectionProps) {
   if (!data?.reviews || data.reviews.length === 0) {
     return (
       <section>
-        <h2 className="text-lg text-gray-600 mb-4">Reviews</h2>
+        <h2 className="text-lg text-gray-600 dark:text-gray-400 mb-4">Reviews</h2>
         <Card>
           <CardContent className="py-8 text-center">
             <p className="font-medium">New instructor</p>
@@ -84,14 +84,14 @@ export function ReviewsSection({ instructorId }: ReviewsSectionProps) {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg text-gray-600">Recent reviews ({data?.total ?? 0})</h2>
+        <h2 className="text-lg text-gray-600 dark:text-gray-400">Recent reviews ({data?.total ?? 0})</h2>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {data?.reviews?.map((review) => (
           <div
             key={review.id}
-            className="p-3 bg-white rounded-lg border border-gray-100"
+            className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700"
           >
             <div className="flex items-start gap-3">
               <StarRating rating={review.rating} />
@@ -105,7 +105,7 @@ export function ReviewsSection({ instructorId }: ReviewsSectionProps) {
                   </span>
                 </div>
                 {review.review_text && (
-                  <p className="text-sm text-gray-700 mt-1">
+                  <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
                     {review.review_text}
                   </p>
                 )}

@@ -25,11 +25,11 @@ const STATUS_META: Record<BGCStatus, { label: string; className: string }> = {
   },
   review: {
     label: 'Under review',
-    className: 'bg-orange-100 text-orange-800 border border-orange-200',
+    className: 'bg-orange-100 dark:bg-amber-900 text-orange-800 dark:text-amber-200 border border-orange-200 dark:border-gray-700',
   },
   consider: {
     label: 'Needs attention',
-    className: 'bg-orange-100 text-orange-800 border border-orange-200',
+    className: 'bg-orange-100 dark:bg-amber-900 text-orange-800 dark:text-amber-200 border border-orange-200 dark:border-gray-700',
   },
   failed: {
     label: 'Not started',
@@ -53,7 +53,7 @@ const StatusChip = React.forwardRef<HTMLSpanElement, StatusChipProps>(({ status,
   if (loading) {
     return (
       <span className="inline-flex focus:outline-none" role="status" tabIndex={-1} ref={ref}>
-        <Badge className="border border-gray-200 bg-gray-100 text-gray-600 animate-pulse">
+        <Badge className="border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 animate-pulse">
           Checking status…
         </Badge>
       </span>
@@ -641,12 +641,12 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
             <Mail className="w-6 h-6 text-[#7E22CE]" />
           </div>
           <div className="space-y-2">
-            <p className="text-sm text-gray-700">Thanks for authorizing your background check.</p>
-            <p className="text-sm text-gray-700">
+            <p className="text-sm text-gray-700 dark:text-gray-300">Thanks for authorizing your background check.</p>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
               We&apos;ve sent you an email with the next steps to securely complete the process.
               Please open the email and follow the link to continue.
             </p>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               Once you&apos;ve submitted the information, we&apos;ll automatically update your status here.
             </p>
           </div>

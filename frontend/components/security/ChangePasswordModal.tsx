@@ -51,19 +51,19 @@ export default function ChangePasswordModal({ onClose }: { onClose: () => void }
         tabIndex={-1}
         className="insta-dialog-panel w-full max-w-md p-6"
       >
-        <h3 id={titleId} className="text-lg font-semibold text-gray-900">Change password</h3>
+        <h3 id={titleId} className="text-lg font-semibold text-gray-900 dark:text-gray-100">Change password</h3>
         {error && <p role="alert" className="mt-2 text-sm text-red-600">{error}</p>}
         <div className="mt-4 space-y-3">
           <div>
-            <label htmlFor="current-password" className="block text-xs text-gray-500 mb-1">Current password</label>
+            <label htmlFor="current-password" className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Current password</label>
             <input id="current-password" type="password" className="w-full rounded-md border px-3 py-2 text-sm" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
           </div>
           <div>
-            <label htmlFor="new-password" className="block text-xs text-gray-500 mb-1">New password</label>
+            <label htmlFor="new-password" className="block text-xs text-gray-500 dark:text-gray-400 mb-1">New password</label>
             <input id="new-password" type="password" className="w-full rounded-md border px-3 py-2 text-sm" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
           </div>
           <div>
-            <label htmlFor="confirm-password" className="block text-xs text-gray-500 mb-1">Confirm new password</label>
+            <label htmlFor="confirm-password" className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Confirm new password</label>
             <input id="confirm-password" type="password" className="w-full rounded-md border px-3 py-2 text-sm" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
           </div>
         </div>

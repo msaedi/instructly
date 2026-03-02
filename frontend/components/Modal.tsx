@@ -134,9 +134,9 @@ const Modal: React.FC<ModalProps> = ({
           <div
             className={`
               pointer-events-auto flex ${heightClasses} w-full ${sizeClasses[size]}
-              flex-col ${containerOverflow} bg-white shadow-xl
+              flex-col ${containerOverflow} bg-white dark:bg-gray-800 shadow-xl text-gray-900 dark:text-gray-100
               transform transition-all duration-200 ease-out
-              relative sm:rounded-2xl dark:bg-gray-800 ${className}
+              relative sm:rounded-2xl ${className}
             `}
             >
             {title && (

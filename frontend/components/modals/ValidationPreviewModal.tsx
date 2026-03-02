@@ -107,8 +107,8 @@ export default function ValidationPreviewModal({
       <div className="p-6">
         <div className="space-y-6 max-h-[60vh] overflow-y-auto">
           {/* Summary */}
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <h4 className="font-medium text-gray-900 mb-3">Summary</h4>
+          <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+            <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-3">Summary</h4>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="font-medium">Total Operations:</span>
@@ -170,7 +170,7 @@ export default function ValidationPreviewModal({
                           </div>
                           <div className="text-red-600 mt-1">{detail.reason}</div>
                           {detail.conflicts_with && detail.conflicts_with.length > 0 && (
-                            <div className="text-xs text-gray-600 mt-1">
+                            <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
                               Conflicts with booking(s):{' '}
                               {detail.conflicts_with
                                 .map((c) => `${c['start_time']} - ${c['end_time']}`)
@@ -217,7 +217,7 @@ export default function ValidationPreviewModal({
         <button
           onClick={onClose}
           disabled={isSaving}
-          className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg
+          className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg
                    hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2
                    focus:ring-gray-500 transition-colors disabled:opacity-50"
         >

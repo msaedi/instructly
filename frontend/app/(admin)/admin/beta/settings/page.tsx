@@ -86,7 +86,7 @@ export default function BetaSettingsPage() {
           </aside>
           <section className="col-span-12 md:col-span-9 lg:col-span-9">
             {loading ? (
-              <div className="text-sm text-gray-500">Loading...</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">Loading...</div>
             ) : (
               <form onSubmit={onSubmit} className="max-w-xl space-y-4 bg-white/60 dark:bg-gray-900/40 backdrop-blur p-4 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60">
                 <div className="flex items-center justify-between">
@@ -98,7 +98,7 @@ export default function BetaSettingsPage() {
                     className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-300 dark:bg-gray-700 data-[state=checked]:bg-indigo-600 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-400"
                     aria-label="Disable Beta"
                   >
-                    <Switch.Thumb className="block h-5 w-5 rounded-full bg-white shadow transition-transform translate-x-1 data-[state=checked]:translate-x-5" />
+                    <Switch.Thumb className="block h-5 w-5 rounded-full bg-white dark:bg-gray-800 shadow transition-transform translate-x-1 data-[state=checked]:translate-x-5" />
                   </Switch.Root>
                 </div>
 
@@ -108,7 +108,7 @@ export default function BetaSettingsPage() {
                     <Select.Trigger className="inline-flex items-center justify-between w-full rounded-lg px-3 py-2 ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800">
                       <Select.Value />
                       <Select.Icon>
-                        <ChevronDown className="h-4 w-4 text-gray-500" />
+                        <ChevronDown className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                       </Select.Icon>
                     </Select.Trigger>
                     <Select.Portal>
@@ -141,7 +141,7 @@ export default function BetaSettingsPage() {
                     className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-300 dark:bg-gray-700 data-[state=checked]:bg-indigo-600 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-400"
                     aria-label="Allow signup without invite"
                   >
-                    <Switch.Thumb className="block h-5 w-5 rounded-full bg-white shadow transition-transform translate-x-1 data-[state=checked]:translate-x-5" />
+                    <Switch.Thumb className="block h-5 w-5 rounded-full bg-white dark:bg-gray-800 shadow transition-transform translate-x-1 data-[state=checked]:translate-x-5" />
                   </Switch.Root>
                 </div>
 

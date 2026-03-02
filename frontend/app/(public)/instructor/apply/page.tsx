@@ -322,7 +322,7 @@ export default function InstructorApplyPage() {
               <form onSubmit={handleSubmit} className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="first-name" className="block text-sm font-medium text-gray-700">
+                    <label htmlFor="first-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                       First Name <span className="text-rose-500">*</span>
                     </label>
                     <input
@@ -334,7 +334,7 @@ export default function InstructorApplyPage() {
                         clearError('firstName');
                       }}
                       required
-                      className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-white text-gray-900"
+                      className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                       placeholder="Jane"
                       aria-invalid={Boolean(errors.firstName)}
                       aria-describedby={errors.firstName ? 'first-name-error' : undefined}
@@ -347,7 +347,7 @@ export default function InstructorApplyPage() {
                   </div>
 
                 <div>
-                  <label htmlFor="last-name" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="last-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Last Name <span className="text-rose-500">*</span>
                   </label>
                   <input
@@ -359,7 +359,7 @@ export default function InstructorApplyPage() {
                       clearError('lastName');
                     }}
                     required
-                    className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-white text-gray-900"
+                    className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                     placeholder="Doe"
                     aria-invalid={Boolean(errors.lastName)}
                     aria-describedby={errors.lastName ? 'last-name-error' : undefined}
@@ -372,7 +372,7 @@ export default function InstructorApplyPage() {
                 </div>
 
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Email <span className="text-rose-500">*</span>
                   </label>
                   <input
@@ -384,7 +384,7 @@ export default function InstructorApplyPage() {
                       clearError('email');
                     }}
                     required
-                    className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-white text-gray-900"
+                    className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                     placeholder="you@example.com"
                     aria-invalid={Boolean(errors.email)}
                     aria-describedby={errors.email ? 'email-error' : undefined}
@@ -397,7 +397,7 @@ export default function InstructorApplyPage() {
                 </div>
 
                 <div>
-                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Phone <span className="text-rose-500">*</span>
                   </label>
                   <input
@@ -410,7 +410,7 @@ export default function InstructorApplyPage() {
                       clearError('phone');
                     }}
                     required
-                    className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-white text-gray-900"
+                    className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                     placeholder="(917) 555-0142"
                     aria-invalid={Boolean(errors.phone)}
                     aria-describedby={errors.phone ? 'phone-error' : undefined}
@@ -423,11 +423,11 @@ export default function InstructorApplyPage() {
                 </div>
 
                 <div>
-                  <label htmlFor="hourly-rate" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="hourly-rate" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Hourly Rate
                   </label>
                   <div className="relative mt-1">
-                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">$</span>
                     <input
                       id="hourly-rate"
                       type="number"
@@ -440,7 +440,7 @@ export default function InstructorApplyPage() {
                         setHourlyRate(event.target.value);
                         clearError('hourlyRate');
                       }}
-                      className="block w-full px-3 py-2 h-10 pl-7 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-white text-gray-900"
+                      className="block w-full px-3 py-2 h-10 pl-7 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                       placeholder="95"
                       aria-invalid={Boolean(errors.hourlyRate)}
                       aria-describedby={errors.hourlyRate ? 'hourly-rate-error' : undefined}
@@ -455,7 +455,7 @@ export default function InstructorApplyPage() {
               </div>
 
               <div>
-                <label htmlFor="category" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Service Category <span className="text-rose-500">*</span>
                 </label>
                 <select
@@ -469,7 +469,7 @@ export default function InstructorApplyPage() {
                   }}
                   required
                   disabled={categoriesLoading}
-                  className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] disabled:opacity-60"
+                  className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] disabled:opacity-60"
                   aria-invalid={Boolean(errors.category)}
                   aria-describedby={errors.category ? 'category-error' : undefined}
                 >
@@ -486,7 +486,7 @@ export default function InstructorApplyPage() {
               </div>
 
               <div>
-                <label htmlFor="subcategory" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="subcategory" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Subcategory <span className="text-rose-500">*</span>
                 </label>
                 <select
@@ -498,7 +498,7 @@ export default function InstructorApplyPage() {
                   }}
                   required
                   disabled={!category || servicesLoading}
-                  className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] disabled:opacity-60"
+                  className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] disabled:opacity-60"
                   aria-invalid={Boolean(errors.subcategory)}
                   aria-describedby={errors.subcategory ? 'subcategory-error' : undefined}
                 >
@@ -628,25 +628,25 @@ export default function InstructorApplyPage() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <label className="flex items-center gap-3 text-sm text-gray-700">
+                <label className="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-300">
                   <input
                     type="checkbox"
                     checked={hasExistingClients}
                     onChange={(event) => setHasExistingClients(event.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-[#7E22CE] focus:ring-[#7E22CE]"
+                    className="h-4 w-4 rounded border-gray-300 dark:border-gray-700 text-[#7E22CE] focus:ring-[#7E22CE]"
                   />
                   I have existing clients
                 </label>
 
                 <div>
-                  <label htmlFor="referral-source" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="referral-source" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     How did you hear about us?
                   </label>
                   <select
                     id="referral-source"
                     value={referralSource}
                     onChange={(event) => setReferralSource(event.target.value)}
-                    className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)]"
+                    className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)]"
                   >
                     <option value="">Select one</option>
                     {REFERRAL_OPTIONS.map((option) => (

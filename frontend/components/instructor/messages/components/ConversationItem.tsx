@@ -45,7 +45,7 @@ export function ConversationItem({
   const avatarClasses = isCompose
     ? 'bg-[#7E22CE] text-white'
     : conversation.type === 'platform'
-      ? 'bg-blue-100 text-blue-600'
+      ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-200'
       : 'bg-purple-100 text-purple-600';
 
   const unreadDot =
@@ -96,7 +96,7 @@ export function ConversationItem({
           </p>
         </div>
         {!isCompose && (
-          <div className="flex flex-col items-end gap-1 text-xs text-gray-400 dark:text-gray-400">
+          <div className="flex flex-col items-end gap-1 text-xs text-gray-400 dark:text-gray-300">
             {conversationDate ? (
               <span className="text-[11px] text-gray-500 dark:text-gray-400 leading-none">
                 {conversationDate}
@@ -131,7 +131,7 @@ export function ConversationItem({
 
       {/* Hover actions - Archive and Delete buttons */}
       {showActions && (
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1 bg-white rounded-lg shadow-sm border border-gray-200 p-1">
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-1">
           <button
             type="button"
             aria-label="Archive conversation"

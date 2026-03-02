@@ -422,7 +422,7 @@ function InstructorProfileContent() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header - matching search results page */}
-      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4 sticky top-0 z-50">
+      <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4 sticky top-0 z-50">
         <div className="flex items-center justify-between max-w-full">
           <div className="flex items-center gap-4">
             <Link className="inline-block" href="/">
@@ -431,7 +431,7 @@ function InstructorProfileContent() {
             <Button
               variant="ghost"
               onClick={() => router.push('/instructor/dashboard')}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+              className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Dashboard
@@ -501,7 +501,7 @@ function InstructorProfileContent() {
 
           {/* Availability Grid removed per request */}
           {/* Reviews Section */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6" data-reviews-section>
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6" data-reviews-section>
             <ReviewsSection instructorId={instructor.user_id} />
           </div>
         </div>

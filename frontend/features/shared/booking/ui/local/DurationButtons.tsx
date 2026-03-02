@@ -13,7 +13,7 @@ export default function DurationButtons({ durationOptions, selectedDuration, onD
   return (
     <div className="mt-4">
       <div className="flex items-center gap-4">
-        <p className="text-sm font-medium text-gray-700">Session duration:</p>
+        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Session duration:</p>
         <div className="flex gap-4">
           {durationOptions.map((option) => {
             const isSelected = selectedDuration === option.duration;
@@ -27,9 +27,9 @@ export default function DurationButtons({ durationOptions, selectedDuration, onD
                   checked={isSelected}
                   onChange={() => !isDisabled && onDurationSelect(option.duration)}
                   disabled={isDisabled}
-                  className="w-4 h-4 text-[#7E22CE] accent-purple-700 border-gray-300 focus:ring-[#7E22CE]"
+                  className="w-4 h-4 text-[#7E22CE] accent-purple-700 border-gray-300 dark:border-gray-700 focus:ring-[#7E22CE]"
                 />
-                <span className="ml-2 text-sm text-gray-700">{option.duration} min (${option.price})</span>
+                <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">{option.duration} min (${option.price})</span>
               </label>
             );
           })}

@@ -303,7 +303,7 @@ function StudentDashboardContent() {
           <div className="flex items-center gap-4 pr-4">
             <Link
               href="/student/lessons"
-              className="text-gray-700 hover:text-[#7E22CE] font-medium"
+              className="text-gray-700 dark:text-gray-300 hover:text-[#7E22CE] font-medium"
             >
               My Lessons
             </Link>
@@ -353,8 +353,8 @@ function StudentDashboardContent() {
                     className={
                       `w-full flex items-center gap-3 rounded-lg px-4 py-3 text-base font-semibold mb-2 transition-all cursor-pointer ` +
                       (isActive
-                        ? 'bg-purple-50 text-gray-600 border border-purple-200'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-700')
+                        ? 'bg-purple-50 text-gray-600 dark:text-gray-400 border border-purple-200'
+                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 hover:text-gray-700')
                     }
                   >
                     <Icon className="h-5 w-5" />
@@ -374,7 +374,7 @@ function StudentDashboardContent() {
                   {/* Account Information */}
                   <div>
                     <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-lg font-semibold text-gray-900">Account Information</h2>
+                      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Account Information</h2>
                       <button
                         className="text-sm font-medium text-[#7E22CE] hover:text-[#7E22CE] cursor-pointer"
                         onClick={() => {
@@ -416,7 +416,7 @@ function StudentDashboardContent() {
                           <ProfilePictureUpload size={144} onCompleted={() => { setProfilePhoto(null); void refetchUserData(); }} />
                         )}
                       </div>
-                      <div className="space-y-1.5 text-sm text-gray-700">
+                      <div className="space-y-1.5 text-sm text-gray-700 dark:text-gray-300">
                         <p className="text-2xl font-bold text-[#7E22CE]">{userData?.first_name} {userData?.last_name}</p>
                         <p>{userData?.email}</p>
                         <p>{formatPhoneReadable(userData?.phone)}</p>
@@ -435,14 +435,14 @@ function StudentDashboardContent() {
                   </div>
 
                   {/* Achievements & Badges */}
-                  <div className="border-b border-gray-200 my-6"></div>
+                  <div className="border-b border-gray-200 dark:border-gray-700 my-6"></div>
                   <StudentBadgesSection />
 
                   {/* Addresses */}
-                  <div className="border-b border-gray-200 mb-6"></div>
+                  <div className="border-b border-gray-200 dark:border-gray-700 mb-6"></div>
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <h2 className="text-lg font-semibold text-gray-900">Addresses</h2>
+                      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Addresses</h2>
                       <button
                         className="text-sm font-medium text-[#7E22CE] hover:text-[#7E22CE] cursor-pointer"
                         onClick={() => setShowAddressModal({ mode: 'create' })}
@@ -459,12 +459,12 @@ function StudentDashboardContent() {
                       )}
                       {!isLoadingAddresses && (addresses || []).map((a) => (
                         <div key={a.id} className="insta-surface-card rounded-xl p-4 hover:shadow-sm transition-shadow">
-                          <p className="font-medium text-gray-900">
+                          <p className="font-medium text-gray-900 dark:text-gray-100">
                             {(a.label === 'other'
                               ? (a.custom_label || 'Other')
                               : (a.label ? a.label.charAt(0).toUpperCase() + a.label.slice(1) : 'Address'))} {a.is_default ? '(Default)' : ''}
                           </p>
-                          <p className="text-sm text-gray-600">
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
                             {[a.street_1, a.street_2].filter(Boolean).join(', ')}{[a.city, a.state].some(Boolean) ? `, ${[a.city, a.state].filter(Boolean).join(', ')}` : ''}{a.zip_code ? `, ${a.zip_code}` : ''}
                           </p>
                           <div className="mt-2 flex gap-3 text-sm">
@@ -475,7 +475,7 @@ function StudentDashboardContent() {
                               Edit
                             </button>
                             <button
-                              className="text-gray-500 hover:text-gray-700"
+                              className="text-gray-500 dark:text-gray-400 hover:text-gray-700"
                               onClick={async () => {
                                 // Custom confirm modal
                                 const ok = await new Promise<boolean>((resolve) => {
@@ -529,9 +529,9 @@ function StudentDashboardContent() {
                   </div>
 
                   {/* Security */}
-                  <div className="border-b border-gray-200 mb-6"></div>
+                  <div className="border-b border-gray-200 dark:border-gray-700 mb-6"></div>
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Security</h2>
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Security</h2>
                     <div className="flex flex-wrap gap-3">
                       <button
                         className="insta-secondary-btn rounded-lg px-4 py-2.5 text-sm font-medium transition-all cursor-pointer"
@@ -547,20 +547,20 @@ function StudentDashboardContent() {
                       </button>
                     </div>
                     {tfaStatus && (
-                      <p className="mt-2 text-sm text-gray-600">
+                      <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                         2FA Status: {tfaStatus.enabled ? 'Enabled' : 'Disabled'}{tfaStatus.last_used_at ? ` • Last used: ${new Date(tfaStatus.last_used_at).toLocaleString()}` : ''}
                       </p>
                     )}
                   </div>
 
-                  <p className="mt-6 text-sm text-gray-600">
+                  <p className="mt-6 text-sm text-gray-600 dark:text-gray-400">
                     Manage your link, invites, and rewards in the Rewards tab.
                   </p>
 
                   {/* Account Management (placeholder) */}
-                  <div className="border-b border-gray-200 mb-6"></div>
+                  <div className="border-b border-gray-200 dark:border-gray-700 mb-6"></div>
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Account Management</h2>
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Account Management</h2>
                     <div className="flex flex-wrap gap-3">
                       <button
                         className="insta-secondary-btn py-2.5 px-4 rounded-lg text-sm font-medium transition-colors cursor-pointer"
@@ -582,7 +582,7 @@ function StudentDashboardContent() {
 
               {activeTab === 'favorites' && (
                 <div className="space-y-4">
-                  <p className="text-sm text-gray-600">Quickly access your favorite subjects and instructors</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Quickly access your favorite subjects and instructors</p>
 
                   {isLoadingFavorites && (
                     <div className="insta-empty-state-note rounded-xl p-4 text-sm">Loading favorites…</div>
@@ -646,16 +646,16 @@ function StudentDashboardContent() {
                                   className="h-12 w-12"
                                 />
                                 <div>
-                                  <p className="font-semibold text-gray-900">{name}</p>
+                                  <p className="font-semibold text-gray-900 dark:text-gray-100">{name}</p>
                                   {(primarySubject || yearsExp) && (
-                                    <p className="mt-1 text-xs text-gray-700">
+                                    <p className="mt-1 text-xs text-gray-700 dark:text-gray-300">
                                       {primarySubject ? <span>{primarySubject}</span> : null}
                                       {primarySubject && yearsExp ? <span> · </span> : null}
                                       {yearsExp ? <span>{yearsExp} yrs experience</span> : null}
                                     </p>
                                   )}
                                   {(primaryArea || typeof primaryRate === 'number') && (
-                                    <p className="mt-1 text-xs text-gray-600">
+                                    <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
                                       {primaryArea ? <span>{primaryArea}</span> : null}
                                       {primaryArea && typeof primaryRate === 'number' ? <span> · </span> : null}
                                       {typeof primaryRate === 'number' ? <span>${primaryRate}/hour</span> : null}
@@ -665,7 +665,7 @@ function StudentDashboardContent() {
                               </div>
                             </Link>
                             <button
-                              className="absolute top-2 right-2 p-1 text-gray-500 hover:text-gray-700 cursor-pointer"
+                              className="absolute top-2 right-2 p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 cursor-pointer"
                               aria-label="Remove favorite"
                               title="Remove"
                               onClick={async (e) => {
@@ -708,7 +708,7 @@ function StudentDashboardContent() {
               )}
 
               {activeTab !== 'profile' && activeTab !== 'favorites' && activeTab !== 'billing' && activeTab !== 'notifications' && activeTab !== 'rewards' && (
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-gray-600 dark:text-gray-400">
                   <p>Settings for <span className="font-medium">{tabs.find(t => t.key === activeTab)?.label}</span> will appear here.</p>
                 </div>
               )}
@@ -965,11 +965,11 @@ function NotificationsTab() {
       disabled={disabled}
       title={title}
       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-        checked ? 'bg-purple-600' : 'bg-gray-200'
+        checked ? 'bg-purple-600' : 'bg-gray-200 dark:bg-gray-700'
       } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
     >
       <span
-        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+        className={`inline-block h-4 w-4 transform rounded-full bg-white dark:bg-gray-800 shadow transition-transform ${
           checked ? 'translate-x-6' : 'translate-x-1'
         }`}
       />
@@ -1018,7 +1018,7 @@ function NotificationsTab() {
               <div className="flex gap-2">
                 {/* Hour selector */}
                 <div className="flex-1">
-                  <div className="text-xs font-medium text-gray-600 mb-1">Hour</div>
+                  <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Hour</div>
                   <div className="insta-form-input h-20 overflow-y-auto rounded scrollbar-hide">
                     {hours.map(h => (
                       <button
@@ -1036,7 +1036,7 @@ function NotificationsTab() {
 
                 {/* Minute selector */}
                 <div className="flex-1">
-                  <div className="text-xs font-medium text-gray-600 mb-1">Minute</div>
+                  <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Minute</div>
                   <div className="insta-form-input h-20 overflow-y-auto rounded scrollbar-hide">
                     {minutes.filter((_, i) => i % 5 === 0).map(m => (
                       <button
@@ -1054,7 +1054,7 @@ function NotificationsTab() {
 
                 {/* AM/PM selector */}
                 <div className="flex-1">
-                  <div className="text-xs font-medium text-gray-600 mb-1">Period</div>
+                  <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Period</div>
                   <div className="insta-form-input rounded">
                     <button
                       onClick={() => handleTimeChange(displayHour, minute, 'AM')}
@@ -1087,8 +1087,8 @@ function NotificationsTab() {
       {/* Use Recommended Settings */}
       <div className="insta-surface-card flex items-center justify-between p-4 rounded-lg">
         <div>
-          <span className="text-sm font-medium text-gray-900">Use Recommended Settings</span>
-          <p className="text-xs text-gray-500 mt-0.5">Apply optimal notification preferences for most users</p>
+          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">Use Recommended Settings</span>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Apply optimal notification preferences for most users</p>
         </div>
         <ToggleSwitch
           checked={usingRecommended}
@@ -1100,8 +1100,8 @@ function NotificationsTab() {
 
       <div className="insta-surface-card rounded-lg p-4 space-y-3">
         <div>
-          <p className="text-sm font-medium text-gray-900">Phone number (for SMS)</p>
-          <p className="text-xs text-gray-500">Add and verify a phone number to receive SMS alerts.</p>
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Phone number (for SMS)</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Add and verify a phone number to receive SMS alerts.</p>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <input
@@ -1147,7 +1147,7 @@ function NotificationsTab() {
               disabled={sendVerification.isPending || resendCooldown > 0}
               className={`min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
                 resendCooldown > 0 || sendVerification.isPending
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-300 cursor-not-allowed'
                   : 'insta-primary-btn text-white'
               }`}
             >
@@ -1162,21 +1162,21 @@ function NotificationsTab() {
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Notification Preferences</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Notification Preferences</h2>
 
         <div className="space-y-4">
-          <div className="grid grid-cols-4 gap-4 pb-3 border-b border-gray-200">
-            <div className="text-sm font-medium text-gray-700">Notification Type</div>
-            <div className="text-sm font-medium text-gray-700 text-center">Email</div>
-            <div className="text-sm font-medium text-gray-700 text-center">SMS</div>
-            <div className="text-sm font-medium text-gray-700 text-center">Push</div>
+          <div className="grid grid-cols-4 gap-4 pb-3 border-b border-gray-200 dark:border-gray-700">
+            <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Notification Type</div>
+            <div className="text-sm font-medium text-gray-700 dark:text-gray-300 text-center">Email</div>
+            <div className="text-sm font-medium text-gray-700 dark:text-gray-300 text-center">SMS</div>
+            <div className="text-sm font-medium text-gray-700 dark:text-gray-300 text-center">Push</div>
           </div>
 
           {/* Lesson Updates - Most Important */}
           <div className="grid grid-cols-4 gap-4 items-start py-2">
             <div>
-              <div className="font-medium text-gray-900">Lesson Updates</div>
-              <div className="text-xs text-gray-500">Booking confirmations, reminders, cancellations</div>
+              <div className="font-medium text-gray-900 dark:text-gray-100">Lesson Updates</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Booking confirmations, reminders, cancellations</div>
             </div>
             <div className="flex justify-center">
               <ToggleSwitch
@@ -1208,8 +1208,8 @@ function NotificationsTab() {
           {/* Instructor Messages - Second Most Important */}
           <div className="grid grid-cols-4 gap-4 items-start py-2">
             <div>
-              <div className="font-medium text-gray-900">Instructor Messages</div>
-              <div className="text-xs text-gray-500">Direct messages, replies, updates from instructors</div>
+              <div className="font-medium text-gray-900 dark:text-gray-100">Instructor Messages</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Direct messages, replies, updates from instructors</div>
             </div>
             <div className="flex justify-center">
               <ToggleSwitch
@@ -1242,8 +1242,8 @@ function NotificationsTab() {
           {/* Reviews & Feedback */}
           <div className="grid grid-cols-4 gap-4 items-start py-2">
             <div>
-              <div className="font-medium text-gray-900">Reviews & Feedback</div>
-              <div className="text-xs text-gray-500">Review requests, instructor responses</div>
+              <div className="font-medium text-gray-900 dark:text-gray-100">Reviews & Feedback</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Review requests, instructor responses</div>
             </div>
             <div className="flex justify-center">
               <ToggleSwitch
@@ -1275,8 +1275,8 @@ function NotificationsTab() {
           {/* Learning Tips */}
           <div className="grid grid-cols-4 gap-4 items-start py-2">
             <div>
-              <div className="font-medium text-gray-900">Learning Tips & Achievements</div>
-              <div className="text-xs text-gray-500">Weekly tips, progress updates, milestones</div>
+              <div className="font-medium text-gray-900 dark:text-gray-100">Learning Tips & Achievements</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Weekly tips, progress updates, milestones</div>
             </div>
             <div className="flex justify-center">
               <ToggleSwitch
@@ -1308,8 +1308,8 @@ function NotificationsTab() {
           {/* System & Policy Updates */}
           <div className="grid grid-cols-4 gap-4 items-start py-2">
             <div>
-              <div className="font-medium text-gray-900">System & Policy Updates</div>
-              <div className="text-xs text-gray-500">Important platform changes, maintenance, terms updates</div>
+              <div className="font-medium text-gray-900 dark:text-gray-100">System & Policy Updates</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Important platform changes, maintenance, terms updates</div>
             </div>
             <div className="flex justify-center">
               <ToggleSwitch
@@ -1341,8 +1341,8 @@ function NotificationsTab() {
           {/* Promotional Offers - Least Important */}
           <div className="grid grid-cols-4 gap-4 items-start py-2">
             <div>
-              <div className="font-medium text-gray-900">Promotional Offers</div>
-              <div className="text-xs text-gray-500">Discounts, special offers, new features</div>
+              <div className="font-medium text-gray-900 dark:text-gray-100">Promotional Offers</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Discounts, special offers, new features</div>
             </div>
             <div className="flex justify-center">
               <ToggleSwitch
@@ -1376,10 +1376,10 @@ function NotificationsTab() {
         )}
       </div>
 
-      <div className="border-t border-gray-200 pt-6">
-        <h3 className="font-medium text-gray-900 mb-4">Lesson Reminder Timing</h3>
+      <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+        <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-4">Lesson Reminder Timing</h3>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-700">Send reminders</span>
+          <span className="text-sm text-gray-700 dark:text-gray-300">Send reminders</span>
           <div className="relative">
             <select
               value={reminderTiming}
@@ -1401,21 +1401,21 @@ function NotificationsTab() {
               <option value="2880" style={{ backgroundColor: 'white' }}>2 days before lesson</option>
             </select>
           </div>
-          <span className="text-sm text-gray-700">lesson starts</span>
+          <span className="text-sm text-gray-700 dark:text-gray-300">lesson starts</span>
         </div>
-        <p className="text-xs text-gray-500 mt-2">You&apos;ll receive a reminder at your selected time before each scheduled lesson.</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">You&apos;ll receive a reminder at your selected time before each scheduled lesson.</p>
       </div>
 
-      <div className="border-t border-gray-200 pt-6">
-        <h3 className="font-medium text-gray-900 mb-4">Quiet Hours</h3>
+      <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+        <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-4">Quiet Hours</h3>
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-700">Mute notifications between</span>
+            <span className="text-sm text-gray-700 dark:text-gray-300">Mute notifications between</span>
             <CustomTimePicker
               value={quietHoursStart}
               onChange={setQuietHoursStart}
             />
-            <span className="text-sm text-gray-700">and</span>
+            <span className="text-sm text-gray-700 dark:text-gray-300">and</span>
             <CustomTimePicker
               value={quietHoursEnd}
               onChange={setQuietHoursEnd}
@@ -1427,14 +1427,14 @@ function NotificationsTab() {
             </p>
           )}
           {!isQuietHoursOff && (
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
               Notifications will be silenced during these hours. Urgent lesson updates may still come through.
             </p>
           )}
         </div>
       </div>
 
-      <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+      <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
         <button
           className="insta-secondary-btn rounded-lg px-4 py-2 text-sm font-medium transition-colors"
           onClick={() => window.location.reload()}
@@ -1608,13 +1608,13 @@ export function AddressModal({ mode, address, onClose, onSaved }: { mode: 'creat
     <div className="fixed inset-0 z-50 flex items-center justify-center insta-dialog-backdrop p-4">
       <div className="insta-dialog-panel w-full max-w-lg rounded-xl p-6 ring-1 ring-gray-200">
         <div className="mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">{mode === 'create' ? 'Add Address' : 'Edit Address'}</h3>
-          <p className="mt-1 text-sm text-gray-600">Add a saved address for quick booking.</p>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{mode === 'create' ? 'Add Address' : 'Edit Address'}</h3>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Add a saved address for quick booking.</p>
         </div>
         <div className="grid grid-cols-1 gap-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Label</label>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Label</label>
               <select className="insta-form-input w-full rounded-md px-3 py-2 text-sm" value={form.label} onChange={(e) => setForm((prev) => ({ ...prev, label: e.target.value, custom_label: e.target.value === 'other' ? prev.custom_label : '' }))}>
                 <option value="home">Home</option>
                 <option value="work">Work</option>
@@ -1623,12 +1623,12 @@ export function AddressModal({ mode, address, onClose, onSaved }: { mode: 'creat
             </div>
             <div className="flex items-center gap-2 mt-6">
               <input id="is_default" type="checkbox" checked={form.is_default} onChange={(e) => setForm({ ...form, is_default: e.target.checked })} />
-              <label htmlFor="is_default" className="text-sm text-gray-700">Set as default</label>
+              <label htmlFor="is_default" className="text-sm text-gray-700 dark:text-gray-300">Set as default</label>
             </div>
           </div>
           {form.label === 'other' && (
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Custom label</label>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Custom label</label>
               <input
                 className="insta-form-input w-full rounded-md px-3 py-2 text-sm"
                 placeholder="e.g., Parent, Studio, School"
@@ -1642,7 +1642,7 @@ export function AddressModal({ mode, address, onClose, onSaved }: { mode: 'creat
             </div>
           )}
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Address</label>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Address</label>
             <input
               className="insta-form-input w-full rounded-md px-3 py-2 text-sm"
               placeholder="Start typing…"
@@ -1696,25 +1696,25 @@ export function AddressModal({ mode, address, onClose, onSaved }: { mode: 'creat
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Address line 1</label>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Address line 1</label>
               <input className="insta-form-input w-full rounded-md px-3 py-2 text-sm" value={form.street_line1} onChange={(e) => setForm({ ...form, street_line1: e.target.value })} />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Address line 2</label>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Address line 2</label>
               <input className="insta-form-input w-full rounded-md px-3 py-2 text-sm" value={form.street_line2} onChange={(e) => setForm({ ...form, street_line2: e.target.value })} />
             </div>
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">City</label>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">City</label>
               <input className="insta-form-input w-full rounded-md px-3 py-2 text-sm" value={form.locality} onChange={(e) => setForm({ ...form, locality: e.target.value })} />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">State</label>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">State</label>
               <input className="insta-form-input w-full rounded-md px-3 py-2 text-sm" value={form.administrative_area} onChange={(e) => setForm({ ...form, administrative_area: e.target.value })} />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Postal code</label>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Postal code</label>
               <input className="insta-form-input w-full rounded-md px-3 py-2 text-sm" value={form.postal_code} onChange={(e) => setForm({ ...form, postal_code: e.target.value })} />
             </div>
           </div>
@@ -1787,8 +1787,8 @@ function DeleteAccountModal({ email, onClose, onDeleted }: { email: string; onCl
     <div className="fixed inset-0 z-50 flex items-center justify-center insta-dialog-backdrop p-4">
       <div className="insta-dialog-panel w-full max-w-md rounded-lg p-6 ring-1 ring-gray-200 dark:ring-gray-700/80">
         <div className="mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Delete Account</h3>
-          <p className="mt-2 text-sm text-gray-600">This action cannot be undone. Type DELETE to confirm and enter your password.</p>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Delete Account</h3>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">This action cannot be undone. Type DELETE to confirm and enter your password.</p>
         </div>
         <div className="space-y-3">
           <input
@@ -1807,7 +1807,7 @@ function DeleteAccountModal({ email, onClose, onDeleted }: { email: string; onCl
             />
             <button
               type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-300 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
@@ -1918,11 +1918,11 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center insta-dialog-backdrop p-4">
       <div className="insta-dialog-panel w-full max-w-md rounded-xl p-6 ring-1 ring-gray-200 dark:ring-gray-700/80">
-        <h2 className="text-xl font-bold text-gray-900 mb-6">Edit Profile</h2>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-6">Edit Profile</h2>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First Name</label>
             <input
               type="text"
               value={firstName}
@@ -1934,11 +1934,11 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
               placeholder="Enter first name"
               className="insta-form-input w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/25 focus:border-purple-500"
             />
-            <p className="text-xs text-gray-500 mt-1">Current value: {firstName || '(empty)'}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Current value: {firstName || '(empty)'}</p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Name</label>
             <input
               type="text"
               value={lastName}
@@ -1948,7 +1948,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone</label>
             <input
               type="tel"
               value={phone}
@@ -1959,7 +1959,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">ZIP Code</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ZIP Code</label>
             <input
               type="text"
               value={zipCode}
@@ -2035,7 +2035,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center insta-dialog-backdrop p-4">
       <div className="insta-dialog-panel w-full max-w-md rounded-lg p-6 ring-1 ring-gray-200 dark:ring-gray-700/80">
         <div className="mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Change Password</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Change Password</h3>
         </div>
         <div className="space-y-3">
           <div className="relative">
@@ -2048,7 +2048,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
             />
             <button
               type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-300 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
               onClick={() => setShowPasswords((v) => !v)}
               aria-label={showPasswords ? 'Hide passwords' : 'Show passwords'}
             >

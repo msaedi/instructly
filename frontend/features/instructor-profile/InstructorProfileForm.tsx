@@ -1014,7 +1014,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
                 <>
                   <p className="text-gray-600 dark:text-gray-400 mt-1 mb-3">Control availability and booking preferences</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="bg-white rounded-lg">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg">
                       <div className="flex items-center justify-between mb-2">
                         <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">Advance Notice (business hours)</label>
                         <Tooltip.Provider delayDuration={150} skipDelayDuration={0}>
@@ -1024,7 +1024,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
                                 <Info className="w-3.5 h-3.5" aria-hidden="true" />
                               </span>
                             </Tooltip.Trigger>
-                            <Tooltip.Content side="top" sideOffset={6} className="rounded-md bg-white border border-gray-200 px-2 py-1 text-xs text-gray-900 dark:text-gray-100 shadow-sm select-none max-w-xs">
+                            <Tooltip.Content side="top" sideOffset={6} className="rounded-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-2 py-1 text-xs text-gray-900 dark:text-gray-100 shadow-sm select-none max-w-xs">
                               The minimum time required between booking and the start of a lesson. For example, if set to 2 hours, students can’t book a session that starts in less than 2 hours from now.
                               <Tooltip.Arrow className="fill-gray-200" />
                             </Tooltip.Content>
@@ -1043,10 +1043,10 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
                           const n = Math.max(1, Math.min(24, parseInt(e.target.value || '0', 10)));
                           setProfile((p) => ({ ...p, min_advance_booking_hours: isNaN(n) ? 1 : n }));
                         }}
-                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 no-spinner"
+                        className="w-full rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 no-spinner"
                       />
                     </div>
-                    <div className="bg-white rounded-lg">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg">
                       <div className="flex items-center justify-between mb-2">
                         <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">Buffer Time (hours)</label>
                         <Tooltip.Provider delayDuration={150} skipDelayDuration={0}>
@@ -1056,7 +1056,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
                                 <Info className="w-3.5 h-3.5" aria-hidden="true" />
                               </span>
                             </Tooltip.Trigger>
-                            <Tooltip.Content side="top" sideOffset={6} className="rounded-md bg-white border border-gray-200 px-2 py-1 text-xs text-gray-900 dark:text-gray-100 shadow-sm select-none max-w-xs">
+                            <Tooltip.Content side="top" sideOffset={6} className="rounded-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-2 py-1 text-xs text-gray-900 dark:text-gray-100 shadow-sm select-none max-w-xs">
                               The minimum gap between two sessions. For example, if set to 15 minutes, and someone books 9:00–10:00, the next session will be bookable starting at 10:15.
                               <Tooltip.Arrow className="fill-gray-200" />
                             </Tooltip.Content>
@@ -1075,7 +1075,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
                           const n = Math.max(0, Math.min(24, isNaN(raw) ? 0 : raw));
                           setProfile((p) => ({ ...p, buffer_time_hours: n }));
                         }}
-                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500"
+                        className="w-full rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500"
                       />
                     </div>
                   </div>

@@ -115,7 +115,7 @@ export function LessonCard({
 
   return (
     <Card
-      className={`p-4 sm:p-6 bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-shadow cursor-pointer ${className || ''}`}
+      className={`p-4 sm:p-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow cursor-pointer ${className || ''}`}
       data-testid="lesson-card"
       onClick={onViewDetails}
     >
@@ -156,15 +156,15 @@ export function LessonCard({
 
         {/* Date, Time, and Price */}
         <div className="space-y-2">
-          <div className="flex items-center gap-2 text-gray-600">
+          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
             <Calendar className="h-4 w-4" />
             <span className="text-lg">{formattedDate}</span>
           </div>
-          <div className="flex items-center gap-2 text-gray-600">
+          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
             <Clock className="h-4 w-4" />
             <span className="text-lg">{formattedTime}</span>
           </div>
-          <div className="flex items-center gap-2 text-gray-600">
+          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
             <DollarSign className="h-4 w-4" />
             <span className="text-lg font-medium">
               {lesson.status === 'CANCELLED' && lesson.cancelled_at ? (
@@ -183,7 +183,7 @@ export function LessonCard({
         )}
 
         {/* Instructor Info */}
-        <div className="pt-4 border-t border-gray-300">
+        <div className="pt-4 border-t border-gray-300 dark:border-gray-700">
           <InstructorInfo
             {...(lesson.instructor && { instructor: lesson.instructor })}
             {...(rating && { rating })}

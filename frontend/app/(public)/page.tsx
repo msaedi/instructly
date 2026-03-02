@@ -211,7 +211,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen relative" suppressHydrationWarning>
       {/* Navigation - matching search results page */}
-      <header role="banner" className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+      <header role="banner" className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link href="/" className="inline-block">
             <span data-testid="home-brand" className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">
@@ -230,7 +230,7 @@ export default function HomePage() {
                         : '/instructor/onboarding/status'
                   }
                   data-testid={hasRole(user, RoleName.STUDENT) ? 'nav-my-lessons' : undefined}
-                  className="text-gray-700 hover:text-[#7E22CE] font-medium relative"
+                  className="text-gray-700 dark:text-gray-300 hover:text-[#7E22CE] font-medium relative"
                 >
                   {hasRole(user, RoleName.STUDENT)
                     ? 'My Lessons'
@@ -247,7 +247,7 @@ export default function HomePage() {
               <div className="flex items-center gap-4">
                 <Link
                   href={hideStudentUi ? '/instructor/join' : '/signup?role=instructor&redirect=%2Finstructor%2Fonboarding%2Fwelcome'}
-                  className="text-gray-700 hover:text-[#7E22CE] font-medium"
+                  className="text-gray-700 dark:text-gray-300 hover:text-[#7E22CE] font-medium"
                 >
                   Become an Instructor
                 </Link>

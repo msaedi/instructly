@@ -19,15 +19,15 @@ import { useEmbedded } from '../_embedded/EmbeddedContext';
 
 const UserProfileDropdown = dynamic(() => import('@/components/UserProfileDropdown'), {
   ssr: false,
-  loading: () => <div className="h-10 w-10 rounded-full bg-gray-200 animate-pulse" aria-hidden="true" />,
+  loading: () => <div className="h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" aria-hidden="true" />,
 });
 
 const badgeStyles: Record<'gray' | 'yellow' | 'blue' | 'green' | 'red', string> = {
-  gray: 'bg-gray-100 text-gray-700 dark:text-gray-300',
-  yellow: 'bg-yellow-100 text-yellow-700',
-  blue: 'bg-blue-100 text-blue-700',
-  green: 'bg-green-100 text-green-700',
-  red: 'bg-red-100 text-red-700',
+  gray: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
+  yellow: 'bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300',
+  blue: 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300',
+  green: 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300',
+  red: 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300',
 };
 
 const formatDate = (value: Date | null) => {
@@ -115,14 +115,14 @@ export default function InstructorReferralsPage() {
   if (statsLoading) {
     return (
       <div className="animate-pulse space-y-6">
-        <div className="h-8 bg-gray-200 rounded w-1/3" />
-        <div className="h-28 bg-gray-200 rounded" />
+        <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/3" />
+        <div className="h-28 bg-gray-200 dark:bg-gray-700 rounded" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="h-24 bg-gray-200 rounded" />
-          <div className="h-24 bg-gray-200 rounded" />
-          <div className="h-24 bg-gray-200 rounded" />
+          <div className="h-24 bg-gray-200 dark:bg-gray-700 rounded" />
+          <div className="h-24 bg-gray-200 dark:bg-gray-700 rounded" />
+          <div className="h-24 bg-gray-200 dark:bg-gray-700 rounded" />
         </div>
-        <div className="h-64 bg-gray-200 rounded" />
+        <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded" />
       </div>
     );
   }
@@ -225,7 +225,7 @@ export default function InstructorReferralsPage() {
                 <button
                   type="button"
                   onClick={handleShare}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 shadow-sm transition hover:bg-gray-50 sm:hidden insta-secondary-btn"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 shadow-sm transition hover:bg-gray-50 sm:hidden insta-secondary-btn"
                 >
                   <ExternalLink className="h-4 w-4" />
                   Share
@@ -274,7 +274,7 @@ export default function InstructorReferralsPage() {
           </div>
 
           <div className="insta-surface-card">
-            <div className="p-4 border-b border-gray-200">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Referred instructors</h2>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{referredCount} total referrals</p>
             </div>
@@ -283,10 +283,10 @@ export default function InstructorReferralsPage() {
               <div className="p-4 space-y-3">
                 {[1, 2, 3].map((item) => (
                   <div key={item} className="animate-pulse flex items-center gap-4">
-                    <div className="h-10 w-10 bg-gray-200 rounded-full" />
+                    <div className="h-10 w-10 bg-gray-200 dark:bg-gray-700 rounded-full" />
                     <div className="flex-1 space-y-2">
-                      <div className="h-4 bg-gray-200 rounded w-1/3" />
-                      <div className="h-3 bg-gray-200 rounded w-1/4" />
+                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/3" />
+                      <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/4" />
                     </div>
                   </div>
                 ))}
@@ -297,10 +297,10 @@ export default function InstructorReferralsPage() {
               <div className="p-8 text-center">
                 <Users className="h-10 w-10 text-gray-300 mx-auto mb-3" />
                 <p className="text-gray-600 dark:text-gray-400">No referrals yet</p>
-                <p className="text-sm text-gray-400 dark:text-gray-400 mt-1">Share your link to start earning.</p>
+                <p className="text-sm text-gray-400 dark:text-gray-300 mt-1">Share your link to start earning.</p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-gray-100 dark:divide-gray-700">
                 {referredItems.map((instructor) => {
                   const status = getPayoutStatusDisplay(instructor.payoutStatus);
                   const timelineText = instructor.firstLessonCompletedAt
@@ -323,7 +323,7 @@ export default function InstructorReferralsPage() {
                             {instructor.firstName} {instructor.lastInitial}.
                           </p>
                           <p className="text-sm text-gray-500 dark:text-gray-400">Referred {formatDate(instructor.referredAt)}</p>
-                          <p className="text-xs text-gray-400 dark:text-gray-400">{timelineText}</p>
+                          <p className="text-xs text-gray-400 dark:text-gray-300">{timelineText}</p>
                         </div>
                       </div>
 

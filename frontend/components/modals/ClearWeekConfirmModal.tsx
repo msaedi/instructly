@@ -76,12 +76,12 @@ export default function ClearWeekConfirmModal({
         <div className="flex items-start gap-3">
           <AlertTriangle className="w-6 h-6 text-amber-500 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-gray-700">
+            <p className="text-gray-700 dark:text-gray-300">
               Are you sure you want to clear all availability for this week?
             </p>
 
             {bookedSlotsCount > 0 && (
-              <p className="mt-2 text-sm text-gray-600">
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                 <strong>Note:</strong> {bookedSlotsCount} time slot
                 {bookedSlotsCount !== 1 ? 's' : ''} with existing bookings will be preserved and
                 cannot be cleared.
@@ -96,7 +96,7 @@ export default function ClearWeekConfirmModal({
         <div className="flex gap-3 justify-end pt-2">
           <button
             onClick={handleCancel}
-            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg
+            className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg
                      hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2
                      focus:ring-gray-500 transition-colors"
           >

@@ -1452,10 +1452,10 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       <PricingPreviewContext.Provider value={previewController}>
         <div className="w-full p-8 text-center">
           <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-48 mx-auto mb-4"></div>
-            <div className="h-4 bg-gray-200 rounded w-32 mx-auto"></div>
+            <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-48 mx-auto mb-4"></div>
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32 mx-auto"></div>
           </div>
-          <p className="text-gray-500 mt-4">Loading payment data...</p>
+          <p className="text-gray-500 dark:text-gray-400 mt-4">Loading payment data...</p>
         </div>
       </PricingPreviewContext.Provider>
     );
@@ -1468,8 +1468,8 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       {showPaymentMethodInline && (currentStep === PaymentStep.METHOD_SELECTION || currentStep === PaymentStep.CONFIRMATION) ? (
         <div className="space-y-6">
           {/* Payment Method Selection at the top */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Select Payment Method</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Select Payment Method</h2>
             <PaymentMethodSelection
               booking={updatedBookingData}
               cards={userCards}
@@ -1609,7 +1609,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
                 resetPayment();
                 onBack();
               }}
-              className="text-gray-600 hover:text-gray-800"
+              className="text-gray-600 dark:text-gray-400 hover:text-gray-800"
             >
               Cancel
             </button>

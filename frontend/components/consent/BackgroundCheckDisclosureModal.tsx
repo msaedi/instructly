@@ -18,13 +18,13 @@ const DISCLOSURE_SECTIONS = [
     title: 'Information we may obtain',
     body: (
       <>
-        <p className="mb-4 text-sm text-gray-700">
+        <p className="mb-4 text-sm text-gray-700 dark:text-gray-300">
           iNSTAiNSTRU may request a consumer report prepared by Checkr, Inc. that contains information
           about you, including: criminal history records, sex offender registry records, and
           information used to verify your identity such as name, date of birth, Social Security number
           trace, and address history.
         </p>
-        <p className="text-sm text-gray-700">
+        <p className="text-sm text-gray-700 dark:text-gray-300">
           These reports may be used now or in connection with your ongoing participation on the
           platform. Additional background reports may be obtained throughout your involvement with
           iNSTAiNSTRU to the extent permitted by law.
@@ -35,7 +35,7 @@ const DISCLOSURE_SECTIONS = [
   {
     title: 'Consumer reporting agency contact details',
     body: (
-      <div className="text-sm text-gray-700 space-y-1">
+      <div className="text-sm text-gray-700 dark:text-gray-300 space-y-1">
         <p>Checkr, Inc.</p>
         <p>One Montgomery Street Suite 2000</p>
         <p>San Francisco, CA 94104</p>
@@ -60,7 +60,7 @@ const DISCLOSURE_SECTIONS = [
   {
     title: 'Your rights under the Fair Credit Reporting Act',
     body: (
-      <div className="text-sm text-gray-700 space-y-2">
+      <div className="text-sm text-gray-700 dark:text-gray-300 space-y-2">
         <p>
           You have the right to receive a copy of any consumer report obtained, dispute incomplete or
           inaccurate information, and request reinvestigation from the consumer reporting agency.
@@ -78,7 +78,7 @@ const DISCLOSURE_SECTIONS = [
 ];
 
 const STATE_NOTICE_PLACEHOLDER = (
-  <div className="text-sm text-gray-700 space-y-2">
+  <div className="text-sm text-gray-700 dark:text-gray-300 space-y-2">
     <p>
       Certain states require additional disclosures or notices. iNSTAiNSTRU will provide state-
       specific notices that apply to you based on your place of residence and work. Please review any
@@ -151,7 +151,7 @@ export function BackgroundCheckDisclosureModal({
     >
       <div className="flex flex-col h-full gap-6" aria-live="polite">
         <div className="sm:hidden">
-          <p className="text-sm text-gray-700 mb-2">
+          <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
             You must review this disclosure before we can start your background check.
           </p>
           <button
@@ -174,9 +174,9 @@ export function BackgroundCheckDisclosureModal({
           tabIndex={0}
           aria-label="Background check disclosure content"
         >
-          <section className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <h3 className="text-base font-semibold text-gray-900">Overview</h3>
-            <p className="mt-2 text-sm text-gray-700">
+          <section className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Overview</h3>
+            <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">
               By selecting “I acknowledge and authorize,” you consent to iNSTAiNSTRU obtaining consumer
               reports about you from a consumer reporting agency for onboarding and participation on
               the platform. These reports may include criminal records, sex offender registry records,
@@ -187,7 +187,7 @@ export function BackgroundCheckDisclosureModal({
 
           {DISCLOSURE_SECTIONS.map((section) => (
             <section key={section.title}>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">{section.title}</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">{section.title}</h3>
               {section.body}
             </section>
           ))}
@@ -195,7 +195,7 @@ export function BackgroundCheckDisclosureModal({
           <section>
             <button
               type="button"
-              className="flex w-full items-center justify-between rounded-md border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-900"
+              className="flex w-full items-center justify-between rounded-md border border-gray-200 dark:border-gray-700 px-4 py-3 text-left text-sm font-medium text-gray-900 dark:text-gray-100"
               onClick={() => setStatesExpanded((prev) => !prev)}
               aria-expanded={statesExpanded}
             >
@@ -207,15 +207,15 @@ export function BackgroundCheckDisclosureModal({
               )}
             </button>
             {statesExpanded && (
-              <div className="mt-3 rounded-md border border-gray-100 bg-gray-50 p-4">
+              <div className="mt-3 rounded-md border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4">
                 {STATE_NOTICE_PLACEHOLDER}
               </div>
             )}
           </section>
 
-          <section className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <h3 className="text-base font-semibold text-gray-900">Authorization</h3>
-            <p className="mt-2 text-sm text-gray-700">
+          <section className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Authorization</h3>
+            <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">
               By selecting “I acknowledge and authorize,” you confirm that you have read the disclosure
               above and authorize iNSTAiNSTRU to obtain and use consumer reports about you now and
               while you remain active on the platform. You understand that you may revoke this

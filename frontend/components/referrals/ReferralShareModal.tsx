@@ -88,16 +88,16 @@ function ReferralShareModal({ open, onClose, code, shareUrl }: ReferralShareModa
       size="md"
     >
       <div className="space-y-6">
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-gray-600 dark:text-gray-400">
           Invite a friend and you each earn {CREDIT_DISPLAY} in iNSTAiNSTRU credits when they book their first $75+ lesson within 30 days.
         </p>
 
-        <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-          <p className="text-xs uppercase tracking-[0.08em] text-gray-500">Share your link</p>
-          <p className="mt-1 font-semibold text-gray-900" aria-label="Referral link">
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-4 py-3">
+          <p className="text-xs uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">Share your link</p>
+          <p className="mt-1 font-semibold text-gray-900 dark:text-gray-100" aria-label="Referral link">
             {shareUrl}
           </p>
-          <p className="mt-2 text-xs text-gray-500">Direct shortcut: {formattedSlug}</p>
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Direct shortcut: {formattedSlug}</p>
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row">
@@ -116,7 +116,7 @@ function ReferralShareModal({ open, onClose, code, shareUrl }: ReferralShareModa
             type="button"
             onClick={copyToClipboard}
             disabled={isProcessing !== null}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-80"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 shadow-sm transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-80"
             aria-label="Copy referral link"
           >
             <Copy className="h-4 w-4" aria-hidden="true" />
@@ -126,13 +126,13 @@ function ReferralShareModal({ open, onClose, code, shareUrl }: ReferralShareModa
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-transparent bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-transparent bg-gray-100 dark:bg-gray-700 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 transition hover:bg-gray-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2"
           >
             Close
           </button>
         </div>
 
-        <p className="text-xs leading-5 text-gray-500">
+        <p className="text-xs leading-5 text-gray-500 dark:text-gray-400">
           If your friend books, you both receive iNSTAiNSTRU credits.{' '}
           <Link href="/referrals-terms" className="font-medium text-[#7E22CE] underline" onClick={onClose}>
             Terms apply

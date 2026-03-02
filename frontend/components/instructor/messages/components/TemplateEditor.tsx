@@ -111,8 +111,8 @@ export function TemplateEditor({
     <div className="insta-surface-card overflow-hidden">
       <div className="flex h-[600px]">
         {/* Template list */}
-        <div className="w-full md:w-1/3 border-r border-gray-200 flex flex-col">
-          <div className="p-4 border-b border-gray-200 flex items-center justify-between gap-3">
+        <div className="w-full md:w-1/3 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
             <div>
               <h3 className="text-sm font-semibold insta-onboarding-strong-text">Templates</h3>
               <p className="text-xs insta-onboarding-subtitle mt-1">Choose a template to view or copy.</p>
@@ -160,7 +160,7 @@ export function TemplateEditor({
             <div className="flex-1 p-6 flex flex-col gap-4">
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div className="flex-1 min-w-[200px]">
-                  <div className="rounded-md border border-transparent bg-white px-3 py-2 transition-all focus-within:border-[#E7DCF9] focus-within:shadow-[0_0_0_2px_rgba(219,201,246,0.25)]">
+                  <div className="rounded-md border border-transparent bg-white dark:bg-gray-800 px-3 py-2 transition-all focus-within:border-[#E7DCF9] focus-within:shadow-[0_0_0_2px_rgba(219,201,246,0.25)]">
                     <input
                       ref={(element) => {
                         if (current.id === selectedTemplateId) {
@@ -171,7 +171,7 @@ export function TemplateEditor({
                       onChange={(event) => onTemplateSubjectChange(current.id, event.target.value)}
                       placeholder="Template title"
                       aria-label="Template title"
-                      className="template-title-input w-full bg-transparent text-lg font-semibold insta-onboarding-strong-text border-none outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 placeholder:text-gray-400 dark:text-gray-400"
+                      className="template-title-input w-full bg-transparent text-lg font-semibold insta-onboarding-strong-text border-none outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 placeholder:text-gray-400 dark:text-gray-300"
                     />
                   </div>
                   <p className="text-xs insta-onboarding-subtitle mt-1">Last updated manually.</p>
@@ -209,7 +209,7 @@ export function TemplateEditor({
                     )
                   );
                 }}
-                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
+                className="flex-1 border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
               />
             </div>
           ) : (

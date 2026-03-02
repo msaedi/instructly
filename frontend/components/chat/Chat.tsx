@@ -718,7 +718,7 @@ export function Chat({
     <div className={cn(
       'flex items-center justify-center py-2 px-4 text-sm',
       connectionStatus === ConnectionStatus.ERROR && 'bg-red-50 text-red-700',
-      connectionStatus === ConnectionStatus.DISCONNECTED && 'bg-gray-50 text-gray-700'
+      connectionStatus === ConnectionStatus.DISCONNECTED && 'bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-300'
     )}>
       {connectionStatus === ConnectionStatus.ERROR && (
         <>
@@ -754,7 +754,7 @@ export function Chat({
   if (isLoadingHistory) {
     return (
       <div className={cn('flex items-center justify-center h-full bg-gradient-to-b from-gray-50 to-white', className)}>
-        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+        <Loader2 className="w-8 h-8 animate-spin text-gray-400 dark:text-gray-300" />
       </div>
     );
   }
@@ -906,7 +906,7 @@ export function Chat({
           <div className="px-1 pb-1 text-xs text-gray-500 dark:text-gray-400">{otherUserName} is typing…</div>
         )}
         {isReadOnly ? (
-          <div className="text-center py-2 text-sm text-gray-500">
+          <div className="text-center py-2 text-sm text-gray-500 dark:text-gray-400">
             This lesson has ended. Chat is view-only.
           </div>
         ) : (

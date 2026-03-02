@@ -201,10 +201,10 @@ export function StudentBadgesPanel({
     <section aria-labelledby={headingId}>
       <div className="flex items-center justify-between mb-2">
         <div>
-          <h3 id={headingId} className="text-lg font-semibold text-gray-900">
+          <h3 id={headingId} className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             Achievements & Badges
           </h3>
-          <p className="text-sm text-gray-600">Track your learning milestones in real time.</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Track your learning milestones in real time.</p>
         </div>
         <button
           type="button"
@@ -290,7 +290,7 @@ function BadgeGroup({
     <div>
       <div className="flex items-center gap-2 mb-2">
         {group === 'locked' ? (
-          <Lock className="h-4 w-4 text-gray-500" aria-hidden="true" />
+          <Lock className="h-4 w-4 text-gray-500 dark:text-gray-400" aria-hidden="true" />
         ) : (
           <CheckCircle2
             className={cn('h-4 w-4', group === 'earned' ? 'text-green-500' : 'text-yellow-500')}
@@ -428,15 +428,15 @@ function BadgesDialog({
           <div className="insta-dialog-panel pointer-events-auto w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-2xl ring-1 ring-gray-200 dark:ring-gray-700/80">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700/80">
               <div>
-                <Dialog.Title className="text-lg font-semibold text-gray-900">
+                <Dialog.Title className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                   Your Badge Journey
                 </Dialog.Title>
-                <Dialog.Description className="text-sm text-gray-600">
+                <Dialog.Description className="text-sm text-gray-600 dark:text-gray-400">
                   Explore earned milestones, in-progress goals, and upcoming badges.
                 </Dialog.Description>
               </div>
               <Dialog.Close
-                className="p-2 rounded-full hover:bg-gray-100 text-gray-500"
+                className="p-2 rounded-full hover:bg-gray-100 text-gray-500 dark:text-gray-400"
                 aria-label="Close badge details"
               >
                 <Sparkles className="h-4 w-4" />
@@ -445,7 +445,7 @@ function BadgesDialog({
 
             <div className="p-6 space-y-8">
               {isLoading ? (
-                <div className="flex items-center justify-center py-10 text-gray-500">
+                <div className="flex items-center justify-center py-10 text-gray-500 dark:text-gray-400">
                   <Loader2 className="h-5 w-5 animate-spin mr-2" aria-hidden="true" />
                   Loading badges…
                 </div>

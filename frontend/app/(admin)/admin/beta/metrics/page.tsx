@@ -61,10 +61,10 @@ export default function BetaMetricsPage() {
           </aside>
           <section className="col-span-12 md:col-span-9 lg:col-span-9">
             <div className="mb-6">
-              <p className="text-sm text-gray-500">Basic service metrics and recent performance.</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Basic service metrics and recent performance.</p>
             </div>
 
-            {loading && <div className="text-sm text-gray-500">Loading...</div>}
+            {loading && <div className="text-sm text-gray-500 dark:text-gray-400">Loading...</div>}
             {error && <div className="text-sm text-red-600">{error}</div>}
             {!loading && !error && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

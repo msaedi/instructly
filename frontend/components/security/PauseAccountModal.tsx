@@ -25,9 +25,9 @@ export default function PauseAccountModal({ onClose, onPaused }: { onClose: () =
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">Pause account</h3>
-        <p className="text-sm text-gray-600">You won’t receive new bookings while paused. Existing bookings are unaffected.</p>
+      <div className="w-full max-w-md rounded-lg bg-white dark:bg-gray-800 p-6 shadow-lg">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Pause account</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400">You won’t receive new bookings while paused. Existing bookings are unaffected.</p>
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
         <div className="mt-5 flex justify-end gap-3">
           <button className="rounded-md border px-4 py-2 text-sm hover:bg-gray-50" onClick={onClose} disabled={loading}>Cancel</button>

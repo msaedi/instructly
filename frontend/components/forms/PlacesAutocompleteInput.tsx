@@ -297,7 +297,7 @@ export const PlacesAutocompleteInput = forwardRef<HTMLInputElement, PlacesAutoco
           aria-haspopup="listbox"
           role="combobox"
           className={cn(
-            'w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-[#7E22CE]/10 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500',
+            'w-full rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-[#7E22CE]/10 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500',
             inputClassName,
           )}
         />
@@ -306,7 +306,7 @@ export const PlacesAutocompleteInput = forwardRef<HTMLInputElement, PlacesAutoco
             id={listboxId}
             role="listbox"
             aria-label="Location suggestions"
-            className="absolute z-50 mt-2 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg"
+            className="absolute z-50 mt-2 w-full overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg"
           >
             {suggestions.map((suggestion, index) => {
               const displayText = getDisplayText(suggestion);
@@ -335,7 +335,7 @@ export const PlacesAutocompleteInput = forwardRef<HTMLInputElement, PlacesAutoco
           </div>
         )}
         {loading && (
-          <div className="pointer-events-none absolute right-10 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+          <div className="pointer-events-none absolute right-10 top-1/2 -translate-y-1/2 text-xs text-gray-400 dark:text-gray-300">
             Loading…
           </div>
         )}

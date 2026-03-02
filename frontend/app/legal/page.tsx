@@ -1031,8 +1031,8 @@ export default function LegalResourceCenter() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4 sticky top-0 z-40">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4 sticky top-0 z-40">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <Link href="/" className="inline-block">
             <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#5f1aa4] transition-colors cursor-pointer">
@@ -1045,7 +1045,7 @@ export default function LegalResourceCenter() {
                 {user && hasRole(user, RoleName.STUDENT) && (
                   <Link
                     href="/student/lessons"
-                    className="text-gray-700 hover:text-[#7E22CE] font-medium transition-colors"
+                    className="text-gray-700 dark:text-gray-300 hover:text-[#7E22CE] font-medium transition-colors"
                   >
                     My Lessons
                   </Link>
@@ -1066,20 +1066,20 @@ export default function LegalResourceCenter() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="mb-8">
-          <span className="text-sm uppercase tracking-[0.18em] text-gray-500">Legal Center</span>
-          <h1 className="mt-2 text-4xl font-bold text-gray-900">Policies &amp; Agreements</h1>
-          <p className="mt-3 max-w-3xl text-base text-gray-600">
+          <span className="text-sm uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Legal Center</span>
+          <h1 className="mt-2 text-4xl font-bold text-gray-900 dark:text-gray-100">Policies &amp; Agreements</h1>
+          <p className="mt-3 max-w-3xl text-base text-gray-600 dark:text-gray-400">
             Transparency matters. Browse the latest versions of our terms, privacy commitments, and instructor expectations. Each article lives in a single place so you always know where to find the most current language.
           </p>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-8">
           <aside className="lg:w-72 flex-shrink-0">
-            <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
-              <div className="border-b border-gray-200 px-5 py-4">
-                <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Articles in this section</h2>
+            <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+              <div className="border-b border-gray-200 dark:border-gray-700 px-5 py-4">
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wide">Articles in this section</h2>
               </div>
-              <nav className="flex flex-col divide-y divide-gray-100" aria-label="Legal documents">
+              <nav className="flex flex-col divide-y divide-gray-100 dark:divide-gray-700" aria-label="Legal documents">
                 {LEGAL_DOCUMENTS.map((doc) => {
                   const isActive = doc.id === selectedDocument.id;
                   return (
@@ -1093,12 +1093,12 @@ export default function LegalResourceCenter() {
                       }}
                       className={cn(
                         'text-left px-5 py-4 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE]',
-                        isActive ? 'bg-[#7E22CE]/10 text-[#4a1a85]' : 'hover:bg-gray-50 text-gray-700'
+                        isActive ? 'bg-[#7E22CE]/10 text-[#4a1a85]' : 'hover:bg-gray-50 text-gray-700 dark:text-gray-300'
                       )}
                       aria-current={isActive ? 'page' : undefined}
                     >
                       <p className="text-sm font-semibold">{doc.title}</p>
-                      <p className="mt-1 text-xs text-gray-500">{doc.summary}</p>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{doc.summary}</p>
                     </button>
                   );
                 })}
@@ -1106,16 +1106,16 @@ export default function LegalResourceCenter() {
             </div>
           </aside>
 
-          <article id={selectedDocument.id} className="flex-1 rounded-2xl border border-gray-200 bg-white shadow-sm p-8">
-            <header className="border-b border-gray-200 pb-6 mb-6">
-              <h2 className="text-3xl font-semibold text-gray-900">{selectedDocument.title}</h2>
-              <p className="mt-2 text-sm text-gray-500">Last updated {selectedDocument.updated}</p>
+          <article id={selectedDocument.id} className="flex-1 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm p-8">
+            <header className="border-b border-gray-200 dark:border-gray-700 pb-6 mb-6">
+              <h2 className="text-3xl font-semibold text-gray-900 dark:text-gray-100">{selectedDocument.title}</h2>
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Last updated {selectedDocument.updated}</p>
             </header>
 
-            <div className="space-y-10 text-gray-700">
+            <div className="space-y-10 text-gray-700 dark:text-gray-300">
               {selectedDocument.sections.map((section) => (
                 <section key={`${selectedDocument.id}-${section.heading}`}>
-                  <h3 className="text-xl font-semibold text-gray-900">{section.heading}</h3>
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{section.heading}</h3>
                   {section.body?.map((paragraph, index) => (
                     <p key={index} className="mt-3 leading-7">
                       {paragraph}
@@ -1137,13 +1137,13 @@ export default function LegalResourceCenter() {
                   ))}
                   {section.table && (
                     <div className="mt-6 overflow-x-auto">
-                      <table className="w-full border-collapse text-sm text-gray-700">
+                      <table className="w-full border-collapse text-sm text-gray-700 dark:text-gray-300">
                         <thead>
                           <tr>
                             {section.table.headers.map((header, index) => (
                               <th
                                 key={index}
-                                className="border-b border-gray-200 px-4 py-3 text-left text-gray-900 text-sm font-semibold"
+                                className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 text-left text-gray-900 dark:text-gray-100 text-sm font-semibold"
                               >
                                 {header}
                               </th>
@@ -1154,7 +1154,7 @@ export default function LegalResourceCenter() {
                           {section.table.rows.map((row, rowIdx) => (
                             <tr key={rowIdx} className="align-top">
                               {row.map((cell, cellIdx) => (
-                                <td key={cellIdx} className="border-b border-gray-200 px-4 py-3">
+                                <td key={cellIdx} className="border-b border-gray-200 dark:border-gray-700 px-4 py-3">
                                   {cell}
                                 </td>
                               ))}

@@ -49,11 +49,11 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  CONFIRMED: 'bg-emerald-50 text-emerald-700',
-  COMPLETED: 'bg-blue-50 text-blue-700',
-  CANCELLED: 'bg-rose-50 text-rose-700',
-  NO_SHOW: 'bg-amber-50 text-amber-800',
-  IN_PROGRESS: 'bg-purple-50 text-purple-700',
+  CONFIRMED: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300',
+  COMPLETED: 'bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-indigo-200',
+  CANCELLED: 'bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300',
+  NO_SHOW: 'bg-amber-50 dark:bg-amber-900 text-amber-800 dark:text-amber-200',
+  IN_PROGRESS: 'bg-purple-50 dark:bg-purple-900/40 text-purple-700 dark:text-purple-200',
 };
 
 /**
@@ -106,9 +106,9 @@ export function BookingList({
             key={`booking-skeleton-${idx}`}
             className="animate-pulse p-4 insta-surface-card"
           >
-            <div className="h-4 w-1/3 rounded bg-gray-200" />
-            <div className="mt-2 h-4 w-1/4 rounded bg-gray-100" />
-            <div className="mt-4 h-3 w-1/5 rounded bg-gray-100" />
+            <div className="h-4 w-1/3 rounded bg-gray-200 dark:bg-gray-700" />
+            <div className="mt-2 h-4 w-1/4 rounded bg-gray-100 dark:bg-gray-700" />
+            <div className="mt-4 h-3 w-1/5 rounded bg-gray-100 dark:bg-gray-700" />
           </Card>
         ))}
       </div>
@@ -121,8 +121,8 @@ export function BookingList({
         className="rounded-xl border border-dashed border-gray-300 p-6 text-center insta-surface-card"
         data-testid={`${dataTestId}-empty`}
       >
-        <p className="text-base font-semibold text-gray-900">{emptyTitle}</p>
-        <p className="mt-1 text-sm text-gray-600">{emptyDescription}</p>
+        <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{emptyTitle}</p>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{emptyDescription}</p>
       </div>
     );
   }
@@ -135,7 +135,7 @@ export function BookingList({
         const displayStatus = inProgress ? 'IN_PROGRESS' : booking.status;
         const status = STATUS_LABELS[displayStatus] ?? booking.status ?? 'Pending';
         const badgeClasses =
-          STATUS_STYLES[displayStatus] ?? 'bg-gray-100 text-gray-700';
+          STATUS_STYLES[displayStatus] ?? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
         const studentName =
           booking.student?.first_name && booking.student?.last_name
             ? `${booking.student.first_name} ${booking.student.last_name}`
@@ -160,36 +160,36 @@ export function BookingList({
                   <span className={`rounded-full px-3 py-1 text-xs font-medium ${badgeClasses}`}>
                     {status}
                   </span>
-                  <span className="text-gray-500">{booking.service_name}</span>
+                  <span className="text-gray-500 dark:text-gray-400">{booking.service_name}</span>
                 </div>
-                <p className="mt-2 text-lg font-semibold text-gray-900">
+                <p className="mt-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
                   {studentName}
                 </p>
               </div>
               <div className="flex items-start gap-3">
-                <div className="text-right text-sm font-medium text-gray-900">
+                <div className="text-right text-sm font-medium text-gray-900 dark:text-gray-100">
                   {booking.total_price ? (
                     <Fragment>${Number(booking.total_price).toFixed(2)}</Fragment>
                   ) : (
-                    <span className="text-gray-500">Pending rate</span>
+                    <span className="text-gray-500 dark:text-gray-400">Pending rate</span>
                   )}
                 </div>
                 {isClickable && (
-                  <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" />
+                  <ChevronRight className="h-5 w-5 shrink-0 text-gray-400 dark:text-gray-300" />
                 )}
               </div>
             </div>
-            <div className="mt-4 grid gap-4 text-sm text-gray-600 sm:grid-cols-2">
+            <div className="mt-4 grid gap-4 text-sm text-gray-600 dark:text-gray-400 sm:grid-cols-2">
               <div className="flex items-center gap-2">
-                <CalendarDays className="h-4 w-4 text-gray-400" />
+                <CalendarDays className="h-4 w-4 text-gray-400 dark:text-gray-300" />
                 <span>{date}</span>
               </div>
               <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-gray-400" />
+                <Clock className="h-4 w-4 text-gray-400 dark:text-gray-300" />
                 <span>{time}</span>
               </div>
               <div className="flex items-center gap-2">
-                <User className="h-4 w-4 text-gray-400" />
+                <User className="h-4 w-4 text-gray-400 dark:text-gray-300" />
                 <span>{instructorName}</span>
               </div>
             </div>
@@ -204,7 +204,7 @@ export function BookingList({
             )}
             {/* Action buttons for past CONFIRMED bookings */}
             {showActionButtons && (
-              <div className="mt-4 border-t border-gray-100 pt-4" onClick={(e) => e.stopPropagation()}>
+              <div className="mt-4 border-t border-gray-100 dark:border-gray-700 pt-4" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-amber-700">
                     <AlertTriangle className="h-4 w-4" />

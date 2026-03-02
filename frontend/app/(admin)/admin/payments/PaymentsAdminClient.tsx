@@ -233,9 +233,9 @@ export default function PaymentsAdminClient() {
   if (!isAdmin) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-6">
-        <div className="max-w-md rounded-xl border border-gray-200 bg-white/70 p-6 text-center">
+        <div className="max-w-md rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 p-6 text-center">
           <ShieldAlert className="h-10 w-10 mx-auto text-amber-500" aria-hidden="true" />
-          <p className="mt-3 text-sm text-gray-700">You do not have access to this page.</p>
+          <p className="mt-3 text-sm text-gray-700 dark:text-gray-300">You do not have access to this page.</p>
         </div>
       </div>
     );
@@ -252,7 +252,7 @@ export default function PaymentsAdminClient() {
               </Link>
               <div>
                 <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Payments</h1>
-                <p className="text-xs text-gray-500">Manage bookings, refunds, and audit history.</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Manage bookings, refunds, and audit history.</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -266,7 +266,7 @@ export default function PaymentsAdminClient() {
               <button
                 type="button"
                 onClick={() => setShowConfig((prev) => !prev)}
-                className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-gray-700 ring-1 ring-gray-300 hover:bg-gray-100"
+                className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 ring-1 ring-gray-300 dark:ring-gray-700 hover:bg-gray-100"
               >
                 <Settings className="h-4 w-4" />
                 {showConfig ? 'Hide Config' : 'Show Config'}
@@ -274,7 +274,7 @@ export default function PaymentsAdminClient() {
               <button
                 type="button"
                 onClick={() => void logout()}
-                className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 ring-1 ring-gray-300 hover:bg-gray-100"
+                className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 ring-1 ring-gray-300 dark:ring-gray-700 hover:bg-gray-100"
               >
                 Log out
               </button>
@@ -304,7 +304,7 @@ export default function PaymentsAdminClient() {
                 className={
                   activeTab === 'bookings'
                     ? 'rounded-full bg-indigo-600 px-4 py-2 text-sm font-medium text-white'
-                    : 'rounded-full px-4 py-2 text-sm font-medium text-gray-600 ring-1 ring-gray-300'
+                    : 'rounded-full px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 ring-1 ring-gray-300 dark:ring-gray-700'
                 }
               >
                 Bookings
@@ -315,7 +315,7 @@ export default function PaymentsAdminClient() {
                 className={
                   activeTab === 'history'
                     ? 'rounded-full bg-indigo-600 px-4 py-2 text-sm font-medium text-white'
-                    : 'rounded-full px-4 py-2 text-sm font-medium text-gray-600 ring-1 ring-gray-300'
+                    : 'rounded-full px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 ring-1 ring-gray-300 dark:ring-gray-700'
                 }
               >
                 History
@@ -348,11 +348,11 @@ export default function PaymentsAdminClient() {
                   />
                 )}
                 bulkActions={(
-                  <div className="flex items-center justify-between text-sm text-gray-500">
+                  <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
                     <span>Selected: {selectedIds.length}</span>
                     <button
                       type="button"
-                      className="rounded-full px-4 py-2 text-xs font-medium ring-1 ring-gray-300 hover:bg-gray-100"
+                      className="rounded-full px-4 py-2 text-xs font-medium ring-1 ring-gray-300 dark:ring-gray-700 hover:bg-gray-100"
                     >
                       Bulk Actions
                     </button>

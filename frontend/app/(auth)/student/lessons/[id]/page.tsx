@@ -96,7 +96,7 @@ export default function LessonDetailsPage() {
     return (
       <div className="min-h-screen">
         {/* Header - matching other pages */}
-        <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+        <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/" className="inline-block">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
@@ -107,8 +107,8 @@ export default function LessonDetailsPage() {
           </div>
         </header>
         <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
-          <Card className="p-8 text-center bg-white rounded-xl border border-gray-200">
-            <p className="text-lg text-gray-600 mb-4">Unable to load lesson details</p>
+          <Card className="p-8 text-center bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+            <p className="text-lg text-gray-600 dark:text-gray-400 mb-4">Unable to load lesson details</p>
             <Button
               onClick={() => router.push(`/student/lessons?tab=${fromTab}`)}
               className="bg-[#7E22CE] hover:bg-[#7E22CE] text-white"
@@ -194,7 +194,7 @@ export default function LessonDetailsPage() {
   return (
     <div className="min-h-screen">
       {/* Header - matching other pages */}
-      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+      <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link className="inline-block" href="/">
             <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
@@ -207,10 +207,10 @@ export default function LessonDetailsPage() {
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         {/* Back Button */}
-        <div className="mb-6 bg-white rounded-lg border border-gray-200 px-3 py-0.5">
+        <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-0.5">
           <button
             onClick={() => router.push(`/student/lessons?tab=${fromTab}`)}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-700 py-1 px-2 rounded transition-colors cursor-pointer"
+            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-700 py-1 px-2 rounded transition-colors cursor-pointer"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to My Lessons
@@ -218,7 +218,7 @@ export default function LessonDetailsPage() {
         </div>
 
         {/* Main Content */}
-        <Card className="p-6 sm:p-8 bg-white rounded-xl border border-gray-200">
+        <Card className="p-6 sm:p-8 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
           {/* Lesson Title and Status */}
           <div className="mb-6">
             <div className="flex items-start justify-between">
@@ -233,23 +233,23 @@ export default function LessonDetailsPage() {
               )}
             </div>
             {rescheduledFromText && (
-              <p className="mt-2 text-sm text-gray-500">{rescheduledFromText}</p>
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{rescheduledFromText}</p>
             )}
           </div>
 
         {/* Date, Time, Price */}
         <div className="space-y-3 mb-6">
           <div className="flex items-center gap-3">
-            <Calendar className="h-5 w-5 text-gray-500" />
-            <span className="text-lg text-gray-700">{formattedDate}</span>
+            <Calendar className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+            <span className="text-lg text-gray-700 dark:text-gray-300">{formattedDate}</span>
           </div>
           <div className="flex items-center gap-3">
-            <Clock className="h-5 w-5 text-gray-500" />
-            <span className="text-lg text-gray-700">{formattedTime}</span>
+            <Clock className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+            <span className="text-lg text-gray-700 dark:text-gray-300">{formattedTime}</span>
           </div>
           <div className="flex items-center gap-3">
-            <DollarSign className="h-5 w-5 text-gray-500" />
-            <span className="text-lg text-gray-700">{lesson.total_price.toFixed(2)}</span>
+            <DollarSign className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+            <span className="text-lg text-gray-700 dark:text-gray-300">{lesson.total_price.toFixed(2)}</span>
           </div>
         </div>
 
@@ -292,20 +292,20 @@ export default function LessonDetailsPage() {
                 Book Again
               </Button>
               {reviewed ? (
-                <span className="bg-gray-100 text-gray-600 border-2 border-gray-300 rounded-lg py-2.5 px-6 text-sm font-medium cursor-default">
+                <span className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-2 border-gray-300 dark:border-gray-700 rounded-lg py-2.5 px-6 text-sm font-medium cursor-default">
                   Reviewed
                 </span>
               ) : (
                 <Button
                   onClick={() => router.push(`/student/review/${lesson.id}`)}
-                  className="bg-white text-[#7E22CE] border-2 border-[#7E22CE] hover:bg-purple-50 rounded-lg py-2.5 px-6 text-sm font-medium"
+                  className="bg-white dark:bg-gray-800 text-[#7E22CE] border-2 border-[#7E22CE] hover:bg-purple-50 rounded-lg py-2.5 px-6 text-sm font-medium"
                 >
                   Review & tip
                 </Button>
               )}
               <Button
                 onClick={() => setShowChatModal(true)}
-                className="bg-white text-gray-400 border-2 border-gray-300 hover:bg-gray-50 rounded-lg py-2.5 px-6 text-sm font-medium"
+                className="bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-300 border-2 border-gray-300 dark:border-gray-700 hover:bg-gray-50 rounded-lg py-2.5 px-6 text-sm font-medium"
               >
                 <MessageCircle className="h-4 w-4 mr-1" />
                 Chat history
@@ -322,7 +322,7 @@ export default function LessonDetailsPage() {
               </Button>
               <Button
                 onClick={() => setShowChatModal(true)}
-                className="bg-white text-gray-400 border-2 border-gray-300 hover:bg-gray-50 rounded-lg py-2.5 px-6 text-sm font-medium"
+                className="bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-300 border-2 border-gray-300 dark:border-gray-700 hover:bg-gray-50 rounded-lg py-2.5 px-6 text-sm font-medium"
               >
                 <MessageCircle className="h-4 w-4 mr-1" />
                 Chat history
@@ -336,14 +336,14 @@ export default function LessonDetailsPage() {
         {/* Lesson Details Section */}
         <div className="mt-8 space-y-6">
           <div>
-            <h2 className="text-xl font-semibold mb-4 text-gray-700">Lesson Details</h2>
+            <h2 className="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-300">Lesson Details</h2>
 
             {/* Location */}
             <div className="mb-4">
-              <h3 className="font-medium mb-2 text-gray-600">Location</h3>
+              <h3 className="font-medium mb-2 text-gray-600 dark:text-gray-400">Location</h3>
               {lesson.meeting_location ? (
                 <>
-                  <p className="text-gray-500">{lesson.meeting_location}</p>
+                  <p className="text-gray-500 dark:text-gray-400">{lesson.meeting_location}</p>
                   {isUpcoming && lesson.meeting_location.toLowerCase() !== 'online' && (
                     <Button
                       variant="link"
@@ -356,15 +356,15 @@ export default function LessonDetailsPage() {
                   )}
                 </>
               ) : (
-                <p className="text-gray-500">{lesson.service_area || 'NYC'}</p>
+                <p className="text-gray-500 dark:text-gray-400">{lesson.service_area || 'NYC'}</p>
               )}
             </div>
 
             {/* Notes */}
             {(lesson.student_note || lesson.instructor_note) && (
               <div>
-                <h3 className="font-medium mb-2 text-gray-600">Description</h3>
-                <p className="text-gray-500">
+                <h3 className="font-medium mb-2 text-gray-600 dark:text-gray-400">Description</h3>
+                <p className="text-gray-500 dark:text-gray-400">
                   {lesson.student_note || lesson.instructor_note}
                 </p>
               </div>
@@ -377,22 +377,22 @@ export default function LessonDetailsPage() {
           <>
             <Separator className="my-8" />
             <div>
-              <h2 className="text-xl font-semibold mb-4 text-gray-700">Video Session</h2>
+              <h2 className="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-300">Video Session</h2>
               <div className="space-y-3">
                 <div className="flex items-center gap-3 text-sm">
-                  <Clock className="h-4 w-4 shrink-0 text-gray-500" />
-                  <span className="text-gray-500">Duration</span>
-                  <span className="ml-auto font-medium text-gray-700">{formatSessionDuration(lesson.video_session_duration_seconds)}</span>
+                  <Clock className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
+                  <span className="text-gray-500 dark:text-gray-400">Duration</span>
+                  <span className="ml-auto font-medium text-gray-700 dark:text-gray-300">{formatSessionDuration(lesson.video_session_duration_seconds)}</span>
                 </div>
                 <div className="flex items-center gap-3 text-sm">
-                  <UserIcon className="h-4 w-4 shrink-0 text-gray-500" />
-                  <span className="text-gray-500">You joined</span>
-                  <span className="ml-auto font-medium text-gray-700">{formatSessionTime(lesson.video_student_joined_at)}</span>
+                  <UserIcon className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
+                  <span className="text-gray-500 dark:text-gray-400">You joined</span>
+                  <span className="ml-auto font-medium text-gray-700 dark:text-gray-300">{formatSessionTime(lesson.video_student_joined_at)}</span>
                 </div>
                 <div className="flex items-center gap-3 text-sm">
-                  <UserIcon className="h-4 w-4 shrink-0 text-gray-500" />
-                  <span className="text-gray-500">Instructor joined</span>
-                  <span className="ml-auto font-medium text-gray-700">{formatSessionTime(lesson.video_instructor_joined_at)}</span>
+                  <UserIcon className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
+                  <span className="text-gray-500 dark:text-gray-400">Instructor joined</span>
+                  <span className="ml-auto font-medium text-gray-700 dark:text-gray-300">{formatSessionTime(lesson.video_instructor_joined_at)}</span>
                 </div>
               </div>
             </div>
@@ -404,7 +404,7 @@ export default function LessonDetailsPage() {
           <>
             <Separator className="my-8" />
             <div>
-              <h2 className="text-xl font-semibold mb-4 text-gray-700">Manage Booking</h2>
+              <h2 className="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-300">Manage Booking</h2>
               <div className="flex flex-col gap-3">
                 <div className="flex flex-wrap gap-3">
                   <Button
@@ -413,7 +413,7 @@ export default function LessonDetailsPage() {
                     className={`flex-1 sm:flex-initial rounded-lg py-2.5 px-6 text-sm font-medium ${
                       canReschedule
                         ? 'bg-[#7E22CE] hover:bg-[#7E22CE] text-white border-transparent'
-                        : 'bg-gray-200 text-gray-400 cursor-not-allowed border-transparent'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-300 cursor-not-allowed border-transparent'
                     }`}
                   >
                     Reschedule lesson
@@ -421,13 +421,13 @@ export default function LessonDetailsPage() {
                   <Button
                     onClick={() => setShowCancelModal(true)}
                     variant="outline"
-                    className="flex-1 sm:flex-initial bg-white text-[#7E22CE] border-2 border-[#7E22CE] hover:bg-purple-50 rounded-lg py-2.5 px-6 text-sm font-medium"
+                    className="flex-1 sm:flex-initial bg-white dark:bg-gray-800 text-[#7E22CE] border-2 border-[#7E22CE] hover:bg-purple-50 rounded-lg py-2.5 px-6 text-sm font-medium"
                   >
                     Cancel lesson
                   </Button>
                 </div>
                 {!canReschedule && hoursUntilLesson < 12 && (
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
                     Cannot reschedule within 12 hours of lesson start time
                   </p>
                 )}
@@ -441,59 +441,59 @@ export default function LessonDetailsPage() {
           <>
             <Separator className="my-8" />
             <div>
-              <h2 className="text-xl font-semibold mb-4 text-gray-700">Receipt</h2>
+              <h2 className="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-300">Receipt</h2>
               <div className="space-y-2">
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Date of Lesson</span>
-                  <span className="text-gray-700">{format(lessonDateTime, 'EEE MMM d')}</span>
+                  <span className="text-gray-500 dark:text-gray-400">Date of Lesson</span>
+                  <span className="text-gray-700 dark:text-gray-300">{format(lessonDateTime, 'EEE MMM d')}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">
+                  <span className="text-gray-500 dark:text-gray-400">
                     ${lesson.hourly_rate.toFixed(2)}/hr x {lesson.duration_minutes / 60} hr
                   </span>
-                  <span className="text-gray-700">${formatCurrency(resolvedLessonAmount)}</span>
+                  <span className="text-gray-700 dark:text-gray-300">${formatCurrency(resolvedLessonAmount)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Platform fee</span>
-                  <span className="text-gray-700">${formatCurrency(resolvedServiceFee)}</span>
+                  <span className="text-gray-500 dark:text-gray-400">Platform fee</span>
+                  <span className="text-gray-700 dark:text-gray-300">${formatCurrency(resolvedServiceFee)}</span>
                 </div>
                 {hasCreditApplied && (
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Credit applied</span>
-                    <span className="text-gray-700">-${formatCurrency(resolvedCreditApplied)}</span>
+                    <span className="text-gray-500 dark:text-gray-400">Credit applied</span>
+                    <span className="text-gray-700 dark:text-gray-300">-${formatCurrency(resolvedCreditApplied)}</span>
                   </div>
                 )}
                 {hasTip && (
                   <div className="flex justify-between">
-                    <span className="text-gray-500">
+                    <span className="text-gray-500 dark:text-gray-400">
                       Tip{tipPending ? ' (pending)' : ''}
                     </span>
-                    <span className="text-gray-700">
+                    <span className="text-gray-700 dark:text-gray-300">
                       ${formatCurrency(tipDisplayAmount)}
                     </span>
                   </div>
                 )}
                 <Separator />
-                <div className="flex justify-between font-semibold text-gray-900">
+                <div className="flex justify-between font-semibold text-gray-900 dark:text-gray-100">
                   <span>Total</span>
                   <span>${formatCurrency(totalPaid)}</span>
                 </div>
-                <div className="flex justify-between text-gray-500">
+                <div className="flex justify-between text-gray-500 dark:text-gray-400">
                   <span>Paid</span>
                   <span>${formatCurrency(totalPaid)}</span>
                 </div>
                 {tipPending && (
-                  <p className="text-xs text-gray-500 pt-2">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 pt-2">
                     Tip will be finalized once your payment method is confirmed.
                   </p>
                 )}
                 {wasCancelledLate && (
-                  <p className="text-xs text-gray-500 pt-2">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 pt-2">
                     This lesson was cancelled less than 12 hours before the scheduled time and was charged in full.
                   </p>
                 )}
                 {isCompleted && (
-                  <p className="text-xs text-gray-500 pt-2">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 pt-2">
                     For cancellations 12–24 hours before a lesson, the lesson price is added as credit. The booking fee is non-refundable.
                   </p>
                 )}
@@ -550,14 +550,14 @@ export default function LessonDetailsPage() {
 function LessonDetailsLoading() {
   return (
     <div className="min-h-screen">
-      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+      <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link className="inline-block" href="/">
             <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </Link>
           <div className="pr-4">
             <div className="animate-pulse">
-              <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+              <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
             </div>
           </div>
         </div>
@@ -566,7 +566,7 @@ function LessonDetailsLoading() {
         <div className="flex items-center mb-6">
           <Skeleton className="h-10 w-32" />
         </div>
-        <Card className="p-6 sm:p-8 bg-white rounded-xl border border-gray-200">
+        <Card className="p-6 sm:p-8 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
           <Skeleton className="h-8 w-48 mb-6" />
           <div className="space-y-3 mb-6">
             <Skeleton className="h-6 w-64" />

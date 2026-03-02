@@ -267,7 +267,7 @@ export default function TimeDropdown({
         role="listbox"
         aria-label="Select lesson time"
         onKeyDown={handleListboxKeyDown}
-        className={`bg-white rounded-lg shadow-xl border border-gray-200 ${
+        className={`bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 ${
           isAnimating ? 'animate-dropdownOpen' : 'animate-dropdownClose'
         }`}
         style={{
@@ -302,9 +302,9 @@ export default function TimeDropdown({
                 ${
                   selectedTime === time
                     ? 'bg-purple-50 text-[#7E22CE] font-medium'
-                    : 'text-gray-900'
+                    : 'text-gray-900 dark:text-gray-100'
                 }
-                ${index !== timeSlots.length - 1 ? 'border-b border-gray-100' : ''}
+                ${index !== timeSlots.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}
               `}
               style={{
                 fontSize: '15px',
@@ -324,7 +324,7 @@ export default function TimeDropdown({
                 )}
               </div>
               {hasSingleTime && (
-                <span className="text-sm text-gray-500 mt-0.5">Only time available</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Only time available</span>
               )}
             </button>
           ))}
@@ -349,7 +349,7 @@ export default function TimeDropdown({
         aria-expanded={isOpen}
         aria-controls={isOpen ? listboxId : undefined}
         className={`
-          w-full h-11 px-4 py-3 text-left rounded-lg border border-gray-300
+          w-full h-11 px-4 py-3 text-left rounded-lg border border-gray-300 dark:border-gray-700
           flex items-center justify-between
           transition-colors
           ${hasNoTimes || isLoading ? 'text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-gray-100'}

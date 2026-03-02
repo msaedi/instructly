@@ -18,7 +18,7 @@ const QUEUE_COLORS: Record<string, string> = {
 export default function CeleryQueuesChart({ queues }: CeleryQueuesChartProps) {
   if (!queues || !queues.queues) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+      <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400">
         <BarChart3 className="h-12 w-12 mb-2 opacity-60" />
         <p>No queue data available</p>
       </div>
@@ -30,7 +30,7 @@ export default function CeleryQueuesChart({ queues }: CeleryQueuesChartProps) {
 
   if (queueEntries.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+      <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400">
         <BarChart3 className="h-12 w-12 mb-2 opacity-60" />
         <p>All queues are empty</p>
         <p className="text-sm mt-1">No pending tasks</p>
@@ -46,9 +46,9 @@ export default function CeleryQueuesChart({ queues }: CeleryQueuesChartProps) {
           <div key={queueName}>
             <div className="flex justify-between mb-1">
               <span className="text-sm font-medium capitalize">{queueName}</span>
-              <span className="text-sm text-gray-600">{length} tasks</span>
+              <span className="text-sm text-gray-600 dark:text-gray-400">{length} tasks</span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-6">
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-6">
               <div
                 className={`h-6 rounded-full transition-all duration-300 ${
                   QUEUE_COLORS[queueName] || 'bg-gray-500'
@@ -79,13 +79,13 @@ export default function CeleryQueuesChart({ queues }: CeleryQueuesChartProps) {
       {/* Queue Health Indicators */}
       <div className="grid grid-cols-2 gap-4 pt-4">
         <div className="text-center p-4 bg-gray-50 dark:bg-gray-800/60 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60">
-          <p className="text-sm text-gray-600">Active Queues</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Active Queues</p>
           <p className="text-xl font-bold">
             {queueEntries.filter(([_, length]) => length > 0).length}
           </p>
         </div>
         <div className="text-center p-4 bg-gray-50 dark:bg-gray-800/60 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60">
-          <p className="text-sm text-gray-600">Empty Queues</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Empty Queues</p>
           <p className="text-xl font-bold">
             {queueEntries.filter(([_, length]) => length === 0).length}
           </p>

@@ -169,18 +169,18 @@ export default function TfaModal({ onClose, onChanged }: Props) {
               />
             )}
             {secret && (
-              <div className="text-sm text-gray-700">
+              <div className="text-sm text-gray-700 dark:text-gray-300">
                 <p className="font-medium">Secret (manual entry):</p>
-                <p className="mt-1 break-all rounded bg-gray-50 p-2 border text-gray-800">{secret}</p>
+                <p className="mt-1 break-all rounded bg-gray-50 dark:bg-gray-900 p-2 border text-gray-800 dark:text-gray-200">{secret}</p>
               </div>
             )}
             <div>
-              <label htmlFor="tfa-code" className="block text-xs text-gray-500 mb-1">
+              <label htmlFor="tfa-code" className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
                 Enter 6-digit code
               </label>
               <input
                 id="tfa-code"
-                className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
+                className="w-full rounded-md border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 onKeyDown={(e) => {
@@ -216,9 +216,9 @@ export default function TfaModal({ onClose, onChanged }: Props) {
 
         {step === 'enabled' && (
           <>
-            <p className="text-sm text-green-700">Two-factor authentication is now enabled.</p>
+            <p className="text-sm text-green-700 dark:text-emerald-400">Two-factor authentication is now enabled.</p>
             {backupCodes && backupCodes.length > 0 && (
-              <div className="text-sm text-gray-700">
+              <div className="text-sm text-gray-700 dark:text-gray-300">
                 <p className="font-medium mb-1">Backup codes (store securely):</p>
                 <ul className="list-disc pl-5 space-y-0.5" aria-label="Backup codes">
                   {backupCodes.map((c) => (
@@ -248,7 +248,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
               </div>
             )}
             <div className="mt-6 border-t pt-4 space-y-3">
-              <p className="text-sm text-gray-700">To disable 2FA, confirm your password.</p>
+              <p className="text-sm text-gray-700 dark:text-gray-300">To disable 2FA, confirm your password.</p>
               <input
                 type="password"
                 id="disable-password"
@@ -287,7 +287,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
 
         {step === 'disabled' && (
           <>
-            <p className="text-sm text-gray-700">Two-factor authentication has been disabled.</p>
+            <p className="text-sm text-gray-700 dark:text-gray-300">Two-factor authentication has been disabled.</p>
             <div className="flex justify-end gap-3">
               <button
                 type="button"

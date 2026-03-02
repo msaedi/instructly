@@ -6,7 +6,7 @@ interface MemoryUsageChartProps {
 
 export default function MemoryUsageChart({ stats }: MemoryUsageChartProps) {
   if (!stats || !stats.memory) {
-    return <div className="text-center text-gray-500">No data available</div>;
+    return <div className="text-center text-gray-500 dark:text-gray-400">No data available</div>;
   }
 
   const memoryData = [
@@ -45,23 +45,23 @@ export default function MemoryUsageChart({ stats }: MemoryUsageChartProps) {
       <div>
         <div className="flex justify-between mb-2">
           <span className="text-sm font-medium">Memory Usage</span>
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-gray-600 dark:text-gray-400">
             {stats.memory.used_memory_human} / {stats.memory.maxmemory_human || '256M'}
           </span>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-4">
+        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4">
           <div
             className={`h-4 rounded-full transition-all duration-300 ${
               usedPercentage > 90
                 ? 'bg-red-500'
                 : usedPercentage > 70
                   ? 'bg-yellow-500'
-                  : 'bg-green-500'
+                  : 'bg-green-500 dark:bg-emerald-600'
             }`}
             style={{ width: `${Math.min(usedPercentage, 100)}%` }}
           />
         </div>
-        <div className="mt-1 text-xs text-gray-600">{usedPercentage.toFixed(1)}% used</div>
+        <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">{usedPercentage.toFixed(1)}% used</div>
       </div>
 
       {/* Memory Details */}
@@ -89,7 +89,7 @@ export default function MemoryUsageChart({ stats }: MemoryUsageChartProps) {
             {(stats.memory.mem_fragmentation_ratio || 1).toFixed(2)}
           </span>
         </div>
-        <p className="text-xs text-gray-600 mt-1">
+        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
           {(stats.memory.mem_fragmentation_ratio || 1) > 1.5
             ? 'High fragmentation - consider restarting Redis'
             : 'Fragmentation is within normal range'}

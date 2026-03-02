@@ -104,7 +104,7 @@ export default function SummarySection({
             </p>
 
             {pricingPreview && (
-              <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3 text-sm text-left space-y-2">
+              <div className="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-sm text-left space-y-2">
                 <div className="flex justify-between">
                   <span>Lesson</span>
                   <span>{formatCentsToDisplay(pricingPreview.base_price_cents)}</span>
@@ -118,7 +118,7 @@ export default function SummarySection({
                   return (
                     <div
                       key={`${item.label}-${item.amount_cents}`}
-                      className={`flex justify-between text-gray-700 ${
+                      className={`flex justify-between text-gray-700 dark:text-gray-300 ${
                         isCredit ? 'text-green-600 dark:text-green-400' : ''
                       }`}
                     >
@@ -127,7 +127,7 @@ export default function SummarySection({
                     </div>
                   );
                 })}
-                <div className="flex justify-between font-semibold text-base border-t border-gray-200 pt-2">
+                <div className="flex justify-between font-semibold text-base border-t border-gray-200 dark:border-gray-700 pt-2">
                   <span>Total</span>
                   <span>{formatCentsToDisplay(pricingPreview.student_pay_cents)}</span>
                 </div>
@@ -135,7 +135,7 @@ export default function SummarySection({
             )}
 
             {isPricingPreviewLoading && hasBookingDraft && (
-              <p className="mt-2 text-xs text-gray-500">Updating pricing…</p>
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Updating pricing…</p>
             )}
 
             {pricingError && (
@@ -154,7 +154,7 @@ export default function SummarySection({
             ${
               isComplete
                 ? 'bg-[#7E22CE] text-white hover:bg-[#7E22CE]'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
             }
           `}
         >

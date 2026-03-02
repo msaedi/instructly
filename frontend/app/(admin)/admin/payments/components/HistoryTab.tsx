@@ -47,7 +47,7 @@ export default function HistoryTab({ filters, onFiltersChange, adminOptions, tab
         </div>
         <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className="space-y-1">
-            <Label className="text-xs uppercase tracking-wide text-gray-500">Action</Label>
+            <Label className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Action</Label>
             <Select
               value={filters.action}
               onValueChange={(value) =>
@@ -71,7 +71,7 @@ export default function HistoryTab({ filters, onFiltersChange, adminOptions, tab
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs uppercase tracking-wide text-gray-500">Admin</Label>
+            <Label className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Admin</Label>
             <Select
               value={filters.admin_id}
               onValueChange={(value) =>
@@ -95,7 +95,7 @@ export default function HistoryTab({ filters, onFiltersChange, adminOptions, tab
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs uppercase tracking-wide text-gray-500">Date</Label>
+            <Label className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Date</Label>
             <Select
               value={filters.date_range}
               onValueChange={(value) =>
@@ -119,9 +119,9 @@ export default function HistoryTab({ filters, onFiltersChange, adminOptions, tab
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs uppercase tracking-wide text-gray-500">Search</Label>
+            <Label className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Search</Label>
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-300" />
               <Input
                 value={filters.search}
                 onChange={(event) => onFiltersChange({ ...filters, search: event.target.value, page: 1 })}
@@ -132,7 +132,7 @@ export default function HistoryTab({ filters, onFiltersChange, adminOptions, tab
           </div>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-gray-500">Actions:</span>
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Actions:</span>
           {quickActions.map((action) => {
             const active = filters.action === action.value;
             return (

@@ -111,7 +111,7 @@ export default function SearchAnalyticsDashboard() {
                     <div className="pointer-events-auto w-full max-w-2xl bg-white dark:bg-gray-900 rounded-xl shadow-2xl ring-1 ring-gray-200/70 dark:ring-gray-700/60">
                       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                         <Dialog.Title className="text-base font-semibold">Insights detail</Dialog.Title>
-                        <Dialog.Close className="text-sm text-gray-600 hover:underline">Close</Dialog.Close>
+                        <Dialog.Close className="text-sm text-gray-600 dark:text-gray-400 hover:underline">Close</Dialog.Close>
                       </div>
                       <div className="p-4 text-sm space-y-2">
                         <div>Most searched: {at(data.popularSearches || [], 0)?.query ?? 'n/a'} ({at(data.popularSearches || [], 0)?.search_count ?? 0})</div>

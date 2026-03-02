@@ -357,7 +357,7 @@ export default function NLSearchAdminPage() {
                           <SelectItem key={model.id} value={model.id}>
                             <div className="flex flex-col">
                               <span className="font-medium">{model.name}</span>
-                              <span className="text-xs text-gray-500">{model.description}</span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400">{model.description}</span>
                             </div>
                           </SelectItem>
                         ))}
@@ -386,7 +386,7 @@ export default function NLSearchAdminPage() {
                     <Label>Embedding Model</Label>
                     <div className="flex items-center gap-2">
                       <div className="flex-1 px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 flex items-center gap-2">
-                        <Lock className="h-4 w-4 text-gray-400" />
+                        <Lock className="h-4 w-4 text-gray-400 dark:text-gray-300" />
                         <span>{config.embedding_model}</span>
                       </div>
                     </div>
@@ -600,7 +600,7 @@ export default function NLSearchAdminPage() {
               {/* Test Location for "near me" queries */}
               <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                 <div className="flex items-center gap-2 mb-2">
-                  <MapPin className="w-4 h-4 text-gray-500" />
+                  <MapPin className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                     Test Location (for &quot;near me&quot; queries)
                   </span>
@@ -618,7 +618,7 @@ export default function NLSearchAdminPage() {
                   {testLocation && (
                     <button
                       onClick={clearTestLocation}
-                      className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                      className="p-2 text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-300"
                       title="Clear test location"
                     >
                       <X className="w-5 h-5" />
@@ -634,7 +634,7 @@ export default function NLSearchAdminPage() {
                   </div>
                 )}
                 {isLoadingLocation && (
-                  <div className="mt-2 text-sm text-gray-500">Loading coordinates...</div>
+                  <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading coordinates...</div>
                 )}
                 <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                   Set a test location to simulate &quot;near me&quot; searches. Try: &quot;piano lessons near me&quot;
@@ -940,12 +940,12 @@ function PipelineTimeline({ diagnostics }: { diagnostics: SearchDiagnostics }) {
                     isSuccessful
                       ? 'bg-green-100 border-green-500 dark:bg-green-900/20'
                       : status === 'skipped'
-                      ? 'bg-gray-50 border-gray-200 dark:bg-gray-800/50'
+                      ? 'bg-gray-50 border-gray-200 dark:border-gray-700 dark:bg-gray-800/50'
                       : status === 'miss'
                       ? 'bg-amber-50 border-amber-300 dark:bg-amber-900/20'
                       : status === 'timeout' || status === 'error'
                       ? 'bg-red-50 border-red-300 dark:bg-red-900/20'
-                      : 'bg-gray-50 border-gray-200 dark:bg-gray-800/50'
+                      : 'bg-gray-50 border-gray-200 dark:border-gray-700 dark:bg-gray-800/50'
                   }`}
                 >
                   <div className="font-medium">Tier {tier}</div>
@@ -958,11 +958,11 @@ function PipelineTimeline({ diagnostics }: { diagnostics: SearchDiagnostics }) {
                   </div>
                   {tierResult && (
                     <>
-                      <div className={statusText[tierResult.status] ?? 'text-gray-500'}>
+                      <div className={statusText[tierResult.status] ?? 'text-gray-500 dark:text-gray-400'}>
                         {tierResult.status}
                       </div>
                       {tierResult.duration_ms > 0 && (
-                        <div className="text-[10px] text-gray-400">{tierResult.duration_ms}ms</div>
+                        <div className="text-[10px] text-gray-400 dark:text-gray-300">{tierResult.duration_ms}ms</div>
                       )}
                       {tierResult.confidence !== null && tierResult.confidence !== undefined && (
                         <div className="text-[10px] text-blue-600 dark:text-blue-300">
@@ -988,7 +988,7 @@ function PipelineTimeline({ diagnostics }: { diagnostics: SearchDiagnostics }) {
         <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded overflow-hidden">
           <div
             className={`h-full ${
-              diagnostics.budget.over_budget ? 'bg-red-500' : 'bg-green-500'
+              diagnostics.budget.over_budget ? 'bg-red-500' : 'bg-green-500 dark:bg-emerald-600'
             }`}
             style={{
               width: `${Math.min(
@@ -1022,15 +1022,15 @@ function PipelineTimeline({ diagnostics }: { diagnostics: SearchDiagnostics }) {
         <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Candidates Funnel</h3>
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <FunnelChip label="Text" value={diagnostics.after_text_search} color="blue" />
-          <span className="text-gray-400">→</span>
+          <span className="text-gray-400 dark:text-gray-300">→</span>
           <FunnelChip label="Vector" value={diagnostics.after_vector_search} color="purple" />
-          <span className="text-gray-400">→</span>
+          <span className="text-gray-400 dark:text-gray-300">→</span>
           <FunnelChip label="Location" value={diagnostics.after_location_filter} color="green" />
-          <span className="text-gray-400">→</span>
+          <span className="text-gray-400 dark:text-gray-300">→</span>
           <FunnelChip label="Price" value={diagnostics.after_price_filter} color="yellow" />
-          <span className="text-gray-400">→</span>
+          <span className="text-gray-400 dark:text-gray-300">→</span>
           <FunnelChip label="Availability" value={diagnostics.after_availability_filter} color="orange" />
-          <span className="text-gray-400">→</span>
+          <span className="text-gray-400 dark:text-gray-300">→</span>
           <FunnelChip label="Final" value={diagnostics.final_results} color="emerald" />
         </div>
       </div>
@@ -1093,7 +1093,7 @@ function ParsedField({ label, value }: { label: string; value: string | number |
   if (value === null || value === undefined) {
     return (
       <div>
-        <span className="text-gray-400">{label}:</span>
+        <span className="text-gray-400 dark:text-gray-300">{label}:</span>
         <span className="ml-1 text-gray-300">-</span>
       </div>
     );

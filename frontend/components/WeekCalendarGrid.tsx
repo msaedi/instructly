@@ -106,11 +106,11 @@ const WeekCalendarGrid: React.FC<WeekCalendarGridProps> = ({
   // Week navigation handler removed - functionality directly in onNavigateWeek prop
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
       {/* Header */}
       <div className="mb-4">
         <h3 className="text-lg font-semibold">Week Schedule</h3>
-        <p className="text-sm text-gray-600">Click time slots to toggle availability</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400">Click time slots to toggle availability</p>
       </div>
 
       {/* Desktop Grid View */}
@@ -118,7 +118,7 @@ const WeekCalendarGrid: React.FC<WeekCalendarGridProps> = ({
         <table className="w-full table-fixed">
           <thead>
             <tr>
-              <th className="text-left p-2 text-gray-600 w-24">Time</th>
+              <th className="text-left p-2 text-gray-600 dark:text-gray-400 w-24">Time</th>
               {weekDates.map((dateInfo, index) => {
                 const isPast = isPastDate(dateInfo.fullDate);
                 logger.debug('Rendering day header', {
@@ -128,7 +128,7 @@ const WeekCalendarGrid: React.FC<WeekCalendarGridProps> = ({
                 });
 
                 return (
-                  <th key={index} className="text-center p-2 text-gray-600 w-32">
+                  <th key={index} className="text-center p-2 text-gray-600 dark:text-gray-400 w-32">
                     <div className="font-semibold capitalize">{dateInfo.dayOfWeek}</div>
                     <div className="text-sm font-normal">{dateInfo.dateStr}</div>
                   </th>
@@ -139,7 +139,7 @@ const WeekCalendarGrid: React.FC<WeekCalendarGridProps> = ({
           <tbody>
             {hours.map((hour) => (
               <tr key={hour} className="border-t">
-                <td className="p-2 text-sm text-gray-600 w-24">{formatHour(hour)}</td>
+                <td className="p-2 text-sm text-gray-600 dark:text-gray-400 w-24">{formatHour(hour)}</td>
                 {weekDates.map((dateInfo) => (
                   <td key={`${dateInfo.fullDate}-${hour}`} className="p-1 w-32">
                     {renderCell(dateInfo.fullDate, hour)}
@@ -164,11 +164,11 @@ const WeekCalendarGrid: React.FC<WeekCalendarGridProps> = ({
           });
 
           return (
-            <div key={index} className={`border rounded-lg p-4 ${isPast ? 'bg-gray-50' : ''}`}>
+            <div key={index} className={`border rounded-lg p-4 ${isPast ? 'bg-gray-50 dark:bg-gray-900' : ''}`}>
               <h3 className="font-semibold capitalize mb-1">{dateInfo.dayOfWeek}</h3>
-              <p className="text-sm text-gray-600 mb-3">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                 {dateInfo.dateStr}
-                {isPast && <span className="text-gray-500 ml-2">(Past date)</span>}
+                {isPast && <span className="text-gray-500 dark:text-gray-400 ml-2">(Past date)</span>}
               </p>
               <div className="grid grid-cols-3 gap-2">
                 {hours.map((hour) => (

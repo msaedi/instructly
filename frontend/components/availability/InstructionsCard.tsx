@@ -25,12 +25,12 @@ import { Info } from 'lucide-react';
  */
 export default function InstructionsCard(): React.ReactElement {
   return (
-    <div className="mt-8 p-4 bg-blue-50 rounded-lg" role="region" aria-label="Instructions">
+    <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900 dark:text-indigo-200 rounded-lg" role="region" aria-label="Instructions">
       <div className="flex items-start gap-2">
-        <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" aria-hidden="true" />
+        <Info className="w-5 h-5 text-blue-600 dark:text-indigo-300 mt-0.5 flex-shrink-0" aria-hidden="true" />
         <div className="flex-1">
-          <h3 className="font-semibold text-blue-900 mb-2">How it works:</h3>
-          <ul className="text-sm text-blue-800 space-y-1" role="list">
+          <h3 className="font-semibold text-blue-900 dark:text-indigo-200 mb-2">How it works:</h3>
+          <ul className="text-sm text-blue-800 dark:text-indigo-200 space-y-1" role="list">
             <li>• Each week&apos;s schedule is independent - changes only affect the displayed week</li>
             <li>• Use &quot;Save This Week&quot; to save changes for the current week only</li>
             <li>• Use &quot;Copy from Previous Week&quot; to duplicate last week&apos;s schedule</li>

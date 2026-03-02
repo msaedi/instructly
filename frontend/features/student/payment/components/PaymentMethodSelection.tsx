@@ -92,7 +92,7 @@ const AddCardFormInner: React.FC<{
             },
           },
         }}
-        className="p-2 border border-gray-200 rounded"
+        className="p-2 border border-gray-200 dark:border-gray-700 rounded"
       />
 
       {cardsLength > 0 && (
@@ -122,7 +122,7 @@ const AddCardFormInner: React.FC<{
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 border border-gray-300 rounded text-sm"
+          className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded text-sm"
         >
           Cancel
         </button>
@@ -187,10 +187,10 @@ export default function PaymentMethodSelection({
               {cards.map((card) => (
                 <label
                   key={card.id}
-                  className={`flex items-center p-3 bg-white border rounded-lg cursor-pointer transition-colors ${
+                  className={`flex items-center p-3 bg-white dark:bg-gray-800 border rounded-lg cursor-pointer transition-colors ${
                     selectedCardId === card.id
                       ? 'border-[#7E22CE]'
-                      : 'border-gray-200'
+                      : 'border-gray-200 dark:border-gray-700'
                   }`}
                 >
                   <input
@@ -201,13 +201,13 @@ export default function PaymentMethodSelection({
                     onChange={(e) => setSelectedCardId(e.target.value)}
                     className="sr-only"
                   />
-                  <CreditCard className="mr-3 text-gray-600" size={24} />
+                  <CreditCard className="mr-3 text-gray-600 dark:text-gray-400" size={24} />
                   <div className="flex-1">
                     <p className="text-sm font-medium">
                       {card.brand} ending in {card.last4}
                     </p>
                     {card.isDefault && (
-                      <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded">Default</span>
+                      <span className="text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-0.5 rounded">Default</span>
                     )}
                   </div>
                   {selectedCardId === card.id && <Check className="text-[#7E22CE]" size={20} />}
@@ -217,18 +217,18 @@ export default function PaymentMethodSelection({
               {!showNewCardForm ? (
                 <button
                   onClick={() => setShowNewCardForm(true)}
-                  className="w-full p-3 bg-white border border-dashed border-gray-300 rounded-lg hover:border-[#7E22CE] transition-colors flex items-center justify-center text-sm"
+                  className="w-full p-3 bg-white dark:bg-gray-800 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg hover:border-[#7E22CE] transition-colors flex items-center justify-center text-sm"
                 >
                   <Plus size={18} className="mr-2" />
                   Add New Card
                 </button>
               ) : (
-                <div className="p-3 bg-white border border-[#7E22CE] rounded-lg">
+                <div className="p-3 bg-white dark:bg-gray-800 border border-[#7E22CE] rounded-lg">
                   <div className="flex justify-between items-center mb-3">
                     <h5 className="text-sm font-medium">Enter Card Details</h5>
                     <button
                       onClick={() => setShowNewCardForm(false)}
-                      className="text-gray-500 hover:text-gray-700"
+                      className="text-gray-500 dark:text-gray-400 hover:text-gray-700"
                     >
                       <Plus size={16} className="rotate-45" />
                     </button>

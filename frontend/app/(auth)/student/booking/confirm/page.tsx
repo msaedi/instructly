@@ -215,20 +215,20 @@ export default function BookingConfirmationPage() {
   if (authLoading) {
     return (
       <div className="min-h-screen">
-        <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+        <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link className="inline-block" href="/">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4">
-              <div className="w-9 h-9 bg-gray-200 rounded-full animate-pulse"></div>
+              <div className="w-9 h-9 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse"></div>
             </div>
           </div>
         </header>
         <div className="flex items-center justify-center pt-32">
           <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-48 mb-4"></div>
-            <div className="h-4 bg-gray-200 rounded w-32"></div>
+            <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-48 mb-4"></div>
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32"></div>
           </div>
         </div>
       </div>
@@ -244,7 +244,7 @@ export default function BookingConfirmationPage() {
     return (
       <div className="min-h-screen">
         {/* Header - matching search results page */}
-        <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+        <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link className="inline-block" href="/">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
@@ -256,8 +256,8 @@ export default function BookingConfirmationPage() {
         </header>
         <div className="flex items-center justify-center pt-32">
           <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-48 mb-4"></div>
-            <div className="h-4 bg-gray-200 rounded w-32"></div>
+            <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-48 mb-4"></div>
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32"></div>
           </div>
         </div>
       </div>
@@ -268,7 +268,7 @@ export default function BookingConfirmationPage() {
     return (
       <div className="min-h-screen">
         {/* Header - matching search results page */}
-        <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+        <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/" className="inline-block">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
@@ -280,7 +280,7 @@ export default function BookingConfirmationPage() {
         </header>
         <div className="flex items-center justify-center pt-32">
           <div className="text-center">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
               No booking data found
             </h2>
             <button
@@ -300,7 +300,7 @@ export default function BookingConfirmationPage() {
     return (
       <div className="min-h-screen">
         {/* Header - matching search results page */}
-        <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+        <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/" className="inline-block">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
@@ -321,21 +321,21 @@ export default function BookingConfirmationPage() {
                 shareUrl={referralShare.shareUrl}
               />
             )}
-            <div className="bg-white/95 backdrop-blur-sm rounded-xl border border-gray-200 p-8 text-center">
+            <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center">
               {/* Success Icon */}
-              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <svg className="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-20 h-20 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg className="w-12 h-12 text-green-600 dark:text-green-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
 
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">Booking Confirmed!</h2>
+              <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-4">Booking Confirmed!</h2>
 
-              <p className="text-lg text-gray-600 mb-2">
+              <p className="text-lg text-gray-600 dark:text-gray-400 mb-2">
                 Your lesson with <span className="font-semibold">{bookingData?.instructorName}</span> is confirmed.
               </p>
 
-              <p className="text-sm text-gray-500 mb-8">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">
                 Confirmation #{confirmationNumber}
               </p>
 
@@ -357,21 +357,21 @@ export default function BookingConfirmationPage() {
                 )}
                 <button
                   onClick={() => router.push('/student/lessons')}
-                  className="w-full bg-white text-[#7E22CE] py-3 px-6 rounded-lg font-medium border-2 border-[#7E22CE] hover:bg-purple-50 transition-colors"
+                  className="w-full bg-white dark:bg-gray-800 text-[#7E22CE] py-3 px-6 rounded-lg font-medium border-2 border-[#7E22CE] hover:bg-purple-50 transition-colors"
                 >
                   View My Lessons
                 </button>
 
                 <button
                   onClick={() => router.push(bookingData?.instructorId ? `/instructors/${bookingData.instructorId}` : '/student/lessons')}
-                  className="w-full bg-white text-[#7E22CE] py-3 px-6 rounded-lg font-medium border-2 border-[#7E22CE] hover:bg-purple-50 transition-colors"
+                  className="w-full bg-white dark:bg-gray-800 text-[#7E22CE] py-3 px-6 rounded-lg font-medium border-2 border-[#7E22CE] hover:bg-purple-50 transition-colors"
                 >
                   Book Another Lesson
                 </button>
               </div>
 
               {referralShare && (
-                <p className="mt-5 text-xs text-gray-500">
+                <p className="mt-5 text-xs text-gray-500 dark:text-gray-400">
                   If your friend books their first $75+ lesson within 30 days, you both receive iNSTAiNSTRU credits.{' '}
                   <Link href="/referrals-terms" className="text-[#7E22CE] underline" onClick={() => setShareModalOpen(false)}>
                     Terms apply
@@ -380,7 +380,7 @@ export default function BookingConfirmationPage() {
                 </p>
               )}
 
-              <p className="text-xs text-gray-500 mt-6">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-6">
                 Redirecting to your lessons in 5 seconds...
               </p>
             </div>
@@ -393,7 +393,7 @@ export default function BookingConfirmationPage() {
   return (
     <div className="min-h-screen">
       {/* Header - matching search results page */}
-      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+      <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link className="inline-block" href="/">
             <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>

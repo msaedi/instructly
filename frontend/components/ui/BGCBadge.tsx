@@ -21,7 +21,7 @@ export function BGCBadge({ isLive, bgcStatus, className }: BGCBadgeProps) {
       <span
         className={cn(
           'inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium',
-          'bg-green-100 text-green-800 border-green-200',
+          'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 border-green-200 dark:border-green-700',
           className
         )}
       >
@@ -36,7 +36,7 @@ export function BGCBadge({ isLive, bgcStatus, className }: BGCBadgeProps) {
       <span
         className={cn(
           'inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium',
-          'bg-yellow-100 text-yellow-800 border-yellow-200',
+          'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 border-yellow-200 dark:border-yellow-700',
           className
         )}
       >

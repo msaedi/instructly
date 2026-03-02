@@ -809,7 +809,7 @@ function PaymentConfirmationInner({
   const renderSummarySkeleton = (widthClass = 'w-16') => (
     <span
       data-testid="pricing-preview-skeleton"
-      className={`inline-block h-3 ${widthClass} rounded bg-gray-200 animate-pulse`}
+      className={`inline-block h-3 ${widthClass} rounded bg-gray-200 dark:bg-gray-700 animate-pulse`}
       aria-hidden="true"
     />
   );
@@ -1754,11 +1754,11 @@ function PaymentConfirmationInner({
             <div className="flex items-center gap-3 flex-1">
               <h4 className="font-bold text-xl">Payment Method</h4>
               {!isPaymentExpanded && hasSavedCard && (
-                <span className="text-sm text-gray-600">•••• {cardLast4}</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">•••• {cardLast4}</span>
               )}
             </div>
             <ChevronDown
-              className={`h-5 w-5 text-gray-500 transition-transform ${
+              className={`h-5 w-5 text-gray-500 dark:text-gray-400 transition-transform ${
                 isPaymentExpanded ? 'rotate-180' : ''
               }`}
             />
@@ -1768,12 +1768,12 @@ function PaymentConfirmationInner({
           {isPaymentExpanded && (
           <div className="space-y-3 mt-3">
             {hasSavedCard ? (
-              <div className="bg-white p-3 rounded-lg border border-gray-200">
+              <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">{cardBrand} ending in {cardLast4}</span>
                     {isDefaultCard && (
-                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Default</span>
+                      <span className="text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded">Default</span>
                     )}
                   </div>
                   <button
@@ -1792,58 +1792,58 @@ function PaymentConfirmationInner({
             ) : (
               <>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Card Number
               </label>
               <input
                 type="text"
                 placeholder="1234 5678 9012 3456"
-                className="w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
                 style={{ outline: 'none' }}
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Expiry Date
                 </label>
                 <input
                   type="text"
                   placeholder="MM/YY"
-                  className="w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                  className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
                   style={{ outline: 'none' }}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   CVV
                 </label>
                 <input
                   type="text"
                   placeholder="123"
-                  className="w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                  className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
                   style={{ outline: 'none' }}
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Name on Card
               </label>
               <input
                 type="text"
                 placeholder="John Doe"
-                className="w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
                 style={{ outline: 'none' }}
               />
             </div>
 
             {/* Billing Address */}
-            <div className="pt-3 mt-3 border-t border-gray-200">
-              <label className="block text-sm font-medium text-gray-700 mb-3">
+            <div className="pt-3 mt-3 border-t border-gray-200 dark:border-gray-700">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
                 Billing Address
               </label>
 
@@ -1852,7 +1852,7 @@ function PaymentConfirmationInner({
                   <input
                     type="text"
                     placeholder="Address"
-                    className="w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                    className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
                     style={{ outline: 'none' }}
                   />
                 </div>
@@ -1861,28 +1861,28 @@ function PaymentConfirmationInner({
                   <input
                     type="text"
                     placeholder="City"
-                    className="col-span-3 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                    className="col-span-3 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
                     style={{ outline: 'none' }}
                   />
 
                   <input
                     type="text"
                     placeholder="State"
-                    className="col-span-1 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                    className="col-span-1 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
                     style={{ outline: 'none' }}
                   />
 
                   <input
                     type="text"
                     placeholder="ZIP Code"
-                    className="col-span-2 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                    className="col-span-2 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
                     style={{ outline: 'none' }}
                   />
                 </div>
 
                 <div>
                   <select
-                    className="w-full p-2.5 border border-gray-200 rounded-lg text-sm text-gray-700 focus:border-purple-500 transition-colors"
+                    className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-700 dark:text-gray-300 focus:border-purple-500 transition-colors"
                     style={{ outline: 'none' }}
                     defaultValue="US"
                   >
@@ -1950,16 +1950,16 @@ function PaymentConfirmationInner({
               <input
                 type="checkbox"
                 id="save-card"
-                className="w-4 h-4 text-[#7E22CE] border-gray-300 rounded focus:ring-[#7E22CE]"
+                className="w-4 h-4 text-[#7E22CE] border-gray-300 dark:border-gray-700 rounded focus:ring-[#7E22CE]"
               />
-              <label htmlFor="save-card" className="ml-2 text-sm text-gray-700">
+              <label htmlFor="save-card" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
                 Save card for future payments
               </label>
             </div>
 
             {/* Promo Code Section */}
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Promo Code
               </label>
               {referralActive ? (
@@ -1976,7 +1976,7 @@ function PaymentConfirmationInner({
                       value={promoCode}
                       onChange={(event) => handlePromoInputChange(event.target.value)}
                       disabled={promoActive}
-                      className="flex-1 p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors disabled:bg-gray-100"
+                      className="flex-1 p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors disabled:bg-gray-100"
                       style={{ outline: 'none' }}
                     />
                     <button
@@ -1992,7 +1992,7 @@ function PaymentConfirmationInner({
                     <p className="mt-2 text-xs text-red-600">{promoError}</p>
                   )}
                   {promoActive && (
-                    <p className="mt-2 text-xs text-gray-500">
+                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                       Promo applied. Referral credit is disabled while a promo code is active.
                     </p>
                   )}
@@ -2031,10 +2031,10 @@ function PaymentConfirmationInner({
               >
                 <div className="flex-1 text-left">
                   <h4 className="font-bold text-xl">Available Credits</h4>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
                     Balance: ${availableCredits.toFixed(2)}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">{creditsAppliedLabel}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{creditsAppliedLabel}</p>
                   {collapsedHasCredits && (
                     <span className="sr-only">
                       Using {formatCentsToDisplay(previewAppliedCreditCents)}
@@ -2042,7 +2042,7 @@ function PaymentConfirmationInner({
                   )}
                 </div>
                 <ChevronDown
-                  className={`h-5 w-5 text-gray-500 transition-transform ${
+                  className={`h-5 w-5 text-gray-500 dark:text-gray-400 transition-transform ${
                     creditsAccordionIsExpanded ? 'rotate-180' : ''
                   }`}
                 />
@@ -2052,7 +2052,7 @@ function PaymentConfirmationInner({
             {creditsAccordionIsExpanded && (
               <div
                 id={creditsAccordionPanelId}
-                className="mt-3 p-3 bg-white rounded-lg space-y-3"
+                className="mt-3 p-3 bg-white dark:bg-gray-800 rounded-lg space-y-3"
                 aria-hidden={!creditsAccordionIsExpanded}
               >
                 <div className="flex items-center justify-between text-sm">
@@ -2090,7 +2090,7 @@ function PaymentConfirmationInner({
                   }}
                   className="w-full accent-purple-700"
                 />
-                <div className="flex items-start justify-between text-xs text-gray-500">
+                <div className="flex items-start justify-between text-xs text-gray-500 dark:text-gray-400">
                   <span>
                     {displayAppliedCreditCents >= totalBeforeCreditsCents
                       ? 'Entire lesson covered by credits!'
@@ -2109,7 +2109,7 @@ function PaymentConfirmationInner({
               </div>
             )}
 
-            <p className="text-xs text-gray-500 mt-2">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
               {creditEarliestExpiry
                 ? `Earliest credit expiry: ${new Date(creditEarliestExpiry).toLocaleDateString()}`
                 : 'Credits expire 12 months after issue date'}
@@ -2126,11 +2126,11 @@ function PaymentConfirmationInner({
             <div className="flex items-center gap-3 flex-1">
               <h4 className="font-bold text-xl">Lesson Location</h4>
               {!isLocationExpanded && (
-                <span className="text-sm text-gray-600">{resolvedMeetingLocation}</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">{resolvedMeetingLocation}</span>
               )}
             </div>
             <ChevronDown
-              className={`h-5 w-5 text-gray-500 transition-transform ${
+              className={`h-5 w-5 text-gray-500 dark:text-gray-400 transition-transform ${
                 isLocationExpanded ? 'rotate-180' : ''
               }`}
             />
@@ -2139,7 +2139,7 @@ function PaymentConfirmationInner({
           {isLocationExpanded && (
             <div className="mt-4 space-y-5">
               <div className="space-y-3">
-                <p className="text-sm font-medium text-gray-700">How do you want to take this lesson?</p>
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">How do you want to take this lesson?</p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {locationOptionCards.map((option) => {
                     const Icon = option.icon;
@@ -2152,19 +2152,19 @@ function PaymentConfirmationInner({
                         className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors ${
                           option.selected
                             ? 'border-[#7E22CE] bg-purple-50 text-[#7E22CE]'
-                            : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                            : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300'
                         }`}
                       >
                         <span
                           className={`flex h-9 w-9 items-center justify-center rounded-full ${
-                            option.selected ? 'bg-purple-100 text-[#7E22CE]' : 'bg-gray-100 text-gray-500'
+                            option.selected ? 'bg-purple-100 text-[#7E22CE]' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
                           }`}
                         >
                           <Icon className="h-4 w-4" aria-hidden="true" />
                         </span>
                         <span>
                           <span className="block text-sm font-semibold">{option.label}</span>
-                          <span className="block text-xs text-gray-500">{option.description}</span>
+                          <span className="block text-xs text-gray-500 dark:text-gray-400">{option.description}</span>
                         </span>
                       </button>
                     );
@@ -2173,26 +2173,26 @@ function PaymentConfirmationInner({
               </div>
 
               {locationType === 'online' && (
-                <div className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-600">
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-sm text-gray-600 dark:text-gray-400">
                   <p>This is an online lesson via video call.</p>
-                  <p className="text-xs text-gray-500">You&apos;ll receive a link before your session.</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">You&apos;ll receive a link before your session.</p>
                 </div>
               )}
 
               {locationType === 'instructor_location' && (
                 <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700">Teaching location</p>
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Teaching location</p>
                   {teachingLocations.length === 0 ? (
-                    <p className="text-sm text-gray-500">No teaching locations available yet.</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">No teaching locations available yet.</p>
                   ) : singleTeachingLocation ? (
-                    <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
-                      <p className="text-gray-600">
+                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm">
+                      <p className="text-gray-600 dark:text-gray-400">
                         Your lesson will be at {instructorFirstName}&apos;s location:
                       </p>
                       {singleTeachingLocation.label ? (
-                        <p className="font-medium text-gray-700">{singleTeachingLocation.label}</p>
+                        <p className="font-medium text-gray-700 dark:text-gray-300">{singleTeachingLocation.label}</p>
                       ) : null}
-                      <p className="font-medium text-gray-700">{singleTeachingLocation.address}</p>
+                      <p className="font-medium text-gray-700 dark:text-gray-300">{singleTeachingLocation.address}</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -2210,7 +2210,7 @@ function PaymentConfirmationInner({
                             className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
                               isSelected
                                 ? 'border-[#7E22CE] bg-purple-50 text-[#7E22CE]'
-                                : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                                : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300'
                             }`}
                           >
                             <input
@@ -2219,13 +2219,13 @@ function PaymentConfirmationInner({
                               name={teachingLocationGroupName}
                               checked={isSelected}
                               onChange={() => handleSelectTeachingLocation(location)}
-                              className="mt-1 h-4 w-4 text-[#7E22CE] border-gray-300 focus:ring-[#7E22CE]"
+                              className="mt-1 h-4 w-4 text-[#7E22CE] border-gray-300 dark:border-gray-700 focus:ring-[#7E22CE]"
                             />
                             <span>
                               {location.label ? (
                                 <span className="block font-medium">{location.label}</span>
                               ) : null}
-                              <span className="block text-xs text-gray-500">{location.address}</span>
+                              <span className="block text-xs text-gray-500 dark:text-gray-400">{location.address}</span>
                             </span>
                           </label>
                         );
@@ -2237,13 +2237,13 @@ function PaymentConfirmationInner({
 
               {isTravelLocation && (
                 <div className="space-y-4">
-                  <p className="text-sm font-medium text-gray-700">
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
                     Where should {instructorFirstName} meet you?
                   </p>
 
                   {publicSpaces.length > 0 && (
                     <div className="space-y-2">
-                      <p className="text-sm font-medium text-gray-700">
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
                         {instructorFirstName}&apos;s suggested spots
                       </p>
                       <div className="space-y-2">
@@ -2261,7 +2261,7 @@ function PaymentConfirmationInner({
                               className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
                                 isSelected
                                   ? 'border-[#7E22CE] bg-purple-50 text-[#7E22CE]'
-                                  : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                                  : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300'
                               }`}
                             >
                               <input
@@ -2270,13 +2270,13 @@ function PaymentConfirmationInner({
                                 name={publicSpaceGroupName}
                                 checked={isSelected}
                                 onChange={() => handleSelectPublicSpace(space)}
-                                className="mt-1 h-4 w-4 text-[#7E22CE] border-gray-300 focus:ring-[#7E22CE]"
+                                className="mt-1 h-4 w-4 text-[#7E22CE] border-gray-300 dark:border-gray-700 focus:ring-[#7E22CE]"
                               />
                               <span>
                                 {space.label ? (
                                   <span className="block font-medium">{space.label}</span>
                                 ) : null}
-                                <span className="block text-xs text-gray-500">{space.address}</span>
+                                <span className="block text-xs text-gray-500 dark:text-gray-400">{space.address}</span>
                               </span>
                             </label>
                           );
@@ -2295,8 +2295,8 @@ function PaymentConfirmationInner({
                   )}
 
                   {publicSpaces.length > 0 && !isPublicSpaceSelection && (
-                    <div className="border-t border-gray-200 pt-3">
-                      <p className="text-sm font-medium text-gray-700">Or choose your own location</p>
+                    <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Or choose your own location</p>
                     </div>
                   )}
 
@@ -2311,11 +2311,11 @@ function PaymentConfirmationInner({
                   )}
 
                   {showCustomLocationInputs && hasSavedTravelLocation && !isEditingLocation && (
-                    <div className="bg-white p-3 rounded-lg border border-gray-200">
+                    <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
                       <div className="flex items-center justify-between">
                         <div>
                           <span className="text-sm font-medium">{resolvedMeetingLocation}</span>
-                          <p className="text-xs text-gray-500 mt-1">Saved address</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Saved address</p>
                         </div>
                         <button
                           type="button"
@@ -2371,8 +2371,8 @@ function PaymentConfirmationInner({
                             setIsEditingLocation(true);
                             setAddressDetailsError(null);
                           }}
-                          className={`col-span-3 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
-                            inputsDisabled ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
+                          className={`col-span-3 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 transition-colors ${
+                            inputsDisabled ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed' : 'focus:border-purple-500'
                           }`}
                           style={{ outline: 'none' }}
                         />
@@ -2389,8 +2389,8 @@ function PaymentConfirmationInner({
                             setIsEditingLocation(true);
                             setAddressDetailsError(null);
                           }}
-                          className={`col-span-1 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
-                            inputsDisabled ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
+                          className={`col-span-1 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 transition-colors ${
+                            inputsDisabled ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed' : 'focus:border-purple-500'
                           }`}
                           style={{ outline: 'none' }}
                         />
@@ -2407,8 +2407,8 @@ function PaymentConfirmationInner({
                             setIsEditingLocation(true);
                             setAddressDetailsError(null);
                           }}
-                          className={`col-span-2 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
-                            inputsDisabled ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
+                          className={`col-span-2 w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 transition-colors ${
+                            inputsDisabled ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed' : 'focus:border-purple-500'
                           }`}
                           style={{ outline: 'none' }}
                         />
@@ -2465,7 +2465,7 @@ function PaymentConfirmationInner({
             data-testid="booking-confirm-cta"
             className={`w-full py-2.5 px-4 rounded-lg font-medium transition-colors focus:outline-none focus:ring-0 ${
               ctaDisabled
-                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                 : 'bg-[#7E22CE] text-white hover:bg-[#7E22CE]'
             }`}
           >
@@ -2500,15 +2500,15 @@ function PaymentConfirmationInner({
               Piano Lesson
             </div>
             <div className="flex items-center text-sm">
-              <Calendar size={16} className="mr-2 text-gray-500" />
+              <Calendar size={16} className="mr-2 text-gray-500 dark:text-gray-400" />
               <span>{summaryDateLabel}</span>
             </div>
             <div className="flex items-center text-sm">
-              <Clock size={16} className="mr-2 text-gray-500" />
+              <Clock size={16} className="mr-2 text-gray-500 dark:text-gray-400" />
               <span>{summaryTimeLabel}</span>
             </div>
             <div className="flex items-start text-sm">
-              <MapPin size={16} className="mr-2 text-gray-500 mt-0.5" />
+              <MapPin size={16} className="mr-2 text-gray-500 dark:text-gray-400 mt-0.5" />
               <div>
                 {locationType === 'online' ? (
                   <div>Online</div>
@@ -2526,7 +2526,7 @@ function PaymentConfirmationInner({
                 // Open the calendar modal to reschedule
                 setIsModalOpen(true);
               }}
-              className="bg-white text-[#7E22CE] py-1.5 px-3 rounded-lg text-sm font-medium border-2 border-[#7E22CE] hover:bg-purple-50 transition-colors"
+              className="bg-white dark:bg-gray-800 text-[#7E22CE] py-1.5 px-3 rounded-lg text-sm font-medium border-2 border-[#7E22CE] hover:bg-purple-50 transition-colors"
             >
               Edit lesson
             </button>
@@ -2536,7 +2536,7 @@ function PaymentConfirmationInner({
           <div className="mt-4">
             <textarea
               placeholder="What should your instructor know about this session?"
-              className="w-full p-3 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 resize-none transition-colors"
+              className="w-full p-3 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 resize-none transition-colors"
               style={{ outline: 'none', boxShadow: 'none' }}
               onFocus={(e) => e.target.style.boxShadow = 'none'}
               rows={6}
@@ -2544,14 +2544,14 @@ function PaymentConfirmationInner({
           </div>
 
           {/* Payment Details Section */}
-          <div className="border-t border-gray-300 pt-4">
+          <div className="border-t border-gray-300 dark:border-gray-700 pt-4">
             <h4 className="font-semibold mb-3">Payment details</h4>
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span>{lessonSummaryLabel}</span>
                 <span>
                   {isPricingPreviewLoading ? (
-                    <span className="inline-block h-3 w-16 rounded bg-gray-200 animate-pulse" aria-hidden="true" />
+                    <span className="inline-block h-3 w-16 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" aria-hidden="true" />
                   ) : (
                     lessonAmountDisplay
                   )}
@@ -2565,7 +2565,7 @@ function PaymentConfirmationInner({
                       <Tooltip.Trigger asChild>
                         <button
                           type="button"
-                          className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
+                          className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 dark:text-gray-300 transition-colors hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
                           aria-label="Learn about the Service & Support fee"
                         >
                           <Info className="h-3.5 w-3.5" aria-hidden="true" />
@@ -2602,7 +2602,7 @@ function PaymentConfirmationInner({
                   <span>{item.label}</span>
                   <span>
                     {isPricingPreviewLoading ? (
-                      <span className="inline-block h-3 w-16 rounded bg-gray-200 animate-pulse" aria-hidden="true" />
+                      <span className="inline-block h-3 w-16 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" aria-hidden="true" />
                     ) : (
                       formatCentsToDisplay(item.amount_cents)
                     )}
@@ -2614,7 +2614,7 @@ function PaymentConfirmationInner({
                   <span>Credits applied</span>
                   <span>
                     {isPricingPreviewLoading ? (
-                      <span className="inline-block h-3 w-16 rounded bg-gray-200 animate-pulse" aria-hidden="true" />
+                      <span className="inline-block h-3 w-16 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" aria-hidden="true" />
                     ) : (
                       creditsAmountDisplay
                     )}
@@ -2627,7 +2627,7 @@ function PaymentConfirmationInner({
                   <span>{formatCentsToDisplay(-referralCreditCents)}</span>
                 </div>
               )}
-              <div className="border-t border-gray-300 pt-2 mt-2">
+              <div className="border-t border-gray-300 dark:border-gray-700 pt-2 mt-2">
                 <div className="flex justify-between font-bold text-base">
                   <span>Total</span>
                   <span>

@@ -139,12 +139,12 @@ export function PreferredLocationsCard({
                           [loc]: e.target.value,
                         }))
                       }
-                      className="absolute -top-2 sm:-top-5 left-1 text-xs text-[#7E22CE] bg-gray-100 px-1 py-0.5 rounded border-transparent ring-0 shadow-none outline-none focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0 focus:border-transparent focus-visible:border-transparent cursor-text"
+                      className="absolute -top-2 sm:-top-5 left-1 text-xs text-[#7E22CE] bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded border-transparent ring-0 shadow-none outline-none focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0 focus:border-transparent focus-visible:border-transparent cursor-text"
                       style={{ outline: 'none', outlineOffset: 0, boxShadow: 'none' }}
                     />
                     <span
                       data-testid={`ptl-chip-${index}`}
-                      className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 h-10 text-sm w-full min-w-0"
+                      className="flex items-center gap-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 h-10 text-sm w-full min-w-0"
                     >
                       <span className="truncate min-w-0" title={loc}>{loc}</span>
                       <button
@@ -192,7 +192,7 @@ export function PreferredLocationsCard({
                   <div key={place} className="relative w-full sm:w-1/2 min-w-0">
                     <span
                       data-testid={`pps-chip-${index}`}
-                      className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 h-10 text-sm w-full min-w-0"
+                      className="flex items-center gap-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 h-10 text-sm w-full min-w-0"
                     >
                       <span className="truncate min-w-0" title={place}>{place}</span>
                       <button

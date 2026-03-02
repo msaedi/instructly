@@ -152,7 +152,7 @@ export function StudentHeader() {
 
           {/* Mobile Menu Button */}
           <button
-            className="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100"
+            className="md:hidden p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             aria-label={isMobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
             aria-expanded={isMobileMenuOpen}
@@ -171,7 +171,7 @@ export function StudentHeader() {
 
         {/* Mobile Navigation */}
         {isMobileMenuOpen && (
-          <div className="md:hidden border-t border-gray-200 py-2">
+          <div className="md:hidden border-t border-gray-200 dark:border-gray-700 py-2">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isRewardsNav = item.href.startsWith('/student/dashboard');
@@ -198,7 +198,7 @@ export function StudentHeader() {
               );
             })}
 
-            <div className="border-t border-gray-200 mt-2 pt-2">
+            <div className="border-t border-gray-200 dark:border-gray-700 mt-2 pt-2">
               <Link
                 href="/student/profile"
                 className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100"

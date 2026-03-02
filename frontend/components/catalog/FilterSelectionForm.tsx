@@ -91,7 +91,7 @@ function FilterGroup({
       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
         {filter.filter_display_name}
         {filter.filter_type === 'single_select' && (
-          <span className="ml-1 text-xs text-gray-400">(select one)</span>
+          <span className="ml-1 text-xs text-gray-400 dark:text-gray-300">(select one)</span>
         )}
       </label>
       <div className="flex flex-wrap gap-2">

@@ -82,9 +82,9 @@ export function RefineFiltersSection({
   }
 
   return (
-    <div className="bg-white rounded-lg p-3 border border-gray-200">
+    <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
       <div className="w-full flex items-center justify-between gap-2">
-        <p className="text-sm font-semibold text-gray-900 select-text">
+        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 select-text">
           Refine what you teach (optional)
         </p>
         <button
@@ -93,7 +93,7 @@ export function RefineFiltersSection({
           aria-expanded={expanded}
           aria-controls={`refine-filters-${service.catalog_service_id}`}
           aria-label={`Toggle refine filters for ${service.name ?? 'this service'}`}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 text-gray-600 hover:bg-gray-100"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100"
         >
           <svg
             className={`h-4 w-4 transition-transform ${
@@ -116,7 +116,7 @@ export function RefineFiltersSection({
       {expanded && (
         <div id={`refine-filters-${service.catalog_service_id}`} className="mt-3 space-y-3">
           {isLoading ? (
-            <div className="text-xs text-gray-500">Loading filters...</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">Loading filters...</div>
           ) : (
             additionalFilters.map((filter: SubcategoryFilterResponse) => {
               const selectedValues = service.filter_selections[filter.filter_key] ?? [];
@@ -126,7 +126,7 @@ export function RefineFiltersSection({
 
               return (
                 <div key={`${service.catalog_service_id}-${filter.filter_key}`}>
-                  <p className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
+                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">
                     {filter.filter_display_name}
                   </p>
                   <div className="flex flex-wrap gap-1.5">
@@ -155,7 +155,7 @@ export function RefineFiltersSection({
                           className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
                             isSelected
                               ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
                           }`}
                         >
                           {formatFilterLabel(option.value, option.display_name)}

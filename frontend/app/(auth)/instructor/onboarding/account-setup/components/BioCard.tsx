@@ -132,7 +132,7 @@ export function BioCard({
             <div className="relative">
               <textarea
                 rows={4}
-                className={`w-full rounded-md border px-3 py-2 pr-16 pb-8 text-sm focus:outline-none ${showBioWarning ? 'border-red-300 focus:border-red-500' : 'border-gray-300 focus:border-purple-500'}`}
+                className={`w-full rounded-md border px-3 py-2 pr-16 pb-8 text-sm focus:outline-none ${showBioWarning ? 'border-red-300 focus:border-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-purple-500'}`}
                 placeholder={bioPlaceholder}
                 value={profile.bio}
                 onChange={(e) => onProfileChange({ bio: e.target.value })}
@@ -140,7 +140,7 @@ export function BioCard({
                 maxLength={maxBioChars}
               />
               {showMinCharHint && minBioChars > 0 && (
-                <div className="pointer-events-none absolute bottom-2 right-3 text-[10px] text-gray-500 dark:text-gray-400 z-10 bg-white/80 px-1">
+                <div className="pointer-events-none absolute bottom-2 right-3 text-[10px] text-gray-500 dark:text-gray-400 z-10 bg-white/80 dark:bg-gray-800/80 px-1">
                   Minimum {minBioChars} characters
                 </div>
               )}
@@ -166,7 +166,7 @@ export function BioCard({
                   value={yearsValue}
                   onKeyDown={(e) => { if ([".", ",", "e", "E", "+", "-"].includes(e.key)) { e.preventDefault(); } }}
                   onChange={(e) => handleYearsChange(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 no-spinner"
+                  className="w-full rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 no-spinner"
                 />
               </div>
             </div>

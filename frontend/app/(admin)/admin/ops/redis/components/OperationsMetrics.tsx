@@ -7,7 +7,7 @@ interface OperationsMetricsProps {
 
 export default function OperationsMetrics({ stats }: OperationsMetricsProps) {
   if (!stats || !stats.operations) {
-    return <div className="text-center text-gray-500">No data available</div>;
+    return <div className="text-center text-gray-500 dark:text-gray-400">No data available</div>;
   }
 
   const opsPerSec = stats.operations.current_ops_per_sec || 0;
@@ -24,7 +24,7 @@ export default function OperationsMetrics({ stats }: OperationsMetricsProps) {
       {/* Current Operations */}
       <div className="text-center p-6 rounded-xl bg-gradient-to-b from-indigo-50 to-white dark:from-indigo-900/10 dark:to-transparent ring-1 ring-gray-200/70 dark:ring-gray-700/60">
         <Activity className="h-8 w-8 mx-auto mb-2 text-indigo-600" />
-        <p className="text-sm text-gray-600 mb-1">Current Operations/sec</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Current Operations/sec</p>
         <p className="text-4xl font-bold">{opsPerSec.toLocaleString()}</p>
       </div>
 
@@ -39,14 +39,14 @@ export default function OperationsMetrics({ stats }: OperationsMetricsProps) {
           )}
         </div>
         <div className="text-2xl font-bold mb-1">{dailyOps.toLocaleString()}</div>
-        <div className="text-sm text-gray-600">
+        <div className="text-sm text-gray-600 dark:text-gray-400">
           Target: {targetDailyOps.toLocaleString()} ops/day
         </div>
         <div className="mt-2">
-          <div className="w-full bg-gray-200 rounded-full h-2">
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
             <div
               className={`h-2 rounded-full transition-all duration-300 ${
-                isWithinTarget ? 'bg-green-500' : 'bg-red-500'
+                isWithinTarget ? 'bg-green-500 dark:bg-emerald-600' : 'bg-red-500'
               }`}
               style={{ width: `${Math.min(opsPercentage, 100)}%` }}
             />
@@ -63,7 +63,7 @@ export default function OperationsMetrics({ stats }: OperationsMetricsProps) {
           <span className="text-sm">Total Commands Processed</span>
           <span className="text-lg font-medium">{totalCommands.toLocaleString()}</span>
         </div>
-        <p className="text-xs text-gray-600 mt-1">
+        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
           Since server start ({stats.server?.uptime_in_days?.toFixed(1) || '0'} days ago)
         </p>
       </div>

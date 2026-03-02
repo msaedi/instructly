@@ -101,7 +101,7 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
           <button
             type="button"
             onClick={handleClose}
-            className="px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg
+            className="px-4 py-2.5 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg
                      hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2
                      focus:ring-gray-500 transition-all duration-150 font-medium"
             disabled={isLoading}
@@ -133,23 +133,23 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
     >
       <div className="space-y-6">
         {/* Booking Details */}
-        <div className="bg-gray-50 rounded-lg p-4">
-          <h4 className="font-medium text-gray-900 mb-3">Booking Details</h4>
+        <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+          <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-3">Booking Details</h4>
           <div className="space-y-2 text-sm">
-            <div className="flex items-center gap-2 text-gray-700">
-              <Calendar className="w-4 h-4 text-gray-400" />
+            <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+              <Calendar className="w-4 h-4 text-gray-400 dark:text-gray-300" />
               <span>{formatBookingDate(booking)}</span>
             </div>
-            <div className="flex items-center gap-2 text-gray-700">
-              <Clock className="w-4 h-4 text-gray-400" />
+            <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+              <Clock className="w-4 h-4 text-gray-400 dark:text-gray-300" />
               <span>
                 {formatBookingTimeRange(booking)}
               </span>
             </div>
-            <div className="text-gray-700">
+            <div className="text-gray-700 dark:text-gray-300">
               <span className="font-medium">Service:</span> {booking.service_name}
             </div>
-            <div className="text-gray-700">
+            <div className="text-gray-700 dark:text-gray-300">
               <span className="font-medium">
                 {booking.instructor
                   ? `${booking.instructor.first_name} ${booking.instructor.last_initial}.`
@@ -173,7 +173,7 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
 
         {/* Reason Input */}
         <div>
-          <label htmlFor="reason" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="reason" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Cancellation reason <span className="text-red-500">*</span>
           </label>
           <textarea
@@ -183,7 +183,7 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
                        focus:ring-offset-2 transition-colors ${
                          displayError
                            ? 'border-red-300 focus:ring-red-500'
-                           : 'border-gray-300 focus:ring-indigo-500'
+                           : 'border-gray-300 dark:border-gray-700 focus:ring-indigo-500'
                        }`}
             placeholder="Please let us know why you need to cancel..."
             value={reason}

@@ -1206,7 +1206,7 @@ export default function EditProfileModal({
                 logger.debug('Edit profile cancelled');
                 onClose();
               }}
-              className="px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg
+              className="px-4 py-2.5 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg
                        hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2
                        focus:ring-gray-400 transition-all duration-150 font-medium"
             >
@@ -1233,12 +1233,12 @@ export default function EditProfileModal({
         )
       }
     >
-      <form className={isStickyVariant ? 'flex min-h-full flex-col' : 'divide-y divide-gray-200'}>
+      <form className={isStickyVariant ? 'flex min-h-full flex-col' : 'divide-y divide-gray-200 dark:divide-gray-700'}>
         {isStickyVariant && (
-          <div className="sticky top-0 z-30 border-b border-gray-200 bg-white px-6 py-4">
+          <div className="sticky top-0 z-30 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 py-4">
             <div className="flex items-center justify-between">
               <div>
-                <Dialog.Title className="text-lg font-semibold text-gray-900">
+                <Dialog.Title className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                   {isAreasVariant ? 'Service Areas' : 'Skills & Pricing'}
                 </Dialog.Title>
                 <VisuallyHidden>
@@ -1252,7 +1252,7 @@ export default function EditProfileModal({
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300"
                   aria-label="Close"
                 >
                   <X className="h-4 w-4" aria-hidden="true" />
@@ -1265,32 +1265,32 @@ export default function EditProfileModal({
         {/* Personal Information Section */}
         {!isAreasOnly && !isServicesOnly && (
         <div className="px-6 py-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Personal Information</h3>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Personal Information</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label htmlFor="first_name" className="block text-sm font-medium text-gray-700 mb-2">FIRST NAME</label>
+              <label htmlFor="first_name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">FIRST NAME</label>
               <input
                 id="first_name"
                 type="text"
                 value={profileData.first_name}
                 onChange={(e) => setProfileData({ ...profileData, first_name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
                 placeholder="First name"
               />
             </div>
             <div>
-              <label htmlFor="last_name" className="block text-sm font-medium text-gray-700 mb-2">LAST NAME</label>
+              <label htmlFor="last_name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">LAST NAME</label>
               <input
                 id="last_name"
                 type="text"
                 value={profileData.last_name}
                 onChange={(e) => setProfileData({ ...profileData, last_name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
                 placeholder="Last name"
               />
             </div>
             <div>
-              <label htmlFor="postal_code" className="block text-sm font-medium text-gray-700 mb-2">ZIP CODE</label>
+              <label htmlFor="postal_code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">ZIP CODE</label>
               <input
                 id="postal_code"
                 type="text"
@@ -1299,7 +1299,7 @@ export default function EditProfileModal({
                 maxLength={5}
                 value={profileData.postal_code}
                 onChange={(e) => setProfileData({ ...profileData, postal_code: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
                 placeholder="10001"
               />
             </div>
@@ -1320,17 +1320,17 @@ export default function EditProfileModal({
         {/* Bio Section */}
         {!isAreasOnly && !isServicesOnly && (
         <div className="px-6 py-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">About You</h3>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">About You</h3>
           <div className="space-y-4">
             <div>
-              <label htmlFor="bio" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="bio" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Bio <span className="text-red-500">*</span>
               </label>
               <textarea
                 id="bio"
                 value={profileData.bio}
                 onChange={(e) => setProfileData({ ...profileData, bio: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none
                          focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
                 rows={4}
                 minLength={10}
@@ -1338,11 +1338,11 @@ export default function EditProfileModal({
                 required
                 placeholder="Tell students about your teaching style, experience, and what makes you unique..."
               />
-              <p className="mt-1 text-xs text-gray-500">{profileData.bio.length}/1000 characters</p>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{profileData.bio.length}/1000 characters</p>
             </div>
 
             <div>
-              <label htmlFor="experience" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="experience" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Years of Experience
               </label>
               <input
@@ -1350,7 +1350,7 @@ export default function EditProfileModal({
                 type="number"
                 inputMode="numeric"
                 step={1}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none
                          focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500 no-spinner"
                 value={profileData.years_experience}
                 onChange={(e) => {
@@ -1398,8 +1398,8 @@ export default function EditProfileModal({
                     <MapPin className="w-6 h-6 text-[#7E22CE]" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Service Areas</h3>
-                    <p className="text-xs text-gray-600 mt-0.5">Select the neighborhoods where you teach</p>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Service Areas</h3>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">Select the neighborhoods where you teach</p>
                   </div>
                 </div>
                 {/* Global neighborhood search (no wrapper label) */}
@@ -1409,7 +1409,7 @@ export default function EditProfileModal({
                     value={globalNeighborhoodFilter}
                     onChange={(e) => setGlobalNeighborhoodFilter(e.target.value)}
                     placeholder="Search neighborhoods..."
-                    className="w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+                    className="w-full rounded-md border border-gray-200 dark:border-gray-700 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
                   />
                 </div>
                 {selectedNeighborhoodList.length > 0 && (
@@ -1427,8 +1427,8 @@ export default function EditProfileModal({
                   </div>
                 )}
                 {globalNeighborhoodFilter.trim().length > 0 && (
-                  <div className="rounded-lg border border-gray-200 bg-white p-3 mb-3">
-                    <div className="text-sm text-gray-700 mb-2">Results</div>
+                  <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 mb-3">
+                    <div className="text-sm text-gray-700 dark:text-gray-300 mb-2">Results</div>
                     <div className="flex flex-wrap gap-2">
                       {globalNeighborhoodMatches
                         .slice(0, 200)
@@ -1443,7 +1443,7 @@ export default function EditProfileModal({
                               onClick={() => toggleNeighborhood(nid)}
                               aria-pressed={checked}
                               className={`flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 ${
-                                checked ? 'bg-[#7E22CE] text-white border border-[#7E22CE]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                checked ? 'bg-[#7E22CE] text-white border border-[#7E22CE]' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
                               }`}
                             >
                               <span className="truncate text-left">{n.name || nid}</span>
@@ -1453,7 +1453,7 @@ export default function EditProfileModal({
                         })
                         .filter(Boolean)}
                       {globalNeighborhoodMatches.length === 0 && (
-                        <div className="text-sm text-gray-500">No matches found</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">No matches found</div>
                       )}
                     </div>
                   </div>
@@ -1464,7 +1464,7 @@ export default function EditProfileModal({
                     const isOpen = openBoroughs.has(borough);
                     const list = boroughNeighborhoods[borough] || [];
                     return (
-                      <div key={`accordion-${borough}`} className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+                      <div key={`accordion-${borough}`} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 shadow-sm">
                         <div
                           className="flex items-center justify-between cursor-pointer"
                           onClick={async () => { await toggleBoroughOpen(borough); }}
@@ -1474,9 +1474,9 @@ export default function EditProfileModal({
                           tabIndex={0}
                           onKeyDown={async (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); await toggleBoroughOpen(borough); } }}
                         >
-                          <div className="flex items-center gap-2 text-gray-800 font-medium">
+                          <div className="flex items-center gap-2 text-gray-800 dark:text-gray-200 font-medium">
                             <span className="tracking-wide text-sm">{borough}</span>
-                            <ChevronDown className={`h-4 w-4 text-gray-600 transition-transform ${isOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+                            <ChevronDown className={`h-4 w-4 text-gray-600 dark:text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
                           </div>
                           <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                             <button
@@ -1492,7 +1492,7 @@ export default function EditProfileModal({
                             </button>
                             <button
                               type="button"
-                              className="text-sm px-3 py-1 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+                              className="text-sm px-3 py-1 rounded-md border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50"
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 const listNow = boroughNeighborhoods[borough] || (await loadBoroughNeighborhoods(borough));
@@ -1523,7 +1523,7 @@ export default function EditProfileModal({
                                   onClick={() => toggleNeighborhood(nid)}
                                   aria-pressed={checked}
                                   className={`flex items-center justify-between w-full min-w-0 px-2 py-1 text-xs rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 ${
-                                    checked ? 'bg-[#7E22CE] text-white border border-[#7E22CE]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    checked ? 'bg-[#7E22CE] text-white border border-[#7E22CE]' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
                                   }`}
                                 >
                                   <span className="truncate text-left">{label}</span>
@@ -1532,7 +1532,7 @@ export default function EditProfileModal({
                               );
                             })}
                             {list.length === 0 && (
-                              <div className="col-span-full text-sm text-gray-500">Loading…</div>
+                              <div className="col-span-full text-sm text-gray-500 dark:text-gray-400">Loading…</div>
                             )}
                           </div>
                         )}
@@ -1542,8 +1542,8 @@ export default function EditProfileModal({
                 </div>
                 {/* Teaching Location */}
                 <div className="mt-6">
-                  <p className="text-gray-600 mt-1 mb-2">Where You Teach (Optional)</p>
-                  <p className="text-xs text-gray-600 mb-2 md:max-w-[28rem]">
+                  <p className="text-gray-600 dark:text-gray-400 mt-1 mb-2">Where You Teach (Optional)</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 md:max-w-[28rem]">
                     Have a studio, gym, or home address where you can host lessons? Add it here.
                   </p>
                 <div className="grid grid-cols-1 gap-3 items-start md:grid-cols-2">
@@ -1576,7 +1576,7 @@ export default function EditProfileModal({
                             placeholder="..."
                             className="absolute -top-5 left-2 w-[calc(100%-0.75rem)] border-0 bg-transparent px-0 py-0 text-xs font-medium text-[#7E22CE] focus:outline-none focus:ring-0"
                           />
-                          <div className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm">
+                          <div className="flex items-center gap-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm">
                             <span className="truncate min-w-0" title={place.address}>{place.address}</span>
                             <button
                               type="button"
@@ -1595,8 +1595,8 @@ export default function EditProfileModal({
 
                 {/* Preferred Public Spaces */}
                 <div className="mt-6">
-                  <p className="text-gray-600 mt-1 mb-2">Preferred Public Spaces (Optional)</p>
-                  <p className="text-xs text-gray-600 mb-2 md:max-w-[28rem]">
+                  <p className="text-gray-600 dark:text-gray-400 mt-1 mb-2">Preferred Public Spaces (Optional)</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 md:max-w-[28rem]">
                     Know public spaces that work well for your lessons (library, coffee shop, court, park)? Add them here.
                   </p>
                 <div className="grid grid-cols-1 gap-3 items-start md:grid-cols-2">
@@ -1629,7 +1629,7 @@ export default function EditProfileModal({
                             placeholder="Name this spot"
                             className="absolute -top-5 left-2 w-[calc(100%-0.75rem)] border-0 bg-transparent px-0 py-0 text-xs font-medium text-[#7E22CE] focus:outline-none focus:ring-0"
                           />
-                          <div className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm">
+                          <div className="flex items-center gap-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm">
                             <span className="truncate min-w-0" title={place.address}>{place.address}</span>
                             <button
                               type="button"
@@ -1648,8 +1648,8 @@ export default function EditProfileModal({
               </>
             ) : (
               <>
-                <h3 className="text-lg font-medium text-gray-900 mb-1">Service Areas</h3>
-                <p className="text-xs text-gray-600 mb-4 md:max-w-[28rem]">
+                <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-1">Service Areas</h3>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-4 md:max-w-[28rem]">
                   Select all NYC areas where you provide services <span className="text-red-500">*</span>
                 </p>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -1679,27 +1679,27 @@ export default function EditProfileModal({
         {/* Services Section */}
         {!isAboutOnly && !isAreasOnly && variant !== 'services' && (
           <div className="px-6 py-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
               Services & Rates {profileData.services.length > 0 && (
-                <span className="text-sm text-gray-500 font-normal">
+                <span className="text-sm text-gray-500 dark:text-gray-400 font-normal">
                   ({profileData.services.length} service{profileData.services.length !== 1 ? 's' : ''})
                 </span>
               )}
             </h3>
 
             {/* Add new service form */}
-            <div className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
-              <h4 className="text-sm font-medium text-gray-700 mb-3">Add New Service</h4>
+            <div className="mb-6 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900">
+              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Add New Service</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
                 <div>
-                  <label htmlFor="new-skill" className="block text-xs text-gray-600 mb-1">
+                  <label htmlFor="new-skill" className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
                     Select Skill
                   </label>
                   <select
                     id="new-skill"
                     value={newService.skill || ''}
                     onChange={(e) => setNewService({ ...newService, skill: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none
                              focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
                   >
                     <option value="">Choose a skill...</option>
@@ -1713,11 +1713,11 @@ export default function EditProfileModal({
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="new-rate" className="block text-xs text-gray-600 mb-1">
+                  <label htmlFor="new-rate" className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
                     Hourly Rate
                   </label>
                   <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-300" />
                     <input
                       id="new-rate"
                       type="number"
@@ -1725,7 +1725,7 @@ export default function EditProfileModal({
                       onChange={(e) =>
                         setNewService({ ...newService, hourly_rate: parseFloat(e.target.value) || 0 })
                       }
-                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none
+                      className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none
                                focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
                       min="0"
                       step="0.01"
@@ -1734,14 +1734,14 @@ export default function EditProfileModal({
                 </div>
               </div>
               <div className="mb-3">
-                <label htmlFor="new-description" className="block text-xs text-gray-600 mb-1">
+                <label htmlFor="new-description" className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
                   Description (optional)
                 </label>
                 <textarea
                   id="new-description"
                   value={newService.description || ''}
                   onChange={(e) => setNewService({ ...newService, description: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none
                            focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
                   rows={2}
                   placeholder="Brief description of this service..."
@@ -1776,14 +1776,14 @@ export default function EditProfileModal({
                 }
 
                 return (
-                <div key={index} className="p-4 border border-gray-200 rounded-lg bg-white">
+                <div key={index} className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
                     <div>
-                      <span className="text-sm font-medium text-gray-900">{displayName}</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{displayName}</span>
                     </div>
                     <div>
                       <div className="relative">
-                        <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-300" />
                         <input
                           type="number"
                           placeholder="Hourly rate"
@@ -1791,14 +1791,14 @@ export default function EditProfileModal({
                           onChange={(e) =>
                             updateService(index, 'hourly_rate', parseFloat(e.target.value))
                           }
-                          className="w-full pl-9 pr-12 py-2 border border-gray-300 rounded-lg
+                          className="w-full pl-9 pr-12 py-2 border border-gray-300 dark:border-gray-700 rounded-lg
                                    focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500
                                    focus:border-transparent"
                           min="0"
                           step="0.01"
                           required
                         />
-                        <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-gray-500">
+                        <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400">
                           /hour
                         </span>
                       </div>
@@ -1808,7 +1808,7 @@ export default function EditProfileModal({
                     placeholder="Description (optional)"
                     value={service.description || ''}
                     onChange={(e) => updateService(index, 'description', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none
                              focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500 mb-3"
                     rows={2}
                   />
@@ -1827,7 +1827,7 @@ export default function EditProfileModal({
             </div>
 
             {profileData.services.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                 <p>No services added yet. Add your first service above!</p>
               </div>
             )}
@@ -1836,18 +1836,18 @@ export default function EditProfileModal({
 
         {variant === 'services' && (
         <div className="px-6 py-6">
-          <div className="flex items-center gap-3 text-lg font-semibold text-gray-900 mb-2">
+          <div className="flex items-center gap-3 text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
             <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
               <BookOpen className="w-6 h-6 text-[#7E22CE]" />
             </div>
             <span>Service categories</span>
           </div>
             {svcLoading ? (
-              <div className="p-3 text-sm text-gray-600">Loading…</div>
+              <div className="p-3 text-sm text-gray-600 dark:text-gray-400">Loading…</div>
             ) : (
               <>
               <div className="mt-2 space-y-4">
-                <p className="text-gray-600 mt-1 mb-2">Select the service categories you teach</p>
+                <p className="text-gray-600 dark:text-gray-400 mt-1 mb-2">Select the service categories you teach</p>
                 {/* Global skills search */}
                 <div className="mb-3">
                   <input
@@ -1855,7 +1855,7 @@ export default function EditProfileModal({
                     value={skillsFilter}
                     onChange={(e) => setSkillsFilter(e.target.value)}
                     placeholder="Search skills..."
-                    className="w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+                    className="w-full rounded-md border border-gray-200 dark:border-gray-700 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
                   />
                 </div>
                 {selectedServices.length > 0 && (
@@ -1882,7 +1882,7 @@ export default function EditProfileModal({
                       return (
                         <span
                           key={`sel-${s.catalog_service_id}`}
-                          className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 h-8 text-xs min-w-0"
+                          className="inline-flex items-center gap-2 rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 h-8 text-xs min-w-0"
                         >
                           <span className="truncate max-w-[14rem]" title={label}>{label}</span>
                           <button
@@ -1900,7 +1900,7 @@ export default function EditProfileModal({
                 )}
                 {skillsFilter.trim().length > 0 && (
                   <div className="mb-3">
-                    <div className="text-sm text-gray-700 mb-2">Results</div>
+                    <div className="text-sm text-gray-700 dark:text-gray-300 mb-2">Results</div>
                     <div className="flex flex-wrap gap-2">
                       {Object.values(servicesByCategory)
                         .flat()
@@ -1939,7 +1939,7 @@ export default function EditProfileModal({
                                 }
                               }}
                               className={`px-3 py-1.5 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 whitespace-nowrap ${
-                                isSel ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                isSel ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
                               }`}
                               type="button"
                             >
@@ -1951,7 +1951,7 @@ export default function EditProfileModal({
                       {Object.values(servicesByCategory)
                         .flat()
                         .filter((svc) => (svc.name || '').toLowerCase().includes(skillsFilter.toLowerCase())).length === 0 && (
-                          <div className="text-sm text-gray-500">No matches found</div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">No matches found</div>
                       )}
                     </div>
                   </div>
@@ -1959,14 +1959,14 @@ export default function EditProfileModal({
                   {categories.map((cat) => {
                     const isCollapsed = collapsed[cat.id] === true;
                     return (
-                      <div key={cat.id} className="rounded-lg overflow-hidden border border-gray-200 bg-white">
+                      <div key={cat.id} className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                         <button
-                          className="w-full px-4 py-3 flex items-center justify-between text-gray-700 hover:bg-gray-50 transition-colors"
+                          className="w-full px-4 py-3 flex items-center justify-between text-gray-700 dark:text-gray-300 hover:bg-gray-50 transition-colors"
                           onClick={() => setCollapsed((prev) => ({ ...prev, [cat.id]: !isCollapsed }))}
                           type="button"
                         >
                           <span className="font-bold">{cat.name}</span>
-                          <svg className={`h-4 w-4 text-gray-600 transition-transform ${isCollapsed ? '' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className={`h-4 w-4 text-gray-600 dark:text-gray-400 transition-transform ${isCollapsed ? '' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                           </svg>
                         </button>
@@ -2006,7 +2006,7 @@ export default function EditProfileModal({
                                     }
                                   }}
                                   className={`px-3 py-2 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 whitespace-nowrap ${
-                                    isSel ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    isSel ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
                                   }`}
                                   type="button"
                                 >
@@ -2021,10 +2021,10 @@ export default function EditProfileModal({
                   })}
                 </div>
 
-                <div className="mt-6 bg-white rounded-lg p-4 border border-gray-200">
-                  <h4 className="text-sm font-medium text-gray-900 mb-3">Your selected skills</h4>
+                <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                  <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">Your selected skills</h4>
                   {selectedServices.length === 0 ? (
-                    <p className="text-gray-500 text-sm">You can add skills now or later.</p>
+                    <p className="text-gray-500 dark:text-gray-400 text-sm">You can add skills now or later.</p>
                   ) : (
                     <div className="grid gap-4">
                       {selectedServices.map((s) => {
@@ -2048,21 +2048,21 @@ export default function EditProfileModal({
                         }
 
                         return (
-                          <div key={s.catalog_service_id} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                          <div key={s.catalog_service_id} className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4">
                           <div className="flex items-start justify-between mb-3">
                             <div>
-                              <div className="text-base font-medium text-gray-900">{label}</div>
+                              <div className="text-base font-medium text-gray-900 dark:text-gray-100">{label}</div>
                               <div className="flex items-center gap-3 mt-1">
                                 <div className="flex items-center gap-1">
                                   <span className="text-xl font-bold text-[#7E22CE]">${s.hourly_rate || '0'}</span>
-                                  <span className="text-xs text-gray-600">/hour</span>
+                                  <span className="text-xs text-gray-600 dark:text-gray-400">/hour</span>
                                 </div>
                               </div>
                             </div>
                             <button
                               aria-label="Remove skill"
                               title="Remove skill"
-                              className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-300 text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-colors"
+                              className="w-8 h-8 flex items-center justify-center rounded-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-colors"
                               onClick={() => setSelectedServices((prev) => prev.filter((x) => x.catalog_service_id !== s.catalog_service_id))}
                               type="button"
                             >
@@ -2071,26 +2071,26 @@ export default function EditProfileModal({
                               </svg>
                             </button>
                           </div>
-                          <div className="mb-3 bg-white rounded-lg p-3 border border-gray-200">
+                          <div className="mb-3 bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
                             <div className="flex items-center gap-2">
-                              <span className="text-xs font-medium text-gray-700">Hourly Rate:</span>
+                              <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Hourly Rate:</span>
                               <div className="flex items-center gap-1">
-                                <span className="text-gray-500">$</span>
+                                <span className="text-gray-500 dark:text-gray-400">$</span>
                                 <input
                                   type="number"
                                   min={1}
                                   step="1"
                                   inputMode="decimal"
-                                  className="w-24 rounded-md border border-gray-300 px-2 py-1.5 text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500"
+                                  className="w-24 rounded-md border border-gray-300 dark:border-gray-700 px-2 py-1.5 text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500"
                                   placeholder="75"
                                   value={s.hourly_rate}
                                   onChange={(e) => setSelectedServices((prev) => prev.map((x) => x.catalog_service_id === s.catalog_service_id ? { ...x, hourly_rate: e.target.value } : x))}
                                 />
-                                <span className="text-gray-500">/hr</span>
+                                <span className="text-gray-500 dark:text-gray-400">/hr</span>
                               </div>
                             </div>
                             {s.hourly_rate && Number(s.hourly_rate) > 0 && (
-                              <div className="mt-2 text-xs text-gray-600">
+                              <div className="mt-2 text-xs text-gray-600 dark:text-gray-400">
                                 You&apos;ll earn{' '}
                                 <span className="font-semibold text-[#7E22CE]">
                                   ${(Number(s.hourly_rate) * instructorTakeHomePct).toFixed(2)}
@@ -2110,8 +2110,8 @@ export default function EditProfileModal({
                           </div>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                            <div className="bg-white rounded-lg p-3 border border-gray-200">
-                              <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Age Group</label>
+                            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                              <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">Age Group</label>
                               <div className="flex gap-1">
                                 {(['kids', 'adults'] as const).map((ageType) => {
                                   const isSel = s.ageGroup === 'both' ? true : s.ageGroup === ageType;
@@ -2128,7 +2128,7 @@ export default function EditProfileModal({
                                         return { ...x, ageGroup: next };
                                       }))}
                                       className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
-                                        isSel ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        isSel ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
                                       }`}
                                       type="button"
                                     >
@@ -2138,8 +2138,8 @@ export default function EditProfileModal({
                                 })}
                               </div>
                             </div>
-                            <div className="bg-white rounded-lg p-3 border border-gray-200">
-                              <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">
+                            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                              <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">
                                 How do you offer this skill?
                               </label>
                               <div className="space-y-3">
@@ -2156,11 +2156,11 @@ export default function EditProfileModal({
                                         )
                                       )
                                     }
-                                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#7E22CE]"
+                                    className="mt-0.5 h-4 w-4 rounded border-gray-300 dark:border-gray-700 text-[#7E22CE]"
                                   />
                                   <div>
-                                    <p className="text-sm font-medium text-gray-700">I travel to students</p>
-                                    <p className="text-xs text-gray-500">(Within your service areas)</p>
+                                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">I travel to students</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">(Within your service areas)</p>
                                     {s.offers_travel && !hasServiceAreas && (
                                       <p className="text-xs text-red-600">
                                         Add service areas in your profile to enable this option
@@ -2181,11 +2181,11 @@ export default function EditProfileModal({
                                         )
                                       )
                                     }
-                                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#7E22CE]"
+                                    className="mt-0.5 h-4 w-4 rounded border-gray-300 dark:border-gray-700 text-[#7E22CE]"
                                   />
                                   <div>
-                                    <p className="text-sm font-medium text-gray-700">Students come to me</p>
-                                    <p className="text-xs text-gray-500">(At your teaching location)</p>
+                                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Students come to me</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">(At your teaching location)</p>
                                     {s.offers_at_location && !hasTeachingLocations && (
                                       <p className="text-xs text-red-600">
                                         Add a teaching location in your profile to enable this option
@@ -2206,11 +2206,11 @@ export default function EditProfileModal({
                                         )
                                       )
                                     }
-                                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#7E22CE]"
+                                    className="mt-0.5 h-4 w-4 rounded border-gray-300 dark:border-gray-700 text-[#7E22CE]"
                                   />
                                   <div>
-                                    <p className="text-sm font-medium text-gray-700">Online lessons</p>
-                                    <p className="text-xs text-gray-500">(Video call)</p>
+                                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Online lessons</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">(Video call)</p>
                                   </div>
                                 </label>
                               </div>
@@ -2223,8 +2223,8 @@ export default function EditProfileModal({
                           </div>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                            <div className="bg-white rounded-lg p-3 border border-gray-200">
-                              <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Skill Levels</label>
+                            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                              <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">Skill Levels</label>
                               <div className="flex gap-1">
                                 {(['beginner', 'intermediate', 'advanced'] as const).map((lvl) => (
                                   <button
@@ -2233,7 +2233,7 @@ export default function EditProfileModal({
                                     className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
                                       s.levels_taught.includes(lvl)
                                         ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
-                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
                                     }`}
                                     type="button"
                                   >
@@ -2242,8 +2242,8 @@ export default function EditProfileModal({
                                 ))}
                               </div>
                             </div>
-                            <div className="bg-white rounded-lg p-3 border border-gray-200">
-                              <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Session Duration</label>
+                            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                              <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">Session Duration</label>
                               <div className="flex gap-1">
                                 {[30, 45, 60, 90].map((d) => (
                                   <button
@@ -2257,7 +2257,7 @@ export default function EditProfileModal({
                                     className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
                                       s.duration_options.includes(d)
                                         ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
-                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
                                     }`}
                                     type="button"
                                   >
@@ -2270,20 +2270,20 @@ export default function EditProfileModal({
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div>
-                              <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1 block">Description (Optional)</label>
+                              <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1 block">Description (Optional)</label>
                               <textarea
                                 rows={2}
-                                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 bg-white"
+                                className="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 bg-white dark:bg-gray-800"
                                 placeholder="Brief description of your teaching style..."
                                 value={s.description || ''}
                                 onChange={(e) => setSelectedServices((prev) => prev.map((x) => x.catalog_service_id === s.catalog_service_id ? { ...x, description: e.target.value } : x))}
                               />
                             </div>
                             <div>
-                              <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1 block">Equipment (Optional)</label>
+                              <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1 block">Equipment (Optional)</label>
                               <textarea
                                 rows={2}
-                                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 bg-white"
+                                className="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 bg-white dark:bg-gray-800"
                                 placeholder="Yoga mat, tennis racket..."
                                 value={s.equipment || ''}
                                 onChange={(e) => setSelectedServices((prev) => prev.map((x) => x.catalog_service_id === s.catalog_service_id ? { ...x, equipment: e.target.value } : x))}
@@ -2303,7 +2303,7 @@ export default function EditProfileModal({
         )}
         </div>
         {isStickyVariant && (
-          <div className="sticky bottom-0 z-30 border-t border-gray-200 bg-white px-6 py-4">
+          <div className="sticky bottom-0 z-30 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 py-4">
             <div className="flex justify-end gap-3">
               <button
                 type="button"
@@ -2311,7 +2311,7 @@ export default function EditProfileModal({
                   logger.debug('Edit profile cancelled');
                   onClose();
                 }}
-                className="px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 transition-all duration-150 font-medium"
+                className="px-4 py-2.5 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 transition-all duration-150 font-medium"
               >
                 Cancel
               </button>
