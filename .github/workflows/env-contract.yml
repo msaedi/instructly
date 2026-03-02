@@ -163,7 +163,7 @@ jobs:
           echo "openapi.json: $OPENAPI" >> .artifacts/env-contract-summary.txt
       - name: Upload env-contract evidence
         if: ${{ env.PLAYWRIGHT_BASE_URL != '' }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: env-contract-evidence
           path: |
@@ -339,7 +339,7 @@ jobs:
           echo "openapi.json: $OPENAPI" >> .artifacts/env-contract-summary.txt
       - name: Upload env-contract evidence (beta)
         if: ${{ env.PLAYWRIGHT_BASE_URL != '' }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: env-contract-evidence-beta
           path: |
