@@ -1332,4 +1332,32 @@ html {
 .dark .insta-thread-list > * + * {
   border-top-color: rgb(55 65 81 / 0.75);
 }
+
+.insta-student-badge-empty {
+  border-color: rgb(233 213 255 / 0.9);
+  background-color: rgb(250 245 255 / 0.9);
+  color: #581c87;
+}
+
+.dark .insta-student-badge-empty {
+  border-color: rgb(147 51 234 / 0.5);
+  background-color: rgb(88 28 135 / 0.26);
+  color: #e9d5ff;
+}
+
+.insta-student-badge-group-title {
+  color: #111827;
+}
+
+.dark .insta-student-badge-group-title {
+  color: #f3f4f6;
+}
+
+.insta-student-badge-group-description {
+  color: #6b7280;
+}
+
+.dark .insta-student-badge-group-description {
+  color: #cbd5e1;
+}
 }

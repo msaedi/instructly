@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { StudentBadgesPanel, StudentBadgesSection } from '../StudentBadgesSection';
 import type { StudentBadgeItem } from '@/types/badges';
@@ -30,6 +30,16 @@ function renderPanel(
       {...overrides}
     />,
   );
+}
+
+const originalMatchMedia = window.matchMedia;
+
+function setWindowMatchMedia(mockImpl: typeof window.matchMedia | undefined) {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    writable: true,
+    value: mockImpl,
+  });
 }
 
 const allBadges: StudentBadgeItem[] = [
@@ -65,6 +75,87 @@ const allBadges: StudentBadgeItem[] = [
 ];
 
 describe('StudentBadgesPanel', () => {
+  afterEach(() => {
+    setWindowMatchMedia(originalMatchMedia);
+    document.documentElement.classList.remove('dark');
+  });
+
+  it('applies dark-mode tile/icon styles and cleans up media query listener via addEventListener', () => {
+    const addEventListener = jest.fn();
+    const removeEventListener = jest.fn();
+    setWindowMatchMedia(
+      jest.fn().mockReturnValue({
+        matches: true,
+        addEventListener,
+        removeEventListener,
+      }) as typeof window.matchMedia,
+    );
+
+    const { unmount } = renderPanel(allBadges);
+
+    const earnedTile = screen.getByRole('listitem', { name: /Welcome Aboard/i });
+    const progressTile = screen.getByRole('listitem', { name: /Consistent Learner/i });
+    const lockedTile = screen.getByRole('listitem', { name: /Explorer/i });
+
+    expect(earnedTile).toHaveStyle({
+      borderColor: 'rgba(192, 132, 252, 0.58)',
+      backgroundColor: 'rgba(88, 28, 135, 0.22)',
+    });
+    expect(progressTile).toHaveStyle({
+      borderColor: 'rgba(251, 191, 36, 0.58)',
+      backgroundColor: 'rgba(120, 53, 15, 0.24)',
+    });
+    expect(lockedTile).toHaveStyle({
+      borderColor: 'rgba(148, 163, 184, 0.48)',
+      backgroundColor: 'rgba(30, 41, 59, 0.42)',
+    });
+
+    const earnedIcon = earnedTile.querySelector('div[aria-hidden="true"]');
+    const progressIcon = progressTile.querySelector('div[aria-hidden="true"]');
+    const lockedIcon = lockedTile.querySelector('div[aria-hidden="true"]');
+
+    expect(earnedIcon).toBeTruthy();
+    expect(progressIcon).toBeTruthy();
+    expect(lockedIcon).toBeTruthy();
+
+    expect(earnedIcon as HTMLElement).toHaveStyle({
+      backgroundColor: 'rgba(126, 34, 206, 0.35)',
+      color: '#f3e8ff',
+    });
+    expect(progressIcon as HTMLElement).toHaveStyle({
+      backgroundColor: 'rgba(245, 158, 11, 0.35)',
+      color: '#fef3c7',
+    });
+    expect(lockedIcon as HTMLElement).toHaveStyle({
+      backgroundColor: 'rgba(51, 65, 85, 0.85)',
+      color: '#e2e8f0',
+    });
+
+    const listener = addEventListener.mock.calls[0]?.[1];
+    expect(addEventListener).toHaveBeenCalledWith('change', expect.any(Function));
+    unmount();
+    expect(removeEventListener).toHaveBeenCalledWith('change', listener);
+  });
+
+  it('uses legacy matchMedia addListener/removeListener when addEventListener is unavailable', () => {
+    const addListener = jest.fn();
+    const removeListener = jest.fn();
+    setWindowMatchMedia(
+      jest.fn().mockReturnValue({
+        matches: false,
+        addListener,
+        removeListener,
+      }) as typeof window.matchMedia,
+    );
+
+    const { unmount } = renderPanel(allBadges);
+
+    expect(addListener).toHaveBeenCalledWith(expect.any(Function));
+    const listener = addListener.mock.calls[0]?.[0];
+    unmount();
+    expect(removeListener).toHaveBeenCalledWith(listener);
+  });
+
   it('renders earned, pending, progress, and locked sections', () => {
     renderPanel(allBadges);
 
@@ -145,6 +236,43 @@ describe('StudentBadgesPanel', () => {
     // "Earned (2)" appears in both the inline section and the dialog
     const earnedHeaders = screen.getAllByText(/Earned \(2\)/);
     expect(earnedHeaders.length).toBe(2);
+  });
+
+  it('renders dark-mode styles in the badge journey dialog as well', () => {
+    setWindowMatchMedia(
+      jest.fn().mockReturnValue({
+        matches: true,
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+      }) as typeof window.matchMedia,
+    );
+
+    renderPanel(allBadges, { modalOpen: true });
+
+    const dialog = screen.getByRole('dialog');
+    const earnedInDialog = within(dialog).getByRole('listitem', { name: /Welcome Aboard/i });
+    expect(earnedInDialog).toHaveStyle({
+      borderColor: 'rgba(192, 132, 252, 0.58)',
+      backgroundColor: 'rgba(88, 28, 135, 0.22)',
+    });
+  });
+
+  it('skips rendering empty dialog groups when a group has zero badges', () => {
+    const earnedOnly: StudentBadgeItem[] = [
+      {
+        slug: 'earned_only',
+        name: 'Earned Only',
+        earned: true,
+        status: 'confirmed',
+        confirmed_at: '2024-03-01T00:00:00Z',
+      },
+    ];
+
+    renderPanel(earnedOnly, { modalOpen: true });
+
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).queryByText('In Progress')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('Locked')).not.toBeInTheDocument();
   });
 
   it('shows loading spinner inside the dialog when still loading', () => {
@@ -391,6 +519,68 @@ describe('StudentBadgesPanel', () => {
 
       expect(screen.getByText('NaN Current Percent')).toBeInTheDocument();
       expect(screen.getByText('NaN%')).toBeInTheDocument();
+    });
+
+    it('falls back current to 0 when current becomes undefined after type guard', () => {
+      // Forces the nullish fallback branch in: {progress?.current ?? 0} / {progress?.goal ?? 0}
+      // First read (type guard) returns number; second read (display) returns undefined.
+      let currentReads = 0;
+      const dynamicProgress = { goal: 5, percent: 40 } as Record<string, unknown>;
+      Object.defineProperty(dynamicProgress, 'current', {
+        enumerable: true,
+        configurable: true,
+        get: () => {
+          currentReads += 1;
+          return currentReads === 1 ? 2 : undefined;
+        },
+      });
+
+      const badges: StudentBadgeItem[] = [
+        {
+          slug: 'dynamic_current',
+          name: 'Dynamic Current',
+          earned: false,
+          description: 'Exercises nullish fallback for current.',
+          progress: dynamicProgress as unknown as StudentBadgeItem['progress'],
+        },
+      ];
+
+      renderPanel(badges);
+
+      expect(screen.getByText('Dynamic Current')).toBeInTheDocument();
+      expect(screen.getByText('40%')).toBeInTheDocument();
+      expect(screen.getByText('0 / 5')).toBeInTheDocument();
+    });
+
+    it('falls back goal to 0 when goal becomes undefined after type guard', () => {
+      // Forces the second nullish fallback branch in:
+      // {progress?.current ?? 0} / {progress?.goal ?? 0}
+      let goalReads = 0;
+      const dynamicProgress = { current: 2, percent: 40 } as Record<string, unknown>;
+      Object.defineProperty(dynamicProgress, 'goal', {
+        enumerable: true,
+        configurable: true,
+        get: () => {
+          goalReads += 1;
+          return goalReads <= 2 ? 5 : undefined;
+        },
+      });
+
+      const badges: StudentBadgeItem[] = [
+        {
+          slug: 'dynamic_goal',
+          name: 'Dynamic Goal',
+          earned: false,
+          description: 'Exercises nullish fallback for goal.',
+          progress: dynamicProgress as unknown as StudentBadgeItem['progress'],
+        },
+      ];
+
+      renderPanel(badges);
+
+      expect(screen.getByText('Dynamic Goal')).toBeInTheDocument();
+      expect(screen.getByText('40%')).toBeInTheDocument();
+      expect(screen.getByText('2 / 0')).toBeInTheDocument();
     });
   });
 });

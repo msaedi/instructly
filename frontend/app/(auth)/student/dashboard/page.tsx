@@ -276,7 +276,7 @@ function StudentDashboardContent() {
   if (!userData) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50 relative">
+    <div className="min-h-screen insta-dashboard-page relative">
       {/* Background Image */}
       <div
         className="fixed inset-0 z-0"
@@ -293,7 +293,7 @@ function StudentDashboardContent() {
       {/* Content wrapper */}
       <div className="relative z-10">
       {/* Navigation - matching other pages */}
-      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+      <header className="insta-dashboard-header px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link href="/" className="inline-block">
             <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">
@@ -338,7 +338,7 @@ function StudentDashboardContent() {
         <div className="grid grid-cols-12 gap-6">
           {/* Sidebar tabs */}
           <aside className="col-span-12 md:col-span-3">
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <div className="insta-surface-card p-4">
               {tabs.map(({ key, label, icon: Icon }) => {
                 const isActive = activeTab === key;
                 return (
@@ -367,7 +367,7 @@ function StudentDashboardContent() {
 
         {/* Main content */}
           <section className="col-span-12 md:col-span-9">
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 sm:p-8">
+            <div className="insta-surface-card p-6 sm:p-8">
               {activeTab === 'profile' && (
                 <div className="space-y-8">
 
@@ -452,13 +452,13 @@ function StudentDashboardContent() {
                     </div>
                     <div className="grid grid-cols-1 gap-3">
                       {isLoadingAddresses && (
-                        <div className="rounded-xl border border-gray-200 p-4 text-sm text-gray-600">Loading addresses…</div>
+                        <div className="insta-empty-state-note rounded-xl p-4 text-sm">Loading addresses…</div>
                       )}
                       {!isLoadingAddresses && (addresses?.length || 0) === 0 && (
-                        <div className="rounded-xl border border-gray-200 p-4 text-sm text-gray-600">No addresses added yet.</div>
+                        <div className="insta-empty-state-note rounded-xl p-4 text-sm">No addresses added yet.</div>
                       )}
                       {!isLoadingAddresses && (addresses || []).map((a) => (
-                        <div key={a.id} className="rounded-xl border border-gray-200 p-4 hover:shadow-sm transition-shadow">
+                        <div key={a.id} className="insta-surface-card rounded-xl p-4 hover:shadow-sm transition-shadow">
                           <p className="font-medium text-gray-900">
                             {(a.label === 'other'
                               ? (a.custom_label || 'Other')
@@ -480,15 +480,15 @@ function StudentDashboardContent() {
                                 // Custom confirm modal
                                 const ok = await new Promise<boolean>((resolve) => {
                                   const overlay = document.createElement('div');
-                                  overlay.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4';
+                                  overlay.className = 'fixed inset-0 z-50 flex items-center justify-center insta-dialog-backdrop p-4';
                                   const modal = document.createElement('div');
-                                  modal.className = 'w-full max-w-sm rounded-lg bg-white p-6 shadow-lg ring-1 ring-gray-200';
+                                  modal.className = 'insta-dialog-panel w-full max-w-sm rounded-lg p-6 ring-1 ring-gray-200 dark:ring-gray-700/80';
                                   modal.innerHTML = `
                                     <h3 class="text-base font-semibold text-gray-900">Remove address</h3>
                                     <p class="mt-2 text-sm text-gray-600">Are you sure you want to remove this saved address?</p>
                                     <div class="mt-5 flex justify-end gap-3">
-                                      <button id="cancelBtn" class="rounded-md border border-gray-200 px-4 py-2 text-sm">Cancel</button>
-                                      <button id="confirmBtn" class="rounded-md bg-[#7E22CE] px-4 py-2 text-sm text-white hover:bg-[#7E22CE]">Remove</button>
+                                      <button id="cancelBtn" class="insta-secondary-btn rounded-md px-4 py-2 text-sm">Cancel</button>
+                                      <button id="confirmBtn" class="insta-primary-btn rounded-md px-4 py-2 text-sm text-white">Remove</button>
                                     </div>
                                   `;
                                   overlay.appendChild(modal);
@@ -534,13 +534,13 @@ function StudentDashboardContent() {
                     <h2 className="text-lg font-semibold text-gray-900 mb-4">Security</h2>
                     <div className="flex flex-wrap gap-3">
                       <button
-                        className="rounded-lg bg-gray-100 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-200 hover:text-gray-900 transition-all cursor-pointer"
+                        className="insta-secondary-btn rounded-lg px-4 py-2.5 text-sm font-medium transition-all cursor-pointer"
                         onClick={() => setShowChangePassword(true)}
                       >
                         Change Password
                       </button>
                       <button
-                        className="rounded-lg bg-gray-100 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-200 hover:text-gray-900 transition-all cursor-pointer"
+                        className="insta-secondary-btn rounded-lg px-4 py-2.5 text-sm font-medium transition-all cursor-pointer"
                         onClick={() => setShowTfaModal(true)}
                       >
                         {tfaStatus?.enabled ? 'Manage Two-Factor Authentication' : 'Enable Two-Factor Authentication'}
@@ -563,7 +563,7 @@ function StudentDashboardContent() {
                     <h2 className="text-lg font-semibold text-gray-900 mb-4">Account Management</h2>
                     <div className="flex flex-wrap gap-3">
                       <button
-                        className="py-2.5 px-4 rounded-lg text-sm font-medium bg-white border border-[#7E22CE] text-[#7E22CE] hover:bg-purple-50 transition-colors cursor-pointer"
+                        className="insta-secondary-btn py-2.5 px-4 rounded-lg text-sm font-medium transition-colors cursor-pointer"
                         onClick={() => setShowDelete(true)}
                       >
                         Delete Account
@@ -585,17 +585,17 @@ function StudentDashboardContent() {
                   <p className="text-sm text-gray-600">Quickly access your favorite subjects and instructors</p>
 
                   {isLoadingFavorites && (
-                    <div className="rounded-xl border border-gray-200 p-4 text-sm text-gray-600">Loading favorites…</div>
+                    <div className="insta-empty-state-note rounded-xl p-4 text-sm">Loading favorites…</div>
                   )}
 
                   {!isLoadingFavorites && favoritesError && (
-                    <div className="rounded-xl border border-gray-200 p-4 text-sm text-red-600">Failed to load favorites.</div>
+                    <div className="insta-empty-state-note rounded-xl p-4 text-sm text-red-600">Failed to load favorites.</div>
                   )}
 
                   {!isLoadingFavorites && !favoritesError && (favoritesData?.favorites?.length || 0) === 0 && (
-                    <div className="rounded-xl border border-gray-200 p-6 text-sm text-gray-700 flex items-center justify-between">
+                    <div className="insta-empty-state-note rounded-xl p-6 text-sm flex items-center justify-between">
                       <div>No favorite instructors yet.</div>
-                      <Link href="/" className="rounded-lg bg-[#7E22CE] px-4 py-2.5 text-white text-sm font-medium hover:bg-[#7E22CE] transition-all">Find More Instructors</Link>
+                      <Link href="/" className="insta-primary-btn rounded-lg px-4 py-2.5 text-white text-sm font-medium transition-all">Find More Instructors</Link>
                     </div>
                   )}
 
@@ -625,7 +625,7 @@ function StudentDashboardContent() {
                         return (
                           <div
                             key={fav.id}
-                            className="relative rounded-xl border border-gray-200 p-4 pr-10 hover:shadow-sm hover:bg-gray-50 transition-all"
+                            className="insta-surface-card relative rounded-xl p-4 pr-10 hover:shadow-sm transition-all"
                           >
                             <Link
                               href={`/instructors/${fav.id}`}
@@ -1003,7 +1003,7 @@ function NotificationsTab() {
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/25 focus:border-purple-500 min-w-[120px] text-left"
+          className="insta-form-input rounded-lg px-3 py-1.5 text-sm min-w-[120px] text-left"
         >
           {displayHour}:{minute} {period}
         </button>
@@ -1014,12 +1014,12 @@ function NotificationsTab() {
               className="fixed inset-0 z-10"
               onClick={() => setIsOpen(false)}
             />
-            <div className="absolute top-full mt-1 z-20 bg-white rounded-lg shadow-lg border border-gray-200 p-3 min-w-[200px]">
+            <div className="insta-header-dropdown absolute top-full mt-1 z-20 rounded-lg p-3 min-w-[200px]">
               <div className="flex gap-2">
                 {/* Hour selector */}
                 <div className="flex-1">
                   <div className="text-xs font-medium text-gray-600 mb-1">Hour</div>
-                  <div className="h-20 overflow-y-auto border border-gray-200 rounded scrollbar-hide">
+                  <div className="insta-form-input h-20 overflow-y-auto rounded scrollbar-hide">
                     {hours.map(h => (
                       <button
                         key={h}
@@ -1037,7 +1037,7 @@ function NotificationsTab() {
                 {/* Minute selector */}
                 <div className="flex-1">
                   <div className="text-xs font-medium text-gray-600 mb-1">Minute</div>
-                  <div className="h-20 overflow-y-auto border border-gray-200 rounded scrollbar-hide">
+                  <div className="insta-form-input h-20 overflow-y-auto rounded scrollbar-hide">
                     {minutes.filter((_, i) => i % 5 === 0).map(m => (
                       <button
                         key={m}
@@ -1055,7 +1055,7 @@ function NotificationsTab() {
                 {/* AM/PM selector */}
                 <div className="flex-1">
                   <div className="text-xs font-medium text-gray-600 mb-1">Period</div>
-                  <div className="border border-gray-200 rounded">
+                  <div className="insta-form-input rounded">
                     <button
                       onClick={() => handleTimeChange(displayHour, minute, 'AM')}
                       className={`w-full px-2 py-2 text-sm hover:bg-purple-50 ${
@@ -1066,7 +1066,7 @@ function NotificationsTab() {
                     </button>
                     <button
                       onClick={() => handleTimeChange(displayHour, minute, 'PM')}
-                      className={`w-full px-2 py-2 text-sm hover:bg-purple-50 border-t border-gray-200 ${
+                      className={`w-full px-2 py-2 text-sm hover:bg-purple-50 border-t border-gray-200 dark:border-gray-700 ${
                         period === 'PM' ? 'bg-purple-100 text-[#7E22CE] font-medium' : ''
                       }`}
                     >
@@ -1085,7 +1085,7 @@ function NotificationsTab() {
   return (
     <div className="space-y-6">
       {/* Use Recommended Settings */}
-      <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 border border-gray-200">
+      <div className="insta-surface-card flex items-center justify-between p-4 rounded-lg">
         <div>
           <span className="text-sm font-medium text-gray-900">Use Recommended Settings</span>
           <p className="text-xs text-gray-500 mt-0.5">Apply optimal notification preferences for most users</p>
@@ -1098,7 +1098,7 @@ function NotificationsTab() {
         />
       </div>
 
-      <div className="rounded-lg border border-gray-200 p-4 space-y-3">
+      <div className="insta-surface-card rounded-lg p-4 space-y-3">
         <div>
           <p className="text-sm font-medium text-gray-900">Phone number (for SMS)</p>
           <p className="text-xs text-gray-500">Add and verify a phone number to receive SMS alerts.</p>
@@ -1109,13 +1109,13 @@ function NotificationsTab() {
             value={smsPhone}
             onChange={(event) => setSmsPhone(event.target.value)}
             placeholder="+1 (555) 123-4567"
-            className="w-full max-w-sm px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
+            className="insta-form-input w-full max-w-sm px-3 py-2 rounded-lg"
           />
           <button
             type="button"
             onClick={handleUpdatePhone}
             disabled={updatePhone.isPending}
-            className="min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b21a8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+            className="insta-primary-btn min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md text-white px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {updatePhone.isPending ? 'Saving…' : 'Save'}
           </button>
@@ -1130,14 +1130,14 @@ function NotificationsTab() {
               value={smsCode}
               onChange={(event) => setSmsCode(event.target.value.replace(/\D/g, ''))}
               placeholder="Enter 6-digit code"
-              className="w-full max-w-sm px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
+              className="insta-form-input w-full max-w-sm px-3 py-2 rounded-lg"
               maxLength={6}
             />
             <button
               type="button"
               onClick={handleConfirmVerification}
               disabled={confirmVerification.isPending}
-              className="min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b21a8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              className="insta-primary-btn min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md text-white px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {confirmVerification.isPending ? 'Verifying…' : 'Verify'}
             </button>
@@ -1148,7 +1148,7 @@ function NotificationsTab() {
               className={`min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
                 resendCooldown > 0 || sendVerification.isPending
                   ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-[#7E22CE] text-white hover:bg-[#6b21a8]'
+                  : 'insta-primary-btn text-white'
               }`}
             >
               {resendCooldown > 0
@@ -1384,7 +1384,7 @@ function NotificationsTab() {
             <select
               value={reminderTiming}
               onChange={(e) => setReminderTiming(e.target.value)}
-              className="appearance-none rounded-lg border border-purple-200 bg-white px-3 py-2 pr-10 text-sm text-gray-900 shadow-sm hover:border-purple-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#7E22CE] focus:border-purple-500 transition-all cursor-pointer"
+              className="insta-form-input appearance-none rounded-lg px-3 py-2 pr-10 text-sm shadow-sm hover:shadow-md transition-all cursor-pointer"
               style={{
                 backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239333ea' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
                 backgroundPosition: 'right 0.5rem center',
@@ -1436,16 +1436,16 @@ function NotificationsTab() {
 
       <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
         <button
-          className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          className="insta-secondary-btn rounded-lg px-4 py-2 text-sm font-medium transition-colors"
           onClick={() => window.location.reload()}
         >
           Cancel
         </button>
         <button
-          className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors ${
+          className={`insta-primary-btn rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors ${
             saving
               ? 'bg-purple-400 cursor-not-allowed'
-              : 'bg-[#7E22CE] hover:bg-[#7E22CE]'
+              : ''
           }`}
           onClick={handleSave}
           disabled={saving}
@@ -1605,8 +1605,8 @@ export function AddressModal({ mode, address, onClose, onSaved }: { mode: 'creat
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-      <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl ring-1 ring-gray-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center insta-dialog-backdrop p-4">
+      <div className="insta-dialog-panel w-full max-w-lg rounded-xl p-6 ring-1 ring-gray-200">
         <div className="mb-4">
           <h3 className="text-lg font-semibold text-gray-900">{mode === 'create' ? 'Add Address' : 'Edit Address'}</h3>
           <p className="mt-1 text-sm text-gray-600">Add a saved address for quick booking.</p>
@@ -1615,7 +1615,7 @@ export function AddressModal({ mode, address, onClose, onSaved }: { mode: 'creat
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Label</label>
-              <select className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-200" value={form.label} onChange={(e) => setForm((prev) => ({ ...prev, label: e.target.value, custom_label: e.target.value === 'other' ? prev.custom_label : '' }))}>
+              <select className="insta-form-input w-full rounded-md px-3 py-2 text-sm" value={form.label} onChange={(e) => setForm((prev) => ({ ...prev, label: e.target.value, custom_label: e.target.value === 'other' ? prev.custom_label : '' }))}>
                 <option value="home">Home</option>
                 <option value="work">Work</option>
                 <option value="other">Other</option>
@@ -1630,7 +1630,7 @@ export function AddressModal({ mode, address, onClose, onSaved }: { mode: 'creat
             <div>
               <label className="block text-xs text-gray-500 mb-1">Custom label</label>
               <input
-                className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-200"
+                className="insta-form-input w-full rounded-md px-3 py-2 text-sm"
                 placeholder="e.g., Parent, Studio, School"
                 value={form.custom_label}
                 onChange={(e) => setForm({ ...form, custom_label: e.target.value })}
@@ -1644,13 +1644,13 @@ export function AddressModal({ mode, address, onClose, onSaved }: { mode: 'creat
           <div>
             <label className="block text-xs text-gray-500 mb-1">Address</label>
             <input
-              className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-200"
+              className="insta-form-input w-full rounded-md px-3 py-2 text-sm"
               placeholder="Start typing…"
               value={query}
               onChange={(e) => handleQueryChange(e.target.value)}
             />
             {suggestions.length > 0 && (
-              <div className="mt-1 max-h-56 overflow-auto rounded-md border border-gray-200 bg-white text-sm shadow">
+              <div className="insta-header-dropdown mt-1 max-h-56 overflow-auto rounded-md text-sm shadow">
                 {suggestions.map((s) => (
                   <button
                     key={s.place_id}
@@ -1697,31 +1697,31 @@ export function AddressModal({ mode, address, onClose, onSaved }: { mode: 'creat
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Address line 1</label>
-              <input className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-200" value={form.street_line1} onChange={(e) => setForm({ ...form, street_line1: e.target.value })} />
+              <input className="insta-form-input w-full rounded-md px-3 py-2 text-sm" value={form.street_line1} onChange={(e) => setForm({ ...form, street_line1: e.target.value })} />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Address line 2</label>
-              <input className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-200" value={form.street_line2} onChange={(e) => setForm({ ...form, street_line2: e.target.value })} />
+              <input className="insta-form-input w-full rounded-md px-3 py-2 text-sm" value={form.street_line2} onChange={(e) => setForm({ ...form, street_line2: e.target.value })} />
             </div>
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-xs text-gray-500 mb-1">City</label>
-              <input className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-200" value={form.locality} onChange={(e) => setForm({ ...form, locality: e.target.value })} />
+              <input className="insta-form-input w-full rounded-md px-3 py-2 text-sm" value={form.locality} onChange={(e) => setForm({ ...form, locality: e.target.value })} />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">State</label>
-              <input className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-200" value={form.administrative_area} onChange={(e) => setForm({ ...form, administrative_area: e.target.value })} />
+              <input className="insta-form-input w-full rounded-md px-3 py-2 text-sm" value={form.administrative_area} onChange={(e) => setForm({ ...form, administrative_area: e.target.value })} />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Postal code</label>
-              <input className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-200" value={form.postal_code} onChange={(e) => setForm({ ...form, postal_code: e.target.value })} />
+              <input className="insta-form-input w-full rounded-md px-3 py-2 text-sm" value={form.postal_code} onChange={(e) => setForm({ ...form, postal_code: e.target.value })} />
             </div>
           </div>
         </div>
         <div className="mt-5 flex justify-end gap-3">
-          <button className="rounded-md border border-gray-200 px-4 py-2 text-sm" onClick={onClose} disabled={loading}>Cancel</button>
-          <button className={`rounded-md px-4 py-2 text-sm text-white ${loading || customLabelMissing ? 'bg-purple-300' : 'bg-[#7E22CE] hover:bg-[#7E22CE]'}`} onClick={save} disabled={loading || customLabelMissing}>
+          <button className="insta-secondary-btn rounded-md px-4 py-2 text-sm" onClick={onClose} disabled={loading}>Cancel</button>
+          <button className={`insta-primary-btn rounded-md px-4 py-2 text-sm text-white ${loading || customLabelMissing ? 'opacity-50 cursor-not-allowed' : ''}`} onClick={save} disabled={loading || customLabelMissing}>
             {loading ? 'Saving…' : 'Save'}
           </button>
         </div>
@@ -1784,8 +1784,8 @@ function DeleteAccountModal({ email, onClose, onDeleted }: { email: string; onCl
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+    <div className="fixed inset-0 z-50 flex items-center justify-center insta-dialog-backdrop p-4">
+      <div className="insta-dialog-panel w-full max-w-md rounded-lg p-6 ring-1 ring-gray-200 dark:ring-gray-700/80">
         <div className="mb-4">
           <h3 className="text-lg font-semibold text-gray-900">Delete Account</h3>
           <p className="mt-2 text-sm text-gray-600">This action cannot be undone. Type DELETE to confirm and enter your password.</p>
@@ -1793,7 +1793,7 @@ function DeleteAccountModal({ email, onClose, onDeleted }: { email: string; onCl
         <div className="space-y-3">
           <input
             placeholder="Type DELETE to confirm"
-            className="w-full rounded-md border px-3 py-2 text-sm"
+            className="insta-form-input w-full rounded-md px-3 py-2 text-sm"
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}
           />
@@ -1801,7 +1801,7 @@ function DeleteAccountModal({ email, onClose, onDeleted }: { email: string; onCl
             <input
               type={showPassword ? 'text' : 'password'}
               placeholder="Password"
-              className="w-full rounded-md border px-3 py-2 pr-10 text-sm"
+              className="insta-form-input w-full rounded-md px-3 py-2 pr-10 text-sm"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -1817,9 +1817,9 @@ function DeleteAccountModal({ email, onClose, onDeleted }: { email: string; onCl
           {error && <p className="text-sm text-red-600">{error}</p>}
         </div>
         <div className="mt-5 flex justify-end gap-3">
-          <button className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors" onClick={onClose} disabled={submitting}>Cancel</button>
+          <button className="insta-secondary-btn rounded-lg px-4 py-2 text-sm font-medium transition-colors" onClick={onClose} disabled={submitting}>Cancel</button>
           <button
-            className={`rounded-lg px-4 py-2 text-sm font-medium border ${canSubmit ? 'bg-white border-[#7E22CE] text-[#7E22CE] hover:bg-purple-50' : 'bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed'}`}
+            className={`insta-secondary-btn rounded-lg px-4 py-2 text-sm font-medium ${canSubmit ? '' : 'opacity-50 cursor-not-allowed'}`}
             disabled={!canSubmit}
             onClick={handleSubmit}
           >
@@ -1916,8 +1916,8 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center insta-dialog-backdrop p-4">
+      <div className="insta-dialog-panel w-full max-w-md rounded-xl p-6 ring-1 ring-gray-200 dark:ring-gray-700/80">
         <h2 className="text-xl font-bold text-gray-900 mb-6">Edit Profile</h2>
 
         <div className="space-y-4">
@@ -1932,7 +1932,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
               }}
               onFocus={() => logger.debug('First name input focused')}
               placeholder="Enter first name"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/25 focus:border-purple-500"
+              className="insta-form-input w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/25 focus:border-purple-500"
             />
             <p className="text-xs text-gray-500 mt-1">Current value: {firstName || '(empty)'}</p>
           </div>
@@ -1943,7 +1943,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
               type="text"
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/25 focus:border-purple-500"
+              className="insta-form-input w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/25 focus:border-purple-500"
             />
           </div>
 
@@ -1954,7 +1954,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="(555) 123-4567"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/25 focus:border-purple-500"
+              className="insta-form-input w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/25 focus:border-purple-500"
             />
           </div>
 
@@ -1966,7 +1966,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
               onChange={(e) => setZipCode(e.target.value)}
               placeholder="10001"
               maxLength={5}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/25 focus:border-purple-500"
+              className="insta-form-input w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/25 focus:border-purple-500"
             />
           </div>
 
@@ -1975,17 +1975,15 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
 
         <div className="mt-6 flex justify-end gap-3">
           <button
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            className="insta-secondary-btn rounded-lg px-4 py-2 text-sm font-medium transition-colors"
             onClick={onClose}
             disabled={loading}
           >
             Cancel
           </button>
           <button
-            className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors ${
-              loading
-                ? 'bg-purple-400 cursor-not-allowed'
-                : 'bg-[#7E22CE] hover:bg-[#7E22CE]'
+            className={`insta-primary-btn rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors ${
+              loading ? 'opacity-60 cursor-not-allowed' : ''
             }`}
             onClick={handleSubmit}
             disabled={loading}
@@ -2034,8 +2032,8 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+    <div className="fixed inset-0 z-50 flex items-center justify-center insta-dialog-backdrop p-4">
+      <div className="insta-dialog-panel w-full max-w-md rounded-lg p-6 ring-1 ring-gray-200 dark:ring-gray-700/80">
         <div className="mb-4">
           <h3 className="text-lg font-semibold text-gray-900">Change Password</h3>
         </div>
@@ -2044,7 +2042,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
             <input
               type={showPasswords ? 'text' : 'password'}
               placeholder="Current password"
-              className="w-full rounded-md border px-3 py-2 text-sm pr-10"
+              className="insta-form-input w-full rounded-md px-3 py-2 text-sm pr-10"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
             />
@@ -2061,7 +2059,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
             <input
               type={showPasswords ? 'text' : 'password'}
               placeholder="New password"
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              className="insta-form-input w-full rounded-md px-3 py-2 text-sm"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
             />
@@ -2070,7 +2068,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
             <input
               type={showPasswords ? 'text' : 'password'}
               placeholder="Confirm new password"
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              className="insta-form-input w-full rounded-md px-3 py-2 text-sm"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
             />
@@ -2079,9 +2077,9 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
           {status && <p className="text-sm text-green-600">{status}</p>}
         </div>
         <div className="mt-5 flex justify-end gap-3">
-          <button className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors" onClick={onClose} disabled={submitting}>Cancel</button>
+          <button className="insta-secondary-btn rounded-lg px-4 py-2 text-sm font-medium transition-colors" onClick={onClose} disabled={submitting}>Cancel</button>
           <button
-            className={`rounded-md px-4 py-2 text-sm text-white ${canSubmit ? 'bg-[#7E22CE] hover:bg-[#7E22CE]' : 'bg-purple-300 cursor-not-allowed'}`}
+            className={`insta-primary-btn rounded-md px-4 py-2 text-sm text-white ${canSubmit ? '' : 'opacity-50 cursor-not-allowed'}`}
             disabled={!canSubmit}
             onClick={handleSubmit}
           >
