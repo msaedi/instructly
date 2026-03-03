@@ -59,6 +59,80 @@ def test_get_referral_stats_creates_code(
     assert referral_link.startswith(f"{expected_base.rstrip('/')}/r/")
 
 
+def _mock_request(
+    *,
+    origin: str | None = None,
+    referer: str | None = None,
+    host: str | None = None,
+    scheme: str = "http",
+) -> SimpleNamespace:
+    headers = {}
+    if origin is not None:
+        headers["origin"] = origin
+    if referer is not None:
+        headers["referer"] = referer
+    if host is not None:
+        headers["host"] = host
+    return SimpleNamespace(headers=headers, url=SimpleNamespace(scheme=scheme))
+
+
+def test_referral_link_prefers_request_origin_in_local_mode(monkeypatch):
+    monkeypatch.setattr(
+        instructor_referrals_routes,
+        "settings",
+        SimpleNamespace(
+            site_mode="local",
+            frontend_url="https://beta.instainstru.com",
+            local_beta_frontend_origin="http://beta-local.instainstru.com:3000",
+        ),
+    )
+    request = _mock_request(origin="http://localhost:3000")
+
+    referral_link = instructor_referrals_routes._get_referral_link(
+        "ABCD1234",
+        request=request,
+    )
+    assert referral_link.startswith("http://localhost:3000/r/")
+
+
+def test_referral_link_uses_referer_when_origin_missing(monkeypatch):
+    monkeypatch.setattr(
+        instructor_referrals_routes,
+        "settings",
+        SimpleNamespace(
+            site_mode="local",
+            frontend_url="https://beta.instainstru.com",
+            local_beta_frontend_origin="http://beta-local.instainstru.com:3000",
+        ),
+    )
+    request = _mock_request(referer="http://localhost:3000/instructor/dashboard?panel=referrals")
+
+    referral_link = instructor_referrals_routes._get_referral_link(
+        "ABCD1234",
+        request=request,
+    )
+    assert referral_link.startswith("http://localhost:3000/r/")
+
+
+def test_referral_link_ignores_request_origin_outside_local_modes(monkeypatch):
+    monkeypatch.setattr(
+        instructor_referrals_routes,
+        "settings",
+        SimpleNamespace(
+            site_mode="preview",
+            frontend_url="https://preview.instainstru.com",
+            local_beta_frontend_origin="http://beta-local.instainstru.com:3000",
+        ),
+    )
+    request = _mock_request(origin="http://localhost:3000")
+
+    referral_link = instructor_referrals_routes._get_referral_link(
+        "ABCD1234",
+        request=request,
+    )
+    assert referral_link.startswith("https://preview.instainstru.com/r/")
+
+
 def test_get_referral_stats_requires_instructor(client, auth_headers_student, test_student):
     response = client.get(
         "/api/v1/instructor-referrals/stats",

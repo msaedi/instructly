@@ -344,7 +344,7 @@ export default function InstructorReferralsPage() {
             )}
           </div>
 
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 insta-surface-card">
+          <div className="insta-surface-card rounded-xl p-6">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">How it works</h2>
             <ol className="space-y-3 text-gray-700 dark:text-gray-300">
               <li className="flex items-start gap-3">

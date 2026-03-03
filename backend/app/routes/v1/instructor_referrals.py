@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
@@ -22,6 +22,7 @@ from app.repositories.referral_repository import ReferralRewardRepository
 from app.services.config_service import ConfigService
 from app.services.referral_service import ReferralService
 from app.services.referrals_config_service import get_effective_config
+from app.utils.url_validation import is_allowed_origin, origin_from_header
 
 router = APIRouter(tags=["instructor-referrals-v1"])
 
@@ -90,13 +91,52 @@ class FoundingStatusResponse(BaseModel):
     spots_remaining: int
 
 
-def _get_referral_link(code: str, vanity_slug: Optional[str] = None) -> str:
-    slug = vanity_slug or code
-    base = (settings.frontend_url or "").strip()
-    local_beta_base = (settings.local_beta_frontend_origin or "").strip()
-    if local_beta_base and settings.site_mode in {"local", "beta-local"}:
-        base = local_beta_base
+def _resolve_referral_base(request: Request | None = None) -> str:
+    """Resolve referral link base origin.
 
+    In local-like modes, prefer request-derived frontend origins so localhost and
+    beta-local both produce matching links for the current browser origin.
+    """
+
+    configured_frontend = (settings.frontend_url or "").strip()
+    local_beta_base = (settings.local_beta_frontend_origin or "").strip()
+    mode = (settings.site_mode or "").strip().lower()
+
+    # Hosted-like modes always use configured frontend origin.
+    if mode not in {"local", "beta-local"}:
+        return configured_frontend or local_beta_base
+
+    candidates: list[str] = []
+
+    if request is not None:
+        request_origin = origin_from_header(request.headers.get("origin")) or origin_from_header(
+            request.headers.get("referer")
+        )
+        if request_origin and is_allowed_origin(request_origin):
+            candidates.append(request_origin)
+
+    if local_beta_base and is_allowed_origin(local_beta_base):
+        candidates.append(local_beta_base.rstrip("/"))
+    if configured_frontend and is_allowed_origin(configured_frontend):
+        candidates.append(configured_frontend.rstrip("/"))
+
+    # Last-resort non-empty fallback for local dev.
+    if local_beta_base:
+        candidates.append(local_beta_base.rstrip("/"))
+    if configured_frontend:
+        candidates.append(configured_frontend.rstrip("/"))
+
+    return candidates[0] if candidates else ""
+
+
+def _get_referral_link(
+    code: str,
+    vanity_slug: Optional[str] = None,
+    *,
+    request: Request | None = None,
+) -> str:
+    slug = vanity_slug or code
+    base = _resolve_referral_base(request)
     return f"{base.rstrip('/')}/r/{slug}" if base else f"/r/{slug}"
 
 
@@ -163,6 +203,7 @@ async def _require_referral_code(referral_service: ReferralService, user_id: str
 
 @router.get("/stats", response_model=ReferralStatsResponse)
 async def get_referral_stats(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> ReferralStatsResponse:
@@ -208,7 +249,7 @@ async def get_referral_stats(
 
     return ReferralStatsResponse(
         referral_code=code.code,
-        referral_link=_get_referral_link(code.code, code.vanity_slug),
+        referral_link=_get_referral_link(code.code, code.vanity_slug, request=request),
         total_referred=total_referred,
         pending_payouts=pending_payouts,
         completed_payouts=completed_payouts,
@@ -276,6 +317,7 @@ async def get_referred_instructors(
 
 @router.get("/popup-data", response_model=PopupDataResponse)
 async def get_popup_data(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> PopupDataResponse:
@@ -306,7 +348,7 @@ async def get_popup_data(
         bonus_amount_cents=current_bonus,
         founding_spots_remaining=max(0, cap - founding_count),
         referral_code=code.code,
-        referral_link=_get_referral_link(code.code, code.vanity_slug),
+        referral_link=_get_referral_link(code.code, code.vanity_slug, request=request),
     )
 
 
