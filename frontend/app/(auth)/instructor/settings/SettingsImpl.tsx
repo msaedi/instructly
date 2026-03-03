@@ -57,6 +57,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   const [openStatus, setOpenStatus] = useState(false);
   const [openPassword, setOpenPassword] = useState(false);
   const [openPreferences, setOpenPreferences] = useState(false);
+  const [openAbout, setOpenAbout] = useState(false);
   const [showTfaModal, setShowTfaModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
@@ -996,8 +997,8 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             <button
               type="button"
               className="insta-dashboard-accordion-trigger"
-              onClick={() => setOpenAccount((v) => !v)}
-              aria-expanded={openAccount}
+              onClick={() => setOpenAbout((v) => !v)}
+              aria-expanded={openAbout}
             >
               <div className="insta-dashboard-accordion-leading">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
@@ -1008,9 +1009,9 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                   <span className="insta-dashboard-accordion-subtitle">Access legal resources and support information.</span>
                 </div>
               </div>
-              <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openAccount ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openAbout ? 'rotate-180' : ''}`} />
             </button>
-            {openAccount && (
+            {openAbout && (
               <div className="mt-3 text-sm text-gray-700 dark:text-gray-300 space-y-2">
                 <div>
                   <a href="/acknowledgments" className="focus-link text-[#7E22CE] hover:text-[#7E22CE]">
