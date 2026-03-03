@@ -100,6 +100,8 @@ const connectSrcOrigins = [
   'https://vitals.vercel-insights.com',
   'https://*.axiom.co',
   'https://*.onrender.com',
+  'https://instainstru.app.n8n.cloud',
+  'https://*.r2.cloudflarestorage.com',
   ...hundredMsConnectOrigins,
 ];
 
