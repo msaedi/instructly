@@ -114,7 +114,7 @@ function ResetPasswordForm() {
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">New Password</label>
               <div className="mt-1 relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Lock className="h-5 w-5 text-gray-400" aria-hidden="true" /></div>
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Lock className="h-5 w-5 text-gray-400 dark:text-gray-300" aria-hidden="true" /></div>
                 <input id="password" name="password" type={showPassword ? 'text' : 'password'} required value={password} onChange={(e) => setPassword(e.target.value)} disabled={isLoading} className="appearance-none block w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed" placeholder="Enter new password" aria-describedby="password-requirements" />
                 <button
                   type="button"
@@ -129,7 +129,7 @@ function ResetPasswordForm() {
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Confirm New Password</label>
               <div className="mt-1 relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Lock className="h-5 w-5 text-gray-400" aria-hidden="true" /></div>
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Lock className="h-5 w-5 text-gray-400 dark:text-gray-300" aria-hidden="true" /></div>
                 <input id="confirmPassword" name="confirmPassword" type={showConfirmPassword ? 'text' : 'password'} required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} disabled={isLoading} className="appearance-none block w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-[#7E22CE] focus:border-purple-500 dark:bg-gray-700 dark:text-white sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed" placeholder="Confirm new password" />
                 <button
                   type="button"
@@ -144,9 +144,9 @@ function ResetPasswordForm() {
             <div id="password-requirements" className="rounded-md bg-gray-50 dark:bg-gray-700 p-3">
               <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Password must contain:</p>
               <ul className="text-xs space-y-1" role="list">
-                <li className={`flex items-center ${passwordValidations.minLength ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>{passwordValidations.minLength ? '✓' : '○'} At least 8 characters</li>
-                <li className={`flex items-center ${passwordValidations.hasUppercase ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>{passwordValidations.hasUppercase ? '✓' : '○'} One uppercase letter</li>
-                <li className={`flex items-center ${passwordValidations.hasNumber ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>{passwordValidations.hasNumber ? '✓' : '○'} One number</li>
+                <li className={`flex items-center ${passwordValidations.minLength ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-300'}`}>{passwordValidations.minLength ? '✓' : '○'} At least 8 characters</li>
+                <li className={`flex items-center ${passwordValidations.hasUppercase ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-300'}`}>{passwordValidations.hasUppercase ? '✓' : '○'} One uppercase letter</li>
+                <li className={`flex items-center ${passwordValidations.hasNumber ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-300'}`}>{passwordValidations.hasNumber ? '✓' : '○'} One number</li>
               </ul>
             </div>
             {error && (<div className="rounded-md bg-red-50 dark:bg-red-900/20 p-4" role="alert"><p className="text-sm text-red-800 dark:text-red-400">{error}</p></div>)}

@@ -158,7 +158,7 @@ function BookingsPageImpl() {
         />
 
         <div className="mt-6 insta-surface-card">
-          <div role="tablist" aria-label="Bookings tabs" className="flex border-b border-gray-200">
+          <div role="tablist" aria-label="Bookings tabs" className="flex border-b border-gray-200 dark:border-gray-700">
             {(['upcoming', 'past'] as const).map((tab) => (
               <button
                 key={tab}
@@ -202,7 +202,7 @@ function BookingsPageImpl() {
       {/* No-Show Confirmation Modal */}
       {noShowModalBookingId !== null && noShowModalBooking !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+          <div className="w-full max-w-md rounded-lg bg-white dark:bg-gray-800 p-6 shadow-lg">
             <div className="mb-4">
               <div className="mb-2 flex items-center gap-2 text-amber-600">
                 <AlertTriangle className="h-6 w-6" />

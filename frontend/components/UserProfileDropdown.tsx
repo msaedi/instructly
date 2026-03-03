@@ -101,7 +101,7 @@ export default function UserProfileDropdown({ hideDashboardItem = false }: UserP
   if (!isMounted || isLoading) {
     return (
       <div className="animate-pulse">
-        <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+        <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
       </div>
     );
   }
@@ -111,7 +111,7 @@ export default function UserProfileDropdown({ hideDashboardItem = false }: UserP
     return (
       <button
         onClick={() => router.push('/login')}
-        className="text-gray-600 hover:text-gray-900 px-4 py-2 text-sm font-medium"
+        className="text-gray-600 dark:text-gray-400 hover:text-gray-900 px-4 py-2 text-sm font-medium"
       >
         Sign In
       </button>
@@ -149,7 +149,7 @@ export default function UserProfileDropdown({ hideDashboardItem = false }: UserP
       {isOpen && typeof window !== 'undefined' && createPortal(
         <div
           ref={dropdownRef}
-          className={`bg-white border border-gray-200 py-1 rounded-lg shadow-xl animate-fadeIn inline-block`}
+          className={`bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 py-1 rounded-lg shadow-xl animate-fadeIn inline-block`}
           style={{ position: 'absolute', top: dropdownPosition.top, right: dropdownPosition.right, zIndex: 10000, width: 'auto', minWidth: '140px' }}
         >
           {/* Menu items */}
@@ -163,7 +163,7 @@ export default function UserProfileDropdown({ hideDashboardItem = false }: UserP
                     onClick={() => handleNavigation(
                       instructorOnboardingComplete ? '/instructor/dashboard' : '/instructor/onboarding/skill-selection'
                     )}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 transition-colors"
                   >
                     {instructorOnboardingComplete ? (
                       <>
@@ -185,7 +185,7 @@ export default function UserProfileDropdown({ hideDashboardItem = false }: UserP
               <>
                 <button
                   onClick={() => handleNavigation('/student/dashboard')}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 transition-colors"
                 >
                   <User className="h-4 w-4" aria-hidden="true" />
                   My Account
@@ -193,7 +193,7 @@ export default function UserProfileDropdown({ hideDashboardItem = false }: UserP
 
                 <button
                   onClick={() => handleNavigation('/student/dashboard?tab=rewards')}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 transition-colors"
                 >
                   <Gift className="h-4 w-4" aria-hidden="true" />
                   Rewards
@@ -201,7 +201,7 @@ export default function UserProfileDropdown({ hideDashboardItem = false }: UserP
 
                 <button
                   onClick={() => handleNavigation('/student/lessons')}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 transition-colors"
                 >
                   <Calendar className="h-4 w-4" aria-hidden="true" />
                   My Lessons

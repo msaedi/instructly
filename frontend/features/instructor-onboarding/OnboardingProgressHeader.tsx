@@ -114,7 +114,7 @@ export function OnboardingProgressHeader({ activeStep, autoEvaluate = false, ste
   const legRightClass = walkerPath.variant === 'bounce' ? 'inst-anim-rightLeg-fast' : 'inst-anim-rightLeg';
 
   return (
-    <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4" data-testid="onboarding-header">
+    <header className="bg-white dark:bg-gray-800 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4" data-testid="onboarding-header">
       <div className="flex items-center justify-between max-w-full relative">
         <Link href="/instructor/dashboard" className="inline-block">
           <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
@@ -147,7 +147,7 @@ export function OnboardingProgressHeader({ activeStep, autoEvaluate = false, ste
                 ? `${baseClasses} border-[#7E22CE] bg-[#7E22CE] text-white`
                 : isCurrent
                 ? `${baseClasses} border-purple-300 bg-purple-100 text-[#7E22CE]`
-                : `${baseClasses} border-gray-300 bg-white text-[#7E22CE] hover:border-[#7E22CE]`;
+                : `${baseClasses} border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-[#7E22CE] hover:border-[#7E22CE]`;
 
             const handleClick = () => {
               if (isCurrent && !allowClickAll) return;
@@ -202,7 +202,7 @@ export function OnboardingProgressHeader({ activeStep, autoEvaluate = false, ste
                       </svg>
                     )}
                   </button>
-                  <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">{step.label}</span>
+                  <span className="text-[10px] text-gray-600 dark:text-gray-400 mt-1 whitespace-nowrap absolute top-7">{step.label}</span>
                 </div>
                 {nextStep && <div id={`progress-line-${index + 1}`} className={lineClass} />}
               </div>

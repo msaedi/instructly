@@ -127,7 +127,7 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
   };
 
   return (
-    <div className="w-full p-6 bg-white rounded-xl border border-gray-200">
+    <div className="w-full p-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
       <div className="flex gap-8">
         {/* Left section - matching Skills and pricing width */}
         <div className="flex-[1.4] max-w-lg">
@@ -199,7 +199,7 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
 
               {/* Experience */}
               {instructor.years_experience && (
-                <p className="text-lg text-gray-600">{instructor.years_experience} years experience</p>
+                <p className="text-lg text-gray-600 dark:text-gray-400">{instructor.years_experience} years experience</p>
               )}
 
               </div>
@@ -209,8 +209,8 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
 
         {/* Right section - About me aligned with Lesson Locations */}
         <div className="flex-[1]">
-          <h2 className="text-lg text-gray-600 mb-4">About me:</h2>
-          <p className="text-sm text-gray-700 leading-relaxed">
+          <h2 className="text-lg text-gray-600 dark:text-gray-400 mb-4">About me:</h2>
+          <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
             {instructor.bio || `Passionate instructor with ${instructor.years_experience || 'several'} years of experience. Dedicated to helping students achieve their goals through personalized instruction.`}
           </p>
         </div>

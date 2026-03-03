@@ -426,12 +426,12 @@ export default function AdminBGCReviewPage() {
                         (statusValue === 'pending' || statusValue === 'review' || statusValue === 'consider');
                       const badgeTone =
                         statusValue === 'review' || statusValue === 'consider'
-                          ? 'bg-amber-50 text-amber-800 border-amber-200'
+                          ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-800'
                           : statusValue === 'pending'
-                          ? 'bg-sky-50 text-sky-700 border-sky-200'
+                          ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800'
                           : statusValue === 'canceled'
-                          ? 'bg-rose-50 text-rose-700 border-rose-200'
-                          : 'bg-gray-50 text-gray-600 border-gray-200';
+                          ? 'bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
+                          : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700';
                       const showCanceledIndicator =
                         Boolean(item.bgcIncludesCanceled) &&
                         (statusValue === 'passed' || statusValue === 'review');
@@ -462,7 +462,7 @@ export default function AdminBGCReviewPage() {
                                       title="Not public until verified & live."
                                     >
                                       {item.name}
-                                      <span className="ml-1 text-xs text-gray-500">(preview)</span>
+                                      <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">(preview)</span>
                                     </button>
                                   </Tooltip.Trigger>
                                   <Tooltip.Content
@@ -474,7 +474,7 @@ export default function AdminBGCReviewPage() {
                                   </Tooltip.Content>
                                 </Tooltip.Root>
                               )}
-                              <span className="text-xs text-gray-400 font-mono whitespace-nowrap">
+                              <span className="text-xs text-gray-400 dark:text-gray-300 font-mono whitespace-nowrap">
                                 {item.instructor_id}
                               </span>
                               {inDispute ? (
@@ -510,12 +510,12 @@ export default function AdminBGCReviewPage() {
                                 <CheckCircle2 className="h-4 w-4" /> Recent
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-gray-500 text-xs">
+                              <span className="inline-flex items-center gap-1 text-gray-500 dark:text-gray-400 text-xs">
                                 <XCircle className="h-4 w-4" /> Stale
                               </span>
                             )}
                             {item.consent_recent_at ? (
-                              <div className="text-[10px] text-gray-400">
+                              <div className="text-[10px] text-gray-400 dark:text-gray-300">
                                 {formatDistanceToNow(new Date(item.consent_recent_at), { addSuffix: true })}
                               </div>
                             ) : null}
@@ -664,7 +664,7 @@ export default function AdminBGCReviewPage() {
                   </div>
                   <div className="mt-4 space-y-3 text-sm text-gray-700 dark:text-gray-200">
                     {previewDetail.isLoading ? (
-                      <div className="flex items-center gap-2 text-gray-500">
+                      <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
                         <Loader2 className="h-4 w-4 animate-spin" /> Loading instructor…
                       </div>
                     ) : previewDetail.error ? (
@@ -760,20 +760,20 @@ function PreviewContent({
         </div>
       ) : null}
       <div>
-        <dt className="text-xs uppercase text-gray-400">Name</dt>
+        <dt className="text-xs uppercase text-gray-400 dark:text-gray-300">Name</dt>
         <dd className="font-medium">{detail.name || '—'}</dd>
       </div>
       <div>
-        <dt className="text-xs uppercase text-gray-400">Email</dt>
+        <dt className="text-xs uppercase text-gray-400 dark:text-gray-300">Email</dt>
         <dd>{detail.email || '—'}</dd>
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <div>
-          <dt className="text-xs uppercase text-gray-400">Live status</dt>
+          <dt className="text-xs uppercase text-gray-400 dark:text-gray-300">Live status</dt>
           <dd>{detail.is_live ? 'Live' : 'Not live'}</dd>
         </div>
         <div>
-          <dt className="text-xs uppercase text-gray-400">BGC status</dt>
+          <dt className="text-xs uppercase text-gray-400 dark:text-gray-300">BGC status</dt>
           <dd className="capitalize">
             <div className="flex flex-wrap items-center gap-2">
               <span>{detail.bgc_status || '—'}</span>
@@ -791,7 +791,7 @@ function PreviewContent({
       </div>
       {showEta ? (
         <div>
-          <dt className="text-xs uppercase text-gray-400">Estimated completion</dt>
+          <dt className="text-xs uppercase text-gray-400 dark:text-gray-300">Estimated completion</dt>
           <dd>{etaLabel}</dd>
         </div>
       ) : null}
@@ -801,7 +801,7 @@ function PreviewContent({
         </div>
       ) : null}
       <div>
-        <dt className="text-xs uppercase text-gray-400">Valid until</dt>
+        <dt className="text-xs uppercase text-gray-400 dark:text-gray-300">Valid until</dt>
         <dd className="flex flex-wrap items-center gap-2">
           <span>{validUntilLabel ?? '—'}</span>
           {shouldShowRecheck ? (
@@ -826,7 +826,7 @@ function PreviewContent({
         ) : null}
       </div>
       <div>
-        <dt className="text-xs uppercase text-gray-400">Consent recent at</dt>
+        <dt className="text-xs uppercase text-gray-400 dark:text-gray-300">Consent recent at</dt>
         <dd>
           {detail.consent_recent_at
             ? formatDistanceToNow(new Date(detail.consent_recent_at), { addSuffix: true })
@@ -834,7 +834,7 @@ function PreviewContent({
         </dd>
       </div>
       <div>
-        <dt className="text-xs uppercase text-gray-400">Checkr report</dt>
+        <dt className="text-xs uppercase text-gray-400 dark:text-gray-300">Checkr report</dt>
         <dd>
           {detail.bgc_report_id ? (
             <Link
@@ -851,7 +851,7 @@ function PreviewContent({
         </dd>
       </div>
       <div>
-        <dt className="text-xs uppercase text-gray-400">Dispute status</dt>
+        <dt className="text-xs uppercase text-gray-400 dark:text-gray-300">Dispute status</dt>
         <dd className="flex flex-col gap-1">
           {detail.bgc_in_dispute ? (
             <Badge className="w-fit border border-rose-200 bg-rose-50 text-rose-700">In dispute</Badge>
@@ -867,7 +867,7 @@ function PreviewContent({
         </dd>
       </div>
       <div>
-        <dt className="text-xs uppercase text-gray-400">Dispute note</dt>
+        <dt className="text-xs uppercase text-gray-400 dark:text-gray-300">Dispute note</dt>
         <dd>
           <textarea
             value={disputeNote}

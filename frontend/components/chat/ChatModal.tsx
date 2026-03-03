@@ -94,8 +94,8 @@ export function ChatModal({
       <div
         ref={modalRef}
         className={cn(
-          'insta-dialog-panel fixed z-50 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 shadow-2xl transition-all border border-gray-300 overflow-hidden flex h-full flex-col',
-          'dark:bg-gray-900/90 dark:supports-[backdrop-filter]:bg-gray-900/75 dark:border-gray-600 dark:shadow-xl',
+          'insta-dialog-panel fixed z-50 bg-white/95 dark:bg-gray-900/90 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:supports-[backdrop-filter]:bg-gray-900/75 shadow-2xl transition-all border border-gray-300 dark:border-gray-600 overflow-hidden flex h-full flex-col',
+          'dark:shadow-xl',
           // Mobile: Full-screen drawer from bottom
           'inset-x-0 bottom-0 h-[92dvh] rounded-3xl',
           // Portrait phones: center the modal
@@ -147,7 +147,7 @@ export function ChatModal({
           </QueryErrorBoundary>
         )}
         {!resolvedConversationId && isLoadingConversation && (
-          <div className="flex flex-1 items-center justify-center text-sm text-gray-500">
+          <div className="flex flex-1 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
             Loading conversation...
           </div>
         )}

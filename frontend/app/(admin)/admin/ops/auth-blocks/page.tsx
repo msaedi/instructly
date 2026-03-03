@@ -151,7 +151,7 @@ function BlockedAccountCard({
     <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 mb-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Mail className="w-4 h-4 text-gray-500" />
+          <Mail className="w-4 h-4 text-gray-500 dark:text-gray-400" />
           <span className="font-medium text-gray-900 dark:text-gray-100">{account.email}</span>
         </div>
         <button
@@ -453,7 +453,7 @@ export default function AuthBlocksPage() {
             {/* Search and Filter */}
             <div className="flex gap-4 mb-6">
               <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-300" />
                 <input
                   type="text"
                   placeholder="Search by email..."

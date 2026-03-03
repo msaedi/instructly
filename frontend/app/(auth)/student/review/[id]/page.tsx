@@ -67,7 +67,7 @@ export default function ReviewPage() {
     return (
       <div className="min-h-screen">
         {/* Header - matching other pages */}
-        <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+        <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/" className="inline-block">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
@@ -78,8 +78,8 @@ export default function ReviewPage() {
           </div>
         </header>
         <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
-          <Card className="p-8 text-center bg-white rounded-xl border border-gray-200">
-            <p className="text-lg text-gray-600 mb-4">Unable to load lesson details</p>
+          <Card className="p-8 text-center bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+            <p className="text-lg text-gray-600 dark:text-gray-400 mb-4">Unable to load lesson details</p>
             <Button
               onClick={() => router.push('/student/lessons?tab=history')}
               className="bg-[#7E22CE] hover:bg-[#7E22CE] text-white"
@@ -169,7 +169,7 @@ export default function ReviewPage() {
   return (
     <div className="min-h-screen">
       {/* Header - matching other pages */}
-      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+      <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link className="inline-block" href="/">
             <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
@@ -186,7 +186,7 @@ export default function ReviewPage() {
           <Button
             variant="ghost"
             onClick={() => router.push(`/student/lessons/${lessonId}`)}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-700"
+            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-700"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to Lesson Details
@@ -194,20 +194,20 @@ export default function ReviewPage() {
         </div>
 
         {/* Main Content */}
-        <Card className="p-6 sm:p-8 bg-white rounded-xl border border-gray-200 max-w-3xl mx-auto">
+        <Card className="p-6 sm:p-8 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 max-w-3xl mx-auto">
           {hasExistingReview ? (
             // Show existing review message
             <div className="text-center py-12">
               <div className="mb-6">
-                <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-20 h-20 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-10 h-10 text-green-600 dark:text-green-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <h1 className="text-2xl font-bold text-gray-900 mb-3">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-3">
                   You already submitted a review for {instructorName}
                 </h1>
-                <p className="text-gray-600">
+                <p className="text-gray-600 dark:text-gray-400">
                   This feedback will show up on {instructorFirstName}&apos;s public reviews.
                 </p>
               </div>
@@ -222,15 +222,15 @@ export default function ReviewPage() {
             <>
               {/* Header */}
               <div className="text-center mb-8">
-                <h1 className="text-2xl font-bold text-gray-900 mb-3">We value your feedback</h1>
-                <p className="text-gray-600">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-3">We value your feedback</h1>
+                <p className="text-gray-600 dark:text-gray-400">
                   Your review helps {instructorFirstName} and future clients. It will appear on {instructorFirstName}&apos;s public profile.
                 </p>
               </div>
 
           {/* Rating Section */}
           <div className="mb-8">
-            <h2 className="text-lg font-semibold text-gray-900 text-center mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 text-center mb-4">
               How was your experience with {instructorFirstName}?
             </h2>
             <div className="flex justify-center gap-2">
@@ -254,7 +254,7 @@ export default function ReviewPage() {
               ))}
             </div>
             {rating > 0 && (
-              <p className="text-center mt-2 text-sm text-gray-600">
+              <p className="text-center mt-2 text-sm text-gray-600 dark:text-gray-400">
                 {rating === 1 && 'Poor'}
                 {rating === 2 && 'Fair'}
                 {rating === 3 && 'Good'}
@@ -266,28 +266,28 @@ export default function ReviewPage() {
 
           {/* Review Box */}
           <div className="mb-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Please share your feedback</h3>
-            <p className="text-sm text-gray-600 mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Please share your feedback</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               What went well? Anything to improve? Your honest feedback helps others.
             </p>
             <textarea
               value={review}
               onChange={(e) => setReview(e.target.value)}
               placeholder={`Tell others about your experience with ${instructorFirstName}...`}
-              className="w-full min-h-[150px] p-4 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-[#7E22CE] focus:border-transparent"
+              className="w-full min-h-[150px] p-4 border border-gray-300 dark:border-gray-700 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-[#7E22CE] focus:border-transparent"
               maxLength={500}
             />
-            <p className="text-xs text-gray-500 mt-1 text-right">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 text-right">
               {review.length}/500 characters
             </p>
           </div>
 
           {/* Tipping Section */}
           <div className="mb-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
               Want to thank {instructorFirstName} for a job well done?
             </h3>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               Tips go directly to {instructorFirstName} and are optional.
             </p>
 
@@ -305,7 +305,7 @@ export default function ReviewPage() {
                     className={`px-6 py-2.5 rounded-lg font-medium transition-colors ${
                       selectedTip === amount && !showCustomTip
                         ? 'bg-[#7E22CE] text-white'
-                        : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-purple-400'
+                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-2 border-gray-300 dark:border-gray-700 hover:border-purple-400'
                     }`}
                   >
                     ${amount}
@@ -319,7 +319,7 @@ export default function ReviewPage() {
                   className={`px-6 py-2.5 rounded-lg font-medium transition-colors ${
                     showCustomTip
                       ? 'bg-[#7E22CE] text-white'
-                      : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-purple-400'
+                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-2 border-gray-300 dark:border-gray-700 hover:border-purple-400'
                   }`}
                 >
                   Other
@@ -330,7 +330,7 @@ export default function ReviewPage() {
               {showCustomTip && (
                 <div className="flex items-center gap-2">
                   <div className="relative flex-1 max-w-xs">
-                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-400" />
                     <input
                       type="number"
                       value={customTip}
@@ -341,7 +341,7 @@ export default function ReviewPage() {
                         }
                       }}
                       placeholder="Enter amount"
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7E22CE] focus:border-transparent"
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7E22CE] focus:border-transparent"
                       min="0"
                       max="999"
                       step="1"
@@ -351,7 +351,7 @@ export default function ReviewPage() {
               )}
 
               {/* Transparency note */}
-              <p className="text-xs text-gray-500 italic">
+              <p className="text-xs text-gray-500 dark:text-gray-400 italic">
                 100% of your tip goes to {instructorFirstName}.
               </p>
             </div>
@@ -365,16 +365,16 @@ export default function ReviewPage() {
                   type="checkbox"
                   checked={addToFavorites}
                   onChange={(e) => setAddToFavorites(e.target.checked)}
-                  className="mt-1 h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-[#7E22CE]"
+                  className="mt-1 h-5 w-5 text-purple-600 border-gray-300 dark:border-gray-700 rounded focus:ring-[#7E22CE]"
                 />
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <Heart className="h-5 w-5 text-purple-600" />
-                    <h3 className="font-semibold text-gray-900">
+                    <h3 className="font-semibold text-gray-900 dark:text-gray-100">
                       Add {instructorFirstName} to My Favorite Instructors
                     </h3>
                   </div>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
                     Add past instructors to your favorites to build your go-to team, so you can easily hire them again in the future.
                   </p>
                 </div>
@@ -389,7 +389,7 @@ export default function ReviewPage() {
                   disabled={rating === 0 || isSubmitting}
                   className={`px-8 py-2.5 text-base font-medium rounded-lg ${
                     rating === 0 || isSubmitting
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                       : 'bg-[#7E22CE] hover:bg-[#7E22CE] text-white'
                   }`}
                 >
@@ -407,14 +407,14 @@ export default function ReviewPage() {
 function ReviewPageLoading() {
   return (
     <div className="min-h-screen">
-      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+      <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link href="/" className="inline-block">
             <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </Link>
           <div className="pr-4">
             <div className="animate-pulse">
-              <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+              <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
             </div>
           </div>
         </div>
@@ -422,10 +422,10 @@ function ReviewPageLoading() {
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         <Card className="p-8">
           <div className="space-y-4">
-            <div className="h-6 w-48 bg-gray-200 rounded"></div>
-            <div className="h-10 w-32 bg-gray-200 rounded"></div>
-            <div className="h-24 w-full bg-gray-200 rounded"></div>
-            <div className="h-8 w-48 bg-gray-200 rounded"></div>
+            <div className="h-6 w-48 bg-gray-200 dark:bg-gray-700 rounded"></div>
+            <div className="h-10 w-32 bg-gray-200 dark:bg-gray-700 rounded"></div>
+            <div className="h-24 w-full bg-gray-200 dark:bg-gray-700 rounded"></div>
+            <div className="h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded"></div>
           </div>
         </Card>
       </div>

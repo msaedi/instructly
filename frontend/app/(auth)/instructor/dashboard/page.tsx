@@ -1064,7 +1064,7 @@ export default function InstructorDashboardNew() {
                 className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   isEnabled
                     ? 'insta-secondary-btn'
-                    : 'bg-gray-100 border border-gray-300 text-gray-400 dark:text-gray-400 cursor-not-allowed dark:bg-gray-800/70 dark:border-gray-700'
+                    : 'bg-gray-100 border border-gray-300 text-gray-400 dark:text-gray-300 cursor-not-allowed dark:bg-gray-800/70 dark:border-gray-700'
                 }`}
               >
                 <Eye className="h-4 w-4" />
@@ -1169,7 +1169,7 @@ export default function InstructorDashboardNew() {
                   <div
                     role="tooltip"
                     id="refresh-status-tip"
-                    className="pointer-events-none absolute z-50 left-1/2 -translate-x-1/2 top-full mt-2 whitespace-nowrap rounded-md bg-white text-gray-800 dark:text-gray-200 text-xs shadow-lg border border-gray-200 px-2 py-1 opacity-0 translate-y-1 group-hover:opacity-100 group-focus-within:opacity-100 group-hover:translate-y-0 group-focus-within:translate-y-0 transition-all duration-150"
+                    className="pointer-events-none absolute z-50 left-1/2 -translate-x-1/2 top-full mt-2 whitespace-nowrap rounded-md bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 text-xs shadow-lg border border-gray-200 dark:border-gray-700 px-2 py-1 opacity-0 translate-y-1 group-hover:opacity-100 group-focus-within:opacity-100 group-hover:translate-y-0 group-focus-within:translate-y-0 transition-all duration-150"
                   >
                     Refresh status
                   </div>
@@ -1181,7 +1181,7 @@ export default function InstructorDashboardNew() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <span className={`text-xs px-2.5 py-1 rounded-md border ${connectStatus && connectStatus.charges_enabled && connectStatus.details_submitted ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                <span className={`text-xs px-2.5 py-1 rounded-md border ${connectStatus && connectStatus.charges_enabled && connectStatus.details_submitted ? 'bg-green-50 text-green-700 dark:text-emerald-400 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
                   {connectStatus && connectStatus.charges_enabled && connectStatus.details_submitted ? 'Connected' : 'Action required'}
                 </span>
               </div>
@@ -1203,7 +1203,7 @@ export default function InstructorDashboardNew() {
                           <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
                       ) : (
-                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-gray-300"></span>
+                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-gray-300 dark:bg-gray-600"></span>
                       )}
                       <span>Payments enabled</span>
                     </li>
@@ -1213,7 +1213,7 @@ export default function InstructorDashboardNew() {
                           <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
                       ) : (
-                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-gray-300"></span>
+                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-gray-300 dark:bg-gray-600"></span>
                       )}
                       <span>Bank details verified</span>
                     </li>
@@ -1223,7 +1223,7 @@ export default function InstructorDashboardNew() {
                           <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
                       ) : (
-                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-gray-300"></span>
+                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-gray-300 dark:bg-gray-600"></span>
                       )}
                       <span>Payouts active</span>
                     </li>
@@ -1233,7 +1233,7 @@ export default function InstructorDashboardNew() {
                           <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
                       ) : (
-                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-gray-300"></span>
+                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-gray-300 dark:bg-gray-600"></span>
                       )}
                       <span>Setup complete</span>
                     </li>
@@ -1244,13 +1244,13 @@ export default function InstructorDashboardNew() {
                 </div>
               );
             })() : (
-              <div className="rounded-lg border border-gray-200 bg-white p-4">
-                <div className="h-6 w-40 bg-gray-100 rounded mb-2" />
+              <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                <div className="h-6 w-40 bg-gray-100 dark:bg-gray-700 rounded mb-2" />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div className="h-10 bg-gray-100 rounded" />
-                  <div className="h-10 bg-gray-100 rounded" />
-                  <div className="h-10 bg-gray-100 rounded" />
-                  <div className="h-10 bg-gray-100 rounded" />
+                  <div className="h-10 bg-gray-100 dark:bg-gray-700 rounded" />
+                  <div className="h-10 bg-gray-100 dark:bg-gray-700 rounded" />
+                  <div className="h-10 bg-gray-100 dark:bg-gray-700 rounded" />
+                  <div className="h-10 bg-gray-100 dark:bg-gray-700 rounded" />
                 </div>
               </div>
             )}
@@ -1280,7 +1280,7 @@ export default function InstructorDashboardNew() {
                 </button>
               )}
               {/* Payouts and Instant Payout */}
-              <div className="mt-auto border-t border-gray-200 pt-4">
+              <div className="mt-auto border-t border-gray-200 dark:border-gray-700 pt-4">
                 <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1">Stripe Payouts</h3>
                 <p className="text-gray-600 dark:text-gray-400 text-xs mb-2">Access your Stripe Express dashboard to view payouts and account settings.</p>
                 <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 sm:justify-end">
@@ -1341,7 +1341,7 @@ export default function InstructorDashboardNew() {
                 aria-label="Manage Availability"
                 className="group relative w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] transition shrink-0 overflow-hidden"
               >
-                <span className="absolute inset-0 rounded-full bg-gray-100 opacity-0 transition-opacity duration-150 group-hover:opacity-100" />
+                <span className="absolute inset-0 rounded-full bg-gray-100 dark:bg-gray-700 opacity-0 transition-opacity duration-150 group-hover:opacity-100" />
                 <Calendar className="relative w-6 h-6 text-[#7E22CE] transition-transform duration-150 ease-out group-hover:scale-110" />
               </button>
               <div>
@@ -1357,13 +1357,13 @@ export default function InstructorDashboardNew() {
                 <span className="mt-2 text-sm text-gray-600 dark:text-gray-400">Available</span>
               </div>
               <div className="flex flex-col items-center">
-                <div className="w-28 h-28 rounded-full bg-gray-50 border border-gray-200 text-gray-700 dark:text-gray-300 flex items-center justify-center text-2xl font-bold" title="Booked hours this week">
+                <div className="w-28 h-28 rounded-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 flex items-center justify-center text-2xl font-bold" title="Booked hours this week">
                   {bookedHours}h
                 </div>
                 <span className="mt-2 text-sm text-gray-600 dark:text-gray-400">Booked</span>
               </div>
           </div>
-            <div className="mt-auto border-t border-gray-200 pt-4">
+            <div className="mt-auto border-t border-gray-200 dark:border-gray-700 pt-4">
             <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 sm:justify-end">
               <button
                 type="button"
@@ -1556,7 +1556,7 @@ export default function InstructorDashboardNew() {
                     </label>
                   </div>
                   {bgFileInfo && (
-                    <div className="col-start-2 mt-3 flex items-center gap-2 text-sm text-green-700">
+                    <div className="col-start-2 mt-3 flex items-center gap-2 text-sm text-green-700 dark:text-emerald-400">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                       </svg>

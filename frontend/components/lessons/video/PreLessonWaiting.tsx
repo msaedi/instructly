@@ -16,11 +16,11 @@ interface PreLessonWaitingProps {
 }
 
 function CountdownPill({ secondsLeft, formatted }: { secondsLeft: number; formatted: string }) {
-  let colorClasses = 'bg-gray-100 text-gray-700';
+  let colorClasses = 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
   if (secondsLeft <= 60) {
-    colorClasses = 'bg-red-100 text-red-700';
+    colorClasses = 'bg-red-100 dark:bg-red-900 dark:text-red-200 text-red-700';
   } else if (secondsLeft <= 300) {
-    colorClasses = 'bg-amber-100 text-amber-700';
+    colorClasses = 'bg-amber-100 dark:bg-amber-900 dark:text-amber-200 text-amber-700';
   }
 
   return (
@@ -47,8 +47,8 @@ export function PreLessonWaiting({
 
   return (
     <div className="flex items-center justify-center px-4 py-12">
-      {/* bg-white explicit: CSS --card maps to lavender, but we want white to match LessonCard */}
-      <Card className="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
+      {/* explicit white card: CSS --card maps to lavender, but this should match LessonCard */}
+      <Card className="w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
         <div className="flex flex-col items-center gap-6 text-center">
           <h1 className="text-2xl font-semibold text-[#7E22CE]">{booking.service_name}</h1>
 

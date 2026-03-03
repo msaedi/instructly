@@ -120,12 +120,12 @@ export default function StripeConnectCallbackPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-white to-gray-100 px-6">
-      <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm">
-        <h1 className="text-2xl font-semibold text-gray-900">Finalizing Stripe Connect…</h1>
-        <p className="mt-3 text-sm text-gray-600">
+      <div className="w-full max-w-md rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-8 text-center shadow-sm">
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Finalizing Stripe Connect…</h1>
+        <p className="mt-3 text-sm text-gray-600 dark:text-gray-400">
           We&apos;re updating your instructor account. You&apos;ll be redirected shortly.
         </p>
-        <div className="mt-8 h-2 w-full overflow-hidden rounded-full bg-gray-200">
+        <div className="mt-8 h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
           <div className="h-full w-full animate-pulse bg-[#7E22CE]" />
         </div>
       </div>

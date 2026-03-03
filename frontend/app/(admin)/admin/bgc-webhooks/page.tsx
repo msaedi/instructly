@@ -109,10 +109,10 @@ export default function BGCWebhookLogPage() {
   };
 
   const statusBadgeTone = (statusCode?: number | null) => {
-    if (!statusCode) return 'bg-gray-100 text-gray-700 border-gray-200';
-    if (statusCode >= 500) return 'bg-rose-100 text-rose-700 border-rose-200';
-    if (statusCode >= 400) return 'bg-amber-100 text-amber-800 border-amber-200';
-    return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+    if (!statusCode) return 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700';
+    if (statusCode >= 500) return 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800';
+    if (statusCode >= 400) return 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-800';
+    return 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
   };
 
   return (
@@ -139,7 +139,7 @@ export default function BGCWebhookLogPage() {
                   type="checkbox"
                   checked={autoRefresh}
                   onChange={(event) => setAutoRefresh(event.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                  className="h-4 w-4 rounded border-gray-300 dark:border-gray-700 text-indigo-600 focus:ring-indigo-500"
                   aria-label="Toggle auto refresh"
                 />
                 Auto-refresh every 15s
@@ -257,7 +257,7 @@ export default function BGCWebhookLogPage() {
                           <div className="font-medium text-gray-900 dark:text-gray-100">
                             {formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}
                           </div>
-                          <div className="text-xs text-gray-400">
+                          <div className="text-xs text-gray-400 dark:text-gray-300">
                             {new Date(log.created_at).toLocaleString()}
                           </div>
                         </td>
@@ -307,7 +307,7 @@ export default function BGCWebhookLogPage() {
                               </button>
                             </div>
                           ) : (
-                            <span className="text-gray-400">—</span>
+                            <span className="text-gray-400 dark:text-gray-300">—</span>
                           )}
                         </td>
                         <td className="px-4 py-3 text-sm whitespace-nowrap">
@@ -350,7 +350,7 @@ export default function BGCWebhookLogPage() {
           <div className="relative h-full w-full max-w-2xl bg-white shadow-2xl ring-1 ring-gray-200 dark:bg-gray-900">
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-800">
               <div>
-                <p className="text-xs text-gray-500 uppercase tracking-wide">Payload</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Payload</p>
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{selectedLog.event_type}</h2>
               </div>
               <Button type="button" variant="ghost" onClick={closeJsonViewer}>
@@ -373,7 +373,7 @@ function renderIdentifier(label: string, value: string | null | undefined, onCop
   if (!value) return null;
   return (
     <div className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white/70 px-2 py-1 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-100">
-      <span className="text-gray-500">{label}:</span>
+      <span className="text-gray-500 dark:text-gray-400">{label}:</span>
       <span className="font-mono">{value}</span>
       <button type="button" className="text-indigo-600 hover:underline dark:text-indigo-300" onClick={onCopy}>
         Copy

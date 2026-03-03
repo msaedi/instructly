@@ -180,7 +180,7 @@ export default function CandidatesAnalyticsDashboard() {
                                   <div className="rounded-xl p-4 bg-white/60 dark:bg-gray-900/40 ring-1 ring-gray-200/70 dark:ring-gray-700/60">
                                     <div className="flex items-center justify-between mb-2">
                                       <h4 className="font-medium text-gray-900 dark:text-gray-100">Queries for {drilldown.serviceName}</h4>
-                                      <button className="text-gray-600 hover:underline" onClick={() => setDrilldown(null)}>Close</button>
+                                      <button className="text-gray-600 dark:text-gray-400 hover:underline" onClick={() => setDrilldown(null)}>Close</button>
                                     </div>
                                     <div className="overflow-x-auto">
                                       <table className="w-full text-sm">
@@ -233,7 +233,7 @@ function DaysSelector({ value, onChange }: { value: number; onChange: (d: number
       <Select.Trigger className="inline-flex items-center justify-between h-9 min-w-[150px] rounded-full px-3 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40">
         <Select.Value />
         <Select.Icon>
-          <ChevronDown className="h-4 w-4 text-gray-500" />
+          <ChevronDown className="h-4 w-4 text-gray-500 dark:text-gray-400" />
         </Select.Icon>
       </Select.Trigger>
       <Select.Portal>

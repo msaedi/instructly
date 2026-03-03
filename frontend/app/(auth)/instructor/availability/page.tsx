@@ -40,7 +40,7 @@ const WeekView = dynamic(() => import('@/components/calendar/WeekView'), {
 
 const UserProfileDropdown = dynamic(() => import('@/components/UserProfileDropdown'), {
   ssr: false,
-  loading: () => <div className="h-10 w-10 rounded-full bg-gray-200 animate-pulse" aria-hidden="true" />,
+  loading: () => <div className="h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" aria-hidden="true" />,
 });
 
 const ConflictModal = dynamic(() => import('@/components/availability/ConflictModal'), {
@@ -578,7 +578,7 @@ function AvailabilityPageImpl() {
             <button
               key={d.fullDate}
               onClick={() => setActiveDay(i)}
-              className={`px-3 py-2 rounded-full text-sm border ${i === activeDay ? 'bg-[#7E22CE] text-white border-[#7E22CE]' : 'bg-white text-gray-700 dark:text-gray-300 border-gray-300'}`}
+              className={`px-3 py-2 rounded-full text-sm border ${i === activeDay ? 'bg-[#7E22CE] text-white border-[#7E22CE]' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-700'}`}
             >
               {d.date.toLocaleDateString('en-US', { weekday: 'short' })}
             </button>
@@ -625,7 +625,7 @@ function AvailabilityPageImpl() {
 
   {hasPendingChanges && (
       <div className="fixed bottom-4 left-1/2 z-40 w-full max-w-3xl -translate-x-1/2 px-4">
-        <div className="flex items-center justify-between gap-4 rounded-full border border-gray-200 bg-white px-6 py-3 shadow-lg insta-surface-card">
+        <div className="flex items-center justify-between gap-4 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 py-3 shadow-lg insta-surface-card">
           <div className="text-sm text-gray-800 dark:text-gray-200">
             <div className="font-medium">Unsaved changes</div>
             <div className="text-xs text-gray-500 dark:text-gray-400">Past-day edits are historical and included in copies.</div>
@@ -634,7 +634,7 @@ function AvailabilityPageImpl() {
             <button
               type="button"
               onClick={handleDiscardChanges}
-              className="rounded-full border border-gray-300 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 insta-secondary-btn"
+              className="rounded-full border border-gray-300 dark:border-gray-700 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 insta-secondary-btn"
             >
               Discard
             </button>

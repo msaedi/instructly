@@ -39,24 +39,24 @@ export default function ConflictModal({
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
         data-testid="conflict-modal"
-        className="relative w-full max-w-md rounded-lg bg-white p-6 shadow-xl"
+        className="relative w-full max-w-md rounded-lg bg-white dark:bg-gray-800 p-6 shadow-xl"
       >
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-3 top-3 rounded-full p-1 text-gray-500 hover:bg-gray-100"
+          className="absolute right-3 top-3 rounded-full p-1 text-gray-500 dark:text-gray-400 hover:bg-gray-100"
           aria-label="Close"
         >
           <X className="h-4 w-4" />
         </button>
-        <h3 id={titleId} className="text-lg font-semibold text-gray-900">
+        <h3 id={titleId} className="text-lg font-semibold text-gray-900 dark:text-gray-100">
           New changes detected
         </h3>
-        <p id={descriptionId} className="mt-2 text-sm text-gray-600">
+        <p id={descriptionId} className="mt-2 text-sm text-gray-600 dark:text-gray-400">
           Another session updated this week while you were editing. Refresh to keep their edits,
           or overwrite to push your current plan.
           {serverVersion && (
-            <span className="mt-2 block text-xs font-mono text-gray-500">
+            <span className="mt-2 block text-xs font-mono text-gray-500 dark:text-gray-400">
               Latest version: {serverVersion}
             </span>
           )}
@@ -67,7 +67,7 @@ export default function ConflictModal({
             onClick={onRefresh}
             disabled={isRefreshing || isOverwriting}
             className={clsx(
-              'inline-flex items-center justify-center rounded-full border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100',
+              'inline-flex items-center justify-center rounded-full border border-gray-300 dark:border-gray-700 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100',
               (isRefreshing || isOverwriting) && 'cursor-not-allowed opacity-60'
             )}
           data-testid="conflict-refresh"

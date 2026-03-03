@@ -71,7 +71,7 @@ export function FilterButton({
         className={`flex items-center gap-1.5 px-3 py-2 rounded-full border text-sm transition-colors ${
           isActive
             ? 'bg-purple-100 border-purple-300 text-purple-700'
-            : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50'
         } ${isOpen ? 'ring-2 ring-purple-500 ring-offset-1' : ''}`}
       >
         <span>{label}</span>
@@ -82,7 +82,7 @@ export function FilterButton({
         ? createPortal(
             <div
               ref={dropdownRef}
-              className="fixed bg-white rounded-lg shadow-xl border border-gray-100 z-[9999] min-w-[250px] animate-in fade-in slide-in-from-top-2 duration-200"
+              className="fixed bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-100 dark:border-gray-700 z-[9999] min-w-[250px] animate-in fade-in slide-in-from-top-2 duration-200"
               style={{ top: position.top, left: position.left }}
             >
               {children}

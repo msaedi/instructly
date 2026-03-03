@@ -155,7 +155,7 @@ export default function ImageCropModal({
           <button
             type="button"
             onClick={onClose}
-            className="h-10 min-w-[112px] inline-flex items-center justify-center px-4 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer"
+            className="h-10 min-w-[112px] inline-flex items-center justify-center px-4 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md hover:bg-gray-50 cursor-pointer"
           >
             Cancel
           </button>
@@ -171,7 +171,7 @@ export default function ImageCropModal({
     >
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-4">
-          <label className="text-sm text-gray-600">Zoom</label>
+          <label className="text-sm text-gray-600 dark:text-gray-400">Zoom</label>
           <input
             type="range"
             min={0}
@@ -184,7 +184,7 @@ export default function ImageCropModal({
             }}
             className="w-64 accent-[#7E22CE]"
           />
-          <span className="text-xs text-gray-500 w-14 text-right">{Math.round((currentScale / minScale) * 100)}%</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400 w-14 text-right">{Math.round((currentScale / minScale) * 100)}%</span>
         </div>
 
         <div
@@ -194,7 +194,7 @@ export default function ImageCropModal({
           onPointerUp={onPointerUp}
           onPointerLeave={onPointerUp}
           onWheel={handleWheel}
-          className="relative mx-auto rounded-lg border border-gray-300 bg-[linear-gradient(45deg,#f3f4f6_25%,transparent_25%),linear-gradient(-45deg,#f3f4f6_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f3f4f6_75%),linear-gradient(-45deg,transparent_75%,#f3f4f6_75%)] bg-[length:20px_20px] bg-[position:0_0,0_10px,10px_-10px,-10px_0px] overflow-hidden select-none"
+          className="relative mx-auto rounded-lg border border-gray-300 dark:border-gray-700 bg-[linear-gradient(45deg,#f3f4f6_25%,transparent_25%),linear-gradient(-45deg,#f3f4f6_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f3f4f6_75%),linear-gradient(-45deg,transparent_75%,#f3f4f6_75%)] bg-[length:20px_20px] bg-[position:0_0,0_10px,10px_-10px,-10px_0px] overflow-hidden select-none"
           style={{ width: viewportSize, height: viewportSize, touchAction: 'none', cursor: dragStart ? 'grabbing' : 'grab' }}
           aria-label="Image crop area"
         >
@@ -218,7 +218,7 @@ export default function ImageCropModal({
           <div className="pointer-events-none absolute inset-0 ring-2 ring-white/80" />
         </div>
 
-        <p className="text-xs text-gray-500 text-center">Drag to pan, use the slider or scroll to zoom. Output is square.</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 text-center">Drag to pan, use the slider or scroll to zoom. Output is square.</p>
       </div>
     </Modal>
   );

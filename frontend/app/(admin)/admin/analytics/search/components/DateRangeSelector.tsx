@@ -24,7 +24,7 @@ export function DateRangeSelector({ value, onChange }: DateRangeSelectorProps) {
         <Select.Trigger className="inline-flex items-center justify-between min-w-[170px] rounded-full px-3 py-1.5 bg-white/70 dark:bg-gray-900/50 ring-1 ring-gray-300/70 dark:ring-gray-700/60 text-sm">
           <Select.Value />
           <Select.Icon>
-            <ChevronDown className="h-4 w-4 text-gray-500" />
+            <ChevronDown className="h-4 w-4 text-gray-500 dark:text-gray-400" />
           </Select.Icon>
         </Select.Trigger>
         <Select.Portal>

@@ -181,85 +181,7 @@ body {
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5);
 }
 
-.dark body {
-  background-color: #111827 !important; /* Gray 900 */
-  color: #f3f4f6 !important; /* Gray 100 */
-}
-
-.dark .bg-white {
-  background-color: #1f2937 !important; /* Gray 800 */
-}
-
-.dark .bg-gray-50 {
-  background-color: #111827 !important; /* Gray 900 */
-}
-
-.dark .text-gray-900 {
-  color: #f3f4f6 !important; /* Gray 100 */
-}
-
-.dark .text-gray-600 {
-  color: #9ca3af !important; /* Gray 400 */
-}
-
-.dark .border-gray-100,
-.dark .border-gray-200,
-.dark .border-gray-300 {
-  border-color: #374151 !important; /* Gray 700 */
-}
-
-.dark .bg-green-500 {
-  background-color: #059669 !important; /* Emerald 600 - darker green */
-}
-
-.dark .bg-gray-200,
-.dark .bg-gray-100 {
-  background-color: #374151 !important; /* Gray 700 */
-}
-
-.dark .bg-red-100 {
-  background-color: #991b1b !important; /* Red 800 - lighter than 900 */
-  color: #fee2e2 !important; /* Red 100 - much lighter text */
-}
-
-.dark .bg-red-100 * {
-  color: #fee2e2 !important; /* Red 100 */
-}
-
-.dark .bg-orange-100 {
-  background-color: #92400e !important; /* Amber 800 - lighter than 900 */
-  color: #fef3c7 !important; /* Amber 100 - much lighter text */
-}
-
-.dark .bg-orange-100 * {
-  color: #fef3c7 !important; /* Amber 100 */
-}
-
-.dark .bg-blue-50 {
-  background-color: #1e3a8a !important; /* Blue 900 */
-  color: #e0e7ff !important; /* Indigo 100 - better contrast */
-}
-
-.dark .bg-blue-50 * {
-  color: #e0e7ff !important; /* Indigo 100 */
-}
-
-.dark .text-green-700 {
-  color: #34d399 !important; /* Emerald 400 */
-}
-
-.dark .text-gray-700 {
-  color: #d1d5db !important; /* Gray 300 */
-}
-
-.dark .text-gray-500 {
-  color: #9ca3af !important; /* Gray 400 */
-}
-
-.dark .text-gray-400 {
-  color: #d1d5db !important; /* Gray 300 */
-}
-
+/* Dark mode specific input styles */
 .dark input,
 .dark textarea,
 .dark select {
@@ -277,26 +199,6 @@ body {
 .dark select:focus {
   border-color: var(--color-primary);
   background-color: #111827; /* Gray 900 */
-}
-
-.dark button.stat-card.bg-white:not(:disabled):hover,
-.dark button.stat-card:not(:disabled):hover {
-  background-color: rgb(55 65 81) !important; /* gray-700 */
-  border-color: rgb(147 51 234) !important; /* purple-600 */
-}
-
-.dark button.profile-view-btn.bg-white:not(:disabled):hover,
-.dark button.profile-view-btn:not(:disabled):hover {
-  background-color: rgb(55 65 81) !important; /* gray-700 */
-  border-color: rgb(168 85 247) !important; /* purple-500 */
-}
-
-.dark .autofill-fix:-webkit-autofill,
-.dark .autofill-fix:-webkit-autofill:hover,
-.dark .autofill-fix:-webkit-autofill:focus,
-.dark .autofill-fix:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 1000px #374151 inset !important;
-  -webkit-text-fill-color: #f9fafb !important;
 }
 
 /* Base Styles */
@@ -317,8 +219,6 @@ select {
   color: var(--foreground);
   /* Note: border-color intentionally omitted - let Tailwind utilities control borders */
 }
-
-/* Dark mode specific input styles */
 
 /* Selection Styles */
 ::selection {
@@ -827,6 +727,15 @@ html {
   transition: background-color 5000s ease-in-out 0s;
 }
 
+/* Dark mode autofill override (browser quirk: requires !important to beat UA autofill styles) */
+.dark .autofill-fix:-webkit-autofill,
+.dark .autofill-fix:-webkit-autofill:hover,
+.dark .autofill-fix:-webkit-autofill:focus,
+.dark .autofill-fix:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #374151 inset !important;
+  -webkit-text-fill-color: #f9fafb !important;
+}
+
 /* Purple highlighting for time input fields */
 .time-input-purple::-webkit-datetime-edit-hour-field:focus,
 .time-input-purple::-webkit-datetime-edit-minute-field:focus,
@@ -891,7 +800,7 @@ html {
 .template-title-input:focus-visible {
   outline: none !important;
   box-shadow: none !important;
-  border: none !important;
+  border: none;
 }
 
 /* Toast overrides */

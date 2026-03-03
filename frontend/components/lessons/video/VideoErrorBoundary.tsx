@@ -136,7 +136,7 @@ export class VideoErrorBoundary extends Component<VideoErrorBoundaryProps, Video
       if (this.state.recoverable) {
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-            <div className="bg-white rounded-xl shadow-lg p-8 text-center max-w-sm animate-fade-in">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center max-w-sm animate-fade-in">
               <p className="text-muted-foreground">
                 A dialog crashed. Returning to your lesson…
               </p>

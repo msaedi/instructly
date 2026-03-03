@@ -26,9 +26,9 @@ const STATUS_FILTERS = {
 const DEFAULT_LIMIT = 50;
 
 const statusColors: Record<StatusFilter, string> = {
-  pending: 'text-amber-600 bg-amber-100',
-  confirmed: 'text-green-700 bg-green-100',
-  revoked: 'text-gray-600 bg-gray-200',
+  pending: 'text-amber-600 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/30',
+  confirmed: 'text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/30',
+  revoked: 'text-gray-600 dark:text-gray-400 bg-gray-200 dark:bg-gray-700',
 };
 
 export default function AdminPendingBadgesPage() {
@@ -146,7 +146,7 @@ export default function AdminPendingBadgesPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <Loader2 className="h-8 w-8 animate-spin text-purple-600" aria-label="Loading admin view" />
       </div>
     );
@@ -201,15 +201,15 @@ export default function AdminPendingBadgesPage() {
             <div className="rounded-2xl bg-white/60 dark:bg-gray-900/40 backdrop-blur p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60">
               <div className="flex flex-wrap items-center gap-4 mb-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Pending Awards</h2>
-                  <p className="text-sm text-gray-600">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Pending Awards</h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
                     Review badges before they are confirmed for students.
                   </p>
                 </div>
 
                 <div className="ml-auto flex flex-wrap gap-3 items-center">
                   <div className="flex flex-col">
-                    <label htmlFor="status-filter" className="text-xs font-medium text-gray-500">
+                    <label htmlFor="status-filter" className="text-xs font-medium text-gray-500 dark:text-gray-400">
                       Status
                     </label>
                     <Select value={statusFilter} onValueChange={(value: StatusFilter) => handleStatusChange(value)}>
@@ -227,7 +227,7 @@ export default function AdminPendingBadgesPage() {
                     </Select>
                   </div>
                   <div className="flex flex-col">
-                    <label htmlFor="before-date" className="text-xs font-medium text-gray-500">
+                    <label htmlFor="before-date" className="text-xs font-medium text-gray-500 dark:text-gray-400">
                       Awarded before
                     </label>
                     <input
@@ -255,63 +255,63 @@ export default function AdminPendingBadgesPage() {
 
               {!isEmpty && (
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200 text-sm">
-                    <thead className="bg-gray-50">
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                    <thead className="bg-gray-50 dark:bg-gray-900">
                       <tr>
-                        <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-700">
+                        <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">
                           Student
                         </th>
-                        <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-700">
+                        <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">
                           Badge
                         </th>
-                        <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-700">
+                        <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">
                           Status
                         </th>
-                        <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-700">
+                        <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">
                           Awarded
                         </th>
-                        <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-700">
+                        <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">
                           Hold Until
                         </th>
-                        <th scope="col" className="px-4 py-3 text-right font-semibold text-gray-700">
+                        <th scope="col" className="px-4 py-3 text-right font-semibold text-gray-700 dark:text-gray-300">
                           Actions
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200">
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                       {items.map((award) => (
-                        <tr key={award.award_id} className="bg-white">
+                        <tr key={award.award_id} className="bg-white dark:bg-gray-800">
                           <td className="px-4 py-3">
-                            <div className="font-medium text-gray-900">
+                            <div className="font-medium text-gray-900 dark:text-gray-100">
                               {award.student.display_name || award.student.email || award.student.id}
                             </div>
-                            <div className="text-xs text-gray-500">{award.student.email}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{award.student.email}</div>
                           </td>
                           <td className="px-4 py-3">
-                            <div className="font-semibold text-gray-900">{award.badge.name}</div>
-                            <div className="text-xs text-gray-500">{award.badge.slug}</div>
+                            <div className="font-semibold text-gray-900 dark:text-gray-100">{award.badge.name}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{award.badge.slug}</div>
                           </td>
                           <td className="px-4 py-3">
                             <span
                               className={cn(
                                 'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold',
-                                statusColors[award.status as StatusFilter] || 'bg-gray-100 text-gray-600'
+                                statusColors[award.status as StatusFilter] || 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
                               )}
                             >
                               {award.status}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-700">
+                          <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
                             {new Date(award.awarded_at).toLocaleString()}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-700">
+                          <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
                             {award.hold_until ? new Date(award.hold_until).toLocaleString() : '—'}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex justify-end gap-2">
                               <button
                                 type="button"
-                                className="inline-flex items-center gap-1 rounded-md border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 hover:bg-green-100 disabled:opacity-50"
+                                className="inline-flex items-center gap-1 rounded-md border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 dark:text-emerald-400 hover:bg-green-100 disabled:opacity-50"
                                 onClick={() => confirmMutation.mutate(award.award_id)}
                                 disabled={award.status !== 'pending' || actioningId === award.award_id}
                               >
@@ -337,13 +337,13 @@ export default function AdminPendingBadgesPage() {
               )}
 
               <div className="mt-4 flex items-center justify-between">
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
                   Showing {items.length} of {total} awards
                 </p>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    className="rounded-md border border-gray-200 px-3 py-1 text-sm text-gray-700 disabled:opacity-50"
+                    className="rounded-md border border-gray-200 dark:border-gray-700 px-3 py-1 text-sm text-gray-700 dark:text-gray-300 disabled:opacity-50"
                     onClick={handlePrev}
                     disabled={!canPrev}
                   >
@@ -351,7 +351,7 @@ export default function AdminPendingBadgesPage() {
                   </button>
                   <button
                     type="button"
-                    className="rounded-md border border-gray-200 px-3 py-1 text-sm text-gray-700 disabled:opacity-50"
+                    className="rounded-md border border-gray-200 dark:border-gray-700 px-3 py-1 text-sm text-gray-700 dark:text-gray-300 disabled:opacity-50"
                     onClick={handleNext}
                     disabled={!canNext}
                   >

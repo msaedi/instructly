@@ -261,11 +261,11 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
       disabled={disabled}
       title={title}
       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-        checked ? 'bg-purple-600' : 'bg-gray-200'
+        checked ? 'bg-purple-600' : 'bg-gray-200 dark:bg-gray-700'
       } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
     >
       <span
-        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+        className={`inline-block h-4 w-4 transform rounded-full bg-white dark:bg-gray-800 shadow transition-transform ${
           checked ? 'translate-x-6' : 'translate-x-1'
         }`}
       />
@@ -301,7 +301,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
 
     return (
       <div className="space-y-4">
-        <div className="rounded-lg border border-gray-200 p-3 space-y-3">
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 space-y-3">
           <div>
             <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">Phone number (for SMS)</label>
             <p className="text-xs text-gray-500 dark:text-gray-400">Add and verify a phone number to receive SMS alerts.</p>
@@ -350,7 +350,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 disabled={sendVerification.isPending || resendCooldown > 0}
                 className={`min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
                   resendCooldown > 0 || sendVerification.isPending
-                    ? 'bg-gray-200 text-gray-400 dark:text-gray-400 cursor-not-allowed'
+                    ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-300 cursor-not-allowed'
                     : 'bg-[#7E22CE] text-white hover:bg-[#6b1fb8] insta-primary-btn'
                 }`}
               >
@@ -363,7 +363,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             </div>
           )}
         </div>
-        <div className="rounded-lg border border-gray-200 p-3">
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Push notifications on this device</p>
@@ -376,7 +376,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
           {renderPushStatus()}
         </div>
         <div className="space-y-4">
-          <div className="grid grid-cols-4 gap-4 pb-3 border-b border-gray-200">
+          <div className="grid grid-cols-4 gap-4 pb-3 border-b border-gray-200 dark:border-gray-700">
             <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Notification Type</div>
             <div className="text-sm font-medium text-gray-700 dark:text-gray-300 text-center">Email</div>
             <div className="text-sm font-medium text-gray-700 dark:text-gray-300 text-center">SMS</div>
@@ -686,7 +686,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             <>
               <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Account Settings</h2>
               <div className="space-y-4">
-                <div className="flex items-center justify-between py-3 border-b border-gray-100">
+                <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-700">
                   <div>
                     <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Profile Information</h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Update your personal details and bio</p>
@@ -695,7 +695,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                     Edit
                   </Link>
                 </div>
-                <div className="flex items-center justify-between py-3 border-b border-gray-100">
+                <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-700">
                   <div>
                     <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Skills & Pricing</h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Manage your services and hourly rates</p>
@@ -707,7 +707,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                     Edit
                   </Link>
                 </div>
-                <div className="flex items-center justify-between py-3 border-b border-gray-100">
+                <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-700">
                   <div>
                     <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Service Areas</h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Set where you can teach</p>
@@ -719,7 +719,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                     Edit
                   </Link>
                 </div>
-                <div className="flex items-center justify-between py-3 border-b border-gray-100">
+                <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-700">
                   <div>
                     <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Availability</h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Adjust your schedule and booking availability</p>
@@ -728,7 +728,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                     Edit
                   </Link>
                 </div>
-                <div className="flex items-center justify-between py-3 border-b border-gray-100">
+                <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-700">
                   <div>
                     <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Notifications</h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Choose how you want to be notified</p>
@@ -838,7 +838,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                     type="button"
                     className={`px-3 py-1.5 rounded-md text-sm font-medium ${
                       tfaEnabled
-                        ? 'border border-gray-300 text-gray-700 dark:text-gray-300 bg-white hover:bg-gray-50'
+                        ? 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50'
                         : 'bg-[#7E22CE] text-white hover:bg-[#6b1fb8] insta-primary-btn'
                     } `}
                     onClick={() => setShowTfaModal(true)}

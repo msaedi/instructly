@@ -109,10 +109,10 @@ export default function WeekNavigator({
         {/* Week Display */}
         <div className="text-center flex-1">
           <div className="flex items-center justify-center mb-1">
-            <h2 className="text-2xl font-bold text-gray-900">{weekRangeDisplay}</h2>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{weekRangeDisplay}</h2>
           </div>
           {showSubtitle && (
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               Edit availability for this specific week
               {hasUnsavedChanges && (
                 <span className="text-amber-600 font-medium ml-2">(unsaved changes)</span>

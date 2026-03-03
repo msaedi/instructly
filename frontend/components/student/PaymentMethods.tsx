@@ -139,9 +139,9 @@ const AddCardForm: React.FC<{
             type="checkbox"
             checked={saveForFuture}
             onChange={(e) => setSaveForFuture(e.target.checked)}
-            className="rounded border-gray-300"
+            className="rounded border-gray-300 dark:border-gray-700"
           />
-          <span className="text-sm text-gray-700">Save for future use</span>
+          <span className="text-sm text-gray-700 dark:text-gray-300">Save for future use</span>
         </label>
 
         {saveForFuture && (
@@ -150,16 +150,16 @@ const AddCardForm: React.FC<{
               type="checkbox"
               checked={setAsDefault}
               onChange={(e) => setSetAsDefault(e.target.checked)}
-              className="rounded border-gray-300"
+              className="rounded border-gray-300 dark:border-gray-700"
             />
-            <span className="text-sm text-gray-700">Set as default payment method</span>
+            <span className="text-sm text-gray-700 dark:text-gray-300">Set as default payment method</span>
           </label>
         )}
       </div>
 
       {error && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3">
-          <div className="flex items-center space-x-2 text-gray-600 text-sm">
+          <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400 text-sm">
             <AlertCircle className="h-4 w-4" />
             <span>{error}</span>
           </div>
@@ -240,7 +240,7 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId: _userId }) => {
   if (loading) {
     return (
       <div className="flex justify-center items-center py-8">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400 dark:text-gray-300" />
       </div>
     );
   }
@@ -261,12 +261,12 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId: _userId }) => {
 
       {displayError && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3">
-          <p className="text-gray-600">{displayError}</p>
+          <p className="text-gray-600 dark:text-gray-400">{displayError}</p>
         </div>
       )}
 
       {addingCard && (
-        <div className="rounded-xl border border-gray-200 p-6">
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-6">
           <h3 className="text-lg font-medium mb-4">Add New Card</h3>
           <Elements stripe={stripePromise}>
             <AddCardForm
@@ -281,12 +281,12 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId: _userId }) => {
       )}
 
       {paymentMethods.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 p-8 text-center">
-          <CreditCard className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center">
+          <CreditCard className="h-12 w-12 mx-auto text-gray-400 dark:text-gray-300 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
             No payment methods saved
           </h3>
-          <p className="text-gray-500 mb-4">
+          <p className="text-gray-500 dark:text-gray-400 mb-4">
             Add a card to make booking faster
           </p>
           {!addingCard && (
@@ -300,23 +300,23 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId: _userId }) => {
           {paymentMethods.map((method) => (
             <div
               key={method.id}
-              className="rounded-xl border border-gray-200 p-4 flex items-center justify-between"
+              className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between"
             >
               <div className="flex items-center space-x-4">
-                <CreditCard className="h-8 w-8 text-gray-400" />
+                <CreditCard className="h-8 w-8 text-gray-400 dark:text-gray-300" />
                 <div>
                   <div className="flex items-center space-x-2">
                     <span className="font-medium">
                       {getCardBrandDisplay(method.brand)}
                     </span>
-                    <span className="text-gray-500">•••• {method.last4}</span>
+                    <span className="text-gray-500 dark:text-gray-400">•••• {method.last4}</span>
                     {method.is_default && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
                         Default
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
                     Added {new Date(method.created_at).toLocaleDateString()}
                   </p>
                 </div>

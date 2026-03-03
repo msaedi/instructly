@@ -40,26 +40,26 @@ export default function CancelModal({ booking, open, onOpenChange, onConfirm }: 
     <Dialog.Root open={open} onOpenChange={handleClose}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 w-[95vw] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-6 shadow-2xl">
+        <Dialog.Content className="fixed left-1/2 top-1/2 w-[95vw] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-2xl">
           <div className="flex items-center justify-between">
-            <Dialog.Title className="text-lg font-semibold text-gray-900">Cancel Booking</Dialog.Title>
+            <Dialog.Title className="text-lg font-semibold text-gray-900 dark:text-gray-100">Cancel Booking</Dialog.Title>
             <Dialog.Close asChild>
-              <button className="rounded-full p-2 text-gray-500 hover:bg-gray-100" aria-label="Close">
+              <button className="rounded-full p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100" aria-label="Close">
                 <X className="h-4 w-4" />
               </button>
             </Dialog.Close>
           </div>
 
           {booking ? (
-            <div className="mt-4 space-y-4 text-sm text-gray-700">
-              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                <p className="text-xs text-gray-500">Booking</p>
-                <p className="font-medium text-gray-900">{booking.id}</p>
+            <div className="mt-4 space-y-4 text-sm text-gray-700 dark:text-gray-300">
+              <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4">
+                <p className="text-xs text-gray-500 dark:text-gray-400">Booking</p>
+                <p className="font-medium text-gray-900 dark:text-gray-100">{booking.id}</p>
                 <p>{booking.student.name} - {booking.instructor.name}</p>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs uppercase tracking-wide text-gray-500">Reason</Label>
+                <Label className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Reason</Label>
                 <Input
                   value={reason}
                   onChange={(event) => setReason(event.target.value)}
@@ -68,12 +68,12 @@ export default function CancelModal({ booking, open, onOpenChange, onConfirm }: 
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs uppercase tracking-wide text-gray-500">Admin Note</Label>
+                <Label className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Admin Note</Label>
                 <textarea
                   value={note}
                   onChange={(event) => setNote(event.target.value)}
                   placeholder="Add context for audit log"
-                  className="min-h-[90px] w-full rounded-lg border border-gray-200 p-3 text-sm"
+                  className="min-h-[90px] w-full rounded-lg border border-gray-200 dark:border-gray-700 p-3 text-sm"
                 />
               </div>
 
@@ -84,7 +84,7 @@ export default function CancelModal({ booking, open, onOpenChange, onConfirm }: 
 
               <div className="flex justify-end gap-3">
                 <Dialog.Close asChild>
-                  <button className="rounded-full px-4 py-2 text-sm font-medium ring-1 ring-gray-300 hover:bg-gray-100">
+                  <button className="rounded-full px-4 py-2 text-sm font-medium ring-1 ring-gray-300 dark:ring-gray-700 hover:bg-gray-100">
                     Close
                   </button>
                 </Dialog.Close>
@@ -98,7 +98,7 @@ export default function CancelModal({ booking, open, onOpenChange, onConfirm }: 
               </div>
             </div>
           ) : (
-            <div className="mt-4 text-sm text-gray-500">Select a booking to cancel.</div>
+            <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">Select a booking to cancel.</div>
           )}
         </Dialog.Content>
       </Dialog.Portal>

@@ -49,35 +49,35 @@ export function CancelWarningModal({
         style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
       >
         <div className="flex min-h-full items-center justify-center p-4">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-xl">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full shadow-xl">
             {/* Header */}
             <div className="flex items-center gap-3 mb-4">
               <AlertTriangle className="h-6 w-6 text-yellow-400" />
-              <h2 className="text-xl font-semibold text-gray-900">Cancel my lesson</h2>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Cancel my lesson</h2>
             </div>
 
             {/* Lesson Details */}
             <div className="bg-purple-100 rounded-lg p-4 mb-4">
               <p className="text-sm mb-1">
-                <span className="font-medium text-gray-700">Your lesson</span>{' '}
-                <span className="text-gray-900">
+                <span className="font-medium text-gray-700 dark:text-gray-300">Your lesson</span>{' '}
+                <span className="text-gray-900 dark:text-gray-100">
                   {format(lessonDateTime, 'EEEE, MMMM d')} at {format(lessonDateTime, 'h:mm a')}
                 </span>
               </p>
               <p className="text-sm">
-                <span className="font-medium text-gray-700">Time until Lesson</span>{' '}
-                <span className="text-gray-900">{getTimeUntilDisplay()}</span>
+                <span className="font-medium text-gray-700 dark:text-gray-300">Time until Lesson</span>{' '}
+                <span className="text-gray-900 dark:text-gray-100">{getTimeUntilDisplay()}</span>
               </p>
             </div>
 
             {/* Cancellation Fee Warning */}
             <div className="mb-4">
               {window === 'full' ? (
-                <p className="text-sm text-gray-700">
+                <p className="text-sm text-gray-700 dark:text-gray-300">
                   To respect our instructors&apos; time, unfortunately cancellations made less than 12 hours before a lesson can&apos;t be rescheduled and will be charged in full.
                 </p>
               ) : window === 'free' ? (
-                <p className="text-sm text-gray-700">
+                <p className="text-sm text-gray-700 dark:text-gray-300">
                   Life happens! You can cancel your session free of charge. Would you like to{' '}
                   <button
                     onClick={onReschedule}
@@ -89,10 +89,10 @@ export function CancelWarningModal({
                 </p>
               ) : (
                 <>
-                  <p className="text-lg font-semibold text-gray-900 mb-1">
+                  <p className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">
                     Credit: ${lessonPrice.toFixed(2)}
                   </p>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
                     Your lesson price will be added as credit. The ${platformFee.toFixed(2)} booking fee is non-refundable.
                   </p>
                 </>
@@ -103,7 +103,7 @@ export function CancelWarningModal({
             <div className="mb-6">
               <button
                 onClick={() => setShowFullPolicy(!showFullPolicy)}
-                className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-700 transition-colors"
+                className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-700 transition-colors"
               >
                 See full cancellation policy
                 {showFullPolicy ? (
@@ -114,17 +114,17 @@ export function CancelWarningModal({
               </button>
 
               {showFullPolicy && (
-                <div className="mt-3 text-xs text-gray-600 bg-gray-50 rounded-lg p-4">
+                <div className="mt-3 text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
                   <p className="font-medium mb-2">Cancellation policy:</p>
-                  <ul className="space-y-2 text-gray-500">
+                  <ul className="space-y-2 text-gray-500 dark:text-gray-400">
                     <li>
-                      <span className="font-medium text-gray-600">More than 24 hours before:</span> No worries — cancel or reschedule free of charge.
+                      <span className="font-medium text-gray-600 dark:text-gray-400">More than 24 hours before:</span> No worries — cancel or reschedule free of charge.
                     </li>
                     <li>
-                      <span className="font-medium text-gray-600">12–24 hours before:</span> Your lesson price will be added as credit to your account. The booking fee is non-refundable.
+                      <span className="font-medium text-gray-600 dark:text-gray-400">12–24 hours before:</span> Your lesson price will be added as credit to your account. The booking fee is non-refundable.
                     </li>
                     <li>
-                      <span className="font-medium text-gray-600">Less than 12 hours before:</span> At this point rescheduling isn&apos;t possible, and the full lesson amount will be charged.
+                      <span className="font-medium text-gray-600 dark:text-gray-400">Less than 12 hours before:</span> At this point rescheduling isn&apos;t possible, and the full lesson amount will be charged.
                     </li>
                   </ul>
                 </div>
@@ -135,13 +135,13 @@ export function CancelWarningModal({
             <div className="flex gap-3">
               <button
                 onClick={onClose}
-                className="flex-1 py-3 px-4 bg-white text-black border-2 border-[#FFD700] rounded-lg hover:bg-yellow-50 transition-colors font-medium"
+                className="flex-1 py-3 px-4 bg-white dark:bg-gray-800 text-black dark:text-white border-2 border-[#FFD700] rounded-lg hover:bg-yellow-50 transition-colors font-medium"
               >
                 Keep My Lesson
               </button>
               <button
                 onClick={handleContinueCancel}
-                className="flex-1 py-3 px-4 bg-[#FFD700] text-black rounded-lg hover:bg-[#FFC700] transition-colors font-medium"
+                className="flex-1 py-3 px-4 bg-[#FFD700] text-black dark:text-white rounded-lg hover:bg-[#FFC700] transition-colors font-medium"
               >
                 Continue
               </button>

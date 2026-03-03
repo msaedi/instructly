@@ -104,7 +104,7 @@ export function UpcomingLessons() {
       <div className="max-w-4xl ml-8 px-1 pl-4">
         <div className="flex items-center mb-3">
           <Calendar className="h-6 w-6 text-[#7E22CE] dark:text-purple-400 mr-2" />
-          <h2 className="text-2xl font-bold text-gray-600">
+          <h2 className="text-2xl font-bold text-gray-600 dark:text-gray-400">
             Your Upcoming Lessons
           </h2>
         </div>
@@ -120,7 +120,7 @@ export function UpcomingLessons() {
                 <div className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">
                   {formatDateLabel(booking)} {formatBookingTime(booking, viewerTimezone)}
                 </div>
-                <div className="text-base font-bold text-gray-600 mb-1">
+                <div className="text-base font-bold text-gray-600 dark:text-gray-400 mb-1">
                   {booking.service_name}
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">

@@ -19,9 +19,9 @@ function CheckoutContent() {
   return (
     <div className="mx-auto flex min-h-[70vh] w-full max-w-3xl flex-col gap-6 px-4 py-12 sm:px-6 lg:px-8">
       <header className="space-y-2">
-        <p className="text-sm font-medium uppercase tracking-[0.18em] text-gray-500">Checkout</p>
-        <h1 className="text-3xl font-bold text-gray-900">Apply referral credit</h1>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm font-medium uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Checkout</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Apply referral credit</h1>
+        <p className="text-sm text-gray-600 dark:text-gray-400">
           Use referral credits when your subtotal meets the minimum and no other promotions are active.
         </p>
       </header>
@@ -33,12 +33,12 @@ function CheckoutContent() {
         onApplied={() => {}}
       />
 
-      <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-xs text-gray-500">
-        <p className="font-semibold text-gray-700">Developer note</p>
+      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-xs text-gray-500 dark:text-gray-400">
+        <p className="font-semibold text-gray-700 dark:text-gray-300">Developer note</p>
         <p className="mt-2">
           Pass <code>orderId</code>, <code>subtotalCents</code>, and optional <code>promo=1</code> query parameters to exercise different states. Example:
         </p>
-        <p className="mt-1 font-mono text-[11px] text-gray-600">/checkout?orderId=ORDER123&subtotalCents=8200</p>
+        <p className="mt-1 font-mono text-[11px] text-gray-600 dark:text-gray-400">/checkout?orderId=ORDER123&subtotalCents=8200</p>
       </div>
     </div>
   );
@@ -49,7 +49,7 @@ export default function CheckoutPage() {
     <Suspense
       fallback={
         <div className="mx-auto flex min-h-[70vh] w-full max-w-3xl items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
-          <p className="text-sm text-gray-500">Loading checkout preview…</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Loading checkout preview…</p>
         </div>
       }
     >

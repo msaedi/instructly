@@ -41,7 +41,7 @@ function FilterChipGroup<T extends string | number>({
 }) {
   return (
     <div>
-      <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">{label}</h3>
+      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 uppercase tracking-wide">{label}</h3>
       <div className="flex flex-wrap gap-2">
         {options.map((option) => (
           <label
@@ -49,7 +49,7 @@ function FilterChipGroup<T extends string | number>({
             className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer border ${
               selected.includes(option.value)
                 ? 'bg-purple-100 border-purple-300 text-purple-700'
-                : 'bg-white border-gray-100 text-gray-700 hover:bg-gray-50'
+                : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50'
             }`}
           >
             <input
@@ -180,7 +180,7 @@ function MoreFiltersModalContent({
         aria-labelledby={titleId}
         tabIndex={-1}
       >
-        <div className="flex items-center justify-between p-4 border-b border-gray-100">
+        <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-700">
           <h2 id={titleId} className="text-lg font-semibold">More filters</h2>
           <button
             type="button"
@@ -219,7 +219,7 @@ function MoreFiltersModalContent({
 
           {taxonomyContentFilters.map((filterDefinition) => (
             <div key={filterDefinition.key}>
-              <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 uppercase tracking-wide">
                 {filterDefinition.label}
               </h3>
               <div className="flex flex-wrap gap-2">
@@ -233,7 +233,7 @@ function MoreFiltersModalContent({
                       className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer border ${
                         isSelected
                           ? 'bg-purple-100 border-purple-300 text-purple-700'
-                          : 'bg-white border-gray-100 text-gray-700 hover:bg-gray-50'
+                          : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50'
                       }`}
                     >
                       <input
@@ -271,7 +271,7 @@ function MoreFiltersModalContent({
           ))}
 
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Min Rating</h3>
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 uppercase tracking-wide">Min Rating</h3>
             <div className="flex flex-wrap gap-2">
               {RATING_OPTIONS.map((option) => (
                 <label
@@ -279,7 +279,7 @@ function MoreFiltersModalContent({
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer border ${
                     draft.minRating === option.value
                       ? 'bg-purple-100 border-purple-300 text-purple-700'
-                      : 'bg-white border-gray-100 text-gray-700 hover:bg-gray-50'
+                      : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50'
                   }`}
                 >
                   <input
@@ -301,11 +301,11 @@ function MoreFiltersModalContent({
           </div>
         </div>
 
-        <div className="flex justify-between p-4 border-t border-gray-100">
+        <div className="flex justify-between p-4 border-t border-gray-100 dark:border-gray-700">
           <button
             type="button"
             onClick={handleClear}
-            className="px-4 py-2 text-gray-600 hover:text-gray-900"
+            className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900"
           >
             Clear All
           </button>

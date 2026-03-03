@@ -55,7 +55,7 @@ export default function InstructorAllReviewsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4 sticky top-0 z-50">
+      <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4 sticky top-0 z-50">
         <div className="flex items-center justify-between max-w-full">
           <div className="flex items-center gap-4">
             <Link className="inline-block" href="/">
@@ -64,7 +64,7 @@ export default function InstructorAllReviewsPage() {
             <Button
               variant="ghost"
               onClick={() => router.push(`/instructors/${instructorId}`)}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+              className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Profile
@@ -77,19 +77,19 @@ export default function InstructorAllReviewsPage() {
       </header>
 
       <div className="container mx-auto px-4 py-6 max-w-4xl">
-        <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200">
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 mb-6 border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-semibold text-gray-700">All Reviews</h1>
+            <h1 className="text-2xl font-semibold text-gray-700 dark:text-gray-300">All Reviews</h1>
             <div className="text-sm text-muted-foreground">{total} total</div>
           </div>
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-lg p-4 border border-gray-200 mb-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 mb-6">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {/* Min rating */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Min rating</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Min rating</label>
               <Select
                 value={minRating !== undefined ? String(minRating) : 'all'}
                 onValueChange={(v) => { setPage(1); setMinRating(v === 'all' ? undefined : Number(v)); }}
@@ -108,21 +108,21 @@ export default function InstructorAllReviewsPage() {
 
             {/* With comments only */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Text filter</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Text filter</label>
               <button
                 type="button"
                 aria-pressed={withText}
                 onClick={() => { setWithText((v) => !v); setPage(1); }}
-                className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${withText ? 'border-purple-300 bg-purple-50 text-[#7E22CE]' : 'border-gray-300 bg-white text-gray-700'} hover:bg-gray-50`}
+                className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${withText ? 'border-purple-300 bg-purple-50 text-[#7E22CE]' : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'} hover:bg-gray-50`}
               >
-                {withText ? <Check className="h-4 w-4" /> : <span className="h-4 w-4 inline-block border border-gray-300 rounded-sm" />}
+                {withText ? <Check className="h-4 w-4" /> : <span className="h-4 w-4 inline-block border border-gray-300 dark:border-gray-700 rounded-sm" />}
                 With comments only
               </button>
             </div>
 
             {/* Per page */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Per page</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Per page</label>
               <Select value={String(perPage)} onValueChange={(v) => { setPerPage(Number(v)); setPage(1); }}>
                 <SelectTrigger />
                 <SelectContent>
@@ -148,7 +148,7 @@ export default function InstructorAllReviewsPage() {
 
         <div className="grid grid-cols-1 gap-4">
           {reviews.map((r) => (
-            <div key={r.id} className="p-4 bg-white rounded-lg border border-gray-100">
+            <div key={r.id} className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700">
               <div className="flex items-start gap-3">
                 <StarRating rating={r.rating} />
                 <div className="flex-1">
@@ -161,7 +161,7 @@ export default function InstructorAllReviewsPage() {
                     </span>
                   </div>
                   {r.review_text && (
-                    <p className="text-sm text-gray-700 mt-1">{r.review_text}</p>
+                    <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">{r.review_text}</p>
                   )}
                 </div>
               </div>
@@ -172,15 +172,15 @@ export default function InstructorAllReviewsPage() {
         {/* Pager */}
         <div className="mt-6 flex items-center justify-between">
           <button
-            className="flex items-center gap-1 text-sm text-gray-700 disabled:opacity-50"
+            className="flex items-center gap-1 text-sm text-gray-700 dark:text-gray-300 disabled:opacity-50"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={!hasPrev}
           >
             <ChevronLeft className="h-4 w-4" /> Prev
           </button>
-          <div className="text-sm text-gray-600">Page {page}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">Page {page}</div>
           <button
-            className="flex items-center gap-1 text-sm text-gray-700 disabled:opacity-50"
+            className="flex items-center gap-1 text-sm text-gray-700 dark:text-gray-300 disabled:opacity-50"
             onClick={() => setPage((p) => p + 1)}
             disabled={!hasNext}
           >

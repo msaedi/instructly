@@ -163,15 +163,15 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
       {!hideHeader && (
         <header className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Your rewards</h1>
-            <p className="mt-2 text-sm text-gray-600">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Your rewards</h1>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
               Share your link and you both receive iNSTAiNSTRU credits when a friend books their first lesson.
             </p>
           </div>
         </header>
       )}
 
-      <section className={`${compactShare ? '' : 'rounded-2xl border border-gray-200 bg-white p-6 shadow-sm'}`}>
+      <section className={`${compactShare ? '' : 'rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm'}`}>
         <div className={`flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-4 ${compactShare ? 'p-0' : ''}`}>
           <div className={`flex items-start gap-3 ${hideShareIcon ? 'flex-1 min-w-0' : ''}`}>
             {!hideShareIcon && (
@@ -180,7 +180,7 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
               </span>
             )}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-700">Share your link</p>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Share your link</p>
               <input
                 readOnly
                 value={summary ? shareUrl : ''}
@@ -215,13 +215,13 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
       </section>
 
       {summary && (
-        <section className={`${compactInvite ? '' : 'rounded-2xl border border-gray-200 bg-white p-6 shadow-sm'}`}>
+        <section className={`${compactInvite ? '' : 'rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm'}`}>
           <InviteByEmail shareUrl={shareUrl} {...(inviterName ? { fromName: inviterName } : {})} />
         </section>
       )}
 
-      <section className={`${compactTabs ? '' : 'rounded-2xl border border-gray-200 bg-white p-6 shadow-sm'}`}>
-        <div className={`flex flex-wrap items-center ${minimalTabs ? 'gap-4' : 'gap-2'} border-b border-gray-200 ${minimalTabs ? 'pb-2' : 'pb-4'}`}>
+      <section className={`${compactTabs ? '' : 'rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm'}`}>
+        <div className={`flex flex-wrap items-center ${minimalTabs ? 'gap-4' : 'gap-2'} border-b border-gray-200 dark:border-gray-700 ${minimalTabs ? 'pb-2' : 'pb-4'}`}>
           {(['unlocked', 'pending', 'redeemed'] as TabKey[]).map((tab) => (
             <button
               key={tab}
@@ -229,9 +229,9 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
               onClick={() => setActiveTab(tab)}
               className={
                 minimalTabs
-                  ? `px-0 py-0 text-sm font-medium transition ${activeTab === tab ? 'text-[#7E22CE]' : 'text-gray-600 hover:text-[#7E22CE]'}`
+                  ? `px-0 py-0 text-sm font-medium transition ${activeTab === tab ? 'text-[#7E22CE]' : 'text-gray-600 dark:text-gray-400 hover:text-[#7E22CE]'}`
                   : `rounded-full px-4 py-2 text-sm font-medium transition ${
-                      activeTab === tab ? 'bg-[#7E22CE] text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      activeTab === tab ? 'bg-[#7E22CE] text-white shadow-sm' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
                     }`
               }
               aria-pressed={activeTab === tab}
@@ -243,7 +243,7 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
 
         <div className="mt-5 space-y-4">
           {isLoading && (
-            <div className="flex items-center gap-3 text-sm text-gray-500">
+            <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
               <Clock className="h-4 w-4 animate-spin" aria-hidden="true" />
               Loading rewards…
             </div>
@@ -266,17 +266,17 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
             return (
               <article
                 key={reward.id}
-                className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
-                  <p className="text-lg font-semibold text-gray-900">{formatCents(reward.amount_cents)}</p>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">{formatCents(reward.amount_cents)}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
                     {reward.status === 'pending' && 'Pending — credits unlock after your friend completes their first lesson.'}
                     {reward.status === 'unlocked' && 'Unlocked — ready to apply at checkout.'}
                     {reward.status === 'redeemed' && 'Redeemed — already applied to a past booking.'}
                     {reward.status === 'void' && 'Expired or cancelled reward.'}
                   </p>
-                  <p className="mt-2 text-xs text-gray-500">
+                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                     Earned {dateFormatter.format(new Date(reward.created_at))}
                     {reward.unlock_ts && reward.status !== 'unlocked' && ` • Unlocks ${dateFormatter.format(new Date(reward.unlock_ts))}`}
                   </p>
@@ -286,10 +286,10 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
                     <span
                       className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
                         badge.tone === 'danger'
-                          ? 'bg-red-100 text-red-700'
+                          ? 'bg-red-100 dark:bg-red-900 dark:text-red-200 text-red-700'
                           : badge.tone === 'warn'
                             ? 'bg-amber-100 text-amber-700'
-                            : 'bg-gray-100 text-gray-600'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
                       }`}
                     >
                       <Clock className="h-3 w-3" aria-hidden="true" />
@@ -297,7 +297,7 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
                     </span>
                   )}
                   {reward.status === 'redeemed' && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700 dark:text-emerald-400">
                       <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
                       Applied
                     </span>

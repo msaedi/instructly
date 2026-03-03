@@ -257,7 +257,7 @@ export default function BetaInvitesAdminPage() {
                         <Select.Trigger className="inline-flex items-center justify-between w-full rounded-lg px-3 py-2 ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 whitespace-nowrap overflow-hidden text-ellipsis min-w-0">
                           <Select.Value className="truncate" />
                           <Select.Icon className="ml-2 shrink-0">
-                            <ChevronDown className="h-4 w-4 text-gray-500" />
+                            <ChevronDown className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                           </Select.Icon>
                         </Select.Trigger>
                         <Select.Portal>
@@ -290,7 +290,7 @@ export default function BetaInvitesAdminPage() {
                       checked={grantFoundingStatus}
                       onChange={(e) => setGrantFoundingStatus(e.target.checked)}
                       disabled={foundingAtCap}
-                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 dark:border-gray-700 rounded"
                     />
                     <label htmlFor="founding-status" className="text-sm text-gray-700 dark:text-gray-300">
                       Grant Founding Instructor status
@@ -491,7 +491,7 @@ export default function BetaInvitesAdminPage() {
                                       </div>
                                     </div>
                                   ))}
-                                  {!progress.sent_items?.length && <div className="text-gray-500">None</div>}
+                                  {!progress.sent_items?.length && <div className="text-gray-500 dark:text-gray-400">None</div>}
                                 </div>
                               </div>
                               <div className="rounded-lg p-2 ring-1 ring-gray-200 dark:ring-gray-700 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
@@ -503,7 +503,7 @@ export default function BetaInvitesAdminPage() {
                                       <div className="text-red-600 dark:text-red-400 truncate">{it.reason}</div>
                                     </div>
                                   ))}
-                                  {!progress.failed_items?.length && <div className="text-gray-500">None</div>}
+                                  {!progress.failed_items?.length && <div className="text-gray-500 dark:text-gray-400">None</div>}
                                 </div>
                               </div>
                             </div>

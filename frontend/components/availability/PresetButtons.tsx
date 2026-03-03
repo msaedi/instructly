@@ -95,7 +95,7 @@ export default function PresetButtons({
           </button>
         ))}
 
-        <div className="border-l border-gray-300 mx-2" aria-hidden="true" />
+        <div className="border-l border-gray-300 dark:border-gray-700 mx-2" aria-hidden="true" />
 
         <button
           onClick={handleClearClick}

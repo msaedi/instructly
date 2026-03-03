@@ -70,8 +70,8 @@ export function MessageBubble({
   const readIcon = () => {
     if (!showReadReceipt) return null;
     if (message.readStatus === 'read') return <CheckCheck className="w-3 h-3 text-blue-500" />;
-    if (message.readStatus === 'delivered') return <CheckCheck className="w-3 h-3 text-gray-400" />;
-    return <Check className="w-3 h-3 text-gray-400" />;
+    if (message.readStatus === 'delivered') return <CheckCheck className="w-3 h-3 text-gray-400 dark:text-gray-300" />;
+    return <Check className="w-3 h-3 text-gray-400 dark:text-gray-300" />;
   };
 
   // Footer row: reactions position based on bubble side
@@ -90,7 +90,7 @@ export function MessageBubble({
         disabled={reactionBusy}
         className={cn(
           'rounded-full px-2 py-0.5 text-xs ring-1 transition',
-          r.isMine ? 'bg-[#7E22CE] text-white ring-[#7E22CE]' : 'bg-gray-50 text-gray-700 ring-gray-200',
+          r.isMine ? 'bg-[#7E22CE] text-white ring-[#7E22CE]' : 'bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-300 ring-gray-200',
           reactionBusy && 'cursor-default opacity-50'
         )}
         onClick={async () => {
@@ -227,7 +227,7 @@ export function MessageBubble({
           )}
         >
       {message.isDeleted ? (
-        <p className="whitespace-pre-wrap italic text-gray-500">This message was deleted</p>
+        <p className="whitespace-pre-wrap italic text-gray-500 dark:text-gray-400">This message was deleted</p>
       ) : isEditing ? (
         <textarea
           value={draft}
@@ -248,7 +248,7 @@ export function MessageBubble({
                 'w-full resize-none rounded-md px-2 py-1 text-[15px] leading-5 outline-none focus:ring-[#7E22CE] focus:border-purple-500',
                 bubbleSide === 'right'
                   ? 'bg-transparent text-white placeholder:text-blue-100'
-                  : 'bg-transparent text-gray-900 placeholder:text-gray-400'
+                  : 'bg-transparent text-gray-900 dark:text-gray-100 placeholder:text-gray-400'
               )}
               style={{
                 overflowY: 'hidden',
@@ -258,7 +258,7 @@ export function MessageBubble({
               }}
             />
           ) : (
-            <p className={cn('whitespace-pre-wrap', message.isDeleted && 'italic text-gray-500')}>
+            <p className={cn('whitespace-pre-wrap', message.isDeleted && 'italic text-gray-500 dark:text-gray-400')}>
               {message.isDeleted ? 'This message was deleted' : message.content}
             </p>
           )}

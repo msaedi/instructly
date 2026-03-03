@@ -424,7 +424,7 @@ export default function AllServicesPage() {
                 <p className="text-lg font-medium text-gray-900 dark:text-gray-100">
                   Your next skill unlocks here
                 </p>
-                <Search className="h-5 w-5 text-gray-400" />
+                <Search className="h-5 w-5 text-gray-400 dark:text-gray-300" />
               </div>
             </div>
           </div>

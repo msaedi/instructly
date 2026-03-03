@@ -107,13 +107,13 @@ export function NotificationBell({
 
   const listContent = useMemo(() => {
     if (isLoading) {
-      return <p className="px-3 py-4 text-sm text-gray-500">Loading notifications...</p>;
+      return <p className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400">Loading notifications...</p>;
     }
     if (errorMessage) {
       return <p className="px-3 py-4 text-sm text-red-600">{errorMessage}</p>;
     }
     if (notifications.length === 0) {
-      return <p className="px-3 py-4 text-sm text-gray-500">No notifications yet.</p>;
+      return <p className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400">No notifications yet.</p>;
     }
     return notifications.map((notification) => (
       <NotificationItem
@@ -157,8 +157,8 @@ export function NotificationBell({
           onKeyDown={handleMenuKeyDown}
           className="insta-header-dropdown absolute right-0 mt-2 w-80 rounded-lg z-50"
         >
-          <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2">
-            <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
+          <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-700 px-3 py-2">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Notifications</h3>
             {unreadCount > 0 && (
               <button
                 type="button"
@@ -172,7 +172,7 @@ export function NotificationBell({
           </div>
           <div className="max-h-80 overflow-y-auto">{listContent}</div>
           {notifications.length > 0 && (
-            <div className="border-t border-gray-100 p-2">
+            <div className="border-t border-gray-100 dark:border-gray-700 p-2">
               <button
                 type="button"
                 onClick={() => clearAll.mutate()}

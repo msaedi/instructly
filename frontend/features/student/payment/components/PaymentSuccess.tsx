@@ -44,17 +44,17 @@ export default function PaymentSuccess({
 
             <div className="space-y-4 text-left bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-6">
               <div className="flex items-center text-sm">
-                <CreditCard className="w-4 h-4 mr-3 text-gray-500" />
+                <CreditCard className="w-4 h-4 mr-3 text-gray-500 dark:text-gray-400" />
                 <span>
                   ${booking.totalAmount.toFixed(2)} charged to •••• {cardLast4}
                 </span>
               </div>
               <div className="flex items-center text-sm">
-                <Calendar className="w-4 h-4 mr-3 text-gray-500" />
+                <Calendar className="w-4 h-4 mr-3 text-gray-500 dark:text-gray-400" />
                 <span>Credits added to account</span>
               </div>
               <div className="flex items-start text-sm">
-                <Clock className="w-4 h-4 mr-3 text-gray-500 mt-0.5" />
+                <Clock className="w-4 h-4 mr-3 text-gray-500 dark:text-gray-400 mt-0.5" />
                 <div>
                   <span>Valid until {format(packageDetails.expiryDate, 'MMMM d, yyyy')}</span>
                   <p className="text-xs text-gray-500 dark:text-gray-400">(6 months)</p>
@@ -71,7 +71,7 @@ export default function PaymentSuccess({
             <div className="space-y-3">
               <Link
                 href={`/instructors/${booking.instructorId}/book`}
-                className="block w-full py-3 bg-[#FFD700] hover:bg-[#FFC700] text-black rounded-full font-medium transition-colors"
+                className="block w-full py-3 bg-[#FFD700] hover:bg-[#FFC700] text-black dark:text-white rounded-full font-medium transition-colors"
               >
                 Book First Lesson
               </Link>
@@ -111,17 +111,17 @@ export default function PaymentSuccess({
             </h3>
             <div className="space-y-2 text-sm">
               <div className="flex items-center">
-                <Calendar className="w-4 h-4 mr-2 text-gray-500" />
+                <Calendar className="w-4 h-4 mr-2 text-gray-500 dark:text-gray-400" />
                 <span>{format(booking.date, 'EEEE, MMMM d, yyyy')}</span>
               </div>
               <div className="flex items-center">
-                <Clock className="w-4 h-4 mr-2 text-gray-500" />
+                <Clock className="w-4 h-4 mr-2 text-gray-500 dark:text-gray-400" />
                 <span>
                   {booking.startTime} - {booking.endTime}
                 </span>
               </div>
               <div className="flex items-center">
-                <MapPin className="w-4 h-4 mr-2 text-gray-500" />
+                <MapPin className="w-4 h-4 mr-2 text-gray-500 dark:text-gray-400" />
                 <span>{booking.location}</span>
               </div>
             </div>
@@ -130,7 +130,7 @@ export default function PaymentSuccess({
           {/* Payment Info */}
           <div className="bg-[#FFFEF5] dark:bg-gray-700 rounded-lg p-4 mb-6 text-left">
             <div className="flex items-start text-sm">
-              <CreditCard className="w-4 h-4 mr-2 mt-0.5 text-gray-500" />
+              <CreditCard className="w-4 h-4 mr-2 mt-0.5 text-gray-500 dark:text-gray-400" />
               <div>
                 {isLastMinute ? (
                   <p>
@@ -171,7 +171,7 @@ export default function PaymentSuccess({
           <div className="space-y-3">
             <Link
               href="/student/lessons"
-              className="flex items-center justify-center w-full py-3 bg-[#FFD700] hover:bg-[#FFC700] text-black rounded-full font-medium transition-colors"
+              className="flex items-center justify-center w-full py-3 bg-[#FFD700] hover:bg-[#FFC700] text-black dark:text-white rounded-full font-medium transition-colors"
             >
               View My Lessons
               <ArrowRight className="ml-2 w-4 h-4" />

@@ -49,13 +49,13 @@ export function CreateAliasModal({ alias, onClose, onSubmit, isSubmitting }: Pro
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
+      <div className="w-full max-w-lg rounded-lg bg-white dark:bg-gray-800 p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold">Create Location Alias</h3>
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1 text-gray-500 hover:bg-gray-100"
+            className="rounded p-1 text-gray-500 dark:text-gray-400 hover:bg-gray-100"
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -63,12 +63,12 @@ export function CreateAliasModal({ alias, onClose, onSubmit, isSubmitting }: Pro
         </div>
 
         <div className="mb-4">
-          <label className="mb-1 block text-sm font-medium text-gray-700">Alias (query text)</label>
+          <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Alias (query text)</label>
           <input
             type="text"
             value={alias}
             disabled
-            className="w-full rounded border bg-gray-50 px-3 py-2 font-mono text-sm"
+            className="w-full rounded border bg-gray-50 dark:bg-gray-900 px-3 py-2 font-mono text-sm"
           />
         </div>
 
@@ -83,13 +83,13 @@ export function CreateAliasModal({ alias, onClose, onSubmit, isSubmitting }: Pro
               setSelectedCandidateIds([]);
             }}
           />
-          <label htmlFor="ambiguous-alias" className="text-sm text-gray-700">
+          <label htmlFor="ambiguous-alias" className="text-sm text-gray-700 dark:text-gray-300">
             Ambiguous (multiple regions)
           </label>
         </div>
 
         <div className="mb-4">
-          <label className="mb-1 block text-sm font-medium text-gray-700">Maps to Region</label>
+          <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Maps to Region</label>
           <input
             type="text"
             value={search}
@@ -99,7 +99,7 @@ export function CreateAliasModal({ alias, onClose, onSubmit, isSubmitting }: Pro
           />
 
           {isLoading ? (
-            <div className="text-sm text-gray-500">Loading regions…</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Loading regions…</div>
           ) : error ? (
             <div className="text-sm text-red-600">Failed to load regions</div>
           ) : (
@@ -127,7 +127,7 @@ export function CreateAliasModal({ alias, onClose, onSubmit, isSubmitting }: Pro
           )}
 
           {ambiguous ? (
-            <div className="mt-2 text-xs text-gray-500">
+            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
               Select at least 2 regions for an ambiguous alias.
             </div>
           ) : null}

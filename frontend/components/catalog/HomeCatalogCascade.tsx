@@ -387,14 +387,14 @@ export function HomeCatalogCascade({ isAuthenticated }: { isAuthenticated: boole
                     className={`mb-2 transition-colors ${
                       isSelected
                         ? 'text-gray-900 dark:text-gray-100'
-                        : 'text-gray-500 group-hover:text-gray-900 dark:group-hover:text-gray-100'
+                        : 'text-gray-500 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100'
                     }`}
                   />
                   <p
                     className={`text-xs font-medium mb-1 transition-colors text-center leading-tight ${
                       isSelected
                         ? 'text-gray-900 dark:text-gray-100'
-                        : 'text-gray-500 group-hover:text-gray-900 dark:group-hover:text-gray-100'
+                        : 'text-gray-500 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100'
                     }`}
                   >
                     {category.name}

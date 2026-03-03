@@ -86,8 +86,8 @@ export default function DeleteAccountModal({ email, onClose, onDeleted }: Props)
         className="insta-dialog-panel w-full max-w-md p-6"
       >
         <div className="mb-4">
-          <h3 id={titleId} className="text-lg font-semibold text-gray-900">Delete Account</h3>
-          <p className="mt-2 text-sm text-gray-600">This action cannot be undone. Type DELETE to confirm and enter your password.</p>
+          <h3 id={titleId} className="text-lg font-semibold text-gray-900 dark:text-gray-100">Delete Account</h3>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">This action cannot be undone. Type DELETE to confirm and enter your password.</p>
         </div>
         <div className="space-y-3">
           <label htmlFor={confirmId} className="sr-only">Type DELETE to confirm</label>
@@ -110,7 +110,7 @@ export default function DeleteAccountModal({ email, onClose, onDeleted }: Props)
             />
             <button
               type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-300 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
@@ -122,7 +122,7 @@ export default function DeleteAccountModal({ email, onClose, onDeleted }: Props)
         <div className="mt-5 flex justify-end gap-3">
           <button className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors" onClick={onClose} disabled={submitting}>Cancel</button>
           <button
-            className={`rounded-lg px-4 py-2 text-sm font-medium border ${canSubmit ? 'bg-white border-[#7E22CE] text-[#7E22CE] hover:bg-purple-50' : 'bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed'}`}
+            className={`rounded-lg px-4 py-2 text-sm font-medium border ${canSubmit ? 'bg-white dark:bg-gray-800 border-[#7E22CE] text-[#7E22CE] hover:bg-purple-50' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-700 text-gray-400 dark:text-gray-300 cursor-not-allowed'}`}
             disabled={!canSubmit}
             onClick={handleSubmit}
           >

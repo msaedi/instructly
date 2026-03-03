@@ -443,7 +443,7 @@ export default function InteractiveGrid({
                 <div
                   className={clsx(
                     'text-[10px] tracking-wide uppercase',
-                    isPastDate ? 'text-gray-400' : 'text-gray-500'
+                    isPastDate ? 'text-gray-400 dark:text-gray-300' : 'text-gray-500 dark:text-gray-400'
                   )}
                 >
                   {dow}
@@ -455,8 +455,8 @@ export default function InteractiveGrid({
                       isToday
                         ? 'border-2 border-[#7E22CE] rounded-md px-1 py-0 leading-none text-[#111827] dark:text-white'
                         : isPastDate
-                          ? 'text-gray-400'
-                          : 'text-gray-900'
+                          ? 'text-gray-400 dark:text-gray-300'
+                          : 'text-gray-900 dark:text-gray-100'
                     )}
                   >
                     {dayNum}
@@ -472,7 +472,7 @@ export default function InteractiveGrid({
             <div
               role="rowheader"
               className={clsx(
-                'sticky left-0 z-10 flex items-center bg-white/80 dark:bg-gray-900/70 px-2 py-1 backdrop-blur border-r border-gray-200 dark:border-gray-700 border-b border-gray-200 dark:border-gray-700 text-xs text-gray-500',
+                'sticky left-0 z-10 flex items-center bg-white/80 dark:bg-gray-900/70 px-2 py-1 backdrop-blur border-r border-gray-200 dark:border-gray-700 border-b border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400',
                 isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8',
                 row === 0 && 'border-t border-gray-200 dark:border-gray-700'
               )}

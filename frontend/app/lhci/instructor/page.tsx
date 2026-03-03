@@ -139,7 +139,7 @@ export default function LHCIInstructorPage() {
 
             <div className="flex flex-wrap gap-3">
               {MOCK_BADGES.map(({ icon: Icon, label }) => (
-                <Badge key={label} variant="outline" className="gap-2 border-purple-200 bg-white text-purple-700">
+                <Badge key={label} variant="outline" className="gap-2 border-purple-200 bg-white dark:bg-gray-800 text-purple-700">
                   <Icon className="h-4 w-4" aria-hidden />
                   {label}
                 </Badge>
@@ -198,7 +198,7 @@ export default function LHCIInstructorPage() {
             </CardHeader>
             <CardContent className="space-y-3 text-sm text-slate-600">
               {MOCK_AVAILABILITY.map(({ day, slots, location }) => (
-                <div key={day} className="rounded-lg border border-slate-200 bg-white p-3">
+                <div key={day} className="rounded-lg border border-slate-200 bg-white dark:bg-gray-800 p-3">
                   <div className="flex items-center justify-between text-slate-900">
                     <span className="font-medium">{day}</span>
                     <span className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-purple-600">

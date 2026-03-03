@@ -47,9 +47,9 @@ const BookingQuickPreview: React.FC<BookingQuickPreviewProps> = ({
       <div className="p-4">
         {loading ? (
           <div className="space-y-2">
-            <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-            <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
-            <div className="h-4 bg-gray-200 rounded animate-pulse w-1/2"></div>
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/4"></div>
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-1/2"></div>
           </div>
         ) : error ? (
           <div className="text-red-500 text-sm">{error}</div>
@@ -58,7 +58,7 @@ const BookingQuickPreview: React.FC<BookingQuickPreviewProps> = ({
             <div className="space-y-3">
               {/* Student name */}
               <div>
-                <span className="text-sm text-gray-500">Student</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">Student</span>
                 <p className="font-medium">
                   {booking.student_first_name} {booking.student_last_name}
                   {booking.student_last_name.length === 1 ? '.' : ''}
@@ -67,7 +67,7 @@ const BookingQuickPreview: React.FC<BookingQuickPreviewProps> = ({
 
               {/* Service and duration */}
               <div>
-                <span className="text-sm text-gray-500">Service</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">Service</span>
                 <p className="font-medium">
                   {booking.service_name} - {booking.duration_minutes} minutes
                 </p>
@@ -75,37 +75,37 @@ const BookingQuickPreview: React.FC<BookingQuickPreviewProps> = ({
 
               {/* Date and time */}
               <div>
-                <span className="text-sm text-gray-500">When</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">When</span>
                 <p className="font-medium">{formatBookingDate(booking)}</p>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
                   {formatBookingTimeRange(booking)}
                 </p>
               </div>
 
               {/* Location */}
               <div>
-                <span className="text-sm text-gray-500">Location</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">Location</span>
                 <p className="font-medium flex items-center gap-1">
                   <span>{getLocationTypeIcon(booking.location_type as LocationType)}</span>
                   <span>{booking.location_type_display}</span>
                 </p>
                 {booking.meeting_location && (
-                  <p className="text-sm text-gray-600 mt-1">{booking.meeting_location}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{booking.meeting_location}</p>
                 )}
               </div>
 
               {/* Student note if present */}
               {booking.student_note && (
                 <div>
-                  <span className="text-sm text-gray-500">Note from student</span>
-                  <p className="text-sm mt-1 italic text-gray-700">&quot;{booking.student_note}&quot;</p>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Note from student</span>
+                  <p className="text-sm mt-1 italic text-gray-700 dark:text-gray-300">&quot;{booking.student_note}&quot;</p>
                 </div>
               )}
 
               {/* Price */}
               <div className="pt-2 border-t">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-500">Total</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Total</span>
                   <span className="font-semibold text-lg">${booking.total_price.toFixed(2)}</span>
                 </div>
               </div>

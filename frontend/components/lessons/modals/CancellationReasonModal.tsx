@@ -67,7 +67,7 @@ export function CancellationReasonModal({
           </div>
 
           {/* Success Message */}
-          <p className="text-2xl font-bold text-gray-900">Your lesson has been cancelled</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">Your lesson has been cancelled</p>
 
           {/* Lesson Details */}
           <div className="bg-purple-100 rounded-lg p-4 text-left space-y-2">
@@ -85,7 +85,7 @@ export function CancellationReasonModal({
 
 
           {/* Support Link */}
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
             Questions?{' '}
             <button
               onClick={() => logger.info('Contact support clicked')}
@@ -101,7 +101,7 @@ export function CancellationReasonModal({
               onClose();
               router.push('/student/lessons');
             }}
-            className="w-full py-3 px-4 bg-[#FFD700] text-black rounded-lg hover:bg-[#FFC700]
+            className="w-full py-3 px-4 bg-[#FFD700] text-black dark:text-white rounded-lg hover:bg-[#FFC700]
                      transition-colors font-medium cursor-pointer"
           >
             Done
@@ -120,18 +120,18 @@ export function CancellationReasonModal({
     >
         <div className="space-y-4">
           {/* Title */}
-          <p className="text-lg font-medium text-gray-900">Please tell us why you&apos;re canceling</p>
+          <p className="text-lg font-medium text-gray-900 dark:text-gray-100">Please tell us why you&apos;re canceling</p>
 
           {/* Confirmation warning */}
           <div className="bg-purple-100 rounded-lg p-4">
-            <p className="text-sm text-gray-700 font-medium mb-1">Are you sure you want to cancel this lesson?</p>
-            <p className="text-sm text-gray-600">This action cannot be undone.</p>
+            <p className="text-sm text-gray-700 dark:text-gray-300 font-medium mb-1">Are you sure you want to cancel this lesson?</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">This action cannot be undone.</p>
           </div>
 
           {/* Reschedule Option - only show if more than 12 hours before lesson */}
           {canReschedule && (
             <div className="bg-purple-100 rounded-lg p-4">
-              <p className="text-sm text-gray-700">
+              <p className="text-sm text-gray-700 dark:text-gray-300">
                 Need to reschedule?{' '}
                 <button
                   onClick={onReschedule}
@@ -150,7 +150,7 @@ export function CancellationReasonModal({
               {CANCELLATION_REASONS.map((reason) => (
                 <label
                   key={reason}
-                  className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-purple-50 transition-colors"
+                  className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-purple-50 transition-colors"
                 >
                   <input
                     type="radio"
@@ -160,7 +160,7 @@ export function CancellationReasonModal({
                     onChange={(e) => setSelectedReason(e.target.value)}
                     className="mt-1 text-[#7E22CE] focus:ring-[#7E22CE]"
                   />
-                  <span className="text-gray-700">{reason}</span>
+                  <span className="text-gray-700 dark:text-gray-300">{reason}</span>
                 </label>
               ))}
             </div>
@@ -171,7 +171,7 @@ export function CancellationReasonModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-3 px-4 bg-white text-black border-2 border-[#FFD700] rounded-lg
+              className="flex-1 py-3 px-4 bg-white dark:bg-gray-800 text-black dark:text-white border-2 border-[#FFD700] rounded-lg
                        hover:bg-yellow-50 transition-colors font-medium cursor-pointer"
             >
               Keep Lesson
@@ -179,7 +179,7 @@ export function CancellationReasonModal({
             <button
               onClick={handleContinue}
               disabled={!selectedReason || cancelLesson.isPending}
-              className="flex-1 py-3 px-4 bg-[#FFD700] text-black rounded-lg hover:bg-[#FFC700]
+              className="flex-1 py-3 px-4 bg-[#FFD700] text-black dark:text-white rounded-lg hover:bg-[#FFC700]
                        transition-colors font-medium disabled:opacity-50
                        disabled:cursor-not-allowed cursor-pointer"
             >

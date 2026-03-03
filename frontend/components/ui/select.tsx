@@ -32,17 +32,17 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      'w-full inline-flex h-9 items-center justify-between gap-2 rounded-md border bg-white px-3 text-sm text-gray-900 transition-shadow',
+      'w-full inline-flex h-9 items-center justify-between gap-2 rounded-md border bg-white dark:bg-gray-800 px-3 text-sm text-gray-900 dark:text-gray-100 transition-shadow',
       'focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]',
       'data-[state=open]:shadow-[0_0_0_2px_rgba(212,181,240,1)]',
-      error ? 'border-red-400' : 'border-gray-300',
+      error ? 'border-red-400' : 'border-gray-300 dark:border-gray-700',
       className
     )}
     {...props}
   >
     {children}
     <SelectPrimitive.Icon asChild>
-      <ChevronDown className="h-4 w-4 text-gray-500" />
+      <ChevronDown className="h-4 w-4 text-gray-500 dark:text-gray-400" />
     </SelectPrimitive.Icon>
   </SelectPrimitive.Trigger>
 ));
@@ -98,7 +98,7 @@ const SelectContent = React.forwardRef<
         sideOffset={4}
         collisionPadding={8}
         className={cn(
-          'z-50 overflow-hidden rounded-md border border-gray-200 bg-white shadow-md',
+          'z-50 overflow-hidden rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-md',
           'data-[state=open]:animate-in data-[state=closed]:animate-out',
           'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
           'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
@@ -123,7 +123,7 @@ const SelectLabel = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Label>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Label>
 >(({ className, ...props }, ref) => (
-  <SelectPrimitive.Label ref={ref} className={cn('px-2 py-1.5 text-xs font-medium text-gray-500', className)} {...props} />
+  <SelectPrimitive.Label ref={ref} className={cn('px-2 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400', className)} {...props} />
 ));
 SelectLabel.displayName = SelectPrimitive.Label.displayName;
 
@@ -136,7 +136,7 @@ const SelectItem = React.forwardRef<
     className={cn(
       'relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none',
       'focus:bg-gray-100 data-[state=checked]:bg-purple-50 data-[state=checked]:text-[#7E22CE]',
-      'text-gray-800',
+      'text-gray-800 dark:text-gray-200',
       className
     )}
     {...props}
@@ -155,7 +155,7 @@ const SelectSeparator = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Separator>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Separator>
 >(({ className, ...props }, ref) => (
-  <SelectPrimitive.Separator ref={ref} className={cn('my-1 h-px bg-gray-200', className)} {...props} />
+  <SelectPrimitive.Separator ref={ref} className={cn('my-1 h-px bg-gray-200 dark:bg-gray-700', className)} {...props} />
 ));
 SelectSeparator.displayName = SelectPrimitive.Separator.displayName;
 

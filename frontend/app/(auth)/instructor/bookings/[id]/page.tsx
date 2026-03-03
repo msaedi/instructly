@@ -75,15 +75,15 @@ export default function BookingDetailsPage() {
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
       case 'CONFIRMED':
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200';
       case 'COMPLETED':
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200';
       case 'CANCELLED':
-        return 'bg-red-100 text-red-800';
+        return 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200';
       case 'NO_SHOW':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200';
     }
   };
 
@@ -111,17 +111,17 @@ export default function BookingDetailsPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      <Link href={`/instructor/dashboard?panel=bookings&tab=${isPastLesson() ? 'past' : 'upcoming'}`} className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-6">
+      <Link href={`/instructor/dashboard?panel=bookings&tab=${isPastLesson() ? 'past' : 'upcoming'}`} className="inline-flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 mb-6">
         <ArrowLeft className="w-4 h-4 mr-2" />
         Back to Bookings
       </Link>
 
-      <div className="bg-white rounded-lg shadow">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
         <div className="border-b px-6 py-4">
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-2xl font-bold">Booking #{booking.id}</h1>
-              <p className="text-gray-600 text-sm mt-1">Created on {new Date(booking.created_at).toLocaleDateString()}</p>
+              <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Created on {new Date(booking.created_at).toLocaleDateString()}</p>
             </div>
             <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusBadgeClass(booking.status)}`}>
               {booking.status}
@@ -130,20 +130,20 @@ export default function BookingDetailsPage() {
         </div>
 
         <div className="p-6 space-y-6">
-          <div className="bg-blue-50 rounded-lg p-4">
-            <h2 className="font-semibold text-lg text-blue-900 mb-3">{booking.service_name}</h2>
+          <div className="bg-blue-50 dark:bg-blue-900 dark:text-indigo-200 rounded-lg p-4">
+            <h2 className="font-semibold text-lg text-blue-900 dark:text-indigo-200 mb-3">{booking.service_name}</h2>
             <div className="grid md:grid-cols-3 gap-4 text-sm">
               <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-blue-600" />
-                <span className="text-blue-700">Duration: {booking.duration_minutes} minutes</span>
+                <Clock className="w-4 h-4 text-blue-600 dark:text-indigo-300" />
+                <span className="text-blue-700 dark:text-indigo-300">Duration: {booking.duration_minutes} minutes</span>
               </div>
               <div className="flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-blue-600" />
-                <span className="text-blue-700">Rate: ${booking.hourly_rate}/hour</span>
+                <DollarSign className="w-4 h-4 text-blue-600 dark:text-indigo-300" />
+                <span className="text-blue-700 dark:text-indigo-300">Rate: ${booking.hourly_rate}/hour</span>
               </div>
               <div className="flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-blue-600" />
-                <span className="text-blue-700 font-semibold">Total: ${booking.total_price}</span>
+                <DollarSign className="w-4 h-4 text-blue-600 dark:text-indigo-300" />
+                <span className="text-blue-700 dark:text-indigo-300 font-semibold">Total: ${booking.total_price}</span>
               </div>
             </div>
           </div>
@@ -151,26 +151,26 @@ export default function BookingDetailsPage() {
           <div className="grid md:grid-cols-2 gap-6">
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <Calendar className="w-4 h-4 text-gray-400" />
-                <h3 className="font-medium text-gray-900">Date</h3>
+                <Calendar className="w-4 h-4 text-gray-400 dark:text-gray-300" />
+                <h3 className="font-medium text-gray-900 dark:text-gray-100">Date</h3>
               </div>
-              <p className="text-gray-600">{new Date(booking.booking_date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
+              <p className="text-gray-600 dark:text-gray-400">{new Date(booking.booking_date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
             </div>
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <Clock className="w-4 h-4 text-gray-400" />
-                <h3 className="font-medium text-gray-900">Time</h3>
+                <Clock className="w-4 h-4 text-gray-400 dark:text-gray-300" />
+                <h3 className="font-medium text-gray-900 dark:text-gray-100">Time</h3>
               </div>
-              <p className="text-gray-600">{formatTime(booking.start_time)} - {formatTime(booking.end_time)}</p>
+              <p className="text-gray-600 dark:text-gray-400">{formatTime(booking.start_time)} - {formatTime(booking.end_time)}</p>
             </div>
           </div>
 
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <MapPin className="w-4 h-4 text-gray-400" />
-              <h3 className="font-medium text-gray-900">Location</h3>
+              <MapPin className="w-4 h-4 text-gray-400 dark:text-gray-300" />
+              <h3 className="font-medium text-gray-900 dark:text-gray-100">Location</h3>
             </div>
-            <div className="text-gray-600">
+            <div className="text-gray-600 dark:text-gray-400">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-lg">{booking.location_type ? getLocationTypeIcon(booking.location_type as LocationType) : '📍'}</span>
                 <span className="font-medium">
@@ -184,17 +184,17 @@ export default function BookingDetailsPage() {
                 </span>
               </div>
               {booking.meeting_location && <p className="ml-7 text-sm">{booking.meeting_location}</p>}
-              {booking.service_area && <p className="ml-7 text-sm text-gray-500">Service area: {booking.service_area}</p>}
+              {booking.service_area && <p className="ml-7 text-sm text-gray-500 dark:text-gray-400">Service area: {booking.service_area}</p>}
             </div>
           </div>
 
           <div className="border-t pt-6">
             <div className="flex items-center gap-2 mb-3">
-              <User className="w-4 h-4 text-gray-400" />
-              <h3 className="font-medium text-gray-900">Student Information</h3>
+              <User className="w-4 h-4 text-gray-400 dark:text-gray-300" />
+              <h3 className="font-medium text-gray-900 dark:text-gray-100">Student Information</h3>
             </div>
             <div className="ml-6">
-              <p className="text-lg text-gray-800 font-medium">{booking.student ? `${booking.student.first_name} ${booking.student.last_name}` : `Student #${booking.student_id}`}</p>
+              <p className="text-lg text-gray-800 dark:text-gray-200 font-medium">{booking.student ? `${booking.student.first_name} ${booking.student.last_name}` : `Student #${booking.student_id}`}</p>
               {booking.student?.email && (<a href={`mailto:${booking.student.email}`} className="text-blue-600 hover:text-blue-800 text-sm">{booking.student.email}</a>)}
             </div>
           </div>
@@ -203,21 +203,21 @@ export default function BookingDetailsPage() {
           {booking.video_session_duration_seconds != null && (
             <div className="border-t pt-6">
               <div className="flex items-center gap-2 mb-3">
-                <Clock className="w-4 h-4 text-gray-400" />
-                <h3 className="font-medium text-gray-900">Video Session</h3>
+                <Clock className="w-4 h-4 text-gray-400 dark:text-gray-300" />
+                <h3 className="font-medium text-gray-900 dark:text-gray-100">Video Session</h3>
               </div>
               <div className="ml-6 space-y-2">
                 <div className="flex items-center gap-3 text-sm">
-                  <span className="text-gray-500">Duration</span>
-                  <span className="ml-auto font-medium text-gray-800">{formatSessionDuration(booking.video_session_duration_seconds)}</span>
+                  <span className="text-gray-500 dark:text-gray-400">Duration</span>
+                  <span className="ml-auto font-medium text-gray-800 dark:text-gray-200">{formatSessionDuration(booking.video_session_duration_seconds)}</span>
                 </div>
                 <div className="flex items-center gap-3 text-sm">
-                  <span className="text-gray-500">You joined</span>
-                  <span className="ml-auto font-medium text-gray-800">{formatSessionTime(booking.video_instructor_joined_at)}</span>
+                  <span className="text-gray-500 dark:text-gray-400">You joined</span>
+                  <span className="ml-auto font-medium text-gray-800 dark:text-gray-200">{formatSessionTime(booking.video_instructor_joined_at)}</span>
                 </div>
                 <div className="flex items-center gap-3 text-sm">
-                  <span className="text-gray-500">Student joined</span>
-                  <span className="ml-auto font-medium text-gray-800">{formatSessionTime(booking.video_student_joined_at)}</span>
+                  <span className="text-gray-500 dark:text-gray-400">Student joined</span>
+                  <span className="ml-auto font-medium text-gray-800 dark:text-gray-200">{formatSessionTime(booking.video_student_joined_at)}</span>
                 </div>
               </div>
             </div>
@@ -227,14 +227,14 @@ export default function BookingDetailsPage() {
             <div className="border-t pt-6 space-y-4">
               {booking.student_note && (
                 <div>
-                  <h3 className="font-medium text-gray-900 mb-2">Note from student</h3>
-                  <div className="bg-gray-50 rounded-lg p-4"><p className="text-gray-700 italic">&quot;{booking.student_note}&quot;</p></div>
+                  <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-2">Note from student</h3>
+                  <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4"><p className="text-gray-700 dark:text-gray-300 italic">&quot;{booking.student_note}&quot;</p></div>
                 </div>
               )}
               {booking.instructor_note && (
                 <div>
-                  <h3 className="font-medium text-gray-900 mb-2">Instructor notes</h3>
-                  <div className="bg-yellow-50 rounded-lg p-4"><p className="text-gray-700">{booking.instructor_note}</p></div>
+                  <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-2">Instructor notes</h3>
+                  <div className="bg-yellow-50 rounded-lg p-4"><p className="text-gray-700 dark:text-gray-300">{booking.instructor_note}</p></div>
                 </div>
               )}
             </div>
@@ -242,7 +242,7 @@ export default function BookingDetailsPage() {
 
           {booking.status === 'CANCELLED' && booking.cancellation_reason && (
             <div className="border-t pt-6">
-              <h3 className="font-medium text-gray-900 mb-2">Cancellation Details</h3>
+              <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-2">Cancellation Details</h3>
               <div className="bg-red-50 rounded-lg p-4">
                 <p className="text-red-800"><span className="font-medium">Reason:</span> {booking.cancellation_reason}</p>
                 {booking.cancelled_at && (<p className="text-red-600 text-sm mt-1">Cancelled on {new Date(booking.cancelled_at).toLocaleDateString()}</p>)}
@@ -288,17 +288,17 @@ export default function BookingDetailsPage() {
       {/* No-Show Confirmation Modal */}
       {showNoShowModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+          <div className="w-full max-w-md rounded-lg bg-white dark:bg-gray-800 p-6 shadow-lg">
             <div className="mb-4">
               <div className="flex items-center gap-2 text-amber-600 mb-2">
                 <AlertTriangle className="w-6 h-6" />
-                <h3 className="text-lg font-semibold text-gray-900">Report No-Show</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Report No-Show</h3>
               </div>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 Are you sure you want to mark this lesson as a no-show? This indicates that
                 <span className="font-medium"> {booking.student ? `${booking.student.first_name} ${booking.student.last_name}` : 'the student'}</span> did not attend the scheduled lesson.
               </p>
-              <p className="text-sm text-gray-500 mt-2">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
                 The student will still be charged for the lesson.
               </p>
             </div>

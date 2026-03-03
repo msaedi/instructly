@@ -18,7 +18,7 @@ const ManhattanMap: React.FC<ManhattanMapProps> = ({ highlightedAreas }) => {
       {/* Northern tip - very narrow */}
       <div className="mx-auto" style={{ width: '30%' }}>
         <div className={`p-1 text-xs text-center transition-colors ${
-          isHighlighted('Inwood') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100'
+          isHighlighted('Inwood') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100 dark:bg-gray-700'
         }`}
              style={{ fontSize: '9px', borderTopLeftRadius: '50%', borderTopRightRadius: '50%', border: '1px solid #e5e7eb' }}>
           Inwood
@@ -28,7 +28,7 @@ const ManhattanMap: React.FC<ManhattanMapProps> = ({ highlightedAreas }) => {
       {/* Washington Heights - widening */}
       <div className="mx-auto" style={{ width: '45%' }}>
         <div className={`p-1 text-xs text-center transition-colors ${
-          isHighlighted('Washington Heights') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100'
+          isHighlighted('Washington Heights') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100 dark:bg-gray-700'
         }`}
              style={{ fontSize: '9px', borderLeft: '1px solid #e5e7eb', borderRight: '1px solid #e5e7eb' }}>
           Washington Heights
@@ -39,13 +39,13 @@ const ManhattanMap: React.FC<ManhattanMapProps> = ({ highlightedAreas }) => {
       <div className="mx-auto" style={{ width: '65%' }}>
         <div className="grid grid-cols-2 gap-0">
           <div className={`p-1 text-xs text-center transition-colors ${
-            isHighlighted('Harlem') || isHighlighted('West Harlem') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100'
+            isHighlighted('Harlem') || isHighlighted('West Harlem') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100 dark:bg-gray-700'
           }`}
                style={{ fontSize: '9px', borderLeft: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb' }}>
             W. Harlem
           </div>
           <div className={`p-1 text-xs text-center transition-colors ${
-            isHighlighted('Harlem') || isHighlighted('East Harlem') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100'
+            isHighlighted('Harlem') || isHighlighted('East Harlem') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100 dark:bg-gray-700'
           }`}
                style={{ fontSize: '9px', borderRight: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb' }}>
             E. Harlem
@@ -79,7 +79,7 @@ const ManhattanMap: React.FC<ManhattanMapProps> = ({ highlightedAreas }) => {
       <div className="mx-auto" style={{ width: '100%' }}>
         <div className="grid grid-cols-3 gap-0">
           <div className={`p-1 text-xs text-center transition-colors ${
-            isHighlighted("Hell's Kitchen") ? 'bg-purple-100 border-purple-300' : 'bg-gray-100'
+            isHighlighted("Hell's Kitchen") ? 'bg-purple-100 border-purple-300' : 'bg-gray-100 dark:bg-gray-700'
           }`}
                style={{ fontSize: '9px', borderLeft: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb', borderBottomLeftRadius: '20%' }}>
             Hell&apos;s<br/>Kitchen
@@ -91,7 +91,7 @@ const ManhattanMap: React.FC<ManhattanMapProps> = ({ highlightedAreas }) => {
             Midtown
           </div>
           <div className={`p-1 text-xs text-center transition-colors ${
-            isHighlighted('Murray Hill') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100'
+            isHighlighted('Murray Hill') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100 dark:bg-gray-700'
           }`}
                style={{ fontSize: '9px', borderRight: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb', borderBottomRightRadius: '20%' }}>
             Murray<br/>Hill
@@ -109,13 +109,13 @@ const ManhattanMap: React.FC<ManhattanMapProps> = ({ highlightedAreas }) => {
             Chelsea
           </div>
           <div className={`p-1 text-xs text-center transition-colors ${
-            isHighlighted('Flatiron') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100'
+            isHighlighted('Flatiron') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100 dark:bg-gray-700'
           }`}
                style={{ fontSize: '9px', borderBottom: '1px solid #e5e7eb' }}>
             Flatiron
           </div>
           <div className={`p-1 text-xs text-center transition-colors ${
-            isHighlighted('Gramercy') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100'
+            isHighlighted('Gramercy') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100 dark:bg-gray-700'
           }`}
                style={{ fontSize: '9px', borderRight: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb' }}>
             Gramercy
@@ -139,7 +139,7 @@ const ManhattanMap: React.FC<ManhattanMapProps> = ({ highlightedAreas }) => {
             Greenwich<br/>Village
           </div>
           <div className={`p-1 text-xs text-center transition-colors ${
-            isHighlighted('East Village') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100'
+            isHighlighted('East Village') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100 dark:bg-gray-700'
           }`}
                style={{ fontSize: '9px', borderRight: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb' }}>
             East<br/>Village
@@ -151,19 +151,19 @@ const ManhattanMap: React.FC<ManhattanMapProps> = ({ highlightedAreas }) => {
       <div className="mx-auto" style={{ width: '85%' }}>
         <div className="grid grid-cols-3 gap-0">
           <div className={`p-1 text-xs text-center transition-colors ${
-            isHighlighted('SoHo') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100'
+            isHighlighted('SoHo') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100 dark:bg-gray-700'
           }`}
                style={{ fontSize: '9px', borderLeft: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb' }}>
             SoHo
           </div>
           <div className={`p-1 text-xs text-center transition-colors ${
-            isHighlighted('Little Italy') || isHighlighted('Nolita') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100'
+            isHighlighted('Little Italy') || isHighlighted('Nolita') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100 dark:bg-gray-700'
           }`}
                style={{ fontSize: '9px', borderBottom: '1px solid #e5e7eb' }}>
             Little<br/>Italy
           </div>
           <div className={`p-1 text-xs text-center transition-colors ${
-            isHighlighted('Lower East Side') || isHighlighted('LES') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100'
+            isHighlighted('Lower East Side') || isHighlighted('LES') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100 dark:bg-gray-700'
           }`}
                style={{ fontSize: '9px', borderRight: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb' }}>
             LES
@@ -181,7 +181,7 @@ const ManhattanMap: React.FC<ManhattanMapProps> = ({ highlightedAreas }) => {
             Tribeca
           </div>
           <div className={`p-1 text-xs text-center transition-colors ${
-            isHighlighted('Chinatown') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100'
+            isHighlighted('Chinatown') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100 dark:bg-gray-700'
           }`}
                style={{ fontSize: '9px', borderRight: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb' }}>
             Chinatown
@@ -192,7 +192,7 @@ const ManhattanMap: React.FC<ManhattanMapProps> = ({ highlightedAreas }) => {
       {/* Financial District - narrowing to tip */}
       <div className="mx-auto" style={{ width: '50%' }}>
         <div className={`p-1 text-xs text-center transition-colors ${
-          isHighlighted('Financial District') || isHighlighted('FiDi') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100'
+          isHighlighted('Financial District') || isHighlighted('FiDi') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100 dark:bg-gray-700'
         }`}
              style={{ fontSize: '9px', borderLeft: '1px solid #e5e7eb', borderRight: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb' }}>
           FiDi
@@ -202,7 +202,7 @@ const ManhattanMap: React.FC<ManhattanMapProps> = ({ highlightedAreas }) => {
       {/* Battery Park - very tip */}
       <div className="mx-auto" style={{ width: '25%' }}>
         <div className={`p-0.5 text-xs text-center transition-colors ${
-          isHighlighted('Battery') || isHighlighted('Battery Park') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100'
+          isHighlighted('Battery') || isHighlighted('Battery Park') ? 'bg-purple-100 border-purple-300' : 'bg-gray-100 dark:bg-gray-700'
         }`}
              style={{ fontSize: '8px', borderBottomLeftRadius: '50%', borderBottomRightRadius: '50%', borderLeft: '1px solid #e5e7eb', borderRight: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb' }}>
           Battery

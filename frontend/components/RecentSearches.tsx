@@ -180,7 +180,7 @@ export function RecentSearches() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center mb-1">
-                        <Search className="h-4 w-4 text-gray-400 mr-2 flex-shrink-0" />
+                        <Search className="h-4 w-4 text-gray-400 dark:text-gray-300 mr-2 flex-shrink-0" />
                         <p className="text-gray-900 dark:text-gray-100 font-medium line-clamp-1">
                           {searchQuery}
                         </p>

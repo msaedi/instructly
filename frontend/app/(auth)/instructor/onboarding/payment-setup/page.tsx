@@ -171,14 +171,14 @@ export default function Step3PaymentSetup() {
                 {connectStatus?.onboarding_completed ? (
                   <div className="mt-6 bg-gradient-to-r from-green-50 to-green-100 border border-green-200 rounded-lg p-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-full bg-green-500 dark:bg-emerald-600 flex items-center justify-center">
                         <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
                         </svg>
                       </div>
                       <div>
                         <p className="font-semibold text-green-900">Payment setup complete!</p>
-                        <p className="text-sm text-green-700">You&apos;re ready to receive payments from students</p>
+                        <p className="text-sm text-green-700 dark:text-emerald-400">You&apos;re ready to receive payments from students</p>
                       </div>
                     </div>
                   </div>

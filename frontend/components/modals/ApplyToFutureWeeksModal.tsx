@@ -108,7 +108,7 @@ export default function ApplyToFutureWeeksModal({
         {/* Description */}
         <div className="flex items-start gap-3">
           <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-          <div className="flex-1 text-sm text-gray-600">
+          <div className="flex-1 text-sm text-gray-600 dark:text-gray-400">
             <p>
               {hasAvailability
                 ? "This will copy the current week's schedule to future weeks and save automatically."
@@ -130,7 +130,7 @@ export default function ApplyToFutureWeeksModal({
               onChange={() => setSelectedOption('end-of-year')}
               className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
             />
-            <span className="text-gray-700">Until end of this year</span>
+            <span className="text-gray-700 dark:text-gray-300">Until end of this year</span>
           </label>
 
           <div>
@@ -142,7 +142,7 @@ export default function ApplyToFutureWeeksModal({
                 onChange={() => setSelectedOption('date')}
                 className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
               />
-              <span className="text-gray-700">Until specific date</span>
+              <span className="text-gray-700 dark:text-gray-300">Until specific date</span>
             </label>
 
             {selectedOption === 'date' && (
@@ -152,7 +152,7 @@ export default function ApplyToFutureWeeksModal({
                   value={resolvedCustomDate}
                   onChange={(e) => setCustomDate(e.target.value)}
                   min={getMinDate()}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none
                            focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   aria-label="Select end date"
                 />
@@ -168,7 +168,7 @@ export default function ApplyToFutureWeeksModal({
               onChange={() => setSelectedOption('indefinitely')}
               className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
             />
-            <span className="text-gray-700">Apply indefinitely (1 year)</span>
+            <span className="text-gray-700 dark:text-gray-300">Apply indefinitely (1 year)</span>
           </label>
         </div>
 
@@ -176,7 +176,7 @@ export default function ApplyToFutureWeeksModal({
         <div className="flex gap-3 justify-end pt-2">
           <button
             onClick={handleClose}
-            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg
+            className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg
                      hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2
                      focus:ring-gray-500 transition-colors"
           >

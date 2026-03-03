@@ -317,9 +317,9 @@ export function AvailabilityGrid({
       <div className="border rounded-lg overflow-hidden relative">
         {/* Scroll indicator - top */}
         {showScrollUp && (
-          <div className="absolute top-12 left-0 right-0 h-8 bg-white border border-gray-200 border-t-0 rounded-b z-20 flex items-center justify-center shadow-sm">
-            <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
-              <ChevronUp className="h-4 w-4 text-gray-600" />
+          <div className="absolute top-12 left-0 right-0 h-8 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 border-t-0 rounded-b z-20 flex items-center justify-center shadow-sm">
+            <div className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
+              <ChevronUp className="h-4 w-4 text-gray-600 dark:text-gray-400" />
               <span>Earlier times available</span>
             </div>
           </div>
@@ -336,9 +336,9 @@ export function AvailabilityGrid({
           onScroll={updateScrollIndicators}
         >
           <table className="w-full">
-            <thead className="sticky top-0 bg-gray-50 z-20">
+            <thead className="sticky top-0 bg-gray-50 dark:bg-gray-900 z-20">
               <tr className="border-b">
-                <th className="text-xs font-medium text-left p-2 w-16 bg-gray-50"></th>
+                <th className="text-xs font-medium text-left p-2 w-16 bg-gray-50 dark:bg-gray-900"></th>
                 {weekDays.map((day) => {
                   const today = new Date();
                   today.setHours(0, 0, 0, 0);
@@ -348,10 +348,10 @@ export function AvailabilityGrid({
 
                   return (
                     <th key={format(day, 'yyyy-MM-dd')} className={cn(
-                      "text-xs font-medium text-center p-2 bg-gray-50",
+                      "text-xs font-medium text-center p-2 bg-gray-50 dark:bg-gray-900",
                       isPastDate && "opacity-50"
                     )}>
-                      <div className={isPastDate ? "text-gray-400" : ""}>{format(day, 'EEE')}</div>
+                      <div className={isPastDate ? "text-gray-400 dark:text-gray-300" : ""}>{format(day, 'EEE')}</div>
                       <div className={cn(
                         "inline-flex items-center justify-center w-6 h-6 rounded-full",
                         isToday && "bg-black text-white font-semibold",
@@ -463,7 +463,7 @@ export function AvailabilityGrid({
                             "w-8 h-8 rounded border text-xs transition-all relative",
                             isSelected
                               ? "bg-transparent border-black"
-                              : "border-gray-300 hover:border-gray-400"
+                              : "border-gray-300 dark:border-gray-700 hover:border-gray-400"
                           )}
                           onClick={() => {
                             const slotTime = useMockData ? time : timeStr;
@@ -496,25 +496,25 @@ export function AvailabilityGrid({
 
         {/* Scroll indicator - bottom */}
         {showScrollDown && (
-          <div className="absolute bottom-10 left-0 right-0 h-8 bg-white border border-gray-200 border-b-0 rounded-t z-20 flex items-center justify-center shadow-sm">
-            <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
+          <div className="absolute bottom-10 left-0 right-0 h-8 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 border-b-0 rounded-t z-20 flex items-center justify-center shadow-sm">
+            <div className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
               <span>Later times available</span>
-              <ChevronDown className="h-4 w-4 text-gray-600" />
+              <ChevronDown className="h-4 w-4 text-gray-600 dark:text-gray-400" />
             </div>
           </div>
         )}
 
-        <div className="p-3 border-t bg-gray-50">
+        <div className="p-3 border-t bg-gray-50 dark:bg-gray-900">
           <div className="flex items-center justify-center gap-6 text-sm">
             <span className="flex items-center gap-2">
-              <span className="w-6 h-6 border border-gray-300 rounded bg-gray-50 inline-block"></span>
-              <span className="text-gray-700">Available</span>
+              <span className="w-6 h-6 border border-gray-300 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-900 inline-block"></span>
+              <span className="text-gray-700 dark:text-gray-300">Available</span>
             </span>
             <span className="flex items-center gap-2">
-              <span className="w-6 h-6 border border-gray-300 rounded bg-transparent inline-flex items-center justify-center relative">
+              <span className="w-6 h-6 border border-gray-300 dark:border-gray-700 rounded bg-transparent inline-flex items-center justify-center relative">
                 <span className="w-3 h-3 bg-black rounded-full"></span>
               </span>
-              <span className="text-gray-700">Selected</span>
+              <span className="text-gray-700 dark:text-gray-300">Selected</span>
             </span>
           </div>
         </div>

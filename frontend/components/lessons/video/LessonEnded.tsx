@@ -40,7 +40,7 @@ export function LessonEnded({ booking, sessionData, userRole, localJoinedAt, loc
 
   return (
     <div className="flex items-center justify-center px-4 py-12">
-      <Card className="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
+      <Card className="w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
         <div className="flex flex-col items-center gap-6 text-center">
           <CheckCircle2 className="h-12 w-12 text-emerald-500" aria-hidden="true" />
 
@@ -67,7 +67,7 @@ export function LessonEnded({ booking, sessionData, userRole, localJoinedAt, loc
             </div>
           </div>
 
-          <div className="w-full border-t border-gray-200" />
+          <div className="w-full border-t border-gray-200 dark:border-gray-700" />
 
           <div className="flex gap-4">
             <Link

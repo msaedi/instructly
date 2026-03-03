@@ -141,7 +141,7 @@ const StripeOnboarding: React.FC<StripeOnboardingProps> = ({ instructorId }) => 
     return (
       <Card className="p-8">
         <div className="flex justify-center items-center">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+          <Loader2 className="h-8 w-8 animate-spin text-gray-400 dark:text-gray-300" />
         </div>
       </Card>
     );
@@ -154,10 +154,10 @@ const StripeOnboarding: React.FC<StripeOnboardingProps> = ({ instructorId }) => 
         <div className="text-center">
           <RefreshCw className="h-12 w-12 mx-auto mb-4 text-blue-500 animate-spin" />
           <h3 className="text-lg font-semibold mb-2">Verifying Your Account</h3>
-          <p className="text-gray-600 mb-4">
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
             We&apos;re checking your Stripe account status. This should only take a moment...
           </p>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             Checking status... (Attempt {pollAttempts}/15)
           </p>
         </div>
@@ -172,7 +172,7 @@ const StripeOnboarding: React.FC<StripeOnboardingProps> = ({ instructorId }) => 
         <div className="text-center">
           <AlertCircle className="h-12 w-12 mx-auto mb-4 text-red-500" />
           <h3 className="text-lg font-semibold mb-2">Connection Error</h3>
-          <p className="text-gray-600 mb-4">{error}</p>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
           <Button onClick={() => { setError(null); setLoading(true); void checkStatus(); }}>
             Try Again
           </Button>
@@ -187,20 +187,20 @@ const StripeOnboarding: React.FC<StripeOnboardingProps> = ({ instructorId }) => 
       <Card className="p-8">
         <div className="flex items-start space-x-4">
           <div className="flex-shrink-0">
-            <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-              <CreditCard className="h-6 w-6 text-blue-600" />
+            <div className="h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+              <CreditCard className="h-6 w-6 text-blue-600 dark:text-blue-200" />
             </div>
           </div>
           <div className="flex-1">
             <h3 className="text-xl font-semibold mb-2">Connect Your Stripe Account</h3>
-            <p className="text-gray-600 mb-4">
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
               To receive payments from students, you need to connect a Stripe account.
               This secure process takes just a few minutes.
             </p>
 
-            <div className="bg-gray-50 rounded-lg p-4 mb-6">
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 mb-6">
               <h4 className="font-medium mb-2">What you&apos;ll need:</h4>
-              <ul className="space-y-1 text-sm text-gray-600">
+              <ul className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
                 <li>• Business or personal bank account details</li>
                 <li>• Tax identification number (SSN or EIN)</li>
                 <li>• Business address (or home address)</li>
@@ -208,7 +208,7 @@ const StripeOnboarding: React.FC<StripeOnboardingProps> = ({ instructorId }) => 
               </ul>
             </div>
 
-            <div className="flex items-center space-x-2 text-sm text-gray-500 mb-6">
+            <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400 mb-6">
               <Shield className="h-4 w-4" />
               <span>Secure connection powered by Stripe</span>
             </div>
@@ -243,13 +243,13 @@ const StripeOnboarding: React.FC<StripeOnboardingProps> = ({ instructorId }) => 
       <Card className="p-8">
         <div className="flex items-start space-x-4">
           <div className="flex-shrink-0">
-            <div className="h-12 w-12 rounded-full bg-yellow-100 flex items-center justify-center">
-              <AlertCircle className="h-6 w-6 text-yellow-600" />
+            <div className="h-12 w-12 rounded-full bg-yellow-100 dark:bg-yellow-900 flex items-center justify-center">
+              <AlertCircle className="h-6 w-6 text-yellow-600 dark:text-yellow-200" />
             </div>
           </div>
           <div className="flex-1">
             <h3 className="text-xl font-semibold mb-2">Complete Your Setup</h3>
-            <p className="text-gray-600 mb-4">
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
               Your Stripe account setup is almost complete. Please finish the remaining steps to start receiving payments.
             </p>
 
@@ -266,27 +266,27 @@ const StripeOnboarding: React.FC<StripeOnboardingProps> = ({ instructorId }) => 
 
             <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
               <div className="flex items-center space-x-2">
-                <span className="text-gray-500">Charges enabled:</span>
+                <span className="text-gray-500 dark:text-gray-400">Charges enabled:</span>
                 {onboardingStatus.charges_enabled ? (
                   <CheckCircle className="h-4 w-4 text-green-500" />
                 ) : (
-                  <AlertCircle className="h-4 w-4 text-gray-400" />
+                  <AlertCircle className="h-4 w-4 text-gray-400 dark:text-gray-300" />
                 )}
               </div>
               <div className="flex items-center space-x-2">
-                <span className="text-gray-500">Payouts enabled:</span>
+                <span className="text-gray-500 dark:text-gray-400">Payouts enabled:</span>
                 {onboardingStatus.payouts_enabled ? (
                   <CheckCircle className="h-4 w-4 text-green-500" />
                 ) : (
-                  <AlertCircle className="h-4 w-4 text-gray-400" />
+                  <AlertCircle className="h-4 w-4 text-gray-400 dark:text-gray-300" />
                 )}
               </div>
               <div className="flex items-center space-x-2">
-                <span className="text-gray-500">Details submitted:</span>
+                <span className="text-gray-500 dark:text-gray-400">Details submitted:</span>
                 {onboardingStatus.details_submitted ? (
                   <CheckCircle className="h-4 w-4 text-green-500" />
                 ) : (
-                  <AlertCircle className="h-4 w-4 text-gray-400" />
+                  <AlertCircle className="h-4 w-4 text-gray-400 dark:text-gray-300" />
                 )}
               </div>
             </div>
@@ -321,13 +321,13 @@ const StripeOnboarding: React.FC<StripeOnboardingProps> = ({ instructorId }) => 
       <Card className="p-8">
         <div className="flex items-start space-x-4">
           <div className="flex-shrink-0">
-            <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-              <CheckCircle className="h-6 w-6 text-green-600" />
+            <div className="h-12 w-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
+              <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-200" />
             </div>
           </div>
           <div className="flex-1">
             <h3 className="text-xl font-semibold mb-2">Stripe Account Connected</h3>
-            <p className="text-gray-600 mb-6">
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
               Your Stripe account is fully set up and ready to receive payments from students.
             </p>
 

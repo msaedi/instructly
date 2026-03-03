@@ -1897,7 +1897,7 @@ function SearchPageInner() {
   return (
     <div className="min-h-screen">
       {/* Header */}
-      <header ref={headerRef} className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-4 py-2 md:px-6 md:py-4">
+      <header ref={headerRef} className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-2 md:px-6 md:py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link href="/" className="inline-block">
             <span className="text-2xl md:text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-2 md:pl-4">iNSTAiNSTRU</span>
@@ -1921,7 +1921,7 @@ function SearchPageInner() {
         <div className="flex-1 overflow-visible order-1 xl:order-1">
           {/* Filter Bar */}
           <div className={`px-6 ${isStacked ? 'pt-1 pb-1' : 'pt-0 md:pt-2 pb-1 md:pb-3'}`}>
-            <div className={`bg-white/95 backdrop-blur-sm rounded-xl border border-gray-200 ${isStacked ? 'p-1' : 'p-1 md:p-4'}`}>
+            <div className={`bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-gray-700 ${isStacked ? 'p-1' : 'p-1 md:p-4'}`}>
               <FilterBar
                 filters={filtersWithTaxonomy}
                 skillLevelOptions={skillLevelOptions}
@@ -1961,7 +1961,7 @@ function SearchPageInner() {
                 }}
                 rightSlot={(
                   <div className={`flex items-center gap-1 ${isStacked ? 'ml-1' : 'ml-3 md:ml-4'}`} ref={sortDropdownRef}>
-                    <span className={`${isStacked ? 'text-xs hidden' : 'text-xs md:text-sm'} text-gray-600 whitespace-nowrap hidden sm:inline`}>Sort:</span>
+                    <span className={`${isStacked ? 'text-xs hidden' : 'text-xs md:text-sm'} text-gray-600 dark:text-gray-400 whitespace-nowrap hidden sm:inline`}>Sort:</span>
                     <div className="relative">
                       <button
                         ref={sortTriggerRef}
@@ -1971,10 +1971,10 @@ function SearchPageInner() {
                         aria-haspopup="listbox"
                         aria-expanded={showSortDropdown}
                         aria-controls={sortListboxId}
-                        className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} border border-gray-300 bg-white text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-1 cursor-pointer transition-colors`}
+                        className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1 cursor-pointer transition-colors`}
                       >
                         <span>{currentSortTriggerLabel}</span>
-                        <ChevronDown className={`h-3 w-3 text-gray-500 transition-transform ${showSortDropdown ? 'rotate-180' : ''}`} />
+                        <ChevronDown className={`h-3 w-3 text-gray-500 dark:text-gray-400 transition-transform ${showSortDropdown ? 'rotate-180' : ''}`} />
                       </button>
 
                       {isClient && showSortDropdown && sortPosition
@@ -1985,7 +1985,7 @@ function SearchPageInner() {
                               role="listbox"
                               aria-label="Sort results"
                               onKeyDown={handleSortListboxKeyDown}
-                              className="fixed bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-[9999] min-w-[180px] w-auto"
+                              className="fixed bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-[9999] min-w-[180px] w-auto"
                               style={{ top: sortPosition.top, left: sortPosition.left }}
                             >
                               {SORT_OPTIONS.map((option, index) => (
@@ -2005,7 +2005,7 @@ function SearchPageInner() {
                                   className={`block w-full px-4 py-2 text-left text-sm whitespace-nowrap transition-colors ${
                                     sortOption === option.value
                                       ? 'bg-purple-50 text-[#7E22CE] font-medium'
-                                      : 'text-gray-700 hover:bg-gray-50'
+                                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50'
                                   }`}
                                 >
                                   {option.menuLabel}
@@ -2038,7 +2038,7 @@ function SearchPageInner() {
 
             {/* Kids banner */}
             {activeAudience === 'kids' && (
-              <div className="mb-3 rounded-md bg-blue-50 border border-blue-200 text-blue-900 px-3 py-2 text-sm">
+              <div className="mb-3 rounded-md bg-blue-50 dark:bg-blue-900 border border-blue-200 text-blue-900 dark:text-indigo-200 px-3 py-2 text-sm">
                 Showing instructors who teach kids
               </div>
             )}
@@ -2062,7 +2062,7 @@ function SearchPageInner() {
               </div>
             ) : sortedInstructors.length === 0 ? (
               <div className="text-center py-12" data-testid="no-results">
-                <p className="text-gray-600 text-lg mb-4">No instructors found matching your search.</p>
+                <p className="text-gray-600 dark:text-gray-400 text-lg mb-4">No instructors found matching your search.</p>
                 <Link href="/" className="text-[#7E22CE] hover:underline">Try a different search</Link>
               </div>
             ) : (
@@ -2124,14 +2124,14 @@ function SearchPageInner() {
                     {loadingMore && (
                       <div className="flex items-center gap-2">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#7E22CE]"></div>
-                        <span className="text-gray-600">Loading more instructors...</span>
+                        <span className="text-gray-600 dark:text-gray-400">Loading more instructors...</span>
                       </div>
                     )}
                   </div>
                 )}
 
                 {sortedInstructors.length > 0 && sortedInstructors.length < sidebarFilteredInstructors.length && (
-                  <div className="mt-4 md:mt-8 text-center text-gray-600 py-4">
+                  <div className="mt-4 md:mt-8 text-center text-gray-600 dark:text-gray-400 py-4">
                     {sortedInstructors.length === 1
                       ? "1 instructor found in this area"
                       : `Showing ${sortedInstructors.length} instructors in this area`}
@@ -2143,12 +2143,12 @@ function SearchPageInner() {
             {/* Scroll indicator positioned above the bottom of cards container */}
             {isStacked && filteredInstructors.length > 1 && showScrollIndicator && (
               <div className="absolute bottom-8 left-0 right-0 flex items-center justify-center pointer-events-none z-10">
-                <div className="bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full border border-gray-200 shadow-sm">
+                <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-700 shadow-sm">
                   <div className="flex items-center gap-2">
-                    <svg className="w-3 h-3 text-gray-500 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3 h-3 text-gray-500 dark:text-gray-400 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
                     </svg>
-                    <span className="text-xs text-gray-600 font-medium">Scroll to see more</span>
+                    <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">Scroll to see more</span>
                   </div>
                 </div>
               </div>
@@ -2159,7 +2159,7 @@ function SearchPageInner() {
         {/* Right Side - Map (stacked below on small) */}
         <div className="w-full xl:w-1/3 block order-2 xl:order-2">
           <div className="px-6 xl:pl-0 xl:pr-6 pt-0 md:pt-2 pb-0 md:pb-0 h-full mt-0 xl:mt-0">
-            <div className="bg-white/95 backdrop-blur-sm rounded-xl border border-gray-200 p-2 md:p-4 h-full">
+            <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-gray-700 p-2 md:p-4 h-full">
               <InstructorCoverageMap
                 height="100%"
                 featureCollection={coverageFeatureCollection}

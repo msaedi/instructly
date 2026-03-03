@@ -60,16 +60,16 @@ export const BookingCard: React.FC<BookingCardProps> = ({
    */
   const getStatusBadge = (status: BookingStatus) => {
     const statusConfig: Record<BookingStatus, { bg: string; text: string; label: string }> = {
-      PENDING: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Pending' },
-      CONFIRMED: { bg: 'bg-green-100', text: 'text-green-800', label: 'Confirmed' },
-      COMPLETED: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Completed' },
-      CANCELLED: { bg: 'bg-red-100', text: 'text-red-800', label: 'Cancelled' },
-      NO_SHOW: { bg: 'bg-gray-100', text: 'text-gray-800', label: 'No Show' },
+      PENDING: { bg: 'bg-yellow-100 dark:bg-yellow-900', text: 'text-yellow-800 dark:text-yellow-200', label: 'Pending' },
+      CONFIRMED: { bg: 'bg-green-100 dark:bg-green-900', text: 'text-green-800 dark:text-green-200', label: 'Confirmed' },
+      COMPLETED: { bg: 'bg-blue-100 dark:bg-blue-900', text: 'text-blue-800 dark:text-blue-200', label: 'Completed' },
+      CANCELLED: { bg: 'bg-red-100 dark:bg-red-900', text: 'text-red-800 dark:text-red-200', label: 'Cancelled' },
+      NO_SHOW: { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-800 dark:text-gray-200', label: 'No Show' },
     };
 
     const config = statusConfig[status] ?? {
-      bg: 'bg-gray-100',
-      text: 'text-gray-800',
+      bg: 'bg-gray-100 dark:bg-gray-700',
+      text: 'text-gray-800 dark:text-gray-200',
       label: status,
     };
 
@@ -101,15 +101,15 @@ export const BookingCard: React.FC<BookingCardProps> = ({
   return (
     <div
       className={`
-      border rounded-lg p-4 bg-white hover:shadow-md transition-shadow duration-200
+      border rounded-lg p-4 bg-white dark:bg-gray-800 hover:shadow-md transition-shadow duration-200
       ${className}
     `}
     >
       {/* Header with service name and status */}
       <div className="flex justify-between items-start mb-3">
         <div>
-          <h3 className="font-semibold text-lg text-gray-900">{booking.service_name}</h3>
-          <p className="text-sm text-gray-600">
+          <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-100">{booking.service_name}</h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
             with {formatInstructorFromUser(booking.instructor)}
           </p>
         </div>
@@ -119,7 +119,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({
       {/* Booking details */}
       <div className="space-y-2 text-sm">
         {/* Date */}
-        <div className="flex items-center text-gray-600">
+        <div className="flex items-center text-gray-600 dark:text-gray-400">
           <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
@@ -132,7 +132,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({
         </div>
 
         {/* Time */}
-        <div className="flex items-center text-gray-600">
+        <div className="flex items-center text-gray-600 dark:text-gray-400">
           <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
@@ -145,7 +145,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({
         </div>
 
         {/* Price */}
-        <div className="flex items-center text-gray-600">
+        <div className="flex items-center text-gray-600 dark:text-gray-400">
           <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
@@ -160,7 +160,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({
 
       {/* Student notes */}
       {booking.student_note && (
-        <div className="mt-3 p-2 bg-gray-50 rounded text-sm text-gray-600">
+        <div className="mt-3 p-2 bg-gray-50 dark:bg-gray-900 rounded text-sm text-gray-600 dark:text-gray-400">
           <p className="font-medium">Notes:</p>
           <p>{booking.student_note}</p>
         </div>
@@ -182,7 +182,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({
               logger.info('View details clicked', { bookingId: booking.id });
               onViewDetails();
             }}
-            className="flex-1 px-3 py-2 text-sm font-medium text-blue-600 bg-white border border-blue-600 rounded-md hover:bg-blue-50 transition-colors"
+            className="flex-1 px-3 py-2 text-sm font-medium text-blue-600 bg-white dark:bg-gray-800 border border-blue-600 rounded-md hover:bg-blue-50 transition-colors"
           >
             View Details
           </button>
@@ -193,7 +193,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({
               logger.info('Cancel booking clicked', { bookingId: booking.id });
               onCancel();
             }}
-            className="flex-1 px-3 py-2 text-sm font-medium text-red-600 bg-white border border-red-600 rounded-md hover:bg-red-50 transition-colors"
+            className="flex-1 px-3 py-2 text-sm font-medium text-red-600 bg-white dark:bg-gray-800 border border-red-600 rounded-md hover:bg-red-50 transition-colors"
           >
             Cancel Booking
           </button>
@@ -204,7 +204,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({
               logger.info('Mark complete clicked', { bookingId: booking.id });
               onComplete();
             }}
-            className="flex-1 px-3 py-2 text-sm font-medium text-green-600 bg-white border border-green-600 rounded-md hover:bg-green-50 transition-colors"
+            className="flex-1 px-3 py-2 text-sm font-medium text-green-600 bg-white dark:bg-gray-800 border border-green-600 rounded-md hover:bg-green-50 transition-colors"
           >
             Mark Complete
           </button>

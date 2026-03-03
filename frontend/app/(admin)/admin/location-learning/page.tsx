@@ -184,25 +184,25 @@ export default function LocationLearningPage() {
               </div>
 
               {pendingQuery.isLoading ? (
-                <div className="text-sm text-gray-500">Loading…</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">Loading…</div>
               ) : pendingQuery.isError ? (
                 <div className="flex items-center gap-2 text-sm text-red-600">
                   <AlertCircle className="h-4 w-4" />
                   Failed to load pending aliases
                 </div>
               ) : pendingQuery.data?.aliases?.length ? (
-                <div className="overflow-hidden rounded-lg bg-white shadow ring-1 ring-gray-200/70">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                <div className="overflow-hidden rounded-lg bg-white dark:bg-gray-800 shadow ring-1 ring-gray-200/70">
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="bg-gray-50 dark:bg-gray-900">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Alias</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">→ Region</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Confidence</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Clicks</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Alias</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">→ Region</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Confidence</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Clicks</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200">
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                       {pendingQuery.data.aliases.map((alias) => (
                         <tr key={alias.id}>
                           <td className="px-6 py-4 whitespace-nowrap font-mono text-sm">
@@ -212,7 +212,7 @@ export default function LocationLearningPage() {
                             {alias.region_name ?? alias.region_boundary_id ?? '-'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            <span className="rounded bg-gray-100 px-2 py-1 text-gray-700">
+                            <span className="rounded bg-gray-100 dark:bg-gray-700 px-2 py-1 text-gray-700 dark:text-gray-300">
                               {formatConfidence(alias.confidence)}
                             </span>
                           </td>
@@ -241,7 +241,7 @@ export default function LocationLearningPage() {
                   </table>
                 </div>
               ) : (
-                <div className="text-sm text-gray-500">No pending aliases to review</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">No pending aliases to review</div>
               )}
             </div>
 
@@ -251,7 +251,7 @@ export default function LocationLearningPage() {
                 <h2 className="text-lg font-semibold">
                   Unresolved Queries
                   {unresolvedQuery.data?.queries?.length ? (
-                    <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-sm text-gray-800">
+                    <span className="ml-2 rounded-full bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-sm text-gray-800 dark:text-gray-200">
                       {unresolvedQuery.data.queries.length}
                     </span>
                   ) : null}
@@ -259,25 +259,25 @@ export default function LocationLearningPage() {
               </div>
 
               {unresolvedQuery.isLoading ? (
-                <div className="text-sm text-gray-500">Loading…</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">Loading…</div>
               ) : unresolvedQuery.isError ? (
                 <div className="flex items-center gap-2 text-sm text-red-600">
                   <AlertCircle className="h-4 w-4" />
                   Failed to load unresolved queries
                 </div>
               ) : unresolvedQuery.data?.queries?.length ? (
-                <div className="overflow-hidden rounded-lg bg-white shadow ring-1 ring-gray-200/70">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                <div className="overflow-hidden rounded-lg bg-white dark:bg-gray-800 shadow ring-1 ring-gray-200/70">
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="bg-gray-50 dark:bg-gray-900">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Query</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Searches</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Clicks</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Top Region</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Query</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Searches</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Clicks</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Top Region</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200">
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                       {unresolvedQuery.data.queries.map((q) => {
                         const top = q.clicks?.[0];
                         const topLabel = top?.region_name
@@ -292,7 +292,7 @@ export default function LocationLearningPage() {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm">{q.search_count}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm">{q.click_count ?? 0}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{topLabel}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">{topLabel}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                               <button
                                 onClick={() => setSelectedQuery(q.query_normalized)}
@@ -303,7 +303,7 @@ export default function LocationLearningPage() {
                               <button
                                 onClick={() => dismissMutation.mutate(q.query_normalized)}
                                 disabled={dismissMutation.isPending}
-                                className="rounded bg-gray-200 px-3 py-1 text-gray-800 hover:bg-gray-300 disabled:opacity-50"
+                                className="rounded bg-gray-200 dark:bg-gray-700 px-3 py-1 text-gray-800 dark:text-gray-200 hover:bg-gray-300 disabled:opacity-50"
                               >
                                 Dismiss
                               </button>
@@ -315,7 +315,7 @@ export default function LocationLearningPage() {
                   </table>
                 </div>
               ) : (
-                <div className="text-sm text-gray-500">No unresolved queries</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">No unresolved queries</div>
               )}
             </div>
           </section>

@@ -42,7 +42,7 @@ export function MessageInput({
 
   if (messageDisplay !== 'inbox') {
     return (
-      <div className="p-6 border-t border-gray-200 text-sm text-gray-500 dark:text-gray-400">
+      <div className="p-6 border-t border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
         {messageDisplay === 'archived'
           ? 'Archived messages are read-only.'
           : 'Trashed messages are read-only.'}
@@ -53,14 +53,14 @@ export function MessageInput({
   // Show read-only message when there are no upcoming bookings
   if (!hasUpcomingBookings) {
     return (
-      <div className="p-6 border-t border-gray-200 text-center text-sm text-gray-500 dark:text-gray-400">
+      <div className="p-6 border-t border-gray-200 dark:border-gray-700 text-center text-sm text-gray-500 dark:text-gray-400">
         This lesson has ended. Chat is view-only.
       </div>
     );
   }
 
   return (
-    <div className="p-4 border-t border-gray-200 space-y-3">
+    <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
       {/* Typing indicator */}
       {typingUserName && (
         <div className="px-1 pb-1 text-xs text-gray-500 dark:text-gray-400">
@@ -96,7 +96,7 @@ export function MessageInput({
       <div className="flex items-center gap-2">
         <button
           type="button"
-          className="h-10 w-10 flex items-center justify-center rounded-full border border-gray-300 text-gray-500 dark:text-gray-400 hover:text-[#7E22CE] hover:border-[#D4B5F0] transition-colors"
+          className="h-10 w-10 flex items-center justify-center rounded-full border border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:text-[#7E22CE] hover:border-[#D4B5F0] transition-colors"
           title="Attach file"
           aria-label="Attach file"
           onClick={() => fileInputRef.current?.click()}
@@ -120,7 +120,7 @@ export function MessageInput({
           onKeyPress={onKeyPress}
           aria-label="Type a message"
           placeholder="Type your message..."
-          className="flex-1 resize-none border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500 min-h-[2.5rem]"
+          className="flex-1 resize-none border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500 min-h-[2.5rem]"
           rows={1}
         />
         <button

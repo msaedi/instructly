@@ -508,13 +508,13 @@ export default function RescheduleTimeSelectionModal({
   const loadingView = (
     <div className="text-center py-8">
       <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#7E22CE]" />
-      <p className="mt-2 text-gray-600">Loading availability...</p>
+      <p className="mt-2 text-gray-600 dark:text-gray-400">Loading availability...</p>
     </div>
   );
 
   const errorView = (
     <div className="text-center py-8">
-      <p className="text-gray-600 mb-4">{availabilityError || 'Couldn’t load availability. Please try again.'}</p>
+      <p className="text-gray-600 dark:text-gray-400 mb-4">{availabilityError || 'Couldn’t load availability. Please try again.'}</p>
       <button
         className="px-4 py-2 rounded-lg bg-[#7E22CE] text-white hover:bg-[#6b1cb0] transition-colors"
         onClick={() => {
@@ -535,18 +535,18 @@ export default function RescheduleTimeSelectionModal({
     return (
       <div className="fixed inset-0 z-50 overflow-y-auto" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
         <div className="flex min-h-full items-center justify-center p-4">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Cannot Reschedule</h3>
-            <p className="text-gray-600 mb-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Cannot Reschedule</h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
               Lessons cannot be rescheduled within 12 hours of the start time.
             </p>
-            <p className="text-sm text-gray-500 mb-6">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
               If you need to make changes, please contact your instructor directly through chat.
             </p>
             <div className="flex gap-3">
               <button
                 onClick={onClose}
-                className="flex-1 py-2 px-4 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                className="flex-1 py-2 px-4 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 transition-colors"
               >
                 Close
               </button>
@@ -585,7 +585,7 @@ export default function RescheduleTimeSelectionModal({
             <div className="w-10" />
           </div>
           <div className="px-4 pt-4 pb-2 space-y-3">
-            <p className="text-sm text-gray-600">Choose a new lesson date & time below.</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Choose a new lesson date & time below.</p>
             <div className="flex items-center gap-2">
               <UserAvatar
                 user={instructorAvatarUser}
@@ -594,10 +594,10 @@ export default function RescheduleTimeSelectionModal({
                 fallbackBgColor="#F3E8FF"
                 fallbackTextColor="#7E22CE"
               />
-              <p className="text-base font-bold text-black">{getInstructorDisplayName()}&apos;s availability</p>
+              <p className="text-base font-bold text-black dark:text-white">{getInstructorDisplayName()}&apos;s availability</p>
             </div>
             {currentLesson && (
-              <div data-testid="current-lesson-banner" className="p-2 bg-yellow-50 rounded-lg text-sm text-gray-700">
+              <div data-testid="current-lesson-banner" className="p-2 bg-yellow-50 rounded-lg text-sm text-gray-700 dark:text-gray-300">
                 <span className="font-medium">Current lesson:</span>{' '}
                 {format(new Date(`${currentLesson.date}T${currentLesson.time}`), 'EEE MMM d')} at{' '}
                 {format(new Date(`${currentLesson.date}T${currentLesson.time}`), 'h:mm a')} • {currentLesson.service}
@@ -658,7 +658,7 @@ export default function RescheduleTimeSelectionModal({
               onContinue={handleContinue}
               isComplete={!!selectedDate && !!selectedTime}
             />
-            <p className="text-sm text-gray-600 text-center">
+            <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
               Prefer to discuss?{' '}
               {onOpenChat ? (
                 <button type="button" onClick={onOpenChat} className="text-[#7E22CE] font-medium hover:underline">
@@ -682,15 +682,15 @@ export default function RescheduleTimeSelectionModal({
             className="relative bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-[720px] max-h-[90vh] flex flex-col animate-slideUp"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-start justify-between p-6 border-b border-gray-100">
+            <div className="flex items-start justify-between p-6 border-b border-gray-100 dark:border-gray-700">
               <div>
                 <p className="text-sm font-medium text-[#7E22CE] uppercase tracking-wide">Manage booking</p>
-                <h2 className="text-2xl font-semibold text-gray-900 mt-1">Need to reschedule?</h2>
-                <p className="text-sm text-gray-600 mt-1">Choose a new lesson date & time below.</p>
+                <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-1">Need to reschedule?</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Choose a new lesson date & time below.</p>
               </div>
               <button
                 onClick={onClose}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-gray-400 dark:text-gray-300 hover:text-gray-600 transition-colors"
                 aria-label="Close modal"
               >
                 <X className="h-6 w-6" />
@@ -706,12 +706,12 @@ export default function RescheduleTimeSelectionModal({
                   fallbackBgColor="#F3E8FF"
                   fallbackTextColor="#7E22CE"
                 />
-                <p className="text-base font-semibold text-gray-900">{getInstructorDisplayName()}&apos;s availability</p>
+                <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{getInstructorDisplayName()}&apos;s availability</p>
               </div>
             </div>
 
             {currentLesson && (
-              <div data-testid="current-lesson-banner" className="mx-6 mt-3 rounded-lg bg-yellow-50 p-3 text-sm text-gray-700">
+              <div data-testid="current-lesson-banner" className="mx-6 mt-3 rounded-lg bg-yellow-50 p-3 text-sm text-gray-700 dark:text-gray-300">
                 <span className="font-medium">Current lesson:</span>{' '}
                 {format(new Date(`${currentLesson.date}T${currentLesson.time}`), 'EEE MMM d')} at{' '}
                 {format(new Date(`${currentLesson.date}T${currentLesson.time}`), 'h:mm a')} • {currentLesson.service}
@@ -773,7 +773,7 @@ export default function RescheduleTimeSelectionModal({
                       />
 
                       {/* Chat to reschedule CTA */}
-                      <div className="mt-4 text-sm text-gray-600">
+                      <div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
                         Prefer to discuss?{' '}
                         {onOpenChat ? (
                           <button type="button" onClick={onOpenChat} className="text-[#7E22CE] font-medium hover:underline">

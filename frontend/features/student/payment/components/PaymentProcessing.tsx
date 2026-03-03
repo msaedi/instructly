@@ -93,9 +93,9 @@ export default function PaymentProcessing({
                 <div
                   className={`w-6 h-6 rounded-full flex items-center justify-center mr-3 transition-all duration-500 ${
                     index < processingStep
-                      ? 'bg-green-500 text-white'
+                      ? 'bg-green-500 dark:bg-emerald-600 text-white'
                       : index === processingStep
-                        ? 'bg-[#FFD700] text-black'
+                        ? 'bg-[#FFD700] text-black dark:text-white'
                         : 'bg-gray-300 dark:bg-gray-600'
                   }`}
                 >

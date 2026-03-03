@@ -40,7 +40,7 @@ function EarningsPageImpl() {
         <button
           type="button"
           onClick={() => setOpen((p) => !p)}
-          className="w-full h-11 rounded-lg border border-gray-300 px-3 pr-9 bg-white text-gray-800 dark:text-gray-200 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500 flex items-center justify-between"
+          className="w-full h-11 rounded-lg border border-gray-300 dark:border-gray-700 px-3 pr-9 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500 flex items-center justify-between"
         >
           <span>{selected}</span>
           <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -48,7 +48,7 @@ function EarningsPageImpl() {
           </svg>
         </button>
         {open ? (
-          <ul role="listbox" className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto overflow-x-hidden scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          <ul role="listbox" className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto overflow-x-hidden scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             {options.map((opt) => (
               <li key={opt.value}>
                 <button
@@ -277,7 +277,7 @@ function EarningsPageImpl() {
 
         {/* Tabs */}
         <div className="insta-surface-card">
-          <div className="border-b border-gray-200 px-4 sm:px-6 pt-4">
+          <div className="border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 pt-4">
               <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
               <button
@@ -310,7 +310,7 @@ function EarningsPageImpl() {
                 <div className="text-sm text-gray-600 dark:text-gray-400">You haven&apos;t submitted any invoices yet</div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
                     <thead>
                       <tr className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                         <th className="py-2 pr-4">Date</th>
@@ -324,7 +324,7 @@ function EarningsPageImpl() {
                         <th className="py-2 pr-4">Status</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                       {invoices.map((invoice) => {
                         // Use backend-calculated platform fee (no frontend calculation)
                         const platformFeeRate = invoice.platform_fee_rate ?? 0;
@@ -340,9 +340,9 @@ function EarningsPageImpl() {
                               return 'bg-red-50 text-red-700';  // Payment failed
                             case 'refunded':
                             case 'cancelled':
-                              return 'bg-gray-50 text-gray-600 dark:text-gray-400';  // Reversed/cancelled
+                              return 'bg-gray-50 dark:bg-gray-900 text-gray-600 dark:text-gray-400';  // Reversed/cancelled
                             default:
-                              return 'bg-gray-50 text-gray-600 dark:text-gray-400';  // Unknown status
+                              return 'bg-gray-50 dark:bg-gray-900 text-gray-600 dark:text-gray-400';  // Unknown status
                           }
                         };
                         const statusColor = getStatusColor(invoice.status);
@@ -357,7 +357,7 @@ function EarningsPageImpl() {
                             <td className="py-3 pr-4 font-semibold text-gray-900 dark:text-gray-100">{formatCents(invoice.lesson_price_cents)}</td>
                             <td className="py-3 pr-4 text-gray-700 dark:text-gray-300">
                               {formatCents(invoice.platform_fee_cents)}
-                              <span className="text-gray-400 dark:text-gray-400 text-xs ml-1">({platformFeePct}%)</span>
+                              <span className="text-gray-400 dark:text-gray-300 text-xs ml-1">({platformFeePct}%)</span>
                             </td>
                             <td className="py-3 pr-4 font-semibold text-[#7E22CE]">{formatCents(invoice.instructor_share_cents)}</td>
                             <td className="py-3 pr-4 text-gray-700 dark:text-gray-300">{formatCents(invoice.tip_cents)}</td>
@@ -391,7 +391,7 @@ function EarningsPageImpl() {
                     <span className="font-semibold text-amber-700">{formatCents(payoutsData.total_pending_cents)}</span>
                   </div>
                 </div>
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
                   <thead>
                     <tr className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                       <th className="py-2 pr-4">Date</th>
@@ -400,7 +400,7 @@ function EarningsPageImpl() {
                       <th className="py-2 pr-4">Arrival Date</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                     {payoutsData.payouts.map((payout) => {
                       const getPayoutStatusColor = (status?: string) => {
                         switch (status) {
@@ -413,7 +413,7 @@ function EarningsPageImpl() {
                           case 'canceled':
                             return 'bg-red-50 text-red-700';
                           default:
-                            return 'bg-gray-50 text-gray-600 dark:text-gray-400';
+                            return 'bg-gray-50 dark:bg-gray-900 text-gray-600 dark:text-gray-400';
                         }
                       };
                       const statusColor = getPayoutStatusColor(payout.status);
@@ -466,7 +466,7 @@ function EarningsPageImpl() {
           </section>
           <section>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Sample timeline and statuses</h3>
-            <div className="mt-3 divide-y divide-gray-200 rounded-lg border border-gray-200 overflow-hidden">
+            <div className="mt-3 divide-y divide-gray-200 dark:divide-gray-700 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
               <div className="grid grid-cols-[10rem_1fr] gap-3 p-3">
                 <div>
                   <span className="px-2 py-1 rounded-md bg-emerald-100 text-emerald-800 text-xs font-semibold inline-block">SUBMITTED</span>

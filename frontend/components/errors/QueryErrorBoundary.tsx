@@ -67,7 +67,7 @@ function ErrorFallback({ error, resetErrorBoundary }: ErrorFallbackProps) {
 
   return (
     <div className="min-h-[400px] flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
+      <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 text-center">
         <div className="mb-4">
           <svg
             className="mx-auto h-12 w-12 text-red-500"
@@ -85,12 +85,12 @@ function ErrorFallback({ error, resetErrorBoundary }: ErrorFallbackProps) {
           </svg>
         </div>
 
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">{title}</h2>
-        <p className="text-gray-600 mb-6">{message}</p>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">{title}</h2>
+        <p className="text-gray-600 dark:text-gray-400 mb-6">{message}</p>
         {supportCode && (
-          <p className="text-xs text-gray-500 mb-6">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-6">
             If you need help, reference code:{' '}
-            <span className="font-mono text-gray-700">{formatSupportCode(supportCode)}</span>
+            <span className="font-mono text-gray-700 dark:text-gray-300">{formatSupportCode(supportCode)}</span>
           </p>
         )}
 
@@ -103,10 +103,10 @@ function ErrorFallback({ error, resetErrorBoundary }: ErrorFallbackProps) {
 
         {IS_DEVELOPMENT && (
           <details className="mt-6 text-left">
-            <summary className="text-sm text-gray-500 cursor-pointer hover:text-gray-700">
+            <summary className="text-sm text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700">
               Error Details (Development Only)
             </summary>
-            <pre className="mt-2 text-xs text-gray-600 whitespace-pre-wrap break-words bg-gray-50 p-2 rounded">
+            <pre className="mt-2 text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words bg-gray-50 dark:bg-gray-900 p-2 rounded">
               {error.stack || error.message}
             </pre>
           </details>

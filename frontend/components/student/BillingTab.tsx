@@ -210,20 +210,20 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
     <div className="space-y-8">
       {/* Payment Methods Section */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Methods</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Payment Methods</h3>
         <PaymentMethods userId={userId} />
       </div>
 
-      <div className="border-b border-gray-200" />
+      <div className="border-b border-gray-200 dark:border-gray-700" />
 
       {/* Credit Balance Section */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Credit Balance</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Credit Balance</h3>
 
         {isLoadingCredits ? (
-          <div className="rounded-xl border border-gray-200 p-6">
+          <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-6">
             <div className="flex justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+              <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-300" />
             </div>
           </div>
         ) : creditBalance && creditBalance.available > 0 ? (
@@ -246,14 +246,14 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
             </div>
           </div>
         ) : (
-          <div className="rounded-xl border border-gray-200 p-6">
-            <p className="text-gray-500">No credits available</p>
+          <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+            <p className="text-gray-500 dark:text-gray-400">No credits available</p>
           </div>
         )}
 
         {/* Promo Code Input */}
         <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Enter promo code:
           </label>
           <div className="flex gap-2">
@@ -262,7 +262,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
               value={promoCode}
               onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
               placeholder="Enter code"
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/25 focus:border-purple-500"
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/25 focus:border-purple-500"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   void handleApplyPromoCode();
@@ -305,12 +305,12 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
         </div>
       </div>
 
-      <div className="border-b border-gray-200" />
+      <div className="border-b border-gray-200 dark:border-gray-700" />
 
       {/* Transaction History Section */}
       <div>
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Transaction History</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Transaction History</h3>
           <Button
             variant="ghost"
             size="sm"
@@ -323,34 +323,34 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
         </div>
 
         {isLoadingTransactions ? (
-          <div className="rounded-xl border border-gray-200 p-6">
+          <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-6">
             <div className="flex justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+              <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-300" />
             </div>
           </div>
         ) : transactions.length === 0 ? (
-          <div className="rounded-xl border border-gray-200 p-6">
-            <p className="text-gray-500 text-center">No transactions yet</p>
+          <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+            <p className="text-gray-500 dark:text-gray-400 text-center">No transactions yet</p>
           </div>
         ) : (
           <div className="space-y-4">
             {transactions.slice(0, showMoreTransactions ? undefined : 5).map((transaction) => (
-              <div key={transaction.id} className="rounded-xl border border-gray-200 p-6">
+              <div key={transaction.id} className="rounded-xl border border-gray-200 dark:border-gray-700 p-6">
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <h4 className="font-semibold text-gray-900">{transaction.service_name}</h4>
-                    <p className="text-sm text-gray-600">{transaction.instructor_name}</p>
+                    <h4 className="font-semibold text-gray-900 dark:text-gray-100">{transaction.service_name}</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{transaction.instructor_name}</p>
                   </div>
-                  <p className="text-sm text-gray-500">{formatDate(transaction.booking_date)}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{formatDate(transaction.booking_date)}</p>
                 </div>
 
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Lesson ({transaction.duration_minutes} min)</span>
+                    <span className="text-gray-600 dark:text-gray-400">Lesson ({transaction.duration_minutes} min)</span>
                     <span className="font-medium">{formatCurrency(transaction.lesson_amount)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Platform fee</span>
+                    <span className="text-gray-600 dark:text-gray-400">Platform fee</span>
                     <span>{formatCurrency(transaction.service_fee)}</span>
                   </div>
                   {transaction.credit_applied > 0 && (
@@ -361,7 +361,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
                   )}
                   {transaction.tip_amount > 0 && (
                     <div className="flex justify-between">
-                      <span className="text-gray-600">
+                      <span className="text-gray-600 dark:text-gray-400">
                         Tip{transaction.tip_paid < transaction.tip_amount ? ' (pending)' : ''}
                       </span>
                       <span>
@@ -371,14 +371,14 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
                       </span>
                     </div>
                   )}
-                  <div className="pt-2 border-t border-gray-200">
+                  <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
                     <div className="flex justify-between">
                       <span className="font-semibold">Total:</span>
                       <span className="font-semibold">{formatCurrency(transaction.total_paid)}</span>
                     </div>
                   </div>
                   {transaction.tip_paid < transaction.tip_amount && transaction.tip_amount > 0 && (
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                       Tip will be charged once payment method is confirmed.
                     </p>
                   )}

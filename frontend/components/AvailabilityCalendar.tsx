@@ -252,8 +252,8 @@ export default function AvailabilityCalendar({
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
       <div className="mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">Availability</h3>
-        <p className="text-sm text-gray-600">Select a day to see available times</p>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Availability</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400">Select a day to see available times</p>
       </div>
 
       {/* 14-day calendar grid */}
@@ -287,19 +287,19 @@ export default function AvailabilityCalendar({
               <div className="text-xs font-medium">{day.dayName}</div>
               <div className="text-sm font-semibold">{day.dayNumber}</div>
               {hasAvailability(day.date) && (
-                <div className="w-2 h-2 bg-green-500 rounded-full mx-auto mt-1"></div>
+                <div className="w-2 h-2 bg-green-500 dark:bg-emerald-600 rounded-full mx-auto mt-1"></div>
               )}
             </button>
           ))}
         </div>
 
-        <div className="flex items-center text-xs text-gray-600 space-x-4">
+        <div className="flex items-center text-xs text-gray-600 dark:text-gray-400 space-x-4">
           <div className="flex items-center">
-            <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
+            <div className="w-2 h-2 bg-green-500 dark:bg-emerald-600 rounded-full mr-1"></div>
             <span>Has availability</span>
           </div>
           <div className="flex items-center">
-            <div className="w-2 h-2 bg-gray-300 rounded-full mr-1"></div>
+            <div className="w-2 h-2 bg-gray-300 dark:bg-gray-600 rounded-full mr-1"></div>
             <span>Fully booked</span>
           </div>
         </div>
@@ -320,7 +320,7 @@ export default function AvailabilityCalendar({
       {/* Time slots for selected day */}
       {selectedDate && (
         <div className="border-t pt-6">
-          <h4 className="font-medium text-gray-900 mb-4">
+          <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-4">
             {new Date(selectedDate).toLocaleDateString('en-US', {
               weekday: 'long',
               month: 'long',
@@ -329,7 +329,7 @@ export default function AvailabilityCalendar({
           </h4>
 
           {selectedDaySlots.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">No available times for this day</p>
+            <p className="text-gray-500 dark:text-gray-400 text-center py-4">No available times for this day</p>
           ) : (
             <div className="space-y-6">
               {groupedSlots.morning.length > 0 && (

@@ -78,19 +78,19 @@ const DeletePaymentMethodModal: React.FC<DeletePaymentMethodModalProps> = ({
       <div className="p-6">
         {/* Warning Icon */}
         <div className="flex justify-center mb-4">
-          <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900 dark:text-red-200 flex items-center justify-center">
             <AlertTriangle className="w-6 h-6 text-red-600" />
           </div>
         </div>
 
         {/* Card Details */}
         <div className="text-center mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
             Remove Payment Method?
           </h3>
           <div className="flex items-center justify-center gap-2 mb-3">
-            <CreditCard className="w-5 h-5 text-gray-400" />
-            <span className="text-gray-700 font-medium">{cardDisplay}</span>
+            <CreditCard className="w-5 h-5 text-gray-400 dark:text-gray-300" />
+            <span className="text-gray-700 dark:text-gray-300 font-medium">{cardDisplay}</span>
           </div>
           {paymentMethod.is_default && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
@@ -99,7 +99,7 @@ const DeletePaymentMethodModal: React.FC<DeletePaymentMethodModalProps> = ({
               </p>
             </div>
           )}
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
             Are you sure you want to remove this payment method? This action cannot be undone.
           </p>
         </div>
@@ -117,7 +117,7 @@ const DeletePaymentMethodModal: React.FC<DeletePaymentMethodModalProps> = ({
             type="button"
             onClick={handleClose}
             disabled={isDeleting}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
           </button>

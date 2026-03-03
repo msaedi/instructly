@@ -61,7 +61,7 @@ export function LocationFilter({
       onClickOutside={onClose}
     >
       <div className="p-4">
-        <h3 className="font-medium text-gray-900 mb-3">Location</h3>
+        <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-3">Location</h3>
 
         <div className="space-y-1">
           {LOCATION_OPTIONS.map((option) => (
@@ -74,18 +74,18 @@ export function LocationFilter({
                 name="location"
                 checked={draft === option.value}
                 onChange={() => setDraft(option.value)}
-                className="w-4 h-4 border-gray-200 text-purple-600 focus:ring-purple-500"
+                className="w-4 h-4 border-gray-200 dark:border-gray-700 text-purple-600 focus:ring-purple-500"
               />
-              <span className="text-sm text-gray-700">{option.label}</span>
+              <span className="text-sm text-gray-700 dark:text-gray-300">{option.label}</span>
             </label>
           ))}
         </div>
 
-        <div className="flex justify-between mt-4 pt-3 border-t border-gray-100">
+        <div className="flex justify-between mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
           <button
             type="button"
             onClick={handleClear}
-            className="text-sm text-gray-600 hover:text-gray-900"
+            className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900"
           >
             Clear
           </button>

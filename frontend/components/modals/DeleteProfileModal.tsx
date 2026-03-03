@@ -96,7 +96,7 @@ export default function DeleteProfileModal({
               setError('');
               onClose();
             }}
-            className="px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg
+            className="px-4 py-2.5 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg
                      hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2
                      focus:ring-gray-500 transition-all duration-150 font-medium"
             disabled={loading}
@@ -129,11 +129,11 @@ export default function DeleteProfileModal({
       <div className="space-y-6">
         {/* Header with Icon */}
         <div className="flex flex-col items-center text-center">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+          <div className="w-16 h-16 bg-red-100 dark:bg-red-900 dark:text-red-200 rounded-full flex items-center justify-center mb-4">
             <AlertTriangle className="w-8 h-8 text-red-600" />
           </div>
-          <h3 className="text-xl font-semibold text-gray-900">Delete Instructor Profile</h3>
-          <p className="mt-2 text-gray-600">This action cannot be undone</p>
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Delete Instructor Profile</h3>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">This action cannot be undone</p>
         </div>
 
         {/* Consequences Warning */}
@@ -164,11 +164,11 @@ export default function DeleteProfileModal({
         </div>
 
         {/* Note about Student Account */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
-          <Shield className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+        <div className="bg-blue-50 dark:bg-blue-900 dark:text-indigo-200 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
+          <Shield className="w-5 h-5 text-blue-600 dark:text-indigo-300 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-sm text-blue-900 font-medium">Student Account Preserved</p>
-            <p className="text-sm text-blue-700 mt-1">
+            <p className="text-sm text-blue-900 dark:text-indigo-200 font-medium">Student Account Preserved</p>
+            <p className="text-sm text-blue-700 dark:text-indigo-300 mt-1">
               You will remain a student and can continue booking lessons. You can always become an
               instructor again later.
             </p>
@@ -185,7 +185,7 @@ export default function DeleteProfileModal({
 
         {/* Confirmation Input */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Type <span className="font-mono font-bold text-red-600">DELETE</span> to confirm
           </label>
           <input
@@ -199,13 +199,13 @@ export default function DeleteProfileModal({
                        focus:ring-offset-2 transition-colors font-mono ${
                          isConfirmed
                            ? 'border-green-300 focus:ring-green-500 bg-green-50'
-                           : 'border-gray-300 focus:ring-red-500'
+                           : 'border-gray-300 dark:border-gray-700 focus:ring-red-500'
                        }`}
             placeholder="Type DELETE here"
             disabled={loading}
             aria-describedby="delete-confirmation-help"
           />
-          <p id="delete-confirmation-help" className="mt-2 text-xs text-gray-500">
+          <p id="delete-confirmation-help" className="mt-2 text-xs text-gray-500 dark:text-gray-400">
             This confirmation is case-sensitive
           </p>
         </div>

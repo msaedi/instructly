@@ -873,14 +873,14 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                 value={skillsFilter}
                 onChange={(e) => setSkillsFilter(e.target.value)}
                 placeholder="Search skills..."
-                className="w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+                className="w-full rounded-md border border-gray-200 dark:border-gray-700 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
               />
             </div>
             {/* Selected chips */}
             {selectedServices.length > 0 && (
               <div className="mb-4 flex flex-wrap gap-2">
                 {selectedServices.map((s) => (
-                  <span key={`sel-${s.catalog_service_id}`} className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 h-8 text-xs min-w-0">
+                  <span key={`sel-${s.catalog_service_id}`} className="inline-flex items-center gap-2 rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 h-8 text-xs min-w-0">
                     <span className="truncate max-w-[14rem]" title={s.name || s.service_catalog_name || ''}>{s.name || s.service_catalog_name}</span>
                     <button
                       type="button"
@@ -922,7 +922,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                               key={svc.id}
                               onClick={() => toggleServiceSelection(svc)}
                               className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold transition-colors no-hover-shadow appearance-none overflow-hidden focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 ${
-                                isSel ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]' : 'bg-gray-100 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                                isSel ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
                               }`}
                               type="button"
                             >
@@ -967,10 +967,10 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                     type="button"
                     onClick={() => removeService(s.catalog_service_id)}
                     title={!canRemoveSkill() ? 'Live instructors must have at least one skill' : 'Remove skill'}
-                    className={`w-8 h-8 flex items-center justify-center rounded-full bg-white border transition-colors ${
+                    className={`w-8 h-8 flex items-center justify-center rounded-full bg-white dark:bg-gray-800 border transition-colors ${
                       !canRemoveSkill()
-                        ? 'border-gray-200 text-gray-300 cursor-not-allowed'
-                        : 'border-gray-300 text-gray-600 dark:text-gray-400 hover:bg-red-50 hover:text-red-600 hover:border-red-300'
+                        ? 'border-gray-200 dark:border-gray-700 text-gray-300 cursor-not-allowed'
+                        : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-red-50 hover:text-red-600 hover:border-red-300'
                     }`}
                     aria-label="Remove skill"
                   >
@@ -982,7 +982,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                   <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2">
                     <span className="text-sm text-gray-600 dark:text-gray-400">Hourly Rate:</span>
                     <div className="relative max-w-[220px]">
-                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-400" />
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-300" />
                       <input
                         type="number"
                         placeholder="Hourly rate"
@@ -1006,7 +1006,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                         className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
                           priceError
                             ? 'border-red-500 focus:ring-red-200 focus:border-red-500'
-                            : 'border-gray-300 focus:ring-[#D4B5F0] focus:border-purple-500'
+                            : 'border-gray-300 dark:border-gray-700 focus:ring-[#D4B5F0] focus:border-purple-500'
                         }`}
                         aria-invalid={priceError ? 'true' : 'false'}
                         min="0"
@@ -1059,10 +1059,10 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                             }}
                             className={`px-2 py-2 text-sm rounded-md transition-colors ${
                               !isEligible
-                                ? 'bg-gray-50 text-gray-300 cursor-not-allowed'
+                                ? 'bg-gray-50 dark:bg-gray-900 text-gray-300 cursor-not-allowed'
                                 : isSelected
                                 ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
-                                : 'bg-gray-100 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
                             }`}
                             type="button"
                           >
@@ -1090,7 +1090,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                         return (
                           <>
                             <div
-                              className={`rounded-md border border-gray-200 p-3 ${
+                              className={`rounded-md border border-gray-200 dark:border-gray-700 p-3 ${
                                 travelDisabled ? 'opacity-60 cursor-not-allowed' : ''
                               }`}
                               title={travelMessage ?? undefined}
@@ -1119,7 +1119,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                               )}
                             </div>
                             <div
-                              className={`rounded-md border border-gray-200 p-3 ${
+                              className={`rounded-md border border-gray-200 dark:border-gray-700 p-3 ${
                                 atLocationDisabled ? 'opacity-60 cursor-not-allowed' : ''
                               }`}
                               title={atLocationMessage ?? undefined}
@@ -1147,7 +1147,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{atLocationMessage}</p>
                               )}
                             </div>
-                            <div className="rounded-md border border-gray-200 p-3">
+                            <div className="rounded-md border border-gray-200 dark:border-gray-700 p-3">
                               <div className="flex items-start justify-between gap-3">
                                 <div>
                                   <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Online lessons</p>
@@ -1202,7 +1202,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                               };
                             }))}
                             className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
-                              isLvlSelected ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                              isLvlSelected ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
                             }`}
                             type="button"
                           >
@@ -1225,7 +1225,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                             return { ...x, duration_options: has ? x.duration_options.filter((v) => v !== d) : [...x.duration_options, d] };
                           }))}
                           className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
-                            s.duration_options.includes(d) ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                            s.duration_options.includes(d) ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
                           }`}
                           type="button"
                         >
@@ -1241,7 +1241,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                     <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1 block">Description (Optional)</label>
                     <textarea
                       rows={2}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 bg-white"
+                      className="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 bg-white dark:bg-gray-800"
                       placeholder="Brief description of your teaching style..."
                       value={s.description || ''}
                       onChange={(e) => setSelectedServicesWithDirty((prev) => prev.map((x, i) => i === index ? { ...x, description: e.target.value } : x))}
@@ -1251,7 +1251,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                     <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1 block">Equipment (Optional)</label>
                     <textarea
                       rows={2}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 bg-white"
+                      className="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 bg-white dark:bg-gray-800"
                       placeholder="Yoga mat, tennis racket..."
                       value={s.equipment || ''}
                       onChange={(e) => setSelectedServicesWithDirty((prev) => prev.map((x, i) => i === index ? { ...x, equipment: e.target.value } : x))}

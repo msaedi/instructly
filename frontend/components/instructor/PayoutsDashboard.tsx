@@ -93,7 +93,7 @@ const PayoutsDashboard: React.FC<PayoutsDashboardProps> = ({ instructorId: _inst
       <div className="space-y-6">
         <Card className="p-8">
           <div className="flex justify-center items-center">
-            <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+            <Loader2 className="h-8 w-8 animate-spin text-gray-400 dark:text-gray-300" />
           </div>
         </Card>
       </div>
@@ -112,16 +112,16 @@ const PayoutsDashboard: React.FC<PayoutsDashboardProps> = ({ instructorId: _inst
             <Card className="p-6">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-sm text-gray-500 mb-1">Total Earnings</p>
-                  <p className="text-3xl font-bold text-gray-900">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total Earnings</p>
+                  <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">
                     {formatCurrency(earnings.total_earned ?? 0)}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     This month ({formatDate(earnings.period_start || '2025-08-01')} - {formatDate(earnings.period_end || '2025-08-31')})
                   </p>
                 </div>
-                <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
-                  <DollarSign className="h-5 w-5 text-green-600" />
+                <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
+                  <DollarSign className="h-5 w-5 text-green-600 dark:text-green-200" />
                 </div>
               </div>
             </Card>
@@ -130,16 +130,16 @@ const PayoutsDashboard: React.FC<PayoutsDashboardProps> = ({ instructorId: _inst
             <Card className="p-6">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-sm text-gray-500 mb-1">Total Bookings</p>
-                  <p className="text-3xl font-bold text-gray-900">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total Bookings</p>
+                  <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">
                     {earnings.booking_count}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     Avg. {formatCurrency(earnings.average_earning ?? 0)} per session
                   </p>
                 </div>
-                <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                  <Calendar className="h-5 w-5 text-blue-600" />
+                <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                  <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-200" />
                 </div>
               </div>
             </Card>
@@ -148,16 +148,16 @@ const PayoutsDashboard: React.FC<PayoutsDashboardProps> = ({ instructorId: _inst
             <Card className="p-6">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-sm text-gray-500 mb-1">Platform Fees</p>
-                  <p className="text-3xl font-bold text-gray-900">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Platform Fees</p>
+                  <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">
                     {formatCurrency(earnings.total_fees ?? 0)}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     {platformFeeLabel ? `${platformFeeLabel} service fee` : 'Platform fees withheld'}
                   </p>
                 </div>
-                <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
-                  <TrendingUp className="h-5 w-5 text-gray-600" />
+                <div className="h-10 w-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                  <TrendingUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                 </div>
               </div>
             </Card>
@@ -219,12 +219,12 @@ const PayoutsDashboard: React.FC<PayoutsDashboardProps> = ({ instructorId: _inst
           </div>
         )}
 
-        <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900 dark:text-indigo-200 border border-blue-200 rounded-lg">
           <div className="flex items-start space-x-2">
-            <Info className="h-5 w-5 text-blue-600 mt-0.5" />
-            <div className="text-sm text-blue-900">
+            <Info className="h-5 w-5 text-blue-600 dark:text-indigo-300 mt-0.5" />
+            <div className="text-sm text-blue-900 dark:text-indigo-200">
               <p className="font-medium mb-1">Detailed Analytics Available in Stripe</p>
-              <p className="text-blue-700">
+              <p className="text-blue-700 dark:text-indigo-300">
                 Access comprehensive reports, transaction history, and tax documents directly in your Stripe Express dashboard.
               </p>
             </div>
@@ -239,10 +239,10 @@ const PayoutsDashboard: React.FC<PayoutsDashboardProps> = ({ instructorId: _inst
         <div className="space-y-4">
           {/* Payout Schedule */}
           <div className="flex items-start space-x-3">
-            <Clock className="h-5 w-5 text-gray-400 mt-0.5" />
+            <Clock className="h-5 w-5 text-gray-400 dark:text-gray-300 mt-0.5" />
             <div>
-              <p className="font-medium text-gray-900">Payout Schedule</p>
-              <p className="text-sm text-gray-600">
+              <p className="font-medium text-gray-900 dark:text-gray-100">Payout Schedule</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 Standard 2-day rolling basis. Funds from bookings are automatically transferred to your bank account.
               </p>
             </div>
@@ -250,10 +250,10 @@ const PayoutsDashboard: React.FC<PayoutsDashboardProps> = ({ instructorId: _inst
 
           {/* Platform Fee */}
           <div className="flex items-start space-x-3">
-            <DollarSign className="h-5 w-5 text-gray-400 mt-0.5" />
+            <DollarSign className="h-5 w-5 text-gray-400 dark:text-gray-300 mt-0.5" />
             <div>
-              <p className="font-medium text-gray-900">Platform Fee Structure</p>
-        <p className="text-sm text-gray-600">
+              <p className="font-medium text-gray-900 dark:text-gray-100">Platform Fee Structure</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400">
           iNSTAiNSTRU charges a {platformFeeLabel ?? 'standard'} service fee on each booking. This covers payment
           processing, platform maintenance, and customer support.
         </p>
@@ -262,18 +262,18 @@ const PayoutsDashboard: React.FC<PayoutsDashboardProps> = ({ instructorId: _inst
 
           {/* Tax Documents */}
           <div className="flex items-start space-x-3">
-            <FileText className="h-5 w-5 text-gray-400 mt-0.5" />
+            <FileText className="h-5 w-5 text-gray-400 dark:text-gray-300 mt-0.5" />
             <div>
-              <p className="font-medium text-gray-900">Tax Documents</p>
-              <p className="text-sm text-gray-600">
+              <p className="font-medium text-gray-900 dark:text-gray-100">Tax Documents</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 1099 forms are automatically generated for qualifying instructors. Access all tax documents through your Stripe dashboard.
               </p>
             </div>
           </div>
         </div>
 
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-          <p className="text-sm text-gray-600">
+        <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
             <span className="font-medium">Need help with payments?</span> Contact our support team at{' '}
             <a href="mailto:payments@instainstru.com" className="text-blue-600 hover:underline">
               payments@instainstru.com
@@ -290,10 +290,10 @@ const PayoutsDashboard: React.FC<PayoutsDashboardProps> = ({ instructorId: _inst
       <Card className="p-6">
         <h3 className="text-lg font-semibold mb-4">Earnings Breakdown</h3>
 
-        <div className="bg-gray-50 rounded-lg p-8 text-center">
-          <TrendingUp className="h-12 w-12 mx-auto mb-3 text-gray-400" />
-          <p className="text-gray-600 mb-2">Detailed earnings analytics</p>
-          <p className="text-sm text-gray-500 mb-4">
+        <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-8 text-center">
+          <TrendingUp className="h-12 w-12 mx-auto mb-3 text-gray-400 dark:text-gray-300" />
+          <p className="text-gray-600 dark:text-gray-400 mb-2">Detailed earnings analytics</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
             View comprehensive breakdowns, trends, and insights in your Stripe dashboard
           </p>
           <Button

@@ -348,7 +348,7 @@ const findNextAvailableSlot = (
 
   return (
     <div
-      className={`bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-shadow relative ${
+      className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow relative ${
         compact ? 'px-4 py-4' : 'p-6'
       }`}
       data-testid="instructor-card"
@@ -402,7 +402,7 @@ const findNextAvailableSlot = (
                   {instructor.user.first_name} {instructor.user.last_initial ? `${instructor.user.last_initial}.` : ''}
                 </h2>
                 {showDistance && (
-                  <span className={`${compact ? 'text-sm' : 'text-base'} font-medium text-gray-500`}>
+                  <span className={`${compact ? 'text-sm' : 'text-base'} font-medium text-gray-500 dark:text-gray-400`}>
                     · {distanceMi.toFixed(1)} mi
                   </span>
                 )}
@@ -413,7 +413,7 @@ const findNextAvailableSlot = (
                   onClick={() => {
                     router.push(`/instructors/${instructor.user_id}/reviews`);
                   }}
-                  className={`mt-1 flex items-center gap-1 text-gray-600 hover:text-[#7E22CE] transition-colors ${compact ? 'text-sm' : 'text-base'} font-medium`}
+                  className={`mt-1 flex items-center gap-1 text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] transition-colors ${compact ? 'text-sm' : 'text-base'} font-medium`}
                   aria-label="See all reviews"
                 >
                   <Star className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} text-yellow-500 fill-current`} />
@@ -447,7 +447,7 @@ const findNextAvailableSlot = (
                     <span
                       key={`${service.service_catalog_id || service.id || idx}-${serviceName}`}
                       className={`${compact ? 'px-3 py-0.5 text-sm' : 'px-6 py-1 text-lg'} rounded-full font-bold ${
-                        isHighlighted ? 'bg-[#7E22CE]/15 text-[#7E22CE]' : 'bg-gray-100 text-gray-700'
+                        isHighlighted ? 'bg-[#7E22CE]/15 text-[#7E22CE]' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                       }`}
                     >
                       {serviceName}
@@ -508,7 +508,7 @@ const findNextAvailableSlot = (
                 if (showsKidsBadge) {
                   highlightRows.push(
                     <div>
-                      <span className="inline-flex items-center bg-yellow-100 text-gray-600 font-semibold px-2 py-1 rounded-full">
+                      <span className="inline-flex items-center bg-yellow-100 text-gray-600 dark:text-gray-400 font-semibold px-2 py-1 rounded-full">
                         Kids lesson available
                       </span>
                     </div>
@@ -594,7 +594,7 @@ const findNextAvailableSlot = (
                   : (compact ? 'mt-1 text-xs' : 'mt-3 text-sm');
 
                 return (
-                  <div className={`${marginClass} text-gray-600`}>
+                  <div className={`${marginClass} text-gray-600 dark:text-gray-400`}>
                     {combinedRows.map((row, index) => (
                       <div key={index}>
                         {index > 0 && (
@@ -642,7 +642,7 @@ const findNextAvailableSlot = (
                 title={!user ? "Sign in to save this instructor" : isFavorited ? "Remove from favorites" : "Add to favorites"}
               >
                 <Heart
-                  className={`h-5 w-5 ${isFavorited ? 'fill-red-500 text-red-500' : 'fill-none text-gray-500'}`}
+                  className={`h-5 w-5 ${isFavorited ? 'fill-red-500 text-red-500' : 'fill-none text-gray-500 dark:text-gray-400'}`}
                 />
               </button>
             </div>
@@ -651,7 +651,7 @@ const findNextAvailableSlot = (
           {/* Bio with 5-line limit and soft yellow background - hide in compact mode */}
           {!compact && (
           <div className="mb-3 bg-yellow-50 p-4 rounded-lg">
-            <p className={`text-gray-800 italic ${!isExpanded ? 'line-clamp-5' : ''}`}>
+            <p className={`text-gray-800 dark:text-gray-200 italic ${!isExpanded ? 'line-clamp-5' : ''}`}>
               &quot;{getBio()}&quot;
             </p>
             {getBio().length > 400 && (
@@ -668,7 +668,7 @@ const findNextAvailableSlot = (
           {/* Session Duration Selection - Only show if instructor offers multiple durations */}
           {durationOptions.length > 1 && (
             <div className={`flex items-center gap-2 ${compact ? 'mb-2' : 'mb-4'}`}>
-              <p className={`${compact ? 'text-xs' : 'text-sm'} font-medium text-gray-700`}>Duration:</p>
+              <p className={`${compact ? 'text-xs' : 'text-sm'} font-medium text-gray-700 dark:text-gray-300`}>Duration:</p>
               <div className={`flex ${compact ? 'gap-2' : 'gap-4'}`}>
                 {durationOptions.map((duration) => {
                   const service = at(instructor.services, 0);
@@ -684,9 +684,9 @@ const findNextAvailableSlot = (
                         value={duration}
                         checked={selectedDuration === duration}
                         onChange={() => setSelectedDuration(duration)}
-                        className={`${compact ? 'w-3 h-3' : 'w-4 h-4'} text-[#7E22CE] accent-purple-700 border-gray-300 focus:ring-[#7E22CE]`}
+                        className={`${compact ? 'w-3 h-3' : 'w-4 h-4'} text-[#7E22CE] accent-purple-700 border-gray-300 dark:border-gray-700 focus:ring-[#7E22CE]`}
                       />
-                      <span className={`ml-1 ${compact ? 'text-xs' : 'text-sm'} text-gray-700`}>{duration} min (${price})</span>
+                      <span className={`ml-1 ${compact ? 'text-xs' : 'text-sm'} text-gray-700 dark:text-gray-300`}>{duration} min (${price})</span>
                     </label>
                   );
                 })}
@@ -697,9 +697,9 @@ const findNextAvailableSlot = (
           {bookingDraftId ? (
             <div className={`${compact ? 'mb-3' : 'mb-4'}`}>
               {isPricingPreviewLoading ? (
-                <p className="text-xs text-gray-500">Updating pricing…</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Updating pricing…</p>
               ) : pricingPreview ? (
-                <div className="rounded-lg border border-gray-200 bg-white p-3 text-sm space-y-2">
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-sm space-y-2">
                   <div className="flex justify-between">
                     <span>Lesson</span>
                     <span>{formatCentsToDisplay(pricingPreview.base_price_cents)}</span>
@@ -713,7 +713,7 @@ const findNextAvailableSlot = (
                     return (
                       <div
                         key={`${item.label}-${item.amount_cents}`}
-                        className={`flex justify-between text-gray-700 ${
+                        className={`flex justify-between text-gray-700 dark:text-gray-300 ${
                           isCreditLine ? 'text-green-600 dark:text-green-400' : ''
                         }`}
                       >
@@ -722,7 +722,7 @@ const findNextAvailableSlot = (
                       </div>
                     );
                   })}
-                  <div className="flex justify-between font-semibold text-base border-t border-gray-200 pt-2">
+                  <div className="flex justify-between font-semibold text-base border-t border-gray-200 dark:border-gray-700 pt-2">
                     <span>Total</span>
                     <span>{formatCentsToDisplay(pricingPreview.student_pay_cents)}</span>
                   </div>
@@ -767,7 +767,7 @@ const findNextAvailableSlot = (
               className={`flex-1 text-center ${compact ? 'py-1.5 px-3 text-sm' : 'py-2.5 px-4'} rounded-lg font-medium transition-colors ${
                 nextAvailableSlot
                   ? 'bg-[#7E22CE] text-white hover:bg-[#7E22CE] cursor-pointer'
-                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
               }`}
             >
               {nextAvailableSlot
@@ -780,7 +780,7 @@ const findNextAvailableSlot = (
                 e.preventDefault();
                 onBookNow?.(e);
               }}
-              className={`flex-1 text-center bg-white text-[#7E22CE] ${compact ? 'py-1.5 px-3 text-sm' : 'py-2.5 px-4'} rounded-lg font-medium border-2 border-[#7E22CE] hover:bg-purple-50 transition-colors cursor-pointer`}
+              className={`flex-1 text-center bg-white dark:bg-gray-800 text-[#7E22CE] ${compact ? 'py-1.5 px-3 text-sm' : 'py-2.5 px-4'} rounded-lg font-medium border-2 border-[#7E22CE] hover:bg-purple-50 transition-colors cursor-pointer`}
             >
               More options
             </button>
@@ -790,7 +790,7 @@ const findNextAvailableSlot = (
           {!compact && recentReviews.length > 0 && (
             <div className="mt-6 grid grid-cols-2 gap-4">
               {recentReviews.map((r) => (
-                <div key={r.id} className="bg-gray-50 p-3 rounded-lg">
+                <div key={r.id} className="bg-gray-50 dark:bg-gray-900 p-3 rounded-lg">
                   <div className="flex items-center mb-1">
                   <div className="flex">
                     {[1, 2, 3, 4, 5].map((star) => (
@@ -806,10 +806,10 @@ const findNextAvailableSlot = (
                   </div>
                   </div>
                   {r.review_text && (
-                    <p className="text-sm text-gray-700 italic line-clamp-3">{`"${r.review_text}"`}</p>
+                    <p className="text-sm text-gray-700 dark:text-gray-300 italic line-clamp-3">{`"${r.review_text}"`}</p>
                   )}
                   {r.reviewer_display_name && (
-                    <p className="text-xs text-gray-500 mt-1">- {r.reviewer_display_name}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">- {r.reviewer_display_name}</p>
                   )}
                 </div>
               ))}

@@ -13,7 +13,7 @@ interface DatabasePoolStatusProps {
 
 export default function DatabasePoolStatus({ pool }: DatabasePoolStatusProps) {
   if (!pool) {
-    return <div className="text-center text-gray-500">No database pool data available</div>;
+    return <div className="text-center text-gray-500 dark:text-gray-400">No database pool data available</div>;
   }
 
   const usagePercent = (pool.checked_out / pool.max_size) * 100;

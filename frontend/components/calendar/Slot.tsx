@@ -32,14 +32,14 @@ function SlotImpl(
   const computedDisabled = Boolean(disabled || isConflict);
   const pointerClass = computedDisabled ? 'cursor-not-allowed' : 'cursor-pointer';
   const isAvailable = isSelected;
-  const fillClass = isAvailable ? 'bg-[#EDE3FA]' : isPast ? 'bg-gray-50' : 'bg-white';
+  const fillClass = isAvailable ? 'bg-[#EDE3FA]' : isPast ? 'bg-gray-50 dark:bg-gray-900' : 'bg-white dark:bg-gray-800';
   const fadeClass = isPast ? 'opacity-70' : 'opacity-100';
   const button = (
     <button
       ref={ref}
       type="button"
       className={clsx(
-        'relative w-full border-l border-b border-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-[#7E22CE] transition-colors',
+        'relative w-full border-l border-b border-gray-200 dark:border-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-[#7E22CE] transition-colors',
         isMobile ? 'min-h-[44px]' : 'min-h-[32px]',
         pointerClass,
         isDragging && 'ring-2 ring-[#D4B5F0] ring-inset',

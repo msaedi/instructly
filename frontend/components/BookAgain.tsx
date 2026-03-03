@@ -164,7 +164,7 @@ export function BookAgain({ onLoadComplete }: BookAgainProps) {
                   ${instructor.hourlyRate}/hour
                 </p>
                 <button
-                  className="w-full bg-[#FFD700] hover:bg-[#FFC700] text-black py-2 rounded-lg font-medium transition-colors"
+                  className="w-full bg-[#FFD700] hover:bg-[#FFC700] text-black dark:text-white py-2 rounded-lg font-medium transition-colors"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleBookAgain(instructor);

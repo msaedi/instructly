@@ -50,7 +50,7 @@ export function CancellationConfirmationModal({
                 onClose();
                 router.push('/student/lessons');
               }}
-              className="px-6 py-3 bg-[#FFD700] text-black rounded-lg hover:bg-[#FFC700]
+              className="px-6 py-3 bg-[#FFD700] text-black dark:text-white rounded-lg hover:bg-[#FFC700]
                        transition-colors font-medium cursor-pointer"
             >
               Done
@@ -65,7 +65,7 @@ export function CancellationConfirmationModal({
           </div>
 
           {/* Success Message */}
-          <p className="text-lg font-medium text-gray-900">Cancellation confirmed</p>
+          <p className="text-lg font-medium text-gray-900 dark:text-gray-100">Cancellation confirmed</p>
 
           {/* Lesson Details */}
           <div className="bg-purple-100 rounded-lg p-4 text-left space-y-2">
@@ -87,21 +87,21 @@ export function CancellationConfirmationModal({
               <p className="text-sm">
                 <span className="font-medium">Credit issued:</span> ${lessonPrice.toFixed(2)}
               </p>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
                 The ${platformFee.toFixed(2)} booking fee is non-refundable.
               </p>
             </div>
           )}
 
           {/* Credit Notice */}
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
             {willReceiveCredit
               ? 'Your credit will be applied to your next booking automatically.'
               : window === 'free' ? 'No charges were made.' : 'The full amount has been charged.'}
           </p>
 
           {/* Support Link */}
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
             Questions?{' '}
             <button
               onClick={() => logger.info('Contact support clicked')}
@@ -128,7 +128,7 @@ export function CancellationConfirmationModal({
             type="button"
             onClick={onClose}
             disabled={cancelLesson.isPending}
-            className="flex-1 py-3 px-4 bg-white text-black border-2 border-[#FFD700] rounded-lg
+            className="flex-1 py-3 px-4 bg-white dark:bg-gray-800 text-black dark:text-white border-2 border-[#FFD700] rounded-lg
                      hover:bg-yellow-50 transition-colors font-medium
                      disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
@@ -137,7 +137,7 @@ export function CancellationConfirmationModal({
           <button
             onClick={handleConfirmCancellation}
             disabled={cancelLesson.isPending}
-            className="flex-1 py-3 px-4 bg-[#FFD700] text-black rounded-lg hover:bg-[#FFC700]
+            className="flex-1 py-3 px-4 bg-[#FFD700] text-black dark:text-white rounded-lg hover:bg-[#FFC700]
                      transition-colors font-medium disabled:opacity-50
                      disabled:cursor-not-allowed cursor-pointer"
           >
@@ -149,14 +149,14 @@ export function CancellationConfirmationModal({
       <div className="space-y-4">
         {/* Final Warning */}
         <div className="bg-purple-100 rounded-lg p-4">
-          <p className="text-sm text-gray-700 font-medium mb-2">
+          <p className="text-sm text-gray-700 dark:text-gray-300 font-medium mb-2">
             Are you sure you want to cancel this lesson?
           </p>
-          <p className="text-sm text-gray-600">This action cannot be undone.</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">This action cannot be undone.</p>
         </div>
 
         {/* Lesson Summary */}
-        <div className="rounded-lg p-4 space-y-2 border border-gray-200">
+        <div className="rounded-lg p-4 space-y-2 border border-gray-200 dark:border-gray-700">
           <p className="text-sm">
             <span className="font-medium">Lesson:</span> {lesson.service_name}
           </p>
@@ -195,8 +195,8 @@ export function CancellationConfirmationModal({
 
         {/* Reason */}
         <div>
-          <p className="text-sm font-medium text-gray-700 mb-1">Reason for cancellation:</p>
-          <p className="text-sm text-gray-600">{reason}</p>
+          <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reason for cancellation:</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">{reason}</p>
         </div>
       </div>
     </Modal>
