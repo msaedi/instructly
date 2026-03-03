@@ -127,7 +127,7 @@ export function ChatHeader({
                           <button
                             type="button"
                             onClick={() => onComposeRecipientSelect(suggestion)}
-                            className="w-full px-3 py-2 text-left text-sm hover:bg-purple-50"
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-purple-50 dark:hover:bg-purple-900/30"
                           >
                             <span className="font-medium text-gray-900 dark:text-gray-100">{suggestion.name}</span>
                             <span className="block text-xs text-gray-500 dark:text-gray-400">
@@ -192,7 +192,7 @@ export function ChatHeader({
           {activeConversation && (
             <div className="relative" ref={threadMenuRef}>
               <button
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                 onClick={() => setShowThreadMenu((v) => !v)}
                 aria-label="More options"
                 aria-expanded={showThreadMenu}

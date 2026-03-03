@@ -71,7 +71,7 @@ export function TimeFilter({
           {TIME_OPTIONS.map((option) => (
             <label
               key={option.value}
-              className="flex items-center gap-3 py-2 px-2 rounded-lg cursor-pointer hover:bg-gray-50"
+              className="flex items-center gap-3 py-2 px-2 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
             >
               <input
                 type="checkbox"
@@ -91,7 +91,7 @@ export function TimeFilter({
           <button
             type="button"
             onClick={handleClear}
-            className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900"
+            className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
           >
             Clear
           </button>

@@ -303,7 +303,7 @@ export default function LocationLearningPage() {
                               <button
                                 onClick={() => dismissMutation.mutate(q.query_normalized)}
                                 disabled={dismissMutation.isPending}
-                                className="rounded bg-gray-200 dark:bg-gray-700 px-3 py-1 text-gray-800 dark:text-gray-200 hover:bg-gray-300 disabled:opacity-50"
+                                className="rounded bg-gray-200 dark:bg-gray-700 px-3 py-1 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50"
                               >
                                 Dismiss
                               </button>

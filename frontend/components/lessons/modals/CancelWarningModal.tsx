@@ -103,7 +103,7 @@ export function CancelWarningModal({
             <div className="mb-6">
               <button
                 onClick={() => setShowFullPolicy(!showFullPolicy)}
-                className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-700 transition-colors"
+                className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
               >
                 See full cancellation policy
                 {showFullPolicy ? (
@@ -135,7 +135,7 @@ export function CancelWarningModal({
             <div className="flex gap-3">
               <button
                 onClick={onClose}
-                className="flex-1 py-3 px-4 bg-white dark:bg-gray-800 text-black dark:text-white border-2 border-[#FFD700] rounded-lg hover:bg-yellow-50 transition-colors font-medium"
+                className="flex-1 py-3 px-4 bg-white dark:bg-gray-800 text-black dark:text-white border-2 border-[#FFD700] rounded-lg hover:bg-yellow-50 dark:hover:bg-yellow-900/30 transition-colors font-medium"
               >
                 Keep My Lesson
               </button>

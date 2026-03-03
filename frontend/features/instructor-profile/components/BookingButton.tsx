@@ -22,7 +22,7 @@ export function BookingButton({ instructor, className, onBook }: BookingButtonPr
       className
     )}>
       <button
-        className="w-full py-3 px-6 bg-primary text-primary-foreground rounded-lg font-medium"
+        className="w-full py-3 px-6 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors"
         onClick={onBook}
         data-testid="mobile-book-now"
       >

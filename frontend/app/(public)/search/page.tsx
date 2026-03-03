@@ -1971,7 +1971,7 @@ function SearchPageInner() {
                         aria-haspopup="listbox"
                         aria-expanded={showSortDropdown}
                         aria-controls={sortListboxId}
-                        className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1 cursor-pointer transition-colors`}
+                        className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-1 cursor-pointer transition-colors`}
                       >
                         <span>{currentSortTriggerLabel}</span>
                         <ChevronDown className={`h-3 w-3 text-gray-500 dark:text-gray-400 transition-transform ${showSortDropdown ? 'rotate-180' : ''}`} />
@@ -2005,7 +2005,7 @@ function SearchPageInner() {
                                   className={`block w-full px-4 py-2 text-left text-sm whitespace-nowrap transition-colors ${
                                     sortOption === option.value
                                       ? 'bg-purple-50 text-[#7E22CE] font-medium'
-                                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50'
+                                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
                                   }`}
                                 >
                                   {option.menuLabel}

@@ -964,7 +964,7 @@ function Step3SkillsPricingInner() {
                       className={`ml-auto rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center no-hover-shadow shrink-0 ${
                         isInstructorLive && selected.length <= 1
                           ? 'text-gray-300 cursor-not-allowed'
-                          : 'text-[#7E22CE] hover:bg-purple-50'
+                          : 'text-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30'
                       }`}
                       onClick={() => removeService(service.catalog_service_id)}
                     >
@@ -998,7 +998,7 @@ function Step3SkillsPricingInner() {
                           className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
                             selectedFlag
                               ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                           }`}
                         >
                           <span className="truncate text-left">{service.name}</span>
@@ -1030,7 +1030,7 @@ function Step3SkillsPricingInner() {
                   className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
                 >
                   <button
-                    className="w-full px-4 py-3 flex items-center justify-between text-gray-700 dark:text-gray-300 hover:bg-gray-50 transition-colors"
+                    className="w-full px-4 py-3 flex items-center justify-between text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                     onClick={() =>
                       setCollapsed((previous) => ({
                         ...previous,
@@ -1090,7 +1090,7 @@ function Step3SkillsPricingInner() {
                                       [collapseKey]: !(previous[collapseKey] ?? false),
                                     }))
                                   }
-                                  className="w-full px-1 py-1.5 flex items-center justify-between text-left text-gray-600 dark:text-gray-400 hover:bg-gray-50 rounded-md transition-colors"
+                                  className="w-full px-1 py-1.5 flex items-center justify-between text-left text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md transition-colors"
                                 >
                                   <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                                     {group.subcategory_name}
@@ -1131,7 +1131,7 @@ function Step3SkillsPricingInner() {
                                         className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
                                           selectedFlag
                                             ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]'
-                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                                         }`}
                                       >
                                         <span className="truncate text-left">{service.name}</span>
@@ -1227,7 +1227,7 @@ function Step3SkillsPricingInner() {
                         className={`w-8 h-8 flex items-center justify-center rounded-full bg-white dark:bg-gray-800 border transition-colors ${
                           isInstructorLive && selected.length <= 1
                             ? 'border-gray-200 dark:border-gray-700 text-gray-300 cursor-not-allowed'
-                            : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-red-50 hover:text-red-600 hover:border-red-300'
+                            : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 hover:border-red-300'
                         }`}
                         onClick={() => removeService(service.catalog_service_id)}
                       >
@@ -1336,7 +1336,7 @@ function Step3SkillsPricingInner() {
                                     ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-300 border-gray-200 dark:border-gray-700 cursor-not-allowed opacity-70'
                                     : isSelected
                                     ? 'bg-purple-100 text-[#7E22CE] border-purple-300'
-                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 border-transparent'
+                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border-transparent'
                                 }`}
                               >
                                 {AUDIENCE_LABELS[ageGroup]}
@@ -1514,7 +1514,7 @@ function Step3SkillsPricingInner() {
                               className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
                                 service.duration_options.includes(duration)
                                   ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
-                                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                               }`}
                             >
                               {duration}m
@@ -1555,7 +1555,7 @@ function Step3SkillsPricingInner() {
                                 className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
                                   isSelected
                                     ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
-                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                                 }`}
                               >
                                 {level === 'beginner'

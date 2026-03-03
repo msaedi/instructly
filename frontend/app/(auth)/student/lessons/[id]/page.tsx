@@ -210,7 +210,7 @@ export default function LessonDetailsPage() {
         <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-0.5">
           <button
             onClick={() => router.push(`/student/lessons?tab=${fromTab}`)}
-            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-700 py-1 px-2 rounded transition-colors cursor-pointer"
+            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 py-1 px-2 rounded transition-colors cursor-pointer"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to My Lessons
@@ -298,14 +298,14 @@ export default function LessonDetailsPage() {
               ) : (
                 <Button
                   onClick={() => router.push(`/student/review/${lesson.id}`)}
-                  className="bg-white dark:bg-gray-800 text-[#7E22CE] border-2 border-[#7E22CE] hover:bg-purple-50 rounded-lg py-2.5 px-6 text-sm font-medium"
+                  className="bg-white dark:bg-gray-800 text-[#7E22CE] border-2 border-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-lg py-2.5 px-6 text-sm font-medium"
                 >
                   Review & tip
                 </Button>
               )}
               <Button
                 onClick={() => setShowChatModal(true)}
-                className="bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-300 border-2 border-gray-300 dark:border-gray-700 hover:bg-gray-50 rounded-lg py-2.5 px-6 text-sm font-medium"
+                className="bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-300 border-2 border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg py-2.5 px-6 text-sm font-medium"
               >
                 <MessageCircle className="h-4 w-4 mr-1" />
                 Chat history
@@ -322,7 +322,7 @@ export default function LessonDetailsPage() {
               </Button>
               <Button
                 onClick={() => setShowChatModal(true)}
-                className="bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-300 border-2 border-gray-300 dark:border-gray-700 hover:bg-gray-50 rounded-lg py-2.5 px-6 text-sm font-medium"
+                className="bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-300 border-2 border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg py-2.5 px-6 text-sm font-medium"
               >
                 <MessageCircle className="h-4 w-4 mr-1" />
                 Chat history
@@ -421,7 +421,7 @@ export default function LessonDetailsPage() {
                   <Button
                     onClick={() => setShowCancelModal(true)}
                     variant="outline"
-                    className="flex-1 sm:flex-initial bg-white dark:bg-gray-800 text-[#7E22CE] border-2 border-[#7E22CE] hover:bg-purple-50 rounded-lg py-2.5 px-6 text-sm font-medium"
+                    className="flex-1 sm:flex-initial bg-white dark:bg-gray-800 text-[#7E22CE] border-2 border-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-lg py-2.5 px-6 text-sm font-medium"
                   >
                     Cancel lesson
                   </Button>

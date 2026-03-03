@@ -101,7 +101,7 @@ export function ReactionTrigger({
               event.preventDefault();
               onOpen();
             }}
-            className="rounded-full bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 shadow ring-1 ring-gray-200 px-2 py-1 text-sm hover:bg-gray-50"
+            className="rounded-full bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 shadow ring-1 ring-gray-200 px-2 py-1 text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
             aria-label="Add reaction"
             data-reaction-area={messageId}
           >

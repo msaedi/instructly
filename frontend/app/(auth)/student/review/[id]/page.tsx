@@ -186,7 +186,7 @@ export default function ReviewPage() {
           <Button
             variant="ghost"
             onClick={() => router.push(`/student/lessons/${lessonId}`)}
-            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-700"
+            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to Lesson Details

@@ -322,7 +322,7 @@ export const PlacesAutocompleteInput = forwardRef<HTMLInputElement, PlacesAutoco
                   tabIndex={-1}
                   aria-selected={isHighlighted}
                   className={cn(
-                    'flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-purple-50 focus:bg-purple-50',
+                    'flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-purple-50 dark:hover:bg-purple-900/30 focus:bg-purple-50',
                     isHighlighted && 'bg-purple-50',
                   )}
                   onMouseDown={(event) => event.preventDefault()}

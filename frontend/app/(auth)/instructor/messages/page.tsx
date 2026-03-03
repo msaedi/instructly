@@ -756,7 +756,7 @@ export default function MessagesPage() {
                       <>
                         <li className="px-2 py-2 text-sm text-gray-600 dark:text-gray-400">No unread messages.</li>
                         <li>
-                          <button type="button" className="w-full text-left text-sm text-gray-700 dark:text-gray-300 px-2 py-2 hover:bg-gray-50 rounded" onClick={() => setShowMessages(false)}>
+                          <button type="button" className="w-full text-left text-sm text-gray-700 dark:text-gray-300 px-2 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded" onClick={() => setShowMessages(false)}>
                             Open inbox
                           </button>
                         </li>
@@ -764,7 +764,7 @@ export default function MessagesPage() {
                     ) : (
                       globalUnreadConversations.map((conv) => (
                         <li key={conv.id}>
-                          <button type="button" onClick={() => { setShowMessages(false); setMessageDisplay('inbox'); handleConversationSelect(conv.id); }} className="w-full rounded-lg px-3 py-2 text-left hover:bg-gray-50">
+                          <button type="button" onClick={() => { setShowMessages(false); setMessageDisplay('inbox'); handleConversationSelect(conv.id); }} className="w-full rounded-lg px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800">
                             <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{conv.name}</p>
                             <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{conv.lastMessage || 'New message'}</p>
                           </button>

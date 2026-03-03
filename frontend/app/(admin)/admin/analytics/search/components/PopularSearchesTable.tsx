@@ -79,7 +79,7 @@ export function PopularSearchesTable({ data, loading }: PopularSearchesTableProp
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Popular Searches</h3>
         <button
           onClick={handleExport}
-          className="flex items-center space-x-2 px-3 py-1.5 text-sm rounded-full bg-gray-100/80 dark:bg-gray-800/60 text-gray-700 dark:text-gray-300 ring-1 ring-gray-200/70 dark:ring-gray-700/60 hover:bg-gray-200/80 transition-colors"
+          className="flex items-center space-x-2 px-3 py-1.5 text-sm rounded-full bg-gray-100/80 dark:bg-gray-800/60 text-gray-700 dark:text-gray-300 ring-1 ring-gray-200/70 dark:ring-gray-700/60 hover:bg-gray-200/80 dark:hover:bg-gray-700/60 transition-colors"
         >
           <Download className="h-4 w-4" />
           <span>Export CSV</span>

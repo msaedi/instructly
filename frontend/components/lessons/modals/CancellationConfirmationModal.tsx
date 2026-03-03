@@ -129,7 +129,7 @@ export function CancellationConfirmationModal({
             onClick={onClose}
             disabled={cancelLesson.isPending}
             className="flex-1 py-3 px-4 bg-white dark:bg-gray-800 text-black dark:text-white border-2 border-[#FFD700] rounded-lg
-                     hover:bg-yellow-50 transition-colors font-medium
+                     hover:bg-yellow-50 dark:hover:bg-yellow-900/30 transition-colors font-medium
                      disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             Keep Lesson

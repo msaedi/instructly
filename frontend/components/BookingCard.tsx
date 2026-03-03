@@ -182,7 +182,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({
               logger.info('View details clicked', { bookingId: booking.id });
               onViewDetails();
             }}
-            className="flex-1 px-3 py-2 text-sm font-medium text-blue-600 bg-white dark:bg-gray-800 border border-blue-600 rounded-md hover:bg-blue-50 transition-colors"
+            className="flex-1 px-3 py-2 text-sm font-medium text-blue-600 bg-white dark:bg-gray-800 border border-blue-600 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
           >
             View Details
           </button>
@@ -193,7 +193,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({
               logger.info('Cancel booking clicked', { bookingId: booking.id });
               onCancel();
             }}
-            className="flex-1 px-3 py-2 text-sm font-medium text-red-600 bg-white dark:bg-gray-800 border border-red-600 rounded-md hover:bg-red-50 transition-colors"
+            className="flex-1 px-3 py-2 text-sm font-medium text-red-600 bg-white dark:bg-gray-800 border border-red-600 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
           >
             Cancel Booking
           </button>
@@ -204,7 +204,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({
               logger.info('Mark complete clicked', { bookingId: booking.id });
               onComplete();
             }}
-            className="flex-1 px-3 py-2 text-sm font-medium text-green-600 bg-white dark:bg-gray-800 border border-green-600 rounded-md hover:bg-green-50 transition-colors"
+            className="flex-1 px-3 py-2 text-sm font-medium text-green-600 bg-white dark:bg-gray-800 border border-green-600 rounded-md hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors"
           >
             Mark Complete
           </button>

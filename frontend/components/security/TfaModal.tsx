@@ -197,7 +197,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
             <div className="flex justify-end gap-3">
               <button
                 type="button"
-                className="rounded-md border px-4 py-2 text-sm hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                className="rounded-md border px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 transition-colors"
                 onClick={onClose}
               >
                 Close
@@ -228,7 +228,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
                 <div className="mt-2 flex gap-2">
                   <button
                     type="button"
-                    className="rounded-md border px-3 py-1 text-xs hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                    className="rounded-md border px-3 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 transition-colors"
                     onClick={() => {
                       void navigator.clipboard.writeText(backupCodes.join('\n'));
                       toast.success('Backup codes copied');
@@ -238,7 +238,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
                   </button>
                   <button
                     type="button"
-                    className={`rounded-md border px-3 py-1 text-xs transition-colors ${loading ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-100 active:bg-gray-200'}`}
+                    className={`rounded-md border px-3 py-1 text-xs transition-colors ${loading ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200'}`}
                     onClick={() => void regen()}
                     disabled={loading}
                   >
@@ -267,7 +267,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
               <div className="flex justify-end gap-3">
                 <button
                   type="button"
-                  className="rounded-md border px-4 py-2 text-sm hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                  className="rounded-md border px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 transition-colors"
                   onClick={onClose}
                 >
                   Close
@@ -292,7 +292,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
               <button
                 type="button"
                 autoFocus
-                className="rounded-md border px-4 py-2 text-sm hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                className="rounded-md border px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 transition-colors"
                 onClick={onClose}
               >
                 Close

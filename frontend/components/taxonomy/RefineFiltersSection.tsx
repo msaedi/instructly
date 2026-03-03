@@ -93,7 +93,7 @@ export function RefineFiltersSection({
           aria-expanded={expanded}
           aria-controls={`refine-filters-${service.catalog_service_id}`}
           aria-label={`Toggle refine filters for ${service.name ?? 'this service'}`}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
         >
           <svg
             className={`h-4 w-4 transition-transform ${
@@ -155,7 +155,7 @@ export function RefineFiltersSection({
                           className={`px-2.5 py-1.5 text-xs rounded-md transition-colors ${
                             isSelected
                               ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                           }`}
                         >
                           {formatFilterLabel(option.value, option.display_name)}

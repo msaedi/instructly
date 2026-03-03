@@ -546,7 +546,7 @@ export default function RescheduleTimeSelectionModal({
             <div className="flex gap-3">
               <button
                 onClick={onClose}
-                className="flex-1 py-2 px-4 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 transition-colors"
+                className="flex-1 py-2 px-4 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
               >
                 Close
               </button>
@@ -690,7 +690,7 @@ export default function RescheduleTimeSelectionModal({
               </div>
               <button
                 onClick={onClose}
-                className="text-gray-400 dark:text-gray-300 hover:text-gray-600 transition-colors"
+                className="text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-400 transition-colors"
                 aria-label="Close modal"
               >
                 <X className="h-6 w-6" />

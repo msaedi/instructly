@@ -71,7 +71,7 @@ export function FilterButton({
         className={`flex items-center gap-1.5 px-3 py-2 rounded-full border text-sm transition-colors ${
           isActive
             ? 'bg-purple-100 border-purple-300 text-purple-700'
-            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50'
+            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
         } ${isOpen ? 'ring-2 ring-purple-500 ring-offset-1' : ''}`}
       >
         <span>{label}</span>

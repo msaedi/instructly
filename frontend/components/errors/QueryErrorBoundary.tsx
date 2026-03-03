@@ -103,7 +103,7 @@ function ErrorFallback({ error, resetErrorBoundary }: ErrorFallbackProps) {
 
         {IS_DEVELOPMENT && (
           <details className="mt-6 text-left">
-            <summary className="text-sm text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700">
+            <summary className="text-sm text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300">
               Error Details (Development Only)
             </summary>
             <pre className="mt-2 text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words bg-gray-50 dark:bg-gray-900 p-2 rounded">

@@ -116,7 +116,7 @@ export function BioCard({
                 ariaLabel="Upload profile photo"
                 trigger={
                   <div
-                    className="w-[101px] h-[101px] rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 cursor-pointer transition-transform duration-150 ease-in-out hover:scale-[1.02]"
+                    className="w-[101px] h-[101px] rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 dark:hover:bg-purple-800/40 cursor-pointer transition-transform duration-150 ease-in-out hover:scale-[1.02]"
                     title="Upload profile photo"
                   >
                     <Camera className="w-7 h-7 text-[#7E22CE]" />

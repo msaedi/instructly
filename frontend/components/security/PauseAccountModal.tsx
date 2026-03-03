@@ -30,7 +30,7 @@ export default function PauseAccountModal({ onClose, onPaused }: { onClose: () =
         <p className="text-sm text-gray-600 dark:text-gray-400">You won’t receive new bookings while paused. Existing bookings are unaffected.</p>
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
         <div className="mt-5 flex justify-end gap-3">
-          <button className="rounded-md border px-4 py-2 text-sm hover:bg-gray-50" onClick={onClose} disabled={loading}>Cancel</button>
+          <button className="rounded-md border px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800" onClick={onClose} disabled={loading}>Cancel</button>
           <button className={`rounded-md px-4 py-2 text-sm text-white ${loading ? 'bg-purple-300' : 'bg-[#7E22CE] hover:bg-[#7E22CE]'}`} onClick={() => void pause()} disabled={loading}>
             {loading ? 'Pausing…' : 'Pause'}
           </button>

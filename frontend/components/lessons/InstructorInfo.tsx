@@ -120,7 +120,7 @@ export function InstructorInfo({
         {onChat && showBookAgainButton && (
           <Button
             onClick={onChat}
-            className="flex-1 sm:flex-initial bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-300 border-2 border-gray-300 dark:border-gray-700 hover:bg-gray-50 rounded-lg py-2 px-4 text-sm font-medium"
+            className="flex-1 sm:flex-initial bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-300 border-2 border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg py-2 px-4 text-sm font-medium"
           >
             <MessageCircle className="h-4 w-4 mr-1" />
             Chat history
@@ -134,7 +134,7 @@ export function InstructorInfo({
           showReviewButton && onReview && (
             <Button
               onClick={onReview}
-              className="flex-1 sm:flex-initial bg-white dark:bg-gray-800 text-[#7E22CE] border-2 border-[#7E22CE] hover:bg-purple-50 rounded-lg py-2 px-4 text-sm font-medium"
+              className="flex-1 sm:flex-initial bg-white dark:bg-gray-800 text-[#7E22CE] border-2 border-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-lg py-2 px-4 text-sm font-medium"
             >
               Review & tip
             </Button>

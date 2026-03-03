@@ -217,7 +217,7 @@ function EarningsPageImpl() {
               type="button"
               aria-label="How payouts work"
               onClick={() => setInfoOpen(true)}
-              className="inline-flex items-center gap-1 p-2 rounded-md text-[#7E22CE] hover:bg-purple-50 transition-colors"
+              className="inline-flex items-center gap-1 p-2 rounded-md text-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
             >
               <Info className="w-5 h-5" />
               <span className="hidden sm:inline">More info</span>
@@ -297,7 +297,7 @@ function EarningsPageImpl() {
                 <button
                   onClick={() => setExportOpen(true)}
                   aria-label="Export transactions"
-                  className="p-2 rounded-md text-[#7E22CE] hover:bg-purple-50 transition-colors"
+                  className="p-2 rounded-md text-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
                 >
                   <Download className="w-5 h-5" />
                 </button>

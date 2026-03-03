@@ -68,7 +68,7 @@ export default function BookingDetailPanel({
               ) : null}
             </div>
             <Dialog.Close asChild>
-              <button className="rounded-full p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100" aria-label="Close">
+              <button className="rounded-full p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Close">
                 <X className="h-4 w-4" />
               </button>
             </Dialog.Close>
@@ -193,7 +193,7 @@ export default function BookingDetailPanel({
                   </button>
                   <button
                     type="button"
-                    className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium ring-1 ring-gray-300 dark:ring-gray-700 hover:bg-white"
+                    className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium ring-1 ring-gray-300 dark:ring-gray-700 hover:bg-white dark:hover:bg-gray-700"
                   >
                     <Mail className="h-4 w-4" />
                     Contact
@@ -201,7 +201,7 @@ export default function BookingDetailPanel({
                   <button
                     type="button"
                     onClick={() => onViewAuditLog(booking)}
-                    className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium ring-1 ring-gray-300 dark:ring-gray-700 hover:bg-white"
+                    className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium ring-1 ring-gray-300 dark:ring-gray-700 hover:bg-white dark:hover:bg-gray-700"
                   >
                     <FileText className="h-4 w-4" />
                     Full Audit Log

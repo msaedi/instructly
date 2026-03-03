@@ -120,7 +120,7 @@ export default function BookingDetailsModal({
               logger.debug('Booking details modal closed');
               onClose();
             }}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
             aria-label="Close modal"
           >
             <X className="w-5 h-5 text-gray-500 dark:text-gray-400" aria-hidden="true" />
@@ -274,7 +274,7 @@ export default function BookingDetailsModal({
               logger.debug('Booking details modal closed via button');
               onClose();
             }}
-            className="w-full px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+            className="w-full px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
           >
             Close
           </button>

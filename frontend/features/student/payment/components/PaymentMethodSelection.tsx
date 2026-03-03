@@ -228,7 +228,7 @@ export default function PaymentMethodSelection({
                     <h5 className="text-sm font-medium">Enter Card Details</h5>
                     <button
                       onClick={() => setShowNewCardForm(false)}
-                      className="text-gray-500 dark:text-gray-400 hover:text-gray-700"
+                      className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
                     >
                       <Plus size={16} className="rotate-45" />
                     </button>

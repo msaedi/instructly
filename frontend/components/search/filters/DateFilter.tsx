@@ -67,7 +67,7 @@ export function DateFilter({
           <button
             type="button"
             onClick={handleClear}
-            className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900"
+            className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
           >
             Clear
           </button>

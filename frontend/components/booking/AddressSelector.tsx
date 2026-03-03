@@ -124,7 +124,7 @@ function AddressOption({ address, isSelected, onSelect, instructorId }: AddressO
       disabled={isDisabled}
       className={`w-full p-3 text-left border rounded-lg transition-colors ${
         isSelected ? 'border-[#7E22CE] bg-purple-50' : 'border-gray-200 dark:border-gray-700'
-      } ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-gray-300'}`}
+      } ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-gray-300 dark:hover:border-gray-600'}`}
     >
       <div className="flex items-center justify-between">
         <div>

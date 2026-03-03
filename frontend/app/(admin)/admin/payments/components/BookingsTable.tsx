@@ -163,7 +163,7 @@ export default function BookingsTable({
                       <Popover.Trigger asChild>
                         <button
                           type="button"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
                           aria-label="Row actions"
                         >
                           <MoreVertical className="h-4 w-4" />
@@ -177,7 +177,7 @@ export default function BookingsTable({
                         >
                           <button
                             type="button"
-                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50"
+                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
                             onClick={() => onViewDetails(booking)}
                           >
                             <UserRound className="h-4 w-4" />
@@ -187,7 +187,7 @@ export default function BookingsTable({
                             type="button"
                             className={cn(
                               'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm',
-                              canRefund ? 'text-indigo-700 hover:bg-indigo-50' : 'text-gray-300 cursor-not-allowed'
+                              canRefund ? 'text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20' : 'text-gray-300 cursor-not-allowed'
                             )}
                             onClick={() => canRefund && onIssueRefund(booking)}
                           >
@@ -196,7 +196,7 @@ export default function BookingsTable({
                           </button>
                           <button
                             type="button"
-                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50"
+                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
                             onClick={() => onContact(booking, 'student')}
                           >
                             <Mail className="h-4 w-4" />
@@ -204,7 +204,7 @@ export default function BookingsTable({
                           </button>
                           <button
                             type="button"
-                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50"
+                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
                             onClick={() => onContact(booking, 'instructor')}
                           >
                             <Mail className="h-4 w-4" />
@@ -215,7 +215,7 @@ export default function BookingsTable({
                             type="button"
                             className={cn(
                               'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm',
-                              canMark ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50' : 'text-gray-300 cursor-not-allowed'
+                              canMark ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800' : 'text-gray-300 cursor-not-allowed'
                             )}
                             onClick={() => canMark && onMarkStatus(booking, 'COMPLETED')}
                           >
@@ -226,7 +226,7 @@ export default function BookingsTable({
                             type="button"
                             className={cn(
                               'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm',
-                              canMark ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50' : 'text-gray-300 cursor-not-allowed'
+                              canMark ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800' : 'text-gray-300 cursor-not-allowed'
                             )}
                             onClick={() => canMark && onMarkStatus(booking, 'NO_SHOW')}
                           >
@@ -237,7 +237,7 @@ export default function BookingsTable({
                             type="button"
                             className={cn(
                               'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm',
-                              canCancel ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50' : 'text-gray-300 cursor-not-allowed'
+                              canCancel ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800' : 'text-gray-300 cursor-not-allowed'
                             )}
                             onClick={() => canCancel && onCancelBooking(booking)}
                           >
@@ -247,7 +247,7 @@ export default function BookingsTable({
                           <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
                           <button
                             type="button"
-                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50"
+                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
                             onClick={() => onViewAuditLog(booking)}
                           >
                             <FileText className="h-4 w-4" />

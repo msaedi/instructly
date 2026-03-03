@@ -47,7 +47,7 @@ export function NotificationItem({ notification, onRead, onDelete }: Notificatio
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       className={cn(
-        'flex items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-gray-50 cursor-pointer',
+        'flex items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer',
         isUnread && 'bg-blue-50/40'
       )}
     >

@@ -256,7 +256,7 @@ function MyLessonsContent() {
       <div className="insta-surface-card flex gap-4 mb-8 border-b p-4 rounded-lg">
         <button
           onClick={() => handleTabChange('upcoming')}
-          className={`pb-4 px-2 font-medium transition-colors cursor-pointer text-gray-600 dark:text-gray-400 hover:text-gray-700 ${
+          className={`pb-4 px-2 font-medium transition-colors cursor-pointer text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 ${
             activeTab === 'upcoming'
               ? 'border-b-2 border-gray-600'
               : ''
@@ -266,7 +266,7 @@ function MyLessonsContent() {
         </button>
         <button
           onClick={() => handleTabChange('history')}
-          className={`pb-4 px-2 font-medium transition-colors cursor-pointer text-gray-600 dark:text-gray-400 hover:text-gray-700 ${
+          className={`pb-4 px-2 font-medium transition-colors cursor-pointer text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 ${
             activeTab === 'history'
               ? 'border-b-2 border-gray-600'
               : ''

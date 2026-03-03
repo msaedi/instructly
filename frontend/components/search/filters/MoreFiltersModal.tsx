@@ -49,7 +49,7 @@ function FilterChipGroup<T extends string | number>({
             className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer border ${
               selected.includes(option.value)
                 ? 'bg-purple-100 border-purple-300 text-purple-700'
-                : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50'
+                : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
             }`}
           >
             <input
@@ -185,7 +185,7 @@ function MoreFiltersModalContent({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
             aria-label="Close more filters"
           >
             <X size={20} />
@@ -233,7 +233,7 @@ function MoreFiltersModalContent({
                       className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer border ${
                         isSelected
                           ? 'bg-purple-100 border-purple-300 text-purple-700'
-                          : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50'
+                          : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                       }`}
                     >
                       <input
@@ -279,7 +279,7 @@ function MoreFiltersModalContent({
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer border ${
                     draft.minRating === option.value
                       ? 'bg-purple-100 border-purple-300 text-purple-700'
-                      : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50'
+                      : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 >
                   <input
@@ -305,7 +305,7 @@ function MoreFiltersModalContent({
           <button
             type="button"
             onClick={handleClear}
-            className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900"
+            className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
           >
             Clear All
           </button>

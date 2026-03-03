@@ -630,14 +630,14 @@ const findNextAvailableSlot = (
                 variant="ghost"
                 size="sm"
                 iconOnly
-                className="text-[#7E22CE] hover:bg-purple-50"
+                className="text-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30"
               />
 
               {/* Favorite Button */}
               <button
                 onClick={handleFavoriteClick}
                 disabled={isLoadingFavorite}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
                 aria-label={user ? "Toggle favorite" : "Sign in to save"}
                 title={!user ? "Sign in to save this instructor" : isFavorited ? "Remove from favorites" : "Add to favorites"}
               >
@@ -780,7 +780,7 @@ const findNextAvailableSlot = (
                 e.preventDefault();
                 onBookNow?.(e);
               }}
-              className={`flex-1 text-center bg-white dark:bg-gray-800 text-[#7E22CE] ${compact ? 'py-1.5 px-3 text-sm' : 'py-2.5 px-4'} rounded-lg font-medium border-2 border-[#7E22CE] hover:bg-purple-50 transition-colors cursor-pointer`}
+              className={`flex-1 text-center bg-white dark:bg-gray-800 text-[#7E22CE] ${compact ? 'py-1.5 px-3 text-sm' : 'py-2.5 px-4'} rounded-lg font-medium border-2 border-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors cursor-pointer`}
             >
               More options
             </button>

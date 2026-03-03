@@ -168,7 +168,7 @@ export function InstructorReferralPopup({ isLive }: InstructorReferralPopupProps
                 <button
                   type="button"
                   onClick={handleCopyLink}
-                  className="flex-shrink-0 p-2.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+                  className="flex-shrink-0 p-2.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
                   aria-label={copied ? 'Copied' : 'Copy link'}
                 >
                   {copied ? (
@@ -195,7 +195,7 @@ export function InstructorReferralPopup({ isLive }: InstructorReferralPopupProps
               <button
                 type="button"
                 onClick={handleCopyLink}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-semibold rounded-lg transition-colors hover:bg-gray-50"
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-semibold rounded-lg transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
               >
                 {copied ? (
                   <>
@@ -213,7 +213,7 @@ export function InstructorReferralPopup({ isLive }: InstructorReferralPopupProps
               <button
                 type="button"
                 onClick={handleDismiss}
-                className="w-full px-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 transition-colors"
+                className="w-full px-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
               >
                 Maybe Later
               </button>

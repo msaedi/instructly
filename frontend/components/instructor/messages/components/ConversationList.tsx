@@ -65,7 +65,7 @@ export function ConversationList({
         <button
           type="button"
           onClick={() => onConversationSelect(COMPOSE_THREAD_ID)}
-          className="inline-flex items-center justify-center rounded-full bg-purple-100 p-2 text-[#7E22CE] transition-colors hover:bg-purple-200"
+          className="inline-flex items-center justify-center rounded-full bg-purple-100 p-2 text-[#7E22CE] transition-colors hover:bg-purple-200 dark:hover:bg-purple-800/40"
           aria-label="Compose message"
         >
           <Pencil className="w-4 h-4" />
@@ -85,7 +85,7 @@ export function ConversationList({
                 onMessageDisplayChange('inbox');
               }}
               className={`text-xs font-medium rounded-full px-2.5 py-1 transition-colors ${
-                isActive ? 'bg-[#7E22CE] text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
+                isActive ? 'bg-[#7E22CE] text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
               }`}
             >
               {option.label}
@@ -98,7 +98,7 @@ export function ConversationList({
           className={`text-xs font-medium rounded-full px-2.5 py-1 transition-colors ${
             messageDisplay === 'archived'
               ? 'bg-[#7E22CE] text-white'
-              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
           }`}
         >
           Archived
@@ -109,7 +109,7 @@ export function ConversationList({
           className={`text-xs font-medium rounded-full px-2.5 py-1 transition-colors ${
             messageDisplay === 'trash'
               ? 'bg-[#7E22CE] text-white'
-              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
           }`}
         >
           Trash

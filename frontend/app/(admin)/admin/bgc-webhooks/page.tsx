@@ -301,7 +301,7 @@ export default function BGCWebhookLogPage() {
                               <button
                                 type="button"
                                 onClick={() => handleCopy('Instructor ID', log.instructor_id)}
-                                className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:border-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                                className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:border-gray-400 dark:hover:border-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                               >
                                 <Copy className="h-3 w-3" /> Copy
                               </button>
@@ -315,7 +315,7 @@ export default function BGCWebhookLogPage() {
                             <button
                               type="button"
                               onClick={() => handleCopy('Delivery ID', log.delivery_id)}
-                              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:border-gray-400 dark:border-gray-700 dark:text-gray-200"
+                              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:border-gray-400 dark:hover:border-gray-500 dark:border-gray-700 dark:text-gray-200"
                               disabled={!log.delivery_id}
                             >
                               <Copy className="h-3 w-3" />

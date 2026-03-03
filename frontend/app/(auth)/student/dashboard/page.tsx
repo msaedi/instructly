@@ -354,7 +354,7 @@ function StudentDashboardContent() {
                       `w-full flex items-center gap-3 rounded-lg px-4 py-3 text-base font-semibold mb-2 transition-all cursor-pointer ` +
                       (isActive
                         ? 'bg-purple-50 text-gray-600 dark:text-gray-400 border border-purple-200'
-                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 hover:text-gray-700')
+                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300')
                     }
                   >
                     <Icon className="h-5 w-5" />
@@ -475,7 +475,7 @@ function StudentDashboardContent() {
                               Edit
                             </button>
                             <button
-                              className="text-gray-500 dark:text-gray-400 hover:text-gray-700"
+                              className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
                               onClick={async () => {
                                 // Custom confirm modal
                                 const ok = await new Promise<boolean>((resolve) => {
@@ -665,7 +665,7 @@ function StudentDashboardContent() {
                               </div>
                             </Link>
                             <button
-                              className="absolute top-2 right-2 p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 cursor-pointer"
+                              className="absolute top-2 right-2 p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 cursor-pointer"
                               aria-label="Remove favorite"
                               title="Remove"
                               onClick={async (e) => {
@@ -1024,7 +1024,7 @@ function NotificationsTab() {
                       <button
                         key={h}
                         onClick={() => handleTimeChange(h, minute, period)}
-                        className={`w-full px-2 py-1 text-sm hover:bg-purple-50 ${
+                        className={`w-full px-2 py-1 text-sm hover:bg-purple-50 dark:hover:bg-purple-900/30 ${
                           displayHour === h ? 'bg-purple-100 text-[#7E22CE] font-medium' : ''
                         }`}
                       >
@@ -1042,7 +1042,7 @@ function NotificationsTab() {
                       <button
                         key={m}
                         onClick={() => handleTimeChange(displayHour, m, period)}
-                        className={`w-full px-2 py-1 text-sm hover:bg-purple-50 ${
+                        className={`w-full px-2 py-1 text-sm hover:bg-purple-50 dark:hover:bg-purple-900/30 ${
                           minute === m ? 'bg-purple-100 text-[#7E22CE] font-medium' : ''
                         }`}
                       >
@@ -1058,7 +1058,7 @@ function NotificationsTab() {
                   <div className="insta-form-input rounded">
                     <button
                       onClick={() => handleTimeChange(displayHour, minute, 'AM')}
-                      className={`w-full px-2 py-2 text-sm hover:bg-purple-50 ${
+                      className={`w-full px-2 py-2 text-sm hover:bg-purple-50 dark:hover:bg-purple-900/30 ${
                         period === 'AM' ? 'bg-purple-100 text-[#7E22CE] font-medium' : ''
                       }`}
                     >
@@ -1066,7 +1066,7 @@ function NotificationsTab() {
                     </button>
                     <button
                       onClick={() => handleTimeChange(displayHour, minute, 'PM')}
-                      className={`w-full px-2 py-2 text-sm hover:bg-purple-50 border-t border-gray-200 dark:border-gray-700 ${
+                      className={`w-full px-2 py-2 text-sm hover:bg-purple-50 dark:hover:bg-purple-900/30 border-t border-gray-200 dark:border-gray-700 ${
                         period === 'PM' ? 'bg-purple-100 text-[#7E22CE] font-medium' : ''
                       }`}
                     >
@@ -1654,7 +1654,7 @@ export function AddressModal({ mode, address, onClose, onSaved }: { mode: 'creat
                 {suggestions.map((s) => (
                   <button
                     key={s.place_id}
-                    className="block w-full text-left px-3 py-2 hover:bg-gray-50"
+                    className="block w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800"
                     onClick={async () => {
                       try {
                         // Fetch normalized place details and auto-fill fields
@@ -1807,7 +1807,7 @@ function DeleteAccountModal({ email, onClose, onDeleted }: { email: string; onCl
             />
             <button
               type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-300 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-400 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
@@ -2048,7 +2048,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
             />
             <button
               type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-300 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-400 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
               onClick={() => setShowPasswords((v) => !v)}
               aria-label={showPasswords ? 'Hide passwords' : 'Show passwords'}
             >

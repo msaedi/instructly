@@ -68,7 +68,7 @@ export default function ChangePasswordModal({ onClose }: { onClose: () => void }
           </div>
         </div>
         <div className="mt-5 flex justify-end gap-3">
-          <button className="rounded-md border px-4 py-2 text-sm hover:bg-gray-50" onClick={onClose} disabled={loading}>Cancel</button>
+          <button className="rounded-md border px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800" onClick={onClose} disabled={loading}>Cancel</button>
           <button className={`rounded-md px-4 py-2 text-sm text-white ${canSubmit ? 'bg-[#7E22CE] hover:bg-[#7E22CE]' : 'bg-purple-300 cursor-not-allowed'}`} onClick={() => void submit()} disabled={!canSubmit}>
             {loading ? 'Saving…' : 'Save password'}
           </button>

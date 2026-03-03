@@ -111,7 +111,7 @@ export default function BookingDetailsPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      <Link href={`/instructor/dashboard?panel=bookings&tab=${isPastLesson() ? 'past' : 'upcoming'}`} className="inline-flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 mb-6">
+      <Link href={`/instructor/dashboard?panel=bookings&tab=${isPastLesson() ? 'past' : 'upcoming'}`} className="inline-flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 mb-6">
         <ArrowLeft className="w-4 h-4 mr-2" />
         Back to Bookings
       </Link>
@@ -304,7 +304,7 @@ export default function BookingDetailsPage() {
             </div>
             <div className="flex justify-end gap-3">
               <button
-                className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors"
+                className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                 onClick={() => setShowNoShowModal(false)}
                 disabled={markNoShow.isPending}
               >

@@ -298,7 +298,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
                 boxShadow: '0 10px 15px -3px rgba(124, 58, 237, 0.1), 0 4px 6px -2px rgba(124, 58, 237, 0.05)',
               },
             })}
-            className="w-full sm:w-auto border-[#7E22CE] text-[#7E22CE] hover:bg-purple-50"
+            className="w-full sm:w-auto border-[#7E22CE] text-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30"
           >
             Purchase Credit Package
           </Button>
@@ -315,7 +315,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
             variant="ghost"
             size="sm"
             onClick={handleDownloadHistory}
-            className="text-[#7E22CE] hover:text-[#7E22CE] hover:bg-purple-50"
+            className="text-[#7E22CE] hover:text-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30"
           >
             <Download className="h-4 w-4 mr-2" />
             Download History

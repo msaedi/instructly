@@ -38,7 +38,7 @@ export default function Calendar({ currentMonth, selectedDate, availableDates, p
               aria-label={label}
               disabled={!selectable}
               onClick={() => selectable && onDateSelect(iso)}
-              className={`h-10 text-xs border rounded ${selectable ? 'hover:bg-gray-50' : 'opacity-40 cursor-not-allowed'} ${isSel ? 'bg-blue-600 text-white' : ''}`}
+              className={`h-10 text-xs border rounded ${selectable ? 'hover:bg-gray-50 dark:hover:bg-gray-800' : 'opacity-40 cursor-not-allowed'} ${isSel ? 'bg-blue-600 text-white' : ''}`}
             >
               {label.slice(5)}
             </button>

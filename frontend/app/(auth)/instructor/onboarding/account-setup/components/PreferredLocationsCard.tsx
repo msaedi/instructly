@@ -119,7 +119,7 @@ export function PreferredLocationsCard({
                     onClick={addPreferredLocation}
                     aria-label="Add address"
                     disabled={preferredLocations.length >= maxTeachingLocations}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 dark:hover:bg-purple-900/30 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                   >
                     <span className="text-base leading-none">+</span>
                   </button>
@@ -150,7 +150,7 @@ export function PreferredLocationsCard({
                       <button
                         type="button"
                         aria-label={`Remove ${loc}`}
-                        className="ml-auto text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 no-hover-shadow shrink-0"
+                        className="ml-auto text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 dark:hover:bg-purple-900/30 no-hover-shadow shrink-0"
                         onClick={() => removePreferredLocation(loc)}
                       >
                         &times;
@@ -181,7 +181,7 @@ export function PreferredLocationsCard({
                     onClick={addNeutralPlace}
                     aria-label="Add public space"
                     disabled={neutralPlaces.length >= maxPublicSpaces}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 dark:hover:bg-purple-900/30 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                   >
                     <span className="text-base leading-none">+</span>
                   </button>
@@ -198,7 +198,7 @@ export function PreferredLocationsCard({
                       <button
                         type="button"
                         aria-label={`Remove ${place}`}
-                        className="ml-auto text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 no-hover-shadow shrink-0"
+                        className="ml-auto text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 dark:hover:bg-purple-900/30 no-hover-shadow shrink-0"
                         onClick={() => removeNeutralPlace(place)}
                       >
                         &times;
