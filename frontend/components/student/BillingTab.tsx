@@ -272,7 +272,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
             <Button
               onClick={() => void handleApplyPromoCode()}
               disabled={isApplyingPromo || !promoCode.trim()}
-              className="bg-[#7E22CE] hover:bg-[#7E22CE] text-white"
+              className="bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 text-white"
             >
               {isApplyingPromo ? (
                 <>

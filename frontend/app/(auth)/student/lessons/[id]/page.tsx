@@ -111,7 +111,7 @@ export default function LessonDetailsPage() {
             <p className="text-lg text-gray-600 dark:text-gray-400 mb-4">Unable to load lesson details</p>
             <Button
               onClick={() => router.push(`/student/lessons?tab=${fromTab}`)}
-              className="bg-[#7E22CE] hover:bg-[#7E22CE] text-white"
+              className="bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 text-white"
             >
               Back to My Lessons
             </Button>
@@ -287,7 +287,7 @@ export default function LessonDetailsPage() {
             <div className="flex flex-wrap gap-3">
               <Button
                 onClick={() => router.push(`/instructors/${lesson.instructor_id}`)}
-                className="bg-[#7E22CE] hover:bg-[#7E22CE] text-white border-transparent rounded-lg py-2.5 px-6 text-sm font-medium"
+                className="bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 text-white border-transparent rounded-lg py-2.5 px-6 text-sm font-medium"
               >
                 Book Again
               </Button>
@@ -316,7 +316,7 @@ export default function LessonDetailsPage() {
             <div className="flex flex-wrap gap-3">
               <Button
                 onClick={() => router.push(`/instructors/${lesson.instructor_id}`)}
-                className="bg-[#7E22CE] hover:bg-[#7E22CE] text-white border-transparent rounded-lg py-2.5 px-6 text-sm font-medium"
+                className="bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 text-white border-transparent rounded-lg py-2.5 px-6 text-sm font-medium"
               >
                 Book Again
               </Button>
@@ -412,7 +412,7 @@ export default function LessonDetailsPage() {
                     disabled={!canReschedule}
                     className={`flex-1 sm:flex-initial rounded-lg py-2.5 px-6 text-sm font-medium ${
                       canReschedule
-                        ? 'bg-[#7E22CE] hover:bg-[#7E22CE] text-white border-transparent'
+                        ? 'bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 text-white border-transparent'
                         : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-300 cursor-not-allowed border-transparent'
                     }`}
                   >

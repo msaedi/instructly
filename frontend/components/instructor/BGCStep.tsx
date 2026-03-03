@@ -600,7 +600,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
             onClick={() => void handleStart()}
             disabled={disabled}
             aria-disabled={disabled}
-            className="w-full sm:w-auto rounded-lg sm:rounded-md text-base sm:text-sm h-auto sm:h-10 px-4 py-2 bg-[#7E22CE] hover:bg-[#7E22CE] text-white shadow-sm"
+            className="w-full sm:w-auto rounded-lg sm:rounded-md text-base sm:text-sm h-auto sm:h-10 px-4 py-2 bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 text-white shadow-sm"
           >
             {inviteLoading ? 'Starting…' : 'Start background check'}
           </Button>

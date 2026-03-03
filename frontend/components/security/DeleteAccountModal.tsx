@@ -110,7 +110,7 @@ export default function DeleteAccountModal({ email, onClose, onDeleted }: Props)
             />
             <button
               type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-400 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >

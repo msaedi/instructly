@@ -70,7 +70,7 @@ const TimeSlotButton: React.FC<TimeSlotButtonProps> = ({
     // Future slots - interactive
     return isAvailable
       ? `${baseClass} bg-green-500 hover:bg-green-600 text-white cursor-pointer`
-      : `${baseClass} bg-gray-200 hover:bg-gray-300 cursor-pointer`;
+      : `${baseClass} bg-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 cursor-pointer`;
   };
 
   /**

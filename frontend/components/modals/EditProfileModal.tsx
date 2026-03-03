@@ -1215,7 +1215,7 @@ export default function EditProfileModal({
             <button
               onClick={handleSubmit}
               disabled={loading || !canSubmit}
-              className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg hover:bg-[#7E22CE]
+              className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700
                        disabled:opacity-50 disabled:cursor-not-allowed transition-all
                        duration-150 font-medium focus:outline-none focus:ring-2
                        focus:ring-offset-2 focus:ring-[#7E22CE] flex items-center gap-2"
@@ -1376,7 +1376,7 @@ export default function EditProfileModal({
                 type="button"
                 onClick={handleSaveBioExperience}
                 disabled={savingAbout}
-                className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg hover:bg-[#7E22CE]
+                className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700
                          disabled:opacity-50 disabled:cursor-not-allowed transition-all
                          duration-150 font-medium focus:outline-none focus:ring-2
                          focus:ring-offset-2 focus:ring-[#7E22CE]"
@@ -1492,7 +1492,7 @@ export default function EditProfileModal({
                             </button>
                             <button
                               type="button"
-                              className="text-sm px-3 py-1 rounded-md border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                              className="text-sm px-3 py-1 rounded-md border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 const listNow = boroughNeighborhoods[borough] || (await loadBoroughNeighborhoods(borough));
@@ -1656,7 +1656,7 @@ export default function EditProfileModal({
                   {nycAreas.map((area) => (
                     <label
                       key={area}
-                      className="flex items-center space-x-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
+                      className="flex items-center space-x-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
                     >
                       <input
                         type="checkbox"
@@ -1752,7 +1752,7 @@ export default function EditProfileModal({
                 onClick={addService}
                 className="w-full px-3 py-2 bg-[#7E22CE] text-white text-sm rounded-lg
                          hover:bg-[#5c0a9a] transition-colors focus:outline-none focus:ring-2
-                         focus:ring-offset-2 focus:ring-[#7E22CE] flex items-center justify-center gap-2"
+                         focus:ring-offset-2 focus:ring-[#7E22CE] flex items-center justify-center gap-2 font-semibold"
               >
                 <Plus className="w-4 h-4" />
                 Add Service
@@ -1939,7 +1939,7 @@ export default function EditProfileModal({
                                 }
                               }}
                               className={`px-3 py-1.5 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 whitespace-nowrap ${
-                                isSel ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                isSel ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                               }`}
                               type="button"
                             >
@@ -2062,7 +2062,7 @@ export default function EditProfileModal({
                             <button
                               aria-label="Remove skill"
                               title="Remove skill"
-                              className="w-8 h-8 flex items-center justify-center rounded-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 hover:border-red-300 transition-colors"
+                              className="w-8 h-8 flex items-center justify-center rounded-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 hover:border-red-300 dark:hover:border-red-500 transition-colors"
                               onClick={() => setSelectedServices((prev) => prev.filter((x) => x.catalog_service_id !== s.catalog_service_id))}
                               type="button"
                             >
@@ -2319,7 +2319,7 @@ export default function EditProfileModal({
                 type="button"
                 onClick={isAreasVariant ? () => { void handleAreasSave(); } : () => { void handleServicesSave(); }}
                 disabled={isAreasVariant ? savingAreas : (svcSaving || hasServiceFloorViolations)}
-                className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg hover:bg-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE]"
+                className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE]"
               >
                 {(isAreasVariant ? savingAreas : svcSaving) ? 'Saving…' : 'Save'}
               </button>

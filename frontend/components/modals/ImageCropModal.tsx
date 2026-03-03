@@ -162,7 +162,7 @@ export default function ImageCropModal({
           <button
             type="button"
             onClick={handleSave}
-            className="h-10 min-w-[112px] inline-flex items-center justify-center px-4 bg-[#7E22CE] text-white rounded-md hover:bg-[#7E22CE] cursor-pointer"
+            className="h-10 min-w-[112px] inline-flex items-center justify-center px-4 bg-[#7E22CE] text-white rounded-md hover:bg-purple-800 dark:hover:bg-purple-700 cursor-pointer font-semibold"
           >
             Save
           </button>

@@ -2005,7 +2005,7 @@ function SearchPageInner() {
                                   className={`block w-full px-4 py-2 text-left text-sm whitespace-nowrap transition-colors ${
                                     sortOption === option.value
                                       ? 'bg-purple-50 text-[#7E22CE] font-medium'
-                                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                                   }`}
                                 >
                                   {option.menuLabel}

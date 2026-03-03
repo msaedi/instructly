@@ -766,7 +766,7 @@ const findNextAvailableSlot = (
               disabled={!nextAvailableSlot}
               className={`flex-1 text-center ${compact ? 'py-1.5 px-3 text-sm' : 'py-2.5 px-4'} rounded-lg font-medium transition-colors ${
                 nextAvailableSlot
-                  ? 'bg-[#7E22CE] text-white hover:bg-[#7E22CE] cursor-pointer'
+                  ? 'bg-[#7E22CE] text-white hover:bg-purple-800 dark:hover:bg-purple-700 cursor-pointer'
                   : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
               }`}
             >

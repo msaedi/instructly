@@ -1091,7 +1091,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
               type="button"
               onClick={() => { if (!saving && !savingServiceAreas) { void save(); } }}
               disabled={saving || savingServiceAreas}
-              className="w-40 whitespace-nowrap px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:bg-[#7E22CE] disabled:opacity-50 shadow-sm justify-center insta-primary-btn"
+              className="w-40 whitespace-nowrap px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 disabled:opacity-50 shadow-sm justify-center insta-primary-btn"
             >
               {saving || savingServiceAreas ? 'Saving...' : 'Save Changes'}
             </button>

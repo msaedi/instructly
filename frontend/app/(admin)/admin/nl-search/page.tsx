@@ -258,7 +258,7 @@ export default function NLSearchAdminPage() {
                 className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full transition-colors ${
                   showConfig
                     ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-                    : 'text-gray-700 dark:text-gray-200 ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-800/60'
+                    : 'text-gray-700 dark:text-gray-200 ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-700/60'
                 }`}
               >
                 <Settings className="h-4 w-4" />
@@ -266,7 +266,7 @@ export default function NLSearchAdminPage() {
               </button>
               <button
                 onClick={() => void logout()}
-                className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-800/60 cursor-pointer"
+                className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-700/60 cursor-pointer"
               >
                 Log out
               </button>
@@ -572,7 +572,7 @@ export default function NLSearchAdminPage() {
                 <button
                   onClick={() => void handleSearch()}
                   disabled={isSearching || !searchQuery.trim()}
-                  className="px-6 py-3 text-white bg-purple-600 rounded-full hover:bg-purple-700 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors shadow-sm"
+                  className="px-6 py-3 text-white bg-purple-600 rounded-full hover:bg-purple-700 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors shadow-sm font-semibold"
                 >
                   {isSearching ? (
                     <RefreshCw className="w-5 h-5 animate-spin" />

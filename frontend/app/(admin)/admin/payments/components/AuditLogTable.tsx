@@ -45,7 +45,7 @@ export default function AuditLogTable({
           </thead>
           <tbody className="divide-y divide-gray-200/70 dark:divide-gray-700/60">
             {entries.map((entry) => (
-              <tr key={entry.id} className="hover:bg-gray-50/70 dark:hover:bg-gray-800/40">
+              <tr key={entry.id} className="hover:bg-gray-50/70 dark:hover:bg-gray-700/40">
                 <td className="px-4 py-4 text-gray-700 dark:text-gray-300">
                   <div className="font-medium text-gray-900 dark:text-gray-100">{formatDateTime(entry.timestamp)}</div>
                 </td>

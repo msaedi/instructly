@@ -254,7 +254,7 @@ export default function HomePage() {
                 {!hideStudentUi && (
                   <Link
                     href="/login"
-                    className="px-4 py-2 bg-[#7E22CE] text-white rounded-lg hover:bg-[#7E22CE] transition-colors font-medium"
+                    className="px-4 py-2 bg-[#7E22CE] text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors font-medium"
                   >
                     Sign up / Log in
                   </Link>

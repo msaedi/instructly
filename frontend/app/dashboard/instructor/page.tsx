@@ -169,7 +169,7 @@ export default function InstructorDashboard() {
             <p className="text-gray-600 dark:text-gray-400 mb-6">{error}</p>
             <Link
               href="/become-instructor"
-              className="inline-block px-6 py-2 bg-[#7E22CE] text-white rounded-md hover:bg-[#7E22CE] transition-colors"
+              className="inline-block px-6 py-2 bg-[#7E22CE] text-white rounded-md hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors font-semibold"
               onClick={() => logger.debug('Navigating to become-instructor from error state')}
             >
               Complete Profile Setup
@@ -262,7 +262,7 @@ export default function InstructorDashboard() {
             />
             <div className="pt-2">
               <button
-                className="px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:bg-[#7E22CE] disabled:opacity-50"
+                className="px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 disabled:opacity-50 font-semibold"
                 disabled={!(connectStatus?.onboarding_completed && (profile.services || []).length > 0)}
                 onClick={() => alert('Please use the new dashboard at /instructor/dashboard')}
               >
@@ -381,7 +381,7 @@ export default function InstructorDashboard() {
                 logger.debug('Opening edit profile modal');
                 setShowEditModal(true);
               }}
-              className="flex items-center px-4 py-2 bg-[#7E22CE] text-white rounded-md hover:bg-[#7E22CE] transition-colors"
+              className="flex items-center px-4 py-2 bg-[#7E22CE] text-white rounded-md hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors font-semibold"
             >
               <Edit className="h-4 w-4 mr-2" />
               Edit Profile

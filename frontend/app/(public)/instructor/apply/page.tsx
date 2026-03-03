@@ -665,7 +665,7 @@ export default function InstructorApplyPage() {
               <button
                 type="submit"
                 disabled={status === 'loading'}
-                className="w-full flex justify-center items-center h-12 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#7E22CE] hover:bg-[#7E22CE] focus:bg-[#7E22CE] active:bg-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-60 disabled:cursor-not-allowed transform-gpu will-change-transform transition-all"
+                className="w-full flex justify-center items-center h-12 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 focus:bg-[#7E22CE] active:bg-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-60 disabled:cursor-not-allowed transform-gpu will-change-transform transition-all"
               >
                 {status === 'loading' && (
                   <span className="mr-2 inline-flex h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />

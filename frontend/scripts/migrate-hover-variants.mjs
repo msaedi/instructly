@@ -23,19 +23,21 @@ const TEST_FILE_RE = /\.(test|spec)\.[jt]sx?$/i;
 /* ------------------------------------------------------------------ */
 const HOVER_MAPPINGS = new Map([
   // hover:bg-*
-  ['hover:bg-gray-50',      ['dark:hover:bg-gray-800']],
-  ['hover:bg-gray-50/70',   ['dark:hover:bg-gray-800/40']],
+  ['hover:bg-gray-50',      ['dark:hover:bg-gray-700']],
+  ['hover:bg-gray-50/70',   ['dark:hover:bg-gray-700/40']],
   ['hover:bg-gray-100',     ['dark:hover:bg-gray-700']],
-  ['hover:bg-gray-100/80',  ['dark:hover:bg-gray-800/60']],
+  ['hover:bg-gray-100/80',  ['dark:hover:bg-gray-700/60']],
   ['hover:bg-gray-200',     ['dark:hover:bg-gray-600']],
   ['hover:bg-gray-200/80',  ['dark:hover:bg-gray-700/60']],
   ['hover:bg-gray-300',     ['dark:hover:bg-gray-600']],
   ['hover:bg-purple-50',    ['dark:hover:bg-purple-900/30']],
   ['hover:bg-red-50',       ['dark:hover:bg-red-900/30']],
   ['hover:bg-red-100',      ['dark:hover:bg-red-900/40']],
+  ['hover:bg-red-200',      ['dark:hover:bg-red-800']],
   ['hover:bg-blue-50',      ['dark:hover:bg-blue-900/30']],
   ['hover:bg-green-100',    ['dark:hover:bg-green-900/40']],
   ['hover:bg-yellow-50',    ['dark:hover:bg-yellow-900/30']],
+  ['hover:bg-amber-50',     ['dark:hover:bg-amber-900/30']],
   ['hover:bg-indigo-50',    ['dark:hover:bg-indigo-900/20']],
   ['hover:bg-indigo-50/70', ['dark:hover:bg-indigo-900/20']],
   ['hover:bg-indigo-100',   ['dark:hover:bg-indigo-900/40']],
@@ -47,11 +49,13 @@ const HOVER_MAPPINGS = new Map([
   ['hover:text-gray-900',   ['dark:hover:text-gray-100']],
   ['hover:text-gray-800',   ['dark:hover:text-gray-200']],
   ['hover:text-gray-700',   ['dark:hover:text-gray-300']],
-  ['hover:text-gray-600',   ['dark:hover:text-gray-400']],
+  ['hover:text-gray-600',   ['dark:hover:text-gray-200']],
+  ['hover:text-red-600',    ['dark:hover:text-red-400']],
   ['hover:text-indigo-800', ['dark:hover:text-indigo-300']],
   // hover:border-*
   ['hover:border-gray-300', ['dark:hover:border-gray-600']],
   ['hover:border-gray-400', ['dark:hover:border-gray-500']],
+  ['hover:border-red-300',  ['dark:hover:border-red-500']],
 ]);
 
 /* ------------------------------------------------------------------ */

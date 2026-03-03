@@ -115,7 +115,7 @@ const AddCardFormInner: React.FC<{
         <button
           type="submit"
           disabled={!stripe || loading}
-          className="flex-1 p-2 bg-[#7E22CE] text-white rounded text-sm hover:bg-[#7E22CE] disabled:bg-gray-300"
+          className="flex-1 p-2 bg-[#7E22CE] text-white rounded text-sm hover:bg-purple-800 dark:hover:bg-purple-700 disabled:bg-gray-300 font-semibold"
         >
           {loading ? 'Adding...' : 'Add Card'}
         </button>
@@ -262,7 +262,7 @@ export default function PaymentMethodSelection({
           <div className="mt-6">
             <button
               onClick={handleContinue}
-              className="w-full py-2.5 px-4 bg-[#7E22CE] text-white hover:bg-[#7E22CE] rounded-lg font-medium transition-colors focus:outline-none focus:ring-0"
+              className="w-full py-2.5 px-4 bg-[#7E22CE] text-white hover:bg-purple-800 dark:hover:bg-purple-700 rounded-lg font-medium transition-colors focus:outline-none focus:ring-0"
             >
               {isInlineFlow ? 'Apply payment method' : 'Continue to Confirmation'}
             </button>

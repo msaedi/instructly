@@ -195,7 +195,7 @@ export function InstructorReferralPopup({ isLive }: InstructorReferralPopupProps
               <button
                 type="button"
                 onClick={handleCopyLink}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-semibold rounded-lg transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-semibold rounded-lg transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
               >
                 {copied ? (
                   <>

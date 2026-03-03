@@ -175,7 +175,7 @@ export function BioCard({
                 <button
                   type="button"
                   onClick={onGenerateBio}
-                  className="inline-flex items-center justify-center px-3 py-1.5 rounded-md text-sm sm:text-xs bg-[#7E22CE] text-white shadow-sm hover:bg-[#7E22CE]"
+                  className="inline-flex items-center justify-center px-3 py-1.5 rounded-md text-sm sm:text-xs bg-[#7E22CE] text-white shadow-sm hover:bg-purple-800 dark:hover:bg-purple-700 font-semibold"
                 >
                   Rewrite with AI
                 </button>

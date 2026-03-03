@@ -997,7 +997,7 @@ function Step3SkillsPricingInner() {
                           aria-pressed={selectedFlag}
                           className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
                             selectedFlag
-                              ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]'
+                              ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700'
                               : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                           }`}
                         >
@@ -1090,7 +1090,7 @@ function Step3SkillsPricingInner() {
                                       [collapseKey]: !(previous[collapseKey] ?? false),
                                     }))
                                   }
-                                  className="w-full px-1 py-1.5 flex items-center justify-between text-left text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md transition-colors"
+                                  className="w-full px-1 py-1.5 flex items-center justify-between text-left text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors"
                                 >
                                   <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                                     {group.subcategory_name}
@@ -1130,7 +1130,7 @@ function Step3SkillsPricingInner() {
                                         onClick={() => toggleService(service)}
                                         className={`inline-flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 transition-colors no-hover-shadow appearance-none overflow-hidden ${
                                           selectedFlag
-                                            ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]'
+                                            ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700'
                                             : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                                         }`}
                                       >
@@ -1227,7 +1227,7 @@ function Step3SkillsPricingInner() {
                         className={`w-8 h-8 flex items-center justify-center rounded-full bg-white dark:bg-gray-800 border transition-colors ${
                           isInstructorLive && selected.length <= 1
                             ? 'border-gray-200 dark:border-gray-700 text-gray-300 cursor-not-allowed'
-                            : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 hover:border-red-300'
+                            : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 hover:border-red-300 dark:hover:border-red-500'
                         }`}
                         onClick={() => removeService(service.catalog_service_id)}
                       >

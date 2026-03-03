@@ -1230,7 +1230,7 @@ export default function TimeSelectionModal({
           <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
             <button
               onClick={onClose}
-              className="p-2 -ml-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              className="p-2 -ml-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               aria-label="Go back"
             >
               <ArrowLeft className="h-6 w-6 text-gray-600 dark:text-gray-400" />
@@ -1379,7 +1379,7 @@ export default function TimeSelectionModal({
               </h2>
               <button
                 onClick={onClose}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                 aria-label="Close modal"
               >
                 <X className="h-6 w-6 text-gray-600 dark:text-gray-400" aria-hidden="true" />

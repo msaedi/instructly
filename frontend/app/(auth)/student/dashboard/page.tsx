@@ -324,7 +324,7 @@ function StudentDashboardContent() {
               </div>
               <button
                 onClick={() => setIsStatsVisible(false)}
-                className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800/30 transition-colors mr-4"
+                className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700/30 transition-colors mr-4"
                 aria-label="Dismiss notification"
               >
                 <X className="h-4 w-4 text-gray-600 dark:text-gray-400" aria-hidden="true" />
@@ -354,7 +354,7 @@ function StudentDashboardContent() {
                       `w-full flex items-center gap-3 rounded-lg px-4 py-3 text-base font-semibold mb-2 transition-all cursor-pointer ` +
                       (isActive
                         ? 'bg-purple-50 text-gray-600 dark:text-gray-400 border border-purple-200'
-                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300')
+                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-300')
                     }
                   >
                     <Icon className="h-5 w-5" />
@@ -1654,7 +1654,7 @@ export function AddressModal({ mode, address, onClose, onSaved }: { mode: 'creat
                 {suggestions.map((s) => (
                   <button
                     key={s.place_id}
-                    className="block w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800"
+                    className="block w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700"
                     onClick={async () => {
                       try {
                         // Fetch normalized place details and auto-fill fields
@@ -1807,7 +1807,7 @@ function DeleteAccountModal({ email, onClose, onDeleted }: { email: string; onCl
             />
             <button
               type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-400 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
@@ -2048,7 +2048,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
             />
             <button
               type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-400 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
               onClick={() => setShowPasswords((v) => !v)}
               aria-label={showPasswords ? 'Hide passwords' : 'Show passwords'}
             >

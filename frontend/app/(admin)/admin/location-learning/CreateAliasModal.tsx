@@ -137,7 +137,7 @@ export function CreateAliasModal({ alias, onClose, onSubmit, isSubmitting }: Pro
           <button
             type="button"
             onClick={onClose}
-            className="rounded border px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+            className="rounded border px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
           >
             Cancel
           </button>

@@ -111,7 +111,7 @@ export function InstructorInfo({
         {onChat && !showBookAgainButton && (
           <Button
             onClick={onChat}
-            className="flex-1 sm:flex-initial bg-[#7E22CE] hover:bg-[#7E22CE] text-white border-transparent rounded-lg py-2.5 px-6 text-base font-medium"
+            className="flex-1 sm:flex-initial bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 text-white border-transparent rounded-lg py-2.5 px-6 text-base font-medium"
           >
             <MessageCircle className="h-5 w-5 mr-2" />
             Chat
@@ -143,7 +143,7 @@ export function InstructorInfo({
         {showBookAgainButton && onBookAgain && (
           <Button
             onClick={onBookAgain}
-            className="flex-1 sm:flex-initial bg-[#7E22CE] hover:bg-[#7E22CE] text-white border-transparent rounded-lg py-2.5 px-6 text-base font-medium"
+            className="flex-1 sm:flex-initial bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 text-white border-transparent rounded-lg py-2.5 px-6 text-base font-medium"
           >
             Book Again
           </Button>

@@ -1982,7 +1982,7 @@ function PaymentConfirmationInner({
                     <button
                       type="button"
                       onClick={handlePromoAction}
-                      className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg text-sm font-medium hover:bg-[#7E22CE] transition-colors disabled:cursor-not-allowed disabled:opacity-70"
+                      className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg text-sm font-medium hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors disabled:cursor-not-allowed disabled:opacity-70"
                       disabled={promoApplyDisabled}
                     >
                       {promoActive ? 'Remove' : 'Apply'}
@@ -2466,7 +2466,7 @@ function PaymentConfirmationInner({
             className={`w-full py-2.5 px-4 rounded-lg font-medium transition-colors focus:outline-none focus:ring-0 ${
               ctaDisabled
                 ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                : 'bg-[#7E22CE] text-white hover:bg-[#7E22CE]'
+                : 'bg-[#7E22CE] text-white hover:bg-purple-800 dark:hover:bg-purple-700'
             }`}
           >
             {ctaLabel}
@@ -2565,7 +2565,7 @@ function PaymentConfirmationInner({
                       <Tooltip.Trigger asChild>
                         <button
                           type="button"
-                          className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 dark:text-gray-300 transition-colors hover:text-gray-600 dark:hover:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
+                          className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 dark:text-gray-300 transition-colors hover:text-gray-600 dark:hover:text-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
                           aria-label="Learn about the Service & Support fee"
                         >
                           <Info className="h-3.5 w-3.5" aria-hidden="true" />

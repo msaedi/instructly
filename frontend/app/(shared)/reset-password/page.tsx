@@ -97,7 +97,7 @@ function ResetPasswordForm() {
           <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 dark:bg-green-900/20 mb-4"><CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" aria-hidden="true" /></div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Password Reset Successful</h2>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">Your password has been successfully reset. You can now log in with your new password.</p>
-          <button onClick={handleGoToLogin} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#7E22CE] hover:bg-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] dark:ring-offset-gray-800">Go to Login</button>
+          <button onClick={handleGoToLogin} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] dark:ring-offset-gray-800">Go to Login</button>
         </div>
       </div>
     </div>

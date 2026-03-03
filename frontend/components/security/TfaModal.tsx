@@ -204,7 +204,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
               </button>
               <button
                 type="button"
-                className={`rounded-md px-4 py-2 text-sm text-white transition-colors ${loading ? 'bg-purple-300' : 'bg-[#7E22CE] hover:bg-[#7E22CE] active:bg-purple-900'}`}
+                className={`rounded-md px-4 py-2 text-sm font-semibold text-white transition-colors ${loading ? 'bg-purple-300' : 'bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 active:bg-purple-900'}`}
                 onClick={verify}
                 disabled={loading}
               >

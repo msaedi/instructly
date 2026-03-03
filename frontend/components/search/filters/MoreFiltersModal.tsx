@@ -312,7 +312,7 @@ function MoreFiltersModalContent({
           <button
             type="button"
             onClick={handleApply}
-            className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+            className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold"
           >
             Apply
           </button>

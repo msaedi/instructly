@@ -145,7 +145,7 @@ export function PriceFilter({
           <button
             type="button"
             onClick={handleApply}
-            className="px-4 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700"
+            className="px-4 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 font-semibold"
           >
             Apply
           </button>

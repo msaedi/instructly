@@ -285,7 +285,7 @@ export default function Calendar({
           <button
             onClick={goToPreviousMonth}
             disabled={isMonthInPast()}
-            className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="Previous month"
           >
             <ChevronLeft
@@ -296,7 +296,7 @@ export default function Calendar({
           </button>
           <button
             onClick={goToNextMonth}
-            className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
+            className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
             aria-label="Next month"
           >
             <ChevronRight className="h-5 w-5 text-gray-600 dark:text-gray-300" />
@@ -373,7 +373,7 @@ export default function Calendar({
                     ${
                       isSelectable
                         ? cell.isSelected
-                          ? 'cursor-pointer bg-[#7E22CE] hover:bg-[#7E22CE] text-white'
+                          ? 'cursor-pointer bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 text-white'
                           : 'cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/20'
                         : 'cursor-not-allowed'
                     }

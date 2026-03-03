@@ -223,7 +223,7 @@ function BookingsPageImpl() {
             <div className="flex justify-end gap-3">
               <button
                 type="button"
-                className="rounded-lg border px-4 py-2 text-sm font-medium transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
+                className="rounded-lg border px-4 py-2 text-sm font-medium transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
                 onClick={() => setNoShowModalBookingId(null)}
                 disabled={markNoShow.isPending}
               >
