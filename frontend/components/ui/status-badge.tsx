@@ -14,16 +14,11 @@ export interface StatusBadgeProps {
 }
 
 const variantStyles: Record<StatusBadgeVariant, string> = {
-  success:
-    'bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-950 dark:text-yellow-300 dark:border-yellow-800',
-  cancelled:
-    'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-950 dark:text-gray-300 dark:border-gray-800',
-  pending:
-    'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800',
-  warning:
-    'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800',
-  default:
-    'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-950 dark:text-gray-300 dark:border-gray-800',
+  success: 'insta-status-badge--success',
+  cancelled: 'insta-status-badge--cancelled',
+  pending: 'insta-status-badge--pending',
+  warning: 'insta-status-badge--warning',
+  default: 'insta-status-badge--default',
 };
 
 const iconMap: Record<StatusBadgeVariant, React.ElementType> = {
@@ -40,7 +35,7 @@ export function StatusBadge({ variant, label, showIcon = true, className }: Stat
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+        'insta-status-badge',
         variantStyles[variant],
         className
       )}

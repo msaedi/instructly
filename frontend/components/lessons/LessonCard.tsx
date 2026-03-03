@@ -115,7 +115,7 @@ export function LessonCard({
 
   return (
     <Card
-      className={`p-4 sm:p-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow cursor-pointer ${className || ''}`}
+      className={`insta-surface-card p-4 sm:p-6 rounded-xl hover:shadow-lg transition-shadow cursor-pointer ${className || ''}`}
       data-testid="lesson-card"
       onClick={onViewDetails}
     >

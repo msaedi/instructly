@@ -8,7 +8,7 @@ describe('LessonStatus', () => {
 
     const badge = screen.getByText('Upcoming');
     expect(badge).toBeInTheDocument();
-    expect(badge).toHaveClass('bg-blue-50', 'text-blue-700', 'border-blue-200');
+    expect(badge).toHaveClass('insta-status-badge', 'insta-status-badge--pending');
   });
 
   it('renders in-progress status with pending styling', () => {
@@ -16,7 +16,7 @@ describe('LessonStatus', () => {
 
     const badge = screen.getByText('In Progress');
     expect(badge).toBeInTheDocument();
-    expect(badge).toHaveClass('bg-blue-50', 'text-blue-700', 'border-blue-200');
+    expect(badge).toHaveClass('insta-status-badge', 'insta-status-badge--pending');
   });
 
   it('renders completed status with success styling', () => {
@@ -24,8 +24,7 @@ describe('LessonStatus', () => {
 
     const badge = screen.getByText('Completed');
     expect(badge).toBeInTheDocument();
-    // New design uses yellow for success/state consistency
-    expect(badge).toHaveClass('bg-yellow-50', 'text-yellow-700', 'border-yellow-200');
+    expect(badge).toHaveClass('insta-status-badge', 'insta-status-badge--success');
   });
 
   it('renders cancelled status with gray color', () => {
@@ -33,7 +32,7 @@ describe('LessonStatus', () => {
 
     const badge = screen.getByText('Cancelled');
     expect(badge).toBeInTheDocument();
-    expect(badge).toHaveClass('bg-gray-50', 'text-gray-700', 'border-gray-200');
+    expect(badge).toHaveClass('insta-status-badge', 'insta-status-badge--cancelled');
   });
 
   it('renders no show status with amber color', () => {
@@ -41,21 +40,13 @@ describe('LessonStatus', () => {
 
     const badge = screen.getByText('No Show');
     expect(badge).toBeInTheDocument();
-    expect(badge).toHaveClass('bg-amber-50', 'text-amber-700', 'border-amber-200');
+    expect(badge).toHaveClass('insta-status-badge', 'insta-status-badge--warning');
   });
 
   it('renders with correct badge structure', () => {
-    const { container } = render(<LessonStatus status="CONFIRMED" />);
-
-    const badge = container.firstChild;
-    expect(badge).toHaveClass(
-      'inline-flex',
-      'items-center',
-      'rounded-full',
-      'text-xs',
-      'font-medium',
-      'border'
-    );
+    render(<LessonStatus status="CONFIRMED" />);
+    const badge = screen.getByText('Upcoming');
+    expect(badge).toHaveClass('insta-status-badge', 'insta-status-badge--pending');
   });
 
   it('shows icon for each status', () => {
@@ -73,19 +64,11 @@ describe('LessonStatus', () => {
   });
 
   it('applies correct styling for all elements', () => {
-    const { container } = render(<LessonStatus status="COMPLETED" />);
-
-    const badge = container.querySelector('span');
-    const classes = badge?.className.split(' ') || [];
-
-    expect(classes).toContain('inline-flex');
-    expect(classes).toContain('items-center');
-    expect(classes).toContain('px-2.5');
-    expect(classes).toContain('py-1'); // Updated from py-0.5
-    expect(classes).toContain('rounded-full');
-    expect(classes).toContain('text-xs');
-    expect(classes).toContain('font-medium');
-    expect(classes).toContain('border');
+    render(<LessonStatus status="COMPLETED" />);
+    const badge = screen.getByText('Completed');
+    expect(badge.className.split(' ')).toEqual(
+      expect.arrayContaining(['insta-status-badge', 'insta-status-badge--success'])
+    );
   });
 
   it('renders unknown status with default styling and uses status as label', () => {
@@ -94,7 +77,6 @@ describe('LessonStatus', () => {
 
     const badge = screen.getByText('UNKNOWN_STATUS');
     expect(badge).toBeInTheDocument();
-    // Default variant uses gray styling
-    expect(badge).toHaveClass('bg-gray-50', 'text-gray-700', 'border-gray-200');
+    expect(badge).toHaveClass('insta-status-badge', 'insta-status-badge--default');
   });
 });

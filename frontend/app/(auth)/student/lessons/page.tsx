@@ -198,8 +198,8 @@ function MyLessonsContent() {
   // Show loading while checking auth
   if (!hasMounted || isAuthLoading) {
     return (
-      <div className="min-h-screen">
-        <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+      <div className="min-h-screen insta-dashboard-page">
+        <header className="insta-dashboard-header px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/" className="inline-block">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
@@ -233,9 +233,9 @@ function MyLessonsContent() {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen insta-dashboard-page">
       {/* Header - matching other pages */}
-      <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+      <header className="insta-dashboard-header px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link href="/" className="inline-block">
             <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
@@ -253,7 +253,7 @@ function MyLessonsContent() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-4 mb-8 border-b bg-white dark:bg-gray-800 p-4 rounded-lg">
+      <div className="insta-surface-card flex gap-4 mb-8 border-b p-4 rounded-lg">
         <button
           onClick={() => handleTabChange('upcoming')}
           className={`pb-4 px-2 font-medium transition-colors cursor-pointer text-gray-600 dark:text-gray-400 hover:text-gray-700 ${
@@ -280,7 +280,7 @@ function MyLessonsContent() {
       <div className="space-y-4">
         {error ? (
           // Error state
-          <Card className="p-8 bg-red-50 border-red-200">
+          <Card className="insta-empty-state-note p-8 border-red-200">
             <div className="flex flex-col items-center text-center space-y-3">
               <AlertCircle className="h-12 w-12 text-red-500" />
               <h3 className="text-lg font-semibold text-red-800">Failed to load lessons</h3>
@@ -290,7 +290,7 @@ function MyLessonsContent() {
               <Button
                 onClick={() => window.location.reload()}
                 variant="outline"
-                className="cursor-pointer"
+                className="insta-secondary-btn cursor-pointer"
               >
                 Retry
               </Button>
@@ -349,7 +349,7 @@ function MyLessonsContent() {
           })
         ) : (
           // Empty state
-          <div className="text-center py-12">
+          <div className="insta-empty-state-note rounded-xl text-center py-12 px-6">
             {activeTab === 'upcoming' ? (
               <>
                 <p className="text-lg text-muted-foreground mb-4">
@@ -382,7 +382,7 @@ function MyLessonsContent() {
               }
             }}
             variant="ghost"
-            className="w-full max-w-sm rounded-lg py-3 text-purple-600 hover:bg-purple-50"
+            className="insta-secondary-btn w-full max-w-sm rounded-lg py-3"
             disabled={isFetchingMore}
           >
             {isFetchingMore ? 'Loading...' : 'Load More Lessons'}

@@ -203,7 +203,7 @@ body {
 
 /* Base Styles */
 body {
-  background: var(--background);
+  background-color: hsl(var(--background));
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
   line-height: 1.5;
@@ -211,11 +211,16 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+.dark body {
+  background-color: #111827;
+  color: #f3f4f6;
+}
+
 /* Form Input Styles - Fix dark mode visibility */
 input,
 textarea,
 select {
-  background-color: var(--background);
+  background-color: hsl(var(--background));
   color: var(--foreground);
   /* Note: border-color intentionally omitted - let Tailwind utilities control borders */
 }
@@ -1045,6 +1050,80 @@ html {
   border-color: rgb(55 65 81 / 0.78);
   background-color: rgb(15 23 42 / 0.48);
   color: #d1d5db;
+}
+
+.insta-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+  border-width: 1px;
+  transition-property: color, background-color, border-color;
+  transition-duration: 150ms;
+}
+
+.insta-status-badge--success {
+  background-color: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.dark .insta-status-badge--success {
+  background-color: #022c22;
+  color: #6ee7b7;
+  border-color: #065f46;
+}
+
+.insta-status-badge--cancelled {
+  background-color: #f9fafb;
+  color: #374151;
+  border-color: #e5e7eb;
+}
+
+.dark .insta-status-badge--cancelled {
+  background-color: #030712;
+  color: #d1d5db;
+  border-color: #1f2937;
+}
+
+.insta-status-badge--pending {
+  background-color: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+.dark .insta-status-badge--pending {
+  background-color: #172554;
+  color: #93c5fd;
+  border-color: #1e40af;
+}
+
+.insta-status-badge--warning {
+  background-color: #fffbeb;
+  color: #b45309;
+  border-color: #fde68a;
+}
+
+.dark .insta-status-badge--warning {
+  background-color: #451a03;
+  color: #fcd34d;
+  border-color: #92400e;
+}
+
+.insta-status-badge--default {
+  background-color: #f9fafb;
+  color: #374151;
+  border-color: #e5e7eb;
+}
+
+.dark .insta-status-badge--default {
+  background-color: #030712;
+  color: #d1d5db;
+  border-color: #1f2937;
 }
 
 .insta-dialog-backdrop {

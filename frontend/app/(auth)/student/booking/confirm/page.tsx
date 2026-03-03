@@ -215,7 +215,7 @@ export default function BookingConfirmationPage() {
   if (authLoading) {
     return (
       <div className="min-h-screen">
-        <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+        <header className="bg-white/90 dark:bg-gray-900/70 backdrop-blur-sm border-b border-gray-200/80 dark:border-gray-700/70 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link className="inline-block" href="/">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
@@ -244,7 +244,7 @@ export default function BookingConfirmationPage() {
     return (
       <div className="min-h-screen">
         {/* Header - matching search results page */}
-        <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+        <header className="bg-white/90 dark:bg-gray-900/70 backdrop-blur-sm border-b border-gray-200/80 dark:border-gray-700/70 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link className="inline-block" href="/">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
@@ -268,7 +268,7 @@ export default function BookingConfirmationPage() {
     return (
       <div className="min-h-screen">
         {/* Header - matching search results page */}
-        <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+        <header className="bg-white/90 dark:bg-gray-900/70 backdrop-blur-sm border-b border-gray-200/80 dark:border-gray-700/70 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/" className="inline-block">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
@@ -300,7 +300,7 @@ export default function BookingConfirmationPage() {
     return (
       <div className="min-h-screen">
         {/* Header - matching search results page */}
-        <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+        <header className="bg-white/90 dark:bg-gray-900/70 backdrop-blur-sm border-b border-gray-200/80 dark:border-gray-700/70 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/" className="inline-block">
               <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
@@ -321,7 +321,7 @@ export default function BookingConfirmationPage() {
                 shareUrl={referralShare.shareUrl}
               />
             )}
-            <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center">
+            <div className="bg-white/95 dark:bg-gray-900/80 backdrop-blur-sm rounded-xl border border-gray-200/80 dark:border-gray-700/70 p-8 text-center">
               {/* Success Icon */}
               <div className="w-20 h-20 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mx-auto mb-6">
                 <svg className="w-12 h-12 text-green-600 dark:text-green-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -357,14 +357,14 @@ export default function BookingConfirmationPage() {
                 )}
                 <button
                   onClick={() => router.push('/student/lessons')}
-                  className="w-full bg-white dark:bg-gray-800 text-[#7E22CE] py-3 px-6 rounded-lg font-medium border-2 border-[#7E22CE] hover:bg-purple-50 transition-colors"
+                  className="w-full bg-white/95 dark:bg-gray-900/75 text-[#7E22CE] py-3 px-6 rounded-lg font-medium border-2 border-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
                 >
                   View My Lessons
                 </button>
 
                 <button
                   onClick={() => router.push(bookingData?.instructorId ? `/instructors/${bookingData.instructorId}` : '/student/lessons')}
-                  className="w-full bg-white dark:bg-gray-800 text-[#7E22CE] py-3 px-6 rounded-lg font-medium border-2 border-[#7E22CE] hover:bg-purple-50 transition-colors"
+                  className="w-full bg-white/95 dark:bg-gray-900/75 text-[#7E22CE] py-3 px-6 rounded-lg font-medium border-2 border-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
                 >
                   Book Another Lesson
                 </button>
@@ -393,7 +393,7 @@ export default function BookingConfirmationPage() {
   return (
     <div className="min-h-screen">
       {/* Header - matching search results page */}
-      <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+      <header className="bg-white/90 dark:bg-gray-900/70 backdrop-blur-sm border-b border-gray-200/80 dark:border-gray-700/70 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link className="inline-block" href="/">
             <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
