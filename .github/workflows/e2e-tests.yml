@@ -612,7 +612,7 @@ jobs:
         exit $EXIT_CODE
 
     - name: Upload Playwright report
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       if: failure()
       with:
         name: playwright-report-${{ matrix.project }}
@@ -620,7 +620,7 @@ jobs:
         retention-days: 7
 
     - name: Upload server logs
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       if: failure()
       with:
         name: server-logs-${{ matrix.project }}
@@ -630,7 +630,7 @@ jobs:
         retention-days: 7
 
     - name: Upload test results
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: test-results-${{ matrix.project }}
@@ -638,7 +638,7 @@ jobs:
         retention-days: 7
 
     - name: Upload server logs (success)
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       if: success()
       with:
         name: server-logs-success-${{ matrix.project }}
@@ -856,7 +856,7 @@ jobs:
 
       - name: Upload service logs
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: invite-e2e-logs
           path: |
@@ -865,7 +865,7 @@ jobs:
 
       - name: Upload Playwright artifacts
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: invite-e2e-playwright
           path: |
@@ -1050,7 +1050,7 @@ jobs:
 
       - name: Upload service logs
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: auth-samesite-smoke-logs
           path: |
@@ -1059,7 +1059,7 @@ jobs:
 
       - name: Upload Playwright artifacts
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: auth-samesite-playwright
           path: |
