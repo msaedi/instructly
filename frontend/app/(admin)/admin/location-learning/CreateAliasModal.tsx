@@ -55,7 +55,7 @@ export function CreateAliasModal({ alias, onClose, onSubmit, isSubmitting }: Pro
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1 text-gray-500 dark:text-gray-400 hover:bg-gray-100"
+            className="rounded p-1 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -137,7 +137,7 @@ export function CreateAliasModal({ alias, onClose, onSubmit, isSubmitting }: Pro
           <button
             type="button"
             onClick={onClose}
-            className="rounded border px-4 py-2 text-sm hover:bg-gray-50"
+            className="rounded border px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
           >
             Cancel
           </button>

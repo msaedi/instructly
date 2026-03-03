@@ -28,7 +28,7 @@ export function SelectedNeighborhoodChips({ selected, onRemove }: SelectedNeighb
             type="button"
             onClick={() => onRemove(item.neighborhood_id)}
             aria-label={`Remove ${item.name || 'neighborhood'}`}
-            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[#7E22CE] hover:bg-purple-100"
+            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[#7E22CE] hover:bg-purple-100 dark:hover:bg-purple-900/30"
           >
             <X className="h-3 w-3" aria-hidden="true" />
           </button>

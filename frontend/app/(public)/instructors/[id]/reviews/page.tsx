@@ -64,7 +64,7 @@ export default function InstructorAllReviewsPage() {
             <Button
               variant="ghost"
               onClick={() => router.push(`/instructors/${instructorId}`)}
-              className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900"
+              className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Profile
@@ -113,7 +113,7 @@ export default function InstructorAllReviewsPage() {
                 type="button"
                 aria-pressed={withText}
                 onClick={() => { setWithText((v) => !v); setPage(1); }}
-                className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${withText ? 'border-purple-300 bg-purple-50 text-[#7E22CE]' : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'} hover:bg-gray-50`}
+                className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${withText ? 'border-purple-300 bg-purple-50 text-[#7E22CE]' : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'} hover:bg-gray-50 dark:hover:bg-gray-700`}
               >
                 {withText ? <Check className="h-4 w-4" /> : <span className="h-4 w-4 inline-block border border-gray-300 dark:border-gray-700 rounded-sm" />}
                 With comments only

@@ -44,7 +44,7 @@ export default function ConflictModal({
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-3 top-3 rounded-full p-1 text-gray-500 dark:text-gray-400 hover:bg-gray-100"
+          className="absolute right-3 top-3 rounded-full p-1 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
           aria-label="Close"
         >
           <X className="h-4 w-4" />
@@ -67,7 +67,7 @@ export default function ConflictModal({
             onClick={onRefresh}
             disabled={isRefreshing || isOverwriting}
             className={clsx(
-              'inline-flex items-center justify-center rounded-full border border-gray-300 dark:border-gray-700 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100',
+              'inline-flex items-center justify-center rounded-full border border-gray-300 dark:border-gray-700 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700',
               (isRefreshing || isOverwriting) && 'cursor-not-allowed opacity-60'
             )}
           data-testid="conflict-refresh"

@@ -246,7 +246,7 @@ export default function LHCIInstructorPage() {
                     </span>
                   </div>
                   <p className="text-xs text-slate-500">{service.delivery}</p>
-                  <Button variant="outline" className="w-full border-purple-200 text-purple-700 hover:bg-purple-50">
+                  <Button variant="outline" className="w-full border-purple-200 text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-900/30">
                     Book trial
                   </Button>
                 </CardContent>

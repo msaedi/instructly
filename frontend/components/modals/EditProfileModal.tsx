@@ -1207,7 +1207,7 @@ export default function EditProfileModal({
                 onClose();
               }}
               className="px-4 py-2.5 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg
-                       hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2
+                       hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2
                        focus:ring-gray-400 transition-all duration-150 font-medium"
             >
               Cancel
@@ -1215,7 +1215,7 @@ export default function EditProfileModal({
             <button
               onClick={handleSubmit}
               disabled={loading || !canSubmit}
-              className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg hover:bg-[#7E22CE]
+              className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700
                        disabled:opacity-50 disabled:cursor-not-allowed transition-all
                        duration-150 font-medium focus:outline-none focus:ring-2
                        focus:ring-offset-2 focus:ring-[#7E22CE] flex items-center gap-2"
@@ -1252,7 +1252,7 @@ export default function EditProfileModal({
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300"
                   aria-label="Close"
                 >
                   <X className="h-4 w-4" aria-hidden="true" />
@@ -1376,7 +1376,7 @@ export default function EditProfileModal({
                 type="button"
                 onClick={handleSaveBioExperience}
                 disabled={savingAbout}
-                className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg hover:bg-[#7E22CE]
+                className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700
                          disabled:opacity-50 disabled:cursor-not-allowed transition-all
                          duration-150 font-medium focus:outline-none focus:ring-2
                          focus:ring-offset-2 focus:ring-[#7E22CE]"
@@ -1443,7 +1443,7 @@ export default function EditProfileModal({
                               onClick={() => toggleNeighborhood(nid)}
                               aria-pressed={checked}
                               className={`flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 ${
-                                checked ? 'bg-[#7E22CE] text-white border border-[#7E22CE]' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                                checked ? 'bg-[#7E22CE] text-white border border-[#7E22CE]' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                               }`}
                             >
                               <span className="truncate text-left">{n.name || nid}</span>
@@ -1481,7 +1481,7 @@ export default function EditProfileModal({
                           <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                             <button
                               type="button"
-                              className="text-sm px-3 py-1 rounded-md bg-purple-100 text-[#7E22CE] hover:bg-purple-200"
+                              className="text-sm px-3 py-1 rounded-md bg-purple-100 text-[#7E22CE] hover:bg-purple-200 dark:hover:bg-purple-800/40"
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 const listNow = boroughNeighborhoods[borough] || (await loadBoroughNeighborhoods(borough));
@@ -1492,7 +1492,7 @@ export default function EditProfileModal({
                             </button>
                             <button
                               type="button"
-                              className="text-sm px-3 py-1 rounded-md border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50"
+                              className="text-sm px-3 py-1 rounded-md border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 const listNow = boroughNeighborhoods[borough] || (await loadBoroughNeighborhoods(borough));
@@ -1523,7 +1523,7 @@ export default function EditProfileModal({
                                   onClick={() => toggleNeighborhood(nid)}
                                   aria-pressed={checked}
                                   className={`flex items-center justify-between w-full min-w-0 px-2 py-1 text-xs rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 ${
-                                    checked ? 'bg-[#7E22CE] text-white border border-[#7E22CE]' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                                    checked ? 'bg-[#7E22CE] text-white border border-[#7E22CE]' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                                   }`}
                                 >
                                   <span className="truncate text-left">{label}</span>
@@ -1560,7 +1560,7 @@ export default function EditProfileModal({
                           onClick={addTeachingPlace}
                           aria-label="Add address"
                           disabled={teachingPlaces.length >= 2}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 dark:hover:bg-purple-900/30 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                         >
                           <span className="text-base leading-none">+</span>
                         </button>
@@ -1581,7 +1581,7 @@ export default function EditProfileModal({
                             <button
                               type="button"
                               aria-label={`Remove ${place.address}`}
-                              className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-full text-[#7E22CE] hover:bg-purple-50"
+                              className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-full text-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30"
                               onClick={() => removeTeachingPlace(index)}
                             >
                               &times;
@@ -1613,7 +1613,7 @@ export default function EditProfileModal({
                           onClick={addPublicPlace}
                           aria-label="Add public space"
                           disabled={publicPlaces.length >= 2}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 dark:hover:bg-purple-900/30 focus:outline-none no-hover-shadow disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                         >
                           <span className="text-base leading-none">+</span>
                         </button>
@@ -1634,7 +1634,7 @@ export default function EditProfileModal({
                             <button
                               type="button"
                               aria-label={`Remove ${place.address}`}
-                              className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-full text-[#7E22CE] hover:bg-purple-50"
+                              className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-full text-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30"
                               onClick={() => removePublicPlace(index)}
                             >
                               &times;
@@ -1656,7 +1656,7 @@ export default function EditProfileModal({
                   {nycAreas.map((area) => (
                     <label
                       key={area}
-                      className="flex items-center space-x-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50"
+                      className="flex items-center space-x-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
                     >
                       <input
                         type="checkbox"
@@ -1752,7 +1752,7 @@ export default function EditProfileModal({
                 onClick={addService}
                 className="w-full px-3 py-2 bg-[#7E22CE] text-white text-sm rounded-lg
                          hover:bg-[#5c0a9a] transition-colors focus:outline-none focus:ring-2
-                         focus:ring-offset-2 focus:ring-[#7E22CE] flex items-center justify-center gap-2"
+                         focus:ring-offset-2 focus:ring-[#7E22CE] flex items-center justify-center gap-2 font-semibold"
               >
                 <Plus className="w-4 h-4" />
                 Add Service
@@ -1888,7 +1888,7 @@ export default function EditProfileModal({
                           <button
                             type="button"
                             aria-label={`Remove ${label}`}
-                            className="ml-auto text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 no-hover-shadow shrink-0"
+                            className="ml-auto text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 dark:hover:bg-purple-900/30 no-hover-shadow shrink-0"
                             onClick={() => setSelectedServices((prev) => prev.filter((x) => x.catalog_service_id !== s.catalog_service_id))}
                           >
                             &times;
@@ -1939,7 +1939,7 @@ export default function EditProfileModal({
                                 }
                               }}
                               className={`px-3 py-1.5 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 whitespace-nowrap ${
-                                isSel ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-[#7E22CE]' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                                isSel ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                               }`}
                               type="button"
                             >
@@ -1961,7 +1961,7 @@ export default function EditProfileModal({
                     return (
                       <div key={cat.id} className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                         <button
-                          className="w-full px-4 py-3 flex items-center justify-between text-gray-700 dark:text-gray-300 hover:bg-gray-50 transition-colors"
+                          className="w-full px-4 py-3 flex items-center justify-between text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                           onClick={() => setCollapsed((prev) => ({ ...prev, [cat.id]: !isCollapsed }))}
                           type="button"
                         >
@@ -2006,7 +2006,7 @@ export default function EditProfileModal({
                                     }
                                   }}
                                   className={`px-3 py-2 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 whitespace-nowrap ${
-                                    isSel ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                                    isSel ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                                   }`}
                                   type="button"
                                 >
@@ -2062,7 +2062,7 @@ export default function EditProfileModal({
                             <button
                               aria-label="Remove skill"
                               title="Remove skill"
-                              className="w-8 h-8 flex items-center justify-center rounded-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-colors"
+                              className="w-8 h-8 flex items-center justify-center rounded-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 hover:border-red-300 dark:hover:border-red-500 transition-colors"
                               onClick={() => setSelectedServices((prev) => prev.filter((x) => x.catalog_service_id !== s.catalog_service_id))}
                               type="button"
                             >
@@ -2128,7 +2128,7 @@ export default function EditProfileModal({
                                         return { ...x, ageGroup: next };
                                       }))}
                                       className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
-                                        isSel ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                                        isSel ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                                       }`}
                                       type="button"
                                     >
@@ -2233,7 +2233,7 @@ export default function EditProfileModal({
                                     className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
                                       s.levels_taught.includes(lvl)
                                         ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
-                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                                     }`}
                                     type="button"
                                   >
@@ -2257,7 +2257,7 @@ export default function EditProfileModal({
                                     className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
                                       s.duration_options.includes(d)
                                         ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
-                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                                     }`}
                                     type="button"
                                   >
@@ -2311,7 +2311,7 @@ export default function EditProfileModal({
                   logger.debug('Edit profile cancelled');
                   onClose();
                 }}
-                className="px-4 py-2.5 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 transition-all duration-150 font-medium"
+                className="px-4 py-2.5 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 transition-all duration-150 font-medium"
               >
                 Cancel
               </button>
@@ -2319,7 +2319,7 @@ export default function EditProfileModal({
                 type="button"
                 onClick={isAreasVariant ? () => { void handleAreasSave(); } : () => { void handleServicesSave(); }}
                 disabled={isAreasVariant ? savingAreas : (svcSaving || hasServiceFloorViolations)}
-                className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg hover:bg-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE]"
+                className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE]"
               >
                 {(isAreasVariant ? savingAreas : svcSaving) ? 'Saving…' : 'Save'}
               </button>

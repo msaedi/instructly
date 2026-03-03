@@ -1609,7 +1609,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
                 resetPayment();
                 onBack();
               }}
-              className="text-gray-600 dark:text-gray-400 hover:text-gray-800"
+              className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
             >
               Cancel
             </button>

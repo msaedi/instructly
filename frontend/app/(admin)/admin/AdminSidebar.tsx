@@ -197,7 +197,7 @@ function AdminSidebar() {
               className={`flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                 active
                   ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50/70 dark:hover:bg-gray-800/40'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50/70 dark:hover:bg-gray-700/40'
               }`}
               aria-current={active ? 'page' : undefined}
             >
@@ -222,7 +222,7 @@ function AdminSidebar() {
                         className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-sm ${
                           subActive
                             ? 'text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/10'
-                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-50/60 dark:hover:bg-gray-800/40'
+                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-50/60 dark:hover:bg-gray-700/40'
                         }`}
                         aria-current={subActive ? 'page' : undefined}
                       >

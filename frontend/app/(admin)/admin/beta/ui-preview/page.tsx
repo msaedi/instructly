@@ -54,7 +54,7 @@ export default function UIPreviewPage() {
               <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">
                 Body text using Geist. This reflects the current site typography.
               </p>
-              <button className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-800/60">
+              <button className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-700/60">
                 Sample Button
               </button>
             </div>
@@ -70,7 +70,7 @@ export default function UIPreviewPage() {
               <p className={`${inter.className} text-sm text-gray-700 dark:text-gray-300 mb-4`}>
                 Body text using Inter. Headings use Sora to emphasize hierarchy.
               </p>
-              <button className={`${inter.className} inline-flex items-center rounded-full px-4 py-2 text-sm font-medium ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-800/60`}>
+              <button className={`${inter.className} inline-flex items-center rounded-full px-4 py-2 text-sm font-medium ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-700/60`}>
                 Sample Button
               </button>
             </div>
@@ -92,7 +92,7 @@ export default function UIPreviewPage() {
                   <Dialog.Description className="text-sm text-gray-600 dark:text-gray-400 mb-4">This is an unstyled Radix dialog controlled with Tailwind.</Dialog.Description>
                   <div className="text-right">
                     <Dialog.Close asChild>
-                      <button className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-800/60">Close</button>
+                      <button className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-700/60">Close</button>
                     </Dialog.Close>
                   </div>
                 </Dialog.Content>
@@ -112,7 +112,7 @@ export default function UIPreviewPage() {
                 <Tooltip.Provider>
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
-                      <button className="rounded-full px-3 py-1.5 ring-1 ring-gray-300/70 hover:bg-gray-50 dark:hover:bg-gray-800">Hover me</button>
+                      <button className="rounded-full px-3 py-1.5 ring-1 ring-gray-300/70 hover:bg-gray-50 dark:hover:bg-gray-700">Hover me</button>
                     </Tooltip.Trigger>
                     <Tooltip.Portal>
                       <Tooltip.Content side="top" sideOffset={8} className="rounded-md bg-gray-900 text-white px-2 py-1 text-xs shadow pointer-events-none select-none">Tooltip example</Tooltip.Content>
@@ -123,7 +123,7 @@ export default function UIPreviewPage() {
               <Tabs.Content value="two" className="text-sm text-gray-700 dark:text-gray-300">
                 <Popover.Root>
                   <Popover.Trigger asChild>
-                    <button className="rounded-full px-3 py-1.5 ring-1 ring-gray-300/70 hover:bg-gray-50 dark:hover:bg-gray-800">Open popover</button>
+                    <button className="rounded-full px-3 py-1.5 ring-1 ring-gray-300/70 hover:bg-gray-50 dark:hover:bg-gray-700">Open popover</button>
                   </Popover.Trigger>
                   <Popover.Portal>
                     <Popover.Content sideOffset={8} className="rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white dark:bg-gray-900 p-3 text-xs shadow">

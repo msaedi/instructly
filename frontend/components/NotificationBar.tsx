@@ -118,7 +118,7 @@ export function NotificationBar() {
           </div>
           <button
             onClick={handleDismiss}
-            className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800/30 transition-colors mr-4"
+            className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700/30 transition-colors mr-4"
             aria-label="Dismiss notification"
           >
             <X className="h-4 w-4 text-gray-600 dark:text-gray-400" aria-hidden="true" />

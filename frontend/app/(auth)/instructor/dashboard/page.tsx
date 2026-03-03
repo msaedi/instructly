@@ -772,7 +772,7 @@ export default function InstructorDashboardNew() {
                     </li>
                     <li>
                       <button
-                        className="w-full text-left text-sm text-gray-700 dark:text-gray-300 px-2 py-2 hover:bg-gray-50 rounded"
+                        className="w-full text-left text-sm text-gray-700 dark:text-gray-300 px-2 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded"
                         onClick={() => {
                           setShowMessages(false);
                           router.push('/instructor/messages');
@@ -794,7 +794,7 @@ export default function InstructorDashboardNew() {
                             setShowMessages(false);
                             router.push(`/instructor/messages?conversation=${conv.id}`);
                           }}
-                          className="w-full rounded-lg px-3 py-2 text-left hover:bg-gray-50"
+                          className="w-full rounded-lg px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700"
                         >
                           <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{otherName}</p>
                           <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{preview}</p>
@@ -1162,7 +1162,7 @@ export default function InstructorDashboardNew() {
                     aria-busy={isRefreshingConnect}
                     disabled={isRefreshingConnect}
                     aria-describedby="refresh-status-tip"
-                  className={`w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-purple-300 transition shrink-0 ${isRefreshingConnect ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-100'}`}
+                  className={`w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-purple-300 transition shrink-0 ${isRefreshingConnect ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
                   >
                     <SquareArrowDownLeft className={`w-6 h-6 text-[#7E22CE] ${isRefreshingConnect ? 'animate-spin' : 'transition-transform duration-150 ease-out group-hover:scale-110'}`} />
                   </button>

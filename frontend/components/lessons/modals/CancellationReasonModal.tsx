@@ -150,7 +150,7 @@ export function CancellationReasonModal({
               {CANCELLATION_REASONS.map((reason) => (
                 <label
                   key={reason}
-                  className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-purple-50 transition-colors"
+                  className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
                 >
                   <input
                     type="radio"
@@ -172,7 +172,7 @@ export function CancellationReasonModal({
               type="button"
               onClick={onClose}
               className="flex-1 py-3 px-4 bg-white dark:bg-gray-800 text-black dark:text-white border-2 border-[#FFD700] rounded-lg
-                       hover:bg-yellow-50 transition-colors font-medium cursor-pointer"
+                       hover:bg-yellow-50 dark:hover:bg-yellow-900/30 transition-colors font-medium cursor-pointer"
             >
               Keep Lesson
             </button>

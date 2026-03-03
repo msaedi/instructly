@@ -182,7 +182,7 @@ export default function AdminPendingBadgesPage() {
               <button
                 type="button"
                 onClick={() => logout()}
-                className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-800/60"
+                className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-700/60"
               >
                 Log out
               </button>
@@ -311,7 +311,7 @@ export default function AdminPendingBadgesPage() {
                             <div className="flex justify-end gap-2">
                               <button
                                 type="button"
-                                className="inline-flex items-center gap-1 rounded-md border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 dark:text-emerald-400 hover:bg-green-100 disabled:opacity-50"
+                                className="inline-flex items-center gap-1 rounded-md border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 dark:text-emerald-400 hover:bg-green-100 dark:hover:bg-green-900/40 disabled:opacity-50"
                                 onClick={() => confirmMutation.mutate(award.award_id)}
                                 disabled={award.status !== 'pending' || actioningId === award.award_id}
                               >
@@ -320,7 +320,7 @@ export default function AdminPendingBadgesPage() {
                               </button>
                               <button
                                 type="button"
-                                className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                                className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100 dark:hover:bg-red-900/40 disabled:opacity-50"
                                 onClick={() => revokeMutation.mutate(award.award_id)}
                                 disabled={award.status === 'revoked' || actioningId === award.award_id}
                               >

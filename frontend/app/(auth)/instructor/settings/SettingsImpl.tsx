@@ -839,7 +839,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                     type="button"
                     className={`px-3 py-1.5 rounded-md text-sm font-medium ${
                       tfaEnabled
-                        ? 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50'
+                        ? 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
                         : 'bg-[#7E22CE] text-white hover:bg-[#6b1fb8] insta-primary-btn'
                     } `}
                     onClick={() => setShowTfaModal(true)}

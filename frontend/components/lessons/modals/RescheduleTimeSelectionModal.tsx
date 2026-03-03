@@ -516,7 +516,7 @@ export default function RescheduleTimeSelectionModal({
     <div className="text-center py-8">
       <p className="text-gray-600 dark:text-gray-400 mb-4">{availabilityError || 'Couldn’t load availability. Please try again.'}</p>
       <button
-        className="px-4 py-2 rounded-lg bg-[#7E22CE] text-white hover:bg-[#6b1cb0] transition-colors"
+        className="px-4 py-2 rounded-lg bg-[#7E22CE] text-white hover:bg-[#6b1cb0] transition-colors font-semibold"
         onClick={() => {
           if (!loadingAvailability) {
             void fetchAvailability();
@@ -546,7 +546,7 @@ export default function RescheduleTimeSelectionModal({
             <div className="flex gap-3">
               <button
                 onClick={onClose}
-                className="flex-1 py-2 px-4 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 transition-colors"
+                className="flex-1 py-2 px-4 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
               >
                 Close
               </button>
@@ -556,7 +556,7 @@ export default function RescheduleTimeSelectionModal({
                     onClose();
                     onOpenChat();
                   }}
-                  className="flex-1 py-2 px-4 bg-[#7E22CE] text-white rounded-lg hover:bg-[#7E22CE] transition-colors"
+                  className="flex-1 py-2 px-4 bg-[#7E22CE] text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors font-semibold"
                 >
                   Chat with Instructor
                 </button>
@@ -576,7 +576,7 @@ export default function RescheduleTimeSelectionModal({
           <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
             <button
               onClick={onClose}
-              className="p-2 -ml-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              className="p-2 -ml-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               aria-label="Close"
             >
               <ArrowLeft className="h-6 w-6 text-gray-600 dark:text-gray-400" />
@@ -690,7 +690,7 @@ export default function RescheduleTimeSelectionModal({
               </div>
               <button
                 onClick={onClose}
-                className="text-gray-400 dark:text-gray-300 hover:text-gray-600 transition-colors"
+                className="text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
                 aria-label="Close modal"
               >
                 <X className="h-6 w-6" />

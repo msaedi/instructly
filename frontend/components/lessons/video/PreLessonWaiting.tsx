@@ -76,7 +76,7 @@ export function PreLessonWaiting({
                 disabled={isJoining}
                 aria-label="Join video lesson"
                 aria-busy={isJoining}
-                className="animate-pulse-join rounded-lg bg-primary px-8 py-3 text-lg font-semibold text-primary-foreground hover:bg-purple-800 transition-colors disabled:opacity-50"
+                className="animate-pulse-join rounded-lg bg-primary px-8 py-3 text-lg font-semibold text-primary-foreground hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors disabled:opacity-50"
               >
                 <span className="inline-flex items-center gap-2">
                   {isJoining && (

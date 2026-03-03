@@ -177,16 +177,16 @@ export default function ApplyToFutureWeeksModal({
           <button
             onClick={handleClose}
             className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg
-                     hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2
+                     hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2
                      focus:ring-gray-500 transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleConfirm}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-[#7E22CE]
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700
                      focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE]
-                     transition-colors flex items-center gap-2"
+                     transition-colors flex items-center gap-2 font-semibold"
           >
             <Calendar className="w-4 h-4" />
             <span>Apply & Save</span>

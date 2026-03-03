@@ -82,7 +82,7 @@ export default function ReviewPage() {
             <p className="text-lg text-gray-600 dark:text-gray-400 mb-4">Unable to load lesson details</p>
             <Button
               onClick={() => router.push('/student/lessons?tab=history')}
-              className="bg-[#7E22CE] hover:bg-[#7E22CE] text-white"
+              className="bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 text-white"
             >
               Back to My Lessons
             </Button>
@@ -186,7 +186,7 @@ export default function ReviewPage() {
           <Button
             variant="ghost"
             onClick={() => router.push(`/student/lessons/${lessonId}`)}
-            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-700"
+            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to Lesson Details
@@ -213,7 +213,7 @@ export default function ReviewPage() {
               </div>
               <Button
                 onClick={() => router.push('/student/lessons?tab=history')}
-                className="bg-[#7E22CE] hover:bg-[#7E22CE] text-white px-8 py-2.5"
+                className="bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 text-white px-8 py-2.5"
               >
                 Back to My Lessons
               </Button>
@@ -390,7 +390,7 @@ export default function ReviewPage() {
                   className={`px-8 py-2.5 text-base font-medium rounded-lg ${
                     rating === 0 || isSubmitting
                       ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                      : 'bg-[#7E22CE] hover:bg-[#7E22CE] text-white'
+                      : 'bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 text-white'
                   }`}
                 >
                   {isSubmitting ? 'Submitting...' : 'Submit'}

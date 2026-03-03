@@ -436,7 +436,7 @@ function BadgesDialog({
                 </Dialog.Description>
               </div>
               <Dialog.Close
-                className="p-2 rounded-full hover:bg-gray-100 text-gray-500 dark:text-gray-400"
+                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
                 aria-label="Close badge details"
               >
                 <Sparkles className="h-4 w-4" />

@@ -228,7 +228,7 @@ export function BookingList({
                         type="button"
                         onClick={() => onNoShow(booking.id)}
                         disabled={isActionPending}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400 px-3 py-1.5 text-sm font-medium text-amber-600 hover:border-amber-500 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400 px-3 py-1.5 text-sm font-medium text-amber-600 hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/30 disabled:cursor-not-allowed disabled:opacity-50"
                         data-testid="report-no-show-button"
                       >
                         <AlertTriangle className="h-4 w-4" />

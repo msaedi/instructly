@@ -154,7 +154,7 @@ export default function LocationLearningPage() {
               </button>
               <button
                 onClick={() => void logout()}
-                className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-800/60 cursor-pointer"
+                className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-700/60 cursor-pointer"
               >
                 Log out
               </button>
@@ -296,14 +296,14 @@ export default function LocationLearningPage() {
                             <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                               <button
                                 onClick={() => setSelectedQuery(q.query_normalized)}
-                                className="rounded bg-purple-600 px-3 py-1 text-white hover:bg-purple-700"
+                                className="rounded bg-purple-600 px-3 py-1 text-white hover:bg-purple-700 font-semibold"
                               >
                                 Create Alias
                               </button>
                               <button
                                 onClick={() => dismissMutation.mutate(q.query_normalized)}
                                 disabled={dismissMutation.isPending}
-                                className="rounded bg-gray-200 dark:bg-gray-700 px-3 py-1 text-gray-800 dark:text-gray-200 hover:bg-gray-300 disabled:opacity-50"
+                                className="rounded bg-gray-200 dark:bg-gray-700 px-3 py-1 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50"
                               >
                                 Dismiss
                               </button>

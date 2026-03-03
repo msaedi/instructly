@@ -53,7 +53,7 @@ const BookedSlotCell: React.FC<BookedSlotCellProps> = ({
       <button
         onClick={onClick}
         className="w-full h-full p-1 rounded bg-red-100 dark:bg-red-900 dark:text-red-200 border border-red-300
-                   hover:bg-red-200 active:bg-red-300 transition-colors cursor-pointer
+                   hover:bg-red-200 dark:hover:bg-red-800 active:bg-red-300 transition-colors cursor-pointer
                    flex flex-col justify-center items-center text-xs"
         aria-label={`Booking with ${slot.student_first_name} ${slot.student_last_initial}`}
       >
@@ -79,7 +79,7 @@ const BookedSlotCell: React.FC<BookedSlotCellProps> = ({
     <button
       onClick={onClick}
       className="w-full h-full p-2 rounded bg-red-100 dark:bg-red-900 dark:text-red-200 border border-red-300
-                 hover:bg-red-200 active:bg-red-300 transition-all cursor-pointer
+                 hover:bg-red-200 dark:hover:bg-red-800 active:bg-red-300 transition-all cursor-pointer
                  flex flex-col justify-center items-center text-xs
                  hover:shadow-md group"
       aria-label={`Booking with ${slot.student_first_name} ${slot.student_last_initial} for ${slot.service_name}`}

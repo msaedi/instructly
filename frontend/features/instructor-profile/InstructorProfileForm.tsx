@@ -848,7 +848,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
                     ariaLabel="Upload profile photo"
                     trigger={
                       <div className="flex flex-col items-center">
-                        <div className="w-20 h-20 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 focus:outline-none cursor-pointer" title="Upload profile photo">
+                        <div className="w-20 h-20 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 dark:hover:bg-purple-800/40 focus:outline-none cursor-pointer" title="Upload profile photo">
                           <Camera className="w-6 h-6 text-[#7E22CE]" />
                         </div>
                         <span className="mt-1 text-[10px] text-[#7E22CE]">Upload photo</span>
@@ -865,7 +865,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
                 <ProfilePictureUpload
                   ariaLabel="Upload profile photo"
                   trigger={
-                    <div className="w-24 h-24 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 focus:outline-none cursor-pointer" title="Upload profile photo">
+                    <div className="w-24 h-24 rounded-full bg-purple-100 flex items-center justify-center hover:bg-purple-200 dark:hover:bg-purple-800/40 focus:outline-none cursor-pointer" title="Upload profile photo">
                       <Camera className="w-6 h-6 text-[#7E22CE]" />
                     </div>
                   }
@@ -1091,7 +1091,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
               type="button"
               onClick={() => { if (!saving && !savingServiceAreas) { void save(); } }}
               disabled={saving || savingServiceAreas}
-              className="w-40 whitespace-nowrap px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:bg-[#7E22CE] disabled:opacity-50 shadow-sm justify-center insta-primary-btn"
+              className="w-40 whitespace-nowrap px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 disabled:opacity-50 shadow-sm justify-center insta-primary-btn"
             >
               {saving || savingServiceAreas ? 'Saving...' : 'Save Changes'}
             </button>

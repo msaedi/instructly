@@ -204,7 +204,7 @@ function ServiceCardItem({
             <button
               className={`py-1.5 px-4 rounded-lg font-medium transition-colors ${
                 canBook
-                  ? 'bg-[#7E22CE] text-white hover:bg-[#7E22CE] cursor-pointer'
+                  ? 'bg-[#7E22CE] text-white hover:bg-purple-800 dark:hover:bg-purple-700 cursor-pointer'
                   : 'bg-gray-300 text-gray-500 dark:bg-gray-700 dark:text-gray-300 cursor-not-allowed'
               }`}
               disabled={!canBook}

@@ -220,7 +220,7 @@ export default function BookingModalWithPayment({
             {currentStep !== 'select-time' && currentStep !== 'success' && (
               <button
                 onClick={handleBackButton}
-                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
                 aria-label="Go back"
               >
                 <ChevronLeft className="h-5 w-5" aria-hidden="true" />
@@ -235,7 +235,7 @@ export default function BookingModalWithPayment({
           </div>
           <button
             onClick={handleClose}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
             aria-label="Close booking modal"
           >
             <X className="h-5 w-5" aria-hidden="true" />

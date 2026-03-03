@@ -169,7 +169,7 @@ export default function InstructorDashboard() {
             <p className="text-gray-600 dark:text-gray-400 mb-6">{error}</p>
             <Link
               href="/become-instructor"
-              className="inline-block px-6 py-2 bg-[#7E22CE] text-white rounded-md hover:bg-[#7E22CE] transition-colors"
+              className="inline-block px-6 py-2 bg-[#7E22CE] text-white rounded-md hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors font-semibold"
               onClick={() => logger.debug('Navigating to become-instructor from error state')}
             >
               Complete Profile Setup
@@ -199,7 +199,7 @@ export default function InstructorDashboard() {
           </div>
           <button
             onClick={handleLogout}
-            className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 transition-colors"
+            className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
           >
             <LogOut className="h-5 w-5 mr-2" />
             Log out
@@ -211,7 +211,7 @@ export default function InstructorDashboard() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Link
           href="/"
-          className="inline-flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 mb-4 transition-colors"
+          className="inline-flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 mb-4 transition-colors"
           onClick={() => logger.debug('Navigating back to home')}
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
@@ -262,7 +262,7 @@ export default function InstructorDashboard() {
             />
             <div className="pt-2">
               <button
-                className="px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:bg-[#7E22CE] disabled:opacity-50"
+                className="px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700 disabled:opacity-50 font-semibold"
                 disabled={!(connectStatus?.onboarding_completed && (profile.services || []).length > 0)}
                 onClick={() => alert('Please use the new dashboard at /instructor/dashboard')}
               >
@@ -381,7 +381,7 @@ export default function InstructorDashboard() {
                 logger.debug('Opening edit profile modal');
                 setShowEditModal(true);
               }}
-              className="flex items-center px-4 py-2 bg-[#7E22CE] text-white rounded-md hover:bg-[#7E22CE] transition-colors"
+              className="flex items-center px-4 py-2 bg-[#7E22CE] text-white rounded-md hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors font-semibold"
             >
               <Edit className="h-4 w-4 mr-2" />
               Edit Profile
@@ -439,7 +439,7 @@ export default function InstructorDashboard() {
         <div className="flex flex-wrap gap-4">
           <button
             onClick={handleViewPublicProfile}
-            className="flex items-center px-6 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            className="flex items-center px-6 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
             <ExternalLink className="h-5 w-5 mr-2" />
             View Public Profile
@@ -449,7 +449,7 @@ export default function InstructorDashboard() {
               logger.debug('Opening delete profile modal');
               setShowDeleteModal(true);
             }}
-            className="flex items-center px-6 py-3 bg-red-50 border border-red-300 text-red-700 rounded-md hover:bg-red-100 transition-colors"
+            className="flex items-center px-6 py-3 bg-red-50 border border-red-300 text-red-700 rounded-md hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
           >
             <Trash2 className="h-5 w-5 mr-2" />
             Delete Instructor Profile

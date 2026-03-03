@@ -893,7 +893,7 @@ export function Chat({
       {!isAtBottom && (
         <button
           onClick={() => scrollToBottom()}
-          className="absolute bottom-24 right-4 bg-[#7E22CE] text-white rounded-full p-2 shadow-lg ring-1 ring-black/5 hover:bg-[#7E22CE] transition dark:bg-purple-600 dark:hover:bg-[#7E22CE]"
+          className="absolute bottom-24 right-4 bg-[#7E22CE] text-white rounded-full p-2 shadow-lg ring-1 ring-black/5 hover:bg-purple-800 transition dark:bg-purple-600 dark:hover:bg-purple-700"
           aria-label="Scroll to latest messages"
         >
           <ChevronDown className="w-5 h-5" aria-hidden="true" />
@@ -928,7 +928,7 @@ export function Chat({
               className={cn(
                 'rounded-full p-2 md:p-2.5 transition-colors shadow-sm',
                 inputMessage.trim() && !sendMessageMutation.isPending
-                  ? 'bg-[#7E22CE] text-white hover:bg-[#7E22CE] ring-1 ring-[#7E22CE]/20 dark:bg-purple-600 dark:hover:bg-[#7E22CE]'
+                  ? 'bg-[#7E22CE] text-white hover:bg-purple-800 ring-1 ring-[#7E22CE]/20 dark:bg-purple-600 dark:hover:bg-purple-700'
                   : 'bg-gray-100 text-gray-400 ring-1 ring-gray-200 cursor-not-allowed dark:bg-gray-800 dark:text-gray-500 dark:ring-gray-700'
               )}
               aria-label={sendMessageMutation.isPending ? 'Sending message' : 'Send message'}

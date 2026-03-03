@@ -1982,7 +1982,7 @@ function PaymentConfirmationInner({
                     <button
                       type="button"
                       onClick={handlePromoAction}
-                      className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg text-sm font-medium hover:bg-[#7E22CE] transition-colors disabled:cursor-not-allowed disabled:opacity-70"
+                      className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg text-sm font-medium hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors disabled:cursor-not-allowed disabled:opacity-70"
                       disabled={promoApplyDisabled}
                     >
                       {promoActive ? 'Remove' : 'Apply'}
@@ -2152,7 +2152,7 @@ function PaymentConfirmationInner({
                         className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors ${
                           option.selected
                             ? 'border-[#7E22CE] bg-purple-50 text-[#7E22CE]'
-                            : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300'
+                            : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
                         }`}
                       >
                         <span
@@ -2210,7 +2210,7 @@ function PaymentConfirmationInner({
                             className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
                               isSelected
                                 ? 'border-[#7E22CE] bg-purple-50 text-[#7E22CE]'
-                                : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300'
+                                : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
                             }`}
                           >
                             <input
@@ -2261,7 +2261,7 @@ function PaymentConfirmationInner({
                               className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
                                 isSelected
                                   ? 'border-[#7E22CE] bg-purple-50 text-[#7E22CE]'
-                                  : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300'
+                                  : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
                               }`}
                             >
                               <input
@@ -2466,7 +2466,7 @@ function PaymentConfirmationInner({
             className={`w-full py-2.5 px-4 rounded-lg font-medium transition-colors focus:outline-none focus:ring-0 ${
               ctaDisabled
                 ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                : 'bg-[#7E22CE] text-white hover:bg-[#7E22CE]'
+                : 'bg-[#7E22CE] text-white hover:bg-purple-800 dark:hover:bg-purple-700'
             }`}
           >
             {ctaLabel}
@@ -2526,7 +2526,7 @@ function PaymentConfirmationInner({
                 // Open the calendar modal to reschedule
                 setIsModalOpen(true);
               }}
-              className="bg-white dark:bg-gray-800 text-[#7E22CE] py-1.5 px-3 rounded-lg text-sm font-medium border-2 border-[#7E22CE] hover:bg-purple-50 transition-colors"
+              className="bg-white dark:bg-gray-800 text-[#7E22CE] py-1.5 px-3 rounded-lg text-sm font-medium border-2 border-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
             >
               Edit lesson
             </button>
@@ -2565,7 +2565,7 @@ function PaymentConfirmationInner({
                       <Tooltip.Trigger asChild>
                         <button
                           type="button"
-                          className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 dark:text-gray-300 transition-colors hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
+                          className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 dark:text-gray-300 transition-colors hover:text-gray-600 dark:hover:text-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
                           aria-label="Learn about the Service & Support fee"
                         >
                           <Info className="h-3.5 w-3.5" aria-hidden="true" />

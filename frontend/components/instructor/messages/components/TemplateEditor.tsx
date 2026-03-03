@@ -141,7 +141,7 @@ export function TemplateEditor({
                   className={`w-full text-left px-5 py-4 transition-none ${
                     isActive
                       ? 'bg-purple-50 dark:bg-purple-900/40 border-l-4 border-l-[#7E22CE]'
-                      : 'hover:bg-gray-50 dark:hover:bg-gray-800/60'
+                      : 'hover:bg-gray-50 dark:hover:bg-gray-700/60'
                   }`}
                   >
                   <h4 className="text-sm font-medium insta-onboarding-strong-text truncate">{subjectLabel}</h4>

@@ -298,7 +298,7 @@ export default function TimeDropdown({
               }}
               className={`
                 w-full text-left px-4 py-3 transition-all duration-150
-                hover:bg-gray-50 active:bg-gray-100
+                hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100
                 ${
                   selectedTime === time
                     ? 'bg-purple-50 text-[#7E22CE] font-medium'
@@ -356,7 +356,7 @@ export default function TimeDropdown({
           ${
             hasNoTimes
               ? 'bg-gray-100 dark:bg-gray-800 cursor-not-allowed'
-              : 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer'
+              : 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer'
           }
           ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
           ${isOpen ? 'ring-2 ring-[#7E22CE]' : ''}

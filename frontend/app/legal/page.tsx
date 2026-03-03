@@ -1093,7 +1093,7 @@ export default function LegalResourceCenter() {
                       }}
                       className={cn(
                         'text-left px-5 py-4 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE]',
-                        isActive ? 'bg-[#7E22CE]/10 text-[#4a1a85]' : 'hover:bg-gray-50 text-gray-700 dark:text-gray-300'
+                        isActive ? 'bg-[#7E22CE]/10 text-[#4a1a85]' : 'hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
                       )}
                       aria-current={isActive ? 'page' : undefined}
                     >

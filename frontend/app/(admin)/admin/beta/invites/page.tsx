@@ -178,7 +178,7 @@ export default function BetaInvitesAdminPage() {
               <Tooltip.Provider delayDuration={200}>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <button onClick={logout} className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-800/60 cursor-pointer">Log out</button>
+                    <button onClick={logout} className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-700/60 cursor-pointer">Log out</button>
                   </Tooltip.Trigger>
                   <Tooltip.Portal>
                     <Tooltip.Content side="bottom" sideOffset={8} className="rounded-md bg-gray-900 text-white px-2 py-1 text-xs shadow pointer-events-none select-none">Sign out of admin</Tooltip.Content>
@@ -331,7 +331,7 @@ export default function BetaInvitesAdminPage() {
                       <Tooltip.Provider>
                         <Tooltip.Root>
                           <Tooltip.Trigger asChild>
-                            <button onClick={() => { void copyToClipboard(result.code); }} className="rounded-full px-2 py-1 text-xs ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">Copy</button>
+                            <button onClick={() => { void copyToClipboard(result.code); }} className="rounded-full px-2 py-1 text-xs ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">Copy</button>
                           </Tooltip.Trigger>
                           <Tooltip.Portal>
                             <Tooltip.Content side="left" sideOffset={8} className="rounded-md bg-gray-900 text-white px-2 py-1 text-xs shadow pointer-events-none select-none">Copy code</Tooltip.Content>
@@ -345,7 +345,7 @@ export default function BetaInvitesAdminPage() {
                       <Tooltip.Provider>
                         <Tooltip.Root>
                           <Tooltip.Trigger asChild>
-                            <button onClick={() => { void copyToClipboard(result.join_url); }} className="rounded-full px-2 py-1 text-xs ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">Copy</button>
+                            <button onClick={() => { void copyToClipboard(result.join_url); }} className="rounded-full px-2 py-1 text-xs ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">Copy</button>
                           </Tooltip.Trigger>
                           <Tooltip.Portal>
                             <Tooltip.Content side="left" sideOffset={8} className="rounded-md bg-gray-900 text-white px-2 py-1 text-xs shadow pointer-events-none select-none">Copy join URL</Tooltip.Content>
@@ -359,7 +359,7 @@ export default function BetaInvitesAdminPage() {
                       <Tooltip.Provider>
                         <Tooltip.Root>
                           <Tooltip.Trigger asChild>
-                            <button onClick={() => { void copyToClipboard(result.welcome_url); }} className="rounded-full px-2 py-1 text-xs ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">Copy</button>
+                            <button onClick={() => { void copyToClipboard(result.welcome_url); }} className="rounded-full px-2 py-1 text-xs ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">Copy</button>
                           </Tooltip.Trigger>
                           <Tooltip.Portal>
                             <Tooltip.Content side="left" sideOffset={8} className="rounded-md bg-gray-900 text-white px-2 py-1 text-xs shadow pointer-events-none select-none">Copy welcome URL</Tooltip.Content>

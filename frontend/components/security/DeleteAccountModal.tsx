@@ -110,7 +110,7 @@ export default function DeleteAccountModal({ email, onClose, onDeleted }: Props)
             />
             <button
               type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-300 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-1 focus-visible:text-[#7E22CE]"
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
@@ -120,9 +120,9 @@ export default function DeleteAccountModal({ email, onClose, onDeleted }: Props)
           {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
         </div>
         <div className="mt-5 flex justify-end gap-3">
-          <button className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors" onClick={onClose} disabled={submitting}>Cancel</button>
+          <button className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" onClick={onClose} disabled={submitting}>Cancel</button>
           <button
-            className={`rounded-lg px-4 py-2 text-sm font-medium border ${canSubmit ? 'bg-white dark:bg-gray-800 border-[#7E22CE] text-[#7E22CE] hover:bg-purple-50' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-700 text-gray-400 dark:text-gray-300 cursor-not-allowed'}`}
+            className={`rounded-lg px-4 py-2 text-sm font-medium border ${canSubmit ? 'bg-white dark:bg-gray-800 border-[#7E22CE] text-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-700 text-gray-400 dark:text-gray-300 cursor-not-allowed'}`}
             disabled={!canSubmit}
             onClick={handleSubmit}
           >
