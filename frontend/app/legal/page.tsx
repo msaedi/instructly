@@ -1045,7 +1045,7 @@ export default function LegalResourceCenter() {
                 {user && hasRole(user, RoleName.STUDENT) && (
                   <Link
                     href="/student/lessons"
-                    className="text-gray-700 dark:text-gray-300 hover:text-[#7E22CE] font-medium transition-colors"
+                    className="text-gray-700 dark:text-gray-300 hover:text-purple-900 dark:hover:text-purple-300 font-medium transition-colors"
                   >
                     My Lessons
                   </Link>

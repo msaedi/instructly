@@ -540,7 +540,7 @@ function SignUpForm() {
       <div className="insta-surface-card py-4 md:py-8 px-0 sm:px-10 sm:shadow">
         <div className="text-center mb-1 md:mb-2">
           <Link href="/" onClick={() => logger.info('Navigating to home from signup inside box')}>
-            <h1 className="text-4xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors">{BRAND.name}</h1>
+            <h1 className="text-4xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors">{BRAND.name}</h1>
           </Link>
         </div>
         {isInstructorFlow && (
@@ -660,14 +660,14 @@ function SignUpForm() {
               I agree to iNSTAiNSTRU&apos;s{' '}
               <Link
                 href="/terms"
-                className="focus-link text-[#7E22CE] hover:text-[#7E22CE]"
+                className="focus-link text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300"
               >
                 Terms of Service
               </Link>{' '}
               and{' '}
               <Link
                 href="/privacy"
-                className="focus-link text-[#7E22CE] hover:text-[#7E22CE]"
+                className="focus-link text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300"
               >
                 Privacy Policy
               </Link>
@@ -682,7 +682,7 @@ function SignUpForm() {
                     Looking to learn instead?{' '}
                     <Link
                       href={`/signup${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
-                      className="focus-link font-medium text-[#7E22CE] hover:text-[#7E22CE] dark:text-purple-400 dark:hover:text-purple-300"
+                      className="focus-link font-medium text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 dark:text-purple-400"
                     >
                       Sign up as a student
                     </Link>
@@ -693,7 +693,7 @@ function SignUpForm() {
                     Already have an account?{' '}
                     <Link
                       href={`/login${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
-                      className="focus-link font-medium text-[#7E22CE] hover:text-[#7E22CE] dark:text-purple-400 dark:hover:text-purple-300"
+                      className="focus-link font-medium text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 dark:text-purple-400"
                       onClick={() => logger.info('Navigating to login from signup')}
                     >
                       Sign in
@@ -708,7 +708,7 @@ function SignUpForm() {
                   Looking to teach instead?{' '}
                   <Link
                     href={`/signup?role=instructor${redirect !== '/' ? `&redirect=${encodeURIComponent(redirect)}` : ''}`}
-                    className="focus-link font-medium text-[#7E22CE] hover:text-[#7E22CE] dark:text-purple-400 dark:hover:text-purple-300"
+                    className="focus-link font-medium text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 dark:text-purple-400"
                   >
                     Sign up as Instructor
                   </Link>
@@ -718,7 +718,7 @@ function SignUpForm() {
                     Already have an account?{' '}
                     <Link
                       href={`/login${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
-                      className="focus-link font-medium text-[#7E22CE] hover:text-[#7E22CE] dark:text-purple-400 dark:hover:text-purple-300"
+                      className="focus-link font-medium text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 dark:text-purple-400"
                       onClick={() => logger.info('Navigating to login from signup')}
                     >
                       Sign in

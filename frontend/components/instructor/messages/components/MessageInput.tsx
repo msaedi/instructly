@@ -81,7 +81,7 @@ export function MessageInput({
               </span>
               <button
                 type="button"
-                className="text-[#7E22CE] hover:text-purple-800"
+                className="text-[#7E22CE] hover:text-purple-800 dark:hover:text-purple-200"
                 aria-label={`Remove attachment ${file.name}`}
                 onClick={() => onAttachmentRemove(index)}
               >
@@ -96,7 +96,7 @@ export function MessageInput({
       <div className="flex items-center gap-2">
         <button
           type="button"
-          className="h-10 w-10 flex items-center justify-center rounded-full border border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:text-[#7E22CE] hover:border-[#D4B5F0] transition-colors"
+          className="h-10 w-10 flex items-center justify-center rounded-full border border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:text-purple-900 dark:hover:text-purple-300 hover:border-[#D4B5F0] transition-colors"
           title="Attach file"
           aria-label="Attach file"
           onClick={() => fileInputRef.current?.click()}

@@ -32,7 +32,7 @@ import { useBeta } from '@/contexts/BetaContext';
 import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 
 const LEGAL_FOOTER_LINK_CLASSES =
-  'text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400 no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#7E22CE]';
+  'text-gray-600 dark:text-gray-400 hover:text-purple-900 dark:hover:text-purple-300 no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#7E22CE]';
 
 const HERO_PANEL_SIZE = 400;
 
@@ -214,7 +214,7 @@ export default function HomePage() {
       <header role="banner" className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link href="/" className="inline-block">
-            <span data-testid="home-brand" className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">
+            <span data-testid="home-brand" className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">
               iNSTAiNSTRU
             </span>
           </Link>
@@ -230,7 +230,7 @@ export default function HomePage() {
                         : '/instructor/onboarding/status'
                   }
                   data-testid={hasRole(user, RoleName.STUDENT) ? 'nav-my-lessons' : undefined}
-                  className="text-gray-700 dark:text-gray-300 hover:text-[#7E22CE] font-medium relative"
+                  className="text-gray-700 dark:text-gray-300 hover:text-purple-900 dark:hover:text-purple-300 font-medium relative"
                 >
                   {hasRole(user, RoleName.STUDENT)
                     ? 'My Lessons'
@@ -247,7 +247,7 @@ export default function HomePage() {
               <div className="flex items-center gap-4">
                 <Link
                   href={hideStudentUi ? '/instructor/join' : '/signup?role=instructor&redirect=%2Finstructor%2Fonboarding%2Fwelcome'}
-                  className="text-gray-700 dark:text-gray-300 hover:text-[#7E22CE] font-medium"
+                  className="text-gray-700 dark:text-gray-300 hover:text-purple-900 dark:hover:text-purple-300 font-medium"
                 >
                   Become an Instructor
                 </Link>
@@ -591,7 +591,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/services"
-                    className="text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-purple-900 dark:hover:text-purple-300"
                   >
                     All Services
                   </Link>
@@ -599,7 +599,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/how-it-works"
-                    className="text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-purple-900 dark:hover:text-purple-300"
                   >
                     How it Works
                   </Link>
@@ -607,7 +607,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/areas"
-                    className="text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-purple-900 dark:hover:text-purple-300"
                   >
                     NYC Areas
                   </Link>
@@ -620,7 +620,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/help"
-                    className="text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-purple-900 dark:hover:text-purple-300"
                   >
                     Help Center
                   </Link>
@@ -628,7 +628,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/trust-safety"
-                    className="text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-purple-900 dark:hover:text-purple-300"
                   >
                     Trust & Safety
                   </Link>
@@ -636,7 +636,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/contact"
-                    className="text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-purple-900 dark:hover:text-purple-300"
                   >
                     Contact Us
                   </Link>
@@ -649,7 +649,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/about"
-                    className="text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-purple-900 dark:hover:text-purple-300"
                   >
                     About Us
                   </Link>
@@ -657,7 +657,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/careers"
-                    className="text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-purple-900 dark:hover:text-purple-300"
                   >
                     Careers
                   </Link>
@@ -665,7 +665,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/press"
-                    className="text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-purple-900 dark:hover:text-purple-300"
                   >
                     Press
                   </Link>
@@ -703,19 +703,19 @@ export default function HomePage() {
             <div className="flex space-x-4">
               <Link
                 href="#"
-                className="text-[#7E22CE] dark:text-purple-400 hover:text-[#7E22CE] dark:hover:text-purple-300"
+                className="text-[#7E22CE] dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-300"
               >
                 Facebook
               </Link>
               <Link
                 href="#"
-                className="text-[#7E22CE] dark:text-purple-400 hover:text-[#7E22CE] dark:hover:text-purple-300"
+                className="text-[#7E22CE] dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-300"
               >
                 Twitter
               </Link>
               <Link
                 href="#"
-                className="text-[#7E22CE] dark:text-purple-400 hover:text-[#7E22CE] dark:hover:text-purple-300"
+                className="text-[#7E22CE] dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-300"
               >
                 Instagram
               </Link>

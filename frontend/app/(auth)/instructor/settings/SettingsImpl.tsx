@@ -575,7 +575,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         <header className="relative px-4 sm:px-6 py-4 insta-dashboard-header">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/instructor/dashboard" className="inline-block">
-              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">
+              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-0 sm:pl-4">
                 iNSTAiNSTRU
               </h1>
             </Link>
@@ -1014,22 +1014,22 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             {openAbout && (
               <div className="mt-3 text-sm text-gray-700 dark:text-gray-300 space-y-2">
                 <div>
-                  <a href="/acknowledgments" className="focus-link text-[#7E22CE] hover:text-[#7E22CE]">
+                  <a href="/acknowledgments" className="focus-link text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300">
                     Acknowledgments
                   </a>
                 </div>
                 <div>
-                  <a href="/legal#privacy" className="focus-link text-[#7E22CE] hover:text-[#7E22CE]">
+                  <a href="/legal#privacy" className="focus-link text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300">
                     Privacy Policy
                   </a>
                 </div>
                 <div>
-                  <a href="/legal#terms" className="focus-link text-[#7E22CE] hover:text-[#7E22CE]">
+                  <a href="/legal#terms" className="focus-link text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300">
                     Terms &amp; Conditions
                   </a>
                 </div>
                 <div>
-                  <a href="/support" className="focus-link text-[#7E22CE] hover:text-[#7E22CE]">
+                  <a href="/support" className="focus-link text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300">
                     iNSTAiNSTRU support
                   </a>
                 </div>

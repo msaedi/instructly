@@ -429,7 +429,7 @@ function AvailabilityPageImpl() {
         <header className="relative px-6 py-4 insta-dashboard-header">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/instructor/dashboard" className="inline-block">
-              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4"><UserProfileDropdown /></div>
           </div>
@@ -578,7 +578,7 @@ function AvailabilityPageImpl() {
             <button
               key={d.fullDate}
               onClick={() => setActiveDay(i)}
-              className={`px-3 py-2 rounded-full text-sm border ${i === activeDay ? 'bg-[#7E22CE] text-white border-[#7E22CE]' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-700'}`}
+              className={`px-3 py-2 rounded-full text-sm font-semibold border ${i === activeDay ? 'bg-[#7E22CE] text-white border-[#7E22CE]' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-700'}`}
             >
               {d.date.toLocaleDateString('en-US', { weekday: 'short' })}
             </button>

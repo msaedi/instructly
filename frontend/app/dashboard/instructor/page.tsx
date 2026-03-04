@@ -156,7 +156,7 @@ export default function InstructorDashboard() {
         <nav className="bg-white dark:bg-gray-800 shadow-sm border-b">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
-              <Link href="/" className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors">
+              <Link href="/" className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors">
                 iNSTAiNSTRU
               </Link>
               <UserProfileDropdown />
@@ -192,7 +192,7 @@ export default function InstructorDashboard() {
         <div className="flex items-center justify-between max-w-full">
           <div className="flex items-center gap-4">
             <Link className="inline-block" href="/">
-              <span className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">
+              <span className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">
                 {BRAND.name}
               </span>
             </Link>

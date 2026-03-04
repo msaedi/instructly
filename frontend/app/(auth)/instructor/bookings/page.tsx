@@ -121,7 +121,7 @@ function BookingsPageImpl() {
         <header className="relative px-4 py-4 sm:px-6 insta-dashboard-header">
           <div className="flex max-w-full items-center justify-between">
             <Link href="/instructor/dashboard" className="inline-block">
-              <h1 className="pl-0 text-3xl font-bold text-[#7E22CE] transition-colors hover:text-[#7E22CE] sm:pl-4">
+              <h1 className="pl-0 text-3xl font-bold text-[#7E22CE] transition-colors hover:text-purple-900 dark:hover:text-purple-300 sm:pl-4">
                 iNSTAiNSTRU
               </h1>
             </Link>
@@ -166,7 +166,7 @@ function BookingsPageImpl() {
                 role="tab"
                 aria-selected={activeTab === tab}
                 className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                  activeTab === tab ? 'border-b-2 border-[#7E22CE] text-[#7E22CE]' : 'text-gray-600 dark:text-gray-400 hover:text-[#7E22CE]'
+                  activeTab === tab ? 'border-b-2 border-[#7E22CE] text-[#7E22CE]' : 'text-gray-600 dark:text-gray-400 hover:text-purple-900 dark:hover:text-purple-300'
                 }`}
                 onClick={() => handleTabChange(tab)}
               >

@@ -379,7 +379,7 @@ const findNextAvailableSlot = (
                 e.preventDefault();
                 onViewProfile?.();
               }}
-              className={`text-[#7E22CE] hover:text-[#7E22CE] ${compact ? 'text-sm' : 'text-lg'} font-medium leading-tight cursor-pointer`}
+              className={`text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 ${compact ? 'text-sm' : 'text-lg'} font-medium leading-tight cursor-pointer`}
               data-testid="instructor-link"
             >
               <div>View Profile</div>
@@ -413,7 +413,7 @@ const findNextAvailableSlot = (
                   onClick={() => {
                     router.push(`/instructors/${instructor.user_id}/reviews`);
                   }}
-                  className={`mt-1 flex items-center gap-1 text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] transition-colors ${compact ? 'text-sm' : 'text-base'} font-medium`}
+                  className={`mt-1 flex items-center gap-1 text-gray-600 dark:text-gray-400 hover:text-purple-900 dark:hover:text-purple-300 transition-colors ${compact ? 'text-sm' : 'text-base'} font-medium`}
                   aria-label="See all reviews"
                 >
                   <Star className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} text-yellow-500 fill-current`} />
@@ -657,7 +657,7 @@ const findNextAvailableSlot = (
             {getBio().length > 400 && (
               <button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="text-[#7E22CE] hover:text-[#7E22CE] text-sm font-medium mt-1 cursor-pointer"
+                className="text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 text-sm font-medium mt-1 cursor-pointer"
               >
                 {isExpanded ? 'Show less' : 'Read more'}
               </button>

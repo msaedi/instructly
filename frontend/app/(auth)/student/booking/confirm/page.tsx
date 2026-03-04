@@ -218,7 +218,7 @@ export default function BookingConfirmationPage() {
         <header className="bg-white/90 dark:bg-gray-900/70 backdrop-blur-sm border-b border-gray-200/80 dark:border-gray-700/70 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link className="inline-block" href="/">
-              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4">
               <div className="w-9 h-9 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse"></div>
@@ -247,7 +247,7 @@ export default function BookingConfirmationPage() {
         <header className="bg-white/90 dark:bg-gray-900/70 backdrop-blur-sm border-b border-gray-200/80 dark:border-gray-700/70 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link className="inline-block" href="/">
-              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4">
               <UserProfileDropdown />
@@ -271,7 +271,7 @@ export default function BookingConfirmationPage() {
         <header className="bg-white/90 dark:bg-gray-900/70 backdrop-blur-sm border-b border-gray-200/80 dark:border-gray-700/70 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/" className="inline-block">
-              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4">
               <UserProfileDropdown />
@@ -285,7 +285,7 @@ export default function BookingConfirmationPage() {
             </h2>
             <button
               onClick={() => router.push('/student/lessons')}
-              className="text-[#7E22CE] hover:text-[#7E22CE] hover:underline"
+              className="text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 hover:underline"
             >
               Back to My Lessons
             </button>
@@ -303,7 +303,7 @@ export default function BookingConfirmationPage() {
         <header className="bg-white/90 dark:bg-gray-900/70 backdrop-blur-sm border-b border-gray-200/80 dark:border-gray-700/70 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/" className="inline-block">
-              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-4">
               <UserProfileDropdown />
@@ -396,7 +396,7 @@ export default function BookingConfirmationPage() {
       <header className="bg-white/90 dark:bg-gray-900/70 backdrop-blur-sm border-b border-gray-200/80 dark:border-gray-700/70 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link className="inline-block" href="/">
-            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </Link>
           <div className="pr-4">
             <UserProfileDropdown />

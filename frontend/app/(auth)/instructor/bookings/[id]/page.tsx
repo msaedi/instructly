@@ -100,7 +100,7 @@ export default function BookingDetailsPage() {
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="text-center">
           <p className="text-red-600 mb-4">{error || 'Booking not found'}</p>
-          <Link href="/instructor/dashboard?panel=bookings" className="inline-flex items-center text-blue-600 hover:text-blue-800">
+          <Link href="/instructor/dashboard?panel=bookings" className="inline-flex items-center text-blue-600 hover:text-blue-800 dark:hover:text-blue-200">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Bookings
           </Link>
@@ -195,7 +195,7 @@ export default function BookingDetailsPage() {
             </div>
             <div className="ml-6">
               <p className="text-lg text-gray-800 dark:text-gray-200 font-medium">{booking.student ? `${booking.student.first_name} ${booking.student.last_name}` : `Student #${booking.student_id}`}</p>
-              {booking.student?.email && (<a href={`mailto:${booking.student.email}`} className="text-blue-600 hover:text-blue-800 text-sm">{booking.student.email}</a>)}
+              {booking.student?.email && (<a href={`mailto:${booking.student.email}`} className="text-blue-600 hover:text-blue-800 dark:hover:text-blue-200 text-sm">{booking.student.email}</a>)}
             </div>
           </div>
 

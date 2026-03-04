@@ -1783,7 +1783,7 @@ function PaymentConfirmationInner({
                         onChangePaymentMethod();
                       }
                     }}
-                    className="text-sm text-[#7E22CE] hover:text-[#7E22CE]"
+                    className="text-sm text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300"
                   >
                     Change
                   </button>
@@ -2286,7 +2286,7 @@ function PaymentConfirmationInner({
                         <button
                           type="button"
                           onClick={handleUseCustomPublicLocation}
-                          className="text-sm text-[#7E22CE] hover:text-[#7E22CE]"
+                          className="text-sm text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300"
                         >
                           Use your own location
                         </button>
@@ -2319,7 +2319,7 @@ function PaymentConfirmationInner({
                         </div>
                         <button
                           type="button"
-                          className="text-sm text-[#7E22CE] hover:text-[#7E22CE]"
+                          className="text-sm text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300"
                           onClick={handleChangeLocationClick}
                         >
                           Change

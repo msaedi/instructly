@@ -340,7 +340,7 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId: _userId }) => {
                     setMethodToDelete(method);
                     setDeleteModalOpen(true);
                   }}
-                  className="text-red-600 hover:text-red-700"
+                  className="text-red-600 hover:text-red-700 dark:hover:text-red-300"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>

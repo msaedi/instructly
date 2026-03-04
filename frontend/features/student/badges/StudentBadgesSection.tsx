@@ -179,7 +179,7 @@ export function StudentBadgesPanel({
       <button
         type="button"
         onClick={onRetry}
-        className="text-xs font-semibold text-red-700 underline hover:text-red-900"
+        className="text-xs font-semibold text-red-700 underline hover:text-red-900 dark:hover:text-red-300"
       >
         Retry
       </button>

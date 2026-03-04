@@ -81,7 +81,7 @@ export function CancelWarningModal({
                   Life happens! You can cancel your session free of charge. Would you like to{' '}
                   <button
                     onClick={onReschedule}
-                    className="text-purple-600 hover:text-[#7E22CE] font-medium underline cursor-pointer"
+                    className="text-purple-600 hover:text-purple-900 dark:hover:text-purple-300 font-medium underline cursor-pointer"
                   >
                     reschedule
                   </button>{' '}

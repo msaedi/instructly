@@ -98,7 +98,7 @@ export default function DeleteProfileModal({
             }}
             className="px-4 py-2.5 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg
                      hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2
-                     focus:ring-gray-500 transition-all duration-150 font-medium"
+                     focus:ring-gray-500 dark:focus:ring-gray-400 transition-all duration-150 font-medium"
             disabled={loading}
           >
             Cancel

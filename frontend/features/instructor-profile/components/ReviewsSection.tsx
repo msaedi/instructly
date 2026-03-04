@@ -117,7 +117,7 @@ export function ReviewsSection({ instructorId }: ReviewsSectionProps) {
 
       {(data?.total ?? 0) > (data?.per_page ?? 0) && (
         <button
-          className="mt-4 text-sm text-[#7E22CE] hover:text-[#7E22CE] hover:underline transition-colors"
+          className="mt-4 text-sm text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 hover:underline transition-colors"
           onClick={() => router.push(`/instructors/${instructorId}/reviews`)}
         >
           See all {data?.total ?? 0} reviews

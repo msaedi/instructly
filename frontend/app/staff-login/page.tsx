@@ -51,7 +51,7 @@ function StaffLoginInner() {
           <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
             <div className="text-center mb-6">
               <Link href="/">
-                <h1 className="text-4xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors">
+                <h1 className="text-4xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors">
                   {BRAND.name}
                 </h1>
               </Link>

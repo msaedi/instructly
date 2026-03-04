@@ -335,7 +335,7 @@ function LoginForm({ redirect }: { redirect: string }) {
       <div className="insta-surface-card py-8 px-4 shadow sm:px-10">
         <div className="text-center mb-6">
           <Link href="/" onClick={() => logger.debug('Navigating to home from login inside box')}>
-            <h1 className="text-4xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors">
+            <h1 className="text-4xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors">
               {BRAND.name}
             </h1>
           </Link>
@@ -398,7 +398,7 @@ function LoginForm({ redirect }: { redirect: string }) {
             {/* Forgot Password */}
             <div className="flex items-center justify-between">
               <div className="text-sm">
-                <Link href="/forgot-password" className="font-medium text-[#7E22CE] hover:text-[#7E22CE] transition-colors" onClick={() => logger.debug('Navigating to forgot password')}>
+                <Link href="/forgot-password" className="font-medium text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors" onClick={() => logger.debug('Navigating to forgot password')}>
                   Forgot password
                 </Link>
               </div>
@@ -454,7 +454,7 @@ function LoginForm({ redirect }: { redirect: string }) {
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Don&apos;t have an account?{' '}
-              <Link href={`/signup${resolvedRedirect !== '/' ? `?redirect=${encodeURIComponent(resolvedRedirect)}` : ''}`} className="font-medium text-[#7E22CE] hover:text-[#7E22CE] transition-colors" onClick={() => logger.debug('Navigating to sign up', { preservedRedirect: resolvedRedirect })}>
+              <Link href={`/signup${resolvedRedirect !== '/' ? `?redirect=${encodeURIComponent(resolvedRedirect)}` : ''}`} className="font-medium text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors" onClick={() => logger.debug('Navigating to sign up', { preservedRedirect: resolvedRedirect })}>
                 Sign up
               </Link>
             </p>

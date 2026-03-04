@@ -145,7 +145,7 @@ export function UpcomingLessons() {
                       ? `/student/lessons/${booking.id}`
                       : `/instructor/bookings/${booking.id}`
                   }
-                  className="text-sm text-[#7E22CE] hover:text-[#7E22CE] flex items-center gap-1 font-medium"
+                  className="text-sm text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 flex items-center gap-1 font-medium"
                 >
                   See lesson details
                   <ChevronRight className="h-4 w-4" />

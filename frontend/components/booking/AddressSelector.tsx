@@ -67,7 +67,7 @@ export function AddressSelector({
           <button
             type="button"
             onClick={onEnterNewAddress}
-            className="text-sm text-[#7E22CE] hover:text-[#7E22CE] hover:underline"
+            className="text-sm text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 hover:underline"
           >
             + Use a different address
           </button>
@@ -80,7 +80,7 @@ export function AddressSelector({
           <button
             type="button"
             onClick={onEnterNewAddress}
-            className="text-sm text-[#7E22CE] hover:text-[#7E22CE] hover:underline"
+            className="text-sm text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 hover:underline"
           >
             Enter address
           </button>

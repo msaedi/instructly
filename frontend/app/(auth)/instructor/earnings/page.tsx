@@ -181,7 +181,7 @@ function EarningsPageImpl() {
         <header className="relative px-4 sm:px-6 py-4 insta-dashboard-header">
           <div className="flex items-center justify-between max-w-full">
             <Link href="/instructor/dashboard" className="inline-block">
-              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
+              <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</h1>
             </Link>
             <div className="pr-0 sm:pr-4">
               <UserProfileDropdown />
@@ -282,13 +282,13 @@ function EarningsPageImpl() {
               <div className="flex items-center gap-4">
               <button
                 onClick={() => setActiveTab('invoices')}
-                className={`px-2 py-2 text-xs sm:text-sm font-medium ${activeTab === 'invoices' ? 'text-[#7E22CE] border-b-2 border-[#7E22CE]' : 'text-gray-600 dark:text-gray-400 hover:text-[#7E22CE]'}`}
+                className={`px-2 py-2 text-xs sm:text-sm font-medium ${activeTab === 'invoices' ? 'text-[#7E22CE] border-b-2 border-[#7E22CE]' : 'text-gray-600 dark:text-gray-400 hover:text-purple-900 dark:hover:text-purple-300'}`}
               >
                 Invoices
               </button>
               <button
                 onClick={() => setActiveTab('payouts')}
-                className={`px-2 py-2 text-xs sm:text-sm font-medium ${activeTab === 'payouts' ? 'text-[#7E22CE] border-b-2 border-[#7E22CE]' : 'text-gray-600 dark:text-gray-400 hover:text-[#7E22CE]'}`}
+                className={`px-2 py-2 text-xs sm:text-sm font-medium ${activeTab === 'payouts' ? 'text-[#7E22CE] border-b-2 border-[#7E22CE]' : 'text-gray-600 dark:text-gray-400 hover:text-purple-900 dark:hover:text-purple-300'}`}
               >
                 Payouts
               </button>
@@ -563,7 +563,7 @@ function EarningsPageImpl() {
             <button
               disabled={!exportYear || !exportType || sendingExport}
               onClick={handleExport}
-              className="inline-flex items-center justify-center h-10 px-4 rounded-lg bg-[#7E22CE] text-white disabled:opacity-50 insta-primary-btn"
+              className="inline-flex items-center justify-center h-10 px-4 rounded-lg bg-[#7E22CE] text-white font-semibold disabled:opacity-50 insta-primary-btn"
             >
               {sendingExport ? 'Exporting…' : 'Download Report'}
             </button>

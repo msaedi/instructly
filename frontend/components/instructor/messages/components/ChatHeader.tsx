@@ -103,7 +103,7 @@ export function ChatHeader({
                 {composeRecipient.name}
                 <button
                   type="button"
-                  className="text-[#7E22CE] hover:text-purple-800"
+                  className="text-[#7E22CE] hover:text-purple-800 dark:hover:text-purple-200"
                   aria-label="Remove recipient"
                   onClick={onComposeRecipientClear}
                 >
@@ -231,7 +231,7 @@ export function ChatHeader({
                           <button
                             type="button"
                             onClick={() => setShowUpcomingBookings((v) => !v)}
-                            className="text-xs text-[#7E22CE] flex items-center justify-between gap-1 hover:text-purple-800 w-full text-left pt-1"
+                            className="text-xs text-[#7E22CE] flex items-center justify-between gap-1 hover:text-purple-800 dark:hover:text-purple-200 w-full text-left pt-1"
                           >
                             <span>
                               +{upcomingCount - 1} more upcoming {upcomingCount - 1 === 1 ? 'booking' : 'bookings'}
