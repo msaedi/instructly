@@ -1392,14 +1392,14 @@ class TestGetCategoriesWithSubcategoriesCacheBranches:
         svc = _make_service()
         svc.cache_service = MagicMock()
         svc.cache_service.get.return_value = None
-        svc.catalog_repository.get_categories_with_subcategories.return_value = []
+        svc.catalog_repository.get_categories_with_subcategories.return_value = ([], {})
         svc.get_categories_with_subcategories()
         svc.cache_service.set.assert_called_once()
 
     def test_no_cache_service(self):
         svc = _make_service()
         svc.cache_service = None
-        svc.catalog_repository.get_categories_with_subcategories.return_value = []
+        svc.catalog_repository.get_categories_with_subcategories.return_value = ([], {})
         result = svc.get_categories_with_subcategories()
         assert result == []
 

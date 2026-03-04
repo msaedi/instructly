@@ -706,23 +706,36 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
 
     # ── Taxonomy-aware queries (3-level: category → subcategory → service) ──
 
-    def get_categories_with_subcategories(self) -> List[ServiceCategory]:
-        """Fetch all categories with subcategories eager-loaded.
+    def get_categories_with_subcategories(
+        self,
+    ) -> Tuple[List[ServiceCategory], Dict[str, int]]:
+        """Fetch all categories with subcategories and service counts.
+
+        Uses a COUNT subquery instead of loading full service objects,
+        avoiding transfer of heavy columns (e.g. 1536-dim vector embeddings).
 
         Returns:
-            Categories ordered by display_order, each with subcategories loaded.
+            Tuple of (categories ordered by display_order, mapping of subcategory_id → service_count).
         """
-        return cast(
+        categories = cast(
             List[ServiceCategory],
             self.db.query(ServiceCategory)
-            .options(
-                selectinload(ServiceCategory.subcategories).selectinload(
-                    ServiceSubcategory.services
-                )
-            )
+            .options(selectinload(ServiceCategory.subcategories))
             .order_by(ServiceCategory.display_order)
             .all(),
         )
+
+        count_rows = (
+            self.db.query(
+                ServiceCatalog.subcategory_id,
+                func.count(ServiceCatalog.id).label("service_count"),
+            )
+            .group_by(ServiceCatalog.subcategory_id)
+            .all()
+        )
+        count_map: Dict[str, int] = {row.subcategory_id: row.service_count for row in count_rows}
+
+        return categories, count_map
 
     def get_category_tree(self, category_id: str) -> Optional[ServiceCategory]:
         """Full 3-level tree: category → subcategories → services.

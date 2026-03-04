@@ -2043,7 +2043,7 @@ class InstructorService(BaseService):
             if cached:
                 return cast(JsonList, cached)
 
-        categories = self.catalog_repository.get_categories_with_subcategories()
+        categories, count_map = self.catalog_repository.get_categories_with_subcategories()
         result: JsonList = []
         for cat in sorted(categories, key=lambda c: c.display_order):
             result.append(
@@ -2058,7 +2058,7 @@ class InstructorService(BaseService):
                         {
                             "id": sub.id,
                             "name": sub.name,
-                            "service_count": len(sub.services) if hasattr(sub, "services") else 0,
+                            "service_count": count_map.get(sub.id, 0),
                         }
                         for sub in sorted(
                             getattr(cat, "subcategories", []),

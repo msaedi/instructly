@@ -298,8 +298,9 @@ class TestGetCategoriesWithSubcategories:
         sub1 = _make_subcategory("sub-1", "Guitar", "cat-1", display_order=1, services=[])
         sub0 = _make_subcategory("sub-0", "Piano", "cat-1", display_order=0, services=[])
         cat = _make_category("cat-1", "Music", display_order=0, subcategories=[sub1, sub0])
+        count_map = {"sub-0": 3, "sub-1": 5}
 
-        svc.catalog_repository.get_categories_with_subcategories.return_value = [cat]
+        svc.catalog_repository.get_categories_with_subcategories.return_value = ([cat], count_map)
 
         result = svc.get_categories_with_subcategories()
 
@@ -307,7 +308,9 @@ class TestGetCategoriesWithSubcategories:
         assert result[0]["name"] == "Music"
         # Subcategories sorted by display_order
         assert result[0]["subcategories"][0]["name"] == "Piano"
+        assert result[0]["subcategories"][0]["service_count"] == 3
         assert result[0]["subcategories"][1]["name"] == "Guitar"
+        assert result[0]["subcategories"][1]["service_count"] == 5
 
     def test_cache_hit(self):
         svc = _build_service()
@@ -323,10 +326,23 @@ class TestGetCategoriesWithSubcategories:
         svc.cache_service = MagicMock()
         svc.cache_service.get.return_value = None
 
-        svc.catalog_repository.get_categories_with_subcategories.return_value = []
+        svc.catalog_repository.get_categories_with_subcategories.return_value = ([], {})
 
         svc.get_categories_with_subcategories()
         svc.cache_service.set.assert_called_once()
+
+    def test_service_count_zero_for_unknown_subcategory(self):
+        svc = _build_service()
+        svc.cache_service = MagicMock()
+        svc.cache_service.get.return_value = None
+
+        sub = _make_subcategory("sub-new", "New", "cat-1", display_order=0, services=[])
+        cat = _make_category("cat-1", "Music", display_order=0, subcategories=[sub])
+
+        svc.catalog_repository.get_categories_with_subcategories.return_value = ([cat], {})
+
+        result = svc.get_categories_with_subcategories()
+        assert result[0]["subcategories"][0]["service_count"] == 0
 
 
 class TestGetCategoryTree:

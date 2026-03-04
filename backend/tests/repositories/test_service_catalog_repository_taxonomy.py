@@ -114,19 +114,29 @@ def taxonomy_tree(db: Session):
 class TestGetCategoriesWithSubcategories:
     def test_returns_categories_with_subcategories_loaded(self, db: Session, taxonomy_tree):
         repo = ServiceCatalogRepository(db)
-        categories = repo.get_categories_with_subcategories()
+        categories, count_map = repo.get_categories_with_subcategories()
 
         # Find our test categories
         cat_a = next((c for c in categories if c.id == taxonomy_tree["cat_a"].id), None)
         assert cat_a is not None
         assert len(cat_a.subcategories) == 2
+        # count_map should have entries for subcategories with services
+        assert isinstance(count_map, dict)
 
     def test_ordered_by_display_order(self, db: Session, taxonomy_tree):
         repo = ServiceCatalogRepository(db)
-        categories = repo.get_categories_with_subcategories()
+        categories, _count_map = repo.get_categories_with_subcategories()
 
         ids = [c.id for c in categories]
         assert ids.index(taxonomy_tree["cat_a"].id) < ids.index(taxonomy_tree["cat_b"].id)
+
+    def test_count_map_contains_service_counts(self, db: Session, taxonomy_tree):
+        repo = ServiceCatalogRepository(db)
+        _categories, count_map = repo.get_categories_with_subcategories()
+
+        # sub_a1 has 2 services in taxonomy_tree fixture
+        sub_a1_id = taxonomy_tree["sub_a1"].id
+        assert count_map.get(sub_a1_id, 0) > 0
 
 
 class TestGetCategoryTree:
