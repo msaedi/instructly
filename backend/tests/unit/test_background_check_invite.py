@@ -1,5 +1,7 @@
 import json
+from typing import Any
 
+import httpx
 from httpx import MockTransport, Response
 from pydantic import SecretStr
 import pytest
@@ -189,3 +191,47 @@ def test_invite_package_override_takes_precedence(db):
     invitation_payload = captured_requests["invitation"]
     assert invitation_payload["package"] == "complete_criminal"
     assert invitation_payload["package"] != settings.checkr_package
+
+
+def test_resolve_work_location_sends_real_token_not_masked(db, monkeypatch):
+    """Regression: SecretStr must be unwrapped via .get_secret_value().
+
+    Previously the raw SecretStr was passed to httpx, which serialized it
+    as '**********' causing a 401 from Mapbox.
+    """
+    real_token = "pk.test_real_mapbox_token_value"
+    monkeypatch.setattr(settings, "mapbox_access_token", SecretStr(real_token))
+
+    mock_response = httpx.Response(
+        200,
+        json={
+            "features": [
+                {
+                    "place_name": "New York, New York 10001, United States",
+                    "context": [
+                        {"id": "place.1", "text": "New York"},
+                        {"id": "region.1", "text": "New York", "short_code": "US-NY"},
+                        {"id": "country.1", "text": "United States", "short_code": "us"},
+                    ],
+                }
+            ]
+        },
+        request=httpx.Request("GET", "https://api.mapbox.com/geocoding/v5/mapbox.places/10001.json"),
+    )
+
+    captured_kwargs: dict[str, Any] = {}
+
+    def fake_get(*_args: Any, **kwargs: Any) -> httpx.Response:
+        captured_kwargs.update(kwargs)
+        return mock_response
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+
+    service = BackgroundCheckService.__new__(BackgroundCheckService)
+    result = service._resolve_work_location("10001")
+
+    # The real token must be sent, NOT the masked '**********'
+    sent_token = captured_kwargs["params"]["access_token"]
+    assert sent_token == real_token
+    assert sent_token != "**********"
+    assert result["country"] == "US"

@@ -271,7 +271,8 @@ class BackgroundCheckService(BaseService):
 
     def _resolve_work_location(self, zip_code: str) -> dict[str, str]:
         provider_name = "mapbox"
-        token = getattr(settings, "mapbox_access_token", None)
+        token_secret = getattr(settings, "mapbox_access_token", None)
+        token = token_secret.get_secret_value() if token_secret else ""
         if not token:
             raise ServiceException(
                 "Unable to resolve work location",
