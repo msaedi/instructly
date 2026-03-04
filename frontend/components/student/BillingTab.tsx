@@ -315,7 +315,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
             variant="ghost"
             size="sm"
             onClick={handleDownloadHistory}
-            className="text-[#7E22CE] hover:text-[#7E22CE] hover:bg-purple-50 dark:hover:bg-purple-900/30"
+            className="text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30"
           >
             <Download className="h-4 w-4 mr-2" />
             Download History

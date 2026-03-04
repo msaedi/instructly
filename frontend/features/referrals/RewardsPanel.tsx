@@ -229,7 +229,7 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
               onClick={() => setActiveTab(tab)}
               className={
                 minimalTabs
-                  ? `px-0 py-0 text-sm font-medium transition ${activeTab === tab ? 'text-[#7E22CE]' : 'text-gray-600 dark:text-gray-400 hover:text-[#7E22CE]'}`
+                  ? `px-0 py-0 text-sm font-medium transition ${activeTab === tab ? 'text-[#7E22CE]' : 'text-gray-600 dark:text-gray-400 hover:text-purple-900 dark:hover:text-purple-300'}`
                   : `rounded-full px-4 py-2 text-sm font-medium transition ${
                       activeTab === tab ? 'bg-[#7E22CE] text-white shadow-sm' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`

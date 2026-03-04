@@ -708,7 +708,7 @@ export default function InstructorDashboardNew() {
                 setIsMobileMenuOpen(false);
               }}
             >
-              <span className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">iNSTAiNSTRU</span>
+              <span className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</span>
             </Link>
             <div className="pr-4">
               <UserProfileDropdown hideDashboardItem />
@@ -749,7 +749,7 @@ export default function InstructorDashboardNew() {
               setIsMobileMenuOpen(false);
             }}
           >
-            <span className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</span>
+            <span className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-0 sm:pl-4">iNSTAiNSTRU</span>
           </Link>
           <div className="flex items-center gap-2 pr-0 sm:pr-4">
             <DashboardPopover
@@ -853,7 +853,7 @@ export default function InstructorDashboardNew() {
                         className={`w-full text-left px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                           activePanel === item.key
                             ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 border border-purple-200 dark:border-purple-700'
-                            : 'text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300'
+                            : 'text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
                         }`}
                         aria-current={activePanel === item.key ? 'page' : undefined}
                       >
@@ -866,7 +866,7 @@ export default function InstructorDashboardNew() {
               <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
                 <button
                   type="button"
-                  className="flex w-full items-center justify-between px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-[#7E22CE] dark:hover:text-purple-300"
+                  className="flex w-full items-center justify-between px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-purple-900 dark:hover:text-purple-300"
                   onClick={() => setShowMoreMobile((prev) => !prev)}
                   aria-expanded={showMoreMobile}
                   aria-controls="mobile-nav-more"
@@ -888,7 +888,7 @@ export default function InstructorDashboardNew() {
                           className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
                             activePanel === item.key
                               ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 border border-purple-200 dark:border-purple-700'
-                              : 'text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300'
+                              : 'text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
                           }`}
                           aria-current={activePanel === item.key ? 'page' : undefined}
                         >
@@ -925,7 +925,7 @@ export default function InstructorDashboardNew() {
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'dashboard'
                           ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
-                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300'
+                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
                       }`}
                     >
                       Dashboard
@@ -939,7 +939,7 @@ export default function InstructorDashboardNew() {
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'account'
                           ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
-                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300'
+                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
                       }`}
                     >
                       Account
@@ -953,7 +953,7 @@ export default function InstructorDashboardNew() {
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'profile'
                           ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
-                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300'
+                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
                       }`}
                     >
                       Instructor Profile
@@ -967,7 +967,7 @@ export default function InstructorDashboardNew() {
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'bookings'
                           ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
-                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300'
+                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
                       }`}
                     >
                       Bookings
@@ -981,7 +981,7 @@ export default function InstructorDashboardNew() {
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'earnings'
                           ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
-                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300'
+                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
                       }`}
                     >
                       Earnings
@@ -995,7 +995,7 @@ export default function InstructorDashboardNew() {
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'referrals'
                           ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
-                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300'
+                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
                       }`}
                     >
                       Referrals
@@ -1009,7 +1009,7 @@ export default function InstructorDashboardNew() {
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'availability'
                           ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
-                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300'
+                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
                       }`}
                     >
                       Availability
@@ -1023,7 +1023,7 @@ export default function InstructorDashboardNew() {
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'reviews'
                           ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
-                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300'
+                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-300'
                       }`}
                     >
                       Reviews
@@ -1080,7 +1080,7 @@ export default function InstructorDashboardNew() {
           {/* Bookings card - clickable button, navigates to past tab since it shows completed count */}
           <button
             onClick={() => router.push('/instructor/dashboard?panel=bookings&tab=past', { scroll: false })}
-            className="stat-card insta-dashboard-stat-card group block h-32 w-full rounded-md p-3 text-left transition-all hover:border-purple-300 dark:hover:border-purple-600 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] sm:h-40 sm:rounded-lg sm:p-6"
+            className="stat-card insta-dashboard-stat-card group block h-32 w-full rounded-md p-3 text-left transition-all hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-purple-300 dark:hover:border-purple-600 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] sm:h-40 sm:rounded-lg sm:p-6"
             aria-label="Open bookings"
           >
             <div className="flex items-start justify-between h-full">
@@ -1100,7 +1100,7 @@ export default function InstructorDashboardNew() {
           {/* Earnings card - clickable with outline icon */}
           <button
             onClick={() => handlePanelChange('earnings')}
-            className="stat-card insta-dashboard-stat-card group block w-full text-left rounded-md sm:rounded-lg p-3 sm:p-6 hover:border-purple-300 dark:hover:border-purple-600 h-32 sm:h-40 transition-all focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+            className="stat-card insta-dashboard-stat-card group block w-full text-left rounded-md sm:rounded-lg p-3 sm:p-6 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-purple-300 dark:hover:border-purple-600 h-32 sm:h-40 transition-all focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
             aria-label="Open earnings"
           >
             <div className="flex items-start justify-between h-full">
@@ -1116,7 +1116,7 @@ export default function InstructorDashboardNew() {
           {/* Reviews card - clickable with outline icon */}
           <button
             onClick={() => handlePanelChange('reviews')}
-            className="stat-card insta-dashboard-stat-card group block w-full text-left rounded-md sm:rounded-lg p-3 sm:p-6 hover:border-purple-300 dark:hover:border-purple-600 h-32 sm:h-40 transition-all focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+            className="stat-card insta-dashboard-stat-card group block w-full text-left rounded-md sm:rounded-lg p-3 sm:p-6 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-purple-300 dark:hover:border-purple-600 h-32 sm:h-40 transition-all focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
             aria-label="Open reviews"
           >
             <div className="flex items-start justify-between h-full">

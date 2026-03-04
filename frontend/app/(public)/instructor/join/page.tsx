@@ -165,11 +165,11 @@ function JoinInner() {
             <div className="mt-4 rounded-lg px-4 py-5 text-center text-xs text-gray-600 dark:text-gray-400 space-y-3 insta-empty-state-note">
               <p>
                 By clicking Join, you agree to iNSTAiNSTRU&apos;s{' '}
-                <a href="/legal#terms" className="focus-link text-[#7E22CE] hover:text-[#7E22CE]">
+                <a href="/legal#terms" className="focus-link text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300">
                   Terms of Service
                 </a>{' '}
                 and{' '}
-                <a href="/legal#privacy" className="focus-link text-[#7E22CE] hover:text-[#7E22CE]">
+                <a href="/legal#privacy" className="focus-link text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300">
                   Privacy Policy
                 </a>.
               </p>

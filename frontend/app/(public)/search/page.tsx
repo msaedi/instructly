@@ -1900,7 +1900,7 @@ function SearchPageInner() {
       <header ref={headerRef} className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-2 md:px-6 md:py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link href="/" className="inline-block">
-            <span className="text-2xl md:text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-2 md:pl-4">iNSTAiNSTRU</span>
+            <span className="text-2xl md:text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-2 md:pl-4">iNSTAiNSTRU</span>
           </Link>
           <div className="pr-2 md:pr-4">
             <UserProfileDropdown />

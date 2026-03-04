@@ -1252,7 +1252,7 @@ export default function EditProfileModal({
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300 dark:focus:ring-gray-400"
                   aria-label="Close"
                 >
                   <X className="h-4 w-4" aria-hidden="true" />
@@ -1815,7 +1815,7 @@ export default function EditProfileModal({
                   <button
                     type="button"
                     onClick={() => removeService(index)}
-                    className="text-sm text-red-600 hover:text-red-700 transition-colors
+                    className="text-sm text-red-600 hover:text-red-700 dark:hover:text-red-300 transition-colors
                              flex items-center gap-1"
                   >
                     <Trash2 className="w-4 h-4" />

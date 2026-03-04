@@ -404,19 +404,6 @@ select,
   transform: none !important;
 }
 
-/* Dashboard stat cards - explicit hover styles that work in both light and dark mode */
-button.stat-card.bg-white:not(:disabled):hover,
-button.stat-card:not(:disabled):hover {
-  background-color: rgb(249 250 251) !important; /* gray-50 */
-  border-color: rgb(216 180 254) !important; /* purple-300 */
-}
-
-/* Public profile button - explicit hover styles */
-button.profile-view-btn.bg-white:not(:disabled):hover,
-button.profile-view-btn:not(:disabled):hover {
-  background-color: rgb(249 250 251) !important; /* gray-50 */
-  border-color: rgb(216 180 254) !important; /* purple-300 */
-}
 
 /* Ensure full-pill hover area for neighborhood chips */
 .chip-hover {
@@ -464,15 +451,6 @@ a[role="button"]:active {
   transform: none;
 }
 
-/* Links: avoid color/brightness filter that causes subpixel blurring */
-a:hover {
-  filter: none !important;
-}
-
-/* Do not dim anchor elements that are styled as buttons */
-a[class*="bg-"]:hover {
-  filter: none !important;
-}
 
 @media (prefers-reduced-motion: reduce) {
   .clickable,
@@ -710,12 +688,6 @@ html {
   text-decoration-color: currentColor;
 }
 
-.template-title-input:focus,
-.template-title-input:focus-visible {
-  outline: none !important;
-  box-shadow: none !important;
-  border: none;
-}
 
 /* Toast overrides */
 .sonner-toast {

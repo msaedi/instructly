@@ -298,7 +298,7 @@ export default function TimeDropdown({
               }}
               className={`
                 w-full text-left px-4 py-3 transition-all duration-150
-                hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100
+                hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600
                 ${
                   selectedTime === time
                     ? 'bg-purple-50 text-[#7E22CE] font-medium'

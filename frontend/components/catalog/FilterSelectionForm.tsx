@@ -121,7 +121,7 @@ function FilterOptionButton({
     <button
       type="button"
       onClick={() => onToggle(option.value)}
-      className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+      className={`px-3 py-1.5 text-sm font-semibold rounded-lg border transition-colors ${
         isSelected
           ? 'border-[#7E22CE] bg-[#7E22CE]/10 text-[#7E22CE] dark:border-purple-500 dark:bg-purple-500/20 dark:text-purple-300'
           : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'

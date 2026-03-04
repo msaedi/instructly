@@ -296,14 +296,14 @@ function StudentDashboardContent() {
       <header className="insta-dashboard-header px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link href="/" className="inline-block">
-            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-[#7E22CE] transition-colors cursor-pointer pl-4">
+            <h1 className="text-3xl font-bold text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 transition-colors cursor-pointer pl-4">
               iNSTAiNSTRU
             </h1>
           </Link>
           <div className="flex items-center gap-4 pr-4">
             <Link
               href="/student/lessons"
-              className="text-gray-700 dark:text-gray-300 hover:text-[#7E22CE] font-medium"
+              className="text-gray-700 dark:text-gray-300 hover:text-purple-900 dark:hover:text-purple-300 font-medium"
             >
               My Lessons
             </Link>
@@ -376,7 +376,7 @@ function StudentDashboardContent() {
                     <div className="flex items-center justify-between mb-4">
                       <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Account Information</h2>
                       <button
-                        className="text-sm font-medium text-[#7E22CE] hover:text-[#7E22CE] cursor-pointer"
+                        className="text-sm font-medium text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 cursor-pointer"
                         onClick={() => {
                           logger.debug('Edit profile clicked');
                           setShowEditProfile(true);
@@ -444,7 +444,7 @@ function StudentDashboardContent() {
                     <div className="flex items-center justify-between mb-3">
                       <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Addresses</h2>
                       <button
-                        className="text-sm font-medium text-[#7E22CE] hover:text-[#7E22CE] cursor-pointer"
+                        className="text-sm font-medium text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 cursor-pointer"
                         onClick={() => setShowAddressModal({ mode: 'create' })}
                       >
                         + Add
@@ -469,7 +469,7 @@ function StudentDashboardContent() {
                           </p>
                           <div className="mt-2 flex gap-3 text-sm">
                             <button
-                              className="text-[#7E22CE] hover:text-[#7E22CE]"
+                              className="text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300"
                               onClick={() => setShowAddressModal({ mode: 'edit', address: a })}
                             >
                               Edit

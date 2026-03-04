@@ -147,7 +147,7 @@ export function LessonCard({
               e.stopPropagation();
               onViewDetails();
             }}
-            className="text-sm text-[#7E22CE] hover:text-[#7E22CE] flex items-center gap-1 self-start sm:self-auto cursor-pointer font-medium"
+            className="text-sm text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300 flex items-center gap-1 self-start sm:self-auto cursor-pointer font-medium"
           >
             See lesson details
             <ChevronRight className="h-4 w-4" />
