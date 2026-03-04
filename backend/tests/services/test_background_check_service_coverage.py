@@ -1,4 +1,5 @@
 
+from pydantic import SecretStr
 import pytest
 
 from app.core.exceptions import NotFoundException, ServiceException
@@ -194,7 +195,7 @@ def test_resolve_work_location_missing_token(db, bgc_service, monkeypatch):
 def test_resolve_work_location_provider_error(db, bgc_service, monkeypatch):
     from app.core.config import settings
 
-    monkeypatch.setattr(settings, "mapbox_access_token", "token", raising=False)
+    monkeypatch.setattr(settings, "mapbox_access_token", SecretStr("token"), raising=False)
 
     def _boom(*_args, **_kwargs):
         raise RuntimeError("provider down")
@@ -208,7 +209,7 @@ def test_resolve_work_location_provider_error(db, bgc_service, monkeypatch):
 def test_resolve_work_location_zero_results(db, bgc_service, monkeypatch):
     from app.core.config import settings
 
-    monkeypatch.setattr(settings, "mapbox_access_token", "token", raising=False)
+    monkeypatch.setattr(settings, "mapbox_access_token", SecretStr("token"), raising=False)
 
     monkeypatch.setattr(
         "app.services.background_check_service.httpx.get",
@@ -222,7 +223,7 @@ def test_resolve_work_location_zero_results(db, bgc_service, monkeypatch):
 def test_resolve_work_location_missing_components(db, bgc_service, monkeypatch):
     from app.core.config import settings
 
-    monkeypatch.setattr(settings, "mapbox_access_token", "token", raising=False)
+    monkeypatch.setattr(settings, "mapbox_access_token", SecretStr("token"), raising=False)
 
     data = {"features": [{"text": "", "context": []}]}
     monkeypatch.setattr(
@@ -237,7 +238,7 @@ def test_resolve_work_location_missing_components(db, bgc_service, monkeypatch):
 def test_resolve_work_location_success(db, bgc_service, monkeypatch):
     from app.core.config import settings
 
-    monkeypatch.setattr(settings, "mapbox_access_token", "token", raising=False)
+    monkeypatch.setattr(settings, "mapbox_access_token", SecretStr("token"), raising=False)
 
     data = {
         "features": [
