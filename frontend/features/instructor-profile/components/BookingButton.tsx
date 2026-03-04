@@ -18,11 +18,11 @@ export function BookingButton({ instructor, className, onBook }: BookingButtonPr
 
   return (
     <div className={cn(
-      "fixed bottom-0 left-0 right-0 z-50 p-4 bg-background border-t",
+      "fixed bottom-0 left-0 right-0 z-50 p-4 bg-white dark:bg-gray-900 border-t",
       className
     )}>
       <button
-        className="w-full py-3 px-6 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors"
+        className="w-full py-3 px-6 bg-(--color-primary) text-white rounded-lg font-medium hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors"
         onClick={onBook}
         data-testid="mobile-book-now"
       >

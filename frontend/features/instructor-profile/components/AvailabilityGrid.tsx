@@ -355,7 +355,7 @@ export function AvailabilityGrid({
                       <div className={cn(
                         "inline-flex items-center justify-center w-6 h-6 rounded-full",
                         isToday && "bg-black text-white font-semibold",
-                        !isToday && "text-muted-foreground",
+                        !isToday && "text-gray-500 dark:text-gray-400",
                         isPastDate && "text-gray-300"
                       )}>{format(day, 'd')}</div>
                     </th>
@@ -366,7 +366,7 @@ export function AvailabilityGrid({
             <tbody>
               {activeTimeSlots.map((time) => (
               <tr key={time} className="border-b">
-                <td className="text-xs text-muted-foreground p-2">{time}</td>
+                <td className="text-xs text-gray-500 dark:text-gray-400 p-2">{time}</td>
                 {weekDays.map((day) => {
                   const dateStr = format(day, 'yyyy-MM-dd');
                   const dayName = format(day, 'EEE');
@@ -430,7 +430,7 @@ export function AvailabilityGrid({
                       // Skip this slot if we can't parse the hour
                       return (
                         <td key={`${dateStr}-${time}`} className="p-1 text-center align-middle">
-                          <span className="text-xs text-muted-foreground">-</span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">-</span>
                         </td>
                       );
                     }
@@ -483,7 +483,7 @@ export function AvailabilityGrid({
                           )}
                         </button>
                       ) : (
-                        <span className="text-xs text-muted-foreground">-</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">-</span>
                       )}
                     </td>
                   );

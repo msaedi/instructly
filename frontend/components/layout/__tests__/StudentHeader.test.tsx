@@ -76,7 +76,7 @@ describe('StudentHeader', () => {
     render(<StudentHeader />);
 
     const rewardsLink = screen.getByRole('link', { name: /rewards/i });
-    expect(rewardsLink.className).toMatch(/bg-primary\/10/);
+    expect(rewardsLink.className).toMatch(/bg-\(--color-primary\)\/10/);
   });
 
   it('toggles user menu and closes on outside click', async () => {

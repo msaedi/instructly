@@ -559,13 +559,13 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
       <div className="flex flex-wrap items-center gap-3" aria-live="polite">
         <StatusChip status={status} loading={loading} ref={statusChipRef} />
         {reportId ? (
-          <span className="text-xs text-muted-foreground break-all">Report ID: {reportId}</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400 break-all">Report ID: {reportId}</span>
         ) : null}
         {completedAt ? (
-          <span className="text-xs text-muted-foreground">Completed {new Date(completedAt).toLocaleDateString()}</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">Completed {new Date(completedAt).toLocaleDateString()}</span>
         ) : null}
       </div>
-      <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
         <span>Valid until: {validUntilLabel ?? '—'}</span>
         {shouldShowRecheck ? (
           <Button
@@ -580,7 +580,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
         ) : null}
       </div>
       {shouldShowEta ? (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
           Estimated completion: <span className="font-medium">{etaLabel}</span>
         </p>
       ) : null}
@@ -590,7 +590,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
         </div>
       ) : null}
       {statusError ? (
-        <p className="text-sm text-muted-foreground" role="alert">
+        <p className="text-sm text-gray-500 dark:text-gray-400" role="alert">
           Status unavailable. You can still start a background check.
         </p>
       ) : null}
@@ -604,13 +604,13 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
           >
             {inviteLoading ? 'Starting…' : 'Start background check'}
           </Button>
-          <p className="text-sm text-muted-foreground max-w-xl">
+          <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xl">
             Most approvals are same-day; <span className="font-medium">full results typically 1–3 business days</span>.
             {' '}Your info is collected securely by our screening partner.
           </p>
         </div>
       ) : pendingOrReview ? (
-        <p className="text-sm text-muted-foreground max-w-xl">
+        <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xl">
           Most approvals are same-day; <span className="font-medium">full results typically 1–3 business days</span>.
         </p>
       ) : null}
@@ -620,7 +620,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
         </div>
       ) : null}
       {isForbidden ? (
-        <p className="text-sm text-muted-foreground" role="alert">
+        <p className="text-sm text-gray-500 dark:text-gray-400" role="alert">
           Only the owner can start a background check.
         </p>
       ) : null}

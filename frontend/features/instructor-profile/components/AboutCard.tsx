@@ -41,10 +41,10 @@ export function AboutCard({ instructor }: AboutCardProps) {
         {/* Experience */}
         {instructor.years_experience > 0 && (
           <div className="flex items-start gap-3">
-            <Award className="h-4 w-4 text-muted-foreground mt-0.5" />
+            <Award className="h-4 w-4 text-gray-500 dark:text-gray-400 mt-0.5" />
             <div className="space-y-1">
               <div className="font-medium text-sm">Experience</div>
-              <div className="text-sm text-muted-foreground">
+              <div className="text-sm text-gray-500 dark:text-gray-400">
                 {instructor.years_experience} years teaching
               </div>
             </div>
@@ -54,10 +54,10 @@ export function AboutCard({ instructor }: AboutCardProps) {
         {/* Languages */}
         {languages.length > 0 && (
           <div className="flex items-start gap-3">
-            <Globe className="h-4 w-4 text-muted-foreground mt-0.5" />
+            <Globe className="h-4 w-4 text-gray-500 dark:text-gray-400 mt-0.5" />
             <div className="space-y-1">
               <div className="font-medium text-sm">Languages</div>
-              <div className="text-sm text-muted-foreground">
+              <div className="text-sm text-gray-500 dark:text-gray-400">
                 {languages.join(', ')}
               </div>
             </div>
@@ -67,10 +67,10 @@ export function AboutCard({ instructor }: AboutCardProps) {
         {/* Education */}
         {education && (
           <div className="flex items-start gap-3">
-            <User className="h-4 w-4 text-muted-foreground mt-0.5" />
+            <User className="h-4 w-4 text-gray-500 dark:text-gray-400 mt-0.5" />
             <div className="space-y-1">
               <div className="font-medium text-sm">Education</div>
-              <div className="text-sm text-muted-foreground">
+              <div className="text-sm text-gray-500 dark:text-gray-400">
                 {education}
               </div>
             </div>
@@ -80,7 +80,7 @@ export function AboutCard({ instructor }: AboutCardProps) {
         {/* Bio */}
         {instructor.bio && (
           <div className="pt-2 border-t">
-            <p className="text-sm text-muted-foreground leading-relaxed">
+            <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
               {instructor.bio}
             </p>
           </div>

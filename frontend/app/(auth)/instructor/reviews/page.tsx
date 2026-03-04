@@ -222,11 +222,11 @@ function ReviewsPageImpl() {
           ) : null}
 
           {effectiveLoading ? (
-            <p className="text-muted-foreground">Loading reviews…</p>
+            <p className="text-gray-500 dark:text-gray-400">Loading reviews…</p>
           ) : (
             <>
               {noFilteredResults && (
-                <p className="text-muted-foreground">No reviews match your filters.</p>
+                <p className="text-gray-500 dark:text-gray-400">No reviews match your filters.</p>
               )}
 
               {reviews.length > 0 && (

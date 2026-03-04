@@ -3,9 +3,9 @@ import { Card } from '@/components/ui/card';
 
 export function InstructorProfileSkeleton() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-white dark:bg-gray-900">
       {/* Mobile Header Skeleton */}
-      <div className="sticky top-0 z-40 bg-background border-b lg:hidden">
+      <div className="sticky top-0 z-40 bg-white dark:bg-gray-900 border-b lg:hidden">
         <div className="flex items-center justify-between p-4">
           <Skeleton className="h-8 w-16" />
           <Skeleton className="h-8 w-8" />
@@ -138,7 +138,7 @@ export function InstructorProfileSkeleton() {
       </div>
 
       {/* Sticky Booking Button Skeleton - Mobile */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-background border-t lg:hidden">
+      <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-white dark:bg-gray-900 border-t lg:hidden">
         <Skeleton className="h-12 w-full rounded-lg" />
       </div>
     </div>

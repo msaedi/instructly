@@ -60,7 +60,7 @@ export function ReviewsSection({ instructorId }: ReviewsSectionProps) {
         <h2 className="text-lg text-gray-600 dark:text-gray-400 mb-4">Reviews</h2>
         <Card>
           <CardContent className="py-8 text-center">
-            <p className="text-muted-foreground">Unable to load reviews</p>
+            <p className="text-gray-500 dark:text-gray-400">Unable to load reviews</p>
           </CardContent>
         </Card>
       </section>
@@ -74,7 +74,7 @@ export function ReviewsSection({ instructorId }: ReviewsSectionProps) {
         <Card>
           <CardContent className="py-8 text-center">
             <p className="font-medium">New instructor</p>
-            <p className="text-sm text-muted-foreground">No reviews yet.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">No reviews yet.</p>
           </CardContent>
         </Card>
       </section>
@@ -100,7 +100,7 @@ export function ReviewsSection({ instructorId }: ReviewsSectionProps) {
                   {review.reviewer_display_name && (
                     <span className="font-medium text-sm">{review.reviewer_display_name}</span>
                   )}
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
                     {formatDistanceToNow(new Date(review.created_at), { addSuffix: true })}
                   </span>
                 </div>

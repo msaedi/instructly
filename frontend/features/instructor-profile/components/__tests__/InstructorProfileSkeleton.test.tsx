@@ -83,8 +83,8 @@ describe('InstructorProfileSkeleton', () => {
   it('renders reviews section skeleton', () => {
     const { container } = render(<InstructorProfileSkeleton />);
 
-    // Reviews section has multiple review card skeletons
-    const reviewCards = container.querySelectorAll('.space-y-4 > [class*="card"]');
+    // Reviews section has multiple review card skeletons (Card renders with rounded-lg border shadow-sm)
+    const reviewCards = container.querySelectorAll('.space-y-4 > .rounded-lg.border.shadow-sm');
     expect(reviewCards.length).toBeGreaterThanOrEqual(2);
   });
 
@@ -99,8 +99,8 @@ describe('InstructorProfileSkeleton', () => {
   it('renders info cards in right column', () => {
     const { container } = render(<InstructorProfileSkeleton />);
 
-    // Right column has info card skeletons
-    const infoCards = container.querySelectorAll('.space-y-6 > [class*="card"]');
+    // Right column has info card skeletons (Card renders with rounded-lg border shadow-sm)
+    const infoCards = container.querySelectorAll('.space-y-6 > .rounded-lg.border.shadow-sm');
     expect(infoCards.length).toBeGreaterThanOrEqual(2);
   });
 

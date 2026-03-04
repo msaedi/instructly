@@ -360,9 +360,9 @@ export default function PricingSettingsPage() {
                 </div>
                 <div className="space-y-6">
                   <Skeleton className="h-10 w-full rounded" />
-                  <Separator className="my-4 bg-muted/30" />
+                  <Separator className="my-4 bg-gray-100/30 dark:bg-gray-800/30" />
                   <Skeleton className="h-28 w-full rounded" />
-                  <Separator className="my-4 bg-muted/30" />
+                  <Separator className="my-4 bg-gray-100/30 dark:bg-gray-800/30" />
                   <Skeleton className="h-24 w-full rounded" />
                 </div>
                 <div className="mt-6 flex justify-end">
@@ -379,7 +379,7 @@ export default function PricingSettingsPage() {
   if (!isAdmin) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-6">
-        <div className="text-center text-sm text-muted-foreground">You do not have access to this page.</div>
+        <div className="text-center text-sm text-gray-500 dark:text-gray-400">You do not have access to this page.</div>
       </div>
     );
   }
@@ -425,7 +425,7 @@ export default function PricingSettingsPage() {
               <form onSubmit={handleSubmit}>
                 <div className="space-y-8">
                   {loadError && !isDirty ? (
-                    <Alert variant={LOAD_ERROR_COPY[loadError].variant} className="border-border/50">
+                    <Alert variant={LOAD_ERROR_COPY[loadError].variant} className="border-gray-200/50 dark:border-gray-700/50">
                       <AlertCircle className="h-4 w-4" aria-hidden="true" />
                       <AlertTitle>{LOAD_ERROR_COPY[loadError].title}</AlertTitle>
                       <AlertDescription>{LOAD_ERROR_COPY[loadError].message}</AlertDescription>
@@ -433,7 +433,7 @@ export default function PricingSettingsPage() {
                   ) : null}
 
                   {submitError ? (
-                    <Alert variant="destructive" className="border-border/50">
+                    <Alert variant="destructive" className="border-gray-200/50 dark:border-gray-700/50">
                       <AlertCircle className="h-4 w-4" aria-hidden="true" />
                       <AlertTitle>Save failed</AlertTitle>
                       <AlertDescription>{submitError}</AlertDescription>
@@ -442,12 +442,12 @@ export default function PricingSettingsPage() {
 
                   <section className="space-y-3">
                     <div>
-                      <h3 className="text-sm font-medium text-foreground">Student Booking Protection Fee</h3>
-                      <p className="text-xs text-muted-foreground">Enter a decimal between 0 and 1 (0.12 = 12%).</p>
+                      <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Student Booking Protection Fee</h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Enter a decimal between 0 and 1 (0.12 = 12%).</p>
                     </div>
                     <div className="grid grid-cols-12 gap-4">
                       <div className="col-span-12 sm:col-span-4">
-                        <Label htmlFor="student-fee" className="text-sm font-medium text-foreground">
+                        <Label htmlFor="student-fee" className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           Protection fee
                         </Label>
                         <div className="mt-1 flex items-center">
@@ -472,12 +472,12 @@ export default function PricingSettingsPage() {
                     </div>
                   </section>
 
-                  <Separator className="my-6 bg-muted/30" />
+                  <Separator className="my-6 bg-gray-100/30 dark:bg-gray-800/30" />
 
                   <section className="space-y-3">
                     <div>
-                      <h3 className="text-sm font-medium text-foreground">Instructor Tiers</h3>
-                      <p className="text-xs text-muted-foreground">Percentages are decimals (0.15 = 15%). Leave Max blank for no upper bound.</p>
+                      <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Instructor Tiers</h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Percentages are decimals (0.15 = 15%). Leave Max blank for no upper bound.</p>
                     </div>
                     <div className="space-y-4">
                       {config.instructor_tiers.map((tier, index) => {
@@ -490,7 +490,7 @@ export default function PricingSettingsPage() {
                         return (
                           <div key={`tier-${index}`} className="grid grid-cols-12 gap-4">
                             <div className="col-span-12 sm:col-span-6 md:col-span-4 xl:col-span-2">
-                              <Label htmlFor={`tier-${index}-min`} className="text-sm font-medium text-foreground">
+                              <Label htmlFor={`tier-${index}-min`} className="text-sm font-medium text-gray-900 dark:text-gray-100">
                                 Min sessions
                               </Label>
                               <input
@@ -504,7 +504,7 @@ export default function PricingSettingsPage() {
                               {errors.min ? <p className="mt-1 text-xs text-destructive">{errors.min}</p> : null}
                             </div>
                             <div className="col-span-12 sm:col-span-6 md:col-span-4 xl:col-span-2">
-                              <Label htmlFor={`tier-${index}-max`} className="text-sm font-medium text-foreground">
+                              <Label htmlFor={`tier-${index}-max`} className="text-sm font-medium text-gray-900 dark:text-gray-100">
                                 Max sessions
                               </Label>
                               <input
@@ -519,7 +519,7 @@ export default function PricingSettingsPage() {
                               {errors.max ? <p className="mt-1 text-xs text-destructive">{errors.max}</p> : null}
                             </div>
                             <div className="col-span-12 sm:col-span-6 md:col-span-4 xl:col-span-3">
-                              <Label htmlFor={`tier-${index}-pct`} className="text-sm font-medium text-foreground">
+                              <Label htmlFor={`tier-${index}-pct`} className="text-sm font-medium text-gray-900 dark:text-gray-100">
                                 Commission pct
                               </Label>
                               <div className="mt-1 flex items-center gap-2">
@@ -545,16 +545,16 @@ export default function PricingSettingsPage() {
                     </div>
                   </section>
 
-                  <Separator className="my-6 bg-muted/30" />
+                  <Separator className="my-6 bg-gray-100/30 dark:bg-gray-800/30" />
 
                   <section className="space-y-3">
                     <div>
-                      <h3 className="text-sm font-medium text-foreground">Tier maintenance</h3>
-                      <p className="text-xs text-muted-foreground">Controls rolling activity window, demotion limits, and inactivity resets.</p>
+                      <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Tier maintenance</h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Controls rolling activity window, demotion limits, and inactivity resets.</p>
                     </div>
                     <div className="grid grid-cols-12 gap-4">
                       <div className="col-span-12 sm:col-span-6 md:col-span-4 xl:col-span-3">
-                        <Label htmlFor="tier-activity-window" className="text-sm font-medium text-foreground">
+                        <Label htmlFor="tier-activity-window" className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           Activity window (days)
                         </Label>
                         <input
@@ -570,7 +570,7 @@ export default function PricingSettingsPage() {
                         ) : null}
                       </div>
                       <div className="col-span-12 sm:col-span-6 md:col-span-4 xl:col-span-3">
-                        <Label htmlFor="tier-stepdown" className="text-sm font-medium text-foreground">
+                        <Label htmlFor="tier-stepdown" className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           Step-down max
                         </Label>
                         <input
@@ -586,7 +586,7 @@ export default function PricingSettingsPage() {
                         ) : null}
                       </div>
                       <div className="col-span-12 sm:col-span-6 md:col-span-4 xl:col-span-3">
-                        <Label htmlFor="tier-inactivity" className="text-sm font-medium text-foreground">
+                        <Label htmlFor="tier-inactivity" className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           Inactivity reset (days)
                         </Label>
                         <input
@@ -604,18 +604,18 @@ export default function PricingSettingsPage() {
                     </div>
                   </section>
 
-                  <Separator className="my-6 bg-muted/30" />
+                  <Separator className="my-6 bg-gray-100/30 dark:bg-gray-800/30" />
 
                   <section className="space-y-3">
                     <div>
-                      <h3 className="text-sm font-medium text-foreground">Founding Instructor Program</h3>
-                      <p className="text-xs text-muted-foreground">
+                      <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Founding Instructor Program</h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
                         Settings for founding instructors who receive special lifetime benefits.
                       </p>
                     </div>
                     <div className="grid grid-cols-12 gap-4">
                       <div className="col-span-12 sm:col-span-6 md:col-span-4 xl:col-span-3">
-                        <Label htmlFor="founding-rate" className="text-sm font-medium text-foreground">
+                        <Label htmlFor="founding-rate" className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           Founding rate
                         </Label>
                         <div className="mt-1 flex items-center gap-2">
@@ -633,13 +633,13 @@ export default function PricingSettingsPage() {
                             decimal
                           </Badge>
                         </div>
-                        <p className="mt-1 text-xs text-muted-foreground">0.08 = 8%</p>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">0.08 = 8%</p>
                         {validation.errors.foundingRate ? (
                           <p className="mt-1 text-xs text-destructive">{validation.errors.foundingRate}</p>
                         ) : null}
                       </div>
                       <div className="col-span-12 sm:col-span-6 md:col-span-4 xl:col-span-3">
-                        <Label htmlFor="founding-cap" className="text-sm font-medium text-foreground">
+                        <Label htmlFor="founding-cap" className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           Founding cap
                         </Label>
                         <input
@@ -650,13 +650,13 @@ export default function PricingSettingsPage() {
                           onChange={(e) => updateFoundingConfig('founding_instructor_cap', e.target.value)}
                           className="mt-1 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
                         />
-                        <p className="mt-1 text-xs text-muted-foreground">Max founding instructors</p>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Max founding instructors</p>
                         {validation.errors.foundingCap ? (
                           <p className="mt-1 text-xs text-destructive">{validation.errors.foundingCap}</p>
                         ) : null}
                       </div>
                       <div className="col-span-12 sm:col-span-6 md:col-span-4 xl:col-span-3">
-                        <Label htmlFor="founding-boost" className="text-sm font-medium text-foreground">
+                        <Label htmlFor="founding-boost" className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           Search boost
                         </Label>
                         <input
@@ -669,7 +669,7 @@ export default function PricingSettingsPage() {
                           onChange={(e) => updateFoundingConfig('founding_search_boost', e.target.value)}
                           className="mt-1 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
                         />
-                        <p className="mt-1 text-xs text-muted-foreground">Ranking multiplier (1.0-3.0)</p>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Ranking multiplier (1.0-3.0)</p>
                         {validation.errors.foundingBoost ? (
                           <p className="mt-1 text-xs text-destructive">{validation.errors.foundingBoost}</p>
                         ) : null}
@@ -677,16 +677,16 @@ export default function PricingSettingsPage() {
                     </div>
                   </section>
 
-                  <Separator className="my-6 bg-muted/30" />
+                  <Separator className="my-6 bg-gray-100/30 dark:bg-gray-800/30" />
 
                   <section className="space-y-3">
                     <div>
-                      <h3 className="text-sm font-medium text-foreground">Price floors (private sessions)</h3>
-                      <p className="text-xs text-muted-foreground">Floors are 60-minute baselines; shorter or longer durations are pro-rated.</p>
+                      <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Price floors (private sessions)</h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Floors are 60-minute baselines; shorter or longer durations are pro-rated.</p>
                     </div>
                     <div className="grid grid-cols-12 gap-4">
                       <div className="col-span-12 sm:col-span-6 lg:col-span-4 xl:col-span-3">
-                        <Label htmlFor="price-floor-in-person" className="text-sm font-medium text-foreground">
+                        <Label htmlFor="price-floor-in-person" className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           In-person floor
                         </Label>
                         <div className="mt-1 flex items-center">
@@ -704,7 +704,7 @@ export default function PricingSettingsPage() {
                         </div>
                       </div>
                       <div className="col-span-12 sm:col-span-6 lg:col-span-4 xl:col-span-3">
-                        <Label htmlFor="price-floor-remote" className="text-sm font-medium text-foreground">
+                        <Label htmlFor="price-floor-remote" className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           Remote floor
                         </Label>
                         <div className="mt-1 flex items-center">
@@ -727,16 +727,16 @@ export default function PricingSettingsPage() {
                     ) : null}
                   </section>
 
-                  <Separator className="my-6 bg-muted/30" />
+                  <Separator className="my-6 bg-gray-100/30 dark:bg-gray-800/30" />
 
                   <section className="space-y-3">
                     <div>
-                      <h3 className="text-sm font-medium text-foreground">Student credit milestones</h3>
-                      <p className="text-xs text-muted-foreground">Define when $10/$20 credits unlock within the session cycle.</p>
+                      <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Student credit milestones</h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Define when $10/$20 credits unlock within the session cycle.</p>
                     </div>
                     <div className="grid grid-cols-12 gap-4">
                       <div className="col-span-12 sm:col-span-3">
-                        <Label htmlFor="credit-cycle-len" className="text-sm font-medium text-foreground">
+                        <Label htmlFor="credit-cycle-len" className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           Cycle length
                         </Label>
                         <input
@@ -752,7 +752,7 @@ export default function PricingSettingsPage() {
                         ) : null}
                       </div>
                       <div className="col-span-12 sm:col-span-2">
-                        <Label htmlFor="credit-mod-10" className="text-sm font-medium text-foreground">
+                        <Label htmlFor="credit-mod-10" className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           Mod 10
                         </Label>
                         <input
@@ -768,7 +768,7 @@ export default function PricingSettingsPage() {
                         ) : null}
                       </div>
                       <div className="col-span-12 sm:col-span-3">
-                        <Label htmlFor="credit-cents-10" className="text-sm font-medium text-foreground">
+                        <Label htmlFor="credit-cents-10" className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           $10 credit
                         </Label>
                         <div className="mt-1 flex items-center">
@@ -789,7 +789,7 @@ export default function PricingSettingsPage() {
                         ) : null}
                       </div>
                       <div className="col-span-12 sm:col-span-2">
-                        <Label htmlFor="credit-mod-20" className="text-sm font-medium text-foreground">
+                        <Label htmlFor="credit-mod-20" className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           Mod 20
                         </Label>
                         <input
@@ -805,7 +805,7 @@ export default function PricingSettingsPage() {
                         ) : null}
                       </div>
                       <div className="col-span-12 sm:col-span-2">
-                        <Label htmlFor="credit-cents-20" className="text-sm font-medium text-foreground">
+                        <Label htmlFor="credit-cents-20" className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           $20 credit
                         </Label>
                         <div className="mt-1 flex items-center">
@@ -828,11 +828,11 @@ export default function PricingSettingsPage() {
                     </div>
                   </section>
 
-                  <Separator className="my-6 bg-muted/30" />
+                  <Separator className="my-6 bg-gray-100/30 dark:bg-gray-800/30" />
 
                   <section className="space-y-2">
-                    <h3 className="text-sm font-medium text-foreground">JSON preview</h3>
-                    <pre className="whitespace-pre-wrap text-xs bg-muted/20 rounded-lg p-4 overflow-x-auto">
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">JSON preview</h3>
+                    <pre className="whitespace-pre-wrap text-xs bg-gray-100/20 dark:bg-gray-800/20 rounded-lg p-4 overflow-x-auto">
                       {JSON.stringify(config, null, 2)}
                     </pre>
                   </section>

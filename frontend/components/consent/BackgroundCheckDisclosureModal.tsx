@@ -131,6 +131,7 @@ export function BackgroundCheckDisclosureModal({
       title="Background Check Disclosure and Authorization"
       description="Please review and authorize the background screening disclosure."
       size="lg"
+      className="bg-white/90 dark:bg-gray-800/80 backdrop-blur"
       closeOnBackdrop={!submitting}
       closeOnEscape={!submitting}
       footer={
@@ -142,7 +143,7 @@ export function BackgroundCheckDisclosureModal({
             {submitting ? 'Recording…' : 'I acknowledge and authorize'}
           </Button>
           {!hasScrolledToEnd && !submitting && (
-            <p className="text-xs text-muted-foreground sm:basis-full sm:text-right">
+            <p className="text-xs text-gray-500 dark:text-gray-400 sm:basis-full sm:text-right">
               Scroll to the end to enable authorization.
             </p>
           )}

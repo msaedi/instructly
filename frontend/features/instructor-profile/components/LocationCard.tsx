@@ -27,11 +27,11 @@ export function LocationCard({ instructor }: LocationCardProps) {
         {serviceAreaDisplay && serviceAreaDisplay.length > 0 && (
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <MapPin className="h-4 w-4 text-muted-foreground" />
+              <MapPin className="h-4 w-4 text-gray-500 dark:text-gray-400" />
               <span className="font-medium text-sm">Service Areas</span>
             </div>
             <div className="space-y-1 ml-6">
-              <div className="text-sm text-muted-foreground whitespace-pre-line">
+              <div className="text-sm text-gray-500 dark:text-gray-400 whitespace-pre-line">
                 {serviceAreaDisplay}
               </div>
             </div>
@@ -41,12 +41,12 @@ export function LocationCard({ instructor }: LocationCardProps) {
         {/* Lesson Locations */}
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <Home className="h-4 w-4 text-muted-foreground" />
+            <Home className="h-4 w-4 text-gray-500 dark:text-gray-400" />
             <span className="font-medium text-sm">Lesson Locations</span>
           </div>
           <div className="space-y-1 ml-6">
             {lessonLocations.map((location, idx) => (
-              <div key={idx} className="text-sm text-muted-foreground">
+              <div key={idx} className="text-sm text-gray-500 dark:text-gray-400">
                 {location.label}
               </div>
             ))}
@@ -56,18 +56,18 @@ export function LocationCard({ instructor }: LocationCardProps) {
         {/* Travel Radius - Mock */}
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <Users className="h-4 w-4 text-muted-foreground" />
+            <Users className="h-4 w-4 text-gray-500 dark:text-gray-400" />
             <span className="font-medium text-sm">Travel Radius</span>
           </div>
-          <div className="text-sm text-muted-foreground ml-6">
+          <div className="text-sm text-gray-500 dark:text-gray-400 ml-6">
             Up to 5 miles from home base
           </div>
         </div>
 
         {/* Map Preview Placeholder */}
         <div className="mt-4 pt-4 border-t">
-          <div className="bg-muted rounded-lg h-32 flex items-center justify-center">
-            <span className="text-xs text-muted-foreground">Map preview coming soon</span>
+          <div className="bg-gray-100 dark:bg-gray-800 rounded-lg h-32 flex items-center justify-center">
+            <span className="text-xs text-gray-500 dark:text-gray-400">Map preview coming soon</span>
           </div>
         </div>
       </CardContent>

@@ -61,7 +61,7 @@ export function StudentHeader() {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center">
-            <span className="text-2xl font-bold text-primary">{BRAND.name}</span>
+            <span className="text-2xl font-bold text-(--color-primary)">{BRAND.name}</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -81,7 +81,7 @@ export function StudentHeader() {
                   className={cn(
                     'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                     isActive
-                      ? 'bg-primary/10 text-primary'
+                      ? 'bg-(--color-primary)/10 text-(--color-primary)'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-gray-700'
                   )}
                 >
@@ -104,8 +104,8 @@ export function StudentHeader() {
               {isMounted && user ? (
                 <UserAvatar user={user} size={32} />
               ) : (
-                <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                  <User className="h-4 w-4 text-primary" aria-hidden="true" />
+                <div className="w-8 h-8 bg-(--color-primary)/10 rounded-full flex items-center justify-center">
+                  <User className="h-4 w-4 text-(--color-primary)" aria-hidden="true" />
                 </div>
               )}
               <span className="hidden md:block">
@@ -187,7 +187,7 @@ export function StudentHeader() {
                   className={cn(
                     'flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors',
                     isActive
-                      ? 'bg-primary/10 text-primary'
+                      ? 'bg-(--color-primary)/10 text-(--color-primary)'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-gray-700'
                   )}
                   onClick={() => setIsMobileMenuOpen(false)}

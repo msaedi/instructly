@@ -56,7 +56,7 @@ function determineInitialPhase(booking: Booking): PhaseResult {
 
 function LessonRoomShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-white dark:bg-gray-900">
       <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link href="/" className="inline-block">

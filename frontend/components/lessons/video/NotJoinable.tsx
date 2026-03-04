@@ -18,10 +18,10 @@ export function NotJoinable({ reason, userRole }: NotJoinableProps) {
 
   return (
     <div role="alert" className="flex flex-col items-center justify-center gap-6 py-16 px-4 text-center">
-      <p className="text-lg text-muted-foreground">{MESSAGES[reason]}</p>
+      <p className="text-lg text-gray-500 dark:text-gray-400">{MESSAGES[reason]}</p>
       <Link
         href={backHref}
-        className="rounded-lg bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors"
+        className="rounded-lg bg-(--color-primary) px-6 py-2 text-sm font-medium text-white hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors"
       >
         Back to My Lessons
       </Link>

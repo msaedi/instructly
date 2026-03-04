@@ -73,7 +73,7 @@ export function NotificationItem({ notification, onRead, onDelete }: Notificatio
           onKeyDown={(event) => {
             event.stopPropagation();
           }}
-          className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+          className="shrink-0 rounded p-1 text-gray-500 dark:text-gray-400 transition-colors hover:bg-red-600/10 hover:text-red-600 dark:hover:text-red-500"
           aria-label="Delete notification"
         >
           <X className="h-4 w-4" />

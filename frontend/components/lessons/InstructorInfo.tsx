@@ -72,8 +72,8 @@ export function InstructorInfo({
 
         {/* Instructor Details */}
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-foreground">{displayName}</p>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
+          <p className="font-medium text-gray-900 dark:text-gray-100">{displayName}</p>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-gray-500 dark:text-gray-400">
             {typeof rating === 'number' && typeof reviewCount === 'number' && (
               <div className="flex items-center gap-1">
                 <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />

@@ -44,7 +44,7 @@ export function AvailabilityCalendar({ instructorId, onSelectSlot }: Availabilit
     return (
       <Card className="p-4">
         <div className="text-center py-4">
-          <p className="text-muted-foreground">Unable to load availability</p>
+          <p className="text-gray-500 dark:text-gray-400">Unable to load availability</p>
           <Button
             variant="outline"
             size="sm"
@@ -74,7 +74,7 @@ export function AvailabilityCalendar({ instructorId, onSelectSlot }: Availabilit
             <div key={dateStr} className="flex justify-between items-center py-2">
               <div>
                 <div className="font-medium">{format(day, 'EEE d')}</div>
-                <div className="text-xs text-muted-foreground">{format(day, 'MMM')}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">{format(day, 'MMM')}</div>
               </div>
 
               {!isBlackout && availableSlots.length > 0 ? (
@@ -97,13 +97,13 @@ export function AvailabilityCalendar({ instructorId, onSelectSlot }: Availabilit
                     </Button>
                   ))}
                   {availableSlots.length > 3 && (
-                    <span className="text-xs text-muted-foreground self-center">
+                    <span className="text-xs text-gray-500 dark:text-gray-400 self-center">
                       +{availableSlots.length - 3}
                     </span>
                   )}
                 </div>
               ) : (
-                <span className="text-sm text-muted-foreground">
+                <span className="text-sm text-gray-500 dark:text-gray-400">
                   {isBlackout ? 'Unavailable' : 'Fully Booked'}
                 </span>
               )}

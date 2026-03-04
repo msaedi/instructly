@@ -355,7 +355,7 @@ describe('Modal', () => {
 
       const footerContent = screen.getByTestId('footer-content');
       const footer = footerContent.parentElement;
-      expect(footer).toHaveClass('px-6', 'py-4', 'bg-gray-50');
+      expect(footer).toHaveClass('px-6', 'py-4', 'bg-gray-50/90');
     });
   });
 });

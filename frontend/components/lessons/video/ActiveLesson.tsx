@@ -52,13 +52,13 @@ export function ActiveLesson({
   if (!authToken) {
     return (
       <div role="alert" className="flex flex-col items-center justify-center gap-6 py-16 px-4 text-center">
-        <p className="text-lg text-muted-foreground">
+        <p className="text-lg text-gray-500 dark:text-gray-400">
           Unable to connect to lesson room. Please try again.
         </p>
         <button
           type="button"
           onClick={handleBackToLessons}
-          className="rounded-lg bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors"
+          className="rounded-lg bg-(--color-primary) px-6 py-2 text-sm font-medium text-white hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors"
         >
           Back to My Lessons
         </button>
@@ -72,7 +72,7 @@ export function ActiveLesson({
       {...(fallbackPath !== undefined ? { fallbackPath } : {})}
       {...(redirectToPath !== undefined ? { redirectToPath } : {})}
     >
-      <div role="main" aria-label="Video lesson in progress" className="fixed inset-0 z-50 bg-background">
+      <div role="main" aria-label="Video lesson in progress" className="fixed inset-0 z-50 bg-white dark:bg-gray-900">
         <HMSPrebuilt
           authToken={authToken}
           options={{ userName, userId }}

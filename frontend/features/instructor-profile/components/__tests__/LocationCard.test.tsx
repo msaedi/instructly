@@ -127,8 +127,8 @@ describe('LocationCard', () => {
     getServiceAreaDisplayMock.mockReturnValue('Manhattan');
     const { container } = render(<LocationCard instructor={baseInstructor} />);
 
-    // Should have Card as root element
-    expect(container.querySelector('[class*="card"]')).toBeInTheDocument();
+    // Should have Card as root element (Card renders with rounded-lg border shadow-sm)
+    expect(container.querySelector('.rounded-lg.border.shadow-sm')).toBeInTheDocument();
   });
 
   it('renders icons for each section', () => {

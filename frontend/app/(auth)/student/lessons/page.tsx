@@ -352,17 +352,17 @@ function MyLessonsContent() {
           <div className="insta-empty-state-note rounded-xl text-center py-12 px-6">
             {activeTab === 'upcoming' ? (
               <>
-                <p className="text-lg text-muted-foreground mb-4">
+                <p className="text-lg text-gray-500 dark:text-gray-400 mb-4">
                   You don&apos;t have any upcoming lessons
                 </p>
-                <p className="text-muted-foreground">Ready to learn something new?</p>
+                <p className="text-gray-500 dark:text-gray-400">Ready to learn something new?</p>
               </>
             ) : (
               <>
-                <p className="text-lg text-muted-foreground mb-4">
+                <p className="text-lg text-gray-500 dark:text-gray-400 mb-4">
                   Your lesson history will appear here
                 </p>
-                <p className="text-muted-foreground">
+                <p className="text-gray-500 dark:text-gray-400">
                   This includes completed, cancelled, and past lessons.
                 </p>
               </>

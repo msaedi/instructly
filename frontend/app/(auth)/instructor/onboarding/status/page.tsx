@@ -260,7 +260,7 @@ export default function OnboardingStatusPage() {
               {needsServiceAreas && (
                 <Link
                   href="/instructor/onboarding/account-setup"
-                  className="px-3 py-1.5 rounded-md bg-primary hover:bg-purple-800 dark:hover:bg-purple-700 text-white shadow-sm text-xs font-semibold"
+                  className="px-3 py-1.5 rounded-md bg-(--color-primary) hover:bg-purple-800 dark:hover:bg-purple-700 text-white shadow-sm text-xs font-semibold"
                 >
                   Add service areas
                 </Link>
@@ -268,7 +268,7 @@ export default function OnboardingStatusPage() {
               {needsSkills && (
                 <Link
                   href="/instructor/onboarding/skill-selection?redirect=%2Finstructor%2Fonboarding%2Fstatus"
-                  className="px-3 py-1.5 rounded-md bg-primary hover:bg-purple-800 dark:hover:bg-purple-700 text-white shadow-sm text-xs font-semibold"
+                  className="px-3 py-1.5 rounded-md bg-(--color-primary) hover:bg-purple-800 dark:hover:bg-purple-700 text-white shadow-sm text-xs font-semibold"
                 >
                   Add skills
                 </Link>
@@ -276,7 +276,7 @@ export default function OnboardingStatusPage() {
               {needsIdentity && (
                 <button
                   onClick={startIdentity}
-                  className="px-3 py-1.5 rounded-md bg-primary hover:bg-purple-800 dark:hover:bg-purple-700 text-white shadow-sm text-xs font-semibold"
+                  className="px-3 py-1.5 rounded-md bg-(--color-primary) hover:bg-purple-800 dark:hover:bg-purple-700 text-white shadow-sm text-xs font-semibold"
                 >
                   Start ID check
                 </button>
@@ -284,7 +284,7 @@ export default function OnboardingStatusPage() {
               {needsStripe && (
                 <button
                   onClick={enrollStripeConnect}
-                  className="px-3 py-1.5 rounded-md bg-primary hover:bg-purple-800 dark:hover:bg-purple-700 text-white shadow-sm text-xs font-semibold"
+                  className="px-3 py-1.5 rounded-md bg-(--color-primary) hover:bg-purple-800 dark:hover:bg-purple-700 text-white shadow-sm text-xs font-semibold"
                 >
                   Connect Stripe
                 </button>
@@ -301,7 +301,7 @@ export default function OnboardingStatusPage() {
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Background check</h2>
-                <p className="text-sm text-muted-foreground">Invite yourself via Checkr to complete your screening.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Invite yourself via Checkr to complete your screening.</p>
               </div>
             </div>
             <BGCStep instructorId={instructorProfileId} ensureConsent={ensureConsent} onStatusUpdate={handleBgcSnapshot} />

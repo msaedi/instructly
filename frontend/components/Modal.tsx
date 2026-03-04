@@ -2,6 +2,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { logger } from '@/lib/logger';
+import { cn } from '@/lib/utils';
 import * as Dialog from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 
@@ -132,12 +133,14 @@ const Modal: React.FC<ModalProps> = ({
             <Dialog.Description>{accessibleDescription}</Dialog.Description>
           </VisuallyHidden>
           <div
-            className={`
-              pointer-events-auto flex ${heightClasses} w-full ${sizeClasses[size]}
-              flex-col ${containerOverflow} bg-white dark:bg-gray-800 shadow-xl text-gray-900 dark:text-gray-100
-              transform transition-all duration-200 ease-out
-              relative sm:rounded-2xl ${className}
-            `}
+            className={cn(
+              'pointer-events-auto flex w-full flex-col transform transition-all duration-200 ease-out relative sm:rounded-2xl',
+              heightClasses,
+              sizeClasses[size],
+              containerOverflow,
+              'bg-white dark:bg-gray-800 shadow-xl text-gray-900 dark:text-gray-100',
+              className,
+            )}
             >
             {title && (
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
@@ -184,7 +187,7 @@ const Modal: React.FC<ModalProps> = ({
               {children}
             </div>
             {footer && (
-              <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600">
+              <div className="px-6 py-4 bg-gray-50/90 dark:bg-gray-700/90 border-t border-gray-200 dark:border-gray-600">
                 {footer}
               </div>
             )}

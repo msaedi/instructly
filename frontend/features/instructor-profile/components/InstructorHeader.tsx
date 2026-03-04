@@ -189,7 +189,7 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
                   <span className="font-semibold">{rating}</span>
                   <button
                     onClick={() => router.push(`/instructors/${instructor.user_id}/reviews`)}
-                    className="text-muted-foreground underline-offset-2 hover:underline cursor-pointer"
+                    className="text-gray-500 dark:text-gray-400 underline-offset-2 hover:underline cursor-pointer"
                     aria-label="See all reviews"
                   >
                     ({reviewCount} reviews)

@@ -12,13 +12,13 @@ describe('Alert', () => {
   it('supports destructive variant styling', () => {
     render(<Alert variant="destructive">Error</Alert>);
 
-    expect(screen.getByRole('alert').className).toMatch(/destructive/);
+    expect(screen.getByRole('alert').className).toMatch(/bg-red-600\/10/);
   });
 
   it('supports muted variant styling', () => {
     render(<Alert variant="muted">Muted</Alert>);
 
-    expect(screen.getByRole('alert').className).toMatch(/muted/);
+    expect(screen.getByRole('alert').className).toMatch(/bg-gray-100\/30/);
   });
 
   it('renders title and description', () => {

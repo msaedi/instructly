@@ -1,16 +1,16 @@
 import { cva } from 'class-variance-authority';
 
 export const buttonVariants = cva(
-  'inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 cursor-pointer',
+  'inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-white dark:ring-offset-gray-900 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-primary) focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 cursor-pointer',
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-purple-800 dark:hover:bg-purple-700',
-        destructive: 'bg-destructive text-destructive-foreground',
-        outline: 'border border-input bg-background',
-        secondary: 'bg-secondary text-secondary-foreground',
+        default: 'bg-(--color-primary) text-white hover:bg-purple-800 dark:hover:bg-purple-700',
+        destructive: 'bg-red-600 text-white',
+        outline: 'border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800',
+        secondary: 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100',
         ghost: '',
-        link: 'text-primary underline-offset-4',
+        link: 'text-(--color-primary) underline-offset-4',
         success: 'bg-green-600 text-white',
       },
       size: {

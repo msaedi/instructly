@@ -41,7 +41,7 @@ export default function VideoTestPage() {
   if (!user || !ALLOWED_EMAILS.includes(user.email)) {
     return (
       <div className="flex h-screen items-center justify-center px-4">
-        <p className="text-muted-foreground">Access denied — this page is restricted to test accounts.</p>
+        <p className="text-gray-500 dark:text-gray-400">Access denied — this page is restricted to test accounts.</p>
       </div>
     );
   }
@@ -49,7 +49,7 @@ export default function VideoTestPage() {
   if (!HOST_ROOM_CODE || !GUEST_ROOM_CODE) {
     return (
       <div className="flex h-screen items-center justify-center px-4">
-        <p className="text-muted-foreground">
+        <p className="text-gray-500 dark:text-gray-400">
           Test page not available — room codes not configured.
           Set NEXT_PUBLIC_100MS_TEST_ROOM_CODE_HOST and NEXT_PUBLIC_100MS_TEST_ROOM_CODE_GUEST in .env.local.
         </p>
@@ -66,7 +66,7 @@ export default function VideoTestPage() {
 
   return (
     <VideoErrorBoundary onLeave={handleLeave}>
-      <div role="main" aria-label="Video test session" className="fixed inset-0 z-50 bg-background">
+      <div role="main" aria-label="Video test session" className="fixed inset-0 z-50 bg-white dark:bg-gray-900">
         <HMSPrebuilt
           roomCode={roomCode}
           options={{ userName: user.first_name, userId: user.id }}

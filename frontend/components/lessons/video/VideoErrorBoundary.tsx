@@ -137,7 +137,7 @@ export class VideoErrorBoundary extends Component<VideoErrorBoundaryProps, Video
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center max-w-sm animate-fade-in">
-              <p className="text-muted-foreground">
+              <p className="text-gray-500 dark:text-gray-400">
                 A dialog crashed. Returning to your lesson…
               </p>
             </div>
@@ -147,16 +147,16 @@ export class VideoErrorBoundary extends Component<VideoErrorBoundaryProps, Video
 
       return (
         <div role="alert" className="flex flex-col items-center justify-center gap-6 py-16 px-4 text-center">
-          <p className="text-lg text-muted-foreground">
+          <p className="text-lg text-gray-500 dark:text-gray-400">
             The video session encountered an error.
           </p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             Redirecting in {this.state.countdown} {this.state.countdown === 1 ? 'second' : 'seconds'}…
           </p>
           <button
             type="button"
             onClick={this._safeLeave}
-            className="rounded-lg bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors"
+            className="rounded-lg bg-(--color-primary) px-6 py-2 text-sm font-medium text-white hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors"
           >
             Back to My Lessons
           </button>

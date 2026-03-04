@@ -177,7 +177,7 @@ export function NotificationBell({
                 type="button"
                 onClick={() => clearAll.mutate()}
                 disabled={clearAll.isPending}
-                className="w-full rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-destructive disabled:opacity-60"
+                className="w-full rounded-md px-2 py-1 text-xs text-gray-500 dark:text-gray-400 transition-colors hover:text-red-600 dark:hover:text-red-500 disabled:opacity-60"
               >
                 Clear all
               </button>

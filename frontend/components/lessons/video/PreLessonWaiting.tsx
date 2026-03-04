@@ -52,7 +52,7 @@ export function PreLessonWaiting({
         <div className="flex flex-col items-center gap-6 text-center">
           <h1 className="text-2xl font-semibold text-[#7E22CE]">{booking.service_name}</h1>
 
-          <p className="text-muted-foreground">
+          <p className="text-gray-500 dark:text-gray-400">
             {otherPartyRole === 'instructor'
               ? `Your instructor: ${otherPartyName}`
               : `Your student: ${otherPartyName}`}
@@ -60,7 +60,7 @@ export function PreLessonWaiting({
 
           {!opensCountdown.isExpired && (
             <div className="flex flex-col items-center gap-2">
-              <p className="text-sm text-muted-foreground">Join opens in</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Join opens in</p>
               <p className="text-4xl font-mono font-bold tabular-nums" aria-live="polite" role="timer">
                 {opensCountdown.formatted}
               </p>
@@ -76,7 +76,7 @@ export function PreLessonWaiting({
                 disabled={isJoining}
                 aria-label="Join video lesson"
                 aria-busy={isJoining}
-                className="animate-pulse-join rounded-lg bg-primary px-8 py-3 text-lg font-semibold text-primary-foreground hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors disabled:opacity-50"
+                className="animate-pulse-join rounded-lg bg-(--color-primary) px-8 py-3 text-lg font-semibold text-white hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors disabled:opacity-50"
               >
                 <span className="inline-flex items-center gap-2">
                   {isJoining && (
@@ -103,7 +103,7 @@ export function PreLessonWaiting({
             </p>
           )}
 
-          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
             <UserIcon className="h-4 w-4" aria-hidden="true" />
             <span>Joining as {userName}</span>
           </div>

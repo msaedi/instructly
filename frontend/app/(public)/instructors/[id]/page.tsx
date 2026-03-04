@@ -403,7 +403,7 @@ function InstructorProfileContent() {
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         <div className="text-center py-12">
           <h2 className="text-2xl font-semibold mb-4">Unable to load instructor profile</h2>
-          <p className="text-muted-foreground mb-6">
+          <p className="text-gray-500 dark:text-gray-400 mb-6">
             There was an error loading this instructor&apos;s profile. Please try again.
           </p>
           <div className="flex gap-4 justify-center">
@@ -420,7 +420,7 @@ function InstructorProfileContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-white dark:bg-gray-900">
       {/* Header - matching search results page */}
       <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4 sticky top-0 z-50">
         <div className="flex items-center justify-between max-w-full">

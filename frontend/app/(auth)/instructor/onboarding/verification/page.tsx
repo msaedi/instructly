@@ -290,7 +290,7 @@ export default function Step4Verification() {
               </div>
               <div>
                 <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Background check</h2>
-                <p className="text-sm text-muted-foreground mt-1">Start your Checkr background screening to unlock bookings.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Start your Checkr background screening to unlock bookings.</p>
               </div>
             </div>
             {instructorProfileId ? (

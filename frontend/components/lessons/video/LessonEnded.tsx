@@ -46,24 +46,24 @@ export function LessonEnded({ booking, sessionData, userRole, localJoinedAt, loc
 
           <div>
             <h1 className="text-2xl font-semibold text-[#7E22CE]">Lesson Complete</h1>
-            <p className="mt-1 text-muted-foreground">{booking.service_name}</p>
+            <p className="mt-1 text-gray-500 dark:text-gray-400">{booking.service_name}</p>
           </div>
 
           <div role="status" aria-label="Session summary" className="w-full space-y-3">
             <div className="flex items-center gap-3 text-sm">
-              <Clock className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              <span className="text-muted-foreground">Duration</span>
-              <span className="ml-auto font-medium text-foreground">{duration}</span>
+              <Clock className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+              <span className="text-gray-500 dark:text-gray-400">Duration</span>
+              <span className="ml-auto font-medium text-gray-900 dark:text-gray-100">{duration}</span>
             </div>
             <div className="flex items-center gap-3 text-sm">
-              <UserIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              <span className="text-muted-foreground">Instructor joined</span>
-              <span className="ml-auto font-medium text-foreground">{instructorJoinedDisplay}</span>
+              <UserIcon className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+              <span className="text-gray-500 dark:text-gray-400">Instructor joined</span>
+              <span className="ml-auto font-medium text-gray-900 dark:text-gray-100">{instructorJoinedDisplay}</span>
             </div>
             <div className="flex items-center gap-3 text-sm">
-              <UserIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              <span className="text-muted-foreground">Student joined</span>
-              <span className="ml-auto font-medium text-foreground">{studentJoinedDisplay}</span>
+              <UserIcon className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+              <span className="text-gray-500 dark:text-gray-400">Student joined</span>
+              <span className="ml-auto font-medium text-gray-900 dark:text-gray-100">{studentJoinedDisplay}</span>
             </div>
           </div>
 
@@ -72,14 +72,14 @@ export function LessonEnded({ booking, sessionData, userRole, localJoinedAt, loc
           <div className="flex gap-4">
             <Link
               href={backHref}
-              className="rounded-lg bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors"
+              className="rounded-lg bg-(--color-primary) px-6 py-2 text-sm font-medium text-white hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors"
             >
               Back to My Lessons
             </Link>
             {userRole === 'student' && booking.instructor_id && (
               <Link
                 href={`/instructors/${booking.instructor_id}`}
-                className="rounded-lg border border-border px-6 py-2 text-sm font-medium hover:bg-accent transition-colors"
+                className="rounded-lg border border-gray-200 dark:border-gray-700 px-6 py-2 text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >
                 Book Again
               </Link>

@@ -54,7 +54,7 @@ export default function InstructorAllReviewsPage() {
   const error = queryError ? (queryError as Error).message || 'Failed to load reviews' : null;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-white dark:bg-gray-900">
       <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4 sticky top-0 z-50">
         <div className="flex items-center justify-between max-w-full">
           <div className="flex items-center gap-4">
@@ -80,7 +80,7 @@ export default function InstructorAllReviewsPage() {
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 mb-6 border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-semibold text-gray-700 dark:text-gray-300">All Reviews</h1>
-            <div className="text-sm text-muted-foreground">{total} total</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">{total} total</div>
           </div>
         </div>
 
@@ -136,14 +136,14 @@ export default function InstructorAllReviewsPage() {
         </div>
 
         {loading && (
-          <p className="text-muted-foreground">Loading reviews…</p>
+          <p className="text-gray-500 dark:text-gray-400">Loading reviews…</p>
         )}
         {error && (
           <p className="text-red-600">{error}</p>
         )}
 
         {!loading && !error && reviews.length === 0 && (
-          <p className="text-muted-foreground">No reviews match your filters.</p>
+          <p className="text-gray-500 dark:text-gray-400">No reviews match your filters.</p>
         )}
 
         <div className="grid grid-cols-1 gap-4">
@@ -156,7 +156,7 @@ export default function InstructorAllReviewsPage() {
                     {r.reviewer_display_name && (
                       <span className="font-medium text-sm">{r.reviewer_display_name}</span>
                     )}
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
                       {formatDistanceToNow(new Date(r.created_at), { addSuffix: true })}
                     </span>
                   </div>
