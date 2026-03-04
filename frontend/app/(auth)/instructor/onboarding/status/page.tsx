@@ -6,9 +6,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getConnectStatus, fetchWithAuth, API_ENDPOINTS, createStripeIdentitySession } from '@/lib/api';
 import { paymentService } from '@/services/api/payments';
 import { loadStripe } from '@stripe/stripe-js';
+import { toast } from 'sonner';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { BGCStep } from '@/components/instructor/BGCStep';
-import type { BGCStatus } from '@/lib/api/bgc';
+import { BackgroundCheckDisclosureModal } from '@/components/consent/BackgroundCheckDisclosureModal';
+import { bgcConsent, type BGCConsentPayload, type BGCStatus } from '@/lib/api/bgc';
+import { DISCLOSURE_VERSION } from '@/config/constants';
 import { ShieldCheck } from 'lucide-react';
 import { useGoLiveInstructor } from '@/src/api/services/instructors';
 import { logger } from '@/lib/logger';
@@ -39,6 +42,64 @@ export default function OnboardingStatusPage() {
     eta: string | null;
   }>({ status: null, completedAt: null, consentRecent: false, consentRecentAt: null, eta: null });
   const redirectingRef = useRef(false);
+  const [consentModalOpen, setConsentModalOpen] = useState(false);
+  const [consentSubmitting, setConsentSubmitting] = useState(false);
+  const [hasRecentConsent, setHasRecentConsent] = useState(false);
+  const consentResolverRef = useRef<((value: boolean) => void) | null>(null);
+
+  const ensureConsent = useCallback(async () => {
+    if (hasRecentConsent) {
+      return true;
+    }
+    return new Promise<boolean>((resolve) => {
+      consentResolverRef.current = resolve;
+      setConsentModalOpen(true);
+    });
+  }, [hasRecentConsent]);
+
+  const handleDeclineDisclosure = useCallback(() => {
+    if (consentSubmitting) {
+      return;
+    }
+    setConsentModalOpen(false);
+    if (consentResolverRef.current) {
+      consentResolverRef.current(false);
+      consentResolverRef.current = null;
+    }
+  }, [consentSubmitting]);
+
+  const handleAcceptDisclosure = useCallback(async () => {
+    if (!instructorProfileId) {
+      consentResolverRef.current?.(false);
+      consentResolverRef.current = null;
+      setConsentModalOpen(false);
+      return;
+    }
+
+    try {
+      setConsentSubmitting(true);
+      const payload: BGCConsentPayload = {
+        consent_version: DISCLOSURE_VERSION,
+        disclosure_version: DISCLOSURE_VERSION,
+      };
+      if (typeof window !== 'undefined' && window.navigator?.userAgent) {
+        payload.user_agent = window.navigator.userAgent;
+      }
+      await bgcConsent(instructorProfileId, payload);
+      setHasRecentConsent(true);
+      consentResolverRef.current?.(true);
+      consentResolverRef.current = null;
+      setConsentModalOpen(false);
+      toast.success('Disclosure accepted', {
+        description: 'We will now continue to Checkr to start your background check.',
+      });
+    } catch (error) {
+      const description = error instanceof Error ? error.message : 'Unable to record consent';
+      toast.error('Consent required', { description });
+    } finally {
+      setConsentSubmitting(false);
+    }
+  }, [instructorProfileId]);
 
   const handleBgcSnapshot = useCallback(
     (
@@ -243,7 +304,7 @@ export default function OnboardingStatusPage() {
                 <p className="text-sm text-muted-foreground">Invite yourself via Checkr to complete your screening.</p>
               </div>
             </div>
-            <BGCStep instructorId={instructorProfileId} onStatusUpdate={handleBgcSnapshot} />
+            <BGCStep instructorId={instructorProfileId} ensureConsent={ensureConsent} onStatusUpdate={handleBgcSnapshot} />
           </div>
         ) : null}
 
@@ -288,6 +349,13 @@ export default function OnboardingStatusPage() {
           </button>
         </div>
       </div>
+
+      <BackgroundCheckDisclosureModal
+        isOpen={consentModalOpen}
+        onDecline={handleDeclineDisclosure}
+        onAccept={handleAcceptDisclosure}
+        submitting={consentSubmitting}
+      />
 
       {/* Animation CSS moved to global (app/globals.css) */}
     </div>
