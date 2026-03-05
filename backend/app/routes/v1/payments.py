@@ -33,7 +33,7 @@ import json
 import logging
 import time
 from typing import Any, Dict, List, Optional, cast
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
@@ -205,21 +205,15 @@ async def create_identity_session(
 
         # Redirect back to onboarding status page in the new Phoenix structure
         configured_frontend = (settings.frontend_url or "").strip()
-        request_host = (request.headers.get("host") or "").strip()
         origin: Optional[str] = None
 
         if configured_frontend:
-            parsed = urlparse(configured_frontend)
-            configured_host = (parsed.netloc or "").lower()
-            if request_host and configured_host and configured_host == request_host.lower():
-                scheme = parsed.scheme or request.url.scheme
-                origin = f"{scheme}://{configured_host}".rstrip("/")
+            origin = configured_frontend.rstrip("/")
 
         if not origin:
+            request_host = (request.headers.get("host") or "").strip()
             if request_host:
                 origin = f"{request.url.scheme}://{request_host}".rstrip("/")
-            elif configured_frontend:
-                origin = configured_frontend.rstrip("/")
             else:
                 origin = str(request.base_url).rstrip("/")
 

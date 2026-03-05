@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Step4Verification from '@/app/(auth)/instructor/onboarding/verification/page';
@@ -101,6 +101,7 @@ describe('Verification page', () => {
     mockReplace.mockClear();
     currentSearchParams = new URLSearchParams();
     mockFetchWithAuth.mockReset();
+    mockRefreshStepStatus.mockClear();
     (toast.success as jest.Mock).mockClear();
     (toast.error as jest.Mock).mockClear();
     (toast.info as jest.Mock).mockClear();
@@ -168,5 +169,183 @@ describe('Verification page', () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Identity check complete', {
       description: 'Next, start your background check.',
     }));
+  });
+
+  describe('identity return polling', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.runOnlyPendingTimers();
+      jest.useRealTimers();
+    });
+
+    it('polls until verified when initial refresh returns verified false', async () => {
+      currentSearchParams = new URLSearchParams('identity_return=true');
+      let refreshCalls = 0;
+      mockFetchWithAuth.mockImplementation(async (url: unknown) => {
+        if (url === '/api/v1/payments/identity/refresh') {
+          refreshCalls += 1;
+          return {
+            ok: true,
+            json: async () => ({ verified: refreshCalls >= 3 }),
+          } as unknown as Response;
+        }
+        return {
+          ok: true,
+          json: async () => ({}),
+        } as unknown as Response;
+      });
+
+      renderWithClient(<Step4Verification />);
+
+      await waitFor(() => expect(refreshCalls).toBe(1));
+      await act(async () => {
+        jest.advanceTimersByTime(5000);
+      });
+      await waitFor(() => expect(refreshCalls).toBe(2));
+      await act(async () => {
+        jest.advanceTimersByTime(5000);
+      });
+      await waitFor(() => expect(refreshCalls).toBe(3));
+      await waitFor(() =>
+        expect(toast.success).toHaveBeenCalledWith('Identity check complete', {
+          description: 'Next, start your background check.',
+        })
+      );
+      expect(mockRefreshStepStatus).toHaveBeenCalledTimes(3);
+      expect(mockReplace).toHaveBeenCalledWith('/instructor/onboarding/verification');
+    });
+
+    it('stops polling after 12 attempts and shows info toast', async () => {
+      currentSearchParams = new URLSearchParams('identity_return=true');
+      let refreshCalls = 0;
+      mockFetchWithAuth.mockImplementation(async (url: unknown) => {
+        if (url === '/api/v1/payments/identity/refresh') {
+          refreshCalls += 1;
+          return {
+            ok: true,
+            json: async () => ({ verified: false }),
+          } as unknown as Response;
+        }
+        return {
+          ok: true,
+          json: async () => ({}),
+        } as unknown as Response;
+      });
+
+      renderWithClient(<Step4Verification />);
+
+      await waitFor(() => expect(refreshCalls).toBe(1));
+      for (let i = 0; i < 11; i += 1) {
+        await act(async () => {
+          jest.advanceTimersByTime(5000);
+        });
+      }
+      await waitFor(() => expect(refreshCalls).toBe(12));
+      await waitFor(() =>
+        expect(toast.info).toHaveBeenCalledWith('Verification still processing', {
+          description: 'Stripe is finishing your verification. This page will update automatically when complete.',
+        })
+      );
+      expect(mockRefreshStepStatus).toHaveBeenCalledTimes(12);
+      expect(mockReplace).toHaveBeenCalledWith('/instructor/onboarding/verification');
+      await act(async () => {
+        jest.advanceTimersByTime(15000);
+      });
+      expect(refreshCalls).toBe(12);
+    });
+
+    it('stops polling immediately when verified on first attempt', async () => {
+      currentSearchParams = new URLSearchParams('identity_return=true');
+      let refreshCalls = 0;
+      mockFetchWithAuth.mockImplementation(async (url: unknown) => {
+        if (url === '/api/v1/payments/identity/refresh') {
+          refreshCalls += 1;
+          return {
+            ok: true,
+            json: async () => ({ verified: true }),
+          } as unknown as Response;
+        }
+        return {
+          ok: true,
+          json: async () => ({}),
+        } as unknown as Response;
+      });
+
+      renderWithClient(<Step4Verification />);
+
+      await waitFor(() => expect(refreshCalls).toBe(1));
+      await act(async () => {
+        jest.advanceTimersByTime(15000);
+      });
+      expect(refreshCalls).toBe(1);
+      expect(mockRefreshStepStatus).toHaveBeenCalledTimes(1);
+      expect(toast.success).toHaveBeenCalledWith('Identity check complete', {
+        description: 'Next, start your background check.',
+      });
+    });
+
+    it('cleans up poll timer on unmount', async () => {
+      currentSearchParams = new URLSearchParams('identity_return=true');
+      let refreshCalls = 0;
+      mockFetchWithAuth.mockImplementation(async (url: unknown) => {
+        if (url === '/api/v1/payments/identity/refresh') {
+          refreshCalls += 1;
+          return {
+            ok: true,
+            json: async () => ({ verified: false }),
+          } as unknown as Response;
+        }
+        return {
+          ok: true,
+          json: async () => ({}),
+        } as unknown as Response;
+      });
+
+      const view = renderWithClient(<Step4Verification />);
+      await waitFor(() => expect(refreshCalls).toBe(1));
+      view.unmount();
+
+      await act(async () => {
+        jest.advanceTimersByTime(15000);
+      });
+      expect(refreshCalls).toBe(1);
+    });
+
+    it('does not poll when identity_return is absent', async () => {
+      currentSearchParams = new URLSearchParams('');
+      renderWithClient(<Step4Verification />);
+
+      await act(async () => {
+        jest.advanceTimersByTime(10000);
+      });
+      const refreshEndpointCalls = mockFetchWithAuth.mock.calls.filter(
+        ([url]) => url === '/api/v1/payments/identity/refresh'
+      );
+      expect(refreshEndpointCalls).toHaveLength(0);
+    });
+
+    it('removes identity_return from URL after polling completes', async () => {
+      currentSearchParams = new URLSearchParams('identity_return=true');
+      mockFetchWithAuth.mockImplementation(async (url: unknown) => {
+        if (url === '/api/v1/payments/identity/refresh') {
+          return {
+            ok: true,
+            json: async () => ({ verified: true }),
+          } as unknown as Response;
+        }
+        return {
+          ok: true,
+          json: async () => ({}),
+        } as unknown as Response;
+      });
+
+      renderWithClient(<Step4Verification />);
+      await waitFor(() =>
+        expect(mockReplace).toHaveBeenCalledWith('/instructor/onboarding/verification')
+      );
+    });
   });
 });

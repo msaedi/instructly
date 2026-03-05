@@ -118,43 +118,69 @@ export default function Step4Verification() {
     if (!identityReturn || hasRefreshedRef.current) return;
     hasRefreshedRef.current = true;
     let active = true;
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const refreshIdentity = async () => {
+    const POLL_INTERVAL_MS = 5000;
+    const MAX_ATTEMPTS = 12;
+
+    const cleanupIdentityParam = () => {
+      const params = new URLSearchParams(searchParams?.toString() || '');
+      params.delete('identity_return');
+      const query = params.toString();
+      router.replace(`/instructor/onboarding/verification${query ? `?${query}` : ''}`);
+    };
+
+    const refreshIdentity = async (attempt: number = 1) => {
+      if (!active) return;
       setRefreshingIdentity(true);
       try {
         const res = await fetchWithAuth(API_ENDPOINTS.STRIPE_IDENTITY_REFRESH, { method: 'POST' });
         if (!active) return;
+
         if (res.ok) {
           const data = (await res.json()) as IdentityRefreshResponse;
           await refreshStepStatus();
+
           if (data?.verified) {
+            setRefreshingIdentity(false);
             toast.success('Identity check complete', {
               description: 'Next, start your background check.',
             });
-          } else {
-            toast.info('Identity check updated', {
-              description: 'Stripe is still finishing your verification.',
-            });
+            cleanupIdentityParam();
+            return;
           }
+
+          if (attempt < MAX_ATTEMPTS) {
+            pollTimer = setTimeout(() => {
+              if (active) void refreshIdentity(attempt + 1);
+            }, POLL_INTERVAL_MS);
+            return;
+          }
+
+          setRefreshingIdentity(false);
+          toast.info('Verification still processing', {
+            description: 'Stripe is finishing your verification. This page will update automatically when complete.',
+          });
         } else {
+          setRefreshingIdentity(false);
           toast.error('Unable to refresh identity status');
         }
       } catch {
-        if (active) toast.error('Unable to refresh identity status');
-      } finally {
         if (active) {
           setRefreshingIdentity(false);
-          const params = new URLSearchParams(searchParams?.toString() || '');
-          params.delete('identity_return');
-          const query = params.toString();
-          router.replace(`/instructor/onboarding/verification${query ? `?${query}` : ''}`);
+          toast.error('Unable to refresh identity status');
         }
+      }
+
+      if (active) {
+        cleanupIdentityParam();
       }
     };
 
     void refreshIdentity();
     return () => {
       active = false;
+      if (pollTimer) clearTimeout(pollTimer);
     };
   }, [identityReturn, router, searchParams, refreshStepStatus]);
 
