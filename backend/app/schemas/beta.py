@@ -19,7 +19,7 @@ class InviteValidateResponse(StrictModel):
 
 class InviteGenerateRequest(StrictRequestModel):
     count: int = 1
-    role: str = "instructor_beta"
+    role: str = "instructor"
     expires_in_days: int = 30
     source: Optional[str] = None
     emails: Optional[list[EmailStr]] = None
@@ -41,7 +41,7 @@ class InviteGenerateResponse(StrictModel):
 class InviteConsumeRequest(StrictRequestModel):
     code: str
     user_id: str
-    role: str = "instructor_beta"
+    role: str = "instructor"
     phase: str = "instructor_only"
 
 
@@ -56,7 +56,7 @@ class AccessGrantResponse(StrictModel):
 
 class InviteSendRequest(StrictRequestModel):
     to_email: EmailStr
-    role: str = Field(default="instructor_beta")
+    role: str = Field(default="instructor")
     expires_in_days: int = Field(default=14, ge=1, le=180)
     grant_founding_status: bool = Field(default=True)
     source: Optional[str] = None
@@ -81,7 +81,7 @@ class BetaMetricsSummaryResponse(StrictModel):
 
 class InviteBatchSendRequest(StrictRequestModel):
     emails: list[EmailStr] = Field(default_factory=list, min_length=1)
-    role: str = Field(default="instructor_beta")
+    role: str = Field(default="instructor")
     expires_in_days: int = Field(default=14, ge=1, le=180)
     source: Optional[str] = None
     base_url: Optional[str] = None

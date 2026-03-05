@@ -706,7 +706,7 @@ def upgrade() -> None:
         sa.Column("id", sa.String(26), nullable=False),
         sa.Column("code", sa.String(16), nullable=False),
         sa.Column("email", sa.String(255), nullable=True),
-        sa.Column("role", sa.String(32), nullable=False, server_default="instructor_beta"),
+        sa.Column("role", sa.String(32), nullable=False, server_default="instructor"),
         sa.Column("grant_founding_status", sa.Boolean(), nullable=False, server_default="true"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
@@ -716,7 +716,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("code", name="uq_beta_invites_code"),
         sa.CheckConstraint(
-            "role IN ('instructor_beta', 'student_beta')",
+            "role IN ('instructor', 'student')",
             name="ck_beta_invites_role",
         ),
     )

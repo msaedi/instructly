@@ -41,7 +41,7 @@ export default function BetaInvitesAdminPage() {
   const { isAdmin, isLoading } = useAdminAuth();
   const { logout } = useAuth();
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState('instructor_beta');
+  const [role, setRole] = useState('instructor');
   const [days, setDays] = useState(14);
   const [source, setSource] = useState('admin_ui');
   const [grantFoundingStatus, setGrantFoundingStatus] = useState(true);
@@ -263,8 +263,8 @@ export default function BetaInvitesAdminPage() {
                         <Select.Portal>
                           <Select.Content className="overflow-hidden rounded-md bg-white dark:bg-gray-800 shadow ring-1 ring-gray-200 dark:ring-gray-700">
                             <Select.Viewport className="p-1">
-                              <Select.Item value="instructor_beta" className="relative flex select-none items-center rounded px-2 py-1.5 text-sm text-gray-800 dark:text-gray-200 data-[highlighted]:bg-gray-100 dark:data-[highlighted]:bg-gray-700 outline-none cursor-pointer">
-                                <Select.ItemText>instructor_beta</Select.ItemText>
+                              <Select.Item value="instructor" className="relative flex select-none items-center rounded px-2 py-1.5 text-sm text-gray-800 dark:text-gray-200 data-[highlighted]:bg-gray-100 dark:data-[highlighted]:bg-gray-700 outline-none cursor-pointer">
+                                <Select.ItemText>instructor</Select.ItemText>
                                 <Select.ItemIndicator className="absolute right-2">
                                   <Check className="h-4 w-4" />
                                 </Select.ItemIndicator>

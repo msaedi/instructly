@@ -13,10 +13,10 @@ def test_beta_invite_repository_crud(db, test_student):
             {
                 "code": "TEST0001",
                 "email": "a@example.com",
-                "role": "instructor_beta",
+                "role": "instructor",
                 "expires_at": now + timedelta(days=7),
             },
-            {"code": "TEST0002", "email": None, "role": "instructor_beta", "expires_at": now + timedelta(days=7)},
+            {"code": "TEST0002", "email": None, "role": "instructor", "expires_at": now + timedelta(days=7)},
         ]
     )
 
@@ -39,13 +39,13 @@ def test_beta_access_repository_grant(db, test_student):
     invite_repo = BetaInviteRepository(db)
     now = datetime.now(timezone.utc)
     invite_repo.bulk_create_invites(
-        [{"code": "TEST0001", "email": None, "role": "instructor_beta", "expires_at": now + timedelta(days=7)}]
+        [{"code": "TEST0001", "email": None, "role": "instructor", "expires_at": now + timedelta(days=7)}]
     )
 
     repo = BetaAccessRepository(db)
     grant = repo.grant_access(
-        user_id=test_student.id, role="instructor_beta", phase="instructor_only", invited_by_code="TEST0001"
+        user_id=test_student.id, role="instructor", phase="instructor_only", invited_by_code="TEST0001"
     )
     assert grant is not None
     assert grant.user_id == test_student.id
-    assert grant.role == "instructor_beta"
+    assert grant.role == "instructor"

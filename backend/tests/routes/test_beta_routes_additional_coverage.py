@@ -77,7 +77,7 @@ class TestBetaRoutesAdditionalCoverage:
             headers=auth_headers_admin,
             json={
                 "emails": ["a@example.com", "b@example.com"],
-                "role": "instructor_beta",
+                "role": "instructor",
                 "expires_in_days": 7,
                 "source": "tests",
                 "base_url": "https://example.com",
@@ -99,7 +99,7 @@ class TestBetaRoutesAdditionalCoverage:
             headers=auth_headers_admin,
             json={
                 "emails": ["a@example.com"],
-                "role": "instructor_beta",
+                "role": "instructor",
                 "expires_in_days": 7,
                 "source": "tests",
                 "base_url": "https://example.com",
@@ -139,7 +139,7 @@ class TestBetaRoutesAdditionalCoverage:
         invite = SimpleNamespace(
             code="CODE123",
             email="invitee@example.com",
-            role="instructor_beta",
+            role="instructor",
             expires_at=None,
             used_at=None,
         )

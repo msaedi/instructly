@@ -22,7 +22,7 @@ class BetaInvite(Base):
     __tablename__ = "beta_invites"
     __table_args__ = (
         CheckConstraint(
-            "role IN ('instructor_beta', 'student_beta')",
+            "role IN ('instructor', 'student')",
             name="ck_beta_invites_role",
         ),
     )
@@ -36,8 +36,8 @@ class BetaInvite(Base):
     # Optional pre-associated email for convenience/prefill
     email: Optional[str] = Column(String(255), nullable=True, index=True)
 
-    # Role: 'instructor_beta' | 'student_beta'
-    role: str = Column(String(32), nullable=False, default="instructor_beta")
+    # Role: 'instructor' | 'student'
+    role: str = Column(String(32), nullable=False, default="instructor")
     grant_founding_status = Column(Boolean, default=True, nullable=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -58,7 +58,7 @@ class BetaAccess(Base):
 
     user_id: str = Column(String(26), ForeignKey("users.id"), nullable=False, index=True)
 
-    # 'instructor_beta' | 'student_beta' | 'admin'
+    # 'instructor' | 'student' | 'admin'
     role: str = Column(String(32), nullable=False)
 
     # Foreign key to invites by code (code is unique)

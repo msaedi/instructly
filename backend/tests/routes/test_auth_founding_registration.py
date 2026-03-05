@@ -14,7 +14,7 @@ def _create_invite(db: Session, *, code: str, email: str, grant_founding_status:
     invite = BetaInvite(
         code=code,
         email=email,
-        role="instructor_beta",
+        role="instructor",
         expires_at=datetime.now(timezone.utc) + timedelta(days=1),
         grant_founding_status=grant_founding_status,
     )

@@ -8,7 +8,7 @@ class FakeInvite:
     def __init__(self, code: str = "ABCDEF12", expires_at: datetime | None = None, used_at: datetime | None = None):
         self.code = code
         self.email = None
-        self.role = "instructor_beta"
+        self.role = "instructor"
         self.expires_at = expires_at
         self.used_at = used_at
         self.grant_founding_status = True
@@ -111,7 +111,7 @@ def test_validate_invite_used(service):
 
 def test_bulk_generate_creates_expected_records(service):
     result = service.bulk_generate(
-        count=3, role="instructor_beta", expires_in_days=10, source="seed", emails=["a@x.com"]
+        count=3, role="instructor", expires_in_days=10, source="seed", emails=["a@x.com"]
     )
     # Should return 3 invite-like objects
     assert len(result) == 3
@@ -119,7 +119,7 @@ def test_bulk_generate_creates_expected_records(service):
     assert len(service._fake_invites.created_payload) == 3
     for r in service._fake_invites.created_payload:
         assert isinstance(r["code"], str) and len(r["code"]) == 8
-        assert r["role"] == "instructor_beta"
+        assert r["role"] == "instructor"
         assert r.get("metadata_json") == {"source": "seed"}
     # First email should be applied; others may be None
     emails = [r.get("email") for r in service._fake_invites.created_payload]
@@ -130,20 +130,20 @@ def test_consume_and_grant_success(service):
     future = datetime.now(timezone.utc) + timedelta(days=2)
     service._fake_invites.set_invite(FakeInvite(code="OKOK0001", expires_at=future, used_at=None))
     grant, reason, invite = service.consume_and_grant(
-        code="OKOK0001", user_id="U123", role="instructor_beta", phase="instructor_only"
+        code="OKOK0001", user_id="U123", role="instructor", phase="instructor_only"
     )
     assert reason is None
     assert grant is not None
     assert invite is not None
     assert grant.user_id == "U123"
     assert service._fake_invites.mark_used_calls == [("OKOK0001", "U123")]
-    assert service._fake_access.grants == [("U123", "instructor_beta", "instructor_only", "OKOK0001")]
+    assert service._fake_access.grants == [("U123", "instructor", "instructor_only", "OKOK0001")]
 
 
 def test_consume_and_grant_failure(service):
     # No invite set → validate_invite will fail
     grant, reason, invite = service.consume_and_grant(
-        code="BADCODE", user_id="U1", role="instructor_beta", phase="instructor_only"
+        code="BADCODE", user_id="U1", role="instructor", phase="instructor_only"
     )
     assert grant is None
     assert reason in {"not_found", "expired", "used"}
@@ -246,7 +246,7 @@ def test_send_invite_email_renders_and_sends(monkeypatch):
 
     created, join_url, welcome_url = svc.send_invite_email(
         to_email="user@example.com",
-        role="instructor_beta",
+        role="instructor",
         expires_in_days=7,
         source="unit",
         base_url="https://preview.example.com",
@@ -274,7 +274,7 @@ def test_send_invite_batch_collects_failures(monkeypatch):
 
     sent, failed = svc.send_invite_batch(
         emails=["ok@example.com", "bad@example.com"],
-        role="instructor_beta",
+        role="instructor",
         expires_in_days=7,
         source=None,
         base_url=None,

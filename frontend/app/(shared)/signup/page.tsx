@@ -473,7 +473,7 @@ function SignUpForm() {
               body: {
                 code: inviteCode,
                 user_id: userData.id,
-                role: 'instructor_beta',
+                role: 'instructor',
                 phase: 'instructor_only',
               },
             });

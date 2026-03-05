@@ -13702,7 +13702,7 @@ export type components = {
             expires_in_days: number;
             /**
              * Role
-             * @default instructor_beta
+             * @default instructor
              */
             role: string;
             /** Source */
@@ -13726,7 +13726,7 @@ export type components = {
             phase: string;
             /**
              * Role
-             * @default instructor_beta
+             * @default instructor
              */
             role: string;
             /** User Id */
@@ -13748,7 +13748,7 @@ export type components = {
             expires_in_days: number;
             /**
              * Role
-             * @default instructor_beta
+             * @default instructor
              */
             role: string;
             /** Source */
@@ -13791,7 +13791,7 @@ export type components = {
             grant_founding_status: boolean;
             /**
              * Role
-             * @default instructor_beta
+             * @default instructor
              */
             role: string;
             /** Source */

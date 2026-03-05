@@ -11,7 +11,7 @@ def test_beta_service_methods_execute(db):
     assert reason in ("not_found", "expired", "used")
 
     # bulk_generate should create records
-    created = svc.bulk_generate(count=1, role="instructor_beta", expires_in_days=7, source="test", emails=None)
+    created = svc.bulk_generate(count=1, role="instructor", expires_in_days=7, source="test", emails=None)
     assert len(created) == 1
 
     # consume_and_grant should work when provided valid code and user
@@ -31,7 +31,7 @@ def test_beta_service_methods_execute(db):
     db.refresh(user)
 
     grant, reason2, invite = svc.consume_and_grant(
-        code=code, user_id=user.id, role="instructor_beta", phase="instructor_only"
+        code=code, user_id=user.id, role="instructor", phase="instructor_only"
     )
     assert grant is not None
     assert reason2 is None

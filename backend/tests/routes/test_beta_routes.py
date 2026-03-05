@@ -7,7 +7,7 @@ def _create_invite(db, email: str | None = None):
     svc = BetaService(db)
     created = svc.bulk_generate(
         count=1,
-        role="instructor_beta",
+        role="instructor",
         expires_in_days=7,
         source="tests",
         emails=[email] if email else None,
@@ -36,7 +36,7 @@ class TestBetaRoutes:
         res = client.post(
             "/api/v1/beta/invites/generate",
             headers=headers,
-            json={"count": 1, "role": "instructor_beta", "expires_in_days": 7, "source": "test"},
+            json={"count": 1, "role": "instructor", "expires_in_days": 7, "source": "test"},
         )
         assert res.status_code == 403
 
@@ -66,7 +66,7 @@ class TestBetaRoutes:
         res = client.post(
             "/api/v1/beta/invites/generate",
             headers=headers,
-            json={"count": 2, "role": "instructor_beta", "expires_in_days": 5, "source": "seed", "emails": ["a@x.com"]},
+            json={"count": 2, "role": "instructor", "expires_in_days": 5, "source": "seed", "emails": ["a@x.com"]},
         )
         assert res.status_code == 200
         body = res.json()
@@ -101,7 +101,7 @@ class TestBetaRoutes:
 
         res = client.post(
             "/api/v1/beta/invites/consume",
-            json={"code": code, "user_id": user.id, "role": "instructor_beta", "phase": "instructor_only"},
+            json={"code": code, "user_id": user.id, "role": "instructor", "phase": "instructor_only"},
         )
         assert res.status_code == 200
         body = res.json()

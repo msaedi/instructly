@@ -264,7 +264,7 @@ async def send_invites(
             invite, _join_url, _welcome_url = await asyncio.to_thread(
                 beta_service.send_invite_email,
                 to_email=email,
-                role="instructor_beta",
+                role="instructor",
                 expires_in_days=expires_in_days,
                 source="mcp_invite",
                 base_url=None,

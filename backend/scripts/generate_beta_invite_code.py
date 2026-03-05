@@ -4,7 +4,7 @@ CLI utility to generate a beta invite code without sending email.
 
 Usage example:
   python backend/scripts/generate_beta_invite_code.py \
-      --role instructor_beta --days 14 --source cli --email test@example.com
+      --role instructor --days 14 --source cli --email test@example.com
 """
 
 from __future__ import annotations
@@ -34,8 +34,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--email", default=None, help="Optional email to associate with the invite")
     parser.add_argument(
         "--role",
-        default="instructor_beta",
-        help="Role to grant when the invite is used (default: instructor_beta)",
+        default="instructor",
+        help="Role to grant when the invite is used (default: instructor)",
     )
     parser.add_argument("--days", type=int, default=14, help="Expiry in days (default: 14)")
     parser.add_argument(
