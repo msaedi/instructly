@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Set, Union
 
 from sqlalchemy.orm import Session
 
+from ..core.auth_cache import invalidate_cached_user_by_id_sync
 from ..core.enums import PermissionName
 from ..repositories.factory import RepositoryFactory
 from .base import BaseService
@@ -241,6 +242,7 @@ class PermissionService(BaseService):
 
         # Clear cache for this user (best-effort, outside transaction)
         self._clear_user_cache(user_id)
+        invalidate_cached_user_by_id_sync(user_id, self.db)
 
         return True
 
@@ -277,6 +279,7 @@ class PermissionService(BaseService):
 
         # Clear cache for this user (best-effort, outside transaction)
         self._clear_user_cache(user_id)
+        invalidate_cached_user_by_id_sync(user_id, self.db)
 
         return True
 
@@ -309,6 +312,7 @@ class PermissionService(BaseService):
 
         # Clear cache for this user (best-effort, outside transaction)
         self._clear_user_cache(user_id)
+        invalidate_cached_user_by_id_sync(user_id, self.db)
 
         return True
 
@@ -341,6 +345,7 @@ class PermissionService(BaseService):
 
         # Clear cache for this user (best-effort, outside transaction)
         self._clear_user_cache(user_id)
+        invalidate_cached_user_by_id_sync(user_id, self.db)
 
         return True
 

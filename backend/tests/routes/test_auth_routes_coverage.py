@@ -1249,6 +1249,12 @@ async def test_update_current_user_updates_phone_and_zip(monkeypatch, test_stude
         "app.core.timezone_service.get_timezone_from_zip",
         lambda _zip: "America/New_York",
     )
+    invalidated: list[tuple[str, object]] = []
+    monkeypatch.setattr(
+        auth_routes,
+        "invalidate_cached_user_by_id_sync",
+        lambda user_id, db_session: invalidated.append((user_id, db_session)) or True,
+    )
 
     auth_service = _StubAuthService(user_obj=user)
     payload = auth_routes.UserUpdate(phone="+15551234567", zip_code="10001")
@@ -1258,6 +1264,7 @@ async def test_update_current_user_updates_phone_and_zip(monkeypatch, test_stude
     )
     assert response.phone == "+15551234567"
     assert response.timezone == "America/New_York"
+    assert invalidated == [(user.id, db)]
 
 
 @pytest.mark.asyncio

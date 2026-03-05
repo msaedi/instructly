@@ -36,6 +36,7 @@ from ...auth import (
     is_refresh_token_payload,
     verify_password_async,
 )
+from ...core.auth_cache import invalidate_cached_user_by_id_sync
 from ...core.config import settings
 from ...core.enums import RoleName
 from ...core.exceptions import NotFoundException, ValidationException
@@ -1147,6 +1148,7 @@ async def update_current_user(
 
             if not upd_user:
                 raise NotFoundException("Failed to update user")
+            invalidate_cached_user_by_id_sync(upd_user.id, db)
 
             # Get permissions for the response
             perm_svc = PermissionService(db)

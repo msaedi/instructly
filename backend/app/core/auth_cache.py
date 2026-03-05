@@ -211,8 +211,10 @@ def _user_to_dict(user: User, beta_access: Optional[Any] = None) -> Dict[str, An
         "last_name": user.last_name,
         # Additional fields for /auth/me endpoint (avoids re-querying)
         "phone": getattr(user, "phone", None),
+        "phone_verified": getattr(user, "phone_verified", False),
         "zip_code": getattr(user, "zip_code", None),
         "timezone": getattr(user, "timezone", None),
+        "profile_picture_key": getattr(user, "profile_picture_key", None),
         "profile_picture_version": getattr(user, "profile_picture_version", 0),
         "has_profile_picture": getattr(user, "has_profile_picture", False),
         # Keep this precomputed in cache so auth checks are integer comparisons.
@@ -324,8 +326,10 @@ def create_transient_user(user_data: Dict[str, Any]) -> User:
 
     # Additional fields for /auth/me endpoint (no re-querying needed)
     user.phone = user_data.get("phone")
+    user.phone_verified = user_data.get("phone_verified", False)
     user.zip_code = user_data.get("zip_code")
     user.timezone = user_data.get("timezone")
+    user.profile_picture_key = user_data.get("profile_picture_key")
     user.profile_picture_version = user_data.get("profile_picture_version", 0)
     # has_profile_picture is a property, store the underlying value
     setattr(user, "_cached_has_profile_picture", user_data.get("has_profile_picture", False))

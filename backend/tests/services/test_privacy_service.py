@@ -152,9 +152,16 @@ class TestPrivacyService:
         assert user is not None
         assert user.is_active is True
 
-    def test_delete_user_data_with_account_deletion(self, privacy_service, sample_user_for_privacy, db):
+    def test_delete_user_data_with_account_deletion(
+        self, privacy_service, sample_user_for_privacy, db, monkeypatch
+    ):
         """Test user data deletion with account deletion."""
         user_id = sample_user_for_privacy.id
+        invalidated: list[tuple[str, object]] = []
+        monkeypatch.setattr(
+            "app.services.privacy_service.invalidate_cached_user_by_id_sync",
+            lambda uid, db_session: invalidated.append((uid, db_session)) or True,
+        )
 
         _result = privacy_service.delete_user_data(user_id, delete_account=True)
 
@@ -165,6 +172,7 @@ class TestPrivacyService:
         assert user.email == f"deleted_{user_id}@deleted.com"
         assert user.first_name == "Deleted"
         assert user.last_name == "User"
+        assert invalidated == [(user_id, db)]
 
         # Note: No separate student profile to delete in current model
 
@@ -186,10 +194,17 @@ class TestPrivacyService:
         with pytest.raises(ValueError, match="User 999 not found"):
             privacy_service.delete_user_data(999)
 
-    def test_anonymize_user_success(self, privacy_service, sample_instructor_for_privacy, db):
+    def test_anonymize_user_success(
+        self, privacy_service, sample_instructor_for_privacy, db, monkeypatch
+    ):
         """Test successful user anonymization."""
         user_id = sample_instructor_for_privacy.id
         original_email = sample_instructor_for_privacy.email
+        invalidated: list[tuple[str, object]] = []
+        monkeypatch.setattr(
+            "app.services.privacy_service.invalidate_cached_user_by_id_sync",
+            lambda uid, db_session: invalidated.append((uid, db_session)) or True,
+        )
 
         result = privacy_service.anonymize_user(user_id)
 
@@ -205,6 +220,7 @@ class TestPrivacyService:
         # Verify instructor profile was anonymized
         instructor = db.query(InstructorProfile).filter_by(user_id=user_id).first()
         assert instructor.bio == "This profile has been anonymized"
+        assert invalidated == [(user_id, db)]
 
     def test_anonymize_user_not_found(self, privacy_service):
         """Test anonymizing non-existent user."""

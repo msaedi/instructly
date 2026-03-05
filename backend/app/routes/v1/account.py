@@ -30,6 +30,7 @@ from ...api.dependencies.services import (
     get_sms_service,
 )
 from ...auth import decode_access_token
+from ...core.auth_cache import invalidate_cached_user_by_id_sync
 from ...core.exceptions import BusinessRuleException, ValidationException
 from ...models.user import User
 from ...ratelimit.dependency import rate_limit
@@ -349,12 +350,14 @@ async def update_phone_number(
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
+        changed = False
         if getattr(user, "phone", None) != phone_number:
             updated = user_repo.update_profile(
                 user.id,
                 phone=phone_number,
                 phone_verified=False,
             )
+            changed = True
         else:
             updated = user
 
@@ -363,6 +366,8 @@ async def update_phone_number(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to update phone number",
             )
+        if changed:
+            invalidate_cached_user_by_id_sync(user.id, db)
 
         return PhoneUpdateResponse(
             phone_number=getattr(updated, "phone", None),
@@ -528,7 +533,9 @@ async def confirm_phone_verification(
 
     def _mark_verified() -> None:
         user_repo = RepositoryFactory.create_user_repository(db)
-        user_repo.update_profile(current_user.id, phone_verified=True)
+        updated = user_repo.update_profile(current_user.id, phone_verified=True)
+        if updated:
+            invalidate_cached_user_by_id_sync(current_user.id, db)
 
     await asyncio.to_thread(_mark_verified)
     await cache_service.delete(code_key)

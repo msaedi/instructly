@@ -367,8 +367,14 @@ async def test_logout_all_devices_returns_404_when_user_not_found(monkeypatch, t
 
 
 @pytest.mark.asyncio
-async def test_phone_update_and_get(db, test_student):
+async def test_phone_update_and_get(db, test_student, monkeypatch):
     cache = DummyCacheService()
+    invalidated: list[tuple[str, object]] = []
+    monkeypatch.setattr(
+        account_routes,
+        "invalidate_cached_user_by_id_sync",
+        lambda user_id, db_session: invalidated.append((user_id, db_session)) or True,
+    )
     test_student.phone = "+15551234567"
     test_student.phone_verified = False
     db.commit()
@@ -383,6 +389,7 @@ async def test_phone_update_and_get(db, test_student):
         cache_service=cache,
     )
     assert update.phone_number == "+15559876543"
+    assert invalidated == [(test_student.id, db)]
 
     update = await account_routes.update_phone_number(
         account_routes.PhoneUpdateRequest(phone_number="+15559876543"),
@@ -391,6 +398,7 @@ async def test_phone_update_and_get(db, test_student):
         cache_service=cache,
     )
     assert update.phone_number == "+15559876543"
+    assert invalidated == [(test_student.id, db)]
 
 
 @pytest.mark.asyncio
@@ -431,8 +439,14 @@ async def test_phone_update_missing_user(db):
 
 
 @pytest.mark.asyncio
-async def test_phone_verification_send_and_confirm(db, test_student):
+async def test_phone_verification_send_and_confirm(db, test_student, monkeypatch):
     cache = DummyCacheService()
+    invalidated: list[tuple[str, object]] = []
+    monkeypatch.setattr(
+        account_routes,
+        "invalidate_cached_user_by_id_sync",
+        lambda user_id, db_session: invalidated.append((user_id, db_session)) or True,
+    )
     sms = DummySMSService(enabled=True, status=SMSStatus.SUCCESS)
     test_student.phone = "+15551234567"
     db.commit()
@@ -454,6 +468,7 @@ async def test_phone_verification_send_and_confirm(db, test_student):
         cache_service=cache,
     )
     assert confirm.verified is True
+    assert invalidated == [(test_student.id, db)]
 
 
 @pytest.mark.asyncio

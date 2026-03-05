@@ -32,6 +32,19 @@ def test_grant_and_revoke_permission(db, test_student):
     assert service.revoke_permission(test_student.id, "missing-permission") is False
 
 
+def test_grant_and_revoke_permission_invalidates_auth_cache(db, test_student, monkeypatch):
+    service = PermissionService(db)
+    invalidated: list[str] = []
+    monkeypatch.setattr(
+        "app.services.permission_service.invalidate_cached_user_by_id_sync",
+        lambda user_id, _db: invalidated.append(user_id) or True,
+    )
+
+    assert service.grant_permission(test_student.id, PermissionName.ADMIN_READ.value) is True
+    assert service.revoke_permission(test_student.id, PermissionName.ADMIN_READ.value) is True
+    assert invalidated == [test_student.id, test_student.id]
+
+
 def test_user_permissions_and_roles(db, test_student):
     service = PermissionService(db)
     roles = service.get_user_roles(test_student.id)
@@ -76,6 +89,19 @@ def test_assign_and_remove_role(db, test_student):
     assert RoleName.ADMIN.value not in service.get_user_roles(test_student.id)
     assert service.assign_role(test_student.id, "missing-role") is False
     assert service.remove_role(test_student.id, RoleName.ADMIN.value) is False
+
+
+def test_assign_and_remove_role_invalidates_auth_cache(db, test_student, monkeypatch):
+    service = PermissionService(db)
+    invalidated: list[str] = []
+    monkeypatch.setattr(
+        "app.services.permission_service.invalidate_cached_user_by_id_sync",
+        lambda user_id, _db: invalidated.append(user_id) or True,
+    )
+
+    assert service.assign_role(test_student.id, RoleName.ADMIN.value) is True
+    assert service.remove_role(test_student.id, RoleName.ADMIN.value) is True
+    assert invalidated == [test_student.id, test_student.id]
 
 
 def test_clear_cache(db, test_student):

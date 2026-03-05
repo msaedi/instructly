@@ -12,6 +12,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from ..core.auth_cache import invalidate_cached_user_by_id_sync
 from ..core.config import settings
 from ..repositories.factory import RepositoryFactory
 from ..schemas.privacy import PrivacyStatistics, RetentionStats
@@ -265,6 +266,8 @@ class PrivacyService(BaseService):
                 instructor = self.instructor_repository.get_by_user_id(user_id)
                 if instructor:
                     self.instructor_repository.delete(instructor.id)
+        if delete_account:
+            invalidate_cached_user_by_id_sync(user_id, self.db)
 
         logger.info(f"Deleted data for user {user_id}: {deletion_stats}")
         return deletion_stats
@@ -365,6 +368,7 @@ class PrivacyService(BaseService):
             # Clear search history
             self.search_history_repository.delete_user_searches(user_id)
             self.search_event_repository.delete_user_events(user_id)
+        invalidate_cached_user_by_id_sync(user_id, self.db)
 
         logger.info(f"Anonymized user {user_id}")
         return True

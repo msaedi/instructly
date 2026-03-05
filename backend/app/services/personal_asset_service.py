@@ -18,6 +18,7 @@ from typing import Any, Literal, Optional, Sequence, TypedDict, cast
 
 from sqlalchemy.orm import Session
 
+from ..core.auth_cache import invalidate_cached_user_by_id_sync
 from ..core.config import settings
 from ..database import with_db_retry
 from ..models.user import User
@@ -280,6 +281,7 @@ class PersonalAssetService(BaseService):
         )
         if not updated:
             raise RuntimeError("Failed to update user record with profile picture metadata")
+        invalidate_cached_user_by_id_sync(user.id, self.db)
 
         # Best-effort cleanup of temp
         try:
@@ -316,6 +318,8 @@ class PersonalAssetService(BaseService):
             profile_picture_uploaded_at=None,
             profile_picture_version=0,
         )
+        if updated is not None:
+            invalidate_cached_user_by_id_sync(user.id, self.db)
         # Invalidate cached URLs
         try:
             if self.cache:

@@ -259,6 +259,18 @@ def test_user_to_dict_includes_tokens_valid_after_ts():
     assert result["tokens_valid_after_ts"] == int(user.tokens_valid_after.timestamp())
 
 
+def test_user_to_dict_includes_profile_picture_key_and_phone_verified():
+    user = User(email="user@example.com")
+    user.roles = []
+    user.profile_picture_key = "private/personal-assets/profile-pictures/user1/v1/original.jpg"
+    user.profile_picture_version = 1
+    user.phone_verified = True
+
+    result = auth_cache._user_to_dict(user)
+    assert result["profile_picture_key"] == user.profile_picture_key
+    assert result["phone_verified"] is True
+
+
 @pytest.mark.asyncio
 async def test_lookup_user_by_id_nonblocking(monkeypatch):
     async def fake_get_cached(_identifier):
@@ -293,6 +305,20 @@ def test_create_transient_user_and_permissions():
     user = auth_cache.create_transient_user(user_data)
     assert len(user.roles) == 3
     assert auth_cache.user_has_cached_permission(user, "perm.view") is True
+
+
+def test_create_transient_user_restores_profile_picture_key_and_phone_verified():
+    user_data = {
+        "id": "user1",
+        "email": "user@example.com",
+        "profile_picture_key": "private/personal-assets/profile-pictures/user1/v1/original.jpg",
+        "profile_picture_version": 1,
+        "phone_verified": True,
+    }
+    user = auth_cache.create_transient_user(user_data)
+    assert user.profile_picture_key == user_data["profile_picture_key"]
+    assert user.phone_verified is True
+    assert user.has_profile_picture is True
 
 
 def test_create_transient_user_without_roles():

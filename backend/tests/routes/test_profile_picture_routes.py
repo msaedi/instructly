@@ -68,6 +68,12 @@ def test_signed_upload_and_finalize_profile_picture(client, db, auth_headers):
     settings.r2_account_id = "test-account"
     # Step 1: request signed upload for profile picture via stubbed storage service
     with _stub_personal_asset_service(db, client.app) as svc:
+        warm_me = client.get("/api/v1/auth/me", headers=auth_headers)
+        assert warm_me.status_code == 200
+        warm_me_json = warm_me.json()
+        assert warm_me_json.get("has_profile_picture") is False
+        assert warm_me_json.get("profile_picture_version") == 0
+
         resp = client.post(
             "/api/v1/uploads/r2/signed-url",
             json={
@@ -105,6 +111,8 @@ def test_signed_upload_and_finalize_profile_picture(client, db, auth_headers):
         me_json = me.json()
         user_id = me_json.get("id") or me_json.get("data", {}).get("id")
         assert user_id, f"unexpected /api/auth/me response: {me_json}"
+        assert me_json.get("has_profile_picture") is True
+        assert (me_json.get("profile_picture_version") or 0) > 0
 
         resp3 = client.get(f"/api/v1/users/{user_id}/profile-picture-url?variant=thumb", headers=auth_headers)
         assert resp3.status_code == 200, resp3.text
