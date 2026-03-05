@@ -30,6 +30,10 @@ from ..models.user import User  # Used in _user_to_dict type hint and create_tra
 
 logger = logging.getLogger(__name__)
 
+# Set of strong references to fire-and-forget tasks to prevent GC from
+# destroying them before completion (per Python docs asyncio.Task guidance).
+_background_tasks: set["asyncio.Task[Any]"] = set()
+
 # Cache TTL for user lookups (30 minutes - roles/permissions rarely change)
 # Increased from 5 min to reduce DB pressure under load (users can re-login if role changes)
 USER_CACHE_TTL_SECONDS = 1800
@@ -121,16 +125,19 @@ async def invalidate_cached_user(user_id: str) -> bool:
         return False
 
     try:
-        redis = await _get_auth_redis_client()
+        redis = await asyncio.wait_for(_get_auth_redis_client(), timeout=2.0)
         if redis is None:
             return False
 
         cache_key = _cache_key_for_id(user_id)
-        deleted_total = int(await redis.delete(cache_key))
+        deleted_total = int(await asyncio.wait_for(redis.delete(cache_key), timeout=2.0))
 
         if deleted_total:
             logger.info("[AUTH-CACHE] INVALIDATED user %s", user_id)
         return bool(deleted_total)
+    except asyncio.TimeoutError:
+        logger.warning("[AUTH-CACHE] Cache invalidation timed out for user %s", user_id)
+        return False
     except Exception as e:
         logger.warning("[AUTH-CACHE] Cache invalidation failed: %s", e)
         return False
@@ -158,20 +165,21 @@ def invalidate_cached_user_by_id_sync(user_id: str, db_session: Any) -> bool:
             # Event loop is running - schedule as task (fire-and-forget)
             # Cache invalidation is best-effort, so this is acceptable
             task = loop.create_task(invalidate_cached_user(user_id))
+            _background_tasks.add(task)
 
             def _on_done(t: "asyncio.Task[bool]") -> None:
+                _background_tasks.discard(t)
                 if t.cancelled():
                     return
                 exc = t.exception()
                 if exc is not None:
-                    logger.error(
+                    logger.warning(
                         "Fire-and-forget cache invalidation failed for user %s: %s",
                         user_id,
                         exc,
                     )
 
-            if hasattr(task, "add_done_callback"):
-                task.add_done_callback(_on_done)
+            task.add_done_callback(_on_done)
             logger.debug("[AUTH-CACHE] Scheduled async invalidation for %s", user_id)
             return True
         except RuntimeError:

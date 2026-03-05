@@ -158,13 +158,22 @@ def test_invalidate_cached_user_by_id_sync_empty_id_returns_false():
 
 
 def test_invalidate_cached_user_by_id_sync_event_loop_running(monkeypatch):
+    class StubTask:
+        def __init__(self):
+            self._done_callbacks = []
+
+        def add_done_callback(self, fn):
+            self._done_callbacks.append(fn)
+
     class StubLoop:
         def __init__(self):
             self.tasks = []
 
         def create_task(self, coro):
             coro.close()
-            self.tasks.append("closed")
+            task = StubTask()
+            self.tasks.append(task)
+            return task
 
     async def fake_invalidate(_email):
         return True
@@ -442,7 +451,7 @@ def test_invalidate_sync_task_done_callback_with_exception(monkeypatch, caplog):
     task = loop.tasks[0]
     assert len(task._done_callbacks) == 1
 
-    with caplog.at_level(logging.ERROR):
+    with caplog.at_level(logging.WARNING):
         task._done_callbacks[0](task)
 
     assert any(
@@ -534,3 +543,65 @@ def test_user_has_cached_permission_orm_fallback_iterates_roles():
     assert auth_cache.user_has_cached_permission(user, "perm.c") is True
     # Should not find a permission that doesn't exist
     assert auth_cache.user_has_cached_permission(user, "perm.d") is False
+
+
+# ── Sentry fix regression tests: timeout, task tracking, log level ──
+
+
+@pytest.mark.asyncio
+async def test_invalidate_cached_user_timeout(monkeypatch):
+    """invalidate_cached_user returns False on timeout (Sentry 3F/3G fix)."""
+
+    async def slow_redis_client():
+        await asyncio.sleep(10)  # will be cancelled by wait_for
+        return StubRedis()
+
+    monkeypatch.setattr(auth_cache, "_get_auth_redis_client", slow_redis_client)
+
+    result = await auth_cache.invalidate_cached_user("01ARZ3NDEKTSV4RRFFQ69G5FAV")
+    assert result is False
+
+
+def test_background_tasks_set_tracks_fire_and_forget(monkeypatch):
+    """Fire-and-forget tasks are stored in _background_tasks to prevent GC (Sentry 3G fix)."""
+    created_tasks = []
+
+    class StubTask:
+        def __init__(self):
+            self._done_callbacks = []
+
+        def add_done_callback(self, fn):
+            self._done_callbacks.append(fn)
+
+    class StubLoop:
+        def create_task(self, coro):
+            coro.close()
+            task = StubTask()
+            created_tasks.append(task)
+            return task
+
+    async def fake_invalidate(_user_id):
+        return True
+
+    monkeypatch.setattr(auth_cache, "invalidate_cached_user", fake_invalidate)
+    monkeypatch.setattr(asyncio, "get_running_loop", lambda: StubLoop())
+
+    # Clear the set before test
+    auth_cache._background_tasks.clear()
+
+    auth_cache.invalidate_cached_user_by_id_sync("user-id", object())
+
+    assert len(created_tasks) == 1
+    task = created_tasks[0]
+    # Task should be in the background set
+    assert task in auth_cache._background_tasks
+
+    # Simulate task completion via done callback — should be removed from set
+    assert len(task._done_callbacks) == 1
+
+    # Simulate successful completion (not cancelled, no exception)
+    task.cancelled = lambda: False
+    task.exception = lambda: None
+
+    task._done_callbacks[0](task)
+    assert task not in auth_cache._background_tasks

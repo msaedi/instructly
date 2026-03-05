@@ -78,7 +78,7 @@ async def get_async_cache_redis_client() -> Optional[AsyncRedis]:
             try:
                 await client.ping()
             except BaseException as exc:
-                logger.error("[REDIS-CACHE] Async Redis client FAILED to connect: %s", exc)
+                logger.warning("[REDIS-CACHE] Async Redis client FAILED to connect: %s", exc)
                 with contextlib.suppress(BaseException):
                     await client.aclose()
                 return None
