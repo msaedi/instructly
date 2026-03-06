@@ -9915,5 +9915,9 @@ describe('PaymentConfirmation', () => {
       expect(buildDisplayDate('2025-02-01')?.toISOString()).toContain('2025-02-01T00:00:00');
       expect(buildDisplayDate(new Date('invalid'))).toBeNull();
     });
+
+    it('treats corrupted non-string date payloads as invalid', () => {
+      expect(buildDisplayDate(20250306 as unknown as string)).toBeNull();
+    });
   });
 });

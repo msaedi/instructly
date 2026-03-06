@@ -153,6 +153,28 @@ describe('useWeekSchedule', () => {
 
       expect(result.current.currentWeekStart).toBeDefined();
     });
+
+    it('returns an empty currentWeekDisplay when there are no week dates', async () => {
+      const dateHelpers = jest.requireMock('@/lib/availability/dateHelpers') as {
+        getWeekDates: jest.Mock;
+      };
+      const originalGetWeekDates = dateHelpers.getWeekDates.getMockImplementation();
+      dateHelpers.getWeekDates.mockReturnValue([]);
+
+      try {
+        const { result } = renderHook(() => useWeekSchedule());
+
+        await act(async () => {
+          await new Promise((r) => setTimeout(r, 0));
+        });
+
+        expect(result.current.currentWeekDisplay).toBe('');
+      } finally {
+        if (originalGetWeekDates) {
+          dateHelpers.getWeekDates.mockImplementation(originalGetWeekDates);
+        }
+      }
+    });
   });
 
   describe('unsaved changes detection', () => {

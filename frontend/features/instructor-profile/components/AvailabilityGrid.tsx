@@ -85,9 +85,7 @@ export function AvailabilityGrid({
     if (/^\d{2}:\d{2}$/.test(label)) return label; // already HH:MM
     const match = label.match(/(\d+)(am|pm)/i);
     if (!match) return label;
-    const hourStr = at(match, 1);
-    const amPm = at(match, 2);
-    if (!hourStr || !amPm) return label;
+    const [, hourStr = '', amPm = ''] = match;
     let hour = parseInt(hourStr);
     const isPm = amPm.toLowerCase() === 'pm';
     if (isPm && hour !== 12) hour += 12;
@@ -103,13 +101,12 @@ export function AvailabilityGrid({
     }
 
     const dayData = data?.availability_by_date?.[dateStr];
-    if (!dayData?.available_slots) return 60;
+    if (!dayData) {
+      return 0;
+    }
 
     // Parse the start hour from the time string (format: "HH:00")
-    const timeParts = startTime.split(':');
-    const hourPart = at(timeParts, 0);
-    if (!hourPart) return 60;
-    const startHour = parseInt(hourPart);
+    const startHour = Number.parseInt(startTime, 10);
 
     // Find the slot that contains this start time
     const containingSlot = dayData.available_slots.find((slot: AvailabilitySlot) => {
@@ -123,12 +120,16 @@ export function AvailabilityGrid({
       return startHour >= slotStart && startHour < slotEnd;
     });
 
-    if (!containingSlot) return 60;
+    if (!containingSlot) {
+      return 0;
+    }
 
     // Calculate how many minutes are available from the start time to the end of the slot
     const endTimeParts = containingSlot.end_time.split(':');
     const endHourPart = at(endTimeParts, 0);
-    if (!endHourPart) return 60;
+    if (!endHourPart) {
+      return 0;
+    }
     const slotEndHour = parseInt(endHourPart);
     const availableHours = slotEndHour - startHour;
     return availableHours * 60;
@@ -222,8 +223,7 @@ export function AvailabilityGrid({
 
     if (!hasAnyInRange) {
       const sortedDates = availableDates.sort();
-      const earliest = at(sortedDates, 0);
-      if (!earliest) return;
+      const earliest = sortedDates[0]!;
       const dateParts = earliest.split('-').map(Number);
       const y = at(dateParts, 0) ?? 2024;
       const m = at(dateParts, 1) ?? 1;

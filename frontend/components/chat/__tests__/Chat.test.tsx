@@ -2,6 +2,13 @@ import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Chat } from '../Chat';
+import {
+  canEditChatMessage,
+  getIsAtBottom,
+  getTimestampIsoOrEmpty,
+  reloadChatView,
+  triggerChatReload,
+} from '../Chat.helpers';
 import type { ConversationMessage } from '@/types/conversation';
 
 const mockUseConversationMessages = jest.fn();
@@ -185,6 +192,31 @@ describe('Chat mark-as-read behavior', () => {
     );
 
     await waitFor(() => expect(markMessagesAsReadMutate).toHaveBeenCalledTimes(2));
+  });
+
+  it('ignores unread messages with invalid timestamps when choosing the latest message to mark read', async () => {
+    setHistoryMessages([
+      buildMessage('msg-invalid', {
+        read_by: [],
+        created_at: 'not-a-real-date',
+      }),
+      buildMessage('msg-valid', {
+        read_by: [],
+        created_at: new Date('2024-01-01T03:00:00Z').toISOString(),
+      }),
+    ]);
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Chat {...baseProps} />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() =>
+      expect(markMessagesAsReadMutate).toHaveBeenCalledWith({
+        message_ids: ['msg-valid'],
+      }),
+    );
   });
 });
 
@@ -2275,6 +2307,85 @@ describe('Chat coverage improvement tests', () => {
     expect(reloadButton).toBeInTheDocument();
     // Click should not throw in test environment
     fireEvent.click(reloadButton);
+  });
+
+  it('reloads the page from retry actions outside the test environment', async () => {
+    const reload = jest.fn();
+
+    reloadChatView(reload, 'production');
+    reloadChatView(reload, 'development');
+
+    expect(reload).toHaveBeenCalledTimes(2);
+  });
+
+  it('skips reload actions in test and safely serializes invalid timestamps', () => {
+    const reload = jest.fn();
+
+    reloadChatView(reload, 'test');
+
+    expect(reload).not.toHaveBeenCalled();
+    expect(getTimestampIsoOrEmpty(new Date('invalid'))).toBe('');
+    expect(getTimestampIsoOrEmpty(undefined)).toBe('');
+  });
+
+  it('uses the shared reload helper for chat retry actions', () => {
+    expect(() => triggerChatReload()).not.toThrow();
+  });
+
+  it('treats non-own, deleted, and expired messages as non-editable', () => {
+    const nowMs = Date.parse('2026-03-05T12:00:00.000Z');
+
+    expect(
+      canEditChatMessage(
+        { sender_id: 'other-user', created_at: '2026-03-05T11:59:00.000Z' },
+        baseProps.currentUserId,
+        nowMs,
+        5,
+      )
+    ).toBe(false);
+
+    expect(
+      canEditChatMessage(
+        {
+          sender_id: baseProps.currentUserId,
+          is_deleted: true,
+          created_at: '2026-03-05T11:59:00.000Z',
+        },
+        baseProps.currentUserId,
+        nowMs,
+        5,
+      )
+    ).toBe(false);
+
+    expect(
+      canEditChatMessage(
+        {
+          sender_id: baseProps.currentUserId,
+          created_at: '2026-03-05T11:50:00.000Z',
+        },
+        baseProps.currentUserId,
+        nowMs,
+        5,
+      )
+    ).toBe(false);
+  });
+
+  it('returns null for missing scroll containers and computes bottom state when present', () => {
+    expect(getIsAtBottom(null)).toBeNull();
+    expect(
+      getIsAtBottom({
+        scrollTop: 850,
+        scrollHeight: 1000,
+        clientHeight: 100,
+      })
+    ).toBe(true);
+    expect(
+      getIsAtBottom({
+        scrollTop: 100,
+        scrollHeight: 1000,
+        clientHeight: 100,
+      })
+    ).toBe(false);
   });
 
   it('handles SSE onReaction for adding a new reaction', async () => {

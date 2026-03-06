@@ -22,14 +22,16 @@ import { usePricingFloors } from '@/lib/pricing/usePricingFloors';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useScrollLock } from '@/hooks/useScrollLock';
 import {
-  computeBasePriceCents,
-  computePriceFloorCents,
   formatCents,
   normalizeModality,
   type NormalizedModality,
 } from '@/lib/pricing/priceFloors';
 import {
+  areNumberSetsEqual,
+  consumePreparedBookingTiming,
   formatAvailabilityDateLabel,
+  getPriceFloorViolation,
+  parseDisplayTimeToMinutes,
   prepareBookingTiming,
   reconcileTimeSelection,
 } from './TimeSelectionModal.helpers';
@@ -443,7 +445,6 @@ export default function TimeSelectionModal({
   const formatDateLabel = useCallback((isoDate: string) => formatAvailabilityDateLabel(isoDate), []);
 
   useEffect(() => {
-    if (durationOptions.length === 0) return;
     const hasSelection = durationOptions.some((option) => option.duration === selectedDuration);
     if (!hasSelection) {
       const [firstOption] = durationOptions;
@@ -492,17 +493,13 @@ export default function TimeSelectionModal({
   }, [bookingDraftId, effectiveAppliedCreditCents, isOpen]);
 
   const priceFloorViolation = useMemo(() => {
-    if (!pricingFloors) return null;
-    if (!selectedService) return null;
-    if (!Number.isFinite(selectedHourlyRate) || selectedHourlyRate <= 0) return null;
-    if (!Number.isFinite(selectedDuration) || selectedDuration <= 0) return null;
-
-    const floorCents = computePriceFloorCents(pricingFloors, selectedModality, selectedDuration);
-    const baseCents = computeBasePriceCents(selectedHourlyRate, selectedDuration);
-    if (baseCents < floorCents) {
-      return { floorCents, baseCents };
-    }
-    return null;
+    return getPriceFloorViolation({
+      pricingFloors,
+      hasSelectedService: Boolean(selectedService),
+      selectedHourlyRate,
+      selectedDuration,
+      selectedModality,
+    });
   }, [pricingFloors, selectedDuration, selectedHourlyRate, selectedModality, selectedService]);
 
   const priceFloorWarning = useMemo(() => {
@@ -716,13 +713,14 @@ export default function TimeSelectionModal({
         selectedTime,
         selectedDuration,
       });
-      if (!preparedTiming.ok) return void logger.error(preparedTiming.logMessage, preparedTiming.logContext);
+      const resolvedTiming = consumePreparedBookingTiming(preparedTiming, logger.error);
+      if (!resolvedTiming) return;
       const {
         parsedTime: { hour, minute, normalizedTimeHHMM },
         startTime,
         endTime,
         bookingDateTime,
-      } = preparedTiming;
+      } = resolvedTiming;
 
       // If callback provided, use it
       if (onTimeSelected) {
@@ -991,20 +989,6 @@ export default function TimeSelectionModal({
 
       const additionalDisabled: number[] = [];
       if (selectedTime) {
-        const parseDisplayTimeToMinutes = (display: string): number => {
-          const lower = display.toLowerCase();
-          const isPM = lower.includes('pm');
-          const isAM = lower.includes('am');
-          const core = lower.replace(/am|pm/g, '').trim();
-          const [hh, mm] = core.split(':');
-          if (!hh || !mm) return 0;
-          let hour = parseInt(hh, 10);
-          const minute = parseInt(mm || '0', 10);
-          if (isPM && hour !== 12) hour += 12;
-          if (!isPM && isAM && hour === 12) hour = 0;
-          return hour * 60 + minute;
-        };
-
         const selectedStartMins = parseDisplayTimeToMinutes(selectedTime);
 
         const isDurationValidForSelectedTime = (dur: number): boolean => {
@@ -1073,19 +1057,6 @@ export default function TimeSelectionModal({
 
       const additionalDisabled: number[] = [];
       if (selectedTime) {
-        const parseDisplayTimeToMinutes = (display: string): number => {
-          const lower = display.toLowerCase();
-          const isPM = lower.includes('pm');
-          const isAM = lower.includes('am');
-          const core = lower.replace(/am|pm/g, '').trim();
-          const [hh, mm] = core.split(':');
-          let hour = parseInt(hh || '0', 10);
-          const minute = parseInt(mm || '0', 10);
-          if (isPM && hour !== 12) hour += 12;
-          if (!isPM && isAM && hour === 12) hour = 0;
-          return hour * 60 + minute;
-        };
-
         const selectedStartMins = parseDisplayTimeToMinutes(selectedTime);
 
         const isDurationValidForSelectedTime = (dur: number): boolean => {
@@ -1105,16 +1076,7 @@ export default function TimeSelectionModal({
 
       const combined = Array.from(new Set([...baseDisabled, ...additionalDisabled]));
 
-      const areSetsEqual = (a: number[], b: number[]) => {
-        if (a.length !== b.length) return false;
-        const setA = new Set(a);
-        for (const v of b) {
-          if (!setA.has(v)) return false;
-        }
-        return true;
-      };
-
-      setDisabledDurations((prev) => (areSetsEqual(prev, combined) ? prev : combined));
+      setDisabledDurations((prev) => (areNumberSetsEqual(prev, combined) ? prev : combined));
     } catch (e) {
       logger.error('Failed to recompute disabled durations on time change', e);
     }

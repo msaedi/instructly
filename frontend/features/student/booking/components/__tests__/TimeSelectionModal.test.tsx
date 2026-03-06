@@ -2,8 +2,12 @@ import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import TimeSelectionModal from '../TimeSelectionModal';
 import {
+  areNumberSetsEqual,
   buildBookingDateTime,
+  consumePreparedBookingTiming,
   formatAvailabilityDateLabel,
+  getPriceFloorViolation,
+  parseDisplayTimeToMinutes,
   parseDisplayedTime,
   prepareBookingTiming,
   reconcileTimeSelection,
@@ -52,6 +56,9 @@ jest.mock('@/lib/time', () => ({
 }));
 
 const timeToMinutesMock = timeToMinutes as jest.MockedFunction<typeof timeToMinutes>;
+const consumePreparedBookingTimingMock = consumePreparedBookingTiming as jest.MockedFunction<
+  typeof consumePreparedBookingTiming
+>;
 
 jest.mock('@/components/user/UserAvatar', () => ({
   UserAvatar: ({ user }: { user: { first_name: string } }) => (
@@ -249,6 +256,9 @@ describe('TimeSelectionModal', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    consumePreparedBookingTimingMock.mockImplementation(
+      actualTimeSelectionHelpers.consumePreparedBookingTiming
+    );
     calendarOnDateSelect = null;
     calendarOnMonthChange = null;
     summaryOnContinue = null;
@@ -6273,6 +6283,33 @@ describe('TimeSelectionModal', () => {
     });
   });
 
+  describe('handleContinue with corrupted duration state', () => {
+    it('logs and returns null when prepared timing is invalid', () => {
+      const logError = jest.fn();
+
+      expect(
+        consumePreparedBookingTiming(
+          {
+            ok: false,
+            logMessage: 'Invalid booking date/time',
+            logContext: {
+              dateTimeString: 'bad-value',
+              selectedDate: getDateString(1),
+              startTime: '09:00:00',
+            },
+          },
+          logError,
+        )
+      ).toBeNull();
+
+      expect(logError).toHaveBeenCalledWith('Invalid booking date/time', {
+        dateTimeString: 'bad-value',
+        selectedDate: getDateString(1),
+        startTime: '09:00:00',
+      });
+    });
+  });
+
   describe('handleContinue — booking flow validates all time parsing paths', () => {
     it('processes a 9:30am selection with 90-minute duration (minute overflow path)', async () => {
       const onClose = jest.fn();
@@ -6447,6 +6484,43 @@ describe('TimeSelectionModal', () => {
       }
 
       // No crash means cancelled flag worked correctly
+    });
+
+    it('ignores rejected pricing previews after cleanup has cancelled the request', async () => {
+      const { ApiProblemError } = await import('@/lib/api/fetch');
+      const mockResponse = { status: 422 } as Response;
+      let rejectPreview: ((error: unknown) => void) | null = null;
+      fetchPricingPreviewMock.mockImplementation(
+        () =>
+          new Promise((_, reject) => {
+            rejectPreview = reject as (error: unknown) => void;
+          })
+      );
+
+      const { unmount } = render(
+        <TimeSelectionModal {...defaultProps} bookingDraftId="draft-cancel-reject" isOpen={true} />
+      );
+
+      await waitFor(() => {
+        expect(fetchPricingPreviewMock).toHaveBeenCalled();
+      });
+
+      unmount();
+
+      const rejectPendingPreview = rejectPreview;
+      if (rejectPendingPreview) {
+        const reject = rejectPendingPreview as (error: unknown) => void;
+        reject(
+          new ApiProblemError(
+            { type: 'validation_error', title: 'Error', detail: 'Below minimum', status: 422 },
+            mockResponse
+          )
+        );
+      }
+
+      await act(async () => {
+        await Promise.resolve();
+      });
     });
   });
 
@@ -6825,6 +6899,34 @@ describe('TimeSelectionModal', () => {
   });
 
   describe('uncovered: handleContinue invalid time format guards', () => {
+    it('returns early when a date is selected but the prepared timing still resolves to null', async () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+      consumePreparedBookingTimingMock.mockReturnValueOnce(null);
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(calendarOnDateSelect).not.toBeNull();
+        expect(timeDropdownOnTimeSelect).not.toBeNull();
+        expect(summaryOnContinue).not.toBeNull();
+      });
+
+      await act(async () => {
+        calendarOnDateSelect?.(dates[0] ?? getDateString(1));
+      });
+
+      await act(async () => {
+        timeDropdownOnTimeSelect?.('9:00 AM');
+      });
+
+      await act(async () => {
+        summaryOnContinue?.();
+      });
+
+      expect(storeBookingIntentMock).not.toHaveBeenCalled();
+    });
+
     it('returns early when time has no colon (lines 741-743)', async () => {
       // Lines 741-743: hourStr/minuteStr falsy guard
       // Force selectedTime to "am" which after replace(/[ap]m/gi, '').trim() becomes ""
@@ -8670,12 +8772,35 @@ describe('TimeSelectionModal', () => {
           preferredTime: '10:00am',
         }),
       ).toBeNull();
+
+      expect(
+        reconcileTimeSelection({
+          selectedTime: null,
+          timeSlots: ['8:30am', '9:00am'],
+          preferredTime: null,
+        }),
+      ).toBe('8:30am');
     });
 
     it('formats availability date labels for empty, invalid, and valid dates', () => {
       expect(formatAvailabilityDateLabel('')).toBe('');
       expect(formatAvailabilityDateLabel('not-a-date')).toBe('not-a-date');
       expect(formatAvailabilityDateLabel('2026-03-06')).toBe('Mar 6');
+    });
+
+    it('ignores price-floor checks when the selected duration is invalid', () => {
+      expect(
+        getPriceFloorViolation({
+          pricingFloors: {
+            private_in_person: 5000,
+            private_remote: 4000,
+          },
+          hasSelectedService: true,
+          selectedHourlyRate: 80,
+          selectedDuration: Number.NaN,
+          selectedModality: 'in_person',
+        })
+      ).toBeNull();
     });
 
     it('parses displayed times and returns explicit error kinds for invalid values', () => {
@@ -8710,6 +8835,15 @@ describe('TimeSelectionModal', () => {
     it('builds valid booking datetimes and rejects invalid ones', () => {
       expect(buildBookingDateTime('not-a-date', '10:00:00')).toBeNull();
       expect(buildBookingDateTime('2026-03-06', '10:00:00')?.toISOString()).toContain('2026-03-06T10:00:00');
+    });
+
+    it('converts display times to minutes and compares duration sets without caring about order', () => {
+      expect(parseDisplayTimeToMinutes('invalid')).toBe(0);
+      expect(parseDisplayTimeToMinutes('1:15pm')).toBe(13 * 60 + 15);
+      expect(parseDisplayTimeToMinutes('12:00am')).toBe(0);
+
+      expect(areNumberSetsEqual([30, 60], [60, 30])).toBe(true);
+      expect(areNumberSetsEqual([30, 60], [30, 90])).toBe(false);
     });
 
     it('prepares booking timing and surfaces invalid time or date payloads explicitly', () => {
@@ -8795,4 +8929,15 @@ describe('TimeSelectionModal', () => {
       });
     });
   });
+});
+const actualTimeSelectionHelpers = jest.requireActual<typeof import('../TimeSelectionModal.helpers')>(
+  '../TimeSelectionModal.helpers'
+);
+
+jest.mock('../TimeSelectionModal.helpers', () => {
+  const actual = jest.requireActual('../TimeSelectionModal.helpers');
+  return {
+    ...actual,
+    consumePreparedBookingTiming: jest.fn(actual.consumePreparedBookingTiming),
+  };
 });

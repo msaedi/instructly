@@ -262,6 +262,39 @@ describe('useUserMessageStream', () => {
       expect(MockEventSource.instances).toHaveLength(0);
     });
 
+    it('skips a follow-up connect attempt after auth has already been rejected', async () => {
+      mockFetchWithAuth.mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: async () => ({}),
+      });
+
+      const { rerender } = renderHook(() => useUserMessageStream());
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      const initialFetchCalls = mockFetchWithAuth.mock.calls.length;
+
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        user: { id: 'user-1', first_name: 'John', role: 'student' },
+        checkAuth: mockCheckAuth,
+      });
+
+      rerender();
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(mockFetchWithAuth).toHaveBeenCalledTimes(initialFetchCalls);
+      expect(MockEventSource.instances).toHaveLength(0);
+    });
+
     it('sets auth rejected when SSE token returns 403', async () => {
       mockFetchWithAuth.mockResolvedValue({
         ok: false,

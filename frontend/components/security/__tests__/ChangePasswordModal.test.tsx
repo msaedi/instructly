@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ChangePasswordModal from '../ChangePasswordModal';
+import { invokeReactClick } from '@/test-utils/reactEventHandlers';
 import { fetchWithAuth } from '@/lib/api';
 
 jest.mock('@/lib/api', () => ({
@@ -31,7 +32,7 @@ describe('ChangePasswordModal', () => {
   it('disables submit when inputs are invalid', () => {
     renderModal();
 
-    const saveButton = screen.getByRole('button', { name: 'Save password' });
+    const saveButton = screen.getByRole('button', { name: 'Save password' }) as HTMLButtonElement;
     expect(saveButton).toBeDisabled();
   });
 
@@ -191,6 +192,19 @@ describe('ChangePasswordModal', () => {
 
     // Button should be disabled
     expect(screen.getByRole('button', { name: 'Save password' })).toBeDisabled();
+    expect(fetchWithAuthMock).not.toHaveBeenCalled();
+  });
+
+  it('still refuses submission if the save button is triggered programmatically while invalid', async () => {
+    renderModal();
+
+    const [currentInput, newInput, confirmInput] = getPasswordInputs();
+    await userEvent.type(currentInput, '12345');
+    await userEvent.type(newInput, 'newpassword');
+    await userEvent.type(confirmInput, 'newpassword');
+
+    invokeReactClick(screen.getByRole('button', { name: 'Save password' }));
+
     expect(fetchWithAuthMock).not.toHaveBeenCalled();
   });
 });

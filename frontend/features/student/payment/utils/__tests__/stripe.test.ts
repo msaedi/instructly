@@ -45,6 +45,32 @@ describe('formatAmountForStripe', () => {
   });
 });
 
+describe('Stripe element configuration', () => {
+  it('exposes the expected custom font configuration', () => {
+    const { stripeModule } = setupModule('pk_live_123');
+    expect(stripeModule.stripeElementsOptions.fonts).toEqual([
+      expect.objectContaining({
+        cssSrc: expect.stringContaining('fonts.googleapis.com'),
+      }),
+    ]);
+  });
+
+  it('exposes the expected card element styles', () => {
+    const { stripeModule } = setupModule('pk_live_123');
+    expect(stripeModule.cardElementOptions.style.base).toEqual(
+      expect.objectContaining({
+        fontSize: '16px',
+        color: '#374151',
+      }),
+    );
+    expect(stripeModule.cardElementOptions.style.invalid).toEqual(
+      expect.objectContaining({
+        color: '#EF4444',
+      }),
+    );
+  });
+});
+
 describe('formatAmountFromStripe', () => {
   it('converts cents to dollars', () => {
     const { stripeModule } = setupModule('pk_live_123');

@@ -6,6 +6,7 @@ import React from 'react';
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { invokeReactClick } from '@/test-utils/reactEventHandlers';
 
 // Shared mock implementations
 const stripeMocks = {
@@ -1505,6 +1506,12 @@ describe('CheckoutFlow', () => {
       await waitFor(() => {
         const payButton = screen.getByRole('button', { name: /Pay/ });
         expect(payButton).toBeDisabled();
+      });
+
+      invokeReactClick(screen.getByRole('button', { name: /Pay/ }));
+
+      await waitFor(() => {
+        expect(screen.getByText('Stripe not initialized')).toBeInTheDocument();
       });
 
       // Restore

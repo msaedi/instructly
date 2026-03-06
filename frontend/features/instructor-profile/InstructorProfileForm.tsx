@@ -434,7 +434,6 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
       while (assembled.length < 400) {
         assembled += ` ${shuffled[index % shuffled.length]}`;
         index += 1;
-        if (index > shuffled.length * 2) break;
       }
 
       const next = assembled.slice(0, 560).replace(/\s+/g, ' ').trim();

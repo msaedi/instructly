@@ -1095,6 +1095,72 @@ describe('InstructorCoverageMap', () => {
       // Should render without errors even with invalid bounds
       expect(screen.getByTestId('map-container')).toBeInTheDocument();
     });
+
+    it('no-ops when FitToCoverage is mounted without usable coverage or pin data', () => {
+      let reads = 0;
+      const malformedPins = {
+        get length() {
+          reads += 1;
+          return reads === 1 ? 1 : 0;
+        },
+      };
+
+      render(
+        <InstructorCoverageMap
+          showCoverage={false}
+          locationPins={malformedPins as unknown as Array<{ lat: number; lng: number }>}
+        />
+      );
+
+      expect(mockMap.fitBounds).not.toHaveBeenCalled();
+      expect(screen.getByTestId('map-container')).toBeInTheDocument();
+    });
+
+    it('does not refit when the logical instructor dataset has not changed', () => {
+      const L = jest.requireMock('leaflet');
+      const originalGeoJson = L.geoJSON.getMockImplementation();
+      L.geoJSON.mockReturnValue({
+        getBounds: jest.fn(() => ({
+          isValid: jest.fn(() => true),
+          getNorth: () => 41,
+          getSouth: () => 40,
+          getEast: () => -73,
+          getWest: () => -74,
+        })),
+        remove: jest.fn(),
+      });
+      mockMap.fitBounds.mockClear();
+
+      const { rerender } = render(
+        <InstructorCoverageMap
+          featureCollection={mockFeatureCollection}
+          showCoverage={true}
+        />
+      );
+
+      return waitFor(() => {
+        expect(mockMap.fitBounds).toHaveBeenCalledTimes(1);
+
+        rerender(
+          <InstructorCoverageMap
+            featureCollection={{
+              ...mockFeatureCollection,
+              features: mockFeatureCollection.features.map((feature) => ({
+                ...feature,
+                properties: { ...feature.properties },
+              })),
+            }}
+            showCoverage={true}
+          />
+        );
+
+        expect(mockMap.fitBounds).toHaveBeenCalledTimes(1);
+      }).finally(() => {
+        if (originalGeoJson) {
+          L.geoJSON.mockImplementation(originalGeoJson);
+        }
+      });
+    });
   });
 
   describe('GeoJSON styling', () => {
@@ -1309,6 +1375,26 @@ describe('InstructorCoverageMap', () => {
       createdPinMarkers.forEach(marker => {
         expect(marker.remove).toHaveBeenCalled();
       });
+    });
+
+    it('lets MapPins exit cleanly when pins disappear before its effect runs', () => {
+      let reads = 0;
+      const shrinkingPins = {
+        get length() {
+          reads += 1;
+          return reads === 1 ? 1 : 0;
+        },
+      };
+
+      render(
+        <InstructorCoverageMap
+          featureCollection={mockFeatureCollection}
+          locationPins={shrinkingPins as unknown as Array<{ lat: number; lng: number }>}
+        />
+      );
+
+      expect(createdPinMarkers).toHaveLength(0);
+      expect(screen.getByTestId('map-container')).toBeInTheDocument();
     });
   });
 

@@ -178,27 +178,30 @@ describe('MessageInstructorButton', () => {
   });
 
   it('silently returns when authenticated user clicks but is the instructor (handleClick line 51)', async () => {
-    // Set up: user IS the instructor (user.id === instructorId)
-    // But the render check (line 58) hides the button entirely.
-    // Line 51 is the early return inside handleClick.
-    // Because line 58 renders null, handleClick can only be reached
-    // if there's a race condition where user.id changes after render.
-    // We simulate this by initially rendering with different IDs, then changing user.
+    let reads = 0;
+    const dynamicUser = {
+      get id() {
+        reads += 1;
+        return reads === 1 ? 'student_123' : 'instructor_456';
+      },
+    };
+
     mockUseAuth.mockReturnValue({
-      user: { id: 'student_123' },
+      user: dynamicUser,
       isAuthenticated: true,
       redirectToLogin: mockRedirectToLogin,
     });
 
     render(
-      <MessageInstructorButton instructorId="student_123" instructorName="Self" />,
+      <MessageInstructorButton instructorId="instructor_456" instructorName="Self" />,
       { wrapper: createWrapper() }
     );
 
-    // Button is not rendered because user.id === instructorId at line 58
-    // The early return at line 51 is a defensive guard behind the render-level null check.
-    // Both guards check user?.id === instructorId, so line 51 is unreachable in normal flow.
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /message self/i }));
+
+    await waitFor(() => {
+      expect(mockCreateConversation).not.toHaveBeenCalled();
+    });
   });
 
   it('applies custom className', () => {

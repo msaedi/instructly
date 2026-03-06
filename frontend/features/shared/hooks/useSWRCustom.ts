@@ -23,6 +23,7 @@ export function useSWRCustom<T>(
 
   // Track last fetch time for deduplication
   const lastFetchRef = useRef<number>(0);
+  const lastFetchKeyRef = useRef<Key>(null);
   const dedupingInterval = opts?.dedupingInterval ?? 2000;
   const refreshInterval = opts?.refreshInterval;
 
@@ -38,8 +39,15 @@ export function useSWRCustom<T>(
 
       // Dedupe: skip if we fetched recently (unless skipDedupe is true)
       const now = Date.now();
-      if (!skipDedupe && now - lastFetchRef.current < dedupingInterval) return;
+      if (
+        !skipDedupe &&
+        key === lastFetchKeyRef.current &&
+        now - lastFetchRef.current < dedupingInterval
+      ) {
+        return;
+      }
       lastFetchRef.current = now;
+      lastFetchKeyRef.current = key;
 
       setIsLoading(true);
       try {
@@ -52,8 +60,8 @@ export function useSWRCustom<T>(
       }
     };
 
-    // Initial fetch (skip dedupe check for first fetch)
-    void run(true);
+    // Initial fetch participates in dedupe so rapid rerenders don't double-request.
+    void run();
 
     // Optional polling if refreshInterval is explicitly set
     if (refreshInterval && refreshInterval > 0) {

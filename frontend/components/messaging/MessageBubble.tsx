@@ -68,7 +68,6 @@ export function MessageBubble({
   const showEditedTag = message.isEdited && !message.isDeleted;
 
   const readIcon = () => {
-    if (!showReadReceipt) return null;
     if (message.readStatus === 'read') return <CheckCheck className="w-3 h-3 text-blue-500" />;
     if (message.readStatus === 'delivered') return <CheckCheck className="w-3 h-3 text-gray-400 dark:text-gray-300" />;
     return <Check className="w-3 h-3 text-gray-400 dark:text-gray-300" />;

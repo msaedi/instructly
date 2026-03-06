@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { useOnboardingStepStatus } from './useOnboardingStepStatus';
+import { updateWalkerPosition } from './OnboardingProgressHeader.helpers';
 
 const STEP_DEFS = [
   { key: 'account-setup', label: 'Account Setup', href: '/instructor/onboarding/account-setup' },
@@ -84,7 +85,6 @@ export function OnboardingProgressHeader({ activeStep, autoEvaluate = false, ste
 
   const updateWalker = useCallback(() => {
     const container = progressRef.current;
-    if (!container) return;
 
     const resolveIndex = (key: OnboardingStepKey) => {
       const idx = STEP_ORDER.indexOf(key);
@@ -92,13 +92,12 @@ export function OnboardingProgressHeader({ activeStep, autoEvaluate = false, ste
     };
 
     const baseIndex = resolveIndex(walkerPath.start);
-    const button = stepButtonRefs.current[baseIndex] ?? stepButtonRefs.current[0];
-
-    if (!button) return;
-    const containerRect = container.getBoundingClientRect();
-    const targetRect = button.getBoundingClientRect();
-    const offset = targetRect.left - containerRect.left + targetRect.width / 2 - 8;
-    setWalkerLeft(offset);
+    updateWalkerPosition({
+      container,
+      buttons: stepButtonRefs.current,
+      baseIndex,
+      setWalkerLeft,
+    });
   }, [walkerPath.start]);
 
   useEffect(() => {

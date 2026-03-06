@@ -1,6 +1,7 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { getReactEventHandler, invokeReactClick } from '@/test-utils/reactEventHandlers';
 import SkillsPricingInline from '../SkillsPricingInline';
 import {
   applyPendingHydrationAcceptance,
@@ -18,6 +19,19 @@ import { evaluatePriceFloorViolations } from '@/lib/pricing/priceFloors';
 import { useSubcategoryFilters } from '@/hooks/queries/useTaxonomy';
 import { displayServiceName } from '@/lib/instructorServices';
 import { toast } from 'sonner';
+
+const actualSkillsPricingHelpers = jest.requireActual<typeof import('../SkillsPricingInline.helpers')>(
+  '../SkillsPricingInline.helpers'
+);
+
+jest.mock('../SkillsPricingInline.helpers', () => {
+  const actual = jest.requireActual('../SkillsPricingInline.helpers');
+  return {
+    ...actual,
+    applyPendingHydrationAcceptance: jest.fn(actual.applyPendingHydrationAcceptance),
+    getPendingHydrationAcceptance: jest.fn(actual.getPendingHydrationAcceptance),
+  };
+});
 
 jest.mock('@/features/shared/hooks/useAuth', () => ({
   useAuth: jest.fn(() => ({
@@ -101,6 +115,12 @@ const mockFetchWithAuth = fetchWithAuth as jest.Mock;
 const mockEvaluateViolations = evaluatePriceFloorViolations as jest.Mock;
 const mockUseSubcategoryFilters = useSubcategoryFilters as jest.Mock;
 const mockDisplayServiceName = displayServiceName as jest.Mock;
+const applyPendingHydrationAcceptanceMock = applyPendingHydrationAcceptance as jest.MockedFunction<
+  typeof applyPendingHydrationAcceptance
+>;
+const getPendingHydrationAcceptanceMock = getPendingHydrationAcceptance as jest.MockedFunction<
+  typeof getPendingHydrationAcceptance
+>;
 
 const categoriesData = [{ id: '01HABCTESTCAT0000000000001', name: 'Music', display_order: 1 }];
 const servicesData = {
@@ -116,6 +136,12 @@ const servicesData = {
 describe('SkillsPricingInline', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    applyPendingHydrationAcceptanceMock.mockImplementation(
+      actualSkillsPricingHelpers.applyPendingHydrationAcceptance
+    );
+    getPendingHydrationAcceptanceMock.mockImplementation(
+      actualSkillsPricingHelpers.getPendingHydrationAcceptance
+    );
     mockUseServiceCategories.mockReturnValue({ data: categoriesData, isLoading: false });
     mockUseAllServices.mockReturnValue({ data: servicesData, isLoading: false });
     mockUseInstructorProfileMe.mockReturnValue({ data: null });
@@ -344,6 +370,20 @@ describe('SkillsPricingInline', () => {
     expect(await screen.findByText(/we'll review/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/request a new skill/i)).toHaveValue('');
     jest.useRealTimers();
+  });
+
+  it('skips whitespace-only skill requests even if submit is triggered programmatically', async () => {
+    const user = userEvent.setup();
+
+    render(<SkillsPricingInline instructorProfile={{ is_live: false, services: [] } as never} />);
+
+    const requestInput = screen.getByPlaceholderText(/request a new skill/i);
+    await user.type(requestInput, '   ');
+
+    invokeReactClick(screen.getByRole('button', { name: /submit/i }));
+
+    expect(screen.queryByText(/we'll review/i)).not.toBeInTheDocument();
+    expect(requestInput).toHaveValue('   ');
   });
 
   it('toggles age group selection', async () => {
@@ -3874,6 +3914,61 @@ describe('SkillsPricingInline', () => {
       jest.useRealTimers();
     });
 
+    it('no-ops stale price-error clearing handlers after the error is already gone', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          service_area_neighborhoods: ['n1'],
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 30,
+            duration_options: [60],
+            offers_travel: true,
+          }],
+        },
+      });
+      mockUsePricingConfig.mockReturnValue({
+        config: { price_floor_cents: { private_in_person: 5000 } },
+        isLoading: false,
+      });
+      mockEvaluateViolations.mockReturnValue([
+        { duration: 60, modalityLabel: 'in-person', floorCents: 5000, baseCents: 3000 },
+      ]);
+
+      render(<SkillsPricingInline />);
+
+      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      await user.clear(rateInput);
+      await user.type(rateInput, '30');
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(screen.getByText(/minimum price/i)).toBeInTheDocument();
+      });
+
+      const staleOnChange = getReactEventHandler<(event: { target: { value: string } }) => void>(
+        rateInput,
+        'onChange',
+      );
+      mockEvaluateViolations.mockReturnValue([]);
+
+      act(() => {
+        staleOnChange({ target: { value: '31' } });
+      });
+      act(() => {
+        staleOnChange({ target: { value: '32' } });
+      });
+
+      await waitFor(() => {
+        expect(screen.queryByText(/minimum price/i)).not.toBeInTheDocument();
+      });
+
+      jest.useRealTimers();
+    });
+
     it('chip remove button shows disabled title for live instructor with one skill', () => {
       mockUseInstructorProfileMe.mockReturnValue({
         data: {
@@ -5790,6 +5885,55 @@ describe('SkillsPricingInline', () => {
       });
 
       jest.useRealTimers();
+    });
+
+    it('short-circuits hydration when a pending save match is accepted immediately', async () => {
+      getPendingHydrationAcceptanceMock.mockReturnValueOnce({
+        nextPendingSyncSignature: null,
+        nextHasLocalEdits: false,
+        nextIsEditing: false,
+        nextIsHydrating: true,
+        nextSelectedServices: [
+          {
+            catalog_service_id: 'svc-1',
+            subcategory_id: 'sub-1',
+            service_catalog_name: 'Piano',
+            name: 'Piano',
+            hourly_rate: '55',
+            eligible_age_groups: ['kids', 'teens', 'adults'],
+            filter_selections: {
+              age_groups: ['kids', 'teens', 'adults'],
+              skill_level: ['beginner', 'intermediate', 'advanced'],
+            },
+            description: '',
+            equipment: '',
+            duration_options: [60],
+            offers_travel: false,
+            offers_at_location: false,
+            offers_online: true,
+          },
+        ],
+      });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 70,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      await waitFor(() => {
+        expect(applyPendingHydrationAcceptanceMock).toHaveBeenCalled();
+      });
+      expect(applyPendingHydrationAcceptanceMock.mock.results.some((result) => result.value === true)).toBe(true);
+      expect(screen.getByPlaceholderText(/hourly rate/i)).toHaveValue(55);
     });
   });
 
@@ -7755,6 +7899,34 @@ describe('SkillsPricingInline', () => {
           age_groups: ['adults'],
           skill_level: ['beginner', 'intermediate', 'advanced'],
         },
+      });
+    });
+
+    it('backfills age_groups when only skill levels are present', () => {
+      const selectedServices = [
+        makeSelectedService({
+          eligible_age_groups: ['kids', 'teens'],
+          filter_selections: {
+            skill_level: ['advanced'],
+          },
+        }),
+      ];
+      const serviceCatalogById = new Map<string, CatalogBackfillSource>([
+        [
+          'svc-1',
+          {
+            subcategory_id: 'sub-1',
+            eligible_age_groups: ['kids', 'teens'],
+          },
+        ],
+      ]);
+
+      const result = backfillSelectedServicesFromCatalog(selectedServices, serviceCatalogById);
+
+      expect(result.changed).toBe(true);
+      expect(result.nextSelectedServices[0]?.filter_selections).toMatchObject({
+        skill_level: ['advanced'],
+        age_groups: ['kids', 'teens'],
       });
     });
   });

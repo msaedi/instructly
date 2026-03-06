@@ -124,4 +124,35 @@ describe('validateWithZod', () => {
     const summary = (logger.warn as jest.Mock).mock.calls[0]?.[1]?.summary as string;
     expect(summary).toContain('path=<root>');
   });
+
+  it('returns raw data without loading schemas when runtime validation is disabled', async () => {
+    const env = process.env as Record<string, string | undefined>;
+    const previousEnv = {
+      NODE_ENV: env.NODE_ENV,
+      NEXT_PUBLIC_RUNTIME_VALIDATE: env['NEXT_PUBLIC_RUNTIME_VALIDATE'],
+      RUNTIME_VALIDATE: env['RUNTIME_VALIDATE'],
+    };
+
+    env.NODE_ENV = 'production';
+    delete env['NEXT_PUBLIC_RUNTIME_VALIDATE'];
+    delete env['RUNTIME_VALIDATE'];
+
+    try {
+      await jest.isolateModulesAsync(async () => {
+        const validationModule = await import('../validation');
+        const schemaLoader = jest.fn(async () => ({
+          schema: mockSchema as never,
+        }));
+
+        await expect(
+          validationModule.validateWithZod(schemaLoader, { untouched: true }, { endpoint: '/api/raw' })
+        ).resolves.toEqual({ untouched: true });
+        expect(schemaLoader).not.toHaveBeenCalled();
+      });
+    } finally {
+      env.NODE_ENV = previousEnv.NODE_ENV;
+      env['NEXT_PUBLIC_RUNTIME_VALIDATE'] = previousEnv.NEXT_PUBLIC_RUNTIME_VALIDATE;
+      env['RUNTIME_VALIDATE'] = previousEnv.RUNTIME_VALIDATE;
+    }
+  });
 });

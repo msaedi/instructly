@@ -54,9 +54,8 @@ export default function UserProfileDropdown({ hideDashboardItem = false }: UserP
 
   // No-op viewport effect (reverted to desktop-style dropdown only)
 
-  const updateDropdownPosition = useCallback(() => {
-    if (!buttonRef.current) return;
-    const rect = buttonRef.current.getBoundingClientRect();
+  const updateDropdownPosition = useCallback((button: HTMLButtonElement) => {
+    const rect = button.getBoundingClientRect();
     setDropdownPosition({
       top: rect.bottom + window.scrollY + 8,
       right: window.innerWidth - (rect.right + window.scrollX),
@@ -125,11 +124,11 @@ export default function UserProfileDropdown({ hideDashboardItem = false }: UserP
       {/* Desktop trigger */}
       <button
         ref={buttonRef}
-        onClick={() =>
+        onClick={(event) =>
           setIsOpen((prev) => {
             const next = !prev;
             if (next) {
-              updateDropdownPosition();
+              updateDropdownPosition(event.currentTarget);
             }
             return next;
           })

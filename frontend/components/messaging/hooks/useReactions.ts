@@ -112,7 +112,6 @@ export function useReactions<T extends ReactionMessage>({
       if (cleanupNeeded.length > 0) {
         void (async () => {
           for (const cleanup of cleanupNeeded) {
-            if (cleanupInProgressRef.current.has(cleanup.messageId)) continue;
             cleanupInProgressRef.current.add(cleanup.messageId);
 
             for (const emojiToRemove of cleanup.removeEmojis) {

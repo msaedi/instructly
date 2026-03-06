@@ -28,6 +28,13 @@ import type { ApiErrorResponse, components } from '@/features/shared/api/types';
 import { extractApiErrorMessage } from '@/lib/apiErrors';
 import { toast } from 'sonner';
 import { queryKeys } from '@/src/api/queryKeys';
+import {
+  addPreferredPlace,
+  getGlobalNeighborhoodMatchesWithIds,
+  removeServiceFromProfile,
+  updateServiceInProfile,
+  updateOptionalPlaceLabel,
+} from './EditProfileModal.helpers';
 
 type InstructorProfileResponse = components['schemas']['InstructorProfileResponse'];
 type AuthUserResponse = components['schemas']['AuthUserWithPermissionsResponse'];
@@ -696,15 +703,11 @@ export default function EditProfileModal({
   };
 
   const addTeachingPlace = () => {
-    const trimmed = preferredAddress.trim();
-    if (!trimmed) return;
     let didAdd = false;
     setTeachingPlaces((prev) => {
-      if (prev.length >= 2) return prev;
-      const exists = prev.some((place) => place.address.toLowerCase() === trimmed.toLowerCase());
-      if (exists) return prev;
-      didAdd = true;
-      return [...prev, { address: trimmed }];
+      const next = addPreferredPlace(prev, preferredAddress, (trimmed) => ({ address: trimmed }));
+      didAdd = next.didAdd;
+      return next.next;
     });
     if (didAdd) {
       setPreferredAddress('');
@@ -722,35 +725,23 @@ export default function EditProfileModal({
   };
 
   const updatePublicLabel = (index: number, label: string) => {
-    setPublicPlaces((prev) =>
-      prev.map((place, idx) => {
-        if (idx !== index) return place;
-        const nextLabel = label.trim();
-        if (!nextLabel) {
-          const { label: _omit, ...rest } = place;
-          return rest;
-        }
-        return { ...place, label: nextLabel };
-      })
-    );
+    setPublicPlaces((prev) => updateOptionalPlaceLabel(prev, index, label));
   };
 
   const addPublicPlace = () => {
-    const trimmed = neutralLocationInput.trim();
-    if (!trimmed) return;
     let didAdd = false;
     setPublicPlaces((prev) => {
-      if (prev.length >= 2) return prev;
-      const exists = prev.some((place) => place.address.toLowerCase() === trimmed.toLowerCase());
-      if (exists) return prev;
-      didAdd = true;
-      const parts = trimmed.split(',').map((part) => part.trim()).filter(Boolean);
-      const autoLabel = parts.length > 0 ? parts[0] : trimmed;
-      const entry: PreferredPublicSpaceInput = { address: trimmed };
-      if (autoLabel) {
-        entry.label = autoLabel;
-      }
-      return [...prev, entry];
+      const next = addPreferredPlace(prev, neutralLocationInput, (trimmed) => {
+        const parts = trimmed.split(',').map((part) => part.trim()).filter(Boolean);
+        const autoLabel = parts.length > 0 ? parts[0] : trimmed;
+        const entry: PreferredPublicSpaceInput = { address: trimmed };
+        if (autoLabel) {
+          entry.label = autoLabel;
+        }
+        return entry;
+      });
+      didAdd = next.didAdd;
+      return next.next;
     });
     if (didAdd) {
       setNeutralLocationInput('');
@@ -846,8 +837,7 @@ export default function EditProfileModal({
         const iterator = serviceFloorViolations.entries().next();
         if (!iterator.done) {
           const [serviceId, violations] = iterator.value;
-          const violation = violations[0];
-          if (!violation) return void setSvcSaving(false);
+          const violation = violations[0]!;
           const serviceName = selectedServices.find((svc) => svc.catalog_service_id === serviceId)?.name || 'this service';
           setError(
             `Minimum price for a ${violation.modalityLabel} ${violation.duration}-minute private session is $${formatCents(violation.floorCents)} (current $${formatCents(violation.baseCents)}). Please adjust the rate for ${serviceName}.`
@@ -1065,13 +1055,12 @@ export default function EditProfileModal({
    * Remove a service from the profile
    */
   const removeService = (index: number) => {
-    const serviceToRemove = profileData.services[index];
-    if (!serviceToRemove) return;
-    logger.info('Removing service', { index, skill: serviceToRemove.skill });
-
-    setProfileData({
-      ...profileData,
-      services: profileData.services.filter((_, i) => i !== index),
+    setProfileData((prev) => {
+      const { nextProfileData, removedService } = removeServiceFromProfile(prev, index);
+      if (nextProfileData !== prev && removedService) {
+        logger.info('Removing service', { index, skill: removedService.skill });
+      }
+      return nextProfileData;
     });
   };
 
@@ -1080,16 +1069,9 @@ export default function EditProfileModal({
    */
   const updateService = (index: number, field: keyof EditableService, value: string | number) => {
     logger.debug('Updating service', { index, field, value });
-
-    const updatedServices = [...profileData.services];
-    const serviceToUpdate = updatedServices[index];
-    if (!serviceToUpdate) return;
-    const nextValue =
-      field === 'hourly_rate' && typeof value === 'number' && Number.isNaN(value)
-        ? 0
-        : value;
-    updatedServices[index] = { ...serviceToUpdate, [field]: nextValue };
-    setProfileData({ ...profileData, services: updatedServices });
+    setProfileData((prev: ProfileFormData) =>
+      updateServiceInProfile<ProfileFormData, EditableService>(prev, index, field, value)
+    );
   };
 
   /**
@@ -1427,11 +1409,9 @@ export default function EditProfileModal({
                   <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 mb-3">
                     <div className="text-sm text-gray-700 dark:text-gray-300 mb-2">Results</div>
                     <div className="flex flex-wrap gap-2">
-                      {globalNeighborhoodMatches
+                      {getGlobalNeighborhoodMatchesWithIds(globalNeighborhoodMatches)
                         .slice(0, 200)
-                        .map((n, index) => {
-                          const nid = n.neighborhood_id || n.id;
-                          if (!nid) return null;
+                        .map(({ match: n, id: nid }, index) => {
                           const checked = selectedNeighborhoods.has(nid);
                           return (
                             <button
@@ -1761,9 +1741,12 @@ export default function EditProfileModal({
               {profileData.services.map((service, index) => {
                 const hydrated = hydrateCatalogNameById(service.service_catalog_id || '');
                 const displayName =
-                  service.service_catalog_name ??
-                  hydrated ??
-                  (service.skill && service.skill.trim().length > 0 ? service.skill : service.name) ??
+                  [
+                    service.service_catalog_name,
+                    hydrated,
+                    service.skill,
+                    service.name,
+                  ].find((value): value is string => typeof value === 'string' && value.trim().length > 0) ??
                   (service.service_catalog_id ? `Service ${service.service_catalog_id}` : 'Service');
 
                 if (!service.service_catalog_name && !hydrated && process.env.NODE_ENV !== 'production') {

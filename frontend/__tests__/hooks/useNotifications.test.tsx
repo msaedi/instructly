@@ -192,6 +192,40 @@ describe('useNotifications', () => {
     });
   });
 
+  it('does not create a notification list entry when SSE latest arrives before list data exists', async () => {
+    mockedApi.getNotifications.mockImplementation(
+      () =>
+        new Promise(() => {
+          // Intentionally never resolve so the cached list remains undefined.
+        })
+    );
+    mockedApi.getUnreadCount.mockResolvedValue({ unread_count: 0 });
+
+    const { result } = renderHook(() => useNotifications(), { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(lastHandlers).not.toBeNull();
+    });
+
+    act(() => {
+      lastHandlers?.onNotificationUpdate?.({
+        type: 'notification_update',
+        unread_count: 4,
+        latest: {
+          id: 'notif-early',
+          title: 'Early',
+          body: 'Body',
+          category: 'messages',
+          type: 'new_message',
+          data: null,
+          created_at: '2024-01-02T00:00:00Z',
+        },
+      });
+    });
+
+    expect(result.current.notifications).toEqual([]);
+  });
+
   it('handles markAsRead mutation with optimistic update', async () => {
     // First return unread notification, after mutation return updated version
     mockedApi.getNotifications

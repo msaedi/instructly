@@ -228,10 +228,8 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
 
   const buildPriceFloorErrors = useCallback(() => {
     const next: Record<string, string> = {};
-    if (!pricingFloors) return next;
     serviceFloorViolations.forEach((violations, serviceId) => {
-      const violation = violations?.[0];
-      if (!violation) return;
+      const violation = violations[0]!;
       const serviceName =
         selectedServices.find((s) => s.catalog_service_id === serviceId)?.name || 'this service';
       next[serviceId] =
@@ -240,7 +238,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
         `Please adjust the rate for ${serviceName}.`;
     });
     return next;
-  }, [pricingFloors, serviceFloorViolations, selectedServices]);
+  }, [serviceFloorViolations, selectedServices]);
 
   const serializeServices = useCallback((services: SelectedService[]) => {
     return JSON.stringify(
@@ -995,7 +993,6 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                             key={group}
                             disabled={!isEligible}
                             onClick={() => {
-                              if (!isEligible) return;
                               setSelectedServicesWithDirty((prev) => prev.map((x, i) => {
                                 if (i !== index) return x;
                                 const current = x.filter_selections['age_groups'] ?? [];

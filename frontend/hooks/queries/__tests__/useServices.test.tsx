@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import {
+  PROGRESSIVE_LOADING,
   useServiceCategories,
   useAllServicesWithInstructors,
   useServicesByCategory,
@@ -212,6 +213,21 @@ describe('useServices hooks', () => {
     await waitFor(() => {
       expect(result.current.visibleCount).toBe(5);
     });
+  });
+
+  it('uses the shared progressive loading defaults when no initial count is provided', () => {
+    const { result } = renderHook(
+      ({ total }) => useProgressiveLoading(total),
+      { initialProps: { total: PROGRESSIVE_LOADING.INITIAL_COUNT + 8 } },
+    );
+
+    expect(result.current.visibleCount).toBe(PROGRESSIVE_LOADING.INITIAL_COUNT);
+
+    act(() => {
+      result.current.loadMore();
+    });
+
+    expect(result.current.visibleCount).toBe(PROGRESSIVE_LOADING.INITIAL_COUNT + 8);
   });
 
   it('prefetches service data', async () => {

@@ -67,6 +67,28 @@ describe('MoreFiltersModal', () => {
     expect(screen.getByText('Skill Level')).toBeInTheDocument();
   });
 
+  it('skips taxonomy debug logging in production mode', () => {
+    const env = process.env as Record<string, string | undefined>;
+    const originalEnv = env.NODE_ENV;
+    env.NODE_ENV = 'production';
+
+    try {
+      render(
+        <MoreFiltersModal
+          isOpen={true}
+          onClose={onClose}
+          filters={DEFAULT_FILTERS}
+          onFiltersChange={onFiltersChange}
+          taxonomyContentFilters={TAXONOMY_CONTENT_FILTERS}
+        />
+      );
+
+      expect(screen.getByRole('dialog', { name: /more filters/i })).toBeInTheDocument();
+    } finally {
+      env.NODE_ENV = originalEnv;
+    }
+  });
+
   it('uses aria-labelledby instead of aria-label for the dialog name', () => {
     render(
       <MoreFiltersModal

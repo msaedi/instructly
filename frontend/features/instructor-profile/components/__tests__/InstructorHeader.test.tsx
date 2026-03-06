@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { invokeReactClick } from '@/test-utils/reactEventHandlers';
 import { InstructorHeader } from '../InstructorHeader';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { useInstructorRatingsQuery } from '@/hooks/queries/useRatings';
@@ -449,6 +450,36 @@ describe('InstructorHeader', () => {
 
       // Should only be called once
       expect(mockFavoritesApi.add).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores a stale second favorite click even if the button becomes clickable again before the request resolves', async () => {
+      mockUseAuth.mockReturnValue({ user: { id: 'user-1' } });
+      mockUseFavoriteStatus.mockReturnValue({ data: false });
+
+      let resolveAdd: (() => void) | undefined;
+      mockFavoritesApi.add.mockImplementation(
+        () =>
+          new Promise<{ success: boolean; message: string; favorite_id: string }>((resolve) => {
+            resolveAdd = () => resolve({ success: true, message: 'Added to favorites', favorite_id: 'fav-1' });
+          })
+      );
+
+      const instructor = createInstructor();
+      renderWithProviders(<InstructorHeader instructor={instructor} />);
+
+      const user = userEvent.setup();
+      const favoriteButton = screen.getByLabelText('Toggle favorite') as HTMLButtonElement;
+
+      await user.click(favoriteButton);
+
+      invokeReactClick(favoriteButton);
+
+      expect(mockFavoritesApi.add).toHaveBeenCalledTimes(1);
+
+      resolveAdd?.();
+      await waitFor(() => {
+        expect(mockToast.success).toHaveBeenCalledWith('Added to favorites!');
+      });
     });
   });
 

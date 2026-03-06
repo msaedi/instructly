@@ -28,6 +28,7 @@ import type {
 import type { ConversationMessagesResponse } from '@/types/conversation';
 import { COMPOSE_THREAD_ID } from '../constants';
 import { mapMessageFromResponse, computeUnreadFromMessages, formatRelativeTimestamp } from '../utils';
+import { applyDeliveryUpdate, syncStaleThreads } from './useMessageThread.helpers';
 
 export type UseMessageThreadOptions = {
   currentUserId: string | undefined;
@@ -209,17 +210,11 @@ export function useMessageThread({
 
   // When conversation list updates, mark stale threads whose latestMessageAt advanced
   useEffect(() => {
-    if (!conversationsRef.current) return;
-    for (const conv of conversationsRef.current) {
-      if (!conv?.id) continue;
-      const latest = conv.latestMessageAt ?? 0;
-      const hasSeen = lastSeenTimestampRef.current.has(conv.id);
-      if (!hasSeen) continue; // unseen threads will fetch on first view
-      const lastSeen = lastSeenTimestampRef.current.get(conv.id) ?? 0;
-      if (latest > lastSeen) {
-        staleThreadsRef.current.add(conv.id);
-      }
-    }
+    syncStaleThreads(
+      conversationsRef.current,
+      lastSeenTimestampRef.current,
+      staleThreadsRef.current,
+    );
   }, [_conversations]);
 
   const conversationId = historyTarget?.conversation.id ?? '';
@@ -534,30 +529,19 @@ export function useMessageThread({
         delivered_at: deliveredAtFromBackend ?? deliveredAtIso,
       };
 
-      const applyDeliveryUpdate = (collection: MessageWithAttachments[]): MessageWithAttachments[] => {
-        if (!collection || collection.length === 0) return [deliveredMessage];
-        const hasMatch = collection.some(
-          (m) => m.id === optimisticId || (resolvedServerId && m.id === resolvedServerId)
-        );
-        if (!hasMatch) return [...collection, deliveredMessage];
-        return collection.map((m): MessageWithAttachments =>
-          m.id === optimisticId || (resolvedServerId && m.id === resolvedServerId)
-            ? {
-                ...m,
-                id: deliveredMessage.id,
-                delivery: deliveredMessage.delivery,
-                delivered_at: deliveredMessage.delivered_at,
-              }
-            : m
-        );
-      };
-
       if (shouldUpdateVisibleThread) {
-        setThreadMessages((prev) => applyDeliveryUpdate(prev));
+        setThreadMessages((prev) =>
+          applyDeliveryUpdate(prev, deliveredMessage, optimisticId, resolvedServerId),
+        );
       }
       setMessagesByThread((prev) => ({
         ...prev,
-        [targetThreadId]: applyDeliveryUpdate(prev[targetThreadId] || []),
+        [targetThreadId]: applyDeliveryUpdate(
+          prev[targetThreadId] || [],
+          deliveredMessage,
+          optimisticId,
+          resolvedServerId,
+        ),
       }));
 
       onSuccess(targetThreadId, switchingFromCompose);

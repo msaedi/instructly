@@ -9704,6 +9704,48 @@ describe('EditProfileModal', () => {
         expect(screen.getByText('Piano +')).toBeInTheDocument();
       });
     });
+
+    it('shows an explicit empty state when global search finds no matching skills', async () => {
+      const user = userEvent.setup();
+      useServiceCategoriesMock.mockReturnValue({
+        data: [{ id: 'cat-1', slug: 'music', name: 'Music' }],
+        isLoading: false,
+      });
+      useAllServicesWithInstructorsMock.mockReturnValue({
+        data: {
+          categories: [
+            {
+              id: 'cat-1',
+              slug: 'music',
+              services: [{ id: 'svc-1', name: 'Piano' }],
+            },
+          ],
+        },
+        isLoading: false,
+      });
+      useInstructorProfileMeMock.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [],
+        },
+      });
+
+      render(
+        <EditProfileModal {...defaultProps} variant="services" />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Service categories')).toBeInTheDocument();
+      });
+
+      const searchInput = screen.getByPlaceholderText(/search skills/i);
+      await user.type(searchInput, 'violin');
+
+      await waitFor(() => {
+        expect(screen.getByText(/no matches found/i)).toBeInTheDocument();
+      });
+    });
   });
 
   describe('Batch 10: handleSubmit address fetch failure is silent', () => {
@@ -10440,6 +10482,154 @@ describe('EditProfileModal', () => {
 
       await user.click(onlineCheckbox);
       expect(onlineCheckbox).toBeChecked();
+    });
+  });
+
+  describe('Batch 14: services variant — service card editor coverage', () => {
+    const setupServicesVariant = (serviceOverrides: Record<string, unknown> = {}) => {
+      useServiceCategoriesMock.mockReturnValue({
+        data: [{ id: 'cat-1', slug: 'music', name: 'Music' }],
+        isLoading: false,
+      });
+      useAllServicesWithInstructorsMock.mockReturnValue({
+        data: {
+          categories: [
+            { id: 'cat-1', slug: 'music', services: [{ id: 'svc-1', name: 'Piano' }] },
+          ],
+        },
+        isLoading: false,
+      });
+      useInstructorProfileMeMock.mockReturnValue({
+        data: {
+          is_live: false,
+          service_area_neighborhoods: [],
+          service_area_boroughs: [],
+          service_area_summary: '',
+          preferred_teaching_locations: [],
+          services: [
+            {
+              service_catalog_id: 'svc-1',
+              service_catalog_name: 'Piano',
+              hourly_rate: '60',
+              offers_travel: false,
+              offers_at_location: false,
+              offers_online: false,
+              levels_taught: ['beginner'],
+              duration_options: [60],
+              age_groups: ['adults'],
+              description: '',
+              equipment_required: [],
+              ...serviceOverrides,
+            },
+          ],
+        },
+      });
+    };
+
+    it('updates pricing, capabilities, levels, durations, and free-text fields in place', async () => {
+      const user = userEvent.setup();
+      setupServicesVariant();
+
+      render(
+        <EditProfileModal {...defaultProps} variant="services" />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Your selected skills')).toBeInTheDocument();
+      });
+
+      const rateInput = screen.getByRole('spinbutton');
+      await user.clear(rateInput);
+      await user.type(rateInput, '80');
+
+      await waitFor(() => {
+        expect(screen.getByText(/you'll earn/i)).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByRole('button', { name: 'Kids' }));
+
+      const travelCheckbox = screen.getByRole('checkbox', { name: /i travel to students/i });
+      const locationCheckbox = screen.getByRole('checkbox', { name: /students come to me/i });
+      const onlineCheckbox = screen.getByRole('checkbox', { name: /online lessons/i });
+
+      await user.click(travelCheckbox);
+      await user.click(locationCheckbox);
+      await user.click(onlineCheckbox);
+
+      await waitFor(() => {
+        expect(screen.getByText(/add service areas in your profile/i)).toBeInTheDocument();
+        expect(screen.getByText(/add a teaching location in your profile/i)).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByRole('button', { name: 'Advanced' }));
+      await user.click(screen.getByRole('button', { name: '30m' }));
+
+      const descriptionInput = screen.getByPlaceholderText(/brief description/i);
+      const equipmentInput = screen.getByPlaceholderText(/yoga mat/i);
+
+      await user.type(descriptionInput, 'Patient and structured lessons');
+      await user.type(equipmentInput, 'Keyboard and bench');
+
+      expect(descriptionInput).toHaveValue('Patient and structured lessons');
+      expect(equipmentInput).toHaveValue('Keyboard and bench');
+    });
+  });
+
+  describe('Batch 14: full variant — service name fallback order', () => {
+    it('falls back from catalog name to skill text and service id label in existing services', async () => {
+      const {
+        hydrateCatalogNameById: mockHydrate,
+        normalizeInstructorServices: mockNormalizeInstructorServices,
+      } = jest.requireMock('@/lib/instructorServices');
+      mockHydrate.mockReturnValue(undefined);
+      mockNormalizeInstructorServices.mockResolvedValue([
+        {
+          service_catalog_id: 'svc-skill-fallback',
+          service_catalog_name: null,
+          skill: 'Legacy Piano',
+          name: '',
+          hourly_rate: 60,
+          description: '',
+        },
+        {
+          service_catalog_id: 'svc-id-only',
+          service_catalog_name: null,
+          skill: '',
+          name: '',
+          hourly_rate: 75,
+          description: '',
+        },
+      ]);
+
+      fetchWithAuthMock.mockImplementation((url: string) => {
+        if (url.includes('instructors/me')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({
+              ...mockInstructorProfile,
+              services: [],
+            }),
+          });
+        }
+        if (url.includes('users/me')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ first_name: 'Test', last_name: 'User' }),
+          });
+        }
+        if (url.includes('addresses/me')) {
+          return Promise.resolve({ ok: true, json: () => Promise.resolve({ items: [] }) });
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+      });
+
+      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByText('Legacy Piano')).toBeInTheDocument();
+        expect(screen.getByText('Service svc-id-only')).toBeInTheDocument();
+      });
     });
   });
 
@@ -12600,6 +12790,241 @@ describe('EditProfileModal', () => {
       await waitFor(() => {
         expect(screen.getByRole('dialog')).toBeInTheDocument();
       });
+    });
+  });
+
+  describe('targeted branch regressions', () => {
+    it('normalizes null preferred location props without crashing', async () => {
+      render(
+        <EditProfileModal
+          {...defaultProps}
+          variant="areas"
+          preferredTeaching={null as unknown as Array<{ address: string; label?: string }>}
+          preferredPublic={null as unknown as Array<{ address: string; label?: string }>}
+        />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+      });
+
+      expect(screen.queryByText('Central Park')).not.toBeInTheDocument();
+      expect(screen.queryByText('123 Main St')).not.toBeInTheDocument();
+    });
+
+    it('blocks blank and third preferred-place additions in areas mode', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <EditProfileModal
+          {...defaultProps}
+          variant="areas"
+          preferredTeaching={[
+            { address: '123 Main St', label: 'Studio' },
+            { address: '456 Park Ave', label: 'Home' },
+          ]}
+          preferredPublic={[
+            { address: 'Central Park', label: 'Park' },
+            { address: 'Bryant Park', label: 'Bryant' },
+          ]}
+        />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+      });
+
+      const placesInputs = screen.getAllByTestId('places-autocomplete');
+      const teachingInput = placesInputs[0] as HTMLInputElement;
+      const publicInput = placesInputs[1] as HTMLInputElement;
+
+      await user.type(publicInput, '   ');
+      await user.click(screen.getByRole('button', { name: /add public space/i }));
+      expect(screen.queryByText('   ')).not.toBeInTheDocument();
+
+      await user.clear(teachingInput);
+      await user.type(teachingInput, '789 Broadway');
+      await user.click(screen.getByRole('button', { name: /add address/i }));
+      expect(screen.queryByText('789 Broadway')).not.toBeInTheDocument();
+
+      await user.clear(publicInput);
+      await user.type(publicInput, 'Washington Square Park');
+      await user.click(screen.getByRole('button', { name: /add public space/i }));
+      expect(screen.queryByText('Washington Square Park')).not.toBeInTheDocument();
+    });
+
+    it('updates only the targeted public label when multiple public spaces exist', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <EditProfileModal
+          {...defaultProps}
+          variant="areas"
+          preferredPublic={[
+            { address: 'Central Park', label: 'Park' },
+            { address: 'Bryant Park', label: 'Bryant' },
+          ]}
+        />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+      });
+
+      const secondLabelInput = screen.getByDisplayValue('Bryant');
+      await user.clear(secondLabelInput);
+      await user.type(secondLabelInput, 'Midtown');
+
+      expect(screen.getByDisplayValue('Park')).toBeInTheDocument();
+      expect(screen.getByDisplayValue('Midtown')).toBeInTheDocument();
+    });
+
+    it('hides global neighborhood matches that do not have an identifier and lets boroughs collapse', async () => {
+      const user = userEvent.setup();
+      const originalFetch = global.fetch;
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            items: [
+              { neighborhood_id: 'nh-valid', id: 'nh-valid', name: 'Tribeca', borough: 'Manhattan' },
+              { name: 'Ghost Result', borough: 'Manhattan' },
+            ],
+          }),
+      }) as typeof fetch;
+
+      try {
+        render(
+          <EditProfileModal {...defaultProps} variant="areas" />,
+          { wrapper: createWrapper() }
+        );
+
+        const boroughButton = await screen.findByRole('button', {
+          name: /manhattan neighborhoods/i,
+        });
+        await user.click(boroughButton);
+        await waitFor(() => {
+          expect(screen.getByText('Tribeca')).toBeInTheDocument();
+        });
+
+        await user.click(boroughButton);
+        await waitFor(() => {
+          expect(screen.queryByText('Tribeca')).not.toBeInTheDocument();
+        });
+
+        const searchInput = screen.getByPlaceholderText(/search neighborhoods/i);
+        await user.type(searchInput, 'Tri');
+
+        await waitFor(() => {
+          expect(screen.getByText('Tribeca')).toBeInTheDocument();
+        });
+        expect(screen.queryByText('Ghost Result')).not.toBeInTheDocument();
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    it('saves age-group and duration changes only for the targeted service', async () => {
+      const user = userEvent.setup();
+      let savedBody: Record<string, unknown> | null = null;
+
+      useServiceCategoriesMock.mockReturnValue({
+        data: [{ id: 'cat-1', slug: 'music', name: 'Music' }],
+        isLoading: false,
+      });
+      useAllServicesWithInstructorsMock.mockReturnValue({
+        data: {
+          categories: [
+            {
+              id: 'cat-1',
+              slug: 'music',
+              services: [
+                { id: 'svc-1', name: 'Piano' },
+                { id: 'svc-2', name: 'Guitar' },
+              ],
+            },
+          ],
+        },
+        isLoading: false,
+      });
+      useInstructorProfileMeMock.mockReturnValue({
+        data: {
+          is_live: false,
+          service_area_neighborhoods: [],
+          service_area_boroughs: [],
+          service_area_summary: '',
+          preferred_teaching_locations: [],
+          services: [
+            {
+              service_catalog_id: 'svc-1',
+              service_catalog_name: 'Piano',
+              hourly_rate: '50',
+              offers_travel: false,
+              offers_at_location: false,
+              offers_online: true,
+              levels_taught: ['beginner'],
+              duration_options: [60],
+              age_groups: ['kids'],
+            },
+            {
+              service_catalog_id: 'svc-2',
+              service_catalog_name: 'Guitar',
+              hourly_rate: '70',
+              offers_travel: false,
+              offers_at_location: false,
+              offers_online: true,
+              levels_taught: ['intermediate'],
+              duration_options: [45],
+              age_groups: ['adults'],
+            },
+          ],
+        },
+      });
+      fetchWithAuthMock.mockImplementation((url: string, options?: RequestInit) => {
+        if (url.includes('instructors/me') && options?.method === 'PUT') {
+          savedBody = JSON.parse(String(options.body));
+          return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+      });
+
+      render(
+        <EditProfileModal {...defaultProps} variant="services" />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Your selected skills')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getAllByRole('button', { name: 'Kids' })[0]!);
+      await user.click(screen.getAllByRole('button', { name: '30m' })[0]!);
+      await user.click(screen.getByRole('button', { name: /save/i }));
+
+      await waitFor(() => {
+        expect(savedBody).not.toBeNull();
+      });
+
+      const savedServices =
+        ((savedBody as Record<string, unknown> | null)?.['services'] as Array<Record<string, unknown>> | undefined) ?? [];
+
+      expect(savedServices).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            service_catalog_id: 'svc-1',
+            age_groups: ['adults'],
+            duration_options: [30, 60],
+          }),
+          expect.objectContaining({
+            service_catalog_id: 'svc-2',
+            age_groups: ['adults'],
+            duration_options: [45],
+          }),
+        ])
+      );
     });
   });
 });

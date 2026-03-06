@@ -46,4 +46,28 @@ describe('SkipToMainLink', () => {
     expect(dispatchResult).toBe(false);
     expect(screen.getByRole('main')).toHaveFocus();
   });
+
+  it('does nothing when the link target is changed to a non-hash href', () => {
+    render(<SkipToMainLink />);
+
+    const skipLink = screen.getByRole('link', { name: /skip to main content/i });
+    skipLink.setAttribute('href', '/dashboard');
+
+    const clickEvent = new MouseEvent('click', { bubbles: true, cancelable: true });
+    const dispatchResult = skipLink.dispatchEvent(clickEvent);
+
+    expect(dispatchResult).toBe(true);
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it('does nothing when the hash target is missing from the page', () => {
+    render(<SkipToMainLink />);
+
+    const skipLink = screen.getByRole('link', { name: /skip to main content/i });
+    const clickEvent = new MouseEvent('click', { bubbles: true, cancelable: true });
+    const dispatchResult = skipLink.dispatchEvent(clickEvent);
+
+    expect(dispatchResult).toBe(true);
+    expect(document.activeElement).toBe(document.body);
+  });
 });

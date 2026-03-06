@@ -167,4 +167,20 @@ describe('LessonEnded', () => {
     const instructorRow = screen.getByText('Instructor joined').closest('div');
     expect(instructorRow).toHaveTextContent('--');
   });
+
+  it('falls back to "--" when local timestamps produce an invalid duration', () => {
+    const booking = { ...baseBooking, video_session_duration_seconds: null } as unknown as Booking;
+
+    render(
+      <LessonEnded
+        booking={booking}
+        sessionData={null}
+        userRole="student"
+        localJoinedAt="2025-06-01T15:30:00Z"
+        localLeftAt="2025-06-01T14:30:00Z"
+      />,
+    );
+
+    expect(screen.getAllByText('--').length).toBeGreaterThan(0);
+  });
 });

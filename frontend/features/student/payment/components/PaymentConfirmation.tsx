@@ -38,7 +38,11 @@ import {
   formatServiceSupportLabel,
   formatServiceSupportTooltip,
 } from '@/lib/pricing/studentFee';
-import { buildDisplayDate } from './PaymentConfirmation.helpers';
+import {
+  buildDisplayDate,
+  getClientFloorViolation,
+  hasRelevantConflict,
+} from './PaymentConfirmation.helpers';
 
 type BookingWithMetadata = BookingPayment & { metadata?: Record<string, unknown> };
 
@@ -991,48 +995,16 @@ function PaymentConfirmationInner({
   }, [booking.instructorId, bookingDateLocal, startHHMM24, durationMinutes, studentId]);
 
   const computeHasConflict = useCallback((key: ConflictKey, items: ConflictListItem[]): boolean => {
-    return items.some((existing) => {
-      if (!existing) return false;
-      if (existing.booking_date && existing.booking_date !== key.bookingDate) {
-        return false;
-      }
-      if (existing.status && !CONFLICT_RELEVANT_STATUSES.has(existing.status.toLowerCase())) {
-        return false;
-      }
-      if (!existing.start_time) {
-        return false;
-      }
-
-      let existingStart: string;
-      try {
-        existingStart = to24HourTime(String(existing.start_time));
-      } catch {
-        return false;
-      }
-
-      let existingDuration = Number.isFinite(existing.duration_minutes)
-        ? Math.round(Number(existing.duration_minutes))
-        : null;
-
-      if (!existingDuration || existingDuration <= 0) {
-        if (existing.end_time) {
-          try {
-            const startMinutes = minutesSinceHHMM(existingStart);
-            const endMinutes = minutesSinceHHMM(to24HourTime(String(existing.end_time)));
-            const diff = endMinutes - startMinutes;
-            existingDuration = diff > 0 ? diff : null;
-          } catch {
-            existingDuration = null;
-          }
-        }
-      }
-
-      if (!existingDuration || existingDuration <= 0) {
-        return false;
-      }
-
-      return overlapsHHMM(key.startHHMM24, key.durationMinutes, existingStart, existingDuration);
-    });
+    return items.some((existing) =>
+      hasRelevantConflict(
+        existing,
+        key,
+        CONFLICT_RELEVANT_STATUSES,
+        to24HourTime,
+        minutesSinceHHMM,
+        overlapsHHMM,
+      ),
+    );
   }, []);
 
   const selectedModality = useMemo<NormalizedModality>(
@@ -1306,15 +1278,14 @@ function PaymentConfirmationInner({
   }, [booking.basePrice, booking.duration]);
 
   const clientFloorViolation = useMemo(() => {
-    if (!pricingFloors) return null;
-    if (!Number.isFinite(hourlyRate) || hourlyRate <= 0) return null;
-    if (!Number.isFinite(booking.duration) || booking.duration <= 0) return null;
-    const floorCents = computePriceFloorCents(pricingFloors, selectedModality, booking.duration);
-    const baseCents = computeBasePriceCents(hourlyRate, booking.duration);
-    if (baseCents < floorCents) {
-      return { floorCents, baseCents };
-    }
-    return null;
+    return getClientFloorViolation(
+      pricingFloors,
+      hourlyRate,
+      booking.duration,
+      selectedModality,
+      computePriceFloorCents,
+      computeBasePriceCents,
+    );
   }, [pricingFloors, hourlyRate, booking.duration, selectedModality]);
 
   const clientFloorWarning = useMemo(() => {

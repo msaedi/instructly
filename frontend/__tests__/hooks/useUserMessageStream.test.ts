@@ -1276,6 +1276,37 @@ describe('useUserMessageStream', () => {
       expect(global.EventSource).toHaveBeenCalledTimes(1);
     });
 
+    it('skips reconnect when auth is lost before a scheduled retry fires', async () => {
+      const checkAuth = jest.fn();
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        user: { id: 'user1', email: 'test@example.com' },
+        checkAuth,
+      });
+
+      const { rerender } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+
+      act(() => {
+        mockEventSource.simulateConnected();
+        mockEventSource.simulateError();
+      });
+
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: false,
+        user: null,
+        checkAuth,
+      });
+      rerender();
+
+      await act(async () => {
+        jest.advanceTimersByTime(4000);
+        await Promise.resolve();
+      });
+
+      expect(global.EventSource).toHaveBeenCalledTimes(1);
+    });
+
   });
 
   describe('duplicate connection prevention', () => {
@@ -1416,6 +1447,42 @@ describe('useUserMessageStream', () => {
       expect(mockLogger.warn).toHaveBeenCalledWith(
         '[SSE] Connection error, will retry',
         expect.any(Object)
+      );
+    });
+
+    it('suppresses stale EventSource errors after auth rejection', async () => {
+      const { logger: mockLogger } = jest.requireMock('@/lib/logger') as {
+        logger: { debug: jest.Mock };
+      };
+
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+
+      act(() => {
+        mockEventSource.simulateConnected();
+      });
+
+      mockRefreshAuthSession.mockResolvedValue(false);
+
+      act(() => {
+        jest.advanceTimersByTime(46000);
+      });
+
+      await act(async () => {
+        jest.advanceTimersByTime(4000);
+        await Promise.resolve();
+      });
+
+      expect(result.current.connectionError).toBe('Not authenticated');
+
+      mockLogger.debug.mockClear();
+      act(() => {
+        mockEventSource.simulateError();
+      });
+
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        '[MSG-DEBUG] SSE: Connection error suppressed (not authenticated)',
+        expect.any(Object),
       );
     });
   });

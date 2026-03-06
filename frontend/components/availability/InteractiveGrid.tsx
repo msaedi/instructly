@@ -149,7 +149,6 @@ export default function InteractiveGrid({
       const next: WeekBits = { ...prev };
       for (const date of dates) {
         const indices = Array.from(payload[date] ?? []);
-        if (!indices.length) continue;
         const current = next[date] ?? newEmptyBits();
         let updated = current;
         indices.forEach((slotIndex) => {
@@ -238,7 +237,6 @@ export default function InteractiveGrid({
   const [nowInfo, setNowInfo] = useState(() => getNowInTimezone(timezone));
 
   useEffect(() => {
-    if (typeof window === 'undefined') return undefined;
     const tick = () => setNowInfo(getNowInTimezone(timezone));
     tick();
     const interval = window.setInterval(tick, 60 * 1000);

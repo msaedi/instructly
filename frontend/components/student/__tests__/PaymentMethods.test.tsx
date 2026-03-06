@@ -30,17 +30,22 @@ jest.mock('@/hooks/queries/usePaymentMethods', () => ({
   useInvalidatePaymentMethods: jest.fn(),
 }));
 
+let latestDeleteModalProps:
+  | { isOpen: boolean; onConfirm: () => Promise<void>; paymentMethod?: { id?: string } }
+  | null = null;
+
 jest.mock('@/components/modals/DeletePaymentMethodModal', () => ({
   __esModule: true,
-  default: ({ isOpen, onClose, onConfirm, paymentMethod }: { isOpen: boolean; onClose: () => void; onConfirm: () => Promise<void>; paymentMethod?: { id?: string } }) => (
-    isOpen ? (
+  default: ({ isOpen, onClose, onConfirm, paymentMethod }: { isOpen: boolean; onClose: () => void; onConfirm: () => Promise<void>; paymentMethod?: { id?: string } }) => {
+    latestDeleteModalProps = { isOpen, onConfirm, paymentMethod };
+    return isOpen ? (
       <div data-testid="delete-modal">
         <div>{paymentMethod?.id}</div>
         <button type="button" onClick={() => onConfirm().catch(() => {})}>Confirm Delete</button>
         <button type="button" onClick={onClose}>Close</button>
       </div>
-    ) : null
-  ),
+    ) : null;
+  },
 }));
 
 jest.mock('@/lib/logger', () => ({
@@ -55,6 +60,7 @@ const mockUseElements = useElements as jest.Mock;
 describe('PaymentMethods', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    latestDeleteModalProps = null;
     mockUseInvalidatePaymentMethods.mockReturnValue(jest.fn());
     mockUseStripe.mockReturnValue({
       createPaymentMethod: jest.fn().mockResolvedValue({ paymentMethod: { id: 'pm_1' } }),
@@ -167,6 +173,24 @@ describe('PaymentMethods', () => {
       expect(paymentService.deletePaymentMethod).toHaveBeenCalledWith('pm_2');
     });
     expect(invalidate).toHaveBeenCalled();
+  });
+
+  it('ignores a stale confirm callback when no payment method is selected for deletion', async () => {
+    mockUsePaymentMethods.mockReturnValue({
+      data: [
+        { id: 'pm_4', last4: '3333', brand: 'visa', is_default: false, created_at: '2024-02-01T00:00:00Z' },
+      ],
+      isLoading: false,
+      error: null,
+    });
+
+    render(<PaymentMethods userId="user-1" />);
+
+    expect(latestDeleteModalProps?.isOpen).toBe(false);
+
+    await latestDeleteModalProps?.onConfirm();
+
+    expect(paymentService.deletePaymentMethod).not.toHaveBeenCalled();
   });
 
   it('surfaces delete errors in the UI', async () => {

@@ -1,3 +1,4 @@
+import React from 'react';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useReactions, type ReactionMutations, type ReactionMessage } from '../hooks/useReactions';
 
@@ -704,6 +705,43 @@ describe('useReactions', () => {
         messageId: 'msg-cleanup-fail',
         data: { emoji: '❤️' },
       });
+    });
+
+    it('suppresses duplicate cleanup work during StrictMode double effects', async () => {
+      let releaseCleanup: (() => void) | undefined;
+      const removeReactionSlow = jest.fn().mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseCleanup = resolve;
+          })
+      );
+
+      const slowMutations: ReactionMutations = {
+        addReaction: jest.fn().mockResolvedValue({}),
+        removeReaction: removeReactionSlow,
+      };
+
+      const messages = [createMessage('msg-strict', ['👍', '❤️', '😊'])];
+
+      const wrapper = ({ children }: { children: React.ReactNode }) =>
+        React.createElement(React.StrictMode, null, children);
+
+      renderHook(() => useReactions({ messages, mutations: slowMutations }), { wrapper });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(removeReactionSlow).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        releaseCleanup?.();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(removeReactionSlow).toHaveBeenCalledTimes(2);
     });
   });
 

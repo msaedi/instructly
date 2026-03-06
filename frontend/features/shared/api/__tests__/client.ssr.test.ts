@@ -29,7 +29,7 @@ jest.mock('@/lib/logger', () => ({
   },
 }));
 
-import { cleanFetch } from '@/features/shared/api/client';
+import { cleanFetch, publicApi } from '@/features/shared/api/client';
 
 describe('cleanFetch SSR code paths (node environment)', () => {
   const originalFetch = global.fetch;
@@ -122,6 +122,22 @@ describe('cleanFetch SSR code paths (node environment)', () => {
     // No window means no X-Session-ID or X-Search-Origin
     expect(headers['X-Session-ID']).toBeUndefined();
     expect(headers['X-Search-Origin']).toBeUndefined();
+  });
+
+  it('omits guest-session lookup when document is unavailable in SSR', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ([]),
+      headers: { get: jest.fn() },
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await publicApi.getRecentSearches(2);
+
+    const options = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const headers = options.headers as Record<string, string>;
+    expect(headers['X-Guest-Session-ID']).toBeUndefined();
   });
 
   it('handles SSR query params correctly', async () => {

@@ -8,28 +8,14 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { DRAFT_COOKIE_NAME, COMPOSE_THREAD_ID } from '../constants';
+import { COMPOSE_THREAD_ID } from '../constants';
+import { readDraftCookie, writeDraftCookie } from './useMessageDrafts.helpers';
 
 /**
  * Load drafts from cookie storage
  */
 const loadInitialDrafts = (): Record<string, string> => {
-  if (typeof document === 'undefined') return {};
-  try {
-    const cookies = document.cookie.split(';').map((cookie) => cookie.trim());
-    const target = cookies.find((cookie) => cookie.startsWith(`${DRAFT_COOKIE_NAME}=`));
-    if (!target) return {};
-    const raw = decodeURIComponent(target.split('=')[1] ?? '');
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      const entries = Object.entries(parsed).filter(([, value]) => typeof value === 'string') as [string, string][];
-      return Object.fromEntries(entries);
-    }
-  } catch {
-    // ignore malformed storage
-  }
-  return {};
+  return readDraftCookie(typeof document === 'undefined' ? undefined : document);
 };
 
 export type UseMessageDraftsResult = {
@@ -46,18 +32,7 @@ export function useMessageDrafts(): UseMessageDraftsResult {
 
   // Persist drafts to cookie on change
   useEffect(() => {
-    if (typeof document === 'undefined') return;
-    try {
-      const filtered = Object.entries(draftsByThread).filter(([, value]) => value !== '');
-      if (filtered.length === 0) {
-        document.cookie = `${DRAFT_COOKIE_NAME}=; path=/; max-age=0`;
-        return;
-      }
-      const payload = encodeURIComponent(JSON.stringify(Object.fromEntries(filtered)));
-      document.cookie = `${DRAFT_COOKIE_NAME}=${payload}; path=/; max-age=604800; SameSite=Lax`;
-    } catch {
-      // ignore storage errors
-    }
+    writeDraftCookie(draftsByThread, typeof document === 'undefined' ? undefined : document);
   }, [draftsByThread]);
 
   const getDraftKey = useCallback((threadId: string | null): string => {

@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DeleteProfileModal from '../DeleteProfileModal';
+import { invokeReactClick } from '@/test-utils/reactEventHandlers';
 import {
   applyDeleteConfirmationFailure,
   getDeleteConfirmationError,
@@ -96,6 +97,20 @@ describe('DeleteProfileModal', () => {
     // The button should still be disabled with incorrect case
     const deleteButton = screen.getByRole('button', { name: /delete profile/i });
     expect(deleteButton).toBeDisabled();
+  });
+
+  it('still refuses a programmatic delete click when confirmation text is invalid', async () => {
+    const user = userEvent.setup();
+    render(<DeleteProfileModal {...defaultProps} />);
+
+    await user.type(screen.getByPlaceholderText(/type delete here/i), 'delete');
+
+    invokeReactClick(screen.getByRole('button', { name: /delete profile/i }));
+
+    expect(fetchWithAuth).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByText('Please type DELETE to confirm')).toBeInTheDocument();
+    });
   });
 
   it('shows visual feedback when DELETE is correctly typed', async () => {

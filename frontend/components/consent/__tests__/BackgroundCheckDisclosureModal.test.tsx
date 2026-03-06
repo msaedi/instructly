@@ -1,6 +1,7 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { BackgroundCheckDisclosureModal } from '../BackgroundCheckDisclosureModal';
+import { invokeReactClick } from '@/test-utils/reactEventHandlers';
 
 jest.mock('@/components/Modal', () => ({
   __esModule: true,
@@ -80,19 +81,14 @@ describe('BackgroundCheckDisclosureModal', () => {
   });
 
   it('does not call onAccept when handleAccept is invoked before scrolling (line 122)', () => {
-    // Line 122: defensive guard — handleAccept returns early when !hasScrolledToEnd.
-    // The accept button is disabled, but we bypass via fireEvent on a native button.
     render(<BackgroundCheckDisclosureModal {...defaultProps} />);
 
-    // The button text is 'I acknowledge and authorize' and it's disabled
     const acceptButton = screen.getByRole('button', {
       name: /i acknowledge and authorize/i,
     });
     expect(acceptButton).toBeDisabled();
 
-    // fireEvent.click on a native <button disabled> does NOT call React onClick in JSDOM,
-    // so this tests that onAccept is NOT called while the guard holds.
-    fireEvent.click(acceptButton);
+    invokeReactClick(acceptButton);
     expect(defaultProps.onAccept).not.toHaveBeenCalled();
   });
 
@@ -103,6 +99,18 @@ describe('BackgroundCheckDisclosureModal', () => {
 
     // Shows 'Recording...' when submitting
     expect(screen.getByText('Recording\u2026')).toBeInTheDocument();
+    expect(defaultProps.onAccept).not.toHaveBeenCalled();
+  });
+
+  it('blocks programmatic accept clicks while submitting', () => {
+    render(
+      <BackgroundCheckDisclosureModal {...defaultProps} submitting={true} />
+    );
+
+    invokeReactClick(screen.getByRole('button', {
+      name: /recording/i,
+    }));
+
     expect(defaultProps.onAccept).not.toHaveBeenCalled();
   });
 });

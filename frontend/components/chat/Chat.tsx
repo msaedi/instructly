@@ -35,6 +35,15 @@ import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 import { MessageBubble, normalizeStudentMessage, formatRelativeTimestamp, useReactions, useReadReceipts, useLiveTimestamp, useSSEHandlers, type NormalizedMessage, type NormalizedReaction, type ReactionMutations } from '@/components/messaging';
 import { mergeReactions } from './utils/mergeReactions';
+import {
+  deleteChatBubbleMessage,
+  editChatBubbleMessage,
+  getTimestampIsoOrEmpty,
+  reactToChatBubbleMessage,
+  syncIsAtBottom,
+  triggerChatReload,
+  canEditChatMessage,
+} from './Chat.helpers';
 
 // Connection status enum (internal to Chat component)
 enum ConnectionStatus {
@@ -133,11 +142,6 @@ export function Chat({
     : isConnected
     ? ConnectionStatus.CONNECTED
     : ConnectionStatus.DISCONNECTED;
-
-  const reconnect = () => {
-    // Reconnect is automatic in new implementation
-    if (process.env.NODE_ENV !== 'test') window.location.reload();
-  };
 
   // Extract SSE handlers to useCallback for stable references (fixes re-render loop)
   const handleSSEMessage = useCallback((message: { id: string; content: string; sender_id: string | null; sender_name: string | null; created_at: string; booking_id?: string; delivered_at?: string | null }, isMine: boolean) => {
@@ -471,11 +475,7 @@ export function Chat({
 
   // Check if user is at bottom of scroll
   const handleScroll = useCallback(() => {
-    if (!scrollContainerRef.current) return;
-
-    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
-    const threshold = 100;
-    setIsAtBottom(scrollHeight - scrollTop - clientHeight < threshold);
+    syncIsAtBottom(scrollContainerRef.current, setIsAtBottom);
   }, []);
 
   // Scroll to bottom on new messages (if already at bottom)
@@ -630,17 +630,16 @@ export function Chat({
 	  // Quick reaction emojis
 	  const quickEmojis = ['👍', '❤️', '😊', '😮', '🎉'];
 
-	  const canEditMessage = (message: ChatMessage): boolean => {
-	    if (message.sender_id !== currentUserId) return false;
-	    if (message.is_deleted) return false;
-	    const created = new Date(message.created_at).getTime();
-	    const diffMinutes = (nowMs - created) / 60000;
-	    return diffMinutes <= editWindowMinutes;
-	  };
+  const canEditMessage = (message: ChatMessage): boolean => {
+    return canEditChatMessage(message, currentUserId, nowMs, editWindowMinutes);
+  };
 
   // Get date separator text
   const getDateSeparator = (date: string) => {
     const messageDate = new Date(date);
+    if (Number.isNaN(messageDate.getTime())) {
+      return '';
+    }
 
     if (isToday(messageDate)) {
       return 'Today';
@@ -722,7 +721,7 @@ export function Chat({
           <AlertCircle className="w-4 h-4 mr-2" />
           Connection error
           <button
-            onClick={reconnect}
+            onClick={triggerChatReload}
             className="ml-2 underline hover:no-underline"
           >
             Retry
@@ -734,7 +733,7 @@ export function Chat({
           <WifiOff className="w-4 h-4 mr-2" />
           Disconnected
           <button
-            onClick={reconnect}
+            onClick={triggerChatReload}
             className="ml-2 underline hover:no-underline"
           >
             Connect
@@ -758,16 +757,12 @@ export function Chat({
 
   // Error state
   if (historyError) {
-    const handleReload = () => {
-      if (process.env.NODE_ENV !== 'test') window.location.reload();
-    };
-
     return (
       <div className={cn('flex flex-col items-center justify-center h-full p-4', className)}>
         <AlertCircle className="w-12 h-12 text-red-500 mb-2" />
         <p className="text-red-600 text-center">Failed to load messages</p>
         <button
-          onClick={handleReload}
+          onClick={triggerChatReload}
           className="mt-2 text-blue-600 underline hover:no-underline"
         >
           Reload
@@ -802,12 +797,12 @@ export function Chat({
                   <div className="absolute inset-0 flex items-center">
                     <div className="w-full border-t border-gray-200 dark:border-gray-800" />
                   </div>
-                  <div className="relative flex justify-center">
-                    <span className="bg-white px-3 py-1 text-xs text-gray-600 rounded-full shadow-sm ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-800">
-                      {getDateSeparator(messages[0]?.timestamp?.toISOString() || '')}
-                    </span>
-                  </div>
-                </div>
+	                  <div className="relative flex justify-center">
+	                    <span className="bg-white px-3 py-1 text-xs text-gray-600 rounded-full shadow-sm ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-800">
+	                      {getDateSeparator(getTimestampIsoOrEmpty(messages[0]?.timestamp))}
+	                    </span>
+	                  </div>
+	                </div>
 
 	                {/* Messages for this date */}
 	                {messages.map((message, index) => {
@@ -837,36 +832,35 @@ export function Chat({
                           canReact={!message.isOwn && !message.isDeleted}
                           showReadReceipt={message.isOwn}
                           onEdit={async (messageId, newContent) => {
-                            const target = allMessages.find((m) => m.id === messageId);
-                            if (!target || !canEditMessage(target)) return;
-                            await editMessageMutation.mutateAsync({
+                            await editChatBubbleMessage({
+                              messages: allMessages,
                               messageId,
-                              data: { content: newContent },
+                              newContent,
+                              canEditMessage,
+                              editMessage: editMessageMutation.mutateAsync,
                             });
                           }}
-	                          onDelete={async (messageId) => {
-	                            const target = allMessages.find((m) => m.id === messageId);
-	                            if (!target || !canEditMessage(target)) return;
-	                            await deleteMessageMutation.mutateAsync({ messageId });
-	                            setRealtimeMessages((prev) => {
-	                              const idx = prev.findIndex((m) => m.id === messageId);
-	                              if (idx === -1) return prev;
-	                              const updated = [...prev];
-	                              updated[idx] = {
-	                                ...updated[idx]!,
-	                                is_deleted: true,
-	                                content: 'This message was deleted',
-	                              };
-	                              return updated;
-	                            });
-	                            void queryClient.invalidateQueries({
-	      queryKey: queryKeys.messages.conversationMessages(conversationId ?? ''),
-	      exact: false,
-	                            });
-	                          }}
+		                          onDelete={async (messageId) => {
+		                            await deleteChatBubbleMessage({
+		                              messages: allMessages,
+		                              messageId,
+		                              canEditMessage,
+		                              deleteMessage: deleteMessageMutation.mutateAsync,
+		                              updateRealtimeMessages: setRealtimeMessages,
+		                              invalidateMessages: () =>
+		                                queryClient.invalidateQueries({
+		                                  queryKey: queryKeys.messages.conversationMessages(conversationId ?? ''),
+		                                  exact: false,
+		                                }),
+		                            });
+		                          }}
                           onReact={async (messageId, emoji) => {
-                            if (processingReaction !== null) return;
-                            await handleAddReaction(messageId, emoji);
+                            await reactToChatBubbleMessage({
+                              processingReaction,
+                              messageId,
+                              emoji,
+                              handleAddReaction,
+                            });
                           }}
                           reactionBusy={processingReaction !== null}
                           side={message.isOwn ? 'right' : 'left'}

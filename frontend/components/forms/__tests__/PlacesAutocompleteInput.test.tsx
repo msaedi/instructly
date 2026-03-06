@@ -86,6 +86,25 @@ describe('PlacesAutocompleteInput', () => {
 
       expect(onValueChange).toHaveBeenCalledWith('a');
     });
+
+    it('ignores direct input changes when disabled', () => {
+      const onValueChange = jest.fn();
+
+      render(
+        <PlacesAutocompleteInput
+          {...defaultProps}
+          disabled={true}
+          onValueChange={onValueChange}
+        />
+      );
+
+      fireEvent.change(screen.getByRole('combobox'), {
+        target: { value: '123 Main St' },
+      });
+
+      expect(onValueChange).not.toHaveBeenCalled();
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    });
   });
 
   describe('suggestions fetching', () => {

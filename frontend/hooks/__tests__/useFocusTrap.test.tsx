@@ -128,6 +128,28 @@ describe('useFocusTrap', () => {
     expect(screen.getByRole('button', { name: 'Focusable' })).toHaveFocus();
   });
 
+  it('skips elements hidden with the hidden attribute when choosing initial focus', () => {
+    function HiddenAttributeHarness() {
+      const containerRef = useRef<HTMLDivElement | null>(null);
+      useFocusTrap({
+        isOpen: true,
+        containerRef,
+      });
+
+      return (
+        <div ref={containerRef} role="dialog" tabIndex={-1}>
+          <button type="button" hidden>
+            Hidden by attribute
+          </button>
+          <button type="button">Visible focus target</button>
+        </div>
+      );
+    }
+
+    render(<HiddenAttributeHarness />);
+    expect(screen.getByRole('button', { name: 'Visible focus target' })).toHaveFocus();
+  });
+
   it('moves focus back inside the trap when Tab starts outside the container', () => {
     function OutsideTabHarness() {
       const containerRef = useRef<HTMLDivElement | null>(null);
@@ -172,5 +194,54 @@ describe('useFocusTrap', () => {
     }
 
     expect(() => render(<MissingContainerHarness />)).not.toThrow();
+  });
+
+  it('keeps focus on the container when tabbing inside a trap with no focusables', () => {
+    render(<FocusTrapHarness isOpen={true} includeFocusable={false} />);
+    const dialog = screen.getByRole('dialog');
+
+    dialog.focus();
+    fireEvent.keyDown(document, { key: 'Tab' });
+
+    expect(dialog).toHaveFocus();
+  });
+
+  it('keeps the keydown handler safe if the container ref is cleared after mount', () => {
+    function NullRefAfterMountHarness() {
+      const containerRef = useRef<HTMLDivElement | null>(null);
+      useFocusTrap({
+        isOpen: true,
+        containerRef,
+      });
+
+      React.useEffect(() => {
+        containerRef.current = null;
+      }, []);
+
+      return (
+        <div ref={containerRef} role="dialog" tabIndex={-1}>
+          <button type="button">First</button>
+        </div>
+      );
+    }
+
+    render(<NullRefAfterMountHarness />);
+
+    expect(() => {
+      fireEvent.keyDown(document, { key: 'Tab' });
+    }).not.toThrow();
+  });
+
+  it('stores null as the previous active element when no HTMLElement is focused', () => {
+    const activeElementSpy = jest
+      .spyOn(document, 'activeElement', 'get')
+      .mockReturnValue(null);
+
+    try {
+      expect(() => render(<FocusTrapHarness isOpen={true} />)).not.toThrow();
+      expect(screen.getByRole('button', { name: 'First' })).toBeInTheDocument();
+    } finally {
+      activeElementSpy.mockRestore();
+    }
   });
 });

@@ -296,6 +296,28 @@ describe('ReactionTrigger', () => {
       // onClose is called because emoji selection triggers close
       // but that's handled by the emoji button click, not the outside click handler
     });
+
+    it('ignores document clicks that originate from within the reaction container', () => {
+      const onClose = jest.fn();
+
+      const { container } = render(
+        <ReactionTrigger
+          {...defaultProps}
+          isOpen={true}
+          isHovered={true}
+          onClose={onClose}
+        />
+      );
+
+      const pickerContainer = container.querySelector(`[data-reaction-area="${defaultProps.messageId}"] div`);
+      expect(pickerContainer).toBeInTheDocument();
+
+      if (pickerContainer) {
+        fireEvent.click(pickerContainer);
+      }
+
+      expect(onClose).not.toHaveBeenCalled();
+    });
   });
 
   describe('data attributes', () => {

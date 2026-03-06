@@ -11,6 +11,7 @@ import {
   SelectContent,
   SelectItem,
   SelectLabel,
+  SelectSeparator,
   SelectValue,
 } from '../select';
 
@@ -25,6 +26,27 @@ Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
 });
 
 describe('Select component — branch coverage', () => {
+  it('re-exports SelectSeparator for grouped menus', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <Select>
+        <SelectTrigger>
+          <SelectValue placeholder="Choose" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="a">Alpha</SelectItem>
+          <SelectSeparator data-testid="select-separator" />
+          <SelectItem value="b">Beta</SelectItem>
+        </SelectContent>
+      </Select>
+    );
+
+    await user.click(screen.getByRole('combobox'));
+
+    expect(screen.getByTestId('select-separator')).toBeInTheDocument();
+  });
+
   // ---- onOpenChange prop ----
 
   describe('onOpenChange forwarding', () => {

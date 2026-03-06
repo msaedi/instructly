@@ -1,7 +1,8 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { invokeReactClick } from '@/test-utils/reactEventHandlers';
 import InstructorCard from '../InstructorCard';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { useFavoriteStatus, useSetFavoriteStatus } from '@/hooks/queries/useFavoriteStatus';
@@ -417,6 +418,35 @@ describe('InstructorCard', () => {
       await user.click(screen.getByLabelText('Toggle favorite'));
 
       expect(mockFavoritesApi.add).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores a second programmatic click after loading has already started', async () => {
+      mockUseAuth.mockReturnValue({ user: { id: 'user-1' } });
+      mockUseFavoriteStatus.mockReturnValue({ data: false });
+
+      let resolveAdd: (() => void) | undefined;
+      mockFavoritesApi.add.mockImplementation(
+        () =>
+          new Promise<{ success: boolean; message: string; favorite_id: string }>((resolve) => {
+            resolveAdd = () => resolve({ success: true, message: 'Added', favorite_id: 'fav-1' });
+          })
+      );
+
+      const instructor = createInstructor();
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+
+      const user = userEvent.setup();
+      const toggleButton = screen.getByLabelText('Toggle favorite');
+      await user.click(toggleButton);
+
+      invokeReactClick(toggleButton);
+
+      expect(mockFavoritesApi.add).toHaveBeenCalledTimes(1);
+
+      resolveAdd?.();
+      await waitFor(() => {
+        expect(toast.success).toHaveBeenCalledWith('Added to favorites!');
+      });
     });
   });
 
@@ -1080,6 +1110,30 @@ describe('InstructorCard', () => {
       // No pricing text should be shown
       expect(screen.queryByText('Updating pricing')).not.toBeInTheDocument();
     });
+
+    it('drops a late pricing preview failure after unmount', async () => {
+      let rejectPreview: ((error: Error) => void) | undefined;
+      mockFetchPricingPreview.mockImplementation(
+        () =>
+          new Promise((_, reject) => {
+            rejectPreview = reject;
+          })
+      );
+
+      const instructor = createInstructor();
+      const { unmount } = renderWithProviders(
+        <InstructorCard instructor={instructor} bookingDraftId="draft-123" />
+      );
+
+      unmount();
+
+      await act(async () => {
+        rejectPreview?.(new Error('Network error'));
+        await Promise.resolve();
+      });
+
+      expect(screen.queryByText('Unable to load pricing preview.')).not.toBeInTheDocument();
+    });
   });
 
   describe('location format display', () => {
@@ -1386,7 +1440,7 @@ describe('InstructorCard', () => {
       renderWithProviders(<InstructorCard instructor={instructor} />);
 
       const user = userEvent.setup();
-      const favButton = screen.getByLabelText('Toggle favorite');
+      const favButton = screen.getByLabelText('Toggle favorite') as HTMLButtonElement;
 
       // Click twice rapidly
       await user.click(favButton);
@@ -1397,6 +1451,34 @@ describe('InstructorCard', () => {
 
       // Clean up
       if (resolveAdd) resolveAdd();
+    });
+
+    it('still ignores a stale second click if the favorite button becomes clickable again before the request resolves', async () => {
+      mockUseAuth.mockReturnValue({ user: { id: 'user-1' } });
+      mockUseFavoriteStatus.mockReturnValue({ data: false });
+
+      let resolveAdd: (() => void) | undefined;
+      mockFavoritesApi.add.mockImplementation(
+        () =>
+          new Promise<{ success: boolean; message: string; favorite_id: string }>((resolve) => {
+            resolveAdd = () => resolve({ success: true, message: 'Added', favorite_id: 'fav-1' });
+          })
+      );
+
+      renderWithProviders(<InstructorCard instructor={createInstructor()} />);
+
+      const favButton = screen.getByLabelText('Toggle favorite') as HTMLButtonElement;
+      await userEvent.click(favButton);
+
+      favButton.disabled = false;
+      fireEvent.click(favButton);
+
+      expect(mockFavoritesApi.add).toHaveBeenCalledTimes(1);
+
+      resolveAdd?.();
+      await waitFor(() => {
+        expect(toast.success).toHaveBeenCalledWith('Added to favorites!');
+      });
     });
   });
 

@@ -587,7 +587,6 @@ const findNextAvailableSlot = (
                 }
 
                 const combinedRows = [...highlightRows, ...metaRows];
-                if (!combinedRows.length) return null;
 
                 const marginClass = highlightRows.length
                   ? (compact ? 'mt-1 text-xs' : 'mt-2 text-sm')

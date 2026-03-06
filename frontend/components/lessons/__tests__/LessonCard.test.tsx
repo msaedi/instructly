@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LessonCard } from '../LessonCard';
@@ -657,6 +657,27 @@ describe('LessonCard', () => {
 
       expect(screen.getByText('$60.00')).toBeInTheDocument();
     });
+
+    it('shows a placeholder when 12-24 hour cancellation pricing has an invalid amount', () => {
+      const { Wrapper } = createWrapper();
+      render(
+        <Wrapper>
+          <LessonCard
+            lesson={{
+              ...mockBooking,
+              status: 'CANCELLED',
+              cancelled_at: '2025-01-20T01:00:00Z',
+              booking_start_utc: '2025-01-20T15:00:00Z',
+              total_price: 'invalid' as unknown as number,
+            }}
+            isCompleted={false}
+            onViewDetails={jest.fn()}
+          />
+        </Wrapper>
+      );
+
+      expect(screen.getByText('—')).toBeInTheDocument();
+    });
   });
 
   describe('book again button visibility', () => {
@@ -785,6 +806,16 @@ describe('LessonCard', () => {
       // Should still render
       await waitFor(() => {
         expect(screen.getByTestId('lesson-card')).toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(reviewsApiMock.getByBooking).toHaveBeenCalledWith('booking-1');
+      });
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId('review-button')).toHaveAttribute('data-reviewed', 'false');
       });
     });
   });

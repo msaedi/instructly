@@ -129,6 +129,25 @@ describe('GlobalBackground', () => {
     });
   });
 
+  it('clears the background when the resolved URL becomes null', async () => {
+    mockUsePathname.mockReturnValue('/profile');
+    (getActivityBackground as jest.Mock).mockReturnValue('/home.jpg');
+
+    const { rerender, container } = render(<GlobalBackground />);
+
+    await waitFor(() => {
+      const bg = container.querySelector('div[aria-hidden="true"]') as HTMLDivElement | null;
+      expect(bg?.style.backgroundImage).toContain('home.jpg');
+    });
+
+    mockUsePathname.mockReturnValue('/');
+    rerender(<GlobalBackground />);
+
+    await waitFor(() => {
+      expect(container.querySelector('div[aria-hidden="true"]')).not.toBeInTheDocument();
+    });
+  });
+
   it('extracts the original image path from Cloudflare image URLs for low-quality blur', async () => {
     mockUsePathname.mockReturnValue('/login');
     (

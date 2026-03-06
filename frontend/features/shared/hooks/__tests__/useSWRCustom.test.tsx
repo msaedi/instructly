@@ -259,9 +259,8 @@ describe('useSWRCustom', () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(result.current.data).toBe('payload');
 
-    // Create a new fetcher reference to force the effect to re-run
-    // (fetcher is in the deps array). The re-run will call run(true) which
-    // skips the dedup check, but this at least exercises the dedup interval parameter.
+    // Create a new fetcher reference to force the effect to re-run with the same key.
+    // The hook should dedupe this rerender because it happens within the deduping window.
     const fetcher2 = jest.fn().mockResolvedValue('payload2');
     rerender({ key: 'dedup-key', fetcherFn: fetcher2 });
 
@@ -269,8 +268,23 @@ describe('useSWRCustom', () => {
       await Promise.resolve();
     });
 
-    // New fetcher called because it's a fresh effect (cancelled old, started new)
-    expect(fetcher2).toHaveBeenCalledTimes(1);
+    expect(fetcher2).not.toHaveBeenCalled();
+    expect(result.current.data).toBe('payload');
+
+    await act(async () => {
+      jest.advanceTimersByTime(5001);
+      await Promise.resolve();
+    });
+
+    const fetcher3 = jest.fn().mockResolvedValue('payload3');
+    rerender({ key: 'dedup-key', fetcherFn: fetcher3 });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(fetcher3).toHaveBeenCalledTimes(1);
+    expect(result.current.data).toBe('payload3');
 
     jest.useRealTimers();
   });

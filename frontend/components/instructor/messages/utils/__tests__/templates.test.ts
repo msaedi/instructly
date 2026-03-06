@@ -277,6 +277,7 @@ Second paragraph with more content.`;
     it('handles empty templates array', () => {
       expect(() => saveTemplatesToCookie([])).not.toThrow();
     });
+
   });
 
   describe('copyToClipboard', () => {

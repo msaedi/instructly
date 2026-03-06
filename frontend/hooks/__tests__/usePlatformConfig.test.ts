@@ -1,7 +1,7 @@
 import React from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { usePlatformConfig, usePlatformFees } from '../usePlatformConfig';
+import { PLATFORM_CONFIG_QUERY_KEY, usePlatformConfig, usePlatformFees } from '../usePlatformConfig';
 
 jest.mock('@/lib/api/config', () => ({
   fetchPlatformConfig: jest.fn(),
@@ -23,6 +23,10 @@ const createWrapper = () => {
 describe('usePlatformConfig', () => {
   beforeEach(() => {
     fetchPlatformConfig.mockReset();
+  });
+
+  it('exports a stable public platform config query key', () => {
+    expect(PLATFORM_CONFIG_QUERY_KEY).toEqual(['config', 'public']);
   });
 
   it('returns config data when fetch succeeds (line 15)', async () => {

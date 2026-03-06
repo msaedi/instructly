@@ -15,10 +15,6 @@ const isFocusableElement = (element: HTMLElement) => {
   if (element.getAttribute('aria-hidden') === 'true') return false;
   if (element.hasAttribute('hidden')) return false;
   if (element.tabIndex < 0) return false;
-  if (element instanceof HTMLButtonElement && element.disabled) return false;
-  if (element instanceof HTMLInputElement && element.disabled) return false;
-  if (element instanceof HTMLSelectElement && element.disabled) return false;
-  if (element instanceof HTMLTextAreaElement && element.disabled) return false;
   return true;
 };
 

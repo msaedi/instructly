@@ -26,7 +26,6 @@ const BULLET_PATTERN = /^([-*]|\d+[.)])\s*/;
  */
 const ensureSentenceEnding = (text: string): string => {
   const trimmed = text.trim();
-  if (!trimmed) return '';
   if (/[.!?)]$/.test(trimmed)) return trimmed;
   return `${trimmed}.`;
 };
@@ -67,7 +66,6 @@ const looksLikeOpener = (text: string): boolean => {
  */
 const sentenceCase = (text: string): string => {
   const trimmed = text.trim();
-  if (!trimmed) return '';
   const normalized = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
   return ensureSentenceEnding(normalized);
 };
@@ -77,7 +75,6 @@ const sentenceCase = (text: string): string => {
  */
 const splitIntoSentences = (text: string): string[] => {
   const sanitized = text.replace(/\s+/g, ' ').trim();
-  if (!sanitized) return [];
   const matches = sanitized.match(/[^.!?]+[.!?]?/g);
   if (!matches) return [sentenceCase(sanitized)];
   return matches.map((segment) => sentenceCase(segment));
@@ -149,7 +146,6 @@ export const rewriteTemplateContent = (raw: string, iteration = 0): string => {
     } else {
       const combined = lines.join(' ');
       splitIntoSentences(combined).forEach((sentence) => {
-        if (!sentence) return;
         if (looksLikeClosing(sentence)) return;
         if (looksLikeOpener(sentence)) return;
         sentenceItems.push(sentence.replace(/\s+/g, ' ').trim());

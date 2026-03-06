@@ -9,6 +9,12 @@ import { Instructor } from '@/features/student/booking/types';
 import { getBookingIntent, clearBookingIntent } from '@/features/shared/utils/booking';
 import { at } from '@/lib/ts/safe';
 import { useInstructorAvailability } from '@/hooks/queries/useInstructorAvailability';
+import {
+  buildAvailabilityDays,
+  formatAvailabilityTime,
+  getFutureAvailableSlots,
+  groupSlotsByTimeOfDay,
+} from './AvailabilityCalendar.helpers';
 
 interface TimeSlot {
   start_time: string;
@@ -117,92 +123,15 @@ export default function AvailabilityCalendar({
 
   // Transform hook data into AvailabilityDay[] format
   const availability = useMemo((): AvailabilityDay[] => {
-    if (!availabilityData?.availability_by_date) {
-      // Return empty availability for all 14 days when no data
-      return next14Days.map((day) => ({ date: day.date, slots: [] }));
-    }
-
-    // Build availability map from hook data
-    const availabilityMap = new Map<string, TimeSlot[]>();
-    Object.entries(availabilityData.availability_by_date).forEach(
-      ([date, dayData]: [string, { available_slots?: { start_time: string; end_time: string }[] }]) => {
-        const slots = dayData.available_slots
-          ? dayData.available_slots.map((slot: { start_time: string; end_time: string }) => ({
-              start_time: slot.start_time,
-              end_time: slot.end_time,
-              is_available: true,
-            }))
-          : [];
-        availabilityMap.set(date, slots);
-      }
-    );
-
-    // Create availability data for all 14 days
-    return next14Days
-      .map((day) => {
-        const date = day?.date;
-        if (!date) return { date: '', slots: [] };
-        return {
-          date,
-          slots: availabilityMap.get(date) || [],
-        };
-      })
-      .filter((day) => day.date !== '') as AvailabilityDay[];
+    return buildAvailabilityDays(next14Days, availabilityData?.availability_by_date);
   }, [availabilityData, next14Days]);
 
   const getAvailableSlots = (date: string) => {
-    const dayAvailability = availability.find((day) => day.date === date);
-    const allSlots = dayAvailability?.slots.filter((slot) => slot.is_available) || [];
-
-    // Filter out past time slots
-    const now = new Date();
-    return allSlots.filter((slot) => {
-      const slotDateTime = new Date(`${date}T${slot.start_time}`);
-      return slotDateTime > now;
-    });
+    return getFutureAvailableSlots(availability, date);
   };
 
   const hasAvailability = (date: string) => {
     return getAvailableSlots(date).length > 0;
-  };
-
-  const groupSlotsByTimeOfDay = (slots: TimeSlot[]) => {
-    const morning = slots.filter((slot) => {
-      const timeParts = slot.start_time.split(':');
-      const hourStr = at(timeParts, 0);
-      if (!hourStr) return false;
-      const hour = parseInt(hourStr);
-      return hour < 12;
-    });
-
-    const afternoon = slots.filter((slot) => {
-      const timeParts = slot.start_time.split(':');
-      const hourStr = at(timeParts, 0);
-      if (!hourStr) return false;
-      const hour = parseInt(hourStr);
-      return hour >= 12 && hour < 17;
-    });
-
-    const evening = slots.filter((slot) => {
-      const timeParts = slot.start_time.split(':');
-      const hourStr = at(timeParts, 0);
-      if (!hourStr) return false;
-      const hour = parseInt(hourStr);
-      return hour >= 17;
-    });
-
-    return { morning, afternoon, evening };
-  };
-
-  const formatTime = (time: string) => {
-    const timeParts = time.split(':');
-    const hours = at(timeParts, 0);
-    const minutes = at(timeParts, 1);
-    if (!hours || !minutes) return '';
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes}${ampm}`;
   };
 
   if (loading) {
@@ -346,7 +275,7 @@ export default function AvailabilityCalendar({
                         }
                         className="min-h-[44px] px-3 py-2 text-sm border-2 border-gray-200 dark:border-gray-600 rounded-lg hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700 dark:hover:border-blue-400 transition-colors dark:text-white cursor-pointer"
                       >
-                        {formatTime(slot.start_time)}
+                                {formatAvailabilityTime(slot.start_time)}
                       </button>
                     ))}
                   </div>
@@ -367,7 +296,7 @@ export default function AvailabilityCalendar({
                         }
                         className="min-h-[44px] px-3 py-2 text-sm border-2 border-gray-200 dark:border-gray-600 rounded-lg hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700 dark:hover:border-blue-400 transition-colors dark:text-white cursor-pointer"
                       >
-                        {formatTime(slot.start_time)}
+                        {formatAvailabilityTime(slot.start_time)}
                       </button>
                     ))}
                   </div>
@@ -388,7 +317,7 @@ export default function AvailabilityCalendar({
                         }
                         className="min-h-[44px] px-3 py-2 text-sm border-2 border-gray-200 dark:border-gray-600 rounded-lg hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700 dark:hover:border-blue-400 transition-colors dark:text-white cursor-pointer"
                       >
-                        {formatTime(slot.start_time)}
+                        {formatAvailabilityTime(slot.start_time)}
                       </button>
                     ))}
                   </div>

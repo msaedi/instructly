@@ -2,6 +2,12 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AvailabilityCalendar from '../AvailabilityCalendar';
+import {
+  buildAvailabilityDays,
+  formatAvailabilityTime,
+  getFutureAvailableSlots,
+  groupSlotsByTimeOfDay,
+} from '../AvailabilityCalendar.helpers';
 import { useInstructorAvailability } from '@/hooks/queries/useInstructorAvailability';
 import { getBookingIntent, clearBookingIntent } from '@/features/shared/utils/booking';
 
@@ -1003,5 +1009,63 @@ describe('AvailabilityCalendar', () => {
         });
       }
     });
+  });
+});
+
+describe('AvailabilityCalendar helpers', () => {
+  it('drops malformed next-day entries while preserving valid availability', () => {
+    const availability = buildAvailabilityDays(
+      [{ date: getDateString(1) }, { date: '' }, {}],
+      {
+        [getDateString(1)]: {
+          available_slots: [{ start_time: '09:00:00', end_time: '10:00:00' }],
+        },
+      },
+    );
+
+    expect(availability).toEqual([
+      {
+        date: getDateString(1),
+        slots: [{ start_time: '09:00:00', end_time: '10:00:00', is_available: true }],
+      },
+    ]);
+  });
+
+  it('filters past slots and groups malformed times out of every bucket', () => {
+    const date = '2026-03-05';
+    const availability = [
+      {
+        date,
+        slots: [
+          { start_time: '07:00:00', end_time: '08:00:00', is_available: true },
+          { start_time: '13:00:00', end_time: '14:00:00', is_available: true },
+          { start_time: '', end_time: '18:00:00', is_available: true },
+        ],
+      },
+    ];
+
+    expect(
+      getFutureAvailableSlots(availability, date, new Date('2026-03-05T12:00:00'))
+    ).toEqual([
+      { start_time: '13:00:00', end_time: '14:00:00', is_available: true },
+    ]);
+
+    expect(
+      groupSlotsByTimeOfDay([
+        { start_time: '', end_time: '09:00:00', is_available: true },
+        { start_time: '11:00:00', end_time: '12:00:00', is_available: true },
+        { start_time: '15:00:00', end_time: '16:00:00', is_available: true },
+        { start_time: '19:00:00', end_time: '20:00:00', is_available: true },
+      ])
+    ).toEqual({
+      morning: [{ start_time: '11:00:00', end_time: '12:00:00', is_available: true }],
+      afternoon: [{ start_time: '15:00:00', end_time: '16:00:00', is_available: true }],
+      evening: [{ start_time: '19:00:00', end_time: '20:00:00', is_available: true }],
+    });
+  });
+
+  it('formats valid times and returns an empty string for malformed values', () => {
+    expect(formatAvailabilityTime('13:05:00')).toBe('1:05PM');
+    expect(formatAvailabilityTime('13')).toBe('');
   });
 });

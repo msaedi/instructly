@@ -1926,6 +1926,188 @@ describe('BGCStep', () => {
       // No crash means the isMountedRef check worked
     });
 
+    it('bails out when a stale poll callback fires after unmount', async () => {
+      let scheduledPoll: (() => void | Promise<void>) | null = null;
+      const originalSetTimeout = window.setTimeout;
+      const setTimeoutSpy = jest
+        .spyOn(window, 'setTimeout')
+        .mockImplementation(((callback: TimerHandler, delay?: number, ...args: unknown[]) => {
+          if (delay === 15000 && typeof callback === 'function') {
+            scheduledPoll = () => callback(...args);
+            return 1 as unknown as ReturnType<typeof setTimeout>;
+          }
+          return originalSetTimeout(callback, delay, ...args);
+        }) as typeof window.setTimeout);
+
+      bgcStatusMock.mockResolvedValueOnce({ ...defaultStatusResponse, status: 'pending' });
+
+      const { unmount } = render(<BGCStep instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Verification pending')).toBeInTheDocument();
+      });
+
+      unmount();
+
+      await act(async () => {
+        await scheduledPoll?.();
+      });
+
+      expect(bgcStatusMock).toHaveBeenCalledTimes(1);
+      setTimeoutSpy.mockRestore();
+    });
+
+    it('drops a resolved poll response when the component unmounts mid-request', async () => {
+      let scheduledPoll: (() => void | Promise<void>) | null = null;
+      let resolvePoll: ((value: typeof defaultStatusResponse) => void) | null = null;
+      const originalSetTimeout = window.setTimeout;
+      const setTimeoutSpy = jest
+        .spyOn(window, 'setTimeout')
+        .mockImplementation(((callback: TimerHandler, delay?: number, ...args: unknown[]) => {
+          if (delay === 15000 && typeof callback === 'function') {
+            scheduledPoll = () => callback(...args);
+            return 1 as unknown as ReturnType<typeof setTimeout>;
+          }
+          return originalSetTimeout(callback, delay, ...args);
+        }) as typeof window.setTimeout);
+
+      bgcStatusMock
+        .mockResolvedValueOnce({ ...defaultStatusResponse, status: 'pending' })
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolvePoll = resolve as (value: typeof defaultStatusResponse) => void;
+            })
+        );
+
+      const { unmount } = render(<BGCStep instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Verification pending')).toBeInTheDocument();
+      });
+
+      const pendingPoll = scheduledPoll;
+      await act(async () => {
+        if (pendingPoll) {
+          const poll = pendingPoll as () => void | Promise<void>;
+          void poll();
+        }
+      });
+
+      unmount();
+      const completePoll = resolvePoll;
+      if (completePoll) {
+        const resolve = completePoll as (value: typeof defaultStatusResponse) => void;
+        resolve(defaultStatusResponse);
+      }
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      setTimeoutSpy.mockRestore();
+    });
+
+    it('drops a rejected poll response when the component unmounts mid-request', async () => {
+      let scheduledPoll: (() => void | Promise<void>) | null = null;
+      let rejectPoll: ((reason?: unknown) => void) | null = null;
+      const originalSetTimeout = window.setTimeout;
+      const setTimeoutSpy = jest
+        .spyOn(window, 'setTimeout')
+        .mockImplementation(((callback: TimerHandler, delay?: number, ...args: unknown[]) => {
+          if (delay === 15000 && typeof callback === 'function') {
+            scheduledPoll = () => callback(...args);
+            return 1 as unknown as ReturnType<typeof setTimeout>;
+          }
+          return originalSetTimeout(callback, delay, ...args);
+        }) as typeof window.setTimeout);
+
+      bgcStatusMock
+        .mockResolvedValueOnce({ ...defaultStatusResponse, status: 'pending' })
+        .mockImplementationOnce(
+          () =>
+            new Promise((_, reject) => {
+              rejectPoll = reject as (reason?: unknown) => void;
+            })
+        );
+
+      const { unmount } = render(<BGCStep instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Verification pending')).toBeInTheDocument();
+      });
+
+      const pendingPoll = scheduledPoll;
+      await act(async () => {
+        if (pendingPoll) {
+          const poll = pendingPoll as () => void | Promise<void>;
+          void poll();
+        }
+      });
+
+      unmount();
+      const failPoll = rejectPoll;
+      if (failPoll) {
+        const reject = failPoll as (reason?: unknown) => void;
+        reject(new Error('late poll failure'));
+      }
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(toastMock.error).not.toHaveBeenCalledWith('late poll failure');
+      setTimeoutSpy.mockRestore();
+    });
+
+    it('ignores late initial success responses after unmount', async () => {
+      let resolveInitial: ((value: typeof defaultStatusResponse) => void) | null = null;
+      bgcStatusMock.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveInitial = resolve as (value: typeof defaultStatusResponse) => void;
+          })
+      );
+
+      const { unmount } = render(<BGCStep instructorId={mockInstructorId} />);
+
+      unmount();
+      const completeInitial = resolveInitial;
+      if (completeInitial) {
+        const resolve = completeInitial as (value: typeof defaultStatusResponse) => void;
+        resolve({ ...defaultStatusResponse, status: 'passed' } as unknown as typeof defaultStatusResponse);
+      }
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+    });
+
+    it('ignores late initial error responses after unmount', async () => {
+      let rejectInitial: ((reason?: unknown) => void) | null = null;
+      bgcStatusMock.mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectInitial = reject as (reason?: unknown) => void;
+          })
+      );
+
+      const { unmount } = render(<BGCStep instructorId={`${mockInstructorId}-late-error`} />);
+
+      unmount();
+      const failInitial = rejectInitial;
+      if (failInitial) {
+        const reject = failInitial as (reason?: unknown) => void;
+        reject(new Error('late initial failure'));
+      }
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(toastMock.error).not.toHaveBeenCalledWith('late initial failure');
+    });
+
     it('handles initial load error with non-Error object (line 218 else branch)', async () => {
       bgcStatusMock.mockRejectedValue('string error, not Error instance');
 

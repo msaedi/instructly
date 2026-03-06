@@ -11,6 +11,11 @@ import { logger } from '@/lib/logger';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { APP_ENV } from '@/lib/publicEnv';
 import { useProfilePictureUrls } from '@/hooks/useProfilePictureUrls';
+import {
+  getMeasuredOverlaySize,
+  runWithCroppedProfileFile,
+  shouldUseProxyProfileUpload,
+} from './ProfilePictureUpload.helpers';
 
 interface Props {
   onCompleted?: () => void;
@@ -35,12 +40,10 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
   const [error, setError] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [showCrop, setShowCrop] = useState(false);
+  const hostname = typeof window === 'undefined' ? null : window.location.hostname;
   const useProxyUpload = React.useMemo(() => {
-    if (APP_ENV === 'local') return true;
-    if (typeof window === 'undefined') return false;
-    const host = window.location.hostname;
-    return host === 'beta-local.instainstru.com';
-  }, []);
+    return shouldUseProxyProfileUpload(APP_ENV, hostname);
+  }, [hostname]);
 
   const shouldFetchExisting = Boolean(user?.id && user?.has_profile_picture !== false);
   const rawId = useMemo(() => {
@@ -57,18 +60,10 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
   // Measure trigger circle size if custom trigger provided
   React.useEffect(() => {
     if (!trigger) return;
-    const el = buttonRef.current;
-    if (!el) return;
-    try {
-      const circle = el.querySelector('.rounded-full') as HTMLElement | null;
-      const rect = (circle || el).getBoundingClientRect();
-      const w = Math.round(rect.width);
-      const h = Math.round(rect.height);
-      if (w && h) {
-        const s = Math.min(w, h);
-        if (Math.abs(s - overlaySize) > 1) setOverlaySize(s);
-      }
-    } catch {}
+    const nextOverlaySize = getMeasuredOverlaySize(buttonRef.current, overlaySize);
+    if (nextOverlaySize !== null) {
+      setOverlaySize(nextOverlaySize);
+    }
   }, [trigger, overlaySize]);
 
 
@@ -101,73 +96,75 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
   };
 
   const handleCropped = async (blob: Blob) => {
-    if (!pendingFile) return;
-    // Use original filename but force .jpg since we export JPEG
-    const filename = (pendingFile.name.split('.').slice(0, -1).join('.') || 'avatar') + '.jpg';
-    const file = new File([blob], filename, { type: 'image/jpeg' });
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
+    await runWithCroppedProfileFile(
+      pendingFile,
+      blob,
+      URL.createObjectURL,
+      async ({ file, url }) => {
+        setPreviewUrl(url);
 
-    try {
-      setIsUploading(true);
-      const signed = await createSignedUpload({
-        filename: file.name,
-        content_type: file.type,
-        size_bytes: file.size,
-        purpose: 'profile_picture',
-      });
+        try {
+          setIsUploading(true);
+          const signed = await createSignedUpload({
+            filename: file.name,
+            content_type: file.type,
+            size_bytes: file.size,
+            purpose: 'profile_picture',
+          });
 
-      if (useProxyUpload) {
-        await proxyUploadToR2({ key: signed.object_key, file, contentType: file.type });
-      } else {
-        const putRes = await fetch(signed.upload_url, {
-          method: 'PUT',
-          headers: signed.headers || { 'Content-Type': file.type },
-          body: file,
-        });
-        if (!putRes.ok) throw new Error(`Upload failed: ${putRes.status}`);
-      }
+          if (useProxyUpload) {
+            await proxyUploadToR2({ key: signed.object_key, file, contentType: file.type });
+          } else {
+            const putRes = await fetch(signed.upload_url, {
+              method: 'PUT',
+              headers: signed.headers || { 'Content-Type': file.type },
+              body: file,
+            });
+            if (!putRes.ok) throw new Error(`Upload failed: ${putRes.status}`);
+          }
 
-      const fin = await finalizeProfilePicture(signed.object_key);
-      if (!fin.success) throw new Error(fin.message || 'Finalize failed');
+          const fin = await finalizeProfilePicture(signed.object_key);
+          if (!fin.success) throw new Error(fin.message || 'Finalize failed');
 
-      logger.info('Profile picture uploaded successfully');
-      const nextProfileVersion =
-        typeof user?.profile_picture_version === 'number' && Number.isFinite(user.profile_picture_version)
-          ? user.profile_picture_version + 1
-          : 1;
-      try {
-        await checkAuth();
-        await queryClient.invalidateQueries({ queryKey: queryKeys.user });
-        queryClient.setQueryData(queryKeys.user, (current) => {
-          if (!current || typeof current !== 'object') return current;
-          const typedCurrent = current as {
-            profile_picture_version?: number;
-            has_profile_picture?: boolean;
-          };
-          const currentVersion = typeof typedCurrent.profile_picture_version === 'number'
-            && Number.isFinite(typedCurrent.profile_picture_version)
-            ? typedCurrent.profile_picture_version
-            : 0;
-          return {
-            ...typedCurrent,
-            has_profile_picture: true,
-            profile_picture_version: Math.max(currentVersion, nextProfileVersion),
-          };
-        });
-        await queryClient.invalidateQueries({ queryKey: ['avatar-urls'] });
-      } catch {}
-      if (onCompleted) onCompleted();
-    } catch (err: unknown) {
-      logger.error('Profile picture upload error', err);
-      const msg = (err as Record<string, unknown>)?.['message'] as string || 'Upload failed';
-      setError(msg);
-      toast.error(msg);
-    } finally {
-      setIsUploading(false);
-      setShowCrop(false);
-      setPendingFile(null);
-    }
+          logger.info('Profile picture uploaded successfully');
+          const nextProfileVersion =
+            typeof user?.profile_picture_version === 'number' && Number.isFinite(user.profile_picture_version)
+              ? user.profile_picture_version + 1
+              : 1;
+          try {
+            await checkAuth();
+            await queryClient.invalidateQueries({ queryKey: queryKeys.user });
+            queryClient.setQueryData(queryKeys.user, (current) => {
+              if (!current || typeof current !== 'object') return current;
+              const typedCurrent = current as {
+                profile_picture_version?: number;
+                has_profile_picture?: boolean;
+              };
+              const currentVersion = typeof typedCurrent.profile_picture_version === 'number'
+                && Number.isFinite(typedCurrent.profile_picture_version)
+                ? typedCurrent.profile_picture_version
+                : 0;
+              return {
+                ...typedCurrent,
+                has_profile_picture: true,
+                profile_picture_version: Math.max(currentVersion, nextProfileVersion),
+              };
+            });
+            await queryClient.invalidateQueries({ queryKey: ['avatar-urls'] });
+          } catch {}
+          if (onCompleted) onCompleted();
+        } catch (err: unknown) {
+          logger.error('Profile picture upload error', err);
+          const msg = (err as Record<string, unknown>)?.['message'] as string || 'Upload failed';
+          setError(msg);
+          toast.error(msg);
+        } finally {
+          setIsUploading(false);
+          setShowCrop(false);
+          setPendingFile(null);
+        }
+      },
+    );
   };
 
   return (

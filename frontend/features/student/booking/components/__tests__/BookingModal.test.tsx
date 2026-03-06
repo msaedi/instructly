@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
+import { invokeReactClick } from '@/test-utils/reactEventHandlers';
 import BookingModal from '../BookingModal';
 import {
   removeBookingFieldError,
@@ -180,6 +181,31 @@ describe('BookingModal', () => {
       expect(window.sessionStorage.setItem).toHaveBeenCalledWith('bookingData', expect.any(String));
       expect(window.sessionStorage.setItem).toHaveBeenCalledWith('serviceId', expect.any(String));
       expect(window.sessionStorage.setItem).toHaveBeenCalledWith('selectedSlot', expect.any(String));
+    });
+
+    it('ignores continue when there is no selected service', async () => {
+      const redirectToLogin = jest.fn();
+      useAuthMock.mockReturnValue({
+        user: null,
+        isAuthenticated: false,
+        redirectToLogin,
+      });
+
+      render(
+        <BookingModal
+          isOpen
+          onClose={jest.fn()}
+          onContinueToBooking={jest.fn()}
+          instructor={{ ...instructor, services: [] }}
+          selectedDate="2025-01-01"
+          selectedTime="10:00"
+        />
+      );
+
+      invokeReactClick(screen.getByRole('button', { name: /continue to booking/i }));
+
+      expect(redirectToLogin).not.toHaveBeenCalled();
+      expect(window.sessionStorage.setItem).not.toHaveBeenCalled();
     });
   });
 
@@ -1007,7 +1033,9 @@ describe('BookingModal', () => {
       renderModal({ instructor: instructorNoServices });
 
       // The continue button is disabled, use fireEvent to bypass
-      const continueButton = screen.getByRole('button', { name: 'Continue to Booking' });
+      const continueButton = screen.getByRole('button', { name: 'Continue to Booking' }) as HTMLButtonElement;
+      continueButton.removeAttribute('disabled');
+      continueButton.disabled = false;
       fireEvent.click(continueButton);
 
       // Should not redirect since selectedService is null

@@ -1,4 +1,10 @@
 import { at } from '@/lib/ts/safe';
+import {
+  computeBasePriceCents,
+  computePriceFloorCents,
+  type NormalizedModality,
+  type PriceFloorConfig,
+} from '@/lib/pricing/priceFloors';
 
 export type ParsedDisplayedTime =
   | {
@@ -112,6 +118,55 @@ export const buildBookingDateTime = (selectedDate: string, startTime: string): D
   return Number.isNaN(bookingDateTime.getTime()) ? null : bookingDateTime;
 };
 
+export const parseDisplayTimeToMinutes = (display: string): number => {
+  const lower = display.toLowerCase();
+  const isPM = lower.includes('pm');
+  const isAM = lower.includes('am');
+  const core = lower.replace(/am|pm/g, '').trim();
+  const [hh, mm] = core.split(':');
+  if (!hh || !mm) return 0;
+  let hour = parseInt(hh, 10);
+  const minute = parseInt(mm || '0', 10);
+  if (isPM && hour !== 12) hour += 12;
+  if (!isPM && isAM && hour === 12) hour = 0;
+  return hour * 60 + minute;
+};
+
+export const areNumberSetsEqual = (a: number[], b: number[]): boolean => {
+  if (a.length !== b.length) return false;
+  const setA = new Set(a);
+  for (const value of b) {
+    if (!setA.has(value)) return false;
+  }
+  return true;
+};
+
+export const getPriceFloorViolation = ({
+  pricingFloors,
+  hasSelectedService,
+  selectedHourlyRate,
+  selectedDuration,
+  selectedModality,
+}: {
+  pricingFloors: PriceFloorConfig | null | undefined;
+  hasSelectedService: boolean;
+  selectedHourlyRate: number;
+  selectedDuration: number;
+  selectedModality: NormalizedModality;
+}): { floorCents: number; baseCents: number } | null => {
+  if (!pricingFloors) return null;
+  if (!hasSelectedService) return null;
+  if (!Number.isFinite(selectedHourlyRate) || selectedHourlyRate <= 0) return null;
+  if (!Number.isFinite(selectedDuration) || selectedDuration <= 0) return null;
+
+  const floorCents = computePriceFloorCents(pricingFloors, selectedModality, selectedDuration);
+  const baseCents = computeBasePriceCents(selectedHourlyRate, selectedDuration);
+  if (baseCents < floorCents) {
+    return { floorCents, baseCents };
+  }
+  return null;
+};
+
 export type PreparedBookingTiming =
   | {
       ok: true;
@@ -125,6 +180,18 @@ export type PreparedBookingTiming =
       logMessage: 'Invalid time format' | 'Invalid time values' | 'Invalid booking date/time';
       logContext: Record<string, string>;
     };
+
+export const consumePreparedBookingTiming = (
+  preparedTiming: PreparedBookingTiming,
+  logError: (message: string, context: Record<string, string>) => void,
+): Extract<PreparedBookingTiming, { ok: true }> | null => {
+  if (!preparedTiming.ok) {
+    logError(preparedTiming.logMessage, preparedTiming.logContext);
+    return null;
+  }
+
+  return preparedTiming;
+};
 
 export const prepareBookingTiming = ({
   selectedDate,

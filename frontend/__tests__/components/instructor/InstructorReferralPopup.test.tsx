@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
-import { InstructorReferralPopup } from '@/components/instructor/InstructorReferralPopup';
+import InstructorReferralPopup, {
+  InstructorReferralPopup as NamedInstructorReferralPopup,
+} from '@/components/instructor/InstructorReferralPopup';
 
 jest.mock('@/hooks/queries/useInstructorReferrals', () => ({
   useReferralPopupData: jest.fn(),
@@ -58,6 +60,10 @@ describe('InstructorReferralPopup', () => {
 
   afterEach(() => {
     jest.useRealTimers();
+  });
+
+  it('keeps the default export aligned with the named component export', () => {
+    expect(InstructorReferralPopup).toBe(NamedInstructorReferralPopup);
   });
 
   it('does not show when instructor is not live', () => {

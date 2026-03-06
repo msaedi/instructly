@@ -87,13 +87,12 @@ function ServiceCardItem({
 
   // Generate helpful message for unavailable services
   const getUnavailableMessage = () => {
-    if (!selectedSlot) return '';
-
-    const availableMinutes = selectedSlot.availableDuration || 60;
+    const availableMinutes = selectedSlot?.availableDuration || 60;
+    const slotTimeLabel = selectedSlot?.time ?? 'the selected time';
     return duration > availableMinutes
       ? availableMinutes === 60
         ? `This ${duration}-minute session requires a ${Math.ceil(duration / 60)}-hour time block`
-        : `Only ${availableMinutes} minutes available from ${selectedSlot.time}. This session needs ${duration} minutes.`
+        : `Only ${availableMinutes} minutes available from ${slotTimeLabel}. This session needs ${duration} minutes.`
       : '';
   };
 

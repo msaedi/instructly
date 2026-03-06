@@ -178,6 +178,28 @@ describe('usePermissions', () => {
   });
 
   describe('hasAllPermissions', () => {
+    it('should return false when user is null', () => {
+      mockUseAuth.mockReturnValue({
+        user: null,
+        isAuthenticated: false,
+        isLoading: false,
+        error: null,
+        login: jest.fn(),
+        logout: jest.fn(),
+        checkAuth: jest.fn().mockResolvedValue(undefined),
+        redirectToLogin: jest.fn(),
+      });
+
+      const { result } = renderHook(() => usePermissions());
+
+      expect(
+        result.current.hasAllPermissions(
+          PermissionName.VIEW_SYSTEM_ANALYTICS,
+          PermissionName.MANAGE_USERS
+        )
+      ).toBe(false);
+    });
+
     it('should return false when user is missing some required permissions', () => {
       mockUseAuth.mockReturnValue({
         user: {

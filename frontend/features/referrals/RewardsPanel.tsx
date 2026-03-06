@@ -2,7 +2,6 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { Gift, Share2, Copy, Clock, CheckCircle2 } from 'lucide-react';
-import { toast } from 'sonner';
 // Use project-local SWR helper to avoid missing type dep on swr
 import { useSWRCustom as useSWR } from '@/features/shared/hooks/useSWRCustom';
 import {
@@ -13,15 +12,12 @@ import {
   type ReferralSummary,
   type RewardOut,
 } from '@/features/shared/referrals/api';
-import { shareOrCopy } from '@/features/shared/referrals/share';
 import InviteByEmail from '@/features/referrals/InviteByEmail';
+import { copyReferralLink, shareReferralLink } from './RewardsPanel.helpers';
 
 type TabKey = 'unlocked' | 'pending' | 'redeemed';
 
-const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 });
 const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-const CREDIT_DISPLAY = usd.format(20);
-
 function formatCents(amount: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount / 100);
 }
@@ -111,48 +107,18 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
   }, [activeTab, summary]);
 
   const handleCopy = useCallback(async () => {
-    if (!summary) return;
     setIsProcessing('copy');
     try {
-      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-        await navigator.clipboard.writeText(shareUrl);
-      } else {
-        const textarea = document.createElement('textarea');
-        textarea.value = shareUrl;
-        textarea.setAttribute('readonly', '');
-        textarea.style.position = 'absolute';
-        textarea.style.left = '-9999px';
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-      }
-      toast.success('Referral link copied');
-    } catch {
-      toast.error('Unable to copy link. Try again.');
+      await copyReferralLink(summary, shareUrl);
     } finally {
       setIsProcessing((state) => (state === 'copy' ? null : state));
     }
   }, [shareUrl, summary]);
 
   const handleShare = useCallback(async () => {
-    if (!summary) return;
     setIsProcessing('share');
     try {
-      const payload: ShareData = {
-        title: 'Give $20, Get $20 on iNSTAiNSTRU',
-        text: `Book your first $75+ lesson and get ${CREDIT_DISPLAY} off. Use my code ${summary.code}`,
-        url: shareUrl,
-      };
-      const outcome = await shareOrCopy(payload, shareUrl);
-
-      if (outcome === 'shared') {
-        toast.success('Share sheet opened');
-      } else if (outcome === 'copied') {
-        toast.success('Referral link copied');
-      } else {
-        toast.error('Unable to share right now. Try copying the link instead.');
-      }
+      await shareReferralLink(summary, shareUrl);
     } finally {
       setIsProcessing((state) => (state === 'share' ? null : state));
     }

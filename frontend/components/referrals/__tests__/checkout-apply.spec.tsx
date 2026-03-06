@@ -1,5 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import CheckoutApplyReferral from '../CheckoutApplyReferral';
+import { invokeReactClick } from '@/test-utils/reactEventHandlers';
 
 jest.mock('sonner', () => ({
   toast: {
@@ -128,6 +129,21 @@ describe('CheckoutApplyReferral', () => {
     expect(screen.getByText(/finalizing your order details/i)).toBeInTheDocument();
     // Button is visible but disabled when orderId is empty
     expect(screen.getByRole('button', { name: /apply referral credit/i })).toBeDisabled();
+  });
+
+  it('ignores a programmatic apply attempt while the order is still loading', () => {
+    render(
+      <CheckoutApplyReferral
+        orderId=""
+        subtotalCents={9000}
+        promoApplied={false}
+        onApplied={jest.fn()}
+      />
+    );
+
+    invokeReactClick(screen.getByRole('button', { name: /apply referral credit/i }));
+
+    expect(mockApplyReferralCredit).not.toHaveBeenCalled();
   });
 
   // Line 56: When error === 'disabled' or featureDisabled
