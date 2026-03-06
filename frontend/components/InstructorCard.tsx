@@ -195,7 +195,8 @@ function InstructorCard({
   });
   const recentReviews = recentReviewsData?.reviews ?? [];
   const serviceAreaBoroughs = getServiceAreaBoroughs(instructor);
-  const serviceAreaDisplay = getServiceAreaDisplay(instructor) || 'NYC';
+  const rawServiceAreaDisplay = getServiceAreaDisplay(instructor);
+  const serviceAreaDisplay = rawServiceAreaDisplay || 'NYC';
   // Favorite status is now handled by useFavoriteStatus hook (React Query)
   // Recent reviews are now handled by useRecentReviews hook (React Query)
 
@@ -559,7 +560,11 @@ const findNextAvailableSlot = (
                 }
 
                 const yearsLabel = instructor.years_experience > 0 ? `${instructor.years_experience} years experience` : '';
-                const areaLabel = serviceAreaBoroughs.slice(0, 2).join(', ') || serviceAreaDisplay;
+                const shouldShowFallbackAreaLabel = highlightRows.length > 0 || Boolean(yearsLabel);
+                const areaLabel =
+                  serviceAreaBoroughs.slice(0, 2).join(', ') ||
+                  rawServiceAreaDisplay ||
+                  (shouldShowFallbackAreaLabel ? serviceAreaDisplay : '');
 
                 const metaRows: ReactNode[] = [];
                 if (yearsLabel) {
@@ -587,6 +592,7 @@ const findNextAvailableSlot = (
                 }
 
                 const combinedRows = [...highlightRows, ...metaRows];
+                if (!combinedRows.length) return null;
 
                 const marginClass = highlightRows.length
                   ? (compact ? 'mt-1 text-xs' : 'mt-2 text-sm')

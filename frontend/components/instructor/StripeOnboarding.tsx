@@ -315,80 +315,84 @@ const StripeOnboarding: React.FC<StripeOnboardingProps> = ({ instructorId }) => 
     );
   }
 
-  return (
-    <Card className="p-8">
-      <div className="flex items-start space-x-4">
-        <div className="flex-shrink-0">
-          <div className="h-12 w-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
-            <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-200" />
-          </div>
-        </div>
-        <div className="flex-1">
-          <h3 className="text-xl font-semibold mb-2">Stripe Account Connected</h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
-            Your Stripe account is fully set up and ready to receive payments from students.
-          </p>
-
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div className="flex items-center space-x-2">
-                <CheckCircle className="h-4 w-4 text-green-600" />
-                <span className="text-green-900">Charges enabled</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <CheckCircle className="h-4 w-4 text-green-600" />
-                <span className="text-green-900">Payouts enabled</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <CheckCircle className="h-4 w-4 text-green-600" />
-                <span className="text-green-900">Details verified</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <CheckCircle className="h-4 w-4 text-green-600" />
-                <span className="text-green-900">Ready for payments</span>
-              </div>
+  if (onboardingStatus.onboarding_completed === true) {
+    return (
+      <Card className="p-8">
+        <div className="flex items-start space-x-4">
+          <div className="flex-shrink-0">
+            <div className="h-12 w-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
+              <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-200" />
             </div>
           </div>
+          <div className="flex-1">
+            <h3 className="text-xl font-semibold mb-2">Stripe Account Connected</h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              Your Stripe account is fully set up and ready to receive payments from students.
+            </p>
 
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Button
-              onClick={openDashboard}
-              disabled={loading}
-              size="lg"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Opening...
-                </>
-              ) : (
-                <>
-                  View Payouts Dashboard
-                  <ExternalLink className="h-4 w-4 ml-2" />
-                </>
-              )}
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={() => checkStatus()}
-              disabled={loading}
-              size="lg"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh Status
-            </Button>
-          </div>
-
-          {error && (
-            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-700">{error}</p>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="flex items-center space-x-2">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <span className="text-green-900">Charges enabled</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <span className="text-green-900">Payouts enabled</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <span className="text-green-900">Details verified</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <span className="text-green-900">Ready for payments</span>
+                </div>
+              </div>
             </div>
-          )}
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button
+                onClick={openDashboard}
+                disabled={loading}
+                size="lg"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Opening...
+                  </>
+                ) : (
+                  <>
+                    View Payouts Dashboard
+                    <ExternalLink className="h-4 w-4 ml-2" />
+                  </>
+                )}
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={() => checkStatus()}
+                disabled={loading}
+                size="lg"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh Status
+              </Button>
+            </div>
+
+            {error && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-    </Card>
-  );
+      </Card>
+    );
+  }
+
+  return null;
 };
 
 export default StripeOnboarding;

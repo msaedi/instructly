@@ -6390,7 +6390,7 @@ describe('SkillsPricingInline', () => {
       expect(toddlerBtn).toBeDisabled();
 
       // Click it anyway — should hit `if (!isEligible) return` early return
-      await userEvent.click(toddlerBtn);
+      invokeReactClick(toddlerBtn);
 
       // Nothing should change — teens and adults should still be selected
       const teensBtn = screen.getByRole('button', { name: /^teens$/i });

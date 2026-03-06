@@ -24,6 +24,8 @@ export function useSWRCustom<T>(
   // Track last fetch time for deduplication
   const lastFetchRef = useRef<number>(0);
   const lastFetchKeyRef = useRef<Key>(null);
+  const inFlightPromiseRef = useRef<Promise<T> | null>(null);
+  const inFlightKeyRef = useRef<Key>(null);
   const dedupingInterval = opts?.dedupingInterval ?? 2000;
   const refreshInterval = opts?.refreshInterval;
 
@@ -39,23 +41,39 @@ export function useSWRCustom<T>(
 
       // Dedupe: skip if we fetched recently (unless skipDedupe is true)
       const now = Date.now();
-      if (
+      const shouldDedupe =
         !skipDedupe &&
         key === lastFetchKeyRef.current &&
-        now - lastFetchRef.current < dedupingInterval
-      ) {
+        now - lastFetchRef.current < dedupingInterval;
+      const inFlightForKey =
+        shouldDedupe &&
+        inFlightKeyRef.current === key &&
+        inFlightPromiseRef.current;
+
+      if (shouldDedupe && !inFlightForKey) {
         return;
       }
-      lastFetchRef.current = now;
-      lastFetchKeyRef.current = key;
+
+      let fetchPromise = inFlightForKey;
+      if (!fetchPromise) {
+        lastFetchRef.current = now;
+        lastFetchKeyRef.current = key;
+        fetchPromise = fetcher(key);
+        inFlightKeyRef.current = key;
+        inFlightPromiseRef.current = fetchPromise;
+      }
 
       setIsLoading(true);
       try {
-        const result = await fetcher(key);
+        const result = await fetchPromise;
         if (!cancelled) setData(result);
       } catch (e) {
         if (!cancelled) setError(e);
       } finally {
+        if (inFlightPromiseRef.current === fetchPromise) {
+          inFlightPromiseRef.current = null;
+          inFlightKeyRef.current = null;
+        }
         if (!cancelled) setIsLoading(false);
       }
     };

@@ -39,9 +39,12 @@ import {
   formatServiceSupportTooltip,
 } from '@/lib/pricing/studentFee';
 import {
+  applyManualLocationChange,
   buildDisplayDate,
   getClientFloorViolation,
   hasRelevantConflict,
+  resolvePromoAction,
+  shouldIgnoreAddressSuggestionSelection,
 } from './PaymentConfirmation.helpers';
 
 type BookingWithMetadata = BookingPayment & { metadata?: Record<string, unknown> };
@@ -181,6 +184,7 @@ function PaymentConfirmationInner({
   const [loadingInstructor, setLoadingInstructor] = useState(false);
   const [promoCode, setPromoCode] = useState('');
   const [promoActive, setPromoActive] = useState(promoApplied);
+  const [promoError, setPromoError] = useState<string | null>(null);
   const { floors: pricingFloors, config: pricingConfig } = usePricingFloors();
   const pricingPreviewContext = usePricingPreview(true);
   const pricingPreview = pricingPreviewContext?.preview ?? null;
@@ -571,6 +575,10 @@ function PaymentConfirmationInner({
   }, []);
 
   const handleAddressSuggestionSelect = useCallback(async (suggestion: PlaceSuggestion) => {
+    if (shouldIgnoreAddressSuggestionSelection(suggestion, isTravelLocation)) {
+      return;
+    }
+
     setIsEditingLocation(true);
     setAddressDetailsError(null);
     setSelectedSavedAddress(null);
@@ -731,7 +739,7 @@ function PaymentConfirmationInner({
     setIsEditingLocation(false);
     lastLocationRef.current = '';
     addressDetailsAbortRef.current = null;
-  }, [fetchPlaceDetails, parseAddressComponents, parseDescriptionFallback]);
+  }, [fetchPlaceDetails, isTravelLocation, parseAddressComponents, parseDescriptionFallback]);
 
   if (process.env.NODE_ENV !== 'production') {
     logger.info('PaymentConfirmation component rendered', {
@@ -910,7 +918,12 @@ function PaymentConfirmationInner({
       return 'Date to be confirmed';
     }
 
-    return format(displayDate, 'EEEE, MMMM d, yyyy');
+    try {
+      return format(displayDate, 'EEEE, MMMM d, yyyy');
+    } catch (error) {
+      logger.debug('pricing-preview:date-parse-warning', error);
+      return 'Date to be confirmed';
+    }
   }, [booking.date, bookingDateLocal]);
 
   const durationMinutes = useMemo(() => {
@@ -958,7 +971,11 @@ function PaymentConfirmationInner({
       }
     }
     if (startHHMM24 && Number.isFinite(durationMinutes) && durationMinutes) {
-      return addMinutesHHMM(startHHMM24, durationMinutes);
+      try {
+        return addMinutesHHMM(startHHMM24, durationMinutes);
+      } catch (error) {
+        logger.debug('pricing-preview:end-time-derive', error);
+      }
     }
     return null;
   }, [booking.endTime, durationMinutes, startHHMM24]);
@@ -1100,10 +1117,14 @@ function PaymentConfirmationInner({
 
   const handleChangeLocationClick = () => {
     setIsLocationExpanded(true);
-    setSelectedPublicSpace(null);
-    setIsEditingLocation(true);
-    setAddressDetailsError(null);
-    onClearFloorViolation?.();
+    applyManualLocationChange({
+      isTravelLocation,
+      setLocationType,
+      setSelectedPublicSpace,
+      setIsEditingLocation,
+      setAddressDetailsError,
+      onClearFloorViolation,
+    });
     requestAnimationFrame(() => {
       addressLine1Ref.current?.focus();
     });
@@ -1339,6 +1360,9 @@ function PaymentConfirmationInner({
 
   useEffect(() => {
     setPromoActive(promoApplied);
+    if (!promoApplied) {
+      setPromoError(null);
+    }
   }, [promoApplied]);
 
   useEffect(() => {
@@ -1455,7 +1479,10 @@ function PaymentConfirmationInner({
     if (promoCode) {
       setPromoCode('');
     }
-  }, [referralActive, promoActive, promoCode, onPromoStatusChange]);
+    if (promoError) {
+      setPromoError(null);
+    }
+  }, [referralActive, promoActive, promoCode, promoError, onPromoStatusChange]);
 
   // Check for booking conflicts when component mounts
   useEffect(() => {
@@ -1516,19 +1543,35 @@ function PaymentConfirmationInner({
   }, [conflictKey, computeHasConflict]);
 
   const handlePromoAction = () => {
-    if (promoActive) {
+    const promoAction = resolvePromoAction({
+      referralActive,
+      promoActive,
+      promoCode,
+    });
+
+    if (promoAction.kind === 'error') {
+      setPromoError(promoAction.message);
+      return;
+    }
+
+    if (promoAction.kind === 'remove') {
       setPromoActive(false);
+      setPromoError(null);
       setPromoCode('');
       onPromoStatusChange?.(false);
       return;
     }
 
     setPromoActive(true);
+    setPromoError(null);
     onPromoStatusChange?.(true);
   };
 
   const handlePromoInputChange = (value: string) => {
     setPromoCode(value);
+    if (promoError) {
+      setPromoError(null);
+    }
   };
 
   // Fetch instructor profile to get the actual service duration options
@@ -1906,6 +1949,9 @@ function PaymentConfirmationInner({
                       {promoActive ? 'Remove' : 'Apply'}
                     </button>
                   </div>
+                  {promoError && (
+                    <p className="mt-2 text-xs text-red-600">{promoError}</p>
+                  )}
                   {promoActive && (
                     <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                       Promo applied. Referral credit is disabled while a promo code is active.

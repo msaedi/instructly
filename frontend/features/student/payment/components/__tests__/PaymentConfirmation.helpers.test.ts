@@ -1,7 +1,11 @@
 import {
+  applyManualLocationChange,
   buildDisplayDate,
+  getLocationTypeForManualChange,
   getClientFloorViolation,
   hasRelevantConflict,
+  resolvePromoAction,
+  shouldIgnoreAddressSuggestionSelection,
 } from '../PaymentConfirmation.helpers';
 
 describe('PaymentConfirmation helpers', () => {
@@ -32,6 +36,78 @@ describe('PaymentConfirmation helpers', () => {
     expect(buildDisplayDate(new Date('2025-03-02T00:00:00Z'))).toBeInstanceOf(Date);
     expect(buildDisplayDate('   ')).toBeNull();
     expect(buildDisplayDate(new Date('invalid'))).toBeNull();
+  });
+
+  it('ignores address suggestions when the payload is missing or travel mode is off', () => {
+    expect(shouldIgnoreAddressSuggestionSelection(null, true)).toBe(true);
+    expect(shouldIgnoreAddressSuggestionSelection({ place_id: 'abc' }, false)).toBe(true);
+    expect(shouldIgnoreAddressSuggestionSelection({ place_id: 'abc' }, true)).toBe(false);
+  });
+
+  it('restores student travel mode when changing location from a non-travel state', () => {
+    expect(getLocationTypeForManualChange(false)).toBe('student_location');
+    expect(getLocationTypeForManualChange(true)).toBeNull();
+  });
+
+  it('applies manual location change side effects only when leaving a non-travel state', () => {
+    const setLocationType = jest.fn();
+    const setSelectedPublicSpace = jest.fn();
+    const setIsEditingLocation = jest.fn();
+    const setAddressDetailsError = jest.fn();
+    const onClearFloorViolation = jest.fn();
+
+    applyManualLocationChange({
+      isTravelLocation: false,
+      setLocationType,
+      setSelectedPublicSpace,
+      setIsEditingLocation,
+      setAddressDetailsError,
+      onClearFloorViolation,
+    });
+
+    expect(setLocationType).toHaveBeenCalledWith('student_location');
+    expect(setSelectedPublicSpace).toHaveBeenCalledWith(null);
+    expect(setIsEditingLocation).toHaveBeenCalledWith(true);
+    expect(setAddressDetailsError).toHaveBeenCalledWith(null);
+    expect(onClearFloorViolation).toHaveBeenCalled();
+
+    jest.clearAllMocks();
+
+    applyManualLocationChange({
+      isTravelLocation: true,
+      setLocationType,
+      setSelectedPublicSpace,
+      setIsEditingLocation,
+      setAddressDetailsError,
+      onClearFloorViolation,
+    });
+
+    expect(setLocationType).not.toHaveBeenCalled();
+    expect(setSelectedPublicSpace).toHaveBeenCalledWith(null);
+    expect(setIsEditingLocation).toHaveBeenCalledWith(true);
+    expect(setAddressDetailsError).toHaveBeenCalledWith(null);
+    expect(onClearFloorViolation).toHaveBeenCalled();
+  });
+
+  it('resolves promo actions for referral conflicts, empty codes, removals, and valid applies', () => {
+    expect(
+      resolvePromoAction({ referralActive: true, promoActive: false, promoCode: 'SAVE20' }),
+    ).toEqual({
+      kind: 'error',
+      message: 'Referral credit can’t be combined with a promo code.',
+    });
+    expect(
+      resolvePromoAction({ referralActive: false, promoActive: true, promoCode: 'SAVE20' }),
+    ).toEqual({ kind: 'remove' });
+    expect(
+      resolvePromoAction({ referralActive: false, promoActive: false, promoCode: '   ' }),
+    ).toEqual({
+      kind: 'error',
+      message: 'Enter a promo code to apply.',
+    });
+    expect(
+      resolvePromoAction({ referralActive: false, promoActive: false, promoCode: 'SAVE20' }),
+    ).toEqual({ kind: 'apply' });
   });
 
   it('filters out irrelevant conflict items before checking overlap', () => {
@@ -88,6 +164,17 @@ describe('PaymentConfirmation helpers', () => {
     expect(
       hasRelevantConflict(
         { booking_date: '2025-03-06', start_time: '13:30', duration_minutes: 0, end_time: 'bad-time' },
+        key,
+        relevantStatuses,
+        parseTime,
+        toMinutes,
+        overlap,
+      ),
+    ).toBe(false);
+
+    expect(
+      hasRelevantConflict(
+        { booking_date: '2025-03-06', start_time: '14:00', duration_minutes: 0, end_time: '13:30' },
         key,
         relevantStatuses,
         parseTime,

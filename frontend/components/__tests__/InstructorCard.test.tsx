@@ -230,6 +230,49 @@ describe('InstructorCard', () => {
       expect(screen.getByText('· 2.5 mi')).toBeInTheDocument();
     });
 
+    it('renders service area metadata when service areas are available', async () => {
+      const instructor = createInstructor({
+        service_area_boroughs: ['Manhattan', 'Brooklyn'],
+        service_area_summary: 'New York City',
+        years_experience: 7,
+      });
+
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+
+      expect(screen.getByText('Service areas:')).toBeInTheDocument();
+      expect(screen.getByText('Manhattan, Brooklyn')).toBeInTheDocument();
+      expect(screen.getByText('Experience:')).toBeInTheDocument();
+      expect(screen.getByText('7 years experience')).toBeInTheDocument();
+    });
+
+    it('omits the metadata section when no highlight or meta rows exist', async () => {
+      const instructor = createInstructor({
+        years_experience: 0,
+        service_area_boroughs: [],
+        service_area_summary: '',
+        services: [
+          {
+            id: 'svc-1',
+            service_catalog_id: 'cat-1',
+            hourly_rate: 75,
+            duration_options: [60],
+            offers_travel: false,
+            offers_at_location: false,
+            offers_online: false,
+            levels_taught: [],
+            age_groups: [],
+          } as Instructor['services'][number],
+        ],
+      });
+
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+
+      expect(screen.queryByText('Experience:')).not.toBeInTheDocument();
+      expect(screen.queryByText('Service areas:')).not.toBeInTheDocument();
+      expect(screen.queryByText('Levels:')).not.toBeInTheDocument();
+      expect(screen.queryByText('Format:')).not.toBeInTheDocument();
+    });
+
     it('displays rating when reviewCount >= 3', async () => {
       mockUseInstructorRatingsQuery.mockReturnValue({
         data: { overall: { rating: 4.5, total_reviews: 10 } },

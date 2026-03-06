@@ -13,6 +13,79 @@ export const buildDisplayDate = (value: string | Date | null | undefined): Date 
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
+export const shouldIgnoreAddressSuggestionSelection = (
+  suggestion: unknown,
+  isTravelLocation: boolean,
+): boolean => !suggestion || !isTravelLocation;
+
+export const getLocationTypeForManualChange = (
+  isTravelLocation: boolean,
+): 'student_location' | null => (isTravelLocation ? null : 'student_location');
+
+export const applyManualLocationChange = ({
+  isTravelLocation,
+  setLocationType,
+  setSelectedPublicSpace,
+  setIsEditingLocation,
+  setAddressDetailsError,
+  onClearFloorViolation,
+}: {
+  isTravelLocation: boolean;
+  setLocationType: (value: 'student_location') => void;
+  setSelectedPublicSpace: (value: null) => void;
+  setIsEditingLocation: (value: boolean) => void;
+  setAddressDetailsError: (value: string | null) => void;
+  onClearFloorViolation?: (() => void) | null | undefined;
+}): void => {
+  const nextLocationType = getLocationTypeForManualChange(isTravelLocation);
+  if (nextLocationType) {
+    setLocationType(nextLocationType);
+  }
+  setSelectedPublicSpace(null);
+  setIsEditingLocation(true);
+  setAddressDetailsError(null);
+  onClearFloorViolation?.();
+};
+
+export type PromoActionResolution =
+  | {
+      kind: 'error';
+      message: string;
+    }
+  | {
+      kind: 'remove';
+    }
+  | {
+      kind: 'apply';
+    };
+
+export const resolvePromoAction = ({
+  referralActive,
+  promoActive,
+  promoCode,
+}: {
+  referralActive: boolean;
+  promoActive: boolean;
+  promoCode: string;
+}): PromoActionResolution => {
+  if (referralActive) {
+    return {
+      kind: 'error',
+      message: 'Referral credit can’t be combined with a promo code.',
+    };
+  }
+  if (promoActive) {
+    return { kind: 'remove' };
+  }
+  if (!promoCode.trim()) {
+    return {
+      kind: 'error',
+      message: 'Enter a promo code to apply.',
+    };
+  }
+  return { kind: 'apply' };
+};
+
 type ConflictKey = {
   bookingDate: string;
   startHHMM24: string;

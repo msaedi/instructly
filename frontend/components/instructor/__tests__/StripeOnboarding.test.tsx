@@ -69,6 +69,29 @@ describe('StripeOnboarding', () => {
     });
   });
 
+  it('renders nothing for a malformed truthy onboarding flag that is not boolean true', async () => {
+    paymentServiceMock.getOnboardingStatus.mockResolvedValue(
+      {
+        has_account: true,
+        onboarding_completed: 'complete' as unknown as boolean,
+        charges_enabled: true,
+        payouts_enabled: true,
+        details_submitted: true,
+        requirements: [],
+      } as unknown as OnboardingStatusResponse
+    );
+
+    const { container } = render(<StripeOnboarding instructorId={mockInstructorId} />);
+
+    await waitFor(() => {
+      expect(paymentServiceMock.getOnboardingStatus).toHaveBeenCalled();
+      expect(container).toBeEmptyDOMElement();
+    });
+
+    expect(screen.queryByText('Stripe Account Connected')).not.toBeInTheDocument();
+    expect(screen.queryByText('Complete Your Setup')).not.toBeInTheDocument();
+  });
+
   describe('not connected state', () => {
     beforeEach(() => {
       paymentServiceMock.getOnboardingStatus.mockResolvedValue({

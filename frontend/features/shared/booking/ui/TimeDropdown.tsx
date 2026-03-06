@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useId, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { clearPendingCloseTimeout } from './TimeDropdown.helpers';
 
 interface TimeDropdownProps {
   selectedTime: string | null;
@@ -52,6 +53,7 @@ export default function TimeDropdown({
 
   // Handle open/close with animation
   const handleOpen = useCallback((preferredIndex?: number) => {
+    clearPendingCloseTimeout(closeTimeoutRef);
     const fallbackIndex = selectedIndex >= 0 ? selectedIndex : 0;
     const nextIndex =
       typeof preferredIndex === 'number' ? getClampedIndex(preferredIndex) : fallbackIndex;
@@ -62,10 +64,7 @@ export default function TimeDropdown({
   }, [getClampedIndex, selectedIndex]);
 
   const handleClose = useCallback((restoreFocus = false) => {
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current);
-      closeTimeoutRef.current = null;
-    }
+    clearPendingCloseTimeout(closeTimeoutRef);
     setIsAnimating(false);
     setActiveIndex(-1);
     closeTimeoutRef.current = setTimeout(() => {
@@ -125,9 +124,7 @@ export default function TimeDropdown({
 
   useEffect(() => {
     return () => {
-      if (closeTimeoutRef.current) {
-        clearTimeout(closeTimeoutRef.current);
-      }
+      clearPendingCloseTimeout(closeTimeoutRef);
     };
   }, []);
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import * as dateFns from 'date-fns';
 import PaymentConfirmation from '../PaymentConfirmation';
 import { BookingType, PAYMENT_STATUS, PaymentMethod, type BookingPayment } from '../../types';
 import { usePricingPreview } from '../../hooks/usePricingPreview';
@@ -8,7 +9,25 @@ import { usePricingFloors } from '@/lib/pricing/usePricingFloors';
 import { fetchBookingsList } from '@/src/api/services/bookings';
 import { fetchInstructorProfile } from '@/src/api/services/instructors';
 import { getPlaceDetails } from '@/features/shared/api/client';
+import * as timeLib from '@/lib/time';
+import { invokeReactClick } from '@/test-utils/reactEventHandlers';
 import { buildDisplayDate } from '../PaymentConfirmation.helpers';
+
+jest.mock('date-fns', () => {
+  const actual = jest.requireActual('date-fns') as typeof import('date-fns');
+  return {
+    ...actual,
+    format: jest.fn(actual.format),
+  };
+});
+
+jest.mock('@/lib/time', () => {
+  const actual = jest.requireActual('@/lib/time') as typeof import('@/lib/time');
+  return {
+    ...actual,
+    addMinutesHHMM: jest.fn(actual.addMinutesHHMM),
+  };
+});
 
 // Mock dependencies
 jest.mock('../../hooks/usePricingPreview', () => ({
@@ -174,6 +193,12 @@ jest.mock('@/components/forms/PlacesAutocompleteInput', () => ({
             >
               Select Incomplete Suggestion
             </button>
+            <button
+              data-testid="select-suggestion-null"
+              onClick={() => onSelectSuggestion(undefined as never)}
+            >
+              Select Null Suggestion
+            </button>
           </>
         )}
       </div>
@@ -213,6 +238,10 @@ const usePricingFloorsMock = usePricingFloors as jest.Mock;
 const fetchBookingsListMock = fetchBookingsList as jest.Mock;
 const fetchInstructorProfileMock = fetchInstructorProfile as jest.Mock;
 const getPlaceDetailsMock = getPlaceDetails as jest.Mock;
+const formatMock = dateFns.format as jest.MockedFunction<typeof dateFns.format>;
+const addMinutesHHMMMock = timeLib.addMinutesHHMM as jest.MockedFunction<typeof timeLib.addMinutesHHMM>;
+const actualDateFns = jest.requireActual('date-fns') as typeof import('date-fns');
+const actualTimeLib = jest.requireActual('@/lib/time') as typeof import('@/lib/time');
 
 const mockBooking: BookingPayment = {
   bookingId: 'booking-123',
@@ -252,6 +281,8 @@ describe('PaymentConfirmation', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     jest.clearAllMocks();
+    formatMock.mockImplementation(actualDateFns.format);
+    addMinutesHHMMMock.mockImplementation(actualTimeLib.addMinutesHHMM);
 
     usePricingPreviewMock.mockReturnValue({
       preview: {
@@ -2644,6 +2675,107 @@ describe('PaymentConfirmation', () => {
       await waitFor(() => {
         expect(applyButton).not.toBeDisabled();
       });
+    });
+  });
+
+  describe('restored defensive guards', () => {
+    it('ignores malformed address suggestions without mutating location state', async () => {
+      const bookingWithoutLocation = {
+        ...mockBooking,
+        location: '',
+      };
+
+      await renderWithConflictCheck(
+        <PaymentConfirmation {...defaultProps} booking={bookingWithoutLocation} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('select-suggestion-null')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId('select-suggestion-null'));
+
+      expect(screen.getByTestId('addr-street')).toHaveValue('');
+      expect(screen.queryByText("Couldn't fetch address details")).not.toBeInTheDocument();
+    });
+
+    it('falls back to "Date to be confirmed" when date formatting throws', async () => {
+      formatMock.mockImplementationOnce(() => {
+        throw new Error('format failed');
+      });
+
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
+      expect(screen.getByText('Date to be confirmed')).toBeInTheDocument();
+    });
+
+    it('keeps rendering the derived time window when addMinutesHHMM throws once', async () => {
+      addMinutesHHMMMock
+        .mockImplementationOnce(() => {
+          throw new Error('derive failed');
+        })
+        .mockImplementation((start) => {
+          if (start === '10:00') {
+            return '11:00';
+          }
+          return '11:00';
+        });
+
+      const bookingWithoutEndTime = {
+        ...mockBooking,
+        endTime: '',
+      };
+
+      await renderWithConflictCheck(
+        <PaymentConfirmation {...defaultProps} booking={bookingWithoutEndTime} />
+      );
+
+      expect(screen.getByText('10:00 - 11:00')).toBeInTheDocument();
+    });
+
+    it('shows and clears the empty promo error when Apply is invoked programmatically', async () => {
+      const user = setupUser();
+
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
+
+      const applyButton = screen.getByRole('button', { name: /^apply$/i });
+      expect(applyButton).toBeDisabled();
+
+      await act(async () => {
+        invokeReactClick(applyButton);
+      });
+      expect(screen.getByText('Enter a promo code to apply.')).toBeInTheDocument();
+
+      await user.type(screen.getByPlaceholderText('Enter promo code'), 'SAVE20');
+      expect(screen.queryByText('Enter a promo code to apply.')).not.toBeInTheDocument();
+    });
+
+    it('clears an existing promo error when referral credit becomes active', async () => {
+      const { rerender } = render(<PaymentConfirmation {...defaultProps} />);
+
+      await act(async () => {
+        jest.advanceTimersByTime(CONFLICT_CHECK_DELAY_MS + 1);
+      });
+
+      const applyButton = screen.getByRole('button', { name: /^apply$/i });
+      await act(async () => {
+        invokeReactClick(applyButton);
+      });
+      expect(screen.getByText('Enter a promo code to apply.')).toBeInTheDocument();
+
+      rerender(
+        <PaymentConfirmation
+          {...defaultProps}
+          referralActive={true}
+          referralAppliedCents={500}
+        />
+      );
+
+      await act(async () => {
+        jest.advanceTimersByTime(16);
+      });
+
+      expect(screen.queryByText('Enter a promo code to apply.')).not.toBeInTheDocument();
+      expect(screen.getByText(/referral credit applied/i)).toBeInTheDocument();
     });
   });
 

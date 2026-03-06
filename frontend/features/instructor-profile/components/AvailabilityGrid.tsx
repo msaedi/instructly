@@ -101,7 +101,7 @@ export function AvailabilityGrid({
     }
 
     const dayData = data?.availability_by_date?.[dateStr];
-    if (!dayData) {
+    if (!dayData?.available_slots) {
       return 0;
     }
 

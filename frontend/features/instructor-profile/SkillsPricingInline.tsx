@@ -993,6 +993,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                             key={group}
                             disabled={!isEligible}
                             onClick={() => {
+                              if (!isEligible) return;
                               setSelectedServicesWithDirty((prev) => prev.map((x, i) => {
                                 if (i !== index) return x;
                                 const current = x.filter_selections['age_groups'] ?? [];

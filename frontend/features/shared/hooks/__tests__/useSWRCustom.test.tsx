@@ -1,3 +1,4 @@
+import { StrictMode, type ReactNode } from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
 
 import { useSWRCustom } from '../useSWRCustom';
@@ -324,5 +325,32 @@ describe('useSWRCustom', () => {
 
     // No error thrown - cancelled flag prevents setState on unmounted component
     expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('reuses an in-flight request during Strict Mode effect re-runs', async () => {
+    let resolveFetcher!: (value: string) => void;
+    const fetcher = jest.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveFetcher = resolve;
+        })
+    );
+
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <StrictMode>{children}</StrictMode>
+    );
+
+    const { result } = renderHook(() => useSWRCustom('strict-key', fetcher), { wrapper });
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(result.current.isLoading).toBe(true);
+
+    await act(async () => {
+      resolveFetcher('strict-payload');
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.data).toBe('strict-payload');
   });
 });
