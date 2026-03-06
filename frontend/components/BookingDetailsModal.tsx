@@ -65,18 +65,13 @@ export default function BookingDetailsModal({
    * @returns Formatted price string
    */
   const formatPrice = (price: string | number): string => {
-    try {
-      if (typeof price === 'number') {
-        return price.toFixed(2);
-      }
-      if (typeof price === 'string' && !isNaN(parseFloat(price))) {
-        return parseFloat(price).toFixed(2);
-      }
-      return '0.00';
-    } catch (error) {
-      logger.error('Failed to format price', error, { price });
-      return '0.00';
+    if (typeof price === 'number') {
+      return Number.isFinite(price) ? price.toFixed(2) : '0.00';
     }
+    if (typeof price === 'string' && !isNaN(parseFloat(price))) {
+      return parseFloat(price).toFixed(2);
+    }
+    return '0.00';
   };
 
   const formatMetaDate = (value?: string | null): string => {

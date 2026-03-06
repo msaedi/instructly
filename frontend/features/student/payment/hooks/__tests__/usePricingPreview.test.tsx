@@ -4,6 +4,7 @@ import { renderHook } from '@testing-library/react';
 import {
   usePricingPreviewController,
   PricingPreviewProvider,
+  stableSerialize,
   usePricingPreview,
 } from '../usePricingPreview';
 import {
@@ -1350,34 +1351,7 @@ describe('applyCredit deduplication', () => {
   });
 
   it('stableSerialize handles arrays via Array.isArray branch (line 47)', async () => {
-    // This test covers stableSerialize's array branch by using a quotePayload
-    // that includes array values in the payload (used for hashing).
-    const quotePayloadWithArray: PricingPreviewQuotePayloadBase = {
-      instructor_id: 'inst-123',
-      instructor_service_id: 'svc-456',
-      booking_date: '2025-02-01',
-      start_time: '10:00',
-      selected_duration: 60,
-      location_type: 'student_location',
-      meeting_location: '123 Main St',
-    };
-
-    fetchPricingPreviewQuoteMock.mockResolvedValue({
-      ...mockPreviewResponse,
-      // The quote payload hash uses stableSerialize which should hit line 47
-      // for any array values encountered in the payload serialization
-    });
-
-    const { result } = renderHook(() =>
-      usePricingPreviewController({
-        bookingId: null,
-        quotePayload: quotePayloadWithArray,
-      })
-    );
-
-    await waitFor(() => {
-      expect(result.current.preview).not.toBeNull();
-    });
+    expect(stableSerialize([{ b: 2, a: 1 }, ['x', 'y']])).toBe('[{"a":1,"b":2},["x","y"]]');
   });
 
   it('returns early when lastCommitValueRef matches requested credit', async () => {

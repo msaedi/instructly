@@ -28,6 +28,11 @@ import {
   normalizeModality,
   type NormalizedModality,
 } from '@/lib/pricing/priceFloors';
+import {
+  formatAvailabilityDateLabel,
+  prepareBookingTiming,
+  reconcileTimeSelection,
+} from './TimeSelectionModal.helpers';
 
 // Type for availability slots
 interface AvailabilitySlot {
@@ -399,32 +404,13 @@ export default function TimeSelectionModal({
   // Reconciliation effect: Enforce invariant that selectedTime ∈ timeSlots or null
   // This ensures the UI can never display an invalid time selection
   useEffect(() => {
-    // When there are no slots, clear selection
-    if (timeSlots.length === 0) {
-      if (selectedTime !== null) {
-        setSelectedTime(null);
-      }
-      return;
-    }
-
-    // If current selection is still valid, keep it
-    if (selectedTime && timeSlots.includes(selectedTime)) {
-      return;
-    }
-
-    // If the initial/preferred time is valid for this slot list, use it
-    const preferred = effectiveInitialTimeDisplayRef.current ?? null;
-    if (preferred && timeSlots.includes(preferred)) {
-      setSelectedTime(preferred);
-      return;
-    }
-
-    // Otherwise default to the first available slot
-    if (!selectedTime || !timeSlots.includes(selectedTime)) {
-      const firstSlot = timeSlots[0];
-      if (firstSlot) {
-        setSelectedTime(firstSlot);
-      }
+    const nextTime = reconcileTimeSelection({
+      selectedTime,
+      timeSlots,
+      preferredTime: effectiveInitialTimeDisplayRef.current ?? null,
+    });
+    if (nextTime !== selectedTime) {
+      setSelectedTime(nextTime);
     }
   }, [selectedTime, timeSlots]);
 
@@ -454,18 +440,7 @@ export default function TimeSelectionModal({
     setDateRef.current = setDate;
   }, [setDate]);
 
-  const formatDateLabel = useCallback((isoDate: string) => {
-    if (!isoDate) {
-      return '';
-    }
-
-    try {
-      const parsed = new Date(`${isoDate}T00:00:00`);
-      return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(parsed);
-    } catch {
-      return isoDate;
-    }
-  }, []);
+  const formatDateLabel = useCallback((isoDate: string) => formatAvailabilityDateLabel(isoDate), []);
 
   useEffect(() => {
     if (durationOptions.length === 0) return;
@@ -736,50 +711,18 @@ export default function TimeSelectionModal({
         servicesCount: instructor.services.length,
       });
 
-      const timeWithoutAmPm = selectedTime.replace(/[ap]m/gi, '').trim();
-      const timeParts = timeWithoutAmPm.split(':');
-      const hourStr = at(timeParts, 0);
-      const minuteStr = at(timeParts, 1);
-      if (!hourStr || !minuteStr) {
-        logger.error('Invalid time format', { selectedTime });
-        return;
-      }
-
-      if (timeParts.length !== 2) {
-        logger.error('Invalid time format', { selectedTime });
-        return;
-      }
-
-      let hour = parseInt(hourStr, 10);
-      const minute = parseInt(minuteStr, 10) || 0;
-
-      if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
-        logger.error('Invalid time values', { hourStr, minuteStr, selectedTime });
-        return;
-      }
-
-      const isAM = selectedTime.toLowerCase().includes('am');
-      const isPM = selectedTime.toLowerCase().includes('pm');
-
-      if (isPM && hour !== 12) hour += 12;
-      if (isAM && hour === 12) hour = 0;
-
-      const normalizedTimeHHMM = `${hour.toString().padStart(2, '0')}:${minute
-        .toString()
-        .padStart(2, '0')}`;
-
-      let endHour = hour + Math.floor(selectedDuration / 60);
-      let endMinute = minute + (selectedDuration % 60);
-
-      if (endMinute >= 60) {
-        endHour += Math.floor(endMinute / 60);
-        endMinute = endMinute % 60;
-      }
-
-      const startTime = `${normalizedTimeHHMM}:00`;
-      const endTime = `${endHour.toString().padStart(2, '0')}:${endMinute
-        .toString()
-        .padStart(2, '0')}:00`;
+      const preparedTiming = prepareBookingTiming({
+        selectedDate,
+        selectedTime,
+        selectedDuration,
+      });
+      if (!preparedTiming.ok) return void logger.error(preparedTiming.logMessage, preparedTiming.logContext);
+      const {
+        parsedTime: { hour, minute, normalizedTimeHHMM },
+        startTime,
+        endTime,
+        bookingDateTime,
+      } = preparedTiming;
 
       // If callback provided, use it
       if (onTimeSelected) {
@@ -817,19 +760,6 @@ export default function TimeSelectionModal({
         endTime,
         selectedDate,
       });
-
-      // Calculate free cancellation deadline (24 hours before)
-      const bookingDateTimeString = `${selectedDate}T${startTime}`;
-      const bookingDateTime = new Date(bookingDateTimeString);
-
-      if (isNaN(bookingDateTime.getTime())) {
-        logger.error('Invalid booking date/time', {
-          dateTimeString: bookingDateTimeString,
-          selectedDate,
-          startTime,
-        });
-        return;
-      }
 
       const freeCancellationUntil = new Date(bookingDateTime);
       freeCancellationUntil.setHours(freeCancellationUntil.getHours() - 24);
@@ -1001,10 +931,7 @@ export default function TimeSelectionModal({
     }
   };
 
-  const handleJumpToNextAvailable = (targetDate: string | null) => {
-    if (!targetDate) {
-      return;
-    }
+  const handleJumpToNextAvailable = (targetDate: string) => {
     setDurationAvailabilityNotice(null);
     void handleDateSelect(targetDate, 'jump-confirm');
   };
@@ -1305,7 +1232,12 @@ export default function TimeSelectionModal({
                   <button
                     type="button"
                     className="mt-2 inline-flex items-center rounded-md bg-[#7E22CE] px-3 py-1 text-xs font-semibold text-white hover:bg-[#6b1fb8]"
-                    onClick={() => handleJumpToNextAvailable(durationAvailabilityNotice.nextDate)}
+                    onClick={() => {
+                      const nextDate = durationAvailabilityNotice.nextDate;
+                      if (nextDate) {
+                        handleJumpToNextAvailable(nextDate);
+                      }
+                    }}
                   >
                     {`Jump to ${formatDateLabel(durationAvailabilityNotice.nextDate)}`}
                   </button>
@@ -1462,7 +1394,12 @@ export default function TimeSelectionModal({
                         <button
                           type="button"
                           className="mt-2 inline-flex items-center rounded-md bg-[#7E22CE] px-3 py-1 text-xs font-semibold text-white hover:bg-[#6b1fb8]"
-                          onClick={() => handleJumpToNextAvailable(durationAvailabilityNotice.nextDate)}
+                          onClick={() => {
+                            const nextDate = durationAvailabilityNotice.nextDate;
+                            if (nextDate) {
+                              handleJumpToNextAvailable(nextDate);
+                            }
+                          }}
                         >
                           {`Jump to ${formatDateLabel(durationAvailabilityNotice.nextDate)}`}
                         </button>

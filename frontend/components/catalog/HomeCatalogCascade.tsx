@@ -19,6 +19,7 @@ import { useAllServicesWithInstructors, useServiceCategories } from '@/hooks/que
 import { useSubcategoriesByCategory } from '@/hooks/queries/useTaxonomy';
 import { logger } from '@/lib/logger';
 import { recordSearch } from '@/lib/searchTracking';
+import { persistHomeNavContext } from './HomeCatalogCascade.helpers';
 import { CURRENT_AUDIENCE, type AudienceMode } from '@/lib/audience';
 import { SearchType } from '@/types/enums';
 
@@ -133,12 +134,9 @@ function toId(value: unknown): string {
 export function HomeCatalogCascade({ isAuthenticated }: { isAuthenticated: boolean }) {
   const router = useRouter();
 
-  const [selectedCategory, setSelectedCategory] = useState<string>(() => {
-    if (typeof window === 'undefined') {
-      return '';
-    }
-    return sessionStorage.getItem('homeSelectedCategory') ?? '';
-  });
+  const [selectedCategory, setSelectedCategory] = useState<string>(
+    () => (typeof window === 'undefined' ? '' : sessionStorage.getItem('homeSelectedCategory') ?? ''),
+  );
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>('');
 
   const { data: categoriesData, isError: categoriesError } = useServiceCategories();
@@ -296,17 +294,7 @@ export function HomeCatalogCascade({ isAuthenticated }: { isAuthenticated: boole
   const servicePills = selectedSubcategoryData?.services ?? [];
 
   const persistNavContext = (categoryId: string) => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    sessionStorage.setItem('navigationFrom', '/');
-    if (categoryId) {
-      sessionStorage.setItem('homeSelectedCategory', categoryId);
-      return;
-    }
-
-    sessionStorage.removeItem('homeSelectedCategory');
+    persistHomeNavContext(categoryId);
   };
 
   const buildSearchHref = (service: CategoryServiceDetail): string => {

@@ -413,7 +413,6 @@ export function AvailabilityGrid({
 
                   // Check if this slot is bookable
                   const now = new Date();
-                  const timeForCheck = useMockData ? time : timeStr;
 
                   // Parse the hour correctly
                   let hour: number;
@@ -423,18 +422,8 @@ export function AvailabilityGrid({
                       ? parseInt(time) + 12
                       : parseInt(time);
                   } else {
-                    // Handle format like "17:00"
-                    const timeParts = timeForCheck.split(':');
-                    const hourPart = at(timeParts, 0);
-                    if (!hourPart) {
-                      // Skip this slot if we can't parse the hour
-                      return (
-                        <td key={`${dateStr}-${time}`} className="p-1 text-center align-middle">
-                          <span className="text-xs text-gray-500 dark:text-gray-400">-</span>
-                        </td>
-                      );
-                    }
-                    hour = parseInt(hourPart);
+                    // timeStr is always built in HH:00 format for real availability
+                    hour = parseInt(timeStr);
                   }
 
                   // Create date from the string properly - dateStr is like "2025-08-04"

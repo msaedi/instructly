@@ -2,6 +2,13 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import SkillsPricingInline from '../SkillsPricingInline';
+import {
+  applyPendingHydrationAcceptance,
+  backfillSelectedServicesFromCatalog,
+  getPendingHydrationAcceptance,
+  type CatalogBackfillSource,
+  type SelectedService,
+} from '../SkillsPricingInline.helpers';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { useServiceCategories, useAllServicesWithInstructors } from '@/hooks/queries/useServices';
 import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
@@ -7646,6 +7653,109 @@ describe('SkillsPricingInline', () => {
       // Should backfill age groups from catalog
       const pianoElements = screen.getAllByText(/piano/i);
       expect(pianoElements.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('pure helper coverage', () => {
+    const makeSelectedService = (overrides: Partial<SelectedService> = {}): SelectedService => ({
+      catalog_service_id: 'svc-1',
+      subcategory_id: '',
+      service_catalog_name: 'Piano',
+      hourly_rate: '85',
+      eligible_age_groups: [],
+      filter_selections: {},
+      description: '',
+      equipment: '',
+      duration_options: [60],
+      offers_travel: false,
+      offers_at_location: false,
+      offers_online: true,
+      ...overrides,
+    });
+
+    it('accepts pending hydration only for the matching saved signature', () => {
+      expect(
+        getPendingHydrationAcceptance({
+          pendingSyncSignature: null,
+          incomingSignature: 'abc',
+          nextSelectedServices: [],
+        }),
+      ).toBeNull();
+
+      expect(
+        getPendingHydrationAcceptance({
+          pendingSyncSignature: 'abc',
+          incomingSignature: 'abc',
+          nextSelectedServices: [makeSelectedService()],
+        }),
+      ).toEqual({
+        nextPendingSyncSignature: null,
+        nextHasLocalEdits: false,
+        nextIsEditing: false,
+        nextIsHydrating: true,
+        nextSelectedServices: [makeSelectedService()],
+      });
+    });
+
+    it('applies pending hydration acceptance to refs and selected services', () => {
+      const pendingHydrationAcceptance = getPendingHydrationAcceptance({
+        pendingSyncSignature: 'abc',
+        incomingSignature: 'abc',
+        nextSelectedServices: [makeSelectedService()],
+      });
+      const pendingSyncSignatureRef = { current: 'abc' as string | null };
+      const hasLocalEditsRef = { current: true };
+      const isEditingRef = { current: true };
+      const isHydratingRef = { current: false };
+      const setSelectedServices = jest.fn();
+
+      expect(
+        applyPendingHydrationAcceptance({
+          pendingHydrationAcceptance,
+          pendingSyncSignatureRef,
+          hasLocalEditsRef,
+          isEditingRef,
+          isHydratingRef,
+          setSelectedServices,
+        }),
+      ).toBe(true);
+      expect(pendingSyncSignatureRef.current).toBeNull();
+      expect(hasLocalEditsRef.current).toBe(false);
+      expect(isEditingRef.current).toBe(false);
+      expect(isHydratingRef.current).toBe(true);
+      expect(setSelectedServices).toHaveBeenCalledWith([makeSelectedService()]);
+    });
+
+    it('backfills missing taxonomy fields without overwriting existing audience selections', () => {
+      const selectedServices = [
+        makeSelectedService({
+          eligible_age_groups: [],
+          filter_selections: {
+            age_groups: ['adults'],
+          },
+        }),
+      ];
+      const serviceCatalogById = new Map<string, CatalogBackfillSource>([
+        [
+          'svc-1',
+          {
+            subcategory_id: 'sub-1',
+            eligible_age_groups: ['kids', 'teens'],
+          },
+        ],
+      ]);
+
+      const result = backfillSelectedServicesFromCatalog(selectedServices, serviceCatalogById);
+
+      expect(result.changed).toBe(true);
+      expect(result.nextSelectedServices[0]).toMatchObject({
+        subcategory_id: 'sub-1',
+        eligible_age_groups: ['kids', 'teens'],
+        filter_selections: {
+          age_groups: ['adults'],
+          skill_level: ['beginner', 'intermediate', 'advanced'],
+        },
+      });
     });
   });
 });

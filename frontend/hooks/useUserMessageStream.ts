@@ -35,6 +35,65 @@ const HEARTBEAT_TIMEOUT = 45000; // 45 seconds (server sends every 10s, 4.5x buf
 // [MSG-DEBUG] Helper to get current timestamp
 const debugTimestamp = () => new Date().toISOString();
 
+export const logSkippedConnect = ({
+  isAuthenticated,
+  authRejected,
+  hasExistingConnection,
+  isConnecting,
+}: {
+  isAuthenticated: boolean;
+  authRejected: boolean;
+  hasExistingConnection: boolean;
+  isConnecting: boolean;
+}) => {
+  logger.debug('[MSG-DEBUG] SSE: Skipping connect', {
+    isAuthenticated,
+    authRejected,
+    hasExistingConnection,
+    isConnecting,
+    timestamp: debugTimestamp(),
+  });
+};
+
+export const logSuppressedConnectionError = ({
+  readyState,
+  readyStateText,
+}: {
+  readyState: number;
+  readyStateText: string;
+}) => {
+  logger.debug('[MSG-DEBUG] SSE: Connection error suppressed (not authenticated)', {
+    readyState,
+    readyStateText,
+    timestamp: debugTimestamp(),
+  });
+};
+
+export const shouldSkipConnect = ({
+  isAuthenticated,
+  authRejected,
+  hasExistingConnection,
+  isConnecting,
+}: {
+  isAuthenticated: boolean;
+  authRejected: boolean;
+  hasExistingConnection: boolean;
+  isConnecting: boolean;
+}) => !isAuthenticated || authRejected || hasExistingConnection || isConnecting;
+
+export const handleSkippedConnect = (state: {
+  isAuthenticated: boolean;
+  authRejected: boolean;
+  hasExistingConnection: boolean;
+  isConnecting: boolean;
+}) => {
+  if (!shouldSkipConnect(state)) {
+    return false;
+  }
+  logSkippedConnect(state);
+  return true;
+};
+
 export function useUserMessageStream() {
   const { isAuthenticated, user, checkAuth } = useAuth();
   const [isConnected, setIsConnected] = useState(false);
@@ -273,21 +332,13 @@ export function useUserMessageStream() {
 
   // Connect to SSE
   const connect = useCallback(() => {
-    if (
-      !isAuthenticated ||
-      authRejectedRef.current ||
-      eventSourceRef.current ||
-      isConnectingRef.current
-    ) {
-      logger.debug('[MSG-DEBUG] SSE: Skipping connect', {
-        isAuthenticated,
-        authRejected: authRejectedRef.current,
-        hasExistingConnection: !!eventSourceRef.current,
-        isConnecting: isConnectingRef.current,
-        timestamp: debugTimestamp(),
-      });
-      return;
-    }
+    const skipState = {
+      isAuthenticated,
+      authRejected: authRejectedRef.current,
+      hasExistingConnection: !!eventSourceRef.current,
+      isConnecting: isConnectingRef.current,
+    };
+    if (handleSkippedConnect(skipState)) return;
 
     isConnectingRef.current = true;
 
@@ -490,13 +541,11 @@ export function useUserMessageStream() {
         const readyState = eventSource.readyState;
         const readyStateText = ['CONNECTING', 'OPEN', 'CLOSED'][readyState] || 'UNKNOWN';
 
-        if (!isAuthenticated || authRejectedRef.current) {
-          logger.debug('[MSG-DEBUG] SSE: Connection error suppressed (not authenticated)', {
-            readyState,
-            readyStateText,
-            timestamp: debugTimestamp(),
-          });
-        } else if (!connectionErrorLoggedRef.current) {
+        if (!isAuthenticated || authRejectedRef.current) return void logSuppressedConnectionError({
+          readyState,
+          readyStateText,
+        });
+        if (!connectionErrorLoggedRef.current) {
           logger.warn('[SSE] Connection error, will retry', {
             readyState,
             readyStateText,

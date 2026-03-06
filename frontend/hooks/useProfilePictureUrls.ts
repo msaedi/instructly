@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import { fetchWithAuth } from '@/lib/api';
-import { logger } from '@/lib/logger';
 import type { components } from '@/features/shared/api/types';
+import { logger } from '@/lib/logger';
 
 type AvatarVariant = 'original' | 'display' | 'thumb';
 type AvatarUrlMap = Record<string, string | null>;
@@ -79,10 +79,6 @@ const ensureFlushScheduled = () => {
 };
 
 const enqueueFetch = (requests: AvatarRequest[], variant: AvatarVariant): Promise<AvatarUrlMap> => {
-  if (!requests.length) {
-    return Promise.resolve({});
-  }
-
   const cachedResults: AvatarUrlMap = {};
   const missing: AvatarRequest[] = [];
   requests.forEach((req) => {
@@ -128,14 +124,7 @@ const flushPendingQueue = async (): Promise<void> => {
     });
   });
 
-  const variantResults = new Map<AvatarVariant, AvatarUrlMap>();
-
   for (const [variant, requestMap] of variantGroups.entries()) {
-    if (!requestMap.size) {
-      variantResults.set(variant, {});
-      continue;
-    }
-
     const requests = Array.from(requestMap.values());
     const aggregated: AvatarUrlMap = {};
 
@@ -157,20 +146,14 @@ const flushPendingQueue = async (): Promise<void> => {
         });
       }
     }
-    variantResults.set(variant, aggregated);
   }
 
   snapshot.forEach((entry) => {
-    const aggregated = variantResults.get(entry.variant) ?? {};
     const response: AvatarUrlMap = {};
     entry.requests.forEach((req) => {
       const cached = getCachedValue(entry.variant, req);
       if (cached !== undefined) {
         response[req.id] = cached;
-      } else if (aggregated[req.id] !== undefined) {
-        response[req.id] = aggregated[req.id] ?? null;
-      } else {
-        response[req.id] = null;
       }
     });
     entry.resolve(response);
@@ -181,10 +164,6 @@ const requestProfilePictureBatch = async (
   ids: string[],
   variant: AvatarVariant,
 ): Promise<AvatarUrlMap> => {
-  if (!ids.length) {
-    return {};
-  }
-
   const params = new URLSearchParams();
   params.set('ids', ids.join(','));
   params.set('variant', variant);
@@ -248,18 +227,12 @@ export function useProfilePictureUrls(
     [dedupedRequests]
   );
 
-  const { data: fetchedUrls, error } = useQuery<AvatarUrlMap, Error>({
+  const { data: fetchedUrls } = useQuery<AvatarUrlMap, Error>({
     queryKey: ['avatar-urls', variant, requestKey],
     queryFn: () => enqueueFetch(dedupedRequests, variant),
     enabled: dedupedRequests.length > 0,
     staleTime: CACHE_TTL_MS,
   });
-
-  useEffect(() => {
-    if (error) {
-      logger.warn('Falling back to placeholder avatars after batch failure', error);
-    }
-  }, [error]);
 
   return useMemo(() => {
     if (!dedupedRequests.length) return {};

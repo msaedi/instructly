@@ -2,7 +2,11 @@ import React from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-import { useInstructorSearch } from '../useInstructorSearch';
+import {
+  fetchInstructorSearch,
+  throwMissingSearchCriteria,
+  useInstructorSearch,
+} from '../useInstructorSearch';
 import { publicApi } from '@/features/shared/api/client';
 import { validateWithZod } from '@/features/shared/api/validation';
 
@@ -285,5 +289,24 @@ describe('useInstructorSearch', () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.error?.message).toBe('Our hamsters are sprinting. Please try again shortly.');
     expect(result.current.error?.retryAfterSeconds).toBe(10);
+  });
+
+  it('throws a typed error when query code reaches missing-search-criteria fallback', () => {
+    expect(() => throwMissingSearchCriteria()).toThrow('Missing search criteria');
+  });
+
+  it('defensively rejects direct fetches with no search criteria', async () => {
+    await expect(
+      fetchInstructorSearch({
+        trimmedQuery: '',
+        serviceCatalogId: '',
+        page: 1,
+        perPage: 20,
+        hasSearchQuery: false,
+        hasCatalogId: false,
+      })
+    ).rejects.toMatchObject({
+      message: 'Missing search criteria',
+    });
   });
 });

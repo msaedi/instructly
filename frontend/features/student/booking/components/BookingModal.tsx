@@ -16,14 +16,12 @@ import { BookingType } from '@/features/shared/types/booking';
 import { determineBookingType } from '@/features/shared/utils/paymentCalculations';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useScrollLock } from '@/hooks/useScrollLock';
-
-type BookingFormErrors = Partial<{
-  name: string;
-  email: string;
-  phone: string;
-  agreedToTerms: string;
-  service: string;
-}>;
+import {
+  removeBookingFieldError,
+  requireBookingService,
+  validateBookingForm,
+  type BookingFormErrors,
+} from './BookingModal.helpers';
 
 export default function BookingModal({
   isOpen,
@@ -88,12 +86,7 @@ export default function BookingModal({
   useScrollLock(isOpen);
 
   const clearFieldError = useCallback((field: keyof BookingFormErrors) => {
-    setErrors((prev) => {
-      if (!prev[field]) return prev;
-      const next = { ...prev };
-      delete next[field];
-      return next;
-    });
+    setErrors((prev) => removeBookingFieldError(prev, field));
   }, []);
 
   const formatDate = (dateString: string) => {
@@ -220,38 +213,15 @@ export default function BookingModal({
 
   const handleBookingSubmit = async () => {
     const service = selectedService;
-    const nextErrors: BookingFormErrors = {};
-
-    if (!bookingFormData.name.trim()) {
-      nextErrors.name = 'Full name is required';
-    }
-
-    if (!bookingFormData.email.trim()) {
-      nextErrors.email = 'Email is required';
-    }
-
-    if (!bookingFormData.phone.trim()) {
-      nextErrors.phone = 'Phone number is required';
-    }
-
-    if (!bookingFormData.agreedToTerms) {
-      nextErrors.agreedToTerms = 'Please agree to the terms and cancellation policy';
-    }
-
-    if (!service) {
-      nextErrors.service = 'Please select a service';
-    }
+    const nextErrors = validateBookingForm(bookingFormData, service);
 
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
       return;
     }
 
-    if (!service) {
-      return;
-    }
-
     setErrors({});
+    const confirmedService = requireBookingService(service);
 
     // Prepare booking data for confirmation page
     const bookingDate = new Date(selectedDate + 'T' + selectedTime);
@@ -263,7 +233,7 @@ export default function BookingModal({
       bookingId: '', // Will be set after creation
       instructorId: String(instructor.user_id),
       instructorName: `${instructor.user.first_name} ${instructor.user.last_initial}.`,
-      lessonType: service.skill,
+      lessonType: confirmedService.skill,
       date: bookingDate,
       startTime: selectedTime,
       endTime: calculateEndTime(selectedTime, duration),
@@ -280,7 +250,7 @@ export default function BookingModal({
 
     // Store booking data in session storage for the confirmation page
     sessionStorage.setItem('bookingData', JSON.stringify(paymentBookingData));
-    sessionStorage.setItem('serviceId', String(service.id));
+    sessionStorage.setItem('serviceId', String(confirmedService.id));
 
     // Store the selected slot info so it can be restored when going back
     sessionStorage.setItem('selectedSlot', JSON.stringify({

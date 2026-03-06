@@ -504,4 +504,18 @@ describe('UpcomingLessons', () => {
       });
     });
   });
+
+  it('returns null when the bookings query errors after auth and client hydration complete', async () => {
+    mockUseUpcomingBookings.mockReturnValue({
+      data: null,
+      isLoading: false,
+      error: new Error('failed'),
+    } as unknown as ReturnType<typeof useUpcomingBookings>);
+
+    const { container } = render(<UpcomingLessons />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(container).toBeEmptyDOMElement();
+    });
+  });
 });

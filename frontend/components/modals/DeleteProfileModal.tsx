@@ -8,6 +8,10 @@ import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import type { ApiErrorResponse } from '@/features/shared/api/types';
 import { extractApiErrorMessage } from '@/lib/apiErrors';
 import { logger } from '@/lib/logger';
+import {
+  applyDeleteConfirmationFailure,
+  getDeleteConfirmationError,
+} from './DeleteProfileModal.helpers';
 
 /**
  * DeleteProfileModal Component
@@ -39,11 +43,7 @@ export default function DeleteProfileModal({
    * Handle profile deletion
    */
   const handleDelete = async () => {
-    if (confirmText !== 'DELETE') {
-      logger.warn('Delete profile attempted without proper confirmation');
-      setError('Please type DELETE to confirm');
-      return;
-    }
+    if (applyDeleteConfirmationFailure({ confirmText, setError })) return;
 
     setLoading(true);
     setError('');
@@ -77,7 +77,7 @@ export default function DeleteProfileModal({
 
   logger.debug('Delete profile modal opened');
 
-  const isConfirmed = confirmText === 'DELETE';
+  const isConfirmed = getDeleteConfirmationError(confirmText) === '';
 
   return (
     <Modal

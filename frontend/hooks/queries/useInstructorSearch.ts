@@ -154,7 +154,7 @@ export function useInstructorSearchInfinite(params: InstructorSearchParams) {
   });
 }
 
-const fetchInstructorSearch = async (
+export const fetchInstructorSearch = async (
   params: InstructorSearchFetchParams
 ): Promise<InstructorSearchResult> => {
   const {
@@ -227,7 +227,9 @@ const fetchInstructorSearch = async (
     return { mode: 'catalog', data: validated };
   }
 
-  // Defensive: Should never reach here due to query.enabled check,
-  // but guards against future code changes
+  return throwMissingSearchCriteria();
+};
+
+export const throwMissingSearchCriteria = (): never => {
   throw toSearchError('Missing search criteria');
 };

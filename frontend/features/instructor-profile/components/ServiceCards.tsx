@@ -90,15 +90,11 @@ function ServiceCardItem({
     if (!selectedSlot) return '';
 
     const availableMinutes = selectedSlot.availableDuration || 60;
-
-    if (duration > availableMinutes) {
-      if (availableMinutes === 60) {
-        return `This ${duration}-minute session requires a ${Math.ceil(duration / 60)}-hour time block`;
-      }
-      return `Only ${availableMinutes} minutes available from ${selectedSlot.time}. This session needs ${duration} minutes.`;
-    }
-
-    return '';
+    return duration > availableMinutes
+      ? availableMinutes === 60
+        ? `This ${duration}-minute session requires a ${Math.ceil(duration / 60)}-hour time block`
+        : `Only ${availableMinutes} minutes available from ${selectedSlot.time}. This session needs ${duration} minutes.`
+      : '';
   };
 
   return (

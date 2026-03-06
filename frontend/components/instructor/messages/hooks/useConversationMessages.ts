@@ -30,6 +30,13 @@ export type UseConversationMessagesResult = {
   invalidate: () => void;
 };
 
+export const requireConversationId = (conversationId: string | null | undefined): string => {
+  if (!conversationId) {
+    throw new Error('No conversation ID provided');
+  }
+  return conversationId;
+};
+
 // Stale time for message queries
 const STALE_TIME = 60 * 1000; // 1 minute
 
@@ -104,9 +111,7 @@ export function useConversationMessages({
   } = useInfiniteQuery({
     queryKey,
     queryFn: async ({ pageParam }) => {
-      if (!conversationId) {
-        throw new Error('No conversation ID provided');
-      }
+      const requiredConversationId = requireConversationId(conversationId);
       const params: GetMessagesParams = { limit };
       if (pageParam) {
         params.before = pageParam as string;
@@ -114,7 +119,7 @@ export function useConversationMessages({
       if (bookingFilter) {
         params.booking_id = bookingFilter;
       }
-      return fetchMessages(conversationId, params);
+      return fetchMessages(requiredConversationId, params);
     },
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.next_cursor,

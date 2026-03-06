@@ -106,10 +106,7 @@ const PaymentForm: React.FC<{
   }, [savedMethods]);
 
   const processPayment = async () => {
-    if (!stripe) {
-      onError('Stripe not initialized');
-      return;
-    }
+    if (!stripe) return void onError('Stripe not initialized');
 
     setProcessing(true);
 

@@ -1484,4 +1484,34 @@ describe('useProfilePictureUrls', () => {
       expect(fetchMock).toHaveBeenCalledTimes(2);
     });
   });
+
+  it('fills in null when the backend omits a requested user id', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        urls: {
+          'user-found': 'https://cdn/avatar/found',
+        },
+      }),
+    } as Response);
+
+    const { result } = renderHook(
+      () => useProfilePictureUrls(['user-found', 'user-missing']),
+      { wrapper: createWrapper() }
+    );
+
+    act(() => {
+      jest.runOnlyPendingTimers();
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(result.current['user-found']).toBe('https://cdn/avatar/found');
+    });
+    expect(result.current['user-missing']).toBeNull();
+  });
 });

@@ -60,10 +60,7 @@ export type InstructorBookingsParams = {
 // Browser calls go through Next.js proxy to avoid CORS and proxy redirects
 // Ensure an absolute base URL for URL construction
 function getRequestOrigin(): string {
-  if (typeof window !== 'undefined') {
-    return window.location.origin;
-  }
-  return APP_URL || 'http://localhost:3000';
+  return typeof window !== 'undefined' ? window.location.origin : APP_URL || 'http://localhost:3000';
 }
 
 /**

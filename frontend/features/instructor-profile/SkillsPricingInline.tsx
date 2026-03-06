@@ -31,22 +31,12 @@ import { RefineFiltersSection } from '@/components/taxonomy/RefineFiltersSection
 import { queryKeys } from '@/src/api/queryKeys';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { toast } from 'sonner';
-
-type SelectedService = {
-  catalog_service_id: string;
-  subcategory_id: string;
-  service_catalog_name?: string | null;
-  name?: string | null;
-  hourly_rate: string;
-  eligible_age_groups: AudienceGroup[];
-  filter_selections: FilterSelections;
-  description?: string;
-  equipment?: string;
-  duration_options: number[];
-  offers_travel: boolean;
-  offers_at_location: boolean;
-  offers_online: boolean;
-};
+import {
+  applyPendingHydrationAcceptance,
+  backfillSelectedServicesFromCatalog,
+  getPendingHydrationAcceptance,
+  type SelectedService,
+} from './SkillsPricingInline.helpers';
 
 type ServiceCapabilities = Pick<
   SelectedService,
@@ -445,19 +435,15 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
       );
       const incomingSignature = serializeServices(deduped);
 
+      const pendingHydrationAcceptance = getPendingHydrationAcceptance({
+        pendingSyncSignature: pendingSyncSignatureRef.current,
+        incomingSignature,
+        nextSelectedServices: deduped,
+      });
+
       // FIX 6: Check if this is our own save returning
       // If pendingSyncSignatureRef matches, this is our save - clear editing state and accept
-      if (pendingSyncSignatureRef.current && incomingSignature === pendingSyncSignatureRef.current) {
-        logger.debug('SkillsPricingInline: hydration matches pending save, accepting', {
-          matchedSignature: true,
-        });
-        pendingSyncSignatureRef.current = null;
-        hasLocalEditsRef.current = false;
-        isEditingRef.current = false; // FIX 6: Clear editing state now that our save is confirmed
-        isHydratingRef.current = true;
-        setSelectedServices(deduped);
-        return;
-      }
+      if (applyPendingHydrationAcceptance({ pendingHydrationAcceptance, pendingSyncSignatureRef, hasLocalEditsRef, isEditingRef, isHydratingRef, setSelectedServices })) return;
 
       // If user has local edits and incoming doesn't match, don't overwrite
       if (hasLocalEditsRef.current || isEditingRef.current) {
@@ -519,33 +505,10 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
   // from catalog when taxonomy data loads after profile hydration.
   useEffect(() => {
     if (serviceCatalogById.size === 0 || selectedServices.length === 0) return;
-    let changed = false;
-    const next = selectedServices.map((svc) => {
-      const entry = serviceCatalogById.get(svc.catalog_service_id);
-      if (!entry) return svc;
-      let updated = svc;
-      if (!updated.subcategory_id && entry.subcategory_id) {
-        updated = { ...updated, subcategory_id: entry.subcategory_id };
-        changed = true;
-      }
-      if (updated.eligible_age_groups.length === 0) {
-        updated = { ...updated, eligible_age_groups: entry.eligible_age_groups };
-        changed = true;
-      }
-      // Ensure skill_level and age_groups defaults exist in filter_selections
-      if (!updated.filter_selections['skill_level'] || !updated.filter_selections['age_groups']) {
-        const defaults = defaultFilterSelections(updated.eligible_age_groups);
-        const merged = { ...updated.filter_selections };
-        if (!merged['skill_level']) merged['skill_level'] = defaults['skill_level'] ?? [...DEFAULT_SKILL_LEVELS];
-        if (!merged['age_groups']) merged['age_groups'] = defaults['age_groups'] ?? [...ALL_AUDIENCE_GROUPS];
-        updated = { ...updated, filter_selections: merged };
-        changed = true;
-      }
-      return updated;
-    });
-    if (changed) {
+    const taxonomyBackfill = backfillSelectedServicesFromCatalog(selectedServices, serviceCatalogById);
+    if (taxonomyBackfill.changed) {
       isHydratingRef.current = true;
-      setSelectedServices(next);
+      setSelectedServices(taxonomyBackfill.nextSelectedServices);
     }
   }, [serviceCatalogById, selectedServices]);
 
@@ -809,12 +772,6 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
       initialLoadRef.current = false;
       if (isHydratingRef.current) {
         isHydratingRef.current = false;
-        return;
-      }
-      // FIX 5: Don't set hasLocalEditsRef on initial mount with empty services
-      // Only mark dirty if there are actually services (meaning user added something)
-      if (selectedServices.length > 0) {
-        hasLocalEditsRef.current = true;
       }
       return;
     }
@@ -825,10 +782,6 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
     }
 
     hasLocalEditsRef.current = true;
-
-    if (autoSaveTimeout.current) {
-      clearTimeout(autoSaveTimeout.current);
-    }
 
     autoSaveTimeout.current = setTimeout(() => {
       // FIX 4: Call via ref to avoid dependency

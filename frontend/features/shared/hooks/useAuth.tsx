@@ -205,11 +205,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!userActivated) {
       logger.warn('Suppressing server logout without user activation');
-      if (typeof window !== 'undefined') {
-        window.location.assign('/');
-      } else {
-        router.replace('/');
-      }
+      typeof window !== 'undefined' ? window.location.assign('/') : router.replace('/');
       return;
     }
 
@@ -218,11 +214,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .catch(() => {})
       .finally(() => {
         // Navigate home after clearing
-        if (typeof window !== 'undefined') {
-          window.location.assign('/');
-        } else {
-          router.replace('/');
-        }
+        typeof window !== 'undefined' ? window.location.assign('/') : router.replace('/');
       });
     logger.info('User logged out');
   };

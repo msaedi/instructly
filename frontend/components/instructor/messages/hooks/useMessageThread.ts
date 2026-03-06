@@ -275,11 +275,8 @@ export function useMessageThread({
       }
     }
 
-    if (shouldFetchHistory) {
+    if (shouldFetchHistory || !hasCache) {
       staleThreadsRef.current.delete(selectedChat);
-      setHistoryTarget({ threadId: selectedChat, conversation: activeConversation });
-    } else if (!hasCache) {
-      // If no cache but also not stale (shouldn't happen), force fetch
       setHistoryTarget({ threadId: selectedChat, conversation: activeConversation });
     }
 

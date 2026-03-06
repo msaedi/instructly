@@ -37,35 +37,32 @@ function formatDateShort(dateStr: string): string {
  * Format a 24-hour time string (HH:MM) to 12-hour format (e.g., "9am", "5:30pm")
  */
 function formatTime12h(timeStr: string): string {
-  try {
-    const [hoursStr, minutesStr] = timeStr.split(':');
-    const hours = parseInt(hoursStr ?? '0', 10);
-    const minutes = parseInt(minutesStr ?? '0', 10);
-
-    const period = hours < 12 ? 'am' : 'pm';
-    let hour12 = hours % 12;
-    if (hour12 === 0) hour12 = 12;
-
-    if (minutes === 0) {
-      return `${hour12}${period}`;
-    }
-    return `${hour12}:${minutesStr}${period}`;
-  } catch {
+  const [hoursStr, minutesStr] = timeStr.split(':');
+  const hours = parseInt(hoursStr ?? '0', 10);
+  const minutes = parseInt(minutesStr ?? '0', 10);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes) || !minutesStr) {
     return timeStr;
   }
+
+  const period = hours < 12 ? 'am' : 'pm';
+  let hour12 = hours % 12;
+  if (hour12 === 0) hour12 = 12;
+
+  if (minutes === 0) {
+    return `${hour12}${period}`;
+  }
+  return `${hour12}:${minutesStr}${period}`;
 }
 
 /**
  * Format booking info for display
  */
 function formatBookingInfo(booking: ConversationBooking): string {
-  try {
-    const formattedDate = formatDateShort(booking.date);
-    const formattedTime = formatTime12h(booking.start_time);
-    return `${booking.service_name} on ${formattedDate}, ${formattedTime}`;
-  } catch {
-    return `${booking.service_name} - ${booking.date}`;
-  }
+  const formattedDate = formatDateShort(booking.date);
+  const formattedTime = formatTime12h(booking.start_time);
+  return formattedDate === booking.date && formattedTime === booking.start_time
+    ? `${booking.service_name} - ${booking.date}`
+    : `${booking.service_name} on ${formattedDate}, ${formattedTime}`;
 }
 
 export function ChatHeader({

@@ -47,9 +47,7 @@ export function MessageInstructorButton({
     }
 
     // Don't allow instructor to message themselves
-    if (user?.id === instructorId) {
-      return;
-    }
+    if (user?.id === instructorId) return;
 
     await createConversation(instructorId, { navigateToMessages: true });
   };

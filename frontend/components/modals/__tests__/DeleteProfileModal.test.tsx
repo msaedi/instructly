@@ -1,6 +1,10 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DeleteProfileModal from '../DeleteProfileModal';
+import {
+  applyDeleteConfirmationFailure,
+  getDeleteConfirmationError,
+} from '../DeleteProfileModal.helpers';
 
 // Mock the API functions
 jest.mock('@/lib/api', () => ({
@@ -302,6 +306,34 @@ describe('DeleteProfileModal', () => {
     // Input should NOT have green styling (should have red focus ring instead)
     expect(input).not.toHaveClass('border-green-300');
     expect(input).toHaveClass('border-gray-300');
+  });
+
+  it('returns an explicit confirmation error unless the text matches DELETE exactly', () => {
+    expect(getDeleteConfirmationError('delete')).toBe('Please type DELETE to confirm');
+    expect(getDeleteConfirmationError('DELETE ')).toBe('Please type DELETE to confirm');
+    expect(getDeleteConfirmationError('DELETE')).toBe('');
+  });
+
+  it('applies the defensive confirmation failure path for non-UI callers', () => {
+    const setError = jest.fn();
+
+    expect(
+      applyDeleteConfirmationFailure({
+        confirmText: 'delete',
+        setError,
+      }),
+    ).toBe(true);
+    expect(setError).toHaveBeenCalledWith('Please type DELETE to confirm');
+
+    setError.mockClear();
+
+    expect(
+      applyDeleteConfirmationFailure({
+        confirmText: 'DELETE',
+        setError,
+      }),
+    ).toBe(false);
+    expect(setError).not.toHaveBeenCalled();
   });
 
 });

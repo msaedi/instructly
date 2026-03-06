@@ -38,9 +38,7 @@ export function useSWRCustom<T>(
 
       // Dedupe: skip if we fetched recently (unless skipDedupe is true)
       const now = Date.now();
-      if (!skipDedupe && now - lastFetchRef.current < dedupingInterval) {
-        return;
-      }
+      if (!skipDedupe && now - lastFetchRef.current < dedupingInterval) return;
       lastFetchRef.current = now;
 
       setIsLoading(true);

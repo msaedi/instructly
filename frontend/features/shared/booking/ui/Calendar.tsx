@@ -79,10 +79,15 @@ export default function Calendar({
     return now;
   }, [todayKey]);
 
+  const displayMonth = useMemo(() => {
+    const normalizedMonth = new Date(currentMonth);
+    return Number.isNaN(normalizedMonth.getTime()) ? new Date() : normalizedMonth;
+  }, [currentMonth]);
+
   // Get the first day of the month
   const firstDay = useMemo(
-    () => new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1),
-    [currentMonth],
+    () => new Date(displayMonth.getFullYear(), displayMonth.getMonth(), 1),
+    [displayMonth],
   );
 
   const startDate = useMemo(() => {
@@ -98,7 +103,7 @@ export default function Calendar({
       // 6 weeks * 7 days
       const date = addDays(startDate, index);
       const dateStr = formatDate(date);
-      const isCurrentMonth = date.getMonth() === currentMonth.getMonth();
+      const isCurrentMonth = date.getMonth() === displayMonth.getMonth();
       const isToday = date.getTime() === today.getTime();
       const isAvailable = availableDates.includes(dateStr);
       const isSelected = selectedDate === dateStr;
@@ -122,7 +127,7 @@ export default function Calendar({
     }
 
     return cells;
-  }, [availableDates, currentMonth, selectedDate, startDate, today]);
+  }, [availableDates, displayMonth, selectedDate, startDate, today]);
 
   const rows = useMemo(() => {
     return Array.from({ length: 6 }, (_, rowIndex) =>
@@ -147,9 +152,6 @@ export default function Calendar({
   const hasInteractedRef = useRef(false);
 
   const initialFocusDate = useMemo(() => {
-    if (!visibleCells.length) {
-      return null;
-    }
     const todayStr = formatDate(today);
     return (
       (selectedDate && dayCellByDate.has(selectedDate) && selectedDate) ||
@@ -167,11 +169,7 @@ export default function Calendar({
     if (!hasInteractedRef.current) {
       return;
     }
-    if (!activeFocusedDate) {
-      return;
-    }
-
-    const focusedElement = dayRefs.current[activeFocusedDate];
+    const focusedElement = activeFocusedDate ? dayRefs.current[activeFocusedDate] : null;
     if (focusedElement && document.activeElement !== focusedElement) {
       focusedElement.focus();
     }
@@ -181,32 +179,27 @@ export default function Calendar({
   const isMonthInPast = () => {
     const now = new Date();
     return (
-      currentMonth.getFullYear() < now.getFullYear() ||
-      (currentMonth.getFullYear() === now.getFullYear() && currentMonth.getMonth() < now.getMonth())
+      displayMonth.getFullYear() < now.getFullYear() ||
+      (displayMonth.getFullYear() === now.getFullYear() && displayMonth.getMonth() < now.getMonth())
     );
   };
 
   // Navigate months
   const goToPreviousMonth = () => {
     if (!isMonthInPast()) {
-      const newMonth = new Date(currentMonth);
+      const newMonth = new Date(displayMonth);
       newMonth.setMonth(newMonth.getMonth() - 1);
       onMonthChange(newMonth);
     }
   };
 
   const goToNextMonth = () => {
-    const newMonth = new Date(currentMonth);
+    const newMonth = new Date(displayMonth);
     newMonth.setMonth(newMonth.getMonth() + 1);
     onMonthChange(newMonth);
   };
 
-  const moveFocusByDays = (sourceDate: string, dayOffset: number) => {
-    const sourceCell = dayCellByDate.get(sourceDate);
-    if (!sourceCell) {
-      return;
-    }
-
+  const moveFocusByDays = (sourceCell: DayCell, dayOffset: number) => {
     const targetDateStr = formatDate(addDays(sourceCell.date, dayOffset));
     if (dayCellByDate.has(targetDateStr)) {
       setFocusedDate(targetDateStr);
@@ -232,25 +225,25 @@ export default function Calendar({
 
     if (event.key === 'ArrowLeft') {
       event.preventDefault();
-      moveFocusByDays(cell.dateStr, -1);
+      moveFocusByDays(cell, -1);
       return;
     }
 
     if (event.key === 'ArrowRight') {
       event.preventDefault();
-      moveFocusByDays(cell.dateStr, 1);
+      moveFocusByDays(cell, 1);
       return;
     }
 
     if (event.key === 'ArrowUp') {
       event.preventDefault();
-      moveFocusByDays(cell.dateStr, -7);
+      moveFocusByDays(cell, -7);
       return;
     }
 
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      moveFocusByDays(cell.dateStr, 7);
+      moveFocusByDays(cell, 7);
       return;
     }
 
@@ -279,7 +272,7 @@ export default function Calendar({
       {/* Month Navigation */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-base font-medium text-gray-700 dark:text-gray-200">
-          {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+          {displayMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
         </h3>
         <div className="flex items-center gap-2">
           <button
@@ -307,7 +300,7 @@ export default function Calendar({
       {/* Calendar Grid */}
       <div
         role="grid"
-        aria-label={currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+        aria-label={displayMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
         className="space-y-1"
       >
         <div className="grid grid-cols-7 mb-2" role="row">

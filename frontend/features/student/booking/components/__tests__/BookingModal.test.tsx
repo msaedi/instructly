@@ -2,6 +2,11 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import BookingModal from '../BookingModal';
+import {
+  removeBookingFieldError,
+  requireBookingService,
+  validateBookingForm,
+} from '../BookingModal.helpers';
 import type { Instructor } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
 import { useRouter } from 'next/navigation';
@@ -1130,6 +1135,101 @@ describe('BookingModal', () => {
       // Close to trigger resetState - user.full_name || '' and user.email || '' branches
       await userEvent.click(screen.getByRole('button', { name: 'Close modal' }));
       expect(onClose).toHaveBeenCalled();
+    });
+  });
+
+  describe('defensive submit branches', () => {
+    beforeEach(() => {
+      useAuthMock.mockReturnValue({
+        user: { full_name: 'Jane Doe', email: 'jane@example.com' },
+        isAuthenticated: true,
+        redirectToLogin: jest.fn(),
+      });
+    });
+
+    it('keeps state stable when editing a field that has no existing error', async () => {
+      renderModal();
+
+      const nameInput = getTextInputs()[0]!;
+      await userEvent.type(nameInput, ' Jr');
+
+      expect(nameInput).toHaveValue('Jane Doe Jr');
+      expect(screen.queryByText('Full name is required')).not.toBeInTheDocument();
+    });
+
+    it('closes when the backdrop itself is clicked', () => {
+      const { onClose } = renderModal();
+      const backdrop = document.querySelector('.insta-dialog-backdrop');
+      if (!backdrop) {
+        throw new Error('Expected booking modal backdrop');
+      }
+
+      fireEvent.click(backdrop);
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('validation helpers', () => {
+    it('returns explicit validation messages for missing booking fields and service', () => {
+      expect(
+        validateBookingForm(
+          {
+            name: '   ',
+            email: '',
+            phone: '',
+            notes: '',
+            agreedToTerms: false,
+          },
+          null,
+        ),
+      ).toEqual({
+        name: 'Full name is required',
+        email: 'Email is required',
+        phone: 'Phone number is required',
+        agreedToTerms: 'Please agree to the terms and cancellation policy',
+        service: 'Please select a service',
+      });
+    });
+
+    it('removes an existing field error without mutating the original object', () => {
+      const errors = {
+        name: 'Full name is required',
+        email: 'Email is required',
+      };
+
+      expect(removeBookingFieldError(errors, 'name')).toEqual({
+        email: 'Email is required',
+      });
+      expect(errors).toEqual({
+        name: 'Full name is required',
+        email: 'Email is required',
+      });
+    });
+
+    it('returns the same error object when there is nothing to clear', () => {
+      const errors = {
+        email: 'Email is required',
+      };
+
+      expect(removeBookingFieldError(errors, 'name')).toBe(errors);
+    });
+
+    it('requires a selected service before building payment state', () => {
+      expect(() => requireBookingService(null)).toThrow(
+        'Booking submit requires a selected service',
+      );
+
+      expect(
+        requireBookingService({
+          id: 'service-1',
+          skill: 'Piano',
+          hourly_rate: 120,
+          duration: 60,
+        } as never),
+      ).toMatchObject({
+        id: 'service-1',
+        skill: 'Piano',
+      });
     });
   });
 });

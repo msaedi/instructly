@@ -32,7 +32,7 @@ export function UpcomingLessons() {
   const bookings = response?.items ?? [];
 
   // Don't render if not authenticated or no bookings
-  if (!isClient || isAuthLoading || !isAuthenticated || (!isLoading && bookings.length === 0)) {
+  if (error || !isClient || isAuthLoading || !isAuthenticated || (!isLoading && bookings.length === 0)) {
     return null;
   }
 
@@ -55,10 +55,6 @@ export function UpcomingLessons() {
         </div>
       </section>
     );
-  }
-
-  if (error) {
-    return null; // Silently fail for now
   }
 
   const viewerTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;

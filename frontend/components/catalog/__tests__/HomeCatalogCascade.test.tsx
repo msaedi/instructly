@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { useRouter } from 'next/navigation';
 
 import { HomeCatalogCascade } from '../HomeCatalogCascade';
+import { persistHomeNavContext } from '../HomeCatalogCascade.helpers';
 import { useAllServicesWithInstructors, useServiceCategories } from '@/hooks/queries/useServices';
 import { useSubcategoriesByCategory } from '@/hooks/queries/useTaxonomy';
 import { recordSearch } from '@/lib/searchTracking';
@@ -860,5 +861,14 @@ describe('HomeCatalogCascade', () => {
 
     // Should render without crashing; services ?? [] handles the null
     expect(screen.getByText('Select a category to browse subcategories')).toBeInTheDocument();
+  });
+
+  it('clears the stored home category when persisting an empty category id', () => {
+    sessionStorage.setItem('homeSelectedCategory', 'cat-music');
+
+    persistHomeNavContext('');
+
+    expect(sessionStorage.getItem('navigationFrom')).toBe('/');
+    expect(sessionStorage.getItem('homeSelectedCategory')).toBeNull();
   });
 });

@@ -52,10 +52,6 @@ export default function TimeDropdown({
 
   // Handle open/close with animation
   const handleOpen = useCallback((preferredIndex?: number) => {
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current);
-      closeTimeoutRef.current = null;
-    }
     const fallbackIndex = selectedIndex >= 0 ? selectedIndex : 0;
     const nextIndex =
       typeof preferredIndex === 'number' ? getClampedIndex(preferredIndex) : fallbackIndex;

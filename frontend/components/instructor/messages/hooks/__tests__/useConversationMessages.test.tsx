@@ -1,6 +1,6 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useConversationMessages } from '../useConversationMessages';
+import { requireConversationId, useConversationMessages } from '../useConversationMessages';
 import type { ReactNode } from 'react';
 
 // Mock dependencies
@@ -582,5 +582,10 @@ describe('useConversationMessages', () => {
       const fetchUrl = mockFetch.mock.calls[0]?.[0] as string;
       expect(fetchUrl).toContain('limit=25');
     });
+  });
+
+  it('throws a clear error when a conversation id is required programmatically', () => {
+    expect(() => requireConversationId(null)).toThrow('No conversation ID provided');
+    expect(requireConversationId('conv-123')).toBe('conv-123');
   });
 });

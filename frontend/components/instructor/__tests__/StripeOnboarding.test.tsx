@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import StripeOnboarding from '../StripeOnboarding';
-import { paymentService } from '@/services/api/payments';
+import { paymentService, type OnboardingStatusResponse } from '@/services/api/payments';
 
 // Mock dependencies
 jest.mock('next/navigation', () => ({
@@ -49,6 +49,23 @@ describe('StripeOnboarding', () => {
 
       // Check for animate-spin class on loader
       expect(container.querySelector('.animate-spin')).toBeInTheDocument();
+    });
+  });
+
+  it('treats a null onboarding completion flag as incomplete setup', async () => {
+    paymentServiceMock.getOnboardingStatus.mockResolvedValue(
+      {
+        has_account: true,
+        onboarding_completed: null,
+        charges_enabled: false,
+      } as unknown as OnboardingStatusResponse
+    );
+
+    render(<StripeOnboarding instructorId={mockInstructorId} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Complete Your Setup')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /continue setup/i })).toBeInTheDocument();
     });
   });
 

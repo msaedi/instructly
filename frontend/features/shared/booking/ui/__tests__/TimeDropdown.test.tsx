@@ -162,6 +162,20 @@ describe('TimeDropdown', () => {
       });
     });
 
+    it('clears the previous close timeout when close is requested twice during the animation', () => {
+      const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
+      render(<TimeDropdown {...defaultProps} />);
+
+      const trigger = screen.getByRole('button', { name: /select time/i });
+      fireEvent.click(trigger);
+
+      const listbox = screen.getByRole('listbox');
+      fireEvent.keyDown(listbox, { key: 'Escape' });
+      fireEvent.keyDown(listbox, { key: 'Escape' });
+
+      expect(clearTimeoutSpy).toHaveBeenCalled();
+    });
+
     it('cleans up pending close timeout on unmount', () => {
       const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
       const { unmount } = render(<TimeDropdown {...defaultProps} />);

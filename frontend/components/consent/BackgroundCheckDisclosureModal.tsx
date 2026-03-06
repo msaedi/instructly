@@ -118,9 +118,7 @@ export function BackgroundCheckDisclosureModal({
   const handleAccept = () => {
     // Defensive validation: Button is disabled under the same conditions,
     // but this guards against programmatic calls or future UI changes
-    if (!hasScrolledToEnd || submitting) {
-      return;
-    }
+    if (!hasScrolledToEnd || submitting) return;
     onAccept();
   };
 

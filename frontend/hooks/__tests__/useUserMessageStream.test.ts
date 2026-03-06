@@ -1,5 +1,11 @@
 import { renderHook, act } from '@testing-library/react';
-import { useUserMessageStream } from '../useUserMessageStream';
+import {
+  handleSkippedConnect,
+  logSkippedConnect,
+  logSuppressedConnectionError,
+  shouldSkipConnect,
+  useUserMessageStream,
+} from '../useUserMessageStream';
 import type { ConversationHandlers } from '@/types/messaging';
 
 // ── Mocks ──────────────────────────────────────────────────────
@@ -777,32 +783,27 @@ describe('useUserMessageStream', () => {
   });
 
   describe('connect guard when already connecting (lines 282-289)', () => {
-    it('skips connect when eventSourceRef already exists', async () => {
-      const { result } = renderHook(() => useUserMessageStream());
+    it('logs and bails out when a connect attempt is blocked', () => {
+      const { logger } = jest.requireMock('@/lib/logger') as {
+        logger: { debug: jest.Mock };
+      };
+      logger.debug.mockClear();
 
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-
-      const es = getLatestEventSource();
-      act(() => { es.emit('connected'); });
-
-      // At this point eventSourceRef.current is set.
-      // A second connect attempt (e.g., if isAuthenticated re-triggers)
-      // should skip because hasExistingConnection is true.
-      const instanceCount = MockEventSource.instances.length;
-
-      // Force reconnect by changing auth and back
-      mockUseAuth.mockReturnValue({
+      expect(handleSkippedConnect({
         isAuthenticated: true,
-        user: { id: 'user-1', first_name: 'John' },
-        checkAuth: mockCheckAuth,
-      });
-
-      // No new EventSource should be created
-      expect(MockEventSource.instances.length).toBe(instanceCount);
-      expect(result.current.isConnected).toBe(true);
+        authRejected: false,
+        hasExistingConnection: true,
+        isConnecting: false,
+      })).toBe(true);
+      expect(logger.debug).toHaveBeenCalledWith(
+        '[MSG-DEBUG] SSE: Skipping connect',
+        expect.objectContaining({
+          isAuthenticated: true,
+          authRejected: false,
+          hasExistingConnection: true,
+          isConnecting: false,
+        }),
+      );
     });
   });
 
@@ -1162,6 +1163,85 @@ describe('useUserMessageStream', () => {
       act(() => { es.triggerError(); });
 
       expect(result.current.connectionError).toBe('Connection lost');
+    });
+  });
+
+  describe('logging helpers', () => {
+    it('reports when connect should be skipped for any blocking condition', () => {
+      expect(shouldSkipConnect({
+        isAuthenticated: false,
+        authRejected: false,
+        hasExistingConnection: false,
+        isConnecting: false,
+      })).toBe(true);
+      expect(shouldSkipConnect({
+        isAuthenticated: true,
+        authRejected: true,
+        hasExistingConnection: false,
+        isConnecting: false,
+      })).toBe(true);
+      expect(shouldSkipConnect({
+        isAuthenticated: true,
+        authRejected: false,
+        hasExistingConnection: true,
+        isConnecting: false,
+      })).toBe(true);
+      expect(shouldSkipConnect({
+        isAuthenticated: true,
+        authRejected: false,
+        hasExistingConnection: false,
+        isConnecting: true,
+      })).toBe(true);
+      expect(shouldSkipConnect({
+        isAuthenticated: true,
+        authRejected: false,
+        hasExistingConnection: false,
+        isConnecting: false,
+      })).toBe(false);
+    });
+
+    it('logs skipped connects with the current connection state', () => {
+      const { logger } = jest.requireMock('@/lib/logger') as {
+        logger: { debug: jest.Mock };
+      };
+      logger.debug.mockClear();
+
+      logSkippedConnect({
+        isAuthenticated: false,
+        authRejected: true,
+        hasExistingConnection: true,
+        isConnecting: false,
+      });
+
+      expect(logger.debug).toHaveBeenCalledWith(
+        '[MSG-DEBUG] SSE: Skipping connect',
+        expect.objectContaining({
+          isAuthenticated: false,
+          authRejected: true,
+          hasExistingConnection: true,
+          isConnecting: false,
+        }),
+      );
+    });
+
+    it('logs suppressed connection errors when auth is not available', () => {
+      const { logger } = jest.requireMock('@/lib/logger') as {
+        logger: { debug: jest.Mock };
+      };
+      logger.debug.mockClear();
+
+      logSuppressedConnectionError({
+        readyState: 2,
+        readyStateText: 'CLOSED',
+      });
+
+      expect(logger.debug).toHaveBeenCalledWith(
+        '[MSG-DEBUG] SSE: Connection error suppressed (not authenticated)',
+        expect.objectContaining({
+          readyState: 2,
+          readyStateText: 'CLOSED',
+        }),
+      );
     });
   });
 });

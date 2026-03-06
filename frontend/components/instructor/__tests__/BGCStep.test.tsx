@@ -3,6 +3,7 @@ import { BGCStep } from '../BGCStep';
 import { bgcInvite, bgcRecheck, bgcStatus } from '@/lib/api/bgc';
 import { ApiProblemError } from '@/lib/api/fetch';
 import { toast } from 'sonner';
+import { clearPollTimer } from '../BGCStep.helpers';
 
 // Mock dependencies
 jest.mock('@/lib/api/bgc', () => ({
@@ -2791,6 +2792,18 @@ describe('BGCStep', () => {
       await waitFor(() => {
         expect(screen.getByText('Verified')).toBeInTheDocument();
       });
+    });
+  });
+
+  describe('clearPollTimer helper', () => {
+    it('clears and nulls an existing poll timer ref', () => {
+      const clearTimeoutSpy = jest.spyOn(window, 'clearTimeout');
+      const pollTimerRef = { current: 123 as number | null };
+
+      clearPollTimer(pollTimerRef);
+
+      expect(clearTimeoutSpy).toHaveBeenCalledWith(123);
+      expect(pollTimerRef.current).toBeNull();
     });
   });
 

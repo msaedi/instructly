@@ -345,9 +345,7 @@ function MapPins({ locations }: { locations: LocationPin[] }) {
   const map = useMap();
 
   useEffect(() => {
-    if (!locations || locations.length === 0) {
-      return;
-    }
+    if (!locations || locations.length === 0) return;
 
     const pinSvg =
       '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="#7E22CE" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c-3.9 0-7 3.1-7 7 0 5.3 7 13 7 13s7-7.7 7-13c0-3.9-3.1-7-7-7z"/><circle cx="12" cy="9" r="2.5" fill="#ffffff" stroke="none"/></svg>';

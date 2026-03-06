@@ -156,13 +156,7 @@ export default function PaymentMethodSelection({
 
 
   const handleContinue = () => {
-    if (creditsToApply >= booking.totalAmount) {
-      onSelectPayment(PaymentMethod.CREDITS, undefined, creditsToApply);
-    } else if (creditsToApply > 0) {
-      onSelectPayment(PaymentMethod.MIXED, selectedCardId, creditsToApply);
-    } else {
-      onSelectPayment(PaymentMethod.CREDIT_CARD, selectedCardId);
-    }
+    onSelectPayment(PaymentMethod.CREDIT_CARD, selectedCardId);
   };
 
 

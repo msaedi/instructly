@@ -102,4 +102,75 @@ describe('useFocusTrap', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(opener).toHaveFocus();
   });
+
+  it('ignores hidden and disabled elements when choosing initial focus', () => {
+    function HiddenHarness() {
+      const containerRef = useRef<HTMLDivElement | null>(null);
+      useFocusTrap({
+        isOpen: true,
+        containerRef,
+      });
+
+      return (
+        <div ref={containerRef} role="dialog" tabIndex={-1}>
+          <button type="button" aria-hidden="true">
+            Hidden
+          </button>
+          <button type="button" disabled>
+            Disabled
+          </button>
+          <button type="button">Focusable</button>
+        </div>
+      );
+    }
+
+    render(<HiddenHarness />);
+    expect(screen.getByRole('button', { name: 'Focusable' })).toHaveFocus();
+  });
+
+  it('moves focus back inside the trap when Tab starts outside the container', () => {
+    function OutsideTabHarness() {
+      const containerRef = useRef<HTMLDivElement | null>(null);
+      useFocusTrap({
+        isOpen: true,
+        containerRef,
+      });
+
+      return (
+        <div>
+          <button type="button">Outside</button>
+          <div ref={containerRef} role="dialog" tabIndex={-1}>
+            <button type="button">First</button>
+            <button type="button">Last</button>
+          </div>
+        </div>
+      );
+    }
+
+    render(<OutsideTabHarness />);
+    const outside = screen.getByRole('button', { name: 'Outside' });
+    const first = screen.getByRole('button', { name: 'First' });
+    const last = screen.getByRole('button', { name: 'Last' });
+
+    outside.focus();
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(first).toHaveFocus();
+
+    outside.focus();
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(last).toHaveFocus();
+  });
+
+  it('does nothing when the trap is open but no container is mounted yet', () => {
+    function MissingContainerHarness() {
+      const containerRef = useRef<HTMLDivElement | null>(null);
+      useFocusTrap({
+        isOpen: true,
+        containerRef,
+      });
+      return null;
+    }
+
+    expect(() => render(<MissingContainerHarness />)).not.toThrow();
+  });
 });

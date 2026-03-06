@@ -39,7 +39,7 @@ type PricingPreviewControllerOptions = {
 
 export const PricingPreviewContext = createContext<PricingPreviewController | null>(null);
 
-const stableSerialize = (value: unknown): string => {
+export const stableSerialize = (value: unknown): string => {
   if (value === null || typeof value !== 'object') {
     return JSON.stringify(value);
   }
@@ -55,10 +55,7 @@ const stableSerialize = (value: unknown): string => {
 const DEV_MODE = process.env.NODE_ENV !== 'production';
 
 const logDev = (...args: unknown[]) => {
-  if (!DEV_MODE) {
-    return;
-  }
-  logger.debug('pricing-preview:dev-log', { args });
+  if (DEV_MODE) logger.debug('pricing-preview:dev-log', { args });
 };
 
 const hashQuotePayload = (payload?: PricingPreviewQuotePayloadBase | null): string | null => {

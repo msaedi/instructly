@@ -223,9 +223,7 @@ export function useReactions<T extends ReactionMessage>({
       } finally {
         // Small delay before allowing new reactions to prevent race conditions
         // Clear any existing timeout before setting a new one
-        if (processingTimeoutRef.current) {
-          clearTimeout(processingTimeoutRef.current);
-        }
+        clearTimeout(processingTimeoutRef.current ?? undefined);
         processingTimeoutRef.current = setTimeout(() => {
           setProcessingReaction(null);
           processingTimeoutRef.current = null;

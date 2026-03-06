@@ -11,6 +11,7 @@ import { ApiProblemError } from '@/lib/api/fetch';
 import { logger } from '@/lib/logger';
 import Modal from '@/components/Modal';
 import { Mail } from 'lucide-react';
+import { clearPollTimer } from './BGCStep.helpers';
 
 const POLL_BACKOFF_MS = [15000, 60000, 300000] as const;
 
@@ -242,12 +243,9 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
       alive = false;
       isMountedRef.current = false;
       if (cooldownRef.current) {
-        clearTimeout(cooldownRef.current);
+        globalThis.clearTimeout?.(cooldownRef.current);
       }
-      if (pollTimerRef.current !== null) {
-        window.clearTimeout(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
+      clearPollTimer(pollTimerRef);
     };
   }, [instructorId, pushSnapshot, snapshotFromResponse]);
 
@@ -269,19 +267,13 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
   }, [loadStatus]);
 
   React.useEffect(() => {
-    if (pollTimerRef.current !== null) {
-      window.clearTimeout(pollTimerRef.current);
-      pollTimerRef.current = null;
-    }
+    clearPollTimer(pollTimerRef);
     backoffIdxRef.current = 0;
     if (status === 'pending' || status === 'review' || status === 'consider') {
       scheduleNextPoll();
     }
     return () => {
-      if (pollTimerRef.current !== null) {
-        window.clearTimeout(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
+      clearPollTimer(pollTimerRef);
     };
   }, [status, scheduleNextPoll]);
 
@@ -534,11 +526,8 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
 
   const validUntilLabel = React.useMemo(() => {
     if (!validUntil) return null;
-    try {
-      return new Date(validUntil).toLocaleDateString();
-    } catch {
-      return null;
-    }
+    const parsed = new Date(validUntil);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toLocaleDateString();
   }, [validUntil]);
   const etaLabel = React.useMemo(() => formatEtaLabel(eta), [eta]);
   const pendingOrReview =

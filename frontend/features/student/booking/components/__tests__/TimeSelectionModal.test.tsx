@@ -1,6 +1,13 @@
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import TimeSelectionModal from '../TimeSelectionModal';
+import {
+  buildBookingDateTime,
+  formatAvailabilityDateLabel,
+  parseDisplayedTime,
+  prepareBookingTiming,
+  reconcileTimeSelection,
+} from '../TimeSelectionModal.helpers';
 import { useAuth, storeBookingIntent } from '../../hooks/useAuth';
 import { usePricingFloors } from '@/lib/pricing/usePricingFloors';
 import { fetchPricingPreview } from '@/lib/api/pricing';
@@ -8635,6 +8642,157 @@ describe('TimeSelectionModal', () => {
         // The value should be 'false' since there's no date or time selected
         expect(summaryCompleteElements[0]?.textContent).toBe('false');
       }
+    });
+  });
+
+  describe('exported helper coverage', () => {
+    it('reconciles stale selections using preferred time, first-slot fallback, or null', () => {
+      expect(
+        reconcileTimeSelection({
+          selectedTime: '2:30pm',
+          timeSlots: ['9:00am', '10:00am'],
+          preferredTime: '10:00am',
+        }),
+      ).toBe('10:00am');
+
+      expect(
+        reconcileTimeSelection({
+          selectedTime: '2:30pm',
+          timeSlots: ['9:00am', '10:00am'],
+          preferredTime: '11:30pm',
+        }),
+      ).toBe('9:00am');
+
+      expect(
+        reconcileTimeSelection({
+          selectedTime: '2:30pm',
+          timeSlots: [],
+          preferredTime: '10:00am',
+        }),
+      ).toBeNull();
+    });
+
+    it('formats availability date labels for empty, invalid, and valid dates', () => {
+      expect(formatAvailabilityDateLabel('')).toBe('');
+      expect(formatAvailabilityDateLabel('not-a-date')).toBe('not-a-date');
+      expect(formatAvailabilityDateLabel('2026-03-06')).toBe('Mar 6');
+    });
+
+    it('parses displayed times and returns explicit error kinds for invalid values', () => {
+      expect(parseDisplayedTime('am')).toEqual({
+        ok: false,
+        kind: 'format',
+        selectedTime: 'am',
+      });
+
+      expect(parseDisplayedTime('1:2:3pm')).toEqual({
+        ok: false,
+        kind: 'format',
+        selectedTime: '1:2:3pm',
+      });
+
+      expect(parseDisplayedTime('NaN:NaNpm')).toEqual({
+        ok: false,
+        kind: 'values',
+        hourStr: 'NaN',
+        minuteStr: 'NaN',
+        selectedTime: 'NaN:NaNpm',
+      });
+
+      expect(parseDisplayedTime('12:30pm')).toEqual({
+        ok: true,
+        normalizedTimeHHMM: '12:30',
+        hour: 12,
+        minute: 30,
+      });
+    });
+
+    it('builds valid booking datetimes and rejects invalid ones', () => {
+      expect(buildBookingDateTime('not-a-date', '10:00:00')).toBeNull();
+      expect(buildBookingDateTime('2026-03-06', '10:00:00')?.toISOString()).toContain('2026-03-06T10:00:00');
+    });
+
+    it('prepares booking timing and surfaces invalid time or date payloads explicitly', () => {
+      expect(
+        prepareBookingTiming({
+          selectedDate: '2026-03-06',
+          selectedTime: 'am',
+          selectedDuration: 60,
+        }),
+      ).toEqual({
+        ok: false,
+        logMessage: 'Invalid time format',
+        logContext: { selectedTime: 'am' },
+      });
+
+      expect(
+        prepareBookingTiming({
+          selectedDate: '2026-03-06',
+          selectedTime: 'NaN:NaNpm',
+          selectedDuration: 60,
+        }),
+      ).toEqual({
+        ok: false,
+        logMessage: 'Invalid time values',
+        logContext: {
+          hourStr: 'NaN',
+          minuteStr: 'NaN',
+          selectedTime: 'NaN:NaNpm',
+        },
+      });
+
+      expect(
+        prepareBookingTiming({
+          selectedDate: 'not-a-date',
+          selectedTime: '10:30am',
+          selectedDuration: 90,
+        }),
+      ).toEqual({
+        ok: false,
+        logMessage: 'Invalid booking date/time',
+        logContext: {
+          dateTimeString: 'not-a-dateT10:30:00',
+          selectedDate: 'not-a-date',
+          startTime: '10:30:00',
+        },
+      });
+
+      expect(
+        prepareBookingTiming({
+          selectedDate: '2026-03-06',
+          selectedTime: '10:30am',
+          selectedDuration: 90,
+        }),
+      ).toMatchObject({
+        ok: true,
+        startTime: '10:30:00',
+        endTime: '12:00:00',
+      });
+    });
+  });
+
+  describe('initialDate rerender hydration', () => {
+    it('reapplies a newly provided initialDate after availability is already loaded', async () => {
+      const dates = [getDateString(1), getDateString(2)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      const { rerender } = render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('selected-date')[0]).toHaveTextContent(dates[0]!);
+      });
+
+      rerender(
+        <TimeSelectionModal
+          {...defaultProps}
+          initialDate={dates[1]}
+          initialDurationMinutes={60}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('selected-date')[0]).toHaveTextContent(dates[1]!);
+      });
     });
   });
 });

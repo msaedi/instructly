@@ -261,6 +261,20 @@ describe('Calendar', () => {
       expect(screen.getByTestId('cal-day-2024-01-23')).toHaveFocus();
     });
 
+    it('moves focus backward by day and week with left/up arrows', () => {
+      render(<Calendar {...defaultProps} />);
+
+      const jan16 = screen.getByTestId('cal-day-2024-01-16');
+      jan16.focus();
+      expect(jan16).toHaveFocus();
+
+      fireEvent.keyDown(jan16, { key: 'ArrowLeft' });
+      expect(screen.getByTestId('cal-day-2024-01-15')).toHaveFocus();
+
+      fireEvent.keyDown(screen.getByTestId('cal-day-2024-01-15'), { key: 'ArrowUp' });
+      expect(screen.getByTestId('cal-day-2024-01-08')).toHaveFocus();
+    });
+
     it('moves focus to row boundaries with Home/End', () => {
       render(<Calendar {...defaultProps} />);
 
@@ -287,6 +301,20 @@ describe('Calendar', () => {
 
       expect(onDateSelect).toHaveBeenNthCalledWith(1, '2024-01-15');
       expect(onDateSelect).toHaveBeenNthCalledWith(2, '2024-01-15');
+    });
+
+    it('renders safely even when the current month is invalid', () => {
+      render(
+        <Calendar
+          {...defaultProps}
+          currentMonth={new Date('Invalid Date')}
+          availableDates={[]}
+          selectedDate={null}
+          preSelectedDate={undefined}
+        />
+      );
+
+      expect(screen.getByRole('grid')).toBeInTheDocument();
     });
   });
 

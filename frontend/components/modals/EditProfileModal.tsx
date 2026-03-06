@@ -847,10 +847,7 @@ export default function EditProfileModal({
         if (!iterator.done) {
           const [serviceId, violations] = iterator.value;
           const violation = violations[0];
-          if (!violation) {
-            setSvcSaving(false);
-            return;
-          }
+          if (!violation) return void setSvcSaving(false);
           const serviceName = selectedServices.find((svc) => svc.catalog_service_id === serviceId)?.name || 'this service';
           setError(
             `Minimum price for a ${violation.modalityLabel} ${violation.duration}-minute private session is $${formatCents(violation.floorCents)} (current $${formatCents(violation.baseCents)}). Please adjust the rate for ${serviceName}.`

@@ -136,10 +136,7 @@ export function Chat({
 
   const reconnect = () => {
     // Reconnect is automatic in new implementation
-    if (process.env.NODE_ENV === 'test') {
-      return;
-    }
-    window.location.reload();
+    if (process.env.NODE_ENV !== 'test') window.location.reload();
   };
 
   // Extract SSE handlers to useCallback for stable references (fixes re-render loop)
@@ -762,10 +759,7 @@ export function Chat({
   // Error state
   if (historyError) {
     const handleReload = () => {
-      if (process.env.NODE_ENV === 'test') {
-        return;
-      }
-      window.location.reload();
+      if (process.env.NODE_ENV !== 'test') window.location.reload();
     };
 
     return (

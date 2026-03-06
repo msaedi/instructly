@@ -3497,19 +3497,19 @@ describe('PaymentSection', () => {
 
   describe('storage functions', () => {
     it('handles sessionStorage read error gracefully', async () => {
-      // Lines 50, 60: readStoredCreditsUiState error handling
-      const originalGetItem = window.sessionStorage.getItem;
-      window.sessionStorage.getItem = jest.fn(() => {
+      // readStoredCreditsUiState should degrade safely when Storage.getItem throws
+      const getItemSpy = jest.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
         throw new Error('Storage error');
       });
 
-      // Component should still render without errors
-      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
-      await waitFor(() => {
-        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
-      });
-
-      window.sessionStorage.getItem = originalGetItem;
+      try {
+        render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+        await waitFor(() => {
+          expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+        });
+      } finally {
+        getItemSpy.mockRestore();
+      }
     });
 
     it('handles sessionStorage write error gracefully', async () => {
@@ -3544,6 +3544,66 @@ describe('PaymentSection', () => {
         value: originalStorage,
         writable: true,
       });
+    });
+
+    it('treats blocked sessionStorage property access as unavailable during reads', async () => {
+      const originalDescriptor = Object.getOwnPropertyDescriptor(window, 'sessionStorage');
+
+      Object.defineProperty(window, 'sessionStorage', {
+        configurable: true,
+        get: () => {
+          throw new Error('Storage blocked');
+        },
+      });
+
+      try {
+        render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+        await waitFor(() => {
+          expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+        });
+      } finally {
+        if (originalDescriptor) {
+          Object.defineProperty(window, 'sessionStorage', originalDescriptor);
+        }
+      }
+    });
+
+    it('treats blocked sessionStorage property access as unavailable during writes', async () => {
+      const originalDescriptor = Object.getOwnPropertyDescriptor(window, 'sessionStorage');
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep: jest.fn(),
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      Object.defineProperty(window, 'sessionStorage', {
+        configurable: true,
+        get: () => {
+          throw new Error('Storage blocked');
+        },
+      });
+
+      try {
+        render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+        await waitFor(() => {
+          expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByText('Collapse Credits'));
+
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      } finally {
+        if (originalDescriptor) {
+          Object.defineProperty(window, 'sessionStorage', originalDescriptor);
+        }
+      }
     });
   });
 

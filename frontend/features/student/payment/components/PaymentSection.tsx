@@ -45,12 +45,29 @@ type StoredCreditsUiState = {
   creditsCollapsed: boolean;
 };
 
-const readStoredCreditsUiState = (key: string): StoredCreditsUiState | null => {
-  if (typeof window === 'undefined') {
+const getSessionStorage = (): Storage | null => {
+  try {
+    return typeof window === 'undefined' ? null : window.sessionStorage ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const readSessionStorageItem = (key: string): string | null => {
+  const storage = getSessionStorage();
+  if (!storage) {
     return null;
   }
   try {
-    const raw = window.sessionStorage?.getItem(key);
+    return storage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+
+const readStoredCreditsUiState = (key: string): StoredCreditsUiState | null => {
+  const raw = readSessionStorageItem(key);
+  try {
     if (!raw) {
       return null;
     }
@@ -62,11 +79,9 @@ const readStoredCreditsUiState = (key: string): StoredCreditsUiState | null => {
 };
 
 const writeStoredCreditsUiState = (key: string, state: StoredCreditsUiState): void => {
-  if (typeof window === 'undefined') {
-    return;
-  }
+  const storage = getSessionStorage();
   try {
-    window.sessionStorage?.setItem(
+    storage?.setItem(
       key,
       JSON.stringify({ creditsCollapsed: Boolean(state.creditsCollapsed) }),
     );
@@ -205,15 +220,15 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     }
 
     let effectiveServiceId = resolvedServiceId;
-    if (!effectiveServiceId && typeof window !== 'undefined') {
-      const stored = window.sessionStorage?.getItem('serviceId');
+    if (!effectiveServiceId) {
+      const stored = readSessionStorageItem('serviceId');
       effectiveServiceId = stored && stored.trim().length > 0 ? stored : null;
     }
     if (!effectiveServiceId) {
       logDevInfo('[pricing-preview] Missing service ID', {
         resolvedServiceId,
         metadata: mergedMetadata,
-        sessionStorageServiceId: typeof window !== 'undefined' ? window.sessionStorage?.getItem('serviceId') : null,
+        sessionStorageServiceId: readSessionStorageItem('serviceId'),
       });
       return null;
     }
@@ -221,9 +236,9 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     let bookingDateValue = updatedBookingData.date ?? bookingData.date;
 
     // Try to recover date from sessionStorage if missing
-    if (!bookingDateValue && typeof window !== 'undefined') {
+    if (!bookingDateValue) {
       try {
-        const storedBooking = window.sessionStorage?.getItem('bookingData');
+        const storedBooking = readSessionStorageItem('bookingData');
         if (storedBooking) {
           const parsed = JSON.parse(storedBooking);
           bookingDateValue = parsed.date;
@@ -237,7 +252,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       logDevInfo('[pricing-preview] Missing booking date', {
         bookingId: bookingData.bookingId,
         updatedBookingId: updatedBookingData.bookingId,
-        sessionStorage: typeof window !== 'undefined' ? window.sessionStorage?.getItem('bookingData') : 'N/A'
+        sessionStorage: readSessionStorageItem('bookingData') ?? 'N/A',
       });
       return null;
     }
@@ -555,13 +570,9 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
         if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
           return trimmed.slice(0, 10);
         }
-        try {
-          const parsed = new Date(trimmed);
-          if (!Number.isNaN(parsed.getTime())) {
-            return parsed.toISOString().slice(0, 10);
-          }
-        } catch {
-          return null;
+        const parsed = new Date(trimmed);
+        if (!Number.isNaN(parsed.getTime())) {
+          return parsed.toISOString().slice(0, 10);
         }
       }
       return null;

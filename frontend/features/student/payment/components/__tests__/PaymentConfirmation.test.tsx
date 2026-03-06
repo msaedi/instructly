@@ -8,6 +8,7 @@ import { usePricingFloors } from '@/lib/pricing/usePricingFloors';
 import { fetchBookingsList } from '@/src/api/services/bookings';
 import { fetchInstructorProfile } from '@/src/api/services/instructors';
 import { getPlaceDetails } from '@/features/shared/api/client';
+import { buildDisplayDate } from '../PaymentConfirmation.helpers';
 
 // Mock dependencies
 jest.mock('../../hooks/usePricingPreview', () => ({
@@ -153,6 +154,16 @@ jest.mock('@/components/forms/PlacesAutocompleteInput', () => ({
               })}
             >
               Select Provider Prefix Suggestion
+            </button>
+            <button
+              data-testid="select-suggestion-provider-prefix-mismatch"
+              onClick={() => onSelectSuggestion({
+                description: '300 Retry Rd, Brooklyn, NY 11201',
+                place_id: 'google:ChIJ_retry_123',
+                provider: 'mapbox',
+              })}
+            >
+              Select Provider Prefix Mismatch Suggestion
             </button>
             <button
               data-testid="select-suggestion-incomplete"
@@ -6736,6 +6747,61 @@ describe('PaymentConfirmation', () => {
         expect(getPlaceDetailsMock).toHaveBeenCalledTimes(2);
       });
     });
+
+    it('reuses cached inferred-provider retry details when a later suggestion has a mismatched provider', async () => {
+      const user = setupUser();
+
+      getPlaceDetailsMock
+        .mockResolvedValueOnce({ data: null, error: 'Provider rejected' })
+        .mockResolvedValueOnce({
+          data: {
+            line1: '300 Retry Rd',
+            city: 'Brooklyn',
+            state: 'NY',
+            postal_code: '11201',
+            formatted_address: '300 Retry Rd, Brooklyn, NY 11201',
+          },
+          error: null,
+        })
+        .mockResolvedValueOnce({ data: null, error: 'Provider rejected again' });
+
+      fetchInstructorProfileMock.mockResolvedValue({
+        services: [
+          {
+            id: 'svc-1',
+            skill: 'Piano',
+            hourly_rate: 100,
+            duration_options: [60],
+            offers_online: true,
+            offers_travel: true,
+            offers_at_location: false,
+          },
+        ],
+        preferred_teaching_locations: [],
+      });
+
+      render(
+        <PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('select-suggestion-provider-prefix')).toBeInTheDocument();
+        expect(screen.getByTestId('select-suggestion-provider-prefix-mismatch')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByTestId('select-suggestion-provider-prefix'));
+      await waitFor(() => {
+        expect(getPlaceDetailsMock).toHaveBeenCalledTimes(2);
+      });
+
+      await user.click(screen.getByTestId('select-suggestion-provider-prefix-mismatch'));
+
+      await waitFor(() => {
+        expect(getPlaceDetailsMock).toHaveBeenCalledTimes(3);
+      });
+
+      expect(screen.getByTestId('addr-street')).toHaveValue('300 Retry Rd');
+    });
   });
 
   describe('handleSelectSavedAddress via AddressSelector', () => {
@@ -9843,16 +9909,11 @@ describe('PaymentConfirmation', () => {
     });
   });
 
-  describe('retry cache hit in handleAddressSuggestionSelect (line 648)', () => {
-    it('line 648 is unreachable: main cache at line 708 always stores the full key after retry', () => {
-      // Line 648 requires the retry cache (keyed by inferred provider:id) to be populated
-      // while the main cache (keyed by suggestionProvider:normalizedPlaceId) is NOT.
-      // However, after a successful retry at lines 660-675, the main cache is ALSO populated
-      // at line 708 with the full cacheKey. So any subsequent click with the same suggestion
-      // hits the main cache at line 613-614. To hit line 648, a second click would need a
-      // different main cacheKey but same retry key — requiring different provider values,
-      // which doesn't happen with the same suggestion. This is defensive code.
-      expect(true).toBe(true);
+  describe('pure helper coverage', () => {
+    it('treats whitespace-only date strings as missing but keeps valid dates', () => {
+      expect(buildDisplayDate('   ')).toBeNull();
+      expect(buildDisplayDate('2025-02-01')?.toISOString()).toContain('2025-02-01T00:00:00');
+      expect(buildDisplayDate(new Date('invalid'))).toBeNull();
     });
   });
 });
