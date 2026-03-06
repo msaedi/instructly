@@ -166,8 +166,8 @@ def test_identity_webhook_paths_include_verified_and_terminal_statuses():
     assert service._handle_identity_webhook(terminal_evt) is True
 
 
-def test_identity_webhook_canceled_clears_session_id():
-    """canceled is a terminal failure — session_id should be set to None so user can retry."""
+def test_identity_webhook_canceled_preserves_session_id():
+    """canceled should preserve the session ID for later replacement decisions."""
     service = _service()
     service.instructor_repository.get_by_user_id.return_value = SimpleNamespace(id="profile-1")
 
@@ -183,12 +183,12 @@ def test_identity_webhook_canceled_clears_session_id():
     }
     assert service._handle_identity_webhook(canceled_evt) is True
     service.instructor_repository.update.assert_called_with(
-        "profile-1", identity_verification_session_id=None
+        "profile-1", identity_verification_session_id="vs_cancel"
     )
 
 
-def test_identity_webhook_requires_input_clears_session_id():
-    """requires_input is a terminal failure — session_id should be set to None."""
+def test_identity_webhook_requires_input_preserves_session_id():
+    """requires_input should preserve the session ID for reuse."""
     service = _service()
     service.instructor_repository.get_by_user_id.return_value = SimpleNamespace(id="profile-1")
 
@@ -204,7 +204,7 @@ def test_identity_webhook_requires_input_clears_session_id():
     }
     assert service._handle_identity_webhook(requires_input_evt) is True
     service.instructor_repository.update.assert_called_with(
-        "profile-1", identity_verification_session_id=None
+        "profile-1", identity_verification_session_id="vs_ri"
     )
 
 

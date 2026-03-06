@@ -7648,6 +7648,8 @@ export type components = {
  result_count: number;
  };
  IdentityRefreshResponse: {
+ last_error_code?: string | null;
+ last_error_reason?: string | null;
  status: string;
  verified: boolean;
  };

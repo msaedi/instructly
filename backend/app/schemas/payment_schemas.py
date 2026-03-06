@@ -115,6 +115,12 @@ class IdentityRefreshResponse(StrictModel):
 
     status: str = Field(..., description="Latest verification status from Stripe")
     verified: bool = Field(..., description="Whether the user is now verified")
+    last_error_code: Optional[str] = Field(
+        None, description="Latest Stripe verification error code, if available"
+    )
+    last_error_reason: Optional[str] = Field(
+        None, description="Latest Stripe verification error reason, if available"
+    )
 
 
 class PayoutScheduleResponse(StrictModel):

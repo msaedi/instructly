@@ -905,10 +905,10 @@ def test_identity_webhook_verified_updates_profile(
     assert updated.identity_verification_session_id == "vs_verified"
 
 
-def test_identity_webhook_requires_input_clears_session_id(
+def test_identity_webhook_requires_input_preserves_session_id(
     stripe_service: StripeService, test_instructor: tuple
 ) -> None:
-    """requires_input is a terminal failure — clear session_id so user can retry."""
+    """requires_input should preserve the Stripe session ID for retries."""
     user, profile, _ = test_instructor
     event = {
         "type": "identity.verification_session.requires_input",
@@ -920,7 +920,7 @@ def test_identity_webhook_requires_input_clears_session_id(
     assert stripe_service._handle_identity_webhook(event) is True
 
     updated = stripe_service.instructor_repository.get_by_user_id(user.id)
-    assert updated.identity_verification_session_id is None
+    assert updated.identity_verification_session_id == "vs_pending"
     assert updated.identity_verified_at is None
 
 
@@ -993,10 +993,10 @@ def test_identity_webhook_processing_keeps_session_id(
     assert updated.identity_verified_at is None
 
 
-def test_identity_webhook_canceled_clears_session_id(
+def test_identity_webhook_canceled_preserves_session_id(
     stripe_service: StripeService, test_instructor: tuple
 ) -> None:
-    """canceled is a terminal failure — clear session_id so user can retry."""
+    """canceled should preserve the Stripe session ID for replacement logic."""
     user, profile, _ = test_instructor
     event = {
         "type": "identity.verification_session.canceled",
@@ -1008,5 +1008,5 @@ def test_identity_webhook_canceled_clears_session_id(
     assert stripe_service._handle_identity_webhook(event) is True
 
     updated = stripe_service.instructor_repository.get_by_user_id(user.id)
-    assert updated.identity_verification_session_id is None
+    assert updated.identity_verification_session_id == "vs_canceled"
     assert updated.identity_verified_at is None

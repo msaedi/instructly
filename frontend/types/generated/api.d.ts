@@ -13060,6 +13060,16 @@ export type components = {
         /** IdentityRefreshResponse */
         IdentityRefreshResponse: {
             /**
+             * Last Error Code
+             * @description Latest Stripe verification error code, if available
+             */
+            last_error_code?: string | null;
+            /**
+             * Last Error Reason
+             * @description Latest Stripe verification error reason, if available
+             */
+            last_error_reason?: string | null;
+            /**
              * Status
              * @description Latest verification status from Stripe
              */

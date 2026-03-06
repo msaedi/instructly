@@ -175,6 +175,41 @@ class StripeService(BaseService):
                 "Stripe service not configured. Please check STRIPE_SECRET_KEY environment variable."
             )
 
+    @staticmethod
+    def _stripe_value(obj: Any, key: str, default: Any = None) -> Any:
+        """Read a field from Stripe SDK objects and dict-shaped test doubles."""
+        if isinstance(obj, dict):
+            return obj.get(key, default)
+        return getattr(obj, key, default)
+
+    def _identity_last_error(self, session: Any) -> tuple[Optional[str], Optional[str]]:
+        """Extract last_error code/reason from a Stripe Identity session."""
+        last_error = self._stripe_value(session, "last_error")
+        if not last_error:
+            return None, None
+        code = self._stripe_value(last_error, "code")
+        reason = self._stripe_value(last_error, "reason")
+        return code, reason
+
+    def _identity_session_payload(self, session: Any, *, reuse_existing: bool) -> Dict[str, str]:
+        """Return the API payload for a Stripe Identity session."""
+        client_secret = self._stripe_value(session, "client_secret")
+        if not client_secret:
+            if reuse_existing:
+                raise ServiceException("Failed to resume identity verification")
+            raise ServiceException("Failed to create identity verification session")
+
+        session_id = self._stripe_value(session, "id")
+        if not session_id:
+            if reuse_existing:
+                raise ServiceException("Failed to resume identity verification")
+            raise ServiceException("Failed to create identity verification session")
+
+        return {
+            "verification_session_id": str(session_id),
+            "client_secret": str(client_secret),
+        }
+
     # --------------------------------------------------------------------- #
     # Instructor onboarding and account management
     # --------------------------------------------------------------------- #
@@ -355,6 +390,8 @@ class StripeService(BaseService):
             return IdentityRefreshResponse(
                 status="verified",
                 verified=True,
+                last_error_code=None,
+                last_error_reason=None,
             )
 
         session_id = profile.identity_verification_session_id
@@ -362,6 +399,8 @@ class StripeService(BaseService):
             return IdentityRefreshResponse(
                 status="not_started",
                 verified=False,
+                last_error_code=None,
+                last_error_reason=None,
             )
 
         self._check_stripe_configured()
@@ -377,13 +416,12 @@ class StripeService(BaseService):
             return IdentityRefreshResponse(
                 status="error",
                 verified=False,
+                last_error_code=None,
+                last_error_reason=None,
             )
 
-        stripe_status = (
-            session.get("status", "unknown")
-            if isinstance(session, dict)
-            else getattr(session, "status", "unknown")
-        )
+        stripe_status = str(self._stripe_value(session, "status", "unknown") or "unknown")
+        last_error_code, last_error_reason = self._identity_last_error(session)
         if stripe_status == "verified":
             self.instructor_repository.update(
                 profile_id,
@@ -392,11 +430,19 @@ class StripeService(BaseService):
             return IdentityRefreshResponse(
                 status="verified",
                 verified=True,
+                last_error_code=None,
+                last_error_reason=None,
             )
+
+        if stripe_status == "processing":
+            last_error_code = None
+            last_error_reason = None
 
         return IdentityRefreshResponse(
             status=stripe_status or "unknown",
             verified=False,
+            last_error_code=last_error_code,
+            last_error_reason=last_error_reason,
         )
 
     @BaseService.measure_operation("stripe_set_payout_schedule")
@@ -1858,6 +1904,43 @@ class StripeService(BaseService):
             if not user:
                 raise ServiceException("User not found for identity verification")
 
+            profile = self.instructor_repository.get_by_user_id(user_id)
+            if profile and profile.identity_verified_at:
+                raise ServiceException("Identity verification already completed")
+
+            existing_session_id = profile.identity_verification_session_id if profile else None
+            if existing_session_id:
+                try:
+                    existing_session = cast(Any, stripe.identity.VerificationSession).retrieve(
+                        existing_session_id
+                    )
+                except stripe.StripeError as exc:
+                    self.logger.error(
+                        "Stripe error retrieving existing identity session %s: %s",
+                        existing_session_id,
+                        str(exc),
+                    )
+                    raise ServiceException("Failed to resume identity verification") from exc
+
+                existing_status = str(
+                    self._stripe_value(existing_session, "status", "unknown") or "unknown"
+                )
+                if existing_status in {"requires_input", "processing"}:
+                    return self._identity_session_payload(existing_session, reuse_existing=True)
+
+                if existing_status == "verified":
+                    if profile and not profile.identity_verified_at:
+                        self.instructor_repository.update(
+                            profile.id,
+                            identity_verified_at=datetime.now(timezone.utc),
+                        )
+                    raise ServiceException("Identity verification already completed")
+
+                if existing_status != "canceled":
+                    raise ServiceException(
+                        f"Identity verification session cannot be reused (status: {existing_status})"
+                    )
+
             # Build verification session parameters
             params: Dict[str, Any] = {
                 "type": "document",
@@ -1869,30 +1952,14 @@ class StripeService(BaseService):
             }
 
             session = stripe.identity.VerificationSession.create(**params)
+            session_payload = self._identity_session_payload(session, reuse_existing=False)
+            if profile:
+                self.instructor_repository.update(
+                    profile.id,
+                    identity_verification_session_id=session_payload["verification_session_id"],
+                )
 
-            client_secret = (
-                session.get("client_secret")
-                if isinstance(session, dict)
-                else getattr(session, "client_secret", None)
-            )
-            if not client_secret:
-                raise ServiceException("Failed to create identity verification session")
-
-            session_id = (
-                session.get("id") if isinstance(session, dict) else getattr(session, "id", None)
-            )
-            if session_id:
-                profile = self.instructor_repository.get_by_user_id(user_id)
-                if profile:
-                    self.instructor_repository.update(
-                        profile.id,
-                        identity_verification_session_id=session_id,
-                    )
-
-            return {
-                "verification_session_id": session_id,
-                "client_secret": client_secret,
-            }
+            return session_payload
         except stripe.StripeError as e:
             self.logger.error(f"Stripe error creating identity session: {str(e)}")
             raise ServiceException(f"Failed to start identity verification: {str(e)}")
@@ -4312,12 +4379,12 @@ class StripeService(BaseService):
                     logger.debug("Non-fatal error ignored", exc_info=True)
                 return True
 
-            # Terminal failures: clear session_id so user can retry (not stuck in "pending")
+            # Terminal failures: preserve the session ID so refresh/create can inspect it later.
             if verification_status in {"requires_input", "canceled"}:
                 try:
                     self.instructor_repository.update(
                         profile.id,
-                        identity_verification_session_id=None,
+                        identity_verification_session_id=obj.get("id"),
                     )
                 except Exception:
                     logger.debug("Non-fatal error ignored", exc_info=True)

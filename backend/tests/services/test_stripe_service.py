@@ -997,6 +997,8 @@ class TestStripeService:
 
         assert refreshed.verified is True
         assert refreshed.status == "verified"
+        assert refreshed.last_error_code is None
+        assert refreshed.last_error_reason is None
         updated_profile = stripe_service.instructor_repository.get_by_user_id(user.id)
         assert updated_profile.bgc_in_dispute is False
         assert updated_profile.identity_verified_at is not None
@@ -1019,8 +1021,37 @@ class TestStripeService:
 
         assert refreshed.verified is False
         assert refreshed.status == "processing"
+        assert refreshed.last_error_code is None
+        assert refreshed.last_error_reason is None
         updated_profile = stripe_service.instructor_repository.get_by_user_id(user.id)
         assert updated_profile.identity_verified_at is None
+
+    @patch("stripe.identity.VerificationSession.retrieve")
+    def test_refresh_instructor_identity_returns_last_error_fields(
+        self, mock_retrieve, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        """requires_input responses should include Stripe last_error details."""
+        user, profile, _ = test_instructor
+        stripe_service.stripe_configured = True
+        stripe_service.instructor_repository.update(
+            profile.id,
+            identity_verification_session_id="vs_requires_input",
+            identity_verified_at=None,
+        )
+        mock_retrieve.return_value = {
+            "status": "requires_input",
+            "last_error": {
+                "code": "document_expired",
+                "reason": "document has expired",
+            },
+        }
+
+        refreshed = stripe_service.refresh_instructor_identity(user=user)
+
+        assert refreshed.verified is False
+        assert refreshed.status == "requires_input"
+        assert refreshed.last_error_code == "document_expired"
+        assert refreshed.last_error_reason == "document has expired"
 
     @patch("stripe.identity.VerificationSession.retrieve")
     def test_refresh_instructor_identity_skips_stripe_when_already_verified(
@@ -1038,6 +1069,8 @@ class TestStripeService:
 
         assert refreshed.verified is True
         assert refreshed.status == "verified"
+        assert refreshed.last_error_code is None
+        assert refreshed.last_error_reason is None
         mock_retrieve.assert_not_called()
 
     def test_refresh_instructor_identity_returns_not_started_without_session_id(
@@ -1055,6 +1088,8 @@ class TestStripeService:
 
         assert refreshed.verified is False
         assert refreshed.status == "not_started"
+        assert refreshed.last_error_code is None
+        assert refreshed.last_error_reason is None
 
     @patch("stripe.identity.VerificationSession.retrieve")
     def test_refresh_instructor_identity_handles_stripe_error(
@@ -1074,6 +1109,8 @@ class TestStripeService:
 
         assert refreshed.verified is False
         assert refreshed.status == "error"
+        assert refreshed.last_error_code is None
+        assert refreshed.last_error_reason is None
 
     def test_refresh_instructor_identity_missing_profile(
         self, stripe_service: StripeService, test_user: User
@@ -3884,6 +3921,147 @@ class TestStripeService:
         assert result["verification_session_id"] == "vs_persisted"
         updated_profile = stripe_service.instructor_repository.get_by_user_id(user.id)
         assert updated_profile.identity_verification_session_id == "vs_persisted"
+
+    @patch("stripe.identity.VerificationSession.create")
+    @patch("stripe.identity.VerificationSession.retrieve")
+    def test_create_identity_verification_session_reuses_requires_input_session(
+        self, mock_retrieve, mock_create, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        """requires_input sessions should be reused instead of recreated."""
+        user, profile, _ = test_instructor
+        stripe_service.stripe_configured = True
+        stripe_service.instructor_repository.update(
+            profile.id,
+            identity_verification_session_id="vs_requires_input",
+        )
+        mock_retrieve.return_value = {
+            "id": "vs_requires_input",
+            "status": "requires_input",
+            "client_secret": "secret_existing",
+        }
+
+        result = stripe_service.create_identity_verification_session(
+            user_id=user.id, return_url="https://app.test/return"
+        )
+
+        assert result == {
+            "verification_session_id": "vs_requires_input",
+            "client_secret": "secret_existing",
+        }
+        mock_create.assert_not_called()
+
+    @patch("stripe.identity.VerificationSession.create")
+    @patch("stripe.identity.VerificationSession.retrieve")
+    def test_create_identity_verification_session_reuses_processing_session(
+        self, mock_retrieve, mock_create, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        """processing sessions should be reused instead of recreated."""
+        user, profile, _ = test_instructor
+        stripe_service.stripe_configured = True
+        stripe_service.instructor_repository.update(
+            profile.id,
+            identity_verification_session_id="vs_processing",
+        )
+        mock_retrieve.return_value = {
+            "id": "vs_processing",
+            "status": "processing",
+            "client_secret": "secret_processing",
+        }
+
+        result = stripe_service.create_identity_verification_session(
+            user_id=user.id, return_url="https://app.test/return"
+        )
+
+        assert result == {
+            "verification_session_id": "vs_processing",
+            "client_secret": "secret_processing",
+        }
+        mock_create.assert_not_called()
+
+    @patch("stripe.identity.VerificationSession.create")
+    @patch("stripe.identity.VerificationSession.retrieve")
+    def test_create_identity_verification_session_replaces_canceled_session(
+        self, mock_retrieve, mock_create, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        """canceled sessions should be replaced with a newly created one."""
+        user, profile, _ = test_instructor
+        stripe_service.stripe_configured = True
+        stripe_service.instructor_repository.update(
+            profile.id,
+            identity_verification_session_id="vs_canceled",
+        )
+        mock_retrieve.return_value = {
+            "id": "vs_canceled",
+            "status": "canceled",
+        }
+        mock_create.return_value = {
+            "id": "vs_replacement",
+            "client_secret": "secret_replacement",
+        }
+
+        result = stripe_service.create_identity_verification_session(
+            user_id=user.id, return_url="https://app.test/return"
+        )
+
+        assert result == {
+            "verification_session_id": "vs_replacement",
+            "client_secret": "secret_replacement",
+        }
+        updated_profile = stripe_service.instructor_repository.get_by_user_id(user.id)
+        assert updated_profile.identity_verification_session_id == "vs_replacement"
+        mock_create.assert_called_once()
+
+    @patch("stripe.identity.VerificationSession.create")
+    @patch("stripe.identity.VerificationSession.retrieve")
+    def test_create_identity_verification_session_reused_session_requires_client_secret(
+        self, mock_retrieve, mock_create, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        """Reusable sessions without a client secret should fail fast."""
+        user, profile, _ = test_instructor
+        stripe_service.stripe_configured = True
+        stripe_service.instructor_repository.update(
+            profile.id,
+            identity_verification_session_id="vs_requires_input",
+        )
+        mock_retrieve.return_value = {
+            "id": "vs_requires_input",
+            "status": "requires_input",
+            "client_secret": None,
+        }
+
+        with pytest.raises(ServiceException, match="Failed to resume identity verification"):
+            stripe_service.create_identity_verification_session(
+                user_id=user.id, return_url="https://app.test/return"
+            )
+
+        mock_create.assert_not_called()
+
+    @patch("stripe.identity.VerificationSession.create")
+    @patch("stripe.identity.VerificationSession.retrieve")
+    def test_create_identity_verification_session_rejects_verified_session(
+        self, mock_retrieve, mock_create, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        """Verified sessions should not spawn new verification sessions."""
+        user, profile, _ = test_instructor
+        stripe_service.stripe_configured = True
+        stripe_service.instructor_repository.update(
+            profile.id,
+            identity_verification_session_id="vs_verified",
+            identity_verified_at=None,
+        )
+        mock_retrieve.return_value = {
+            "id": "vs_verified",
+            "status": "verified",
+        }
+
+        with pytest.raises(ServiceException, match="Identity verification already completed"):
+            stripe_service.create_identity_verification_session(
+                user_id=user.id, return_url="https://app.test/return"
+            )
+
+        updated_profile = stripe_service.instructor_repository.get_by_user_id(user.id)
+        assert updated_profile.identity_verified_at is not None
+        mock_create.assert_not_called()
 
     @patch("stripe.identity.VerificationSession.create")
     def test_create_identity_verification_session_stripe_error(

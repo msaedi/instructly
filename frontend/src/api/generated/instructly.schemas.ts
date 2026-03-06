@@ -3939,6 +3939,10 @@ export interface HydrateStageDetails {
 }
 
 export interface IdentityRefreshResponse {
+  /** Latest Stripe verification error code, if available */
+  last_error_code?: string | null;
+  /** Latest Stripe verification error reason, if available */
+  last_error_reason?: string | null;
   /** Latest verification status from Stripe */
   status: string;
   /** Whether the user is now verified */

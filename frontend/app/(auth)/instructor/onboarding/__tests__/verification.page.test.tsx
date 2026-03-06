@@ -16,6 +16,47 @@ const routerProxy = {
   replace: mockReplace,
 };
 
+type MockProfile = {
+  id: string;
+  identity_verified_at: string | null;
+  identity_verification_session_id: string | null;
+};
+
+type MockRefreshResponse = {
+  body?: {
+    status?: string;
+    verified?: boolean;
+    last_error_code?: string | null;
+    last_error_reason?: string | null;
+  };
+  ok?: boolean;
+  reject?: boolean;
+};
+
+const makeProfile = (overrides: Partial<MockProfile> = {}): MockProfile => ({
+  id: 'profile-1',
+  identity_verified_at: null,
+  identity_verification_session_id: null,
+  ...overrides,
+});
+
+const makeRawData = (profileOverrides: Partial<MockProfile> = {}) => ({
+  profile: makeProfile(profileOverrides),
+  user: { first_name: 'Test', last_name: 'User' },
+  serviceAreas: [],
+  connectStatus: null,
+  bgcStatus: null,
+});
+
+let mockRawData = makeRawData();
+let refreshResponses: MockRefreshResponse[] = [];
+const mockFetchWithAuth = jest.fn();
+const mockCreateStripeIdentitySession = jest.fn();
+const mockVerifyIdentity = jest.fn();
+const mockLoadStripe = jest.fn(async (_publishableKey: string) => ({
+  verifyIdentity: mockVerifyIdentity,
+}));
+
 jest.mock('next/navigation', () => ({
   useRouter: () => routerProxy,
   useSearchParams: () => searchParamsProxy,
@@ -23,18 +64,16 @@ jest.mock('next/navigation', () => ({
 }));
 
 jest.mock('@stripe/stripe-js', () => ({
-  loadStripe: jest.fn(async () => ({ verifyIdentity: jest.fn(() => ({})) })),
+  loadStripe: (...args: [string]) => mockLoadStripe(...args),
 }));
-
-const mockFetchWithAuth = jest.fn();
 
 jest.mock('@/lib/api', () => ({
   API_ENDPOINTS: {
     INSTRUCTOR_PROFILE: '/api/v1/instructors/me',
     STRIPE_IDENTITY_REFRESH: '/api/v1/payments/identity/refresh',
   },
-  fetchWithAuth: (...args: unknown[]) => mockFetchWithAuth(...args),
-  createStripeIdentitySession: jest.fn().mockResolvedValue({ verification_session_id: 'vs_123', client_secret: 'cs_123' }),
+  fetchWithAuth: (...args: [string, RequestInit?]) => mockFetchWithAuth(...args),
+  createStripeIdentitySession: (...args: []) => mockCreateStripeIdentitySession(...args),
 }));
 
 jest.mock('sonner', () => {
@@ -51,7 +90,6 @@ jest.mock('@/components/instructor/BGCStep', () => ({
   BGCStep: () => <div data-testid="bgc-step">BGC Step</div>,
 }));
 
-// Stable mock function for refresh to avoid dependency array issues
 const mockRefreshStepStatus = jest.fn();
 
 jest.mock('@/features/instructor-onboarding/useOnboardingStepStatus', () => ({
@@ -63,66 +101,99 @@ jest.mock('@/features/instructor-onboarding/useOnboardingStepStatus', () => ({
       'verify-identity': 'pending',
       'payment-setup': 'pending',
     },
-    rawData: {
-      profile: { id: 'profile-1', identity_verified_at: null, identity_verification_session_id: null },
-      user: { first_name: 'Test', last_name: 'User' },
-      serviceAreas: [],
-      connectStatus: null,
-      bgcStatus: null,
-    },
+    rawData: mockRawData,
     refresh: mockRefreshStepStatus,
   }),
 }));
 
-jest.mock('@/features/shared/hooks/useAuth', () => {
-  return {
-    AuthProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
-    useAuth: () => ({
-      user: { id: 'user-1', roles: ['instructor'], permissions: [] },
-      isAuthenticated: true,
-      isLoading: false,
-      error: null,
-      login: jest.fn(),
-      logout: jest.fn(),
-      checkAuth: jest.fn(),
-      redirectToLogin: jest.fn(),
-    }),
-  };
-});
+jest.mock('@/features/shared/hooks/useAuth', () => ({
+  AuthProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+  useAuth: () => ({
+    user: { id: 'user-1', roles: ['instructor'], permissions: [] },
+    isAuthenticated: true,
+    isLoading: false,
+    error: null,
+    login: jest.fn(),
+    logout: jest.fn(),
+    checkAuth: jest.fn(),
+    redirectToLogin: jest.fn(),
+  }),
+}));
 
 const renderWithClient = (ui: ReactNode) => {
   const queryClient = new QueryClient();
   return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
 };
 
+const queueRefreshResponses = (...responses: MockRefreshResponse[]) => {
+  refreshResponses = responses;
+};
+
+const makeResponse = (body: unknown, ok: boolean = true) =>
+  ({
+    ok,
+    json: async () => body,
+  }) as unknown as Response;
+
 describe('Verification page', () => {
+  const originalPublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+
   beforeEach(() => {
     mockPush.mockClear();
     mockReplace.mockClear();
     currentSearchParams = new URLSearchParams();
+    mockRawData = makeRawData();
+    refreshResponses = [];
     mockFetchWithAuth.mockReset();
+    mockCreateStripeIdentitySession.mockReset();
+    mockCreateStripeIdentitySession.mockResolvedValue({
+      verification_session_id: 'vs_123',
+      client_secret: 'cs_123',
+    });
+    mockVerifyIdentity.mockReset();
+    mockVerifyIdentity.mockResolvedValue({});
+    mockLoadStripe.mockClear();
     mockRefreshStepStatus.mockClear();
     (toast.success as jest.Mock).mockClear();
     (toast.error as jest.Mock).mockClear();
     (toast.info as jest.Mock).mockClear();
+    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = 'pk_test_123';
+
     mockFetchWithAuth.mockImplementation(async (url: unknown) => {
-      if (url === '/api/v1/instructors/me') {
-        return {
-          ok: true,
-          json: async () => ({ id: 'inst-1', identity_verified_at: null }),
-        } as unknown as Response;
-      }
       if (url === '/api/v1/payments/identity/refresh') {
-        return {
-          ok: true,
-          json: async () => ({ verified: true }),
-        } as unknown as Response;
+        const next = refreshResponses.shift() ?? {
+          body: {
+            status: 'verified',
+            verified: true,
+            last_error_code: null,
+            last_error_reason: null,
+          },
+        };
+        if (next.reject) {
+          throw new Error('network down');
+        }
+        return makeResponse(
+          {
+            status: 'verified',
+            verified: true,
+            last_error_code: null,
+            last_error_reason: null,
+            ...next.body,
+          },
+          next.ok ?? true
+        );
       }
-      return {
-        ok: true,
-        json: async () => ({}),
-      } as unknown as Response;
+
+      return makeResponse({});
     });
+  });
+
+  afterAll(() => {
+    if (originalPublishableKey === undefined) {
+      delete process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+      return;
+    }
+    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = originalPublishableKey;
   });
 
   it('renders background check step and no upload UI', async () => {
@@ -136,39 +207,209 @@ describe('Verification page', () => {
     renderWithClient(<Step4Verification />);
 
     await waitFor(() =>
-      expect(screen.getByRole('heading', { level: 2, name: /identity verification/i })).toBeInTheDocument()
+      expect(
+        screen.getByRole('heading', { level: 2, name: /identity verification/i })
+      ).toBeInTheDocument()
     );
-    expect(screen.getByRole('heading', { level: 2, name: /background check/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 2, name: /background check/i })
+    ).toBeInTheDocument();
   });
 
   it('navigates back to status when coming from status', async () => {
     currentSearchParams = new URLSearchParams('from=status');
     renderWithClient(<Step4Verification />);
 
-    // Wait for the Continue button to appear (component fully rendered)
-    await waitFor(() => expect(screen.getByRole('button', { name: /continue/i })).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: /continue/i }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /save & continue/i })).toBeInTheDocument()
+    );
+    fireEvent.click(screen.getByRole('button', { name: /save & continue/i }));
     expect(mockPush).toHaveBeenCalledWith('/instructor/onboarding/status');
   });
 
   it('navigates to payment setup by default', async () => {
     renderWithClient(<Step4Verification />);
 
-    // Wait for the Continue button to appear (component fully rendered)
-    await waitFor(() => expect(screen.getByRole('button', { name: /continue/i })).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: /continue/i }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /save & continue/i })).toBeInTheDocument()
+    );
+    fireEvent.click(screen.getByRole('button', { name: /save & continue/i }));
     expect(mockPush).toHaveBeenCalledWith('/instructor/onboarding/payment-setup');
   });
 
-  it('refreshes identity and shows toast when returning from Stripe', async () => {
-    currentSearchParams = new URLSearchParams('identity_return=true');
+  it('renders the not_started state with no banner and enabled start button', async () => {
     renderWithClient(<Step4Verification />);
 
-    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalledWith('/api/v1/payments/identity/refresh', { method: 'POST' }));
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/instructor/onboarding/verification'));
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Identity check complete', {
-      description: 'Next, start your background check.',
-    }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /start verification/i })).toBeEnabled()
+    );
+    expect(screen.queryByText(/we're reviewing your documents/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/identity verification complete/i)).not.toBeInTheDocument();
+  });
+
+  it('renders the processing state with a blue banner and disabled button', async () => {
+    mockRawData = makeRawData({ identity_verification_session_id: 'vs_processing' });
+    queueRefreshResponses({
+      body: {
+        status: 'processing',
+        verified: false,
+        last_error_code: null,
+        last_error_reason: null,
+      },
+    });
+
+    renderWithClient(<Step4Verification />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("We're reviewing your documents. This usually takes less than a minute.")
+      ).toBeInTheDocument()
+    );
+    expect(
+      screen.getByRole('button', { name: /verification in progress/i })
+    ).toBeDisabled();
+  });
+
+  it('renders the verified state with a green banner and disabled button', async () => {
+    mockRawData = makeRawData({
+      identity_verified_at: '2026-03-05T12:00:00Z',
+      identity_verification_session_id: 'vs_verified',
+    });
+
+    renderWithClient(<Step4Verification />);
+
+    await waitFor(() =>
+      expect(screen.getByText(/identity verification complete\./i)).toBeInTheDocument()
+    );
+    expect(screen.getByRole('button', { name: /^verified$/i })).toBeDisabled();
+  });
+
+  it('renders the requires_input state with a mapped amber banner and retry button', async () => {
+    mockRawData = makeRawData({ identity_verification_session_id: 'vs_retry' });
+    queueRefreshResponses({
+      body: {
+        status: 'requires_input',
+        verified: false,
+        last_error_code: 'document_expired',
+        last_error_reason: 'expired',
+      },
+    });
+
+    renderWithClient(<Step4Verification />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          'Your document appears to be expired. Please try again with a valid, non-expired ID.'
+        )
+      ).toBeInTheDocument()
+    );
+    expect(screen.getByRole('button', { name: /retry verification/i })).toBeEnabled();
+  });
+
+  it('falls back to the generic message for unknown requires_input error codes', async () => {
+    mockRawData = makeRawData({ identity_verification_session_id: 'vs_retry' });
+    queueRefreshResponses({
+      body: {
+        status: 'requires_input',
+        verified: false,
+        last_error_code: 'unknown_code',
+        last_error_reason: 'unknown',
+      },
+    });
+
+    renderWithClient(<Step4Verification />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Verification couldn't be completed. Please try again.")).toBeInTheDocument()
+    );
+  });
+
+  it('treats requires_input without an error code as a neutral start state', async () => {
+    mockRawData = makeRawData({ identity_verification_session_id: 'vs_retry' });
+    queueRefreshResponses({
+      body: {
+        status: 'requires_input',
+        verified: false,
+        last_error_code: null,
+        last_error_reason: null,
+      },
+    });
+
+    renderWithClient(<Step4Verification />);
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /start verification/i })).toBeEnabled()
+    );
+    expect(
+      screen.queryByText("Verification couldn't be completed. Please try again.")
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /retry verification/i })).not.toBeInTheDocument();
+  });
+
+  it('renders the canceled state with a gray banner and enabled start button', async () => {
+    mockRawData = makeRawData({ identity_verification_session_id: 'vs_canceled' });
+    queueRefreshResponses({
+      body: {
+        status: 'canceled',
+        verified: false,
+        last_error_code: null,
+        last_error_reason: null,
+      },
+    });
+
+    renderWithClient(<Step4Verification />);
+
+    await waitFor(() =>
+      expect(screen.getByText(/your verification session was canceled\./i)).toBeInTheDocument()
+    );
+    expect(screen.getByRole('button', { name: /start verification/i })).toBeEnabled();
+  });
+
+  it('clears a stale requires_input banner when retry starts processing', async () => {
+    mockRawData = makeRawData({ identity_verification_session_id: 'vs_retry' });
+    mockCreateStripeIdentitySession.mockResolvedValue({
+      verification_session_id: 'vs_retry',
+      client_secret: 'cs_retry',
+    });
+    queueRefreshResponses({
+      body: {
+        status: 'requires_input',
+        verified: false,
+        last_error_code: 'document_expired',
+        last_error_reason: 'expired',
+      },
+    });
+
+    renderWithClient(<Step4Verification />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          'Your document appears to be expired. Please try again with a valid, non-expired ID.'
+        )
+      ).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /retry verification/i }));
+
+    await waitFor(() => expect(mockCreateStripeIdentitySession).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(
+        screen.getByText("We're reviewing your documents. This usually takes less than a minute.")
+      ).toBeInTheDocument()
+    );
+    expect(
+      screen.queryByText(
+        'Your document appears to be expired. Please try again with a valid, non-expired ID.'
+      )
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /verification in progress/i })
+    ).toBeDisabled();
+    expect(mockReplace).toHaveBeenCalledWith(
+      '/instructor/onboarding/verification?identity_return=true'
+    );
   });
 
   describe('identity return polling', () => {
@@ -181,32 +422,60 @@ describe('Verification page', () => {
       jest.useRealTimers();
     });
 
-    it('polls until verified when initial refresh returns verified false', async () => {
+    it('refreshes identity and shows toast when returning from Stripe', async () => {
+      currentSearchParams = new URLSearchParams('identity_return=true');
+      queueRefreshResponses({
+        body: {
+          status: 'verified',
+          verified: true,
+          last_error_code: null,
+          last_error_reason: null,
+        },
+      });
+
+      renderWithClient(<Step4Verification />);
+
+      await waitFor(() =>
+        expect(mockFetchWithAuth).toHaveBeenCalledWith('/api/v1/payments/identity/refresh', {
+          method: 'POST',
+        })
+      );
+      await waitFor(() =>
+        expect(mockReplace).toHaveBeenCalledWith('/instructor/onboarding/verification')
+      );
+      await waitFor(() =>
+        expect(toast.success).toHaveBeenCalledWith('Identity check complete', {
+          description: 'Next, start your background check.',
+        })
+      );
+    });
+
+    it('polls until verified when initial refresh returns processing', async () => {
       currentSearchParams = new URLSearchParams('identity_return=true');
       let refreshCalls = 0;
       mockFetchWithAuth.mockImplementation(async (url: unknown) => {
-        if (url === '/api/v1/payments/identity/refresh') {
-          refreshCalls += 1;
-          return {
-            ok: true,
-            json: async () => ({ verified: refreshCalls >= 3 }),
-          } as unknown as Response;
+        if (url !== '/api/v1/payments/identity/refresh') {
+          return makeResponse({});
         }
-        return {
-          ok: true,
-          json: async () => ({}),
-        } as unknown as Response;
+
+        refreshCalls += 1;
+        return makeResponse({
+          status: refreshCalls >= 3 ? 'verified' : 'processing',
+          verified: refreshCalls >= 3,
+          last_error_code: null,
+          last_error_reason: null,
+        });
       });
 
       renderWithClient(<Step4Verification />);
 
       await waitFor(() => expect(refreshCalls).toBe(1));
       await act(async () => {
-        jest.advanceTimersByTime(5000);
+        await jest.advanceTimersByTimeAsync(5000);
       });
       await waitFor(() => expect(refreshCalls).toBe(2));
       await act(async () => {
-        jest.advanceTimersByTime(5000);
+        await jest.advanceTimersByTimeAsync(5000);
       });
       await waitFor(() => expect(refreshCalls).toBe(3));
       await waitFor(() =>
@@ -218,21 +487,21 @@ describe('Verification page', () => {
       expect(mockReplace).toHaveBeenCalledWith('/instructor/onboarding/verification');
     });
 
-    it('stops polling after 12 attempts and shows info toast', async () => {
+    it('stops polling after 12 attempts and shows info toast while still processing', async () => {
       currentSearchParams = new URLSearchParams('identity_return=true');
       let refreshCalls = 0;
       mockFetchWithAuth.mockImplementation(async (url: unknown) => {
-        if (url === '/api/v1/payments/identity/refresh') {
-          refreshCalls += 1;
-          return {
-            ok: true,
-            json: async () => ({ verified: false }),
-          } as unknown as Response;
+        if (url !== '/api/v1/payments/identity/refresh') {
+          return makeResponse({});
         }
-        return {
-          ok: true,
-          json: async () => ({}),
-        } as unknown as Response;
+
+        refreshCalls += 1;
+        return makeResponse({
+          status: 'processing',
+          verified: false,
+          last_error_code: null,
+          last_error_reason: null,
+        });
       });
 
       renderWithClient(<Step4Verification />);
@@ -240,68 +509,67 @@ describe('Verification page', () => {
       await waitFor(() => expect(refreshCalls).toBe(1));
       for (let i = 0; i < 11; i += 1) {
         await act(async () => {
-          jest.advanceTimersByTime(5000);
+          await jest.advanceTimersByTimeAsync(5000);
         });
       }
       await waitFor(() => expect(refreshCalls).toBe(12));
       await waitFor(() =>
         expect(toast.info).toHaveBeenCalledWith('Verification still processing', {
-          description: 'Stripe is finishing your verification. This page will update automatically when complete.',
+          description:
+            'Stripe is finishing your verification. This page will update automatically when complete.',
         })
       );
       expect(mockRefreshStepStatus).toHaveBeenCalledTimes(12);
       expect(mockReplace).toHaveBeenCalledWith('/instructor/onboarding/verification');
       await act(async () => {
-        jest.advanceTimersByTime(15000);
+        await jest.advanceTimersByTimeAsync(15000);
       });
       expect(refreshCalls).toBe(12);
     });
 
-    it('stops polling immediately when verified on first attempt', async () => {
+    it('stops polling immediately when refresh returns requires_input', async () => {
       currentSearchParams = new URLSearchParams('identity_return=true');
-      let refreshCalls = 0;
-      mockFetchWithAuth.mockImplementation(async (url: unknown) => {
-        if (url === '/api/v1/payments/identity/refresh') {
-          refreshCalls += 1;
-          return {
-            ok: true,
-            json: async () => ({ verified: true }),
-          } as unknown as Response;
-        }
-        return {
-          ok: true,
-          json: async () => ({}),
-        } as unknown as Response;
+      queueRefreshResponses({
+        body: {
+          status: 'requires_input',
+          verified: false,
+          last_error_code: 'document_expired',
+          last_error_reason: 'expired',
+        },
       });
 
       renderWithClient(<Step4Verification />);
 
-      await waitFor(() => expect(refreshCalls).toBe(1));
-      await act(async () => {
-        jest.advanceTimersByTime(15000);
-      });
-      expect(refreshCalls).toBe(1);
-      expect(mockRefreshStepStatus).toHaveBeenCalledTimes(1);
-      expect(toast.success).toHaveBeenCalledWith('Identity check complete', {
-        description: 'Next, start your background check.',
-      });
+      await waitFor(() =>
+        expect(
+          screen.getByText(
+            'Your document appears to be expired. Please try again with a valid, non-expired ID.'
+          )
+        ).toBeInTheDocument()
+      );
+      expect(
+        screen.getByRole('button', { name: /retry verification/i })
+      ).toBeEnabled();
+      expect(mockReplace).toHaveBeenCalledWith('/instructor/onboarding/verification');
+      expect(toast.success).not.toHaveBeenCalled();
+      expect(toast.info).not.toHaveBeenCalled();
     });
 
     it('cleans up poll timer on unmount', async () => {
       currentSearchParams = new URLSearchParams('identity_return=true');
       let refreshCalls = 0;
       mockFetchWithAuth.mockImplementation(async (url: unknown) => {
-        if (url === '/api/v1/payments/identity/refresh') {
-          refreshCalls += 1;
-          return {
-            ok: true,
-            json: async () => ({ verified: false }),
-          } as unknown as Response;
+        if (url !== '/api/v1/payments/identity/refresh') {
+          return makeResponse({});
         }
-        return {
-          ok: true,
-          json: async () => ({}),
-        } as unknown as Response;
+
+        refreshCalls += 1;
+        return makeResponse({
+          status: 'processing',
+          verified: false,
+          last_error_code: null,
+          last_error_reason: null,
+        });
       });
 
       const view = renderWithClient(<Step4Verification />);
@@ -309,17 +577,16 @@ describe('Verification page', () => {
       view.unmount();
 
       await act(async () => {
-        jest.advanceTimersByTime(15000);
+        await jest.advanceTimersByTimeAsync(15000);
       });
       expect(refreshCalls).toBe(1);
     });
 
     it('does not poll when identity_return is absent', async () => {
-      currentSearchParams = new URLSearchParams('');
       renderWithClient(<Step4Verification />);
 
       await act(async () => {
-        jest.advanceTimersByTime(10000);
+        await jest.advanceTimersByTimeAsync(10000);
       });
       const refreshEndpointCalls = mockFetchWithAuth.mock.calls.filter(
         ([url]) => url === '/api/v1/payments/identity/refresh'
@@ -327,19 +594,38 @@ describe('Verification page', () => {
       expect(refreshEndpointCalls).toHaveLength(0);
     });
 
-    it('removes identity_return from URL after polling completes', async () => {
+    it('ignores transient refresh failures and keeps the previous processing UI', async () => {
       currentSearchParams = new URLSearchParams('identity_return=true');
-      mockFetchWithAuth.mockImplementation(async (url: unknown) => {
-        if (url === '/api/v1/payments/identity/refresh') {
-          return {
-            ok: true,
-            json: async () => ({ verified: true }),
-          } as unknown as Response;
-        }
-        return {
-          ok: true,
-          json: async () => ({}),
-        } as unknown as Response;
+      mockRawData = makeRawData({ identity_verification_session_id: 'vs_processing' });
+      queueRefreshResponses({ reject: true }, { reject: true });
+
+      renderWithClient(<Step4Verification />);
+
+      await waitFor(() =>
+        expect(
+          screen.getByText("We're reviewing your documents. This usually takes less than a minute.")
+        ).toBeInTheDocument()
+      );
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(5000);
+      });
+
+      expect(
+        screen.getByRole('button', { name: /verification in progress/i })
+      ).toBeDisabled();
+      expect(toast.error).not.toHaveBeenCalled();
+    });
+
+    it('removes identity_return from the URL after polling completes', async () => {
+      currentSearchParams = new URLSearchParams('identity_return=true');
+      queueRefreshResponses({
+        body: {
+          status: 'verified',
+          verified: true,
+          last_error_code: null,
+          last_error_reason: null,
+        },
       });
 
       renderWithClient(<Step4Verification />);

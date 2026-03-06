@@ -1498,7 +1498,12 @@ class TestIdentityEndpoints:
         client: TestClient,
         auth_headers_instructor: Dict[str, str],
     ):
-        mock_refresh.return_value = {"status": "verified", "verified": True}
+        mock_refresh.return_value = {
+            "status": "verified",
+            "verified": True,
+            "last_error_code": None,
+            "last_error_reason": None,
+        }
 
         response = client.post(
             "/api/v1/payments/identity/refresh",
@@ -1507,6 +1512,8 @@ class TestIdentityEndpoints:
 
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["verified"] is True
+        assert response.json()["last_error_code"] is None
+        assert response.json()["last_error_reason"] is None
 
 
 class TestWebhookErrorCases:
