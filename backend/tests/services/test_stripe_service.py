@@ -978,24 +978,102 @@ class TestStripeService:
         with pytest.raises(ServiceException, match="Connected account not found"):
             stripe_service.set_payout_schedule_for_account(instructor_profile_id=profile.id)
 
+    @patch("stripe.identity.VerificationSession.retrieve")
     def test_refresh_instructor_identity_sets_verified_status(
-        self, stripe_service: StripeService, test_instructor: tuple
+        self, mock_retrieve, stripe_service: StripeService, test_instructor: tuple
     ) -> None:
-        """Identity refresh should reflect account verification state."""
+        """Identity refresh should use the verification session and persist verification."""
         user, profile, _ = test_instructor
-        stripe_service.instructor_repository.update(profile.id, bgc_in_dispute=True)
+        stripe_service.stripe_configured = True
+        stripe_service.instructor_repository.update(
+            profile.id,
+            bgc_in_dispute=True,
+            identity_verification_session_id="vs_verified",
+            identity_verified_at=None,
+        )
+        mock_retrieve.return_value = SimpleNamespace(status="verified")
 
-        with patch.object(
-            stripe_service,
-            "check_account_status",
-            return_value={"charges_enabled": True, "requirements": []},
-        ):
-            refreshed = stripe_service.refresh_instructor_identity(user=user)
+        refreshed = stripe_service.refresh_instructor_identity(user=user)
 
         assert refreshed.verified is True
         assert refreshed.status == "verified"
         updated_profile = stripe_service.instructor_repository.get_by_user_id(user.id)
         assert updated_profile.bgc_in_dispute is False
+        assert updated_profile.identity_verified_at is not None
+
+    @patch("stripe.identity.VerificationSession.retrieve")
+    def test_refresh_instructor_identity_returns_processing(
+        self, mock_retrieve, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        """Processing sessions should be returned as unverified."""
+        user, profile, _ = test_instructor
+        stripe_service.stripe_configured = True
+        stripe_service.instructor_repository.update(
+            profile.id,
+            identity_verification_session_id="vs_processing",
+            identity_verified_at=None,
+        )
+        mock_retrieve.return_value = SimpleNamespace(status="processing")
+
+        refreshed = stripe_service.refresh_instructor_identity(user=user)
+
+        assert refreshed.verified is False
+        assert refreshed.status == "processing"
+        updated_profile = stripe_service.instructor_repository.get_by_user_id(user.id)
+        assert updated_profile.identity_verified_at is None
+
+    @patch("stripe.identity.VerificationSession.retrieve")
+    def test_refresh_instructor_identity_skips_stripe_when_already_verified(
+        self, mock_retrieve, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        """Already-verified profiles should not hit Stripe again."""
+        user, profile, _ = test_instructor
+        stripe_service.instructor_repository.update(
+            profile.id,
+            identity_verified_at=datetime.now(timezone.utc),
+            identity_verification_session_id="vs_existing",
+        )
+
+        refreshed = stripe_service.refresh_instructor_identity(user=user)
+
+        assert refreshed.verified is True
+        assert refreshed.status == "verified"
+        mock_retrieve.assert_not_called()
+
+    def test_refresh_instructor_identity_returns_not_started_without_session_id(
+        self, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        """Profiles without a stored session ID should return not_started."""
+        user, profile, _ = test_instructor
+        stripe_service.instructor_repository.update(
+            profile.id,
+            identity_verified_at=None,
+            identity_verification_session_id=None,
+        )
+
+        refreshed = stripe_service.refresh_instructor_identity(user=user)
+
+        assert refreshed.verified is False
+        assert refreshed.status == "not_started"
+
+    @patch("stripe.identity.VerificationSession.retrieve")
+    def test_refresh_instructor_identity_handles_stripe_error(
+        self, mock_retrieve, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        """Stripe errors should return an unverified error response."""
+        user, profile, _ = test_instructor
+        stripe_service.stripe_configured = True
+        stripe_service.instructor_repository.update(
+            profile.id,
+            identity_verification_session_id="vs_error",
+            identity_verified_at=None,
+        )
+        mock_retrieve.side_effect = stripe.error.APIConnectionError("network down")
+
+        refreshed = stripe_service.refresh_instructor_identity(user=user)
+
+        assert refreshed.verified is False
+        assert refreshed.status == "error"
 
     def test_refresh_instructor_identity_missing_profile(
         self, stripe_service: StripeService, test_user: User
@@ -3786,6 +3864,26 @@ class TestStripeService:
 
         assert result["verification_session_id"] == "vs_123"
         assert result["client_secret"] == "secret_123"
+
+    @patch("stripe.identity.VerificationSession.create")
+    def test_create_identity_verification_session_persists_session_id(
+        self, mock_create, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        """Created identity sessions should be persisted on the instructor profile."""
+        user, profile, _ = test_instructor
+        stripe_service.stripe_configured = True
+        mock_session = MagicMock()
+        mock_session.id = "vs_persisted"
+        mock_session.client_secret = "secret_persisted"
+        mock_create.return_value = mock_session
+
+        result = stripe_service.create_identity_verification_session(
+            user_id=user.id, return_url="https://app.test/return"
+        )
+
+        assert result["verification_session_id"] == "vs_persisted"
+        updated_profile = stripe_service.instructor_repository.get_by_user_id(user.id)
+        assert updated_profile.identity_verification_session_id == "vs_persisted"
 
     @patch("stripe.identity.VerificationSession.create")
     def test_create_identity_verification_session_stripe_error(

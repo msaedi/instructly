@@ -351,14 +351,52 @@ class StripeService(BaseService):
 
         profile_id = profile.id
         self.instructor_repository.update(profile_id, bgc_in_dispute=False)
-        account = self.check_account_status(profile_id)
-        # Determine verification status based on account state
-        has_requirements = bool(account.get("requirements"))
-        is_verified = account.get("charges_enabled", False) and not has_requirements
-        status = "verified" if is_verified else "pending"
+        if profile.identity_verified_at:
+            return IdentityRefreshResponse(
+                status="verified",
+                verified=True,
+            )
+
+        session_id = profile.identity_verification_session_id
+        if not session_id:
+            return IdentityRefreshResponse(
+                status="not_started",
+                verified=False,
+            )
+
+        self._check_stripe_configured()
+
+        try:
+            session = cast(Any, stripe.identity.VerificationSession).retrieve(session_id)
+        except stripe.StripeError as exc:
+            self.logger.error(
+                "Failed to retrieve identity session %s: %s",
+                session_id,
+                str(exc),
+            )
+            return IdentityRefreshResponse(
+                status="error",
+                verified=False,
+            )
+
+        stripe_status = (
+            session.get("status", "unknown")
+            if isinstance(session, dict)
+            else getattr(session, "status", "unknown")
+        )
+        if stripe_status == "verified":
+            self.instructor_repository.update(
+                profile_id,
+                identity_verified_at=datetime.now(timezone.utc),
+            )
+            return IdentityRefreshResponse(
+                status="verified",
+                verified=True,
+            )
+
         return IdentityRefreshResponse(
-            status=status,
-            verified=is_verified,
+            status=stripe_status or "unknown",
+            verified=False,
         )
 
     @BaseService.measure_operation("stripe_set_payout_schedule")
@@ -1832,12 +1870,27 @@ class StripeService(BaseService):
 
             session = stripe.identity.VerificationSession.create(**params)
 
-            client_secret = getattr(session, "client_secret", None)
+            client_secret = (
+                session.get("client_secret")
+                if isinstance(session, dict)
+                else getattr(session, "client_secret", None)
+            )
             if not client_secret:
                 raise ServiceException("Failed to create identity verification session")
 
+            session_id = (
+                session.get("id") if isinstance(session, dict) else getattr(session, "id", None)
+            )
+            if session_id:
+                profile = self.instructor_repository.get_by_user_id(user_id)
+                if profile:
+                    self.instructor_repository.update(
+                        profile.id,
+                        identity_verification_session_id=session_id,
+                    )
+
             return {
-                "verification_session_id": getattr(session, "id", None),
+                "verification_session_id": session_id,
                 "client_secret": client_secret,
             }
         except stripe.StripeError as e:

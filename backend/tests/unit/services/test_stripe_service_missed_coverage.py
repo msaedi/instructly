@@ -15,6 +15,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+import stripe
 
 from app.core.exceptions import ServiceException
 
@@ -53,6 +54,8 @@ def _fake_profile(**overrides: Any) -> MagicMock:
     p.user_id = overrides.get("user_id", "01TESTINSTR00000000000001")
     p.is_founding_instructor = overrides.get("is_founding_instructor", False)
     p.current_tier_pct = overrides.get("current_tier_pct", None)
+    p.identity_verified_at = overrides.get("identity_verified_at", None)
+    p.identity_verification_session_id = overrides.get("identity_verification_session_id", None)
     return p
 
 
@@ -125,29 +128,63 @@ class TestRefreshInstructorIdentity:
         with pytest.raises(ServiceException):
             svc.refresh_instructor_identity(user=user)
 
-    def test_verified(self):
+    @patch("app.services.stripe_service.stripe.identity.VerificationSession.retrieve")
+    def test_verified(self, mock_retrieve):
         svc = _make_stripe_service()
-        svc.instructor_repository.get_by_user_id.return_value = _fake_profile()
-        svc.check_account_status = MagicMock(return_value={
-            "charges_enabled": True,
-            "requirements": [],
-        })
+        svc.instructor_repository.get_by_user_id.return_value = _fake_profile(
+            identity_verification_session_id="vs_verified"
+        )
+        mock_retrieve.return_value = SimpleNamespace(status="verified")
         user = _fake_user()
         result = svc.refresh_instructor_identity(user=user)
         assert result.verified is True
         assert result.status == "verified"
+        assert svc.instructor_repository.update.call_args_list[-1].kwargs["identity_verified_at"]
 
-    def test_pending(self):
+    @patch("app.services.stripe_service.stripe.identity.VerificationSession.retrieve")
+    def test_processing(self, mock_retrieve):
         svc = _make_stripe_service()
-        svc.instructor_repository.get_by_user_id.return_value = _fake_profile()
-        svc.check_account_status = MagicMock(return_value={
-            "charges_enabled": False,
-            "requirements": ["individual.verification.document"],
-        })
+        svc.instructor_repository.get_by_user_id.return_value = _fake_profile(
+            identity_verification_session_id="vs_processing"
+        )
+        mock_retrieve.return_value = SimpleNamespace(status="processing")
         user = _fake_user()
         result = svc.refresh_instructor_identity(user=user)
         assert result.verified is False
-        assert result.status == "pending"
+        assert result.status == "processing"
+
+    @patch("app.services.stripe_service.stripe.identity.VerificationSession.retrieve")
+    def test_already_verified_skips_stripe(self, mock_retrieve):
+        svc = _make_stripe_service()
+        svc.instructor_repository.get_by_user_id.return_value = _fake_profile(
+            identity_verified_at=datetime.now(timezone.utc),
+            identity_verification_session_id="vs_existing",
+        )
+        user = _fake_user()
+        result = svc.refresh_instructor_identity(user=user)
+        assert result.verified is True
+        assert result.status == "verified"
+        mock_retrieve.assert_not_called()
+
+    def test_not_started_without_session_id(self):
+        svc = _make_stripe_service()
+        svc.instructor_repository.get_by_user_id.return_value = _fake_profile()
+        user = _fake_user()
+        result = svc.refresh_instructor_identity(user=user)
+        assert result.verified is False
+        assert result.status == "not_started"
+
+    @patch("app.services.stripe_service.stripe.identity.VerificationSession.retrieve")
+    def test_stripe_error_returns_error_status(self, mock_retrieve):
+        svc = _make_stripe_service()
+        svc.instructor_repository.get_by_user_id.return_value = _fake_profile(
+            identity_verification_session_id="vs_error"
+        )
+        mock_retrieve.side_effect = stripe.error.APIConnectionError("network down")
+        user = _fake_user()
+        result = svc.refresh_instructor_identity(user=user)
+        assert result.verified is False
+        assert result.status == "error"
 
 
 @pytest.mark.unit
