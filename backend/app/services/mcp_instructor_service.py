@@ -20,7 +20,7 @@ def derive_instructor_status(profile: InstructorProfile) -> str:
         return "live"
     if getattr(profile, "onboarding_completed_at", None):
         return "paused"
-    if getattr(profile, "skills_configured", False) or getattr(profile, "bgc_status", None):
+    if getattr(profile, "skills_configured", False) or profile.bgc_status:
         return "onboarding"
     return "registered"
 
@@ -176,18 +176,18 @@ class MCPInstructorService(BaseService):
             "onboarding": {
                 "profile_created_at": getattr(profile, "created_at", None),
                 "profile_updated_at": getattr(profile, "updated_at", None),
-                "identity_verified_at": getattr(profile, "identity_verified_at", None),
+                "identity_verified_at": profile.identity_verified_at,
                 "background_check_uploaded_at": getattr(
                     profile, "background_check_uploaded_at", None
                 ),
-                "bgc_invited_at": getattr(profile, "bgc_invited_at", None),
-                "bgc_completed_at": getattr(profile, "bgc_completed_at", None),
+                "bgc_invited_at": profile.bgc_invited_at,
+                "bgc_completed_at": profile.bgc_completed_at,
                 "onboarding_completed_at": getattr(profile, "onboarding_completed_at", None),
             },
             "bgc": {
-                "status": getattr(profile, "bgc_status", None),
-                "completed_at": getattr(profile, "bgc_completed_at", None),
-                "valid_until": getattr(profile, "bgc_valid_until", None),
+                "status": profile.bgc_status,
+                "completed_at": profile.bgc_completed_at,
+                "valid_until": profile.bgc_valid_until,
             },
             "services": services,
             "stats": {

@@ -109,9 +109,15 @@ interface BGCStepProps {
   instructorId: string;
   onStatusUpdate?: (status: StatusSnapshot) => void;
   ensureConsent?: () => Promise<boolean>;
+  identityVerified?: boolean;
 }
 
-export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStepProps) {
+export function BGCStep({
+  instructorId,
+  onStatusUpdate,
+  ensureConsent,
+  identityVerified = false,
+}: BGCStepProps) {
   const [status, setStatus] = React.useState<BGCStatus | null>(null);
   const [reportId, setReportId] = React.useState<string | null>(null);
   const [completedAt, setCompletedAt] = React.useState<string | null>(null);
@@ -279,6 +285,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
 
   const disabled =
     isForbidden ||
+    !identityVerified ||
     inviteLoading ||
     loading ||
     cooldownActive ||
@@ -392,6 +399,12 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
           toast.info(
             'You recently requested a background check. Please wait up to 24 hours before starting another one.'
           );
+          return;
+        } else if (code === 'identity_verification_required') {
+          toast.info('Complete ID verification first.', {
+            description:
+              detailMessage ?? 'Identity verification must be completed before starting a background check.',
+          });
           return;
         } else if (code === 'bgc_consent_required' && ensureConsent && !afterConsent) {
           const consentOk = await ensureConsent();
@@ -508,6 +521,12 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
             description: 'Please contact support to resolve the work location issue.',
           });
           return;
+        } else if (code === 'identity_verification_required') {
+          toast.info('Complete ID verification first.', {
+            description:
+              detailMessage ?? 'Identity verification must be completed before starting a background check.',
+          });
+          return;
         } else if (statusCode === 429) {
           toast.info('You can try again later.');
         } else {
@@ -535,13 +554,15 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
   const shouldShowEta = Boolean(etaLabel) && pendingOrReview;
 
   const shouldShowRecheck =
-    isExpired || (typeof expiresInDays === 'number' && Number.isFinite(expiresInDays) && expiresInDays <= 30);
+    identityVerified &&
+    (isExpired || (typeof expiresInDays === 'number' && Number.isFinite(expiresInDays) && expiresInDays <= 30));
   const isCanceled = status === 'canceled';
   const recheckDisabled =
     recheckLoading ||
     inviteLoading ||
     loading ||
-    pendingOrReview;
+    pendingOrReview ||
+    !identityVerified;
 
   return (
     <div className="space-y-4" data-testid="bgc-step">
@@ -580,10 +601,16 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
       ) : null}
       {statusError ? (
         <p className="text-sm text-gray-500 dark:text-gray-400" role="alert">
-          Status unavailable. You can still start a background check.
+          {identityVerified
+            ? 'Status unavailable. You can still start a background check.'
+            : 'Status unavailable. Complete ID verification before starting a background check.'}
         </p>
       ) : null}
-      {status !== 'passed' && !pendingOrReview ? (
+      {!identityVerified ? (
+        <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700" role="status">
+          Complete ID verification before starting a background check.
+        </div>
+      ) : status !== 'passed' && !pendingOrReview ? (
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
           <Button
             onClick={() => void handleStart()}

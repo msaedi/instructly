@@ -1,7 +1,9 @@
 import base64
 from datetime import datetime, timedelta, timezone
 import json
+import logging
 import types
+from types import SimpleNamespace
 
 from pydantic import SecretStr
 import pytest
@@ -10,7 +12,10 @@ from tests.unit.services._adverse_helpers import ensure_adverse_schema
 import ulid
 
 from app.api.dependencies.repositories import get_instructor_repo
-from app.api.dependencies.services import get_background_check_workflow_service
+from app.api.dependencies.services import (
+    get_background_check_service,
+    get_background_check_workflow_service,
+)
 from app.auth import get_password_hash
 from app.core.config import settings
 from app.main import fastapi_app as app
@@ -23,7 +28,11 @@ from app.services.background_check_workflow_service import BackgroundCheckWorkfl
 
 
 def _create_instructor_with_report(
-    db: Session, report_id: str, status: str = "pending"
+    db: Session,
+    report_id: str,
+    status: str = "pending",
+    *,
+    verified_last_name: str | None = None,
 ) -> InstructorProfile:
     user = User(
         email="webhook-instructor@example.com",
@@ -38,6 +47,7 @@ def _create_instructor_with_report(
     profile = InstructorProfile(user_id=user.id)
     profile.bgc_status = status
     profile.bgc_report_id = report_id
+    profile.verified_last_name = verified_last_name
     db.add(profile)
     db.flush()
     persisted = db.query(InstructorProfile).filter_by(id=profile.id).one()
@@ -47,7 +57,12 @@ def _create_instructor_with_report(
 
 
 def _create_instructor_with_candidate(
-    db: Session, candidate_id: str, *, status: str = "pending", invitation_id: str | None = None
+    db: Session,
+    candidate_id: str,
+    *,
+    status: str = "pending",
+    invitation_id: str | None = None,
+    verified_last_name: str | None = None,
 ) -> InstructorProfile:
     user = User(
         email=f"{candidate_id}@example.com",
@@ -63,6 +78,7 @@ def _create_instructor_with_candidate(
     profile.bgc_status = status
     profile.checkr_candidate_id = candidate_id
     profile.checkr_invitation_id = invitation_id
+    profile.verified_last_name = verified_last_name
     db.add(profile)
     db.flush()
     db.refresh(profile)
@@ -100,6 +116,28 @@ def override_instructor_repo(db):
         yield
     finally:
         app.dependency_overrides.pop(get_instructor_repo, None)
+
+
+@pytest.fixture
+def candidate_payloads() -> dict[str, dict[str, str]]:
+    return {}
+
+
+@pytest.fixture(autouse=True)
+def override_background_check_service(candidate_payloads):
+    class _CandidateClient:
+        def get_candidate(self, candidate_id: str) -> dict[str, str]:
+            payload = candidate_payloads.get(candidate_id)
+            if payload is None:
+                return {"id": candidate_id}
+            return dict(payload)
+
+    service = SimpleNamespace(client=_CandidateClient())
+    app.dependency_overrides[get_background_check_service] = lambda: service
+    try:
+        yield
+    finally:
+        app.dependency_overrides.pop(get_background_check_service, None)
 
 
 def _auth_headers(username: str = "hookuser", password: str = "hookpass") -> dict[str, str]:
@@ -210,6 +248,118 @@ def test_report_completed_without_report_binding_uses_candidate(client, db: Sess
     )
     assert len(history) == 1
     assert history[0].result == "clear"
+
+
+def test_report_completed_updates_submitted_name_and_flags_mismatch(
+    client, db: Session, candidate_payloads, caplog: pytest.LogCaptureFixture
+) -> None:
+    profile = _create_instructor_with_candidate(
+        db,
+        candidate_id="cand_name_mismatch",
+        verified_last_name="Smith",
+    )
+    candidate_payloads["cand_name_mismatch"] = {
+        "id": "cand_name_mismatch",
+        "first_name": "Lady",
+        "last_name": "Gaga",
+    }
+
+    payload = {
+        "type": "report.completed",
+        "data": {
+            "object": {
+                "id": "rpt_name_mismatch",
+                "result": "clear",
+                "candidate_id": "cand_name_mismatch",
+            }
+        },
+    }
+    body = json.dumps(payload).encode("utf-8")
+    with caplog.at_level(logging.WARNING):
+        response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
+
+    assert response.status_code == 200
+    db.refresh(profile)
+    assert profile.bgc_submitted_first_name == "Lady"
+    assert profile.bgc_submitted_last_name == "Gaga"
+    assert profile.bgc_name_mismatch is True
+    assert "checkr_last=G****(4) verified_last=S****(5)" in caplog.text
+    assert "Gaga" not in caplog.text
+    assert "Smith" not in caplog.text
+
+
+def test_report_completed_updates_submitted_name_without_flag_on_match(
+    client, db: Session, candidate_payloads
+) -> None:
+    profile = _create_instructor_with_candidate(
+        db,
+        candidate_id="cand_name_match",
+        verified_last_name="Smith",
+    )
+    profile.bgc_name_mismatch = True
+    db.add(profile)
+    db.commit()
+    candidate_payloads["cand_name_match"] = {
+        "id": "cand_name_match",
+        "first_name": "John",
+        "last_name": "smith",
+    }
+
+    payload = {
+        "type": "report.completed",
+        "data": {
+            "object": {
+                "id": "rpt_name_match",
+                "result": "clear",
+                "candidate_id": "cand_name_match",
+            }
+        },
+    }
+    body = json.dumps(payload).encode("utf-8")
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
+
+    assert response.status_code == 200
+    db.refresh(profile)
+    assert profile.bgc_submitted_first_name == "John"
+    assert profile.bgc_submitted_last_name == "smith"
+    assert profile.bgc_name_mismatch is False
+
+
+def test_report_completed_ignores_candidate_fetch_failure(client, db: Session) -> None:
+    profile = _create_instructor_with_candidate(
+        db,
+        candidate_id="cand_fetch_failure",
+        verified_last_name="Smith",
+    )
+
+    class _FailingClient:
+        def get_candidate(self, candidate_id: str) -> dict[str, str]:
+            raise RuntimeError(f"failed to fetch {candidate_id}")
+
+    app.dependency_overrides[get_background_check_service] = lambda: SimpleNamespace(
+        client=_FailingClient()
+    )
+    try:
+        payload = {
+            "type": "report.completed",
+            "data": {
+                "object": {
+                    "id": "rpt_fetch_failure",
+                    "result": "clear",
+                    "candidate_id": "cand_fetch_failure",
+                }
+            },
+        }
+        body = json.dumps(payload).encode("utf-8")
+        response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
+    finally:
+        app.dependency_overrides.pop(get_background_check_service, None)
+
+    assert response.status_code == 200
+    db.refresh(profile)
+    assert profile.bgc_status == "passed"
+    assert profile.bgc_submitted_first_name is None
+    assert profile.bgc_submitted_last_name is None
 
 
 def test_report_created_binds_report_to_candidate(client, db: Session) -> None:

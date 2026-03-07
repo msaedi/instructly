@@ -643,6 +643,7 @@ export default function Step4Verification() {
             {instructorProfileId ? (
               <BGCStep
                 instructorId={instructorProfileId}
+                identityVerified={verificationComplete}
                 ensureConsent={ensureConsent}
                 onStatusUpdate={({ consentRecent, status }) =>
                   handleStatusUpdate({ consentRecent, status })

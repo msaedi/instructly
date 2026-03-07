@@ -1,9 +1,13 @@
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import { BGCStep } from '../BGCStep';
+import { BGCStep as RawBGCStep } from '../BGCStep';
 import { bgcInvite, bgcRecheck, bgcStatus } from '@/lib/api/bgc';
 import { ApiProblemError } from '@/lib/api/fetch';
 import { toast } from 'sonner';
 import { clearPollTimer } from '../BGCStep.helpers';
+
+const BGCStep = (props: Parameters<typeof RawBGCStep>[0]) => (
+  <RawBGCStep identityVerified={true} {...props} />
+);
 
 // Mock dependencies
 jest.mock('@/lib/api/bgc', () => ({
@@ -99,6 +103,32 @@ describe('BGCStep', () => {
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /start background check/i })).toBeInTheDocument();
       });
+    });
+
+    it('defaults identity verification to false when the prop is omitted', async () => {
+      render(<RawBGCStep instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('Complete ID verification before starting a background check.')
+        ).toBeInTheDocument();
+      });
+      expect(
+        screen.queryByRole('button', { name: /start background check/i })
+      ).not.toBeInTheDocument();
+    });
+
+    it('requires identity verification before rendering the start button', async () => {
+      render(<BGCStep instructorId={mockInstructorId} identityVerified={false} />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('Complete ID verification before starting a background check.')
+        ).toBeInTheDocument();
+      });
+      expect(
+        screen.queryByRole('button', { name: /start background check/i })
+      ).not.toBeInTheDocument();
     });
 
     it('displays valid until label', async () => {
@@ -500,6 +530,36 @@ describe('BGCStep', () => {
       });
     });
 
+    it('handles identity_verification_required when starting background check', async () => {
+      bgcInviteMock.mockRejectedValue(
+        createApiProblemError(
+          400,
+          'identity_verification_required',
+          'Identity verification must be completed before starting a background check.'
+        )
+      );
+
+      render(<BGCStep instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /start background check/i })).toBeEnabled();
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /start background check/i }));
+      });
+
+      await waitFor(() => {
+        expect(toastMock.info).toHaveBeenCalledWith(
+          'Complete ID verification first.',
+          expect.objectContaining({
+            description:
+              'Identity verification must be completed before starting a background check.',
+          })
+        );
+      });
+    });
+
     it('handles bgc_consent_required and retries after consent', async () => {
       const ensureConsent = jest.fn().mockResolvedValue(true);
       bgcInviteMock
@@ -821,6 +881,36 @@ describe('BGCStep', () => {
         expect(toastMock.error).toHaveBeenCalledWith(
           'Background check configuration error: work location rejected.',
           expect.any(Object)
+        );
+      });
+    });
+
+    it('handles identity_verification_required for recheck', async () => {
+      bgcRecheckMock.mockRejectedValue(
+        createApiProblemError(
+          400,
+          'identity_verification_required',
+          'Identity verification must be completed before starting a background check.'
+        )
+      );
+
+      render(<BGCStep instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /re-check/i })).toBeEnabled();
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /re-check/i }));
+      });
+
+      await waitFor(() => {
+        expect(toastMock.info).toHaveBeenCalledWith(
+          'Complete ID verification first.',
+          expect.objectContaining({
+            description:
+              'Identity verification must be completed before starting a background check.',
+          })
         );
       });
     });

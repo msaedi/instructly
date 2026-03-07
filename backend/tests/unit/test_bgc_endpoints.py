@@ -27,7 +27,13 @@ def _csrf_headers(client):
     return {CSRF_HEADER: token, "Origin": CSRF_ORIGIN}
 
 
-def _create_instructor(db, *, status: str | None = None, report_id: str | None = None):
+def _create_instructor(
+    db,
+    *,
+    status: str | None = None,
+    report_id: str | None = None,
+    identity_verified: bool = True,
+):
     owner = User(
         email="owner@example.com",
         hashed_password=get_password_hash("Passw0rd!"),
@@ -39,6 +45,7 @@ def _create_instructor(db, *, status: str | None = None, report_id: str | None =
     db.flush()
 
     profile = InstructorProfile(user_id=owner.id)
+    profile.identity_verified_at = datetime.now(timezone.utc) if identity_verified else None
     if status:
         profile.bgc_status = status
     if report_id:
@@ -221,6 +228,39 @@ def test_invite_requires_recent_consent(client, db, owner_auth_override):
     assert detail_message == "FCRA consent required"
 
     _record_consent(client, profile.id, headers)
+
+
+def test_invite_requires_identity_verification(client, db, owner_auth_override):
+    owner, profile = _create_instructor(db, status="failed", identity_verified=False)
+    owner_auth_override(owner)
+    headers = _csrf_headers(client)
+
+    response = client.post(
+        f"/api/v1/instructors/{profile.id}/bgc/invite",
+        headers=headers,
+        json={},
+    )
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["code"] == "identity_verification_required"
+
+
+def test_recheck_requires_identity_verification(client, db, owner_auth_override):
+    owner, profile = _create_instructor(db, status="passed", identity_verified=False)
+    owner_auth_override(owner)
+    headers = _csrf_headers(client)
+    _record_consent(client, profile.id, headers)
+
+    response = client.post(
+        f"/api/v1/instructors/{profile.id}/bgc/recheck",
+        headers=headers,
+        json={},
+    )
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["code"] == "identity_verification_required"
 
 
 def test_invite_returns_specific_error_on_checkr_auth_failure(client, db, owner_auth_override):

@@ -991,7 +991,15 @@ class TestStripeService:
             identity_verification_session_id="vs_verified",
             identity_verified_at=None,
         )
-        mock_retrieve.return_value = SimpleNamespace(status="verified")
+        mock_retrieve.return_value = SimpleNamespace(
+            id="vs_verified",
+            status="verified",
+            verified_outputs=SimpleNamespace(
+                first_name="Test",
+                last_name="Instructor",
+                dob=SimpleNamespace(day=1, month=2, year=1990),
+            ),
+        )
 
         refreshed = stripe_service.refresh_instructor_identity(user=user)
 
@@ -1002,6 +1010,123 @@ class TestStripeService:
         updated_profile = stripe_service.instructor_repository.get_by_user_id(user.id)
         assert updated_profile.bgc_in_dispute is False
         assert updated_profile.identity_verified_at is not None
+        assert updated_profile.identity_verification_session_id == "vs_verified"
+        assert updated_profile.verified_first_name == "Test"
+        assert updated_profile.verified_last_name == "Instructor"
+        assert updated_profile.verified_dob == date(1990, 2, 1)
+        assert updated_profile.identity_name_mismatch is False
+
+    @patch("stripe.identity.VerificationSession.retrieve")
+    def test_refresh_instructor_identity_compares_last_name_case_insensitively(
+        self, mock_retrieve, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        """Case-only last-name differences should not set mismatch flags."""
+        user, profile, _ = test_instructor
+        stripe_service.stripe_configured = True
+        user.last_name = "JOHNSON"
+        stripe_service.db.commit()
+        stripe_service.db.refresh(user)
+        stripe_service.instructor_repository.update(
+            profile.id,
+            identity_verification_session_id="vs_verified_casefold",
+            identity_verified_at=None,
+        )
+        mock_retrieve.return_value = SimpleNamespace(
+            id="vs_verified_casefold",
+            status="verified",
+            verified_outputs=SimpleNamespace(
+                first_name="Test",
+                last_name="johnson",
+                dob=SimpleNamespace(day=1, month=2, year=1990),
+            ),
+        )
+
+        refreshed = stripe_service.refresh_instructor_identity(user=user)
+
+        assert refreshed.verified is True
+        updated_profile = stripe_service.instructor_repository.get_by_user_id(user.id)
+        assert updated_profile.verified_last_name == "johnson"
+        assert updated_profile.identity_name_mismatch is False
+
+    @patch("stripe.identity.VerificationSession.retrieve")
+    def test_refresh_instructor_identity_stores_partial_verified_outputs(
+        self, mock_retrieve, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        """Missing DOB should not block storing verified name fields."""
+        user, profile, _ = test_instructor
+        stripe_service.stripe_configured = True
+        stripe_service.instructor_repository.update(
+            profile.id,
+            identity_verification_session_id="vs_verified_partial",
+            identity_verified_at=None,
+        )
+        mock_retrieve.return_value = SimpleNamespace(
+            id="vs_verified_partial",
+            status="verified",
+            verified_outputs=SimpleNamespace(
+                first_name="Partial",
+                last_name="Instructor",
+            ),
+        )
+
+        refreshed = stripe_service.refresh_instructor_identity(user=user)
+
+        assert refreshed.verified is True
+        updated_profile = stripe_service.instructor_repository.get_by_user_id(user.id)
+        assert updated_profile.verified_first_name == "Partial"
+        assert updated_profile.verified_last_name == "Instructor"
+        assert updated_profile.verified_dob is None
+        assert updated_profile.identity_name_mismatch is False
+
+    def test_parse_identity_dob_logs_invalid_components(
+        self, stripe_service: StripeService, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Invalid Stripe DOB fragments should log a warning and return None."""
+        with caplog.at_level(logging.WARNING):
+            parsed = stripe_service._parse_identity_dob({"day": 32, "month": 13, "year": 1990})
+
+        assert parsed is None
+        assert "Invalid DOB components from Stripe" in caplog.text
+
+    def test_parse_identity_dob_valid(self, stripe_service: StripeService) -> None:
+        """Happy path: integer DOB fragments should produce a date."""
+        parsed = stripe_service._parse_identity_dob({"day": 15, "month": 6, "year": 1990})
+
+        assert parsed == date(1990, 6, 15)
+
+    def test_parse_identity_dob_string_values(self, stripe_service: StripeService) -> None:
+        """Stripe may return DOB fragments as strings."""
+        parsed = stripe_service._parse_identity_dob({"day": "15", "month": "6", "year": "1990"})
+
+        assert parsed == date(1990, 6, 15)
+
+    @patch("stripe.identity.VerificationSession.retrieve")
+    def test_refresh_instructor_identity_falls_back_when_verified_persistence_fails(
+        self, mock_retrieve, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        """Refresh should still succeed when verified identity persistence blows up."""
+        user, profile, _ = test_instructor
+        stripe_service.stripe_configured = True
+        stripe_service.instructor_repository.update(
+            profile.id,
+            identity_verification_session_id="vs_verified_fallback",
+            identity_verified_at=None,
+        )
+        mock_retrieve.return_value = SimpleNamespace(
+            id="vs_verified_fallback",
+            status="verified",
+            verified_outputs=SimpleNamespace(first_name="Test", last_name="Instructor"),
+        )
+
+        with patch.object(
+            stripe_service, "_persist_verified_identity", side_effect=Exception("boom")
+        ):
+            refreshed = stripe_service.refresh_instructor_identity(user=user)
+
+        assert refreshed.verified is True
+        updated_profile = stripe_service.instructor_repository.get_by_user_id(user.id)
+        assert updated_profile.identity_verified_at is not None
+        assert updated_profile.identity_verification_session_id == "vs_verified_fallback"
 
     @patch("stripe.identity.VerificationSession.retrieve")
     def test_refresh_instructor_identity_returns_processing(
@@ -4052,6 +4177,11 @@ class TestStripeService:
         mock_retrieve.return_value = {
             "id": "vs_verified",
             "status": "verified",
+            "verified_outputs": {
+                "first_name": "Test",
+                "last_name": "Instructor",
+                "dob": {"day": 14, "month": 3, "year": 1988},
+            },
         }
 
         with pytest.raises(ServiceException, match="Identity verification already completed"):
@@ -4061,6 +4191,44 @@ class TestStripeService:
 
         updated_profile = stripe_service.instructor_repository.get_by_user_id(user.id)
         assert updated_profile.identity_verified_at is not None
+        assert updated_profile.verified_first_name == "Test"
+        assert updated_profile.verified_last_name == "Instructor"
+        assert updated_profile.verified_dob == date(1988, 3, 14)
+        mock_create.assert_not_called()
+
+    @patch("stripe.identity.VerificationSession.create")
+    @patch("stripe.identity.VerificationSession.retrieve")
+    def test_create_identity_verification_session_verified_reuse_falls_back_when_persist_fails(
+        self, mock_retrieve, mock_create, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        """Verified reuse should not surface persistence failures as 500s."""
+        user, profile, _ = test_instructor
+        stripe_service.stripe_configured = True
+        stripe_service.instructor_repository.update(
+            profile.id,
+            identity_verification_session_id="vs_verified_fallback",
+            identity_verified_at=None,
+        )
+        mock_retrieve.return_value = {
+            "id": "vs_verified_fallback",
+            "status": "verified",
+            "verified_outputs": {
+                "first_name": "Test",
+                "last_name": "Instructor",
+            },
+        }
+
+        with patch.object(
+            stripe_service, "_persist_verified_identity", side_effect=Exception("boom")
+        ):
+            with pytest.raises(ServiceException, match="Identity verification already completed"):
+                stripe_service.create_identity_verification_session(
+                    user_id=user.id, return_url="https://app.test/return"
+                )
+
+        updated_profile = stripe_service.instructor_repository.get_by_user_id(user.id)
+        assert updated_profile.identity_verified_at is not None
+        assert updated_profile.identity_verification_session_id == "vs_verified_fallback"
         mock_create.assert_not_called()
 
     @patch("stripe.identity.VerificationSession.create")

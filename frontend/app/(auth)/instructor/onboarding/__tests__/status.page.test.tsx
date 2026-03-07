@@ -58,10 +58,16 @@ jest.mock('sonner', () => {
 
 /* ---------- BGCStep mock — captures ensureConsent prop ---------- */
 let capturedEnsureConsent: (() => Promise<boolean>) | undefined;
+let capturedIdentityVerified: boolean | undefined;
 jest.mock('@/components/instructor/BGCStep', () => ({
   __esModule: true,
-  BGCStep: (props: { instructorId: string; ensureConsent?: () => Promise<boolean> }) => {
+  BGCStep: (props: {
+    instructorId: string;
+    ensureConsent?: () => Promise<boolean>;
+    identityVerified?: boolean;
+  }) => {
     capturedEnsureConsent = props.ensureConsent;
+    capturedIdentityVerified = props.identityVerified;
     return <div data-testid="bgc-step">BGC Step</div>;
   },
 }));
@@ -159,6 +165,7 @@ const renderWithClient = (ui: ReactNode) => {
 describe('Onboarding status page – BGC consent regression', () => {
   beforeEach(() => {
     capturedEnsureConsent = undefined;
+    capturedIdentityVerified = undefined;
   });
 
   it('renders the BGC step component', async () => {
@@ -181,6 +188,16 @@ describe('Onboarding status page – BGC consent regression', () => {
     // causing BGCStep to fail silently when FCRA consent is required.
     expect(capturedEnsureConsent).toBeDefined();
     expect(typeof capturedEnsureConsent).toBe('function');
+  });
+
+  it('passes identity verification state to BGCStep', async () => {
+    renderWithClient(<OnboardingStatusPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('bgc-step')).toBeInTheDocument();
+    });
+
+    expect(capturedIdentityVerified).toBe(false);
   });
 
   it('renders the BackgroundCheckDisclosureModal (hidden by default)', async () => {

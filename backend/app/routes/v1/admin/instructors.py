@@ -50,7 +50,7 @@ async def admin_instructor_detail(
     consented_at: Optional[datetime] = getattr(consent, "consented_at", None)
 
     now = datetime.now(timezone.utc)
-    valid_until = getattr(profile, "bgc_valid_until", None)
+    valid_until = profile.bgc_valid_until
     expires_in_days = (
         (valid_until - now).days if valid_until is not None and valid_until > now else None
     )
@@ -61,20 +61,20 @@ async def admin_instructor_detail(
         "name": raw_full_name or "",
         "email": email,
         "is_live": bool(getattr(profile, "is_live", False)),
-        "bgc_status": getattr(profile, "bgc_status", None),
-        "bgc_includes_canceled": bool(getattr(profile, "bgc_includes_canceled", False)),
-        "bgc_report_id": getattr(profile, "bgc_report_id", None),
-        "bgc_completed_at": getattr(profile, "bgc_completed_at", None),
+        "bgc_status": profile.bgc_status,
+        "bgc_includes_canceled": bool(profile.bgc_includes_canceled),
+        "bgc_report_id": profile.bgc_report_id,
+        "bgc_completed_at": profile.bgc_completed_at,
         "consent_recent_at": consented_at,
         "created_at": getattr(profile, "created_at", None),
         "updated_at": getattr(profile, "updated_at", None),
         "bgc_valid_until": valid_until,
         "bgc_expires_in_days": expires_in_days,
         "bgc_is_expired": is_expired,
-        "bgc_in_dispute": bool(getattr(profile, "bgc_in_dispute", False)),
-        "bgc_dispute_note": getattr(profile, "bgc_dispute_note", None),
-        "bgc_dispute_opened_at": getattr(profile, "bgc_dispute_opened_at", None),
-        "bgc_dispute_resolved_at": getattr(profile, "bgc_dispute_resolved_at", None),
+        "bgc_in_dispute": bool(profile.bgc_in_dispute),
+        "bgc_dispute_note": profile.bgc_dispute_note,
+        "bgc_dispute_opened_at": profile.bgc_dispute_opened_at,
+        "bgc_dispute_resolved_at": profile.bgc_dispute_resolved_at,
     }
 
     return AdminInstructorDetailResponse(

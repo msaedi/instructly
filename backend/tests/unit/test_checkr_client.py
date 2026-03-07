@@ -53,6 +53,12 @@ def test_get_report_requires_id():
         client.get_report("")
 
 
+def test_get_candidate_requires_id():
+    client = CheckrClient(api_key="sk_test", transport=MockTransport(lambda request: Response(200)))
+    with pytest.raises(ValueError, match="candidate_id"):
+        client.get_candidate("")
+
+
 def test_request_raises_checkr_error_with_json_body():
     def handler(request):
         return Response(
@@ -133,6 +139,16 @@ def test_get_report_success():
     assert payload["id"] == "rpt_456"
 
 
+def test_get_candidate_success():
+    def handler(request):
+        return Response(200, json={"id": "cand_456", "last_name": "Candidate"}, request=request)
+
+    client = CheckrClient(api_key="sk_test", transport=MockTransport(handler))
+    payload = client.get_candidate("cand_456")
+    assert payload["id"] == "cand_456"
+    assert payload["last_name"] == "Candidate"
+
+
 def test_accepts_secretstr_api_key():
     def handler(request):
         return Response(200, json={"id": "cand"}, request=request)
@@ -144,7 +160,7 @@ def test_accepts_secretstr_api_key():
 
 def test_fake_checkr_client_generates_ids():
     client = FakeCheckrClient()
-    candidate = client.create_candidate(first_name="Test")
+    candidate = client.create_candidate(first_name="Test", last_name="User")
     assert candidate["id"].startswith("fake-candidate-")
 
     invitation = client.create_invitation(candidate_id=candidate["id"], package="basic")
@@ -153,3 +169,7 @@ def test_fake_checkr_client_generates_ids():
 
     report = client.get_report("")
     assert report["id"].startswith("rpt_fake_")
+
+    fetched_candidate = client.get_candidate(candidate["id"])
+    assert fetched_candidate["first_name"] == "Test"
+    assert fetched_candidate["last_name"] == "User"

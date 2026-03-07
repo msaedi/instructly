@@ -194,7 +194,7 @@ class BackgroundCheckWorkflowService:
     def _maybe_send_review_status_email(
         self, profile: InstructorProfile, report_completed_at: datetime
     ) -> None:
-        already_sent = getattr(profile, "bgc_review_email_sent_at", None)
+        already_sent = profile.bgc_review_email_sent_at
         if already_sent:
             return
 
@@ -455,8 +455,8 @@ class BackgroundCheckWorkflowService:
         if profile is None:
             raise RepositoryException("Instructor profile not found")
 
-        final_sent_at = getattr(profile, "bgc_final_adverse_sent_at", None)
-        in_dispute = bool(getattr(profile, "bgc_in_dispute", False))
+        final_sent_at = profile.bgc_final_adverse_sent_at
+        in_dispute = bool(profile.bgc_in_dispute)
 
         if final_sent_at is not None:
             self.repo.set_dispute_resolved(instructor_id, note)
@@ -466,13 +466,13 @@ class BackgroundCheckWorkflowService:
             self.repo.set_dispute_resolved(instructor_id, note)
             return False, None
 
-        status = (getattr(profile, "bgc_status", "") or "").lower()
+        status = (profile.bgc_status or "").lower()
         if status not in {"review", "consider"}:
             self.repo.set_dispute_resolved(instructor_id, note)
             return False, None
 
-        pre_sent_at_raw = getattr(profile, "bgc_pre_adverse_sent_at", None)
-        notice_id = getattr(profile, "bgc_pre_adverse_notice_id", None)
+        pre_sent_at_raw = profile.bgc_pre_adverse_sent_at
+        notice_id = profile.bgc_pre_adverse_notice_id
         if pre_sent_at_raw is None or notice_id is None:
             self.repo.set_dispute_resolved(instructor_id, note)
             return False, None
@@ -580,8 +580,8 @@ class BackgroundCheckWorkflowService:
                     extra={"profile_id": profile_id},
                 )
                 return
-            notice_id = notice_id or getattr(profile, "bgc_pre_adverse_notice_id", None)
-            sent_at = sent_at or getattr(profile, "bgc_pre_adverse_sent_at", None)
+            notice_id = notice_id or profile.bgc_pre_adverse_notice_id
+            sent_at = sent_at or profile.bgc_pre_adverse_sent_at
 
         if not notice_id or not sent_at:
             logger.warning(
@@ -648,7 +648,7 @@ class BackgroundCheckWorkflowService:
                 BGC_FINAL_ADVERSE_EXECUTED_TOTAL.labels(outcome="skipped_status").inc()
                 return False
 
-            if getattr(profile, "bgc_in_dispute", False):
+            if profile.bgc_in_dispute:
                 logger.info(
                     "Final adverse action skipped; dispute flag set",
                     extra={"profile_id": profile_id},
@@ -656,8 +656,8 @@ class BackgroundCheckWorkflowService:
                 BGC_FINAL_ADVERSE_EXECUTED_TOTAL.labels(outcome="skipped_dispute").inc()
                 return False
 
-            current_notice_id = getattr(profile, "bgc_pre_adverse_notice_id", None)
-            pre_sent_at = getattr(profile, "bgc_pre_adverse_sent_at", None)
+            current_notice_id = profile.bgc_pre_adverse_notice_id
+            pre_sent_at = profile.bgc_pre_adverse_sent_at
 
             if not current_notice_id or not pre_sent_at:
                 logger.info(
@@ -689,7 +689,7 @@ class BackgroundCheckWorkflowService:
                 BGC_FINAL_ADVERSE_EXECUTED_TOTAL.labels(outcome="finalized").inc()
                 return False
 
-            current_status = (getattr(profile, "bgc_status", "") or "").lower()
+            current_status = (profile.bgc_status or "").lower()
             if current_status not in {"review", "consider"}:
                 logger.info(
                     "Final adverse action skipped; status changed",
@@ -706,7 +706,7 @@ class BackgroundCheckWorkflowService:
                 BGC_FINAL_ADVERSE_EXECUTED_TOTAL.labels(outcome="skipped_status").inc()
                 return False
 
-            dispute_opened_at = getattr(profile, "bgc_dispute_opened_at", None)
+            dispute_opened_at = profile.bgc_dispute_opened_at
             now = _ensure_utc(datetime.now(timezone.utc))
             if dispute_opened_at:
                 dispute_opened_at = _ensure_utc(dispute_opened_at)

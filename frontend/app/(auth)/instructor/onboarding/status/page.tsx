@@ -304,7 +304,12 @@ export default function OnboardingStatusPage() {
                 <p className="text-sm text-gray-500 dark:text-gray-400">Invite yourself via Checkr to complete your screening.</p>
               </div>
             </div>
-            <BGCStep instructorId={instructorProfileId} ensureConsent={ensureConsent} onStatusUpdate={handleBgcSnapshot} />
+            <BGCStep
+              instructorId={instructorProfileId}
+              identityVerified={identityVerified}
+              ensureConsent={ensureConsent}
+              onStatusUpdate={handleBgcSnapshot}
+            />
           </div>
         ) : null}
 
