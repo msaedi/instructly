@@ -5296,6 +5296,59 @@ describe('TimeSelectionModal', () => {
         expect(Number(timeSlotsCount[0]?.textContent)).toBeGreaterThan(0);
       });
     });
+
+    it('does not reuse the preferred initial time when selecting a different cached date', async () => {
+      const initialDate = getDateString(1);
+      const secondDate = getDateString(2);
+      publicApiMock.getInstructorAvailability.mockResolvedValue({
+        status: 200 as const,
+        data: {
+          instructor_id: 'user-123',
+          instructor_first_name: 'John' as string | null,
+          instructor_last_initial: 'D' as string | null,
+          availability_by_date: {
+            [initialDate]: {
+              date: initialDate,
+              available_slots: [{ start_time: '09:00', end_time: '11:00' }],
+              is_blackout: false,
+            },
+            [secondDate]: {
+              date: secondDate,
+              available_slots: [{ start_time: '11:00', end_time: '12:00' }],
+              is_blackout: false,
+            },
+          },
+          timezone: 'America/New_York',
+          total_available_slots: 2,
+          earliest_available_date: initialDate,
+        },
+      });
+
+      render(
+        <TimeSelectionModal
+          {...defaultProps}
+          initialDate={initialDate}
+          initialTimeHHMM24="09:00"
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('selected-time').every((node) => node.textContent === '9:00am')).toBe(true);
+      });
+
+      await act(async () => {
+        calendarOnDateSelect?.(secondDate);
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.getAllByTestId('selected-date').every((node) => node.textContent === secondDate)
+        ).toBe(true);
+        expect(
+          screen.getAllByTestId('selected-time').every((node) => node.textContent === '11:00am')
+        ).toBe(true);
+      });
+    });
   });
 
   describe('reconciliation effect — selectedTime stale after date change (lines 419-422)', () => {
@@ -6681,6 +6734,40 @@ describe('TimeSelectionModal', () => {
 
       // The time dropdown should not be visible
       expect(screen.queryByTestId('time-dropdown')).not.toBeInTheDocument();
+    });
+
+    it('drops an unavailable initial date when the availability payload has no bookable days', async () => {
+      const initialDate = getDateString(6);
+      publicApiMock.getInstructorAvailability.mockResolvedValue({
+        status: 200 as const,
+        data: {
+          instructor_id: 'user-123',
+          instructor_first_name: 'John' as string | null,
+          instructor_last_initial: 'D' as string | null,
+          availability_by_date: {},
+          timezone: 'America/New_York',
+          total_available_slots: 0,
+          earliest_available_date: '',
+        },
+      });
+
+      render(
+        <TimeSelectionModal
+          {...defaultProps}
+          initialDate={initialDate}
+          initialTimeHHMM24="09:00"
+        />
+      );
+
+      await waitFor(() => {
+        expect(publicApiMock.getInstructorAvailability).toHaveBeenCalled();
+      });
+
+      expect(
+        screen.getAllByTestId('selected-date').every((node) => node.textContent === initialDate)
+      ).toBe(true);
+      expect(screen.getAllByTestId('time-slots-count').every((node) => node.textContent === '0')).toBe(true);
+      expect(screen.getAllByTestId('selected-time').every((node) => node.textContent === 'none')).toBe(true);
     });
   });
 
@@ -9121,6 +9208,169 @@ describe('TimeSelectionModal', () => {
         lessonType: 'Piano Lessons',
         basePrice: 30,
       });
+    });
+
+    it('falls back to the default 422 preview error message when the API omits detail', async () => {
+      const { ApiProblemError } = await import('@/lib/api/fetch');
+      const mockResponse = { status: 422, statusText: 'Unprocessable Entity' } as Response;
+
+      fetchPricingPreviewMock.mockRejectedValueOnce(
+        new ApiProblemError(
+          { type: 'validation_error', title: 'Error', status: 422 } as never,
+          mockResponse,
+        ),
+      );
+
+      render(<TimeSelectionModal {...defaultProps} bookingDraftId="draft-missing-detail" />);
+
+      await waitFor(() => {
+        expect(fetchPricingPreviewMock).toHaveBeenCalledWith('draft-missing-detail', 0);
+      });
+
+      expect(screen.getAllByTestId('summary-section')[0]).toBeInTheDocument();
+    });
+
+    it('ignores development-only logging branches in production mode', async () => {
+      const previousEnv = process.env;
+      process.env = { ...previousEnv, NODE_ENV: 'production' };
+
+      try {
+        render(<TimeSelectionModal {...defaultProps} />);
+
+        await waitFor(() => {
+          expect(screen.getAllByTestId('calendar')[0]).toBeInTheDocument();
+          expect(screen.getAllByTestId('summary-section')[0]).toBeInTheDocument();
+        });
+      } finally {
+        process.env = previousEnv;
+      }
+    });
+
+    it('handles availability responses that omit availability_by_date without crashing', async () => {
+      publicApiMock.getInstructorAvailability.mockResolvedValueOnce({
+        status: 200 as const,
+        data: {
+          instructor_id: 'user-123',
+          instructor_first_name: 'John' as string | null,
+          instructor_last_initial: 'D' as string | null,
+          availability_by_date: {},
+          timezone: 'America/New_York',
+          total_available_slots: 0,
+          earliest_available_date: '',
+        },
+      });
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(publicApiMock.getInstructorAvailability).toHaveBeenCalled();
+      });
+
+      expect(screen.getAllByTestId('available-dates-count')[0]).toHaveTextContent('0');
+      expect(screen.getAllByTestId('summary-complete')[0]).toHaveTextContent('false');
+    });
+
+    it('reuses the initial available date and preferred time from the first availability payload', async () => {
+      const initialDate = getDateString(5);
+      publicApiMock.getInstructorAvailability.mockResolvedValueOnce(
+        mockAvailabilityResponse([initialDate, getDateString(6)])
+      );
+
+      render(
+        <TimeSelectionModal
+          {...defaultProps}
+          initialDate={initialDate}
+          initialTimeHHMM24="14:00"
+          initialDurationMinutes={60}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('selected-date')[0]).toHaveTextContent(initialDate);
+      });
+      expect(screen.getAllByTestId('selected-time')[0]).toHaveTextContent('2:00pm');
+    });
+
+    it('handles availability days that omit available_slots without crashing', async () => {
+      const initialDate = getDateString(4);
+      publicApiMock.getInstructorAvailability.mockResolvedValueOnce({
+        status: 200 as const,
+        data: {
+          instructor_id: 'user-123',
+          instructor_first_name: 'John',
+          instructor_last_initial: 'D',
+          availability_by_date: {
+            [initialDate]: {
+              date: initialDate,
+              is_blackout: false,
+            },
+          } as unknown as Record<
+            string,
+            {
+              date: string;
+              available_slots: Array<{ start_time: string; end_time: string }>;
+              is_blackout: boolean;
+            }
+          >,
+          timezone: 'America/New_York',
+          total_available_slots: 0,
+          earliest_available_date: initialDate,
+        },
+      });
+
+      render(<TimeSelectionModal {...defaultProps} initialDate={initialDate} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('selected-date')[0]).toHaveTextContent(initialDate);
+      });
+      expect(screen.getAllByTestId('time-slots-count')[0]).toHaveTextContent('0');
+      expect(screen.getAllByTestId('selected-time')[0]).toHaveTextContent('none');
+    });
+
+    it('reapplies the preferred initial time when a missing date is fetched on demand', async () => {
+      const initialDate = getDateString(10);
+      publicApiMock.getInstructorAvailability
+        .mockResolvedValueOnce(mockAvailabilityResponse([getDateString(1)]))
+        .mockResolvedValueOnce({
+          status: 200 as const,
+          data: {
+            instructor_id: 'user-123',
+            instructor_first_name: 'John',
+            instructor_last_initial: 'D',
+            availability_by_date: {
+              [initialDate]: {
+                date: initialDate,
+                available_slots: [{ start_time: '14:00', end_time: '17:00' }],
+                is_blackout: false,
+              },
+            },
+            timezone: 'America/New_York',
+            total_available_slots: 1,
+            earliest_available_date: initialDate,
+          },
+        });
+
+      render(
+        <TimeSelectionModal
+          {...defaultProps}
+          initialDate={initialDate}
+          initialTimeHHMM24="14:00"
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('selected-date')[0]).toHaveTextContent(initialDate);
+      });
+
+      await act(async () => {
+        await calendarOnDateSelect?.(initialDate);
+      });
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('selected-date')[0]).toHaveTextContent(initialDate);
+        expect(screen.getAllByTestId('time-slots-count')[0]).toHaveTextContent('6');
+      });
+      expect(screen.getAllByTestId('selected-time')[0]).toHaveTextContent('2:00pm');
     });
   });
 });

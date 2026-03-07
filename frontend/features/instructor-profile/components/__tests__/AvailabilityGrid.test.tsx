@@ -1,6 +1,7 @@
 import React from 'react';
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { invokeReactClick } from '@/test-utils/reactEventHandlers';
 import { AvailabilityGrid } from '../AvailabilityGrid';
 import { useInstructorAvailability } from '@/hooks/queries/useInstructorAvailability';
 
@@ -169,6 +170,30 @@ describe('AvailabilityGrid', () => {
     jest.useRealTimers();
   });
 
+  it('falls back to January 1 when the earliest available date is malformed', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date(2025, 1, 10, 9, 0, 0));
+    const onWeekChange = jest.fn();
+    mockUseInstructorAvailability.mockReturnValue({
+      data: { availability_by_date: { '2025': { available_slots: [] } } },
+      isLoading: false,
+      error: null,
+    });
+
+    render(
+      <AvailabilityGrid
+        instructorId="1"
+        weekStart={new Date(2025, 1, 10)}
+        onWeekChange={onWeekChange}
+        selectedSlot={null}
+        onSelectSlot={jest.fn()}
+      />
+    );
+
+    expect(onWeekChange).toHaveBeenCalledWith(new Date(2025, 0, 1));
+    jest.useRealTimers();
+  });
+
   it('enables previous button when week is ahead of today', async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date(2025, 0, 6, 9, 0, 0));
@@ -196,6 +221,32 @@ describe('AvailabilityGrid', () => {
     await user.click(prevButton);
 
     expect(onWeekChange).toHaveBeenCalledWith(new Date(2025, 0, 6));
+    jest.useRealTimers();
+  });
+
+  it('keeps previous-week navigation from going entirely into the past even on a programmatic click', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date(2025, 0, 6, 9, 0, 0));
+    const onWeekChange = jest.fn();
+    mockUseInstructorAvailability.mockReturnValue({
+      data: { availability_by_date: {} },
+      isLoading: false,
+      error: null,
+    });
+
+    render(
+      <AvailabilityGrid
+        instructorId="1"
+        weekStart={new Date(2025, 0, 6)}
+        onWeekChange={onWeekChange}
+        selectedSlot={null}
+        onSelectSlot={jest.fn()}
+      />
+    );
+
+    invokeReactClick(screen.getByRole('button', { name: /prev/i }));
+
+    expect(onWeekChange).not.toHaveBeenCalled();
     jest.useRealTimers();
   });
 
@@ -257,6 +308,29 @@ describe('AvailabilityGrid', () => {
 
     // Blackout day should not have bookable slots
     expect(container.querySelector('[data-testid="time-slot-Mon-10am"]')).not.toBeInTheDocument();
+    jest.useRealTimers();
+  });
+
+  it('renders past dates with muted styling when the visible week is before today', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date(2025, 0, 10, 8, 0, 0));
+    mockUseInstructorAvailability.mockReturnValue({
+      data: { availability_by_date: {} },
+      isLoading: false,
+      error: null,
+    });
+
+    const { container } = render(
+      <AvailabilityGrid
+        instructorId="1"
+        weekStart={new Date(2025, 0, 3)}
+        onWeekChange={jest.fn()}
+        selectedSlot={null}
+        onSelectSlot={jest.fn()}
+      />
+    );
+
+    expect(container.querySelector('.opacity-50')).toBeInTheDocument();
     jest.useRealTimers();
   });
 

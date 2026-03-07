@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import InstructorProfileForm from '../InstructorProfileForm';
@@ -80,7 +80,7 @@ jest.mock('@/features/instructor-profile/SkillsPricingInline', () => {
 });
 
 jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/PersonalInfoCard', () => {
-  function PersonalInfoCard({ profile, onProfileChange, onToggle }: { profile: { first_name?: string; last_name?: string; postal_code?: string }; onProfileChange: (updates: Record<string, string | number>) => void; onToggle: () => void }) {
+  function PersonalInfoCard({ profile, onProfileChange, onToggle }: { profile: { first_name?: string; last_name?: string; postal_code?: string }; onProfileChange: (updates: Record<string, unknown>) => void; onToggle: () => void }) {
     return (
       <section>
         <div data-testid="personal-info">{profile.first_name}-{profile.last_name}-{profile.postal_code}</div>
@@ -109,6 +109,17 @@ jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/PersonalI
           administrative_area: 'NY',
           postal_code: '10017',
         })}>Set Basic Address</button>
+        <button
+          type="button"
+          onClick={() =>
+            onProfileChange({
+              min_advance_booking_hours: undefined,
+              buffer_time_hours: undefined,
+            })
+          }
+        >
+          Unset Booking Prefs
+        </button>
         <button type="button" onClick={onToggle}>Toggle</button>
       </section>
     );
@@ -6389,6 +6400,201 @@ describe('InstructorProfileForm', () => {
 
       await waitFor(() => {
         expect(toast.error).toHaveBeenCalledWith('Request failed (418)');
+      });
+    });
+
+    it('saves default booking-preference values when the profile omits them', async () => {
+      const { Wrapper } = createWrapper();
+      let savedProfileBody: Record<string, unknown> | null = null;
+
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'Test', last_name: 'User', zip_code: '10001' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({
+        data: { items: [{ id: 'addr-1', postal_code: '10001', is_default: true }] },
+        isLoading: false,
+      });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          bio: 'A'.repeat(420),
+          years_experience: 3,
+          min_advance_booking_hours: null,
+          buffer_time_minutes: null,
+          service_area_neighborhoods: [{ neighborhood_id: 'n1', name: 'Lower East Side' }],
+          service_area_boroughs: ['Manhattan'],
+          preferred_teaching_locations: [],
+          preferred_public_spaces: [],
+          has_profile_picture: true,
+        },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string, options?: RequestInit) => {
+        if (url === '/api/v1/addresses/service-areas/me' && !options?.method) {
+          return { ok: true, status: 200, json: async () => ({ items: [{ neighborhood_id: 'n1' }] }) };
+        }
+        if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE && options?.method === 'PUT') {
+          savedProfileBody = JSON.parse(String(options.body));
+          return { ok: true, status: 200, json: async () => ({}) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByText(/save changes/i)).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(savedProfileBody).toMatchObject({
+          min_advance_booking_hours: 2,
+          buffer_time_minutes: 0,
+        });
+      });
+    });
+
+    it('renders booking preference inputs with nullish fallbacks after child updates unset them', async () => {
+      const { Wrapper } = createWrapper();
+
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'Taylor', last_name: 'Swift', zip_code: '10001' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({
+        data: { items: [{ id: 'addr-1', postal_code: '10001', is_default: true }] },
+        isLoading: false,
+      });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          bio: 'A'.repeat(420),
+          years_experience: 3,
+          min_advance_booking_hours: 4,
+          buffer_time_minutes: 90,
+          service_area_neighborhoods: [{ neighborhood_id: 'n1', name: 'Lower East Side' }],
+          service_area_boroughs: ['Manhattan'],
+          preferred_teaching_locations: [],
+          preferred_public_spaces: [],
+          has_profile_picture: true,
+        },
+        isLoading: false,
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      await user.click(screen.getByText('Unset Booking Prefs'));
+      await user.click(screen.getByRole('button', { name: /booking preferences/i }));
+
+      expect(screen.getByDisplayValue('2')).toBeInTheDocument();
+      expect(screen.getByDisplayValue('0')).toBeInTheDocument();
+    });
+
+    it('clamps NaN booking preference edits back to safe defaults', async () => {
+      const { Wrapper } = createWrapper();
+
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'Taylor', last_name: 'Swift', zip_code: '10001' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({
+        data: { items: [{ id: 'addr-1', postal_code: '10001', is_default: true }] },
+        isLoading: false,
+      });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          bio: 'A'.repeat(420),
+          years_experience: 3,
+          min_advance_booking_hours: 4,
+          buffer_time_minutes: 90,
+          service_area_neighborhoods: [{ neighborhood_id: 'n1', name: 'Lower East Side' }],
+          service_area_boroughs: ['Manhattan'],
+          preferred_teaching_locations: [],
+          preferred_public_spaces: [],
+          has_profile_picture: true,
+        },
+        isLoading: false,
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /booking preferences/i }));
+
+      const [advanceNotice, bufferTime] = screen.getAllByRole('spinbutton') as Array<
+        HTMLInputElement | undefined
+      >;
+      if (!advanceNotice || !bufferTime) {
+        throw new Error('Expected booking preference inputs');
+      }
+      fireEvent.change(advanceNotice, { target: { value: 'abc' } });
+      expect(advanceNotice).toHaveValue(1);
+
+      fireEvent.change(bufferTime, { target: { value: 'abc' } });
+      expect(bufferTime).toHaveValue(0);
+    });
+
+    it('marks onboarding status as failed when the profile is otherwise complete but missing a photo', async () => {
+      const { Wrapper } = createWrapper();
+      const onStepStatusChange = jest.fn();
+
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'Taylor', last_name: 'Swift', zip_code: '10001' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({
+        data: { items: [{ id: 'addr-1', postal_code: '10001', is_default: true }] },
+        isLoading: false,
+      });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          bio: 'A'.repeat(420),
+          years_experience: 3,
+          min_advance_booking_hours: 2,
+          buffer_time_minutes: 0,
+          service_area_neighborhoods: [{ neighborhood_id: 'n1', name: 'Lower East Side' }],
+          service_area_boroughs: ['Manhattan'],
+          preferred_teaching_locations: [],
+          preferred_public_spaces: [],
+          has_profile_picture: false,
+          profile_picture_version: undefined,
+        },
+        isLoading: false,
+      });
+
+      const ref = React.createRef<{ save: (options?: { redirectTo?: string }) => Promise<void> }>();
+
+      render(
+        <InstructorProfileForm
+          ref={ref}
+          context="onboarding"
+          onStepStatusChange={onStepStatusChange}
+        />,
+        { wrapper: Wrapper }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      await act(async () => {
+        await ref.current?.save();
+      });
+
+      await waitFor(() => {
+        expect(onStepStatusChange).toHaveBeenCalledWith('failed');
       });
     });
   });

@@ -212,6 +212,14 @@ describe('InstructorCard', () => {
       expect(screen.getByTestId('founding-badge')).toBeInTheDocument();
     });
 
+    it('falls back to an unfavorited state when favorite status is undefined', async () => {
+      mockUseFavoriteStatus.mockReturnValue({ data: undefined });
+
+      renderWithProviders(<InstructorCard instructor={createInstructor()} />);
+
+      expect(screen.getByLabelText('Sign in to save')).toBeInTheDocument();
+    });
+
     it('renders BGC badge when instructor is live', async () => {
       const instructor = { ...createInstructor(), is_live: true };
       renderWithProviders(<InstructorCard instructor={instructor as Instructor} />);
@@ -271,6 +279,34 @@ describe('InstructorCard', () => {
       expect(screen.queryByText('Service areas:')).not.toBeInTheDocument();
       expect(screen.queryByText('Levels:')).not.toBeInTheDocument();
       expect(screen.queryByText('Format:')).not.toBeInTheDocument();
+    });
+
+    it('renders experience metadata when there are no highlight rows', async () => {
+      const instructor = createInstructor({
+        years_experience: 9,
+        service_area_boroughs: [],
+        service_area_summary: '',
+        services: [
+          {
+            id: 'svc-1',
+            service_catalog_id: 'cat-1',
+            hourly_rate: 75,
+            duration_options: [60],
+            offers_travel: false,
+            offers_at_location: false,
+            offers_online: false,
+            levels_taught: [],
+            age_groups: [],
+          } as Instructor['services'][number],
+        ],
+      });
+
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+
+      expect(screen.getByText('Experience:')).toBeInTheDocument();
+      expect(screen.getByText('Service areas:')).toBeInTheDocument();
+      expect(screen.getByText('NYC')).toBeInTheDocument();
+      expect(screen.queryByText('Levels:')).not.toBeInTheDocument();
     });
 
     it('displays rating when reviewCount >= 3', async () => {
@@ -684,6 +720,23 @@ describe('InstructorCard', () => {
         expect(screen.getByText('Unable to load pricing preview.')).toBeInTheDocument();
       });
     });
+
+    it('renders pricing preview correctly in compact mode', async () => {
+      mockFetchPricingPreview.mockResolvedValue({
+        base_price_cents: 6000,
+        line_items: [{ label: 'Platform fee', amount_cents: 500 }],
+        student_pay_cents: 6500,
+      });
+
+      renderWithProviders(
+        <InstructorCard instructor={createInstructor()} bookingDraftId="draft-compact" compact />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Lesson')).toBeInTheDocument();
+        expect(screen.getByText('$65.00')).toBeInTheDocument();
+      });
+    });
   });
 
   describe('service catalog', () => {
@@ -714,6 +767,41 @@ describe('InstructorCard', () => {
         const pill = screen.getByText('Piano');
         expect(pill).toHaveClass('bg-[#7E22CE]/15');
       });
+    });
+
+    it('renders service pills when service_catalog_id is missing but service.id is present', async () => {
+      const instructor = createInstructor({
+        services: [
+          {
+            id: 'svc-fallback',
+            service_catalog_id: '',
+            service_catalog_name: 'Voice',
+            hourly_rate: 60,
+            duration_options: [60],
+          } as Instructor['services'][number],
+        ],
+      });
+
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+
+      expect(screen.getByText('Voice')).toBeInTheDocument();
+    });
+
+    it('renders service pills when both service ids are missing by falling back to the array index key', async () => {
+      const instructor = createInstructor({
+        services: [
+          {
+            service_catalog_id: '',
+            service_catalog_name: 'Composition',
+            hourly_rate: 60,
+            duration_options: [60],
+          } as Instructor['services'][number],
+        ],
+      });
+
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+
+      expect(screen.getByText('Composition')).toBeInTheDocument();
     });
   });
 

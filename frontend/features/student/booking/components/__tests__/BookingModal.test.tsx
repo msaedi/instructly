@@ -183,6 +183,30 @@ describe('BookingModal', () => {
       expect(window.sessionStorage.setItem).toHaveBeenCalledWith('selectedSlot', expect.any(String));
     });
 
+    it('omits freeCancellationUntil for last-minute unauthenticated bookings', async () => {
+      const redirectToLogin = jest.fn();
+      useAuthMock.mockReturnValue({
+        user: null,
+        isAuthenticated: false,
+        redirectToLogin,
+      });
+
+      renderModal({
+        selectedDate: '2025-01-01',
+        selectedTime: '23:30',
+      });
+
+      await userEvent.click(screen.getByRole('button', { name: 'Continue to Booking' }));
+
+      const bookingDataCall = (window.sessionStorage.setItem as jest.Mock).mock.calls.find(
+        ([key]) => key === 'bookingData'
+      );
+      const storedBooking = JSON.parse(String(bookingDataCall?.[1] ?? '{}')) as Record<string, unknown>;
+
+      expect(storedBooking['freeCancellationUntil']).toBeUndefined();
+      expect(redirectToLogin).toHaveBeenCalledWith('/student/booking/confirm');
+    });
+
     it('ignores continue when there is no selected service', async () => {
       const redirectToLogin = jest.fn();
       useAuthMock.mockReturnValue({
@@ -290,6 +314,28 @@ describe('BookingModal', () => {
         expect(pushMock).toHaveBeenCalledWith('/student/booking/confirm');
       });
       expect(window.sessionStorage.setItem).toHaveBeenCalledWith('bookingData', expect.any(String));
+    });
+
+    it('omits freeCancellationUntil for last-minute authenticated bookings', async () => {
+      renderModal({
+        selectedDate: '2025-01-01',
+        selectedTime: '23:30',
+      });
+
+      const inputs = getTextInputs();
+      const phoneInput = inputs[2]!;
+
+      await userEvent.type(phoneInput, '555-1111');
+      await userEvent.click(screen.getByRole('checkbox'));
+      await userEvent.click(screen.getByRole('button', { name: 'Continue to Payment' }));
+
+      const bookingDataCall = (window.sessionStorage.setItem as jest.Mock).mock.calls.find(
+        ([key]) => key === 'bookingData'
+      );
+      const storedBooking = JSON.parse(String(bookingDataCall?.[1] ?? '{}')) as Record<string, unknown>;
+
+      expect(storedBooking['freeCancellationUntil']).toBeUndefined();
+      expect(pushMock).toHaveBeenCalledWith('/student/booking/confirm');
     });
   });
 
@@ -1081,6 +1127,27 @@ describe('BookingModal', () => {
 
       await userEvent.click(checkbox);
       expect(checkbox).not.toBeChecked();
+    });
+
+    it('clears terms and phone validation errors after a defensive submit attempt', async () => {
+      useAuthMock.mockReturnValue({
+        user: { full_name: 'Jane Doe', email: 'jane@example.com' },
+        isAuthenticated: true,
+        redirectToLogin: jest.fn(),
+      });
+
+      renderModal();
+
+      invokeReactClick(screen.getByRole('button', { name: 'Continue to Payment' }));
+
+      expect(await screen.findByText('Phone number is required')).toBeInTheDocument();
+      expect(await screen.findByText('Please agree to the terms and cancellation policy')).toBeInTheDocument();
+
+      await userEvent.type(getTextInputs()[2]!, '555-1111');
+      await userEvent.click(screen.getByRole('checkbox'));
+
+      expect(screen.queryByText('Phone number is required')).not.toBeInTheDocument();
+      expect(screen.queryByText('Please agree to the terms and cancellation policy')).not.toBeInTheDocument();
     });
   });
 

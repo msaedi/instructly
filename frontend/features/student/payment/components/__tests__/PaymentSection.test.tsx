@@ -95,6 +95,13 @@ let latestPaymentProcessingProps:
     }
   | null = null;
 
+let latestPaymentSuccessProps:
+  | {
+      confirmationNumber: string;
+      cardLast4?: string;
+    }
+  | null = null;
+
 jest.mock('../PaymentConfirmation', () => {
   return function MockPaymentConfirmation({
     booking,
@@ -176,6 +183,18 @@ jest.mock('../PaymentConfirmation', () => {
         {onClearFloorViolation && <button onClick={onClearFloorViolation}>Clear Floor Violation</button>}
         {onBookingUpdate && <button onClick={() => onBookingUpdate((prev) => ({ ...prev, duration: 90, instructorId: '' }))}>Update Booking Clear Instructor</button>}
         {onBookingUpdate && <button onClick={() => onBookingUpdate((prev) => ({ ...prev, bookingId: '', instructorId: '' }))}>Clear Booking Identity</button>}
+        {onBookingUpdate && (
+          <button
+            onClick={() =>
+              onBookingUpdate((prev) => ({
+                ...prev,
+                duration: 'invalid-duration' as unknown as number,
+              }))
+            }
+          >
+            Invalidate Duration
+          </button>
+        )}
       </div>
     );
   };
@@ -195,7 +214,14 @@ jest.mock('../PaymentProcessing', () => {
 });
 
 jest.mock('../PaymentSuccess', () => {
-  return function MockPaymentSuccess({ confirmationNumber }: { confirmationNumber: string }) {
+  return function MockPaymentSuccess({
+    confirmationNumber,
+    cardLast4,
+  }: {
+    confirmationNumber: string;
+    cardLast4?: string;
+  }) {
+    latestPaymentSuccessProps = { confirmationNumber, ...(cardLast4 ? { cardLast4 } : {}) };
     return <div data-testid="payment-success">Success! Confirmation: {confirmationNumber}</div>;
   };
 });
@@ -259,6 +285,7 @@ describe('PaymentSection', () => {
     jest.clearAllMocks();
     latestPaymentConfirmationProps = null;
     latestPaymentProcessingProps = null;
+    latestPaymentSuccessProps = null;
 
     // Default mock implementations
     useCreateBookingMock.mockReturnValue({
@@ -12662,6 +12689,248 @@ describe('PaymentSection', () => {
           selected_duration: 90,
         });
       });
+    });
+
+    it('keeps fallback pricing fields when refreshed booking details omit or invalidate them', async () => {
+      const { fetchBookingDetails } = jest.requireMock('@/src/api/services/bookings') as {
+        fetchBookingDetails: jest.Mock;
+      };
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep: jest.fn(),
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      fetchBookingDetails.mockResolvedValue({
+        id: 'booking-123',
+        instructor_id: 'instructor-456',
+        instructor: { first_name: 'John', last_initial: 'D' },
+        booking_date: '2025-02-01',
+        start_time: '10:00',
+        end_time: '11:00',
+        duration_minutes: 0,
+        hourly_rate: 'not-a-number',
+        total_price: 'still-not-a-number',
+        meeting_location: '',
+      });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Refresh Order'));
+
+      await waitFor(() => {
+        expect(fetchBookingDetails).toHaveBeenCalledWith('booking-123');
+        expect(latestPaymentConfirmationProps?.booking).toMatchObject({
+          basePrice: 100,
+          totalAmount: 115,
+          duration: 60,
+          location: '123 Main St, NYC',
+        });
+      });
+    });
+
+    it('renders confirmation flow cleanly in production mode', async () => {
+      const previousEnv = process.env;
+      process.env = { ...previousEnv, NODE_ENV: 'production' };
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep: jest.fn(),
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      try {
+        render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+        await waitFor(() => {
+          expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+        });
+      } finally {
+        process.env = previousEnv;
+      }
+    });
+  });
+
+  describe('targeted branch coverage', () => {
+    it('derives preview duration from end time when metadata duration is an invalid string', async () => {
+      const requestPricingPreview = jest.fn();
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep: jest.fn(),
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+      usePricingPreviewControllerMock.mockReturnValue({
+        preview: {
+          base_price_cents: 10000,
+          student_fee_cents: 1500,
+          student_pay_cents: 11500,
+          credit_applied_cents: 0,
+          line_items: [],
+        },
+        error: null,
+        loading: false,
+        applyCredit: jest.fn(),
+        requestPricingPreview,
+        lastAppliedCreditCents: 0,
+      });
+
+      render(
+        <PaymentSection
+          {...defaultProps}
+          bookingData={{
+            ...mockBookingData,
+            duration: undefined as unknown as number,
+            metadata: { serviceId: 'service-789', duration: 'not-a-number' },
+          }}
+        />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      expect(requestPricingPreview).not.toHaveBeenCalled();
+    });
+
+    it('skips credit-storage persistence branches when quote selection is unavailable', async () => {
+      const applyCredit = jest.fn().mockResolvedValue({ credit_applied_cents: 2500 });
+      const selectPaymentMethod = jest.fn();
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep: jest.fn(),
+        selectPaymentMethod,
+        reset: jest.fn(),
+      });
+
+      usePricingPreviewControllerMock.mockReturnValue({
+        preview: {
+          base_price_cents: 10000,
+          student_fee_cents: 1500,
+          student_pay_cents: 11500,
+          credit_applied_cents: 0,
+          line_items: [],
+        },
+        error: null,
+        loading: false,
+        applyCredit,
+        requestPricingPreview: jest.fn(),
+        lastAppliedCreditCents: 0,
+      });
+
+      render(
+        <PaymentSection
+          {...defaultProps}
+          bookingData={{
+            ...mockBookingData,
+            instructorId: null as unknown as string,
+            metadata: {},
+          }}
+        />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Toggle Credits'));
+      fireEvent.click(screen.getByText('Change Credit Amount'));
+      fireEvent.click(screen.getByText('Collapse Credits'));
+
+      await waitFor(() => {
+        expect(applyCredit).toHaveBeenCalledWith(2500, undefined);
+      });
+      expect(selectPaymentMethod).toHaveBeenCalled();
+    });
+
+    it('falls back to generic handling when checkout rejection has no message field', async () => {
+      const goToStep = jest.fn();
+      const onError = jest.fn();
+      const selectPaymentMethod = jest.fn();
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep,
+        selectPaymentMethod,
+        reset: jest.fn(),
+      });
+
+      paymentServiceMock.createCheckout.mockRejectedValue({ code: 'missing-message' });
+
+      render(
+        <PaymentSection
+          {...defaultProps}
+          bookingData={{
+            ...mockBookingData,
+            totalAmount: 25,
+          }}
+          onError={onError}
+          showPaymentMethodInline
+        />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Select Card'));
+      await waitFor(() => {
+        expect(selectPaymentMethod).toHaveBeenLastCalledWith('CREDIT_CARD', 'card-1', undefined);
+      });
+      fireEvent.click(screen.getByText('Confirm Payment'));
+
+      await waitFor(() => {
+        expect(paymentServiceMock.createCheckout).toHaveBeenCalled();
+      });
+      expect(goToStep).toHaveBeenCalledWith(PaymentStep.ERROR);
+      expect(onError).toHaveBeenCalledWith({ code: 'missing-message' });
+    });
+
+    it('renders success without card metadata for credits-only completions', async () => {
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.SUCCESS,
+        paymentMethod: PaymentMethod.CREDITS,
+        creditsToUse: 115,
+        error: null,
+        goToStep: jest.fn(),
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-success')).toBeInTheDocument();
+      });
+
+      expect(latestPaymentSuccessProps).toEqual({ confirmationNumber: '' });
     });
   });
 });

@@ -10904,5 +10904,218 @@ describe('PaymentConfirmation', () => {
         screen.queryByText('You already have a booking scheduled at this time.'),
       ).not.toBeInTheDocument();
     });
+
+    it('falls back from an unavailable online modality to the first teaching location', async () => {
+      const onBookingUpdate = jest.fn();
+
+      fetchInstructorProfileMock.mockResolvedValue({
+        services: [
+          {
+            id: 'svc-studio',
+            skill: 'Piano',
+            hourly_rate: 100,
+            duration_options: [60],
+            offers_online: false,
+            offers_travel: false,
+            offers_at_location: true,
+          },
+        ],
+        preferred_teaching_locations: [
+          { address: 'Studio North' },
+          { address: 'Studio South', label: 'South Room' },
+        ],
+      });
+
+      const booking = {
+        ...mockBooking,
+        location: 'Online',
+        metadata: {
+          serviceId: 'svc-studio',
+          location_type: 'online',
+        },
+      };
+
+      await renderWithConflictCheck(
+        <PaymentConfirmation
+          {...defaultProps}
+          booking={booking}
+          onBookingUpdate={onBookingUpdate}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(onBookingUpdate).toHaveBeenCalled();
+      });
+
+      const updater = onBookingUpdate.mock.calls.at(-1)?.[0] as
+        | ((prev: BookingPayment) => BookingPayment & { address?: { fullAddress: string } })
+        | undefined;
+      const next = updater?.(
+        {
+          ...booking,
+          metadata: undefined as unknown as Record<string, unknown>,
+        } as BookingPayment & { metadata?: Record<string, unknown> }
+      );
+
+      expect(next).toMatchObject({
+        location: 'Studio North',
+        address: { fullAddress: 'Studio North' },
+        metadata: expect.objectContaining({
+          modality: 'in_person',
+          location_type: 'instructor_location',
+        }),
+      });
+      expect(next?.address).not.toHaveProperty('lat');
+      expect(next?.address).not.toHaveProperty('lng');
+      expect(next?.address).not.toHaveProperty('placeId');
+    });
+
+    it('renders cleanly in production mode without development-only logging branches', async () => {
+      const previousEnv = process.env;
+      process.env = { ...previousEnv, NODE_ENV: 'production' };
+
+      try {
+        await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
+
+        expect(screen.getByText('Confirm details')).toBeInTheDocument();
+        expect(screen.getByText('Book now!')).toBeInTheDocument();
+      } finally {
+        process.env = previousEnv;
+      }
+    });
+
+    it('keeps the CTA disabled while service area coverage is still loading for travel locations', async () => {
+      const { useServiceAreaCheck } = jest.requireMock('@/hooks/useServiceAreaCheck') as {
+        useServiceAreaCheck: jest.Mock;
+      };
+      useServiceAreaCheck.mockReturnValue({
+        data: null,
+        isLoading: true,
+      });
+
+      fetchInstructorProfileMock.mockResolvedValue({
+        services: [
+          {
+            id: 'svc-travel-only',
+            skill: 'Piano',
+            hourly_rate: 100,
+            duration_options: [60],
+            offers_online: false,
+            offers_travel: true,
+            offers_at_location: false,
+          },
+        ],
+        preferred_teaching_locations: [],
+        preferred_public_spaces: [],
+      });
+
+      const booking = {
+        ...mockBooking,
+        location: '123 Main St, New York, NY 10001',
+        metadata: { serviceId: 'svc-travel-only', location_type: 'student_location' },
+      };
+
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} booking={booking} />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('booking-confirm-cta')).toBeDisabled();
+      });
+    });
+
+    it('passes an in-person fallback service into the reschedule modal when service metadata is missing', async () => {
+      window.sessionStorage.removeItem('serviceId');
+      fetchInstructorProfileMock.mockResolvedValue({
+        services: null,
+        preferred_teaching_locations: [],
+        preferred_public_spaces: [],
+      });
+
+      const booking = {
+        ...mockBooking,
+        location: '456 Broadway, New York, NY 10013',
+        metadata: undefined as unknown as Record<string, unknown>,
+      };
+
+      await renderWithConflictCheck(
+        <PaymentConfirmation {...defaultProps} booking={booking} />,
+      );
+
+      fireEvent.click(screen.getByText('Edit lesson'));
+
+      await waitFor(() => {
+        expect(latestTimeSelectionModalProps).toMatchObject({
+          serviceId: undefined,
+          instructor: {
+            services: [
+              expect.objectContaining({
+                location_types: expect.arrayContaining(['in_person']),
+              }),
+            ],
+          },
+        });
+      });
+    });
+
+    it('reuses retry cache entries that only have coords and a place id', async () => {
+      const user = setupUser();
+
+      fetchInstructorProfileMock.mockResolvedValue({
+        services: [
+          {
+            id: 'svc-travel',
+            skill: 'Piano',
+            hourly_rate: 100,
+            duration_options: [60],
+            offers_online: false,
+            offers_travel: true,
+            offers_at_location: false,
+          },
+        ],
+        preferred_teaching_locations: [],
+        preferred_public_spaces: [],
+      });
+
+      getPlaceDetailsMock
+        .mockResolvedValueOnce({ data: null, error: 'wrong provider' })
+        .mockResolvedValueOnce({
+          data: {
+            result: {
+              latitude: 40.7,
+              longitude: -73.95,
+              place_id: 'retry-place-id',
+            },
+          },
+          error: null,
+        })
+        .mockResolvedValueOnce({ data: null, error: 'wrong provider again' });
+
+      const booking = {
+        ...mockBooking,
+        location: '',
+        metadata: { serviceId: 'svc-travel', location_type: 'student_location' },
+      };
+
+      render(<PaymentConfirmation {...defaultProps} booking={booking} />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('select-suggestion-provider-prefix')).toBeInTheDocument();
+        expect(screen.getByTestId('select-suggestion-provider-prefix-mismatch')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByTestId('select-suggestion-provider-prefix'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('addr-street')).toHaveValue('300 Retry Rd');
+        expect(screen.getByTestId('addr-city')).toHaveValue('Brooklyn');
+      });
+
+      await user.click(screen.getByTestId('select-suggestion-provider-prefix-mismatch'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('addr-street')).toHaveValue('300 Retry Rd');
+        expect(screen.getByTestId('addr-city')).toHaveValue('Brooklyn');
+      });
+      expect(getPlaceDetailsMock).toHaveBeenCalledTimes(3);
+    });
   });
 });

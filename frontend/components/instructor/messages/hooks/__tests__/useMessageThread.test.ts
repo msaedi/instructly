@@ -119,6 +119,10 @@ function createWrapper() {
 
 // Dynamic import after mocking
 const { useMessageThread } = require('../useMessageThread') as typeof import('../useMessageThread');
+const mockedThreadUtils = jest.requireMock('../../utils') as {
+  computeUnreadFromMessages: jest.Mock;
+  formatRelativeTimestamp: jest.Mock;
+};
 
 describe('useMessageThread', () => {
   beforeEach(() => {
@@ -130,6 +134,8 @@ describe('useMessageThread', () => {
     });
     mockMarkMessagesAsReadImperative.mockResolvedValue({ marked: 1 });
     mockSendConversationMessage.mockResolvedValue({ id: 'server-msg-001' });
+    mockedThreadUtils.computeUnreadFromMessages.mockReturnValue(0);
+    mockedThreadUtils.formatRelativeTimestamp.mockReturnValue('Just now');
   });
 
   // -------------------------------------------------------------------
@@ -202,6 +208,35 @@ describe('useMessageThread', () => {
         result.current.setThreadMessagesForDisplay('', 'inbox');
       });
 
+      expect(result.current.threadMessages).toEqual([]);
+    });
+
+    it('falls back to empty arrays when switching display modes for a missing thread', () => {
+      const { Wrapper } = createWrapper();
+      const setConversations = jest.fn();
+      const { result } = renderHook(
+        () =>
+          useMessageThread({
+            currentUserId: 'instr-001',
+            conversations: [],
+            setConversations,
+          }),
+        { wrapper: Wrapper }
+      );
+
+      act(() => {
+        result.current.setThreadMessagesForDisplay('missing-thread', 'archived');
+      });
+      expect(result.current.threadMessages).toEqual([]);
+
+      act(() => {
+        result.current.setThreadMessagesForDisplay('missing-thread', 'trash');
+      });
+      expect(result.current.threadMessages).toEqual([]);
+
+      act(() => {
+        result.current.setThreadMessagesForDisplay('missing-thread', 'inbox');
+      });
       expect(result.current.threadMessages).toEqual([]);
     });
   });
@@ -847,6 +882,68 @@ describe('useMessageThread', () => {
       expect(capturedConvList.length).toBeGreaterThanOrEqual(1);
       expect(capturedConvList.find((c) => c.id === 'new-conv')).toBeDefined();
     });
+
+    it('builds fallback metadata when an attachment-only compose message creates a new thread', async () => {
+      const { Wrapper } = createWrapper();
+      const recipient = {
+        ...makeConversation({ id: 'fallback-conv' }),
+        name: undefined,
+        avatar: undefined,
+        bookingIds: undefined,
+        primaryBookingId: undefined,
+        studentId: undefined,
+        instructorId: undefined,
+      } as unknown as ConversationEntry;
+      let capturedConvList: ConversationEntry[] = [];
+      const setConversations = jest.fn((updater) => {
+        if (typeof updater === 'function') {
+          capturedConvList = updater([]) as ConversationEntry[];
+        }
+      });
+      const { result } = renderHook(
+        () =>
+          useMessageThread({
+            currentUserId: 'instr-001',
+            conversations: [],
+            setConversations,
+          }),
+        { wrapper: Wrapper }
+      );
+
+      const onSuccess = jest.fn();
+      const file = new File(['attachment'], 'sheet.pdf', { type: 'application/pdf' });
+
+      await act(async () => {
+        await result.current.handleSendMessage({
+          selectedChat: '__compose__',
+          messageText: '',
+          pendingAttachments: [file],
+          composeRecipient: recipient,
+          conversations: [],
+          getPrimaryBookingId: () => null,
+          onSuccess,
+        });
+      });
+
+      expect(mockSendConversationMessage).toHaveBeenCalledWith(
+        'fallback-conv',
+        '[Attachment] sheet.pdf',
+        undefined
+      );
+      expect(onSuccess).toHaveBeenCalledWith('fallback-conv', true);
+      expect(capturedConvList).toContainEqual(
+        expect.objectContaining({
+          id: 'fallback-conv',
+          name: 'Conversation',
+          lastMessage: '',
+          avatar: '??',
+          bookingIds: [],
+          primaryBookingId: null,
+          studentId: null,
+          instructorId: 'instr-001',
+        })
+      );
+    });
   });
 
   // -------------------------------------------------------------------
@@ -899,6 +996,51 @@ describe('useMessageThread', () => {
         (m) => m.id === 'msg-to-update'
       );
       expect(threadMsg?.text).toBe('Updated text');
+    });
+
+    it('updates archived and trash copies when a message exists outside the active thread', () => {
+      const { Wrapper } = createWrapper();
+      const conversation = makeConversation();
+      const setConversations = jest.fn();
+      const { result } = renderHook(
+        () =>
+          useMessageThread({
+            currentUserId: 'instr-001',
+            conversations: [conversation],
+            setConversations,
+          }),
+        { wrapper: Wrapper }
+      );
+
+      act(() => {
+        result.current.handleSSEMessage(
+          {
+            id: 'msg-archived',
+            content: 'Archive me',
+            sender_id: 'student-001',
+            created_at: '2024-01-02T12:00:00Z',
+            is_mine: false,
+          } as SSEMessageWithOwnership,
+          'conv-001',
+          conversation
+        );
+      });
+
+      act(() => {
+        result.current.handleArchiveConversation('conv-001');
+        result.current.handleDeleteConversation('conv-001');
+      });
+
+      act(() => {
+        result.current.updateThreadMessage('msg-archived', (msg) => ({
+          ...msg,
+          text: 'Updated in trash',
+        }));
+      });
+
+      expect(
+        result.current.trashMessagesByThread['conv-001']?.find((message) => message.id === 'msg-archived')?.text
+      ).toBe('Updated in trash');
     });
   });
 
@@ -1035,6 +1177,39 @@ describe('useMessageThread', () => {
           (call[0] as Record<string, string>)['conversation_id'] === 'conv-001'
       );
       expect(callsForConv.length).toBe(1);
+    });
+
+    it('retries first-view read marking after the initial request fails', async () => {
+      mockMarkMessagesAsReadImperative
+        .mockRejectedValueOnce(new Error('first read failed'))
+        .mockResolvedValue({ marked: 1 });
+      const { Wrapper } = createWrapper();
+      const conversation = makeConversation();
+      const setConversations = jest.fn();
+      const { result } = renderHook(
+        () =>
+          useMessageThread({
+            currentUserId: 'instr-001',
+            conversations: [conversation],
+            setConversations,
+          }),
+        { wrapper: Wrapper }
+      );
+
+      act(() => {
+        result.current.loadThreadMessages('conv-001', conversation, 'inbox');
+      });
+      await act(async () => {});
+
+      act(() => {
+        result.current.loadThreadMessages('conv-001', conversation, 'inbox');
+      });
+
+      const callsForConv = mockMarkMessagesAsReadImperative.mock.calls.filter(
+        (call: unknown[]) =>
+          (call[0] as Record<string, string>)['conversation_id'] === 'conv-001'
+      );
+      expect(callsForConv.length).toBe(2);
     });
   });
 

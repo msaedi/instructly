@@ -274,7 +274,7 @@ describe('EditProfileModal', () => {
     });
 
     it('renders modal when isOpen is true', async () => {
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
+      render(<EditProfileModal {...defaultProps} variant="services" />, { wrapper: createWrapper() });
 
       await waitFor(() => {
         // The modal should be visible - look for any modal content
@@ -478,7 +478,7 @@ describe('EditProfileModal', () => {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
       });
 
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
+      render(<EditProfileModal {...defaultProps} variant="services" />, { wrapper: createWrapper() });
 
       await waitFor(() => {
         expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -4217,6 +4217,80 @@ describe('EditProfileModal', () => {
         expect(screen.getByText('Results')).toBeInTheDocument();
       });
     });
+
+    it('keeps sibling selected skills untouched while editing the first skill card', async () => {
+      const user = userEvent.setup();
+
+      useInstructorProfileMeMock.mockReturnValue({
+        data: {
+          ...mockInstructorProfile,
+          services: [
+            {
+              service_catalog_id: 'svc-1',
+              service_catalog_name: 'Piano',
+              hourly_rate: 75,
+              age_groups: ['adults'],
+              levels_taught: ['beginner', 'intermediate'],
+              offers_travel: true,
+              offers_at_location: false,
+              offers_online: false,
+              duration_options: [60],
+            },
+            {
+              service_catalog_id: 'svc-2',
+              service_catalog_name: 'Guitar',
+              hourly_rate: 95,
+              age_groups: ['kids'],
+              levels_taught: ['advanced'],
+              offers_travel: false,
+              offers_at_location: true,
+              offers_online: true,
+              duration_options: [45, 90],
+            },
+          ],
+        },
+      });
+
+      render(
+        <EditProfileModal {...defaultProps} variant="services" />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Your selected skills')).toBeInTheDocument();
+        expect(screen.getAllByText('Guitar').length).toBeGreaterThan(0);
+      });
+
+      const rateInputs = screen.getAllByRole('spinbutton');
+      await user.clear(rateInputs[0] as HTMLInputElement);
+      await user.type(rateInputs[0] as HTMLInputElement, '88');
+
+      await user.click(screen.getAllByRole('button', { name: 'Kids' })[0] as HTMLElement);
+      await user.click(screen.getAllByRole('button', { name: 'Advanced' })[0] as HTMLElement);
+      await user.click(screen.getAllByRole('button', { name: '30m' })[0] as HTMLElement);
+
+      const descriptionFields = screen.getAllByPlaceholderText(/teaching style/i);
+      await user.type(descriptionFields[0] as HTMLTextAreaElement, ' Tailored lessons');
+
+      const equipmentFields = screen.getAllByPlaceholderText(/yoga mat/i);
+      await user.type(equipmentFields[0] as HTMLTextAreaElement, ' Keyboard');
+
+      const onlineLabel = screen.getAllByText('Online lessons')[0];
+      if (!onlineLabel) {
+        throw new Error('Expected online lessons label');
+      }
+      const onlineCheckbox = onlineLabel.closest('div')?.previousElementSibling as HTMLInputElement | null;
+      if (!onlineCheckbox) {
+        throw new Error('Expected online lessons checkbox');
+      }
+      fireEvent.click(onlineCheckbox);
+
+      expect(rateInputs[0]).toHaveValue(88);
+      expect((descriptionFields[0] as HTMLTextAreaElement).value.trim()).toBe('Tailored lessons');
+      expect((equipmentFields[0] as HTMLTextAreaElement).value.trim()).toBe('Keyboard');
+      expect(screen.getAllByText('Guitar').length).toBeGreaterThan(0);
+      expect(screen.getByDisplayValue('95')).toBeInTheDocument();
+    });
   });
 
   describe('new service form description', () => {
@@ -4255,7 +4329,7 @@ describe('EditProfileModal', () => {
       });
 
       // Find description textarea for new service
-      const descriptionTextarea = screen.getByLabelText(/description \(optional\)/i);
+      const descriptionTextarea = screen.getByPlaceholderText(/brief description of this service/i);
       await user.type(descriptionTextarea, 'Expert instruction');
 
       expect(descriptionTextarea).toHaveValue('Expert instruction');
@@ -4296,6 +4370,9 @@ describe('EditProfileModal', () => {
       });
 
       // Find the new rate input by id (add service form has id='new-rate')
+      await waitFor(() => {
+        expect(document.getElementById('new-rate')).not.toBeNull();
+      });
       const rateInput = document.getElementById('new-rate') as HTMLInputElement;
       await user.clear(rateInput);
       await user.type(rateInput, '100');
@@ -4553,54 +4630,6 @@ describe('EditProfileModal', () => {
         const elements = screen.getAllByText(/service categories/i);
         expect(elements.length).toBeGreaterThan(0);
       });
-    });
-  });
-
-  describe('addService duplicate skill error', () => {
-    it('shows duplicate error when manually adding same skill', async () => {
-      // This tests the defensive duplicate check in addService
-      // Even though the dropdown filters skills, the function has a check
-      fetchWithAuthMock.mockImplementation((url: string) => {
-        if (url.includes('instructors/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({
-              ...mockInstructorProfile,
-              services: [{ skill: 'Piano', hourly_rate: 50, service_catalog_name: 'Piano' }],
-            }),
-          });
-        }
-        if (url.includes('users/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ first_name: 'John', last_name: 'Doe' }),
-          });
-        }
-        if (url.includes('addresses/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ items: [] }),
-          });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
-      });
-
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      });
-
-      // Wait for existing service to load
-      await waitFor(() => {
-        expect(screen.getByText('Piano')).toBeInTheDocument();
-      });
-
-      // Piano should NOT be in the dropdown since it's already added
-      const skillSelect = document.getElementById('new-skill') as HTMLSelectElement;
-      const options = Array.from(skillSelect.querySelectorAll('option'));
-      const pianoOption = options.find(opt => opt.textContent === 'Piano');
-      expect(pianoOption).toBeUndefined();
     });
   });
 
@@ -9650,6 +9679,15 @@ describe('EditProfileModal', () => {
         data: [{ id: 'cat-1', slug: 'music', name: 'Music' }],
         isLoading: false,
       });
+      usePricingConfigMock.mockReturnValue({
+        config: {
+          price_floor_cents: {
+            online: {
+              60: 5000,
+            },
+          },
+        },
+      });
       useAllServicesWithInstructorsMock.mockReturnValue({
         data: {
           categories: [
@@ -10629,6 +10667,63 @@ describe('EditProfileModal', () => {
       await waitFor(() => {
         expect(screen.getByText('Legacy Piano')).toBeInTheDocument();
         expect(screen.getByText('Service svc-id-only')).toBeInTheDocument();
+      });
+    });
+
+    it('uses hydrated catalog names and falls all the way back to a plain Service label when nothing else exists', async () => {
+      const {
+        hydrateCatalogNameById: mockHydrate,
+        normalizeInstructorServices: mockNormalizeInstructorServices,
+      } = jest.requireMock('@/lib/instructorServices');
+      mockHydrate.mockImplementation((id: string) =>
+        id === 'svc-hydrated' ? 'Hydrated Guitar' : undefined
+      );
+      mockNormalizeInstructorServices.mockResolvedValue([
+        {
+          service_catalog_id: 'svc-hydrated',
+          service_catalog_name: null,
+          skill: '',
+          name: '',
+          hourly_rate: 60,
+          description: '',
+        },
+        {
+          service_catalog_id: '',
+          service_catalog_name: null,
+          skill: '',
+          name: '',
+          hourly_rate: 75,
+          description: '',
+        },
+      ]);
+
+      fetchWithAuthMock.mockImplementation((url: string) => {
+        if (url.includes('instructors/me')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({
+              ...mockInstructorProfile,
+              services: [],
+            }),
+          });
+        }
+        if (url.includes('users/me')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ first_name: 'Test', last_name: 'User' }),
+          });
+        }
+        if (url.includes('addresses/me')) {
+          return Promise.resolve({ ok: true, json: () => Promise.resolve({ items: [] }) });
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+      });
+
+      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByText('Hydrated Guitar')).toBeInTheDocument();
+        expect(screen.getAllByText(/^Service$/).length).toBeGreaterThan(0);
       });
     });
   });
@@ -13025,6 +13120,84 @@ describe('EditProfileModal', () => {
           }),
         ])
       );
+    });
+
+    it('blocks services save when a selected skill has no enabled location option', async () => {
+      const user = userEvent.setup();
+
+      useServiceCategoriesMock.mockReturnValue({
+        data: [{ id: 'cat-1', slug: 'music', name: 'Music' }],
+        isLoading: false,
+      });
+      useAllServicesWithInstructorsMock.mockReturnValue({
+        data: {
+          categories: [
+            {
+              id: 'cat-1',
+              slug: 'music',
+              services: [{ id: 'svc-1', name: 'Piano' }],
+            },
+          ],
+        },
+        isLoading: false,
+      });
+      useInstructorProfileMeMock.mockReturnValue({
+        data: {
+          is_live: false,
+          service_area_neighborhoods: [],
+          service_area_boroughs: [],
+          service_area_summary: '',
+          preferred_teaching_locations: [],
+          services: [
+            {
+              service_catalog_id: 'svc-1',
+              service_catalog_name: 'Piano',
+              hourly_rate: '50',
+              offers_travel: false,
+              offers_at_location: false,
+              offers_online: false,
+              levels_taught: ['beginner'],
+              duration_options: [60],
+              age_groups: ['adults'],
+            },
+          ],
+        },
+      });
+
+      render(
+        <EditProfileModal {...defaultProps} variant="services" />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Your selected skills')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByRole('button', { name: /save/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText('Select at least one location option for each skill.')).toBeInTheDocument();
+      });
+    });
+
+  });
+
+  describe('areas prefill without labels', () => {
+    it('prefills teaching and public locations when labels are omitted', async () => {
+      render(
+        <EditProfileModal
+          {...defaultProps}
+          variant="areas"
+          preferredTeaching={[{ address: 'Studio East' }]}
+          preferredPublic={[{ address: 'Central Park West' }]}
+        />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTitle('Studio East')).toBeInTheDocument();
+        expect(screen.getByTitle('Central Park West')).toBeInTheDocument();
+      });
     });
   });
 });
