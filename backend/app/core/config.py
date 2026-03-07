@@ -965,6 +965,11 @@ class Settings(BaseSettings):
         default=SecretStr(""),
         description="Stripe secret key for backend API calls",
     )
+    stripe_identity_restricted_key: SecretStr | None = Field(
+        default=None,
+        alias="STRIPE_IDENTITY_RESTRICTED_KEY",
+        description=("Restricted API key for accessing sensitive Identity verification data (DOB)"),
+    )
 
     # Webhook secrets for local dev and deployed environments
     stripe_webhook_secret: SecretStr = Field(

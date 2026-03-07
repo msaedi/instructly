@@ -11,6 +11,7 @@ import logging
 from types import SimpleNamespace
 from unittest.mock import ANY, MagicMock, patch
 
+from pydantic import SecretStr
 import pytest
 from sqlalchemy.orm import Session
 import stripe
@@ -1099,6 +1100,114 @@ class TestStripeService:
         parsed = stripe_service._parse_identity_dob({"day": "15", "month": "6", "year": "1990"})
 
         assert parsed == date(1990, 6, 15)
+
+    @patch("stripe.identity.VerificationSession.retrieve")
+    def test_persist_verified_identity_uses_restricted_key_for_retrieve(
+        self,
+        mock_retrieve,
+        stripe_service: StripeService,
+        test_instructor: tuple,
+        monkeypatch,
+    ) -> None:
+        """When configured, Stripe Identity retrieve should use the restricted key."""
+        user, profile, _ = test_instructor
+        monkeypatch.setattr(
+            settings,
+            "stripe_identity_restricted_key",
+            SecretStr("rk_test_identity"),
+            raising=False,
+        )
+        mock_retrieve.return_value = SimpleNamespace(
+            id="vs_restricted",
+            verified_outputs=SimpleNamespace(
+                first_name="Test",
+                last_name="Instructor",
+                dob=SimpleNamespace(day=15, month=6, year=1990),
+            ),
+        )
+
+        stripe_service._persist_verified_identity(
+            profile_id=profile.id,
+            user_id=user.id,
+            session={"id": "vs_restricted"},
+            session_id="vs_restricted",
+            refresh_session=True,
+        )
+
+        mock_retrieve.assert_called_once_with(
+            "vs_restricted",
+            expand=["verified_outputs", "verified_outputs.dob"],
+            api_key="rk_test_identity",
+        )
+
+    @patch("stripe.identity.VerificationSession.retrieve")
+    def test_persist_verified_identity_falls_back_to_default_key(
+        self,
+        mock_retrieve,
+        stripe_service: StripeService,
+        test_instructor: tuple,
+        monkeypatch,
+    ) -> None:
+        """Without a restricted key, Stripe Identity retrieve should use the default key."""
+        user, profile, _ = test_instructor
+        monkeypatch.setattr(settings, "stripe_identity_restricted_key", None, raising=False)
+        mock_retrieve.return_value = SimpleNamespace(
+            id="vs_default_key",
+            verified_outputs=SimpleNamespace(
+                first_name="Test",
+                last_name="Instructor",
+            ),
+        )
+
+        stripe_service._persist_verified_identity(
+            profile_id=profile.id,
+            user_id=user.id,
+            session={"id": "vs_default_key"},
+            session_id="vs_default_key",
+            refresh_session=True,
+        )
+
+        mock_retrieve.assert_called_once_with(
+            "vs_default_key",
+            expand=["verified_outputs", "verified_outputs.dob"],
+            api_key=None,
+        )
+
+    @patch("stripe.identity.VerificationSession.retrieve")
+    def test_persist_verified_identity_stores_dob_from_restricted_key_response(
+        self,
+        mock_retrieve,
+        stripe_service: StripeService,
+        test_instructor: tuple,
+        monkeypatch,
+    ) -> None:
+        """DOB from verified outputs should be stored when Stripe returns it."""
+        user, profile, _ = test_instructor
+        monkeypatch.setattr(
+            settings,
+            "stripe_identity_restricted_key",
+            SecretStr("rk_test_identity"),
+            raising=False,
+        )
+        mock_retrieve.return_value = SimpleNamespace(
+            id="vs_store_dob",
+            verified_outputs=SimpleNamespace(
+                first_name="Test",
+                last_name="Instructor",
+                dob=SimpleNamespace(day=15, month=6, year=1990),
+            ),
+        )
+
+        stripe_service._persist_verified_identity(
+            profile_id=profile.id,
+            user_id=user.id,
+            session={"id": "vs_store_dob"},
+            session_id="vs_store_dob",
+            refresh_session=True,
+        )
+
+        updated_profile = stripe_service.instructor_repository.get_by_user_id(user.id)
+        assert updated_profile.verified_dob == date(1990, 6, 15)
 
     @patch("stripe.identity.VerificationSession.retrieve")
     def test_refresh_instructor_identity_falls_back_when_verified_persistence_fails(

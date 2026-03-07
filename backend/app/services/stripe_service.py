@@ -199,6 +199,17 @@ class StripeService(BaseService):
             return key in obj
         return hasattr(obj, key)
 
+    @staticmethod
+    def _identity_retrieve_options() -> Dict[str, Any]:
+        """Return Stripe Identity session retrieve options, including sensitive expansions."""
+        api_key = None
+        if settings.stripe_identity_restricted_key:
+            api_key = settings.stripe_identity_restricted_key.get_secret_value()
+        return {
+            "expand": ["verified_outputs", "verified_outputs.dob"],
+            "api_key": api_key,
+        }
+
     def _parse_identity_dob(self, dob_value: Any) -> Optional[date]:
         """Convert Stripe DOB payloads into a Python date."""
         if not dob_value:
@@ -238,7 +249,7 @@ class StripeService(BaseService):
             try:
                 resolved_session = cast(Any, stripe.identity.VerificationSession).retrieve(
                     resolved_session_id,
-                    expand=["verified_outputs"],
+                    **self._identity_retrieve_options(),
                 )
             except stripe.StripeError as exc:
                 self.logger.warning(
@@ -519,7 +530,7 @@ class StripeService(BaseService):
         try:
             session = cast(Any, stripe.identity.VerificationSession).retrieve(
                 session_id,
-                expand=["verified_outputs"],
+                **self._identity_retrieve_options(),
             )
         except stripe.StripeError as exc:
             self.logger.error(
@@ -2037,7 +2048,7 @@ class StripeService(BaseService):
                 try:
                     existing_session = cast(Any, stripe.identity.VerificationSession).retrieve(
                         existing_session_id,
-                        expand=["verified_outputs"],
+                        **self._identity_retrieve_options(),
                     )
                 except stripe.StripeError as exc:
                     self.logger.error(
