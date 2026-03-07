@@ -61,6 +61,7 @@ def upgrade() -> None:
         ),
         sa.Column("bgc_submitted_first_name", sa.String(length=100), nullable=True),
         sa.Column("bgc_submitted_last_name", sa.String(length=100), nullable=True),
+        sa.Column("bgc_submitted_dob", sa.Date(), nullable=True),
         sa.Column("background_check_object_key", sa.String(512), nullable=True),
         sa.Column("background_check_uploaded_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("onboarding_completed_at", sa.DateTime(timezone=True), nullable=True),

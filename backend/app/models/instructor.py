@@ -112,6 +112,7 @@ class InstructorProfile(Base):
     bgc_name_mismatch = Column(Boolean, nullable=False, default=False, server_default="false")
     bgc_submitted_first_name = Column(String(100), nullable=True)
     bgc_submitted_last_name = Column(String(100), nullable=True)
+    bgc_submitted_dob = Column(Date, nullable=True)
     background_check_object_key = Column(String(512), nullable=True)
     background_check_uploaded_at = Column(DateTime(timezone=True), nullable=True)
     onboarding_completed_at = Column(DateTime(timezone=True), nullable=True)

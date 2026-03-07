@@ -869,6 +869,18 @@ function PreviewContent({
           Background check name mismatch detected. Review the case, then either clear the mismatch or reset the background check for a fresh run.
         </div>
       ) : null}
+      {(detail.verified_dob || detail.bgc_submitted_dob) ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <div>
+            <dt className="text-xs uppercase text-gray-400 dark:text-gray-300">Verified DOB</dt>
+            <dd>{detail.verified_dob || '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase text-gray-400 dark:text-gray-300">BGC Submitted DOB</dt>
+            <dd>{detail.bgc_submitted_dob || '—'}</dd>
+          </div>
+        </div>
+      ) : null}
       <div>
         <dt className="text-xs uppercase text-gray-400 dark:text-gray-300">Name</dt>
         <dd className="font-medium">{detail.name || '—'}</dd>

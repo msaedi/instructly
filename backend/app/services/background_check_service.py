@@ -221,6 +221,7 @@ class BackgroundCheckService(BaseService):
                 includes_canceled=False,
                 submitted_first_name=candidate_payload["first_name"],
                 submitted_last_name=candidate_payload["last_name"],
+                submitted_dob=profile.verified_dob,
             )
 
             from .instructor_lifecycle_service import InstructorLifecycleService

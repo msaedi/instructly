@@ -11,7 +11,7 @@ import asyncio
 import base64
 from collections import OrderedDict
 from collections.abc import Mapping
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import hashlib
 import hmac
 import json
@@ -357,22 +357,51 @@ async def _sync_candidate_identity_cross_check(
     candidate_first_name = clean_identity_value(candidate.get("first_name"))
     candidate_last_name = clean_identity_value(candidate.get("last_name"))
     verified_last_name = clean_identity_value(profile.verified_last_name)
-    comparison_completed = candidate_last_name is not None and verified_last_name is not None
+    name_comparison_completed = candidate_last_name is not None and verified_last_name is not None
+
+    # Parse candidate DOB (best-effort — ignore malformed values)
+    candidate_dob: date | None = None
+    raw_dob = candidate.get("dob")
+    if isinstance(raw_dob, str) and raw_dob.strip():
+        try:
+            candidate_dob = date.fromisoformat(raw_dob.strip())
+        except (ValueError, TypeError):
+            logger.debug("Ignoring unparseable candidate DOB for profile %s", profile_id)
+
+    verified_dob: date | None = getattr(profile, "verified_dob", None)
+    dob_comparison_completed = candidate_dob is not None and verified_dob is not None
 
     update_fields: dict[str, Any] = {}
     if candidate_first_name is not None:
         update_fields["bgc_submitted_first_name"] = candidate_first_name
     if candidate_last_name is not None:
         update_fields["bgc_submitted_last_name"] = candidate_last_name
-    if comparison_completed:
-        mismatch = normalize_name(candidate_last_name) != normalize_name(verified_last_name)
+    # Clear the invite-time snapshot when Checkr does not return a valid DOB,
+    # so admin review reflects the actual completed candidate payload.
+    update_fields["bgc_submitted_dob"] = candidate_dob
+
+    # Determine mismatch: true if any available comparison fails
+    any_comparison = name_comparison_completed or dob_comparison_completed
+    if any_comparison:
+        name_mismatch = (
+            normalize_name(candidate_last_name) != normalize_name(verified_last_name)
+            if name_comparison_completed
+            else False
+        )
+        dob_mismatch = candidate_dob != verified_dob if dob_comparison_completed else False
+        mismatch = name_mismatch or dob_mismatch
         update_fields["bgc_name_mismatch"] = mismatch
-        if mismatch:
+        if name_mismatch:
             logger.warning(
                 "Background check last-name mismatch for profile %s: checkr_last=%s verified_last=%s",
                 profile_id,
                 redact_name(candidate_last_name),
                 redact_name(verified_last_name),
+            )
+        if dob_mismatch:
+            logger.warning(
+                "Background check DOB mismatch for profile %s",
+                profile_id,
             )
 
     if not update_fields:
@@ -388,7 +417,7 @@ async def _sync_candidate_identity_cross_check(
         )
         return False
 
-    return comparison_completed
+    return any_comparison
 
 
 async def _process_checkr_payload(

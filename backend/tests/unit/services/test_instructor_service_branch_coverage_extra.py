@@ -121,6 +121,7 @@ def test_go_live_updates_existing_onboarding_profile_and_returns_profile():
         verified_dob=None,
         bgc_submitted_first_name=None,
         bgc_submitted_last_name=None,
+        bgc_submitted_dob=None,
     )
     lifecycle_cls.return_value.record_went_live.assert_called_once_with("user-1")
 

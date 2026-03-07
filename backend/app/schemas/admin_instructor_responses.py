@@ -1,6 +1,6 @@
 """Strict response schemas for admin instructor endpoints."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from ._strict_base import StrictModel
@@ -14,6 +14,8 @@ class AdminInstructorDetailResponse(StrictModel):
     email: str
     is_live: bool
     bgc_name_mismatch: bool = False
+    verified_dob: Optional[date] = None
+    bgc_submitted_dob: Optional[date] = None
     bgc_status: Optional[str] = None
     bgc_report_id: Optional[str] = None
     bgc_completed_at: Optional[datetime] = None

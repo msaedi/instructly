@@ -235,6 +235,8 @@ describe('AdminBGCReviewPage', () => {
       email: 'review@example.com',
       is_live: false,
       bgc_name_mismatch: false,
+      verified_dob: null,
+      bgc_submitted_dob: null,
       bgc_status: 'review',
       bgcIncludesCanceled: false,
       bgc_report_id: 'rpt_test123',
@@ -1004,5 +1006,43 @@ describe('AdminBGCReviewPage', () => {
     );
     await waitFor(() => expect(recheckButton).toBeDisabled());
     await waitFor(() => expect(recheckButton).toHaveAttribute('title', 'Try later'));
+  });
+
+  it('renders both DOB values in detail preview when present', async () => {
+    reviewDetail = {
+      ...reviewDetail,
+      verified_dob: '1990-06-15',
+      bgc_submitted_dob: '1990-03-14',
+    };
+
+    const user = userEvent.setup();
+    renderWithClient(<AdminBGCReviewPage />);
+
+    await screen.findByText('Review Instructor');
+    await user.click(screen.getByRole('button', { name: /review instructor/i }));
+
+    await screen.findByText(/Instructor Preview/i);
+    expect(screen.getByText('1990-06-15')).toBeInTheDocument();
+    expect(screen.getByText('1990-03-14')).toBeInTheDocument();
+    expect(screen.getByText(/Verified DOB/i)).toBeInTheDocument();
+    expect(screen.getByText(/BGC Submitted DOB/i)).toBeInTheDocument();
+  });
+
+  it('renders safely when DOB values are null', async () => {
+    reviewDetail = {
+      ...reviewDetail,
+      verified_dob: null,
+      bgc_submitted_dob: null,
+    };
+
+    const user = userEvent.setup();
+    renderWithClient(<AdminBGCReviewPage />);
+
+    await screen.findByText('Review Instructor');
+    await user.click(screen.getByRole('button', { name: /review instructor/i }));
+
+    await screen.findByText(/Instructor Preview/i);
+    expect(screen.queryByText(/Verified DOB/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/BGC Submitted DOB/i)).not.toBeInTheDocument();
   });
 });

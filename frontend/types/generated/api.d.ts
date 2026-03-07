@@ -8287,6 +8287,8 @@ export type components = {
             bgc_report_id?: string | null;
             /** Bgc Status */
             bgc_status?: string | null;
+            /** Bgc Submitted Dob */
+            bgc_submitted_dob?: string | null;
             /** Bgc Valid Until */
             bgc_valid_until?: string | null;
             /** Consent Recent At */
@@ -8303,6 +8305,8 @@ export type components = {
             name: string;
             /** Updated At */
             updated_at?: string | null;
+            /** Verified Dob */
+            verified_dob?: string | null;
         };
         /** AdminLocationLearningAliasActionResponse */
         AdminLocationLearningAliasActionResponse: {

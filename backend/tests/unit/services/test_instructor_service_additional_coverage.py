@@ -268,6 +268,7 @@ class TestGoLiveMethod:
             verified_dob=None,
             bgc_submitted_first_name=None,
             bgc_submitted_last_name=None,
+            bgc_submitted_dob=None,
             skills_configured=True,
         )
 

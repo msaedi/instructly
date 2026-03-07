@@ -189,6 +189,9 @@ def test_bgc_candidate_includes_dob_when_available(db):
 
     assert captured_requests["candidate"]["dob"] == "1990-06-15"
 
+    db.refresh(profile)
+    assert profile.bgc_submitted_dob == date(1990, 6, 15)
+
 
 def test_bgc_candidate_omits_dob_when_not_available(db):
     captured_requests: dict[str, dict] = {}
@@ -208,6 +211,9 @@ def test_bgc_candidate_omits_dob_when_not_available(db):
     service.invite(profile.id)
 
     assert "dob" not in captured_requests["candidate"]
+
+    db.refresh(profile)
+    assert profile.bgc_submitted_dob is None
 
 
 def test_invite_requires_identity_verification(db):

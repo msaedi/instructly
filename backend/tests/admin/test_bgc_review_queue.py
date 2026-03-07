@@ -366,6 +366,7 @@ class TestAdminBGCReviewQueue:
             verified_dob=datetime.now(timezone.utc).date(),
             bgc_submitted_first_name="Reset",
             bgc_submitted_last_name="Mismatch",
+            bgc_submitted_dob=datetime.now(timezone.utc).date(),
         )
         db.add(profile)
         db.commit()
@@ -415,6 +416,7 @@ class TestAdminBGCReviewQueue:
         assert profile.bgc_note is None
         assert profile.bgc_submitted_first_name is None
         assert profile.bgc_submitted_last_name is None
+        assert profile.bgc_submitted_dob is None
         assert profile.verified_first_name == "Reset"
         assert profile.verified_last_name == "Instructor"
         assert profile.verified_dob is not None

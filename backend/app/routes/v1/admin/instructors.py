@@ -58,6 +58,8 @@ def _build_admin_instructor_detail_response(
         "email": email,
         "is_live": bool(getattr(profile, "is_live", False)),
         "bgc_name_mismatch": bool(getattr(profile, "bgc_name_mismatch", False)),
+        "verified_dob": getattr(profile, "verified_dob", None),
+        "bgc_submitted_dob": getattr(profile, "bgc_submitted_dob", None),
         "bgc_status": profile.bgc_status,
         "bgc_includes_canceled": bool(profile.bgc_includes_canceled),
         "bgc_report_id": profile.bgc_report_id,
@@ -175,6 +177,7 @@ async def reset_bgc(
         bgc_note=None,
         bgc_submitted_first_name=None,
         bgc_submitted_last_name=None,
+        bgc_submitted_dob=None,
     )
     repo.commit()
     refreshed = repo.get_by_id_join_user(profile.id)

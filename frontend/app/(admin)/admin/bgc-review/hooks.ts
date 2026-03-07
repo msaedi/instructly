@@ -46,6 +46,8 @@ export interface AdminInstructorDetail {
   email: string;
   is_live: boolean;
   bgc_name_mismatch: boolean;
+  verified_dob: string | null;
+  bgc_submitted_dob: string | null;
   bgc_status: string | null;
   bgcIncludesCanceled?: boolean;
   bgc_report_id: string | null;
@@ -103,6 +105,8 @@ const normalizeInstructorDetail = (detail: AdminInstructorDetailApi): AdminInstr
   email: detail.email,
   is_live: Boolean(detail.is_live),
   bgc_name_mismatch: Boolean(detail.bgc_name_mismatch),
+  verified_dob: detail.verified_dob ?? null,
+  bgc_submitted_dob: detail.bgc_submitted_dob ?? null,
   bgc_status: detail.bgc_status ?? null,
   bgcIncludesCanceled: Boolean(detail.bgc_includes_canceled),
   bgc_report_id: detail.bgc_report_id ?? null,

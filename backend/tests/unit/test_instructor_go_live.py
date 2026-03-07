@@ -50,6 +50,7 @@ def _create_instructor(
     verified_dob: date | None = None,
     bgc_submitted_first_name: str | None = None,
     bgc_submitted_last_name: str | None = None,
+    bgc_submitted_dob: date | None = None,
 ) -> tuple[User, InstructorProfile]:
     _ensure_role(db, RoleName.INSTRUCTOR)
     user = User(
@@ -80,6 +81,7 @@ def _create_instructor(
         verified_dob=verified_dob,
         bgc_submitted_first_name=bgc_submitted_first_name,
         bgc_submitted_last_name=bgc_submitted_last_name,
+        bgc_submitted_dob=bgc_submitted_dob,
         bgc_status=bgc_status,
     )
     db.add(profile)
@@ -189,6 +191,7 @@ def test_go_live_succeeds_with_passed_bgc(client, db):
         verified_dob=date(1990, 6, 15),
         bgc_submitted_first_name="Jane",
         bgc_submitted_last_name="Rosen",
+        bgc_submitted_dob=date(1990, 3, 14),
     )
     profile.bgc_completed_at = datetime.now(timezone.utc)
     db.add(profile)
@@ -209,6 +212,7 @@ def test_go_live_succeeds_with_passed_bgc(client, db):
         assert profile.verified_dob is None
         assert profile.bgc_submitted_first_name is None
         assert profile.bgc_submitted_last_name is None
+        assert profile.bgc_submitted_dob is None
     finally:
         app.dependency_overrides.pop(get_current_user, None)
         app.dependency_overrides.pop(get_current_active_user, None)

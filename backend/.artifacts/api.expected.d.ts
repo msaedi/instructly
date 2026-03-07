@@ -5903,6 +5903,7 @@ export type components = {
  bgc_name_mismatch: boolean;
  bgc_report_id?: string | null;
  bgc_status?: string | null;
+ bgc_submitted_dob?: string | null;
  bgc_valid_until?: string | null;
  consent_recent_at?: string | null;
  created_at?: string | null;
@@ -5911,6 +5912,7 @@ export type components = {
  is_live: boolean;
  name: string;
  updated_at?: string | null;
+ verified_dob?: string | null;
  };
  AdminLocationLearningAliasActionResponse: {
  alias_id: string;

@@ -67,6 +67,7 @@ def _create_instructor_with_candidate(
     verified_dob: date | None = None,
     bgc_submitted_first_name: str | None = None,
     bgc_submitted_last_name: str | None = None,
+    bgc_submitted_dob: date | None = None,
 ) -> InstructorProfile:
     user = User(
         email=f"{candidate_id}@example.com",
@@ -87,6 +88,7 @@ def _create_instructor_with_candidate(
     profile.verified_dob = verified_dob
     profile.bgc_submitted_first_name = bgc_submitted_first_name
     profile.bgc_submitted_last_name = bgc_submitted_last_name
+    profile.bgc_submitted_dob = bgc_submitted_dob
     db.add(profile)
     db.flush()
     db.refresh(profile)
@@ -387,6 +389,187 @@ def test_report_completed_does_not_null_pii(client, db: Session, candidate_paylo
     assert profile.verified_dob == date(1990, 1, 2)
     assert profile.bgc_submitted_first_name == "John"
     assert profile.bgc_submitted_last_name == "Rosen"
+
+
+def test_cross_check_stores_bgc_submitted_dob(client, db: Session, candidate_payloads) -> None:
+    """Cross-check stores bgc_submitted_dob from a valid candidate DOB string."""
+    profile = _create_instructor_with_candidate(
+        db,
+        candidate_id="cand_dob_store",
+        verified_first_name="John",
+        verified_last_name="Smith",
+        verified_dob=date(1990, 5, 15),
+    )
+    db.commit()
+    candidate_payloads["cand_dob_store"] = {
+        "id": "cand_dob_store",
+        "first_name": "John",
+        "last_name": "Smith",
+        "dob": "1990-05-15",
+    }
+    payload = {
+        "type": "report.completed",
+        "data": {"object": {"id": "rpt_dob_store", "result": "clear", "candidate_id": "cand_dob_store"}},
+    }
+    body = json.dumps(payload).encode("utf-8")
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
+    assert response.status_code == 200
+    db.refresh(profile)
+    assert profile.bgc_submitted_dob == date(1990, 5, 15)
+    assert profile.bgc_name_mismatch is False
+
+
+def test_dob_mismatch_sets_bgc_name_mismatch_true(
+    client, db: Session, candidate_payloads, caplog: pytest.LogCaptureFixture
+) -> None:
+    """DOB mismatch sets bgc_name_mismatch=True even when last names match."""
+    profile = _create_instructor_with_candidate(
+        db,
+        candidate_id="cand_dob_mismatch",
+        verified_first_name="John",
+        verified_last_name="Smith",
+        verified_dob=date(1990, 5, 15),
+    )
+    db.commit()
+    candidate_payloads["cand_dob_mismatch"] = {
+        "id": "cand_dob_mismatch",
+        "first_name": "John",
+        "last_name": "Smith",
+        "dob": "1991-06-20",
+    }
+    payload = {
+        "type": "report.completed",
+        "data": {"object": {"id": "rpt_dob_mismatch", "result": "clear", "candidate_id": "cand_dob_mismatch"}},
+    }
+    body = json.dumps(payload).encode("utf-8")
+    with caplog.at_level(logging.WARNING):
+        response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
+    assert response.status_code == 200
+    db.refresh(profile)
+    assert profile.bgc_name_mismatch is True
+    assert profile.bgc_submitted_dob == date(1991, 6, 20)
+    assert "DOB mismatch" in caplog.text
+
+
+def test_matching_dob_does_not_set_mismatch(client, db: Session, candidate_payloads) -> None:
+    """Matching DOB does not set mismatch when last names also match."""
+    profile = _create_instructor_with_candidate(
+        db,
+        candidate_id="cand_dob_match",
+        verified_first_name="John",
+        verified_last_name="Smith",
+        verified_dob=date(1990, 5, 15),
+    )
+    db.commit()
+    candidate_payloads["cand_dob_match"] = {
+        "id": "cand_dob_match",
+        "first_name": "John",
+        "last_name": "Smith",
+        "dob": "1990-05-15",
+    }
+    payload = {
+        "type": "report.completed",
+        "data": {"object": {"id": "rpt_dob_match", "result": "clear", "candidate_id": "cand_dob_match"}},
+    }
+    body = json.dumps(payload).encode("utf-8")
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
+    assert response.status_code == 200
+    db.refresh(profile)
+    assert profile.bgc_name_mismatch is False
+    assert profile.bgc_submitted_dob == date(1990, 5, 15)
+
+
+def test_missing_dob_on_either_side_skips_comparison(client, db: Session, candidate_payloads) -> None:
+    """Missing DOB on either side skips DOB comparison without forcing mismatch."""
+    profile = _create_instructor_with_candidate(
+        db,
+        candidate_id="cand_no_verified_dob",
+        verified_first_name="John",
+        verified_last_name="Smith",
+        verified_dob=None,
+    )
+    db.commit()
+    candidate_payloads["cand_no_verified_dob"] = {
+        "id": "cand_no_verified_dob",
+        "first_name": "John",
+        "last_name": "Smith",
+        "dob": "1990-05-15",
+    }
+    payload = {
+        "type": "report.completed",
+        "data": {"object": {"id": "rpt_no_dob", "result": "clear", "candidate_id": "cand_no_verified_dob"}},
+    }
+    body = json.dumps(payload).encode("utf-8")
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
+    assert response.status_code == 200
+    db.refresh(profile)
+    assert profile.bgc_name_mismatch is False
+    assert profile.bgc_submitted_dob == date(1990, 5, 15)
+
+
+def test_invalid_candidate_dob_is_ignored(client, db: Session, candidate_payloads) -> None:
+    """Invalid candidate DOB string is ignored and does not crash."""
+    profile = _create_instructor_with_candidate(
+        db,
+        candidate_id="cand_bad_dob",
+        verified_first_name="John",
+        verified_last_name="Smith",
+        verified_dob=date(1990, 5, 15),
+        bgc_submitted_dob=date(1990, 5, 15),
+    )
+    db.commit()
+    candidate_payloads["cand_bad_dob"] = {
+        "id": "cand_bad_dob",
+        "first_name": "John",
+        "last_name": "Smith",
+        "dob": "not-a-date",
+    }
+    payload = {
+        "type": "report.completed",
+        "data": {"object": {"id": "rpt_bad_dob", "result": "clear", "candidate_id": "cand_bad_dob"}},
+    }
+    body = json.dumps(payload).encode("utf-8")
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
+    assert response.status_code == 200
+    db.refresh(profile)
+    assert profile.bgc_name_mismatch is False
+    assert profile.bgc_submitted_dob is None
+
+
+def test_missing_candidate_dob_clears_stale_invite_snapshot(
+    client, db: Session, candidate_payloads
+) -> None:
+    """Missing candidate DOB clears the invite-time snapshot instead of leaving stale data."""
+    profile = _create_instructor_with_candidate(
+        db,
+        candidate_id="cand_missing_dob",
+        verified_first_name="John",
+        verified_last_name="Smith",
+        verified_dob=date(1990, 5, 15),
+        bgc_submitted_dob=date(1990, 5, 15),
+    )
+    db.commit()
+    candidate_payloads["cand_missing_dob"] = {
+        "id": "cand_missing_dob",
+        "first_name": "John",
+        "last_name": "Smith",
+    }
+    payload = {
+        "type": "report.completed",
+        "data": {
+            "object": {
+                "id": "rpt_missing_dob",
+                "result": "clear",
+                "candidate_id": "cand_missing_dob",
+            }
+        },
+    }
+    body = json.dumps(payload).encode("utf-8")
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
+    assert response.status_code == 200
+    db.refresh(profile)
+    assert profile.bgc_name_mismatch is False
+    assert profile.bgc_submitted_dob is None
 
 
 def test_report_completed_retains_pii_when_cross_check_fails(client, db: Session) -> None:

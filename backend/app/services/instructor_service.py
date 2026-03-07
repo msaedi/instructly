@@ -737,6 +737,7 @@ class InstructorService(BaseService):
                     verified_dob=None,
                     bgc_submitted_first_name=None,
                     bgc_submitted_last_name=None,
+                    bgc_submitted_dob=None,
                     skills_configured=True
                     if not getattr(profile, "skills_configured", False)
                     else profile.skills_configured,
@@ -750,6 +751,7 @@ class InstructorService(BaseService):
                     verified_dob=None,
                     bgc_submitted_first_name=None,
                     bgc_submitted_last_name=None,
+                    bgc_submitted_dob=None,
                 )
 
             lifecycle_service = InstructorLifecycleService(self.db)
