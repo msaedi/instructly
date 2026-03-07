@@ -280,7 +280,7 @@ class TestInstructorProfileRepositoryMethods:
 
             profile = InstructorProfile(
                 user_id=user.id,
-                **_public_profile_kwargs(bio=f"Bio {i}", years_experience=i),
+                **_public_profile_kwargs(bio=f"Bio {i}", years_experience=i + 1),
             )
             db.add(profile)
         db.flush()
@@ -398,7 +398,7 @@ class TestPerformanceImprovement:
 
             profile = InstructorProfile(
                 user_id=user.id,
-                **_public_profile_kwargs(bio=f"Bio {i}", years_experience=i),
+                **_public_profile_kwargs(bio=f"Bio {i}", years_experience=i + 1),
             )
             db.add(profile)
             db.flush()

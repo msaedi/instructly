@@ -194,7 +194,7 @@ class TestInstructorRoutes:
             profile = InstructorProfile(
                 user_id=user.id,
                 bio=f"Bio for instructor {i} with enough text",
-                years_experience=i,
+                years_experience=i + 1,
                 bgc_status="passed",
                 is_live=True,
                 bgc_completed_at=datetime.now(timezone.utc),

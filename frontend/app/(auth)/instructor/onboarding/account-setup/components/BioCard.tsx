@@ -48,7 +48,7 @@ export function BioCard({
   bioPlaceholder = 'Highlight your experience, favorite teaching methods, and the type of students you enjoy working with.',
   yearsLabel = 'Years of Experience',
   yearsMin = 1,
-  yearsMax = 70,
+  yearsMax = 50,
   allowEmptyYears = false,
 }: BioCardProps) {
   const isOnboarding = context === 'onboarding';

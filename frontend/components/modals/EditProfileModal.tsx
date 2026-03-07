@@ -182,7 +182,7 @@ export default function EditProfileModal({
   const [profileData, setProfileData] = useState<ProfileFormData>({
     bio: '',
     service_area_boroughs: [] as string[],
-    years_experience: 0,
+    years_experience: 1,
     services: [] as EditableService[],
     first_name: '',
     last_name: '',
@@ -494,7 +494,7 @@ export default function EditProfileModal({
       setProfileData({
         bio: data.bio || '',
         service_area_boroughs: boroughSelection,
-        years_experience: data.years_experience || 0,
+        years_experience: data.years_experience || 1,
         services: normalizedServices,
         first_name: firstName,
         last_name: lastName,
@@ -1366,10 +1366,11 @@ export default function EditProfileModal({
                   const parsed = parseInt(e.target.value, 10);
                   setProfileData({
                     ...profileData,
-                    years_experience: Number.isNaN(parsed) ? 0 : parsed,
+                    years_experience: Number.isNaN(parsed) ? 0 : Math.min(50, Math.max(1, parsed)),
                   });
                 }}
-                min="0"
+                min="1"
+                max="50"
                 onKeyDown={(e) => {
                   if (['e', 'E', '.', '-', '+'].includes(e.key)) {
                     e.preventDefault();

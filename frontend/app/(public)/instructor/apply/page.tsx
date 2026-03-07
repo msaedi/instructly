@@ -76,7 +76,7 @@ export default function InstructorApplyPage() {
     postal_code: '',
     bio: '',
     service_area_boroughs: [],
-    years_experience: 0,
+    years_experience: 1,
   });
   const [bioTouched, setBioTouched] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -234,8 +234,8 @@ export default function InstructorApplyPage() {
       nextErrors.hourlyRate = 'Hourly rate must be between $0 and $500.';
     }
 
-    if (profile.years_experience < 0 || profile.years_experience > 70) {
-      nextErrors.experienceYears = 'Years of experience must be between 0 and 70.';
+    if (profile.years_experience < 1 || profile.years_experience > 50) {
+      nextErrors.experienceYears = 'Years of experience must be between 1 and 50.';
     }
 
     if (profile.bio.length > 500) {
@@ -610,8 +610,8 @@ export default function InstructorApplyPage() {
                   showCharCount
                   maxBioChars={500}
                   allowEmptyYears
-                  yearsMin={0}
-                  yearsMax={70}
+                  yearsMin={1}
+                  yearsMax={50}
                   yearsLabel="Years of Experience (optional)"
                   bioLabel="Brief Bio (optional)"
                 />

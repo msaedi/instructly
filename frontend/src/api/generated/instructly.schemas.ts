@@ -3719,7 +3719,7 @@ export interface InstructorProfileResponse {
   user_id: string;
   /**
    * Years of teaching experience
-   * @minimum 0
+   * @minimum 1
    * @maximum 50
    */
   years_experience: number;
@@ -4088,7 +4088,7 @@ export interface InstructorProfileCreate {
   services: ServiceCreate[];
   /**
    * Years of teaching experience
-   * @minimum 0
+   * @minimum 1
    * @maximum 50
    */
   years_experience: number;

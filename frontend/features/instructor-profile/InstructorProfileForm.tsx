@@ -45,7 +45,7 @@ import { PreferredLocationsCard } from '@/app/(auth)/instructor/onboarding/accou
 function buildInstructorProfilePayload(profile: ProfileFormState): InstructorUpdatePayload {
   return {
     bio: profile.bio.trim(),
-    years_experience: Number(profile.years_experience) || 0,
+    years_experience: Number(profile.years_experience) || 1,
     min_advance_booking_hours: profile.min_advance_booking_hours ?? 2,
     buffer_time_minutes: Math.round((profile.buffer_time_hours ?? 0) * 60),
   };

@@ -205,7 +205,7 @@ export function useInstructorProfile(instructorId: string) {
             })
             .filter((loc): loc is { address: string; label?: string } => loc !== null)
         : [],
-      years_experience: serverInst.years_experience || 0,
+      years_experience: serverInst.years_experience || 1,
       user: {
         first_name: serverInst.user?.first_name || 'Unknown',
         last_initial: serverInst.user?.last_initial || '',

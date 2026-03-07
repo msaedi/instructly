@@ -175,7 +175,7 @@ class AuthService(BaseService):
                         user_id=user.id,
                         # Provide defaults that satisfy response schema validation
                         bio=default_bio,
-                        years_experience=0,
+                        years_experience=1,
                         min_advance_booking_hours=1,
                         buffer_time_minutes=15,
                     )

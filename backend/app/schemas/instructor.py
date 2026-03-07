@@ -377,7 +377,7 @@ class InstructorProfileBase(StandardizedModel):
         max_length=MAX_BIO_LENGTH,
         description="Instructor biography/description",
     )
-    years_experience: int = Field(..., ge=0, le=50, description="Years of teaching experience")
+    years_experience: int = Field(..., ge=1, le=50, description="Years of teaching experience")
     min_advance_booking_hours: int = Field(
         default=2, ge=0, le=168, description="Minimum hours in advance for bookings"
     )
@@ -430,7 +430,7 @@ class InstructorProfileUpdate(StrictRequestModel):
     """
 
     bio: Optional[str] = Field(None, min_length=MIN_BIO_LENGTH, max_length=MAX_BIO_LENGTH)
-    years_experience: Optional[int] = Field(None, ge=0, le=50)
+    years_experience: Optional[int] = Field(None, ge=1, le=50)
     services: Optional[List[ServiceCreate]] = Field(None, min_length=0, max_length=20)
     min_advance_booking_hours: Optional[int] = Field(
         None, ge=0, le=168, description="Minimum hours in advance for bookings"

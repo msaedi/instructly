@@ -163,9 +163,9 @@ def upgrade() -> None:
     )
 
     op.create_check_constraint(
-        "check_years_experience_non_negative",
+        "check_years_experience_positive",
         "instructor_profiles",
-        "years_experience >= 0",
+        "years_experience >= 1",
     )
     op.create_check_constraint(
         "ck_instructor_profiles_bgc_status",
@@ -822,7 +822,7 @@ def downgrade() -> None:
     op.drop_constraint("ck_live_requires_bgc_passed", "instructor_profiles", type_="check")
     op.drop_constraint("ck_instructor_profiles_bgc_env", "instructor_profiles", type_="check")
     op.drop_constraint("ck_instructor_profiles_bgc_status", "instructor_profiles", type_="check")
-    op.drop_constraint("check_years_experience_non_negative", "instructor_profiles", type_="check")
+    op.drop_constraint("check_years_experience_positive", "instructor_profiles", type_="check")
     op.drop_index("idx_instructor_profile_slug", table_name="instructor_profiles")
     op.drop_index("idx_instructor_profiles_founding_true", table_name="instructor_profiles")
     op.drop_index("ix_instructor_profiles_bgc_report_id", table_name="instructor_profiles")
