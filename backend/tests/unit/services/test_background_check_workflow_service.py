@@ -315,6 +315,7 @@ class TestBackgroundCheckWorkflowService:
 
     def test_execute_final_adverse_action_missing_metadata(self, monkeypatch) -> None:
         profile = SimpleNamespace(
+            bgc_in_dispute=False,
             bgc_pre_adverse_notice_id=None,
             bgc_pre_adverse_sent_at=None,
         )

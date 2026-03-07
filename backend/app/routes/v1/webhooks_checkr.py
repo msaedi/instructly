@@ -331,11 +331,11 @@ async def _sync_candidate_identity_cross_check(
     profile: InstructorProfile | None,
     candidate_id: str | None,
     background_check_service: BackgroundCheckService | None,
-) -> None:
+) -> bool:
     """Best-effort sync of the Checkr-submitted name onto the instructor profile."""
 
     if not candidate_id or profile is None or background_check_service is None:
-        return
+        return False
 
     profile_id = profile.id
 
@@ -349,21 +349,22 @@ async def _sync_candidate_identity_cross_check(
             candidate_id,
             str(exc),
         )
-        return
+        return False
 
     if not isinstance(candidate, dict):
-        return
+        return False
 
     candidate_first_name = clean_identity_value(candidate.get("first_name"))
     candidate_last_name = clean_identity_value(candidate.get("last_name"))
     verified_last_name = clean_identity_value(profile.verified_last_name)
+    comparison_completed = candidate_last_name is not None and verified_last_name is not None
 
     update_fields: dict[str, Any] = {}
     if candidate_first_name is not None:
         update_fields["bgc_submitted_first_name"] = candidate_first_name
     if candidate_last_name is not None:
         update_fields["bgc_submitted_last_name"] = candidate_last_name
-    if candidate_last_name is not None and verified_last_name is not None:
+    if comparison_completed:
         mismatch = normalize_name(candidate_last_name) != normalize_name(verified_last_name)
         update_fields["bgc_name_mismatch"] = mismatch
         if mismatch:
@@ -375,7 +376,7 @@ async def _sync_candidate_identity_cross_check(
             )
 
     if not update_fields:
-        return
+        return False
 
     try:
         await asyncio.to_thread(repo.update, profile_id, **update_fields)
@@ -383,6 +384,37 @@ async def _sync_candidate_identity_cross_check(
         logger.warning(
             "Failed to persist Checkr candidate identity for profile %s: %s",
             profile_id,
+            str(exc),
+        )
+        return False
+
+    return comparison_completed
+
+
+async def _cleanup_candidate_identity_pii(
+    *,
+    repo: InstructorProfileRepository,
+    profile: InstructorProfile | None,
+) -> None:
+    """Best-effort cleanup of transient identity cross-check PII."""
+
+    if profile is None:
+        return
+
+    try:
+        await asyncio.to_thread(
+            repo.update,
+            profile.id,
+            verified_first_name=None,
+            verified_last_name=None,
+            verified_dob=None,
+            bgc_submitted_first_name=None,
+            bgc_submitted_last_name=None,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Failed to clear identity cross-check PII for profile %s: %s",
+            profile.id,
             str(exc),
         )
 
@@ -595,12 +627,17 @@ async def _process_checkr_payload(
                     "Background check requires review",
                     extra={"instructor_id": profile.id, "report_id": report_id},
                 )
-            await _sync_candidate_identity_cross_check(
+            cross_check_succeeded = await _sync_candidate_identity_cross_check(
                 repo=repo,
                 profile=profile,
                 candidate_id=candidate_id,
                 background_check_service=background_check_service,
             )
+            if cross_check_succeeded and normalized_result in {"clear", "consider"}:
+                await _cleanup_candidate_identity_pii(
+                    repo=repo,
+                    profile=profile,
+                )
 
             CHECKR_WEBHOOK_TOTAL.labels(result=result_label, outcome="success").inc()
             logger.info(
