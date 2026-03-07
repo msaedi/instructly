@@ -1162,6 +1162,117 @@ describe('useMessageThread', () => {
 
       expect(result.current.threadMessages.length).toBe(1);
     });
+
+    it('sorts archived messages with missing timestamps before dated messages', () => {
+      const { Wrapper } = createWrapper();
+      const conversation = makeConversation();
+      const setConversations = jest.fn();
+      const { result } = renderHook(
+        () =>
+          useMessageThread({
+            currentUserId: 'instr-001',
+            conversations: [conversation],
+            setConversations,
+          }),
+        { wrapper: Wrapper }
+      );
+
+      act(() => {
+        result.current.handleSSEMessage(
+          {
+            id: 'msg-dated',
+            content: 'Dated message',
+            sender_id: 'student-001',
+            created_at: '2024-01-02T10:00:00Z',
+            is_mine: false,
+          } as SSEMessageWithOwnership,
+          'conv-001',
+          conversation
+        );
+        result.current.handleSSEMessage(
+          {
+            id: 'msg-undated',
+            content: 'Undated message',
+            sender_id: 'student-001',
+            is_mine: false,
+          } as SSEMessageWithOwnership,
+          'conv-001',
+          conversation
+        );
+      });
+
+      act(() => {
+        result.current.handleArchiveConversation('conv-001');
+      });
+
+      act(() => {
+        result.current.setThreadMessagesForDisplay('conv-001', 'archived');
+      });
+
+      expect(result.current.threadMessages.map((message) => message.id)).toEqual([
+        'msg-undated',
+        'msg-dated',
+      ]);
+    });
+
+    it('sorts trash messages when archived and active messages have mixed timestamps', () => {
+      const { Wrapper } = createWrapper();
+      const conversation = makeConversation();
+      const setConversations = jest.fn();
+      const { result } = renderHook(
+        () =>
+          useMessageThread({
+            currentUserId: 'instr-001',
+            conversations: [conversation],
+            setConversations,
+          }),
+        { wrapper: Wrapper }
+      );
+
+      act(() => {
+        result.current.handleSSEMessage(
+          {
+            id: 'msg-archived-undated',
+            content: 'Archive first',
+            sender_id: 'student-001',
+            is_mine: false,
+          } as SSEMessageWithOwnership,
+          'conv-001',
+          conversation
+        );
+      });
+
+      act(() => {
+        result.current.handleArchiveConversation('conv-001');
+      });
+
+      act(() => {
+        result.current.handleSSEMessage(
+          {
+            id: 'msg-active-dated',
+            content: 'Active later',
+            sender_id: 'student-001',
+            created_at: '2024-01-03T10:00:00Z',
+            is_mine: false,
+          } as SSEMessageWithOwnership,
+          'conv-001',
+          conversation
+        );
+      });
+
+      act(() => {
+        result.current.handleDeleteConversation('conv-001');
+      });
+
+      act(() => {
+        result.current.setThreadMessagesForDisplay('conv-001', 'trash');
+      });
+
+      expect(result.current.threadMessages.map((message) => message.id)).toEqual([
+        'msg-archived-undated',
+        'msg-active-dated',
+      ]);
+    });
   });
 
   // -------------------------------------------------------------------

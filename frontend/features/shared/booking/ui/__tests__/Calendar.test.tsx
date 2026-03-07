@@ -227,6 +227,20 @@ describe('Calendar', () => {
 
       expect(screen.getByTestId('cal-day-2024-01-10')).toHaveClass('font-bold');
     });
+
+    it('updates the today marker after midnight passes', () => {
+      render(<Calendar {...defaultProps} />);
+
+      expect(screen.getByTestId('cal-day-2024-01-10')).toHaveClass('font-bold');
+
+      act(() => {
+        jest.setSystemTime(new Date('2024-01-11T00:01:00Z'));
+        jest.advanceTimersByTime(60_000);
+      });
+
+      expect(screen.getByTestId('cal-day-2024-01-11')).toHaveClass('font-bold');
+      expect(screen.getByTestId('cal-day-2024-01-10')).not.toHaveClass('font-bold');
+    });
   });
 
   describe('Grid semantics and keyboard navigation', () => {
@@ -275,6 +289,24 @@ describe('Calendar', () => {
       expect(screen.getByTestId('cal-day-2024-01-08')).toHaveFocus();
     });
 
+    it('keeps focus on the current cell when arrow navigation would move outside visible cells', () => {
+      render(<Calendar {...defaultProps} />);
+
+      const topBoundaryCell = screen.getByTestId('cal-day-2024-01-07');
+      topBoundaryCell.focus();
+      expect(topBoundaryCell).toHaveFocus();
+
+      fireEvent.keyDown(topBoundaryCell, { key: 'ArrowUp' });
+      expect(topBoundaryCell).toHaveFocus();
+
+      const endOfMonthCell = screen.getByTestId('cal-day-2024-01-31');
+      endOfMonthCell.focus();
+      expect(endOfMonthCell).toHaveFocus();
+
+      fireEvent.keyDown(endOfMonthCell, { key: 'ArrowRight' });
+      expect(endOfMonthCell).toHaveFocus();
+    });
+
     it('moves focus to row boundaries with Home/End', () => {
       render(<Calendar {...defaultProps} />);
 
@@ -301,6 +333,27 @@ describe('Calendar', () => {
 
       expect(onDateSelect).toHaveBeenNthCalledWith(1, '2024-01-15');
       expect(onDateSelect).toHaveBeenNthCalledWith(2, '2024-01-15');
+    });
+
+    it('does not select unavailable or past dates with keyboard activation', () => {
+      const onDateSelect = jest.fn();
+      render(
+        <Calendar
+          {...defaultProps}
+          availableDates={['2024-01-05', '2024-01-15']}
+          onDateSelect={onDateSelect}
+        />
+      );
+
+      const unavailableDate = screen.getByTestId('cal-day-2024-01-17');
+      unavailableDate.focus();
+      fireEvent.keyDown(unavailableDate, { key: 'Enter' });
+
+      const pastDate = screen.getByTestId('cal-day-2024-01-05');
+      pastDate.focus();
+      fireEvent.keyDown(pastDate, { key: ' ' });
+
+      expect(onDateSelect).not.toHaveBeenCalled();
     });
 
     it('renders safely even when the current month is invalid', () => {

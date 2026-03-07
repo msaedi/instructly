@@ -2015,5 +2015,57 @@ describe('AvailabilityGrid', () => {
       expect(container.querySelector('[data-testid="time-slot-Mon-8am"]')).toBeInTheDocument();
       jest.useRealTimers();
     });
+
+    it('falls back to the first day of the month when the earliest available date payload is partial', () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date(2025, 1, 10, 9, 0, 0));
+      const onWeekChange = jest.fn();
+      mockUseInstructorAvailability.mockReturnValue({
+        data: {
+          availability_by_date: {
+            '2025-03': { available_slots: [{ start_time: '10:00', end_time: '11:00' }] },
+          },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      render(
+        <AvailabilityGrid
+          instructorId="1"
+          weekStart={new Date(2025, 1, 10)}
+          onWeekChange={onWeekChange}
+          selectedSlot={null}
+          onSelectSlot={jest.fn()}
+        />
+      );
+
+      expect(onWeekChange).toHaveBeenCalledWith(new Date(2025, 2, 1));
+      jest.useRealTimers();
+    });
+
+    it('dims header labels for dates that are already in the past within the current week', () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date(2025, 0, 8, 9, 0, 0));
+      mockUseInstructorAvailability.mockReturnValue({
+        data: { availability_by_date: {} },
+        isLoading: false,
+        error: null,
+      });
+
+      render(
+        <AvailabilityGrid
+          instructorId="1"
+          weekStart={new Date(2025, 0, 5)}
+          onWeekChange={jest.fn()}
+          selectedSlot={null}
+          onSelectSlot={jest.fn()}
+        />
+      );
+
+      expect(screen.getByText('Sun').closest('th')).toHaveClass('opacity-50');
+      expect(screen.getByText('5')).toHaveClass('text-gray-300');
+      jest.useRealTimers();
+    });
   });
 });

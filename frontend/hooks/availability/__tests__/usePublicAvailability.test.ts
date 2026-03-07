@@ -80,6 +80,25 @@ describe('usePublicAvailability', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('uses an explicit start date when fetching availability windows', async () => {
+    fetchMock.mockResolvedValueOnce(
+      makeResponse({
+        ok: true,
+        json: { availability_by_date: {} },
+      })
+    );
+
+    const startDate = new Date('2025-03-10T12:00:00Z');
+    const { result } = renderHook(() => usePublicAvailability('instructor-3', startDate));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const calledUrl = fetchMock.mock.calls[0]?.[0] as string;
+    const url = new URL(calledUrl, 'http://localhost');
+    expect(url.searchParams.get('start_date')).toBe('2025-03-10');
+    expect(url.searchParams.get('end_date')).toBe('2025-04-09');
+  });
+
   it('getAvailableDates returns empty array when availability is null', async () => {
     fetchMock.mockResolvedValueOnce(makeResponse({ ok: false }));
 

@@ -51,6 +51,22 @@ describe('protectedApi.getBookings', () => {
     const requestUrl = new URL(calledUrl);
     expect(requestUrl.searchParams.get('status')).toBe('COMPLETED');
   });
+
+  it('drops nullish filters while preserving explicit false booleans', async () => {
+    await protectedApi.getBookings({
+      upcoming: false,
+      include_past_confirmed: false,
+      exclude_future_confirmed: null as unknown as boolean,
+      limit: undefined,
+    });
+
+    const calledUrl = fetchMock.mock.calls[0][0] as string;
+    const requestUrl = new URL(calledUrl);
+    expect(requestUrl.searchParams.get('upcoming')).toBe('false');
+    expect(requestUrl.searchParams.get('include_past_confirmed')).toBe('false');
+    expect(requestUrl.searchParams.has('exclude_future_confirmed')).toBe(false);
+    expect(requestUrl.searchParams.has('limit')).toBe(false);
+  });
 });
 
 describe('cleanFetch', () => {
@@ -191,6 +207,30 @@ describe('publicApi', () => {
     expect(body.search_context?.page).toBe('/booking');
     expect(body.search_context?.viewport).toBe('1024x768');
     expect(body.search_context?.timestamp).toEqual(expect.any(String));
+  });
+
+  it('preserves caller-provided analytics context when recording search history', async () => {
+    const customContext = {
+      page: '/custom-search',
+      viewport: '320x480',
+      timestamp: '2026-03-06T12:00:00.000Z',
+      source: 'manual-share',
+    };
+
+    await publicApi.recordSearchHistory({
+      search_query: 'voice lessons',
+      search_type: 'text',
+      results_count: null,
+      search_context: customContext,
+    });
+
+    const options = fetchMock.mock.calls[0][1] as RequestInit;
+    const body = JSON.parse(options.body as string) as {
+      search_context?: Record<string, unknown>;
+      results_count?: number | null;
+    };
+    expect(body.search_context).toEqual(customContext);
+    expect(body.results_count).toBeNull();
   });
 
   it('includes guest session header for unified history', async () => {
@@ -640,6 +680,22 @@ describe('protectedApi — additional branch coverage', () => {
     expect(requestUrl.searchParams.get('per_page')).toBe('25');
   });
 
+  it('getInstructorBookings filters nullish params but keeps false flags', async () => {
+    await protectedApi.getInstructorBookings({
+      page: 2,
+      upcoming: false,
+      per_page: null as unknown as number,
+      status: undefined,
+    });
+
+    const calledUrl = fetchMock.mock.calls[0][0] as string;
+    const requestUrl = new URL(calledUrl);
+    expect(requestUrl.searchParams.get('page')).toBe('2');
+    expect(requestUrl.searchParams.get('upcoming')).toBe('false');
+    expect(requestUrl.searchParams.has('per_page')).toBe(false);
+    expect(requestUrl.searchParams.has('status')).toBe(false);
+  });
+
   it('getPlaceDetails without provider or signal', async () => {
     await getPlaceDetails({ place_id: 'place-2' });
 
@@ -788,6 +844,22 @@ describe('SSR code paths', () => {
     expect(response.data).toBeUndefined();
   });
 
+  it('stringifies non-Error JSON parse failures', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: { get: jest.fn() },
+      json: async () => {
+        throw 'bad json payload';
+      },
+    });
+
+    const response = await cleanFetch('/api/v1/test');
+
+    expect(response.status).toBe(200);
+    expect(response.error).toBe('Invalid response format');
+  });
+
   it('returns 429 without retryAfterSeconds when header is missing', async () => {
     fetchMock.mockResolvedValueOnce({
       ok: false,
@@ -815,5 +887,17 @@ describe('SSR code paths', () => {
 
     expect(response.status).toBe(500);
     expect(response.error).toBe('Error: 500');
+  });
+
+  it('uses default paging for instructor upcoming and completed bookings', async () => {
+    await protectedApi.getInstructorUpcomingBookings();
+    await protectedApi.getInstructorCompletedBookings();
+
+    const upcomingUrl = new URL(fetchMock.mock.calls[0][0] as string);
+    const completedUrl = new URL(fetchMock.mock.calls[1][0] as string);
+    expect(upcomingUrl.searchParams.get('page')).toBe('1');
+    expect(upcomingUrl.searchParams.get('per_page')).toBe('50');
+    expect(completedUrl.searchParams.get('page')).toBe('1');
+    expect(completedUrl.searchParams.get('per_page')).toBe('50');
   });
 });

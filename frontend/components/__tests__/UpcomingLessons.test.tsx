@@ -43,12 +43,14 @@ jest.mock('@/lib/timezone/formatBookingTime', () => ({
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { hasRole } from '@/features/shared/hooks/useAuth.helpers';
 import { useUpcomingBookings } from '@/src/api/services/bookings';
+import { formatBookingDate } from '@/lib/timezone/formatBookingTime';
 
 const mockUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
 const mockHasRole = hasRole as jest.MockedFunction<typeof hasRole>;
 const mockUseUpcomingBookings = useUpcomingBookings as jest.MockedFunction<
   typeof useUpcomingBookings
 >;
+const mockFormatBookingDate = formatBookingDate as jest.MockedFunction<typeof formatBookingDate>;
 
 const createWrapper = () => {
   const queryClient = new QueryClient({
@@ -80,6 +82,7 @@ const createMockBooking = (overrides = {}) => ({
 describe('UpcomingLessons', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockFormatBookingDate.mockReturnValue('Monday, January 15');
     mockUseAuth.mockReturnValue({
       isAuthenticated: true,
       user: { roles: ['student'] },
@@ -329,6 +332,31 @@ describe('UpcomingLessons', () => {
         expect(screen.getByText(/View all 3 upcoming lessons/)).toBeInTheDocument();
       });
     });
+
+    it('routes the view-all link to the instructor dashboard for instructors', async () => {
+      mockHasRole.mockImplementation((_user, role) => role === 'instructor');
+      mockUseUpcomingBookings.mockReturnValue({
+        data: {
+          items: [
+            createMockBooking({ id: '01' }),
+            createMockBooking({ id: '02' }),
+            createMockBooking({ id: '03' }),
+          ],
+          total: 3,
+        },
+        isLoading: false,
+        error: null,
+      } as unknown as ReturnType<typeof useUpcomingBookings>);
+
+      render(<UpcomingLessons />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByRole('link', { name: /view all 3 upcoming lessons/i })).toHaveAttribute(
+          'href',
+          '/instructor/dashboard'
+        );
+      });
+    });
   });
 
   describe('Location area extraction', () => {
@@ -455,6 +483,42 @@ describe('UpcomingLessons', () => {
         expect(screen.getByText(/with Student/)).toBeInTheDocument();
       });
     });
+
+    it('does not append a period when the instructor last name is already longer than one character', async () => {
+      mockHasRole.mockImplementation((_user, role) => role === 'student');
+      mockUseUpcomingBookings.mockReturnValue({
+        data: {
+          items: [createMockBooking({ instructor_last_name: 'Chen' })],
+          total: 1,
+        },
+        isLoading: false,
+        error: null,
+      } as unknown as ReturnType<typeof useUpcomingBookings>);
+
+      render(<UpcomingLessons />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByText('with Sarah Chen')).toBeInTheDocument();
+      });
+    });
+
+    it('does not append a period when the student last name is already longer than one character', async () => {
+      mockHasRole.mockImplementation((_user, role) => role === 'instructor');
+      mockUseUpcomingBookings.mockReturnValue({
+        data: {
+          items: [createMockBooking({ student_last_name: 'Lopez' })],
+          total: 1,
+        },
+        isLoading: false,
+        error: null,
+      } as unknown as ReturnType<typeof useUpcomingBookings>);
+
+      render(<UpcomingLessons />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByText('with John Lopez')).toBeInTheDocument();
+      });
+    });
   });
 
   describe('Date label formatting', () => {
@@ -502,6 +566,29 @@ describe('UpcomingLessons', () => {
       await waitFor(() => {
         expect(screen.getByText(/Tomorrow/)).toBeInTheDocument();
       });
+    });
+
+    it('falls back to booking_date when booking_start_utc is missing', async () => {
+      const booking = createMockBooking({
+        booking_start_utc: null,
+        booking_date: '2024-02-05',
+      });
+
+      mockUseUpcomingBookings.mockReturnValue({
+        data: {
+          items: [booking],
+          total: 1,
+        },
+        isLoading: false,
+        error: null,
+      } as unknown as ReturnType<typeof useUpcomingBookings>);
+
+      render(<UpcomingLessons />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByText(/Monday, January 15/)).toBeInTheDocument();
+      });
+      expect(mockFormatBookingDate).toHaveBeenCalledWith(booking, expect.any(String));
     });
   });
 

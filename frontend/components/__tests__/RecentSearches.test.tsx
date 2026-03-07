@@ -115,6 +115,28 @@ describe('RecentSearches', () => {
     });
   });
 
+  it('keeps the optimistic removal when delete succeeds for authenticated users', async () => {
+    useAuthMock.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    getRecentSearchesMock.mockResolvedValue([
+      { id: null, search_query: 'Mandolin', search_type: 'lesson', results_count: null },
+    ]);
+    deleteSearchMock.mockResolvedValue(true);
+
+    const user = userEvent.setup();
+    render(<RecentSearches />);
+
+    await waitFor(() => expect(screen.getByText('Mandolin')).toBeInTheDocument());
+    expect(screen.queryByText(/result/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /remove search/i }));
+
+    await waitFor(() => {
+      expect(deleteSearchMock).toHaveBeenCalledWith('', true);
+      expect(screen.queryByText('Mandolin')).not.toBeInTheDocument();
+    });
+    expect(getRecentSearchesMock).toHaveBeenCalledTimes(1);
+  });
+
   it('updates guest searches on custom events', async () => {
     useAuthMock.mockReturnValue({ isAuthenticated: false, isLoading: false });
     getRecentSearchesMock.mockResolvedValue([
@@ -326,6 +348,23 @@ describe('RecentSearches', () => {
     render(<RecentSearches />);
 
     await waitFor(() => expect(screen.getByText('Sax')).toBeInTheDocument());
+  });
+
+  it('uses authenticated mapping fallbacks for missing ids and results counts', async () => {
+    useAuthMock.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    getRecentSearchesMock.mockResolvedValue([
+      {
+        id: null,
+        search_query: 'Clarinet',
+        search_type: 'lesson',
+        results_count: null,
+      },
+    ]);
+
+    render(<RecentSearches />);
+
+    await waitFor(() => expect(screen.getByText('Clarinet')).toBeInTheDocument());
+    expect(screen.queryByText(/result/i)).not.toBeInTheDocument();
   });
 
   it('handles singular result count correctly', async () => {

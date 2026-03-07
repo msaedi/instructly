@@ -10,7 +10,7 @@ import { fetchBookingsList } from '@/src/api/services/bookings';
 import { fetchInstructorProfile } from '@/src/api/services/instructors';
 import { getPlaceDetails } from '@/features/shared/api/client';
 import * as timeLib from '@/lib/time';
-import { invokeReactClick } from '@/test-utils/reactEventHandlers';
+import { getReactEventHandler, invokeReactClick } from '@/test-utils/reactEventHandlers';
 import { buildDisplayDate } from '../PaymentConfirmation.helpers';
 
 jest.mock('date-fns', () => {
@@ -97,6 +97,22 @@ jest.mock('@/components/booking/AddressSelector', () => ({
           Select Saved Address
         </button>
         <button
+          data-testid="select-saved-address-sparse-btn"
+          onClick={() => props.onSelectAddress?.({
+            street_line1: undefined,
+            street_line2: undefined,
+            locality: undefined,
+            administrative_area: undefined,
+            postal_code: undefined,
+            country_code: undefined,
+            latitude: '40.69',
+            longitude: null,
+            place_id: 1234,
+          })}
+        >
+          Select Sparse Saved Address
+        </button>
+        <button
           data-testid="deselect-saved-address-btn"
           onClick={() => props.onSelectAddress?.(null)}
         >
@@ -156,6 +172,16 @@ jest.mock('@/components/forms/PlacesAutocompleteInput', () => ({
               Select Suggestion No PlaceId
             </button>
             <button
+              data-testid="select-suggestion-id-only"
+              onClick={() => onSelectSuggestion({
+                description: '500 Id Only Ave, Queens, NY 11101',
+                place_id: '',
+                id: 'id_only_456',
+              })}
+            >
+              Select Suggestion Id Only
+            </button>
+            <button
               data-testid="select-suggestion-cached"
               onClick={() => onSelectSuggestion({
                 description: '100 Broadway, New York, NY 10005, USA',
@@ -163,6 +189,16 @@ jest.mock('@/components/forms/PlacesAutocompleteInput', () => ({
               })}
             >
               Select Cached Suggestion
+            </button>
+            <button
+              data-testid="select-suggestion-text-only"
+              onClick={() => onSelectSuggestion({
+                description: '10 Text Ave, Brooklyn, NY 11201',
+                text: '10 Text Ave, Brooklyn, NY 11201',
+                place_id: 'text_only_1',
+              })}
+            >
+              Select Suggestion Text Only
             </button>
             <button
               data-testid="select-suggestion-provider-prefix"
@@ -185,6 +221,17 @@ jest.mock('@/components/forms/PlacesAutocompleteInput', () => ({
               Select Provider Prefix Mismatch Suggestion
             </button>
             <button
+              data-testid="select-suggestion-provider-prefix-text-only"
+              onClick={() => onSelectSuggestion({
+                description: '300 Retry Rd, Brooklyn, NY 11201',
+                text: '300 Retry Rd, Brooklyn, NY 11201',
+                place_id: 'google:ChIJ_retry_text_1',
+                provider: 'mapbox',
+              })}
+            >
+              Select Provider Prefix Text Only
+            </button>
+            <button
               data-testid="select-suggestion-incomplete"
               onClick={() => onSelectSuggestion({
                 description: 'Incomplete Address',
@@ -192,6 +239,25 @@ jest.mock('@/components/forms/PlacesAutocompleteInput', () => ({
               })}
             >
               Select Incomplete Suggestion
+            </button>
+            <button
+              data-testid="select-suggestion-empty-no-placeid"
+              onClick={() => onSelectSuggestion({
+                description: '',
+                place_id: '',
+              })}
+            >
+              Select Empty Suggestion No PlaceId
+            </button>
+            <button
+              data-testid="select-suggestion-bare-placeid"
+              onClick={() =>
+                onSelectSuggestion({
+                  place_id: 'bare_place_id_1',
+                } as never)
+              }
+            >
+              Select Bare Suggestion
             </button>
             <button
               data-testid="select-suggestion-null"
@@ -206,13 +272,60 @@ jest.mock('@/components/forms/PlacesAutocompleteInput', () => ({
   }),
 }));
 
+let latestTimeSelectionModalProps:
+  | {
+      instructor: {
+        user: { first_name: string; last_initial?: string };
+        services: Array<{
+          id: string;
+          skill: string;
+          duration_options: number[];
+          location_types: string[];
+        }>;
+      };
+      serviceId?: string;
+      initialDate?: unknown;
+      initialTimeHHMM24?: string | null;
+      initialDurationMinutes?: number | null;
+    }
+  | null = null;
+
 jest.mock('@/features/student/booking/components/TimeSelectionModal', () => {
-  return function MockTimeSelectionModal({ isOpen, onClose, onTimeSelected }: {
+  return function MockTimeSelectionModal({
+    isOpen,
+    onClose,
+    onTimeSelected,
+    instructor,
+    serviceId,
+    initialDate,
+    initialTimeHHMM24,
+    initialDurationMinutes,
+  }: {
     isOpen: boolean;
     onClose: () => void;
     onTimeSelected?: (selection: { date: string; time: string; duration: number }) => void;
+    instructor: {
+      user: { first_name: string; last_initial?: string };
+      services: Array<{
+        id: string;
+        skill: string;
+        duration_options: number[];
+        location_types: string[];
+      }>;
+    };
+    serviceId?: string;
+    initialDate?: unknown;
+    initialTimeHHMM24?: string | null;
+    initialDurationMinutes?: number | null;
   }) {
     if (!isOpen) return null;
+    latestTimeSelectionModalProps = {
+      instructor,
+      serviceId,
+      initialDate,
+      initialTimeHHMM24,
+      initialDurationMinutes,
+    };
     return (
       <div data-testid="time-selection-modal">
         <button onClick={onClose}>Close Modal</button>
@@ -281,6 +394,7 @@ describe('PaymentConfirmation', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     jest.clearAllMocks();
+    latestTimeSelectionModalProps = null;
     formatMock.mockImplementation(actualDateFns.format);
     addMinutesHHMMMock.mockImplementation(actualTimeLib.addMinutesHHMM);
 
@@ -6736,6 +6850,75 @@ describe('PaymentConfirmation', () => {
       });
     });
 
+    it('uses a suggestion id when place_id is blank', async () => {
+      const user = setupUser();
+
+      getPlaceDetailsMock.mockResolvedValue({
+        data: {
+          line1: '500 Id Only Ave',
+          city: 'Queens',
+          state: 'NY',
+          postal_code: '11101',
+          place_id: 'id_only_456',
+        },
+        error: null,
+      });
+
+      render(
+        <PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('select-suggestion-id-only')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByTestId('select-suggestion-id-only'));
+
+      await waitFor(() => {
+        expect(getPlaceDetailsMock).toHaveBeenCalledWith(
+          expect.objectContaining({ place_id: 'id_only_456' })
+        );
+      });
+    });
+
+    it('derives line1 and coordinates from geometry when top-level fields are missing', async () => {
+      const user = setupUser();
+
+      getPlaceDetailsMock.mockResolvedValue({
+        data: {
+          result: {
+            street_number: '12',
+            route: 'Lake St',
+            city: 'Queens',
+            state: 'NY',
+            postal_code: '11101',
+            geometry: {
+              location: {
+                lat: 40.734,
+                lng: -73.935,
+              },
+            },
+          },
+        },
+        error: null,
+      });
+
+      render(
+        <PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('select-suggestion-with-placeid')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByTestId('select-suggestion-with-placeid'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('addr-street')).toHaveValue('12 Lake St');
+        expect(screen.getByTestId('addr-city')).toHaveValue('Queens');
+      });
+    });
+
     it('uses cached address details on repeated selection', async () => {
       const user = setupUser();
 
@@ -7475,6 +7658,9 @@ describe('PaymentConfirmation', () => {
           metadata: {},
         });
         expect(result.location).toBe('100 Studio Lane');
+        expect(result.address).toMatchObject({
+          fullAddress: '100 Studio Lane',
+        });
       }
     });
   });
@@ -9327,6 +9513,31 @@ describe('PaymentConfirmation', () => {
       });
     });
 
+    it('handles sparse saved addresses without carrying over bogus coords or fields', async () => {
+      const bookingNoLoc = { ...mockBooking, location: '' };
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingNoLoc} />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('address-selector')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId('select-saved-address-sparse-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Saved address')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Change'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('addr-street')).toHaveValue('');
+        expect(screen.getByTestId('addr-city')).toHaveValue('');
+        expect(screen.getByTestId('addr-state')).toHaveValue('');
+        expect(screen.getByTestId('addr-zip')).toHaveValue('');
+      });
+    });
+
     it('handleEnterNewAddress flushes requestAnimationFrame focus callback (line 278)', async () => {
       const bookingNoLoc = { ...mockBooking, location: '' };
 
@@ -10050,6 +10261,648 @@ describe('PaymentConfirmation', () => {
 
     it('treats corrupted non-string date payloads as invalid', () => {
       expect(buildDisplayDate(20250306 as unknown as string)).toBeNull();
+    });
+  });
+
+  describe('targeted location and modal fallbacks', () => {
+    it('falls back to blank address fields when a suggestion has neither description nor place id', async () => {
+      const bookingWithoutLocation = {
+        ...mockBooking,
+        location: '',
+      };
+
+      await renderWithConflictCheck(
+        <PaymentConfirmation {...defaultProps} booking={bookingWithoutLocation} />,
+      );
+
+      fireEvent.click(screen.getByTestId('select-suggestion-empty-no-placeid'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('addr-street')).toHaveValue('');
+        expect(screen.getByTestId('addr-city')).toHaveValue('');
+        expect(screen.getByTestId('addr-state')).toHaveValue('');
+        expect(screen.getByTestId('addr-zip')).toHaveValue('');
+      });
+    });
+
+    it('falls back from online metadata to the first in-person location type', async () => {
+      const onBookingUpdate = jest.fn();
+
+      fetchInstructorProfileMock.mockResolvedValue({
+        services: [
+          {
+            id: 'svc-travel-only',
+            skill: 'Piano',
+            hourly_rate: 100,
+            duration_options: [60],
+            offers_online: false,
+            offers_travel: true,
+            offers_at_location: false,
+          },
+        ],
+        preferred_teaching_locations: [],
+      });
+
+      const booking = {
+        ...mockBooking,
+        location: 'Online',
+        metadata: { serviceId: 'svc-travel-only', location_type: 'online' },
+      } as BookingPayment & { metadata: Record<string, unknown> };
+
+      await renderWithConflictCheck(
+        <PaymentConfirmation
+          {...defaultProps}
+          booking={booking}
+          onBookingUpdate={onBookingUpdate}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(onBookingUpdate).toHaveBeenCalled();
+      });
+
+      const updater = onBookingUpdate.mock.calls.at(-1)?.[0] as
+        | ((prev: BookingPayment) => BookingPayment)
+        | undefined;
+      const next = updater?.(booking);
+
+      expect(next).toMatchObject({
+        metadata: expect.objectContaining({
+          modality: 'in_person',
+          location_type: 'student_location',
+        }),
+      });
+    });
+
+    it('defaults to the first teaching location and omits sparse coords from the payload', async () => {
+      const onBookingUpdate = jest.fn();
+
+      fetchInstructorProfileMock.mockResolvedValue({
+        services: [
+          {
+            id: 'svc-studio',
+            skill: 'Piano',
+            hourly_rate: 100,
+            duration_options: [60],
+            offers_online: false,
+            offers_travel: false,
+            offers_at_location: true,
+          },
+        ],
+        preferred_teaching_locations: [
+          { address: '123 Studio St' },
+          { address: '456 Annex Ave', label: 'Annex' },
+        ],
+      });
+
+      const booking = {
+        ...mockBooking,
+        location: '',
+        metadata: { serviceId: 'svc-studio', location_type: 'instructor_location' },
+      } as BookingPayment & { metadata: Record<string, unknown> };
+
+      await renderWithConflictCheck(
+        <PaymentConfirmation
+          {...defaultProps}
+          booking={booking}
+          onBookingUpdate={onBookingUpdate}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(onBookingUpdate).toHaveBeenCalled();
+      });
+
+      const updater = onBookingUpdate.mock.calls.at(-1)?.[0] as
+        | ((prev: BookingPayment) => BookingPayment & { address?: { fullAddress: string } })
+        | undefined;
+      const next = updater?.(booking);
+
+      expect(next).toMatchObject({
+        location: '123 Studio St',
+        address: { fullAddress: '123 Studio St' },
+        metadata: expect.objectContaining({
+          modality: 'in_person',
+          location_type: 'instructor_location',
+        }),
+      });
+      expect(next?.address).not.toHaveProperty('lat');
+      expect(next?.address).not.toHaveProperty('lng');
+      expect(next?.address).not.toHaveProperty('placeId');
+    });
+
+    it('renders public spaces with address fallbacks and updates selection by address when ids are missing', async () => {
+      const onBookingUpdate = jest.fn();
+
+      fetchInstructorProfileMock.mockResolvedValue({
+        services: [
+          {
+            id: 'svc-public',
+            skill: 'Piano',
+            hourly_rate: 100,
+            duration_options: [60],
+            offers_online: false,
+            offers_travel: true,
+            offers_at_location: false,
+          },
+        ],
+        preferred_teaching_locations: [],
+        preferred_public_spaces: [
+          { address: 'Library Plaza' },
+          { address: 'Riverside Park' },
+        ],
+      });
+
+      const booking = {
+        ...mockBooking,
+        location: 'Library Plaza',
+        metadata: { serviceId: 'svc-public', location_type: 'neutral_location' },
+      } as BookingPayment & { metadata: Record<string, unknown> };
+
+      await renderWithConflictCheck(
+        <PaymentConfirmation
+          {...defaultProps}
+          booking={booking}
+          onBookingUpdate={onBookingUpdate}
+        />,
+      );
+
+      fireEvent.click(screen.getByText('Lesson Location'));
+      fireEvent.click(screen.getByRole('button', { name: /in person/i }));
+
+      const parkOption = await screen.findByRole('radio', { name: /riverside park/i });
+      fireEvent.click(parkOption);
+
+      const updater = onBookingUpdate.mock.calls.at(-1)?.[0] as
+        | ((prev: BookingPayment) => BookingPayment & { address?: { fullAddress: string } })
+        | undefined;
+      const next = updater?.(booking);
+
+      expect(next).toMatchObject({
+        location: 'Riverside Park',
+        address: { fullAddress: 'Riverside Park' },
+        metadata: expect.objectContaining({
+          modality: 'in_person',
+          location_type: 'neutral_location',
+        }),
+      });
+      expect(next?.address).not.toHaveProperty('lat');
+      expect(next?.address).not.toHaveProperty('lng');
+      expect(next?.address).not.toHaveProperty('placeId');
+    });
+
+    it('retries provider-prefixed text suggestions and falls back to parsed description fields', async () => {
+      const bookingNoLocation: BookingPayment = {
+        ...mockBooking,
+        location: '',
+      };
+
+      fetchInstructorProfileMock.mockResolvedValue({
+        services: [
+          {
+            id: 'svc-1',
+            skill: 'Piano',
+            hourly_rate: 100,
+            duration_options: [60],
+            offers_online: true,
+            offers_travel: true,
+            offers_at_location: false,
+          },
+        ],
+        preferred_teaching_locations: [],
+      });
+
+      getPlaceDetailsMock
+        .mockResolvedValueOnce({ data: null, error: null })
+        .mockResolvedValueOnce({
+          data: {
+            result: {
+              address: {
+                city: 'Brooklyn',
+                state: 'NY',
+                postal_code: '11201',
+              },
+            },
+          },
+          error: null,
+        });
+
+      await renderWithConflictCheck(
+        <PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('select-suggestion-provider-prefix-text-only')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId('select-suggestion-provider-prefix-text-only'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('addr-street')).toHaveValue('300 Retry Rd');
+        expect(screen.getByTestId('addr-city')).toHaveValue('Brooklyn');
+        expect(screen.getByTestId('addr-state')).toHaveValue('NY');
+        expect(screen.getByTestId('addr-zip')).toHaveValue('11201');
+      });
+
+      expect(getPlaceDetailsMock).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          place_id: 'google:ChIJ_retry_text_1',
+          provider: 'mapbox',
+        }),
+      );
+      expect(getPlaceDetailsMock).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          place_id: 'ChIJ_retry_text_1',
+          provider: 'google',
+        }),
+      );
+    });
+
+    it('passes fallback instructor and service data into the reschedule modal when services are still missing', async () => {
+      window.sessionStorage.setItem('serviceId', 'svc-session-fallback');
+
+      fetchInstructorProfileMock.mockResolvedValue({
+        services: [],
+        preferred_teaching_locations: [],
+      });
+
+      const booking = {
+        ...mockBooking,
+        instructorName: '',
+        location: 'Online',
+      };
+
+      await renderWithConflictCheck(
+        <PaymentConfirmation {...defaultProps} booking={booking} />,
+      );
+
+      fireEvent.click(screen.getByText('Edit lesson'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('time-selection-modal')).toBeInTheDocument();
+      });
+
+      expect(latestTimeSelectionModalProps).toMatchObject({
+        serviceId: 'svc-session-fallback',
+        instructor: {
+          user: {
+            first_name: 'Instructor',
+            last_initial: '',
+          },
+          services: [
+            {
+              id: 'svc-session-fallback',
+              skill: 'Piano',
+              duration_options: [30, 60, 90],
+              location_types: ['online'],
+            },
+          ],
+        },
+      });
+    });
+
+    it('passes raw booking fallbacks into the reschedule modal when date, time, duration, and service metadata are malformed', async () => {
+      window.sessionStorage.removeItem('serviceId');
+
+      fetchInstructorProfileMock.mockResolvedValue({
+        services: [
+          {
+            id: 'svc-malformed',
+            hourly_rate: 90,
+            offers_online: false,
+            offers_travel: false,
+            offers_at_location: false,
+          },
+        ],
+        preferred_teaching_locations: [],
+      });
+
+      const booking = {
+        ...mockBooking,
+        instructorName: 'Madonna',
+        date: 'not-a-date' as unknown as Date,
+        startTime: 'not-a-time',
+        duration: Number.NaN as unknown as number,
+        metadata: { serviceId: 'svc-malformed' },
+      };
+
+      await renderWithConflictCheck(
+        <PaymentConfirmation {...defaultProps} booking={booking} />,
+      );
+
+      fireEvent.click(screen.getByText('Edit lesson'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('time-selection-modal')).toBeInTheDocument();
+      });
+
+      expect(latestTimeSelectionModalProps).toMatchObject({
+        serviceId: undefined,
+        initialDate: 'not-a-date',
+        initialTimeHHMM24: null,
+        initialDurationMinutes: null,
+        instructor: {
+          user: {
+            first_name: 'Madonna',
+            last_initial: '',
+          },
+          services: [
+            {
+              id: 'svc-malformed',
+              skill: '',
+              duration_options: [30, 60, 90],
+              location_types: [],
+            },
+          ],
+        },
+      });
+    });
+
+    it('shows loading placeholders for additional pricing line items while the preview is refreshing', async () => {
+      usePricingPreviewMock.mockReturnValue({
+        preview: {
+          base_price_cents: 10000,
+          student_fee_cents: 1500,
+          student_pay_cents: 11500,
+          credit_applied_cents: 0,
+          line_items: [{ label: 'Travel surcharge', amount_cents: 2200, type: 'fee' }],
+        },
+        loading: true,
+        error: null,
+      });
+
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
+
+      expect(screen.getByText('Travel surcharge')).toBeInTheDocument();
+      expect(screen.queryByText('$15.00')).not.toBeInTheDocument();
+    });
+
+    it('ignores malformed credit slider values on change, mouse up, and touch end', async () => {
+      const onCreditAmountChange = jest.fn();
+
+      usePricingPreviewMock.mockReturnValue({
+        preview: {
+          base_price_cents: 10000,
+          student_fee_cents: 1500,
+          student_pay_cents: 10500,
+          credit_applied_cents: 1000,
+          line_items: [],
+        },
+        loading: false,
+        error: null,
+      });
+
+      await renderWithConflictCheck(
+        <PaymentConfirmation
+          {...defaultProps}
+          creditsUsed={10}
+          availableCredits={50}
+          creditsAccordionExpanded={true}
+          onCreditAmountChange={onCreditAmountChange}
+        />,
+      );
+
+      const slider = screen.getByRole('slider');
+      const handleMouseUp = getReactEventHandler<(event: { target: { value: string } }) => void>(slider, 'onMouseUp');
+      const handleTouchEnd = getReactEventHandler<(event: { target: { value: string } }) => void>(slider, 'onTouchEnd');
+
+      handleMouseUp({ target: { value: 'not-a-number' } });
+      handleTouchEnd({ target: { value: 'not-a-number' } });
+
+      expect(onCreditAmountChange).not.toHaveBeenCalled();
+    });
+
+    it('parses bare place-id suggestions with numeric string coordinates', async () => {
+      const bookingWithoutLocation = {
+        ...mockBooking,
+        location: '',
+      };
+      const onBookingUpdate = jest.fn();
+      const user = setupUser();
+
+      fetchInstructorProfileMock.mockResolvedValue({
+        services: [
+          {
+            id: 'svc-bare',
+            skill: 'Piano',
+            hourly_rate: 100,
+            duration_options: [60],
+            offers_online: false,
+            offers_travel: true,
+            offers_at_location: false,
+          },
+        ],
+        preferred_teaching_locations: [],
+      });
+
+      getPlaceDetailsMock.mockResolvedValue({
+        data: {
+          city: 'Queens',
+          state: 'New York',
+          postal_code: '11101',
+          latitude: '40.75',
+          longitude: '-73.93',
+        },
+        error: null,
+      });
+
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          booking={bookingWithoutLocation}
+          onBookingUpdate={onBookingUpdate}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('select-suggestion-bare-placeid')).toBeInTheDocument();
+      });
+
+      onBookingUpdate.mockClear();
+      await user.click(screen.getByTestId('select-suggestion-bare-placeid'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('addr-city')).toHaveValue('Queens');
+        expect(onBookingUpdate).toHaveBeenCalled();
+      });
+
+      const updater = onBookingUpdate.mock.calls.at(-1)?.[0] as
+        | ((prev: BookingPayment) => BookingPayment & { address?: { fullAddress: string; lat: number; lng: number; placeId: string } })
+        | undefined;
+      const next = updater?.(bookingWithoutLocation);
+
+      expect(next?.address).toMatchObject({
+        lat: 40.75,
+        lng: -73.93,
+        placeId: 'bare_place_id_1',
+      });
+      expect(next?.address?.fullAddress).toContain('Queens');
+    });
+
+    it('reuses retry-cache entries that omit coords and place ids on mismatched provider selections', async () => {
+      const bookingWithoutLocation = {
+        ...mockBooking,
+        location: '',
+      };
+      const onBookingUpdate = jest.fn();
+      const user = setupUser();
+
+      fetchInstructorProfileMock.mockResolvedValue({
+        services: [
+          {
+            id: 'svc-retry',
+            skill: 'Piano',
+            hourly_rate: 100,
+            duration_options: [60],
+            offers_online: true,
+            offers_travel: true,
+            offers_at_location: false,
+          },
+        ],
+        preferred_teaching_locations: [],
+      });
+
+      getPlaceDetailsMock
+        .mockResolvedValueOnce({ data: null, error: 'provider rejected' })
+        .mockResolvedValueOnce({
+          data: {
+            city: 'Brooklyn',
+            state: 'NY',
+            postal_code: '11201',
+          },
+          error: null,
+        })
+        .mockResolvedValueOnce({ data: null, error: 'provider rejected again' });
+
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          booking={bookingWithoutLocation}
+          onBookingUpdate={onBookingUpdate}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('select-suggestion-provider-prefix')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByTestId('select-suggestion-provider-prefix'));
+      await waitFor(() => {
+        expect(getPlaceDetailsMock).toHaveBeenCalledTimes(2);
+      });
+
+      onBookingUpdate.mockClear();
+
+      await user.click(screen.getByTestId('select-suggestion-provider-prefix-mismatch'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('addr-city')).toHaveValue('Brooklyn');
+        expect(onBookingUpdate).toHaveBeenCalled();
+      });
+
+      expect(getPlaceDetailsMock).toHaveBeenCalledTimes(3);
+      expect(screen.getByTestId('addr-state')).toHaveValue('NY');
+      expect(screen.getByTestId('addr-zip')).toHaveValue('11201');
+    });
+
+    it('recreates metadata when selecting an instructor location from a booking without metadata', async () => {
+      const onBookingUpdate = jest.fn();
+
+      fetchInstructorProfileMock.mockResolvedValue({
+        services: [
+          {
+            id: 'svc-studio-no-meta',
+            skill: 'Piano',
+            hourly_rate: 100,
+            duration_options: [60],
+            offers_online: false,
+            offers_travel: false,
+            offers_at_location: true,
+          },
+        ],
+        preferred_teaching_locations: [
+          { address: 'Studio West' },
+          { address: 'Annex East' },
+        ],
+      });
+
+      const bookingWithoutMetadata = {
+        ...mockBooking,
+        location: '',
+      };
+
+      await renderWithConflictCheck(
+        <PaymentConfirmation
+          {...defaultProps}
+          booking={bookingWithoutMetadata}
+          onBookingUpdate={onBookingUpdate}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(onBookingUpdate).toHaveBeenCalled();
+      });
+
+      const updater = onBookingUpdate.mock.calls.at(-1)?.[0] as
+        | ((prev: BookingPayment) => BookingPayment & { address?: { fullAddress: string } })
+        | undefined;
+      const next = updater?.(bookingWithoutMetadata);
+
+      expect(next).toMatchObject({
+        location: 'Studio West',
+        address: { fullAddress: 'Studio West' },
+        metadata: expect.objectContaining({
+          modality: 'in_person',
+          location_type: 'instructor_location',
+        }),
+      });
+      expect(next?.address).not.toHaveProperty('lat');
+      expect(next?.address).not.toHaveProperty('lng');
+      expect(next?.address).not.toHaveProperty('placeId');
+    });
+
+    it('falls back to an in-person modal service and null initialDate when profile services and booking dates are missing', async () => {
+      window.sessionStorage.removeItem('serviceId');
+
+      fetchBookingsListMock.mockResolvedValue({});
+      fetchInstructorProfileMock.mockResolvedValue({
+        services: null,
+        preferred_teaching_locations: [],
+        preferred_public_spaces: [],
+      });
+
+      const booking = {
+        ...mockBooking,
+        date: undefined as unknown as Date,
+        location: '123 Main St, New York, NY 10001',
+      };
+
+      await renderWithConflictCheck(
+        <PaymentConfirmation {...defaultProps} booking={booking} />,
+      );
+
+      fireEvent.click(screen.getByText('Edit lesson'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('time-selection-modal')).toBeInTheDocument();
+      });
+
+      expect(latestTimeSelectionModalProps).toMatchObject({
+        serviceId: undefined,
+        initialDate: null,
+        instructor: {
+          services: [
+            {
+              location_types: ['in_person'],
+            },
+          ],
+        },
+      });
+      expect(
+        screen.queryByText('You already have a booking scheduled at this time.'),
+      ).not.toBeInTheDocument();
     });
   });
 });

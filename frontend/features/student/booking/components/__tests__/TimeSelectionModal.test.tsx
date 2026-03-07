@@ -94,6 +94,7 @@ jest.mock('@/features/shared/booking/ui/Calendar', () => {
 });
 
 let timeDropdownOnTimeSelect: ((time: string) => void) | null = null;
+let durationButtonsOnDurationSelect: ((duration: number) => void) | null = null;
 
 jest.mock('@/features/shared/booking/ui/TimeDropdown', () => {
   return function MockTimeDropdown({ timeSlots, selectedTime, onTimeSelect, isVisible }: {
@@ -119,17 +120,29 @@ jest.mock('@/features/shared/booking/ui/TimeDropdown', () => {
 });
 
 jest.mock('@/features/shared/booking/ui/DurationButtons', () => {
-  return function MockDurationButtons({ durationOptions, selectedDuration, onDurationSelect }: {
+  return function MockDurationButtons({
+    durationOptions,
+    selectedDuration,
+    onDurationSelect,
+    disabledDurations,
+  }: {
     durationOptions: Array<{ duration: number; price: number }>;
     selectedDuration: number;
     onDurationSelect: (duration: number) => void;
+    disabledDurations?: number[];
   }) {
+    durationButtonsOnDurationSelect = onDurationSelect;
     if (durationOptions.length <= 1) return null;
     return (
       <div data-testid="duration-buttons">
         <span data-testid="selected-duration">{selectedDuration}</span>
         {durationOptions.map((opt) => (
-          <button key={opt.duration} data-testid={`duration-${opt.duration}`} onClick={() => onDurationSelect(opt.duration)}>
+          <button
+            key={opt.duration}
+            data-testid={`duration-${opt.duration}`}
+            disabled={disabledDurations?.includes(opt.duration)}
+            onClick={() => onDurationSelect(opt.duration)}
+          >
             {opt.duration}min (${opt.price})
           </button>
         ))}
@@ -263,6 +276,7 @@ describe('TimeSelectionModal', () => {
     calendarOnMonthChange = null;
     summaryOnContinue = null;
     timeDropdownOnTimeSelect = null;
+    durationButtonsOnDurationSelect = null;
 
     // Reset timeToMinutes to its real implementation after clearAllMocks wipes it
     timeToMinutesMock.mockImplementation((...args) => actualTimeModule.timeToMinutes(...args));
@@ -4966,7 +4980,6 @@ describe('TimeSelectionModal', () => {
 
   describe('handleDurationSelect — re-selects previous time when available in new slots', () => {
     it('keeps selected time when switching to a longer duration that still includes it', async () => {
-      const user = userEvent.setup();
       const dates = [getDateString(1)];
 
       // Wide window so all durations fit
@@ -5008,10 +5021,10 @@ describe('TimeSelectionModal', () => {
       });
 
       // Switch to 60-min duration — 10:00am should still be available
-      const dur60 = screen.queryAllByTestId('duration-60');
-      if (dur60.length > 0) {
-        await user.click(dur60[0]!);
-      }
+      expect(durationButtonsOnDurationSelect).not.toBeNull();
+      await act(async () => {
+        durationButtonsOnDurationSelect?.(60);
+      });
 
       // Selected time should remain 10:00am
       await waitFor(() => {
@@ -5450,7 +5463,6 @@ describe('TimeSelectionModal', () => {
 
   describe('handleDurationSelect — empty slots trigger notice with no nextDate', () => {
     it('sets notice with null nextDate when no other dates have slots', async () => {
-      const user = userEvent.setup();
       const dates = [getDateString(1)];
 
       // Only one date with a tiny slot
@@ -5487,10 +5499,10 @@ describe('TimeSelectionModal', () => {
       });
 
       // Switch to 60-min duration — won't fit in 30-min window
-      const dur60 = screen.queryAllByTestId('duration-60');
-      if (dur60.length > 0) {
-        await user.click(dur60[0]!);
-      }
+      expect(durationButtonsOnDurationSelect).not.toBeNull();
+      await act(async () => {
+        durationButtonsOnDurationSelect?.(60);
+      });
 
       // The notice should show "Try another date or duration" (no nextDate)
       const notices = screen.queryAllByRole('status');
@@ -5545,10 +5557,10 @@ describe('TimeSelectionModal', () => {
       });
 
       // Switch to 60-min duration
-      const dur60 = screen.queryAllByTestId('duration-60');
-      if (dur60.length > 0) {
-        await user.click(dur60[0]!);
-      }
+      expect(durationButtonsOnDurationSelect).not.toBeNull();
+      await act(async () => {
+        durationButtonsOnDurationSelect?.(60);
+      });
 
       // 11:00am should still be valid for 60-min in 08:00-20:00
       await waitFor(() => {
@@ -5743,7 +5755,6 @@ describe('TimeSelectionModal', () => {
 
   describe('handleJumpToNextAvailable — null early return exercised via UI (line 1005)', () => {
     it('does not crash when the notice has nextDate null and jump handler is invoked directly', async () => {
-      const user = userEvent.setup();
       const date1 = getDateString(1);
 
       // Single date with only a 30-min window — no next available date exists
@@ -5780,10 +5791,10 @@ describe('TimeSelectionModal', () => {
       });
 
       // Switch to 60min which cannot fit in 30min window; nextDate will be null
-      const dur60 = screen.queryAllByTestId('duration-60');
-      if (dur60.length > 0) {
-        await user.click(dur60[0]!);
-      }
+      expect(durationButtonsOnDurationSelect).not.toBeNull();
+      await act(async () => {
+        durationButtonsOnDurationSelect?.(60);
+      });
 
       // The notice with "Try another date or duration" should appear (no jump button)
       const notices = screen.queryAllByRole('status');
@@ -6148,7 +6159,6 @@ describe('TimeSelectionModal', () => {
 
   describe('formatDateLabel — edge cases (lines 454-463)', () => {
     it('returns fallback date string when Date constructor throws for invalid input', async () => {
-      const user = userEvent.setup();
       const date1 = getDateString(1);
       const date2 = getDateString(2);
 
@@ -6191,10 +6201,10 @@ describe('TimeSelectionModal', () => {
 
       // Switch to 60min — triggers notice with formatted date labels
       // This exercises formatDateLabel with a valid date (line 460 success path)
-      const dur60 = screen.queryAllByTestId('duration-60');
-      if (dur60.length > 0) {
-        await user.click(dur60[0]!);
-      }
+      expect(durationButtonsOnDurationSelect).not.toBeNull();
+      await act(async () => {
+        durationButtonsOnDurationSelect?.(60);
+      });
 
       // Notice should appear with formatted dates
       const notices = screen.queryAllByRole('status');
@@ -7692,7 +7702,6 @@ describe('TimeSelectionModal', () => {
 
   describe('branch coverage: durationAvailabilityNotice (line 1100-1116)', () => {
     it('shows notice when duration has no slots on current date', async () => {
-      const user = userEvent.setup();
       const date1 = getDateString(1);
       const date2 = getDateString(2);
 
@@ -7734,10 +7743,10 @@ describe('TimeSelectionModal', () => {
       });
 
       // Select a long duration (90 min) on date1 which only has 30 min slots
-      const duration90Buttons = screen.queryAllByTestId('duration-90');
-      if (duration90Buttons[0]) {
-        await user.click(duration90Buttons[0]);
-      }
+      expect(durationButtonsOnDurationSelect).not.toBeNull();
+      await act(async () => {
+        durationButtonsOnDurationSelect?.(90);
+      });
 
       // Should show a notice about no slots for this duration
     });
@@ -7979,7 +7988,6 @@ describe('TimeSelectionModal', () => {
     });
 
     it('exercises formatDateLabel via duration availability notice (lines 457, 464)', async () => {
-      const user = userEvent.setup();
       const date1 = getDateString(1);
       const date2 = getDateString(2);
 
@@ -8026,10 +8034,10 @@ describe('TimeSelectionModal', () => {
       });
 
       // Select 90-min duration - date1 only has 30 min, so notice should appear
-      const duration90Buttons = screen.queryAllByTestId('duration-90');
-      if (duration90Buttons[0]) {
-        await user.click(duration90Buttons[0]);
-      }
+      expect(durationButtonsOnDurationSelect).not.toBeNull();
+      await act(async () => {
+        durationButtonsOnDurationSelect?.(90);
+      });
 
       // The notice should render, which exercises formatDateLabel
       // The notice says "No 90-min slots on {formatDateLabel(date1)}"
@@ -8045,6 +8053,66 @@ describe('TimeSelectionModal', () => {
   });
 
   describe('handleJumpToNextAvailable with actual UI click (line 1006)', () => {
+    it('exercises the mobile Jump-to button click in the duration notice', async () => {
+      const user = userEvent.setup();
+      const date1 = getDateString(1);
+      const date2 = getDateString(2);
+
+      const limitedAvailability = {
+        status: 200 as const,
+        data: {
+          instructor_id: 'user-123',
+          instructor_first_name: 'John' as string | null,
+          instructor_last_initial: 'D' as string | null,
+          availability_by_date: {
+            [date1]: {
+              date: date1,
+              available_slots: [{ start_time: '10:00', end_time: '10:30' }],
+              is_blackout: false,
+            },
+            [date2]: {
+              date: date2,
+              available_slots: [{ start_time: '09:00', end_time: '12:00' }],
+              is_blackout: false,
+            },
+          },
+          timezone: 'America/New_York',
+          total_available_slots: 2,
+          earliest_available_date: date1,
+        },
+      };
+      publicApiMock.getInstructorAvailability.mockResolvedValue(limitedAvailability);
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(calendarOnDateSelect).not.toBeNull();
+      });
+
+      await act(async () => {
+        calendarOnDateSelect?.(date1);
+      });
+
+      await waitFor(() => {
+        expect(screen.queryAllByTestId('duration-buttons').length).toBeGreaterThan(0);
+      });
+
+      expect(durationButtonsOnDurationSelect).not.toBeNull();
+      await act(async () => {
+        durationButtonsOnDurationSelect?.(90);
+      });
+
+      await waitFor(() => {
+        const jumpButtons = screen.queryAllByText(/Jump to/);
+        expect(jumpButtons.length).toBeGreaterThan(0);
+      });
+
+      const jumpButtons = screen.getAllByText(/Jump to/);
+      await user.click(jumpButtons[0]!);
+
+      expect(screen.queryAllByTestId('calendar').length).toBeGreaterThan(0);
+    });
+
     it('exercises the Jump-to button click in the duration notice', async () => {
       const user = userEvent.setup();
       const date1 = getDateString(1);
@@ -8090,10 +8158,10 @@ describe('TimeSelectionModal', () => {
       });
 
       // Select 90-min duration to trigger the notice
-      const duration90Buttons = screen.queryAllByTestId('duration-90');
-      if (duration90Buttons[0]) {
-        await user.click(duration90Buttons[0]);
-      }
+      expect(durationButtonsOnDurationSelect).not.toBeNull();
+      await act(async () => {
+        durationButtonsOnDurationSelect?.(90);
+      });
 
       // Wait for the jump button to appear
       await waitFor(() => {
@@ -8101,8 +8169,11 @@ describe('TimeSelectionModal', () => {
         expect(jumpButtons.length).toBeGreaterThan(0);
       });
 
-      // Click the Jump button - exercises handleJumpToNextAvailable(date2)
-      const jumpButton = screen.getAllByText(/Jump to/)[0]!;
+      // Click the desktop Jump button - the component renders both mobile and desktop
+      // variants, and we want the duplicated desktop handler path covered too.
+      const jumpButtons = screen.getAllByText(/Jump to/);
+      expect(jumpButtons.length).toBeGreaterThan(1);
+      const jumpButton = jumpButtons[jumpButtons.length - 1]!;
       await user.click(jumpButton);
 
       // After jumping, the notice should be cleared and new date selected
@@ -8110,7 +8181,6 @@ describe('TimeSelectionModal', () => {
     });
 
     it('exercises handleJumpToNextAvailable with null nextDate (no next-available date)', async () => {
-      const user = userEvent.setup();
       const date1 = getDateString(1);
 
       // Only one date available, and it has only 30-min slots
@@ -8149,10 +8219,10 @@ describe('TimeSelectionModal', () => {
       });
 
       // Select 90-min duration - no next date available, so notice should say "Try another date"
-      const duration90Buttons = screen.queryAllByTestId('duration-90');
-      if (duration90Buttons[0]) {
-        await user.click(duration90Buttons[0]);
-      }
+      expect(durationButtonsOnDurationSelect).not.toBeNull();
+      await act(async () => {
+        durationButtonsOnDurationSelect?.(90);
+      });
 
       // The notice should appear WITHOUT a jump button since nextDate is null
       await waitFor(() => {
@@ -8926,6 +8996,130 @@ describe('TimeSelectionModal', () => {
 
       await waitFor(() => {
         expect(screen.getAllByTestId('selected-date')[0]).toHaveTextContent(dates[1]!);
+      });
+    });
+  });
+
+  describe('targeted selection fallbacks', () => {
+    it('disables longer durations when the selected date only has a short slot', async () => {
+      const date = getDateString(1);
+      publicApiMock.getInstructorAvailability.mockResolvedValue({
+        status: 200 as const,
+        data: {
+          instructor_id: 'user-123',
+          instructor_first_name: 'John' as string | null,
+          instructor_last_initial: 'D' as string | null,
+          availability_by_date: {
+            [date]: {
+              date,
+              available_slots: [{ start_time: '10:00', end_time: '10:30' }],
+              is_blackout: false,
+            },
+          },
+          timezone: 'America/New_York',
+          total_available_slots: 1,
+          earliest_available_date: date,
+        },
+      });
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('selected-date')[0]).toHaveTextContent(date);
+      });
+
+      expect(screen.getAllByTestId('duration-30')[0]).not.toBeDisabled();
+      expect(screen.getAllByTestId('duration-60')[0]).toBeDisabled();
+      expect(screen.getAllByTestId('duration-90')[0]).toBeDisabled();
+    });
+
+    it('falls back to the shortest duration when the initial duration is unsupported', async () => {
+      render(
+        <TimeSelectionModal
+          {...defaultProps}
+          initialDurationMinutes={999}
+        />,
+      );
+
+      expect(screen.getAllByTestId('selected-duration')[0]).toHaveTextContent('30');
+    });
+
+    it('uses preSelectedTime when initialTimeHHMM24 is invalid but the display time matches a slot', async () => {
+      const date = getDateString(1);
+      publicApiMock.getInstructorAvailability.mockResolvedValue({
+        status: 200 as const,
+        data: {
+          instructor_id: 'user-123',
+          instructor_first_name: 'John' as string | null,
+          instructor_last_initial: 'D' as string | null,
+          availability_by_date: {
+            [date]: {
+              date,
+              available_slots: [{ start_time: '09:00', end_time: '10:00' }],
+              is_blackout: false,
+            },
+          },
+          timezone: 'America/New_York',
+          total_available_slots: 1,
+          earliest_available_date: date,
+        },
+      });
+
+      render(
+        <TimeSelectionModal
+          {...defaultProps}
+          initialDate={date}
+          initialTimeHHMM24="invalid"
+          preSelectedTime="9:00am"
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('selected-time')[0]).toHaveTextContent('9:00am');
+      });
+    });
+
+    it('falls back to the first instructor service when the provided serviceId is missing', async () => {
+      const user = userEvent.setup();
+      const instructor = {
+        ...mockInstructor,
+        services: [
+          { ...mockService, id: 'svc-first', skill: 'Piano Lessons' },
+          { ...mockService, id: 'svc-second', skill: 'Guitar Lessons' },
+        ],
+      };
+
+      render(
+        <TimeSelectionModal
+          {...defaultProps}
+          instructor={instructor}
+          serviceId="svc-missing"
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('time-9:00am').length).toBeGreaterThan(0);
+      });
+
+      await user.click(screen.getAllByTestId('time-9:00am')[0]!);
+      await runContinueWithoutNavigation(summaryOnContinue);
+
+      const bookingDataCall = (window.sessionStorage.setItem as jest.Mock).mock.calls.find(
+        ([key]) => key === 'bookingData'
+      );
+      expect(bookingDataCall).toBeDefined();
+      const storedBookingData = JSON.parse(String(bookingDataCall?.[1] ?? '{}')) as {
+        serviceId?: string;
+        skill?: string;
+        lessonType?: string;
+        basePrice?: number;
+      };
+
+      expect(storedBookingData).toMatchObject({
+        serviceId: 'svc-missing',
+        skill: 'Piano Lessons',
+        lessonType: 'Piano Lessons',
+        basePrice: 30,
       });
     });
   });

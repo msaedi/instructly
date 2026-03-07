@@ -717,6 +717,24 @@ describe('useProfilePictureUrls', () => {
       expect(fetchMock).not.toHaveBeenCalled();
       expect(result.current).toEqual({});
     });
+
+    it('treats a null rawUserIds input as an empty request list', async () => {
+      const { result } = renderHook(
+        () => useProfilePictureUrls(null as unknown as string[], 'display'),
+        { wrapper: createWrapper() }
+      );
+
+      act(() => {
+        jest.runOnlyPendingTimers();
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(result.current).toEqual({});
+    });
   });
 
   describe('parseRawId edge cases', () => {

@@ -120,6 +120,94 @@ describe('useAvailability', () => {
   });
 
   describe('saveWeek', () => {
+    it('handles sparse week bitsets when saved and current days do not overlap', async () => {
+      mockWeekScheduleState.savedWeekBits = {
+        '2025-01-13': new Uint8Array([1, 0, 0, 0, 0, 0]),
+      };
+      mockWeekScheduleState.weekBits = {
+        '2025-01-14': new Uint8Array([2, 0, 0, 0, 0, 0]),
+      };
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved sparse diff' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: { success: boolean; message: string };
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      expect(saveResult!.success).toBe(true);
+      expect(saveResult!.message).toBe('Saved sparse diff');
+      expect(fetchWithAuth).toHaveBeenCalledWith(
+        '/api/v1/instructors/me/availability/week',
+        expect.objectContaining({
+          method: 'POST',
+        })
+      );
+    });
+
+    it('omits If-Match when neither a stored version nor an etag is available', async () => {
+      mockWeekScheduleState.etag = '';
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved without version' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      await act(async () => {
+        await result.current.saveWeek();
+      });
+
+      expect(fetchWithAuth).toHaveBeenCalledWith(
+        '/api/v1/instructors/me/availability/week',
+        expect.objectContaining({
+          headers: expect.not.objectContaining({
+            'If-Match': expect.anything(),
+          }),
+        })
+      );
+    });
+
+    it('prefers the stored window version over the hook etag when saving', async () => {
+      (window as Window & { __week_version?: string }).__week_version = 'stored-version-9';
+      mockWeekScheduleState.etag = 'etag-should-not-win';
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved with stored version' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      await act(async () => {
+        await result.current.saveWeek();
+      });
+
+      expect(fetchWithAuth).toHaveBeenCalledWith(
+        '/api/v1/instructors/me/availability/week',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'If-Match': 'stored-version-9',
+          }),
+        })
+      );
+    });
+
     it('saves availability successfully', async () => {
       fetchWithAuth.mockResolvedValueOnce({
         ok: true,

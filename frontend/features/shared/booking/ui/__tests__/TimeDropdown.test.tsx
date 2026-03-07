@@ -162,6 +162,16 @@ describe('TimeDropdown', () => {
       });
     });
 
+    it('keeps the dropdown open when clicking inside the listbox', () => {
+      render(<TimeDropdown {...defaultProps} />);
+
+      fireEvent.click(screen.getByRole('button'));
+      const listbox = screen.getByRole('listbox');
+      fireEvent.mouseDown(listbox);
+
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
+    });
+
     it('clears the previous close timeout when close is requested twice during the animation', () => {
       const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
       render(<TimeDropdown {...defaultProps} />);
@@ -268,6 +278,24 @@ describe('TimeDropdown', () => {
       expect(options[options.length - 2]).toHaveAttribute('tabindex', '0');
     });
 
+    it('opens next to the selected time when using ArrowDown from the closed trigger', () => {
+      render(<TimeDropdown {...defaultProps} selectedTime="10:00 AM" />);
+      const trigger = screen.getByRole('button', { name: /10:00 AM/i });
+
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+      const options = screen.getAllByRole('option');
+      expect(options[2]).toHaveAttribute('tabindex', '0');
+    });
+
+    it('opens previous to the selected time when using ArrowUp from the closed trigger', () => {
+      render(<TimeDropdown {...defaultProps} selectedTime="10:00 AM" />);
+      const trigger = screen.getByRole('button', { name: /10:00 AM/i });
+
+      fireEvent.keyDown(trigger, { key: 'ArrowUp' });
+      const options = screen.getAllByRole('option');
+      expect(options[0]).toHaveAttribute('tabindex', '0');
+    });
+
     it('handles listbox ArrowUp and option focus/mouse enter callbacks', () => {
       render(<TimeDropdown {...defaultProps} />);
       const trigger = screen.getByRole('button', { name: /select time/i });
@@ -314,6 +342,18 @@ describe('TimeDropdown', () => {
       expect(trigger).toHaveFocus();
     });
 
+    it('selects the active option with Space in the listbox', () => {
+      const onTimeSelect = jest.fn();
+      render(<TimeDropdown {...defaultProps} onTimeSelect={onTimeSelect} />);
+      const trigger = screen.getByRole('button', { name: /select time/i });
+
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+      fireEvent.keyDown(screen.getByRole('listbox'), { key: 'ArrowDown' });
+      fireEvent.keyDown(screen.getByRole('listbox'), { key: ' ' });
+
+      expect(onTimeSelect).toHaveBeenCalledWith('10:00 AM');
+    });
+
     it('closes with Escape and returns focus to trigger', () => {
       render(<TimeDropdown {...defaultProps} />);
       const trigger = screen.getByRole('button', { name: /select time/i });
@@ -344,6 +384,65 @@ describe('TimeDropdown', () => {
         jest.advanceTimersByTime(200);
       });
       expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    });
+
+    it('re-seeds trigger arrow navigation while the close animation is still pending', () => {
+      render(<TimeDropdown {...defaultProps} />);
+      const trigger = screen.getByRole('button', { name: /select time/i });
+
+      fireEvent.click(trigger);
+      fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' });
+
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+      let options = screen.getAllByRole('option');
+      expect(options[0]).toHaveAttribute('tabindex', '0');
+
+      act(() => {
+        jest.advanceTimersByTime(200);
+      });
+
+      fireEvent.click(trigger);
+      fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' });
+      fireEvent.keyDown(trigger, { key: 'ArrowUp' });
+
+      options = screen.getAllByRole('option');
+      expect(options[options.length - 1]).toHaveAttribute('tabindex', '0');
+    });
+
+    it('re-seeds listbox arrow navigation from no active option during close animation', () => {
+      render(<TimeDropdown {...defaultProps} />);
+      const trigger = screen.getByRole('button', { name: /select time/i });
+
+      fireEvent.click(trigger);
+      const listbox = screen.getByRole('listbox');
+      fireEvent.keyDown(listbox, { key: 'Escape' });
+
+      fireEvent.keyDown(listbox, { key: 'ArrowDown' });
+      let options = screen.getAllByRole('option');
+      expect(options[0]).toHaveAttribute('tabindex', '0');
+
+      fireEvent.keyDown(listbox, { key: 'Escape' });
+      fireEvent.keyDown(listbox, { key: 'ArrowUp' });
+      options = screen.getAllByRole('option');
+      expect(options[options.length - 1]).toHaveAttribute('tabindex', '0');
+    });
+
+    it('falls back to the selected option when Enter is pressed during the close animation', () => {
+      const onTimeSelect = jest.fn();
+      render(
+        <TimeDropdown
+          {...defaultProps}
+          onTimeSelect={onTimeSelect}
+          selectedTime="10:00 AM"
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /10:00 AM/i }));
+      const listbox = screen.getByRole('listbox');
+      fireEvent.keyDown(listbox, { key: 'Escape' });
+      fireEvent.keyDown(listbox, { key: 'Enter' });
+
+      expect(onTimeSelect).toHaveBeenCalledWith('10:00 AM');
     });
 
     it('does not open on keydown when disabled', () => {
@@ -401,6 +500,21 @@ describe('TimeDropdown', () => {
       fireEvent.click(screen.getByText('Select time'));
       const button = screen.getByText('Select time').closest('button');
       expect(button).toHaveClass('ring-2', 'ring-[#7E22CE]');
+    });
+
+    it('toggles closed when the trigger is clicked while the dropdown is already open', () => {
+      render(<TimeDropdown {...defaultProps} />);
+      const trigger = screen.getByRole('button', { name: /select time/i });
+
+      fireEvent.click(trigger);
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
+
+      fireEvent.click(trigger);
+      act(() => {
+        jest.advanceTimersByTime(200);
+      });
+
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
     });
   });
 });

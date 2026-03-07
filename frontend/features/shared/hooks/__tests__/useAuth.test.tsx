@@ -443,6 +443,23 @@ describe('useAuth', () => {
     // Since userRef.current is not null, setError should NOT be called
   });
 
+  it('keeps the previous auth state when a non-Error refetch failure occurs after the user is loaded', async () => {
+    httpGetMock.mockResolvedValueOnce(mockUser);
+
+    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+
+    httpGetMock.mockRejectedValueOnce('socket closed');
+
+    await act(async () => {
+      await result.current.checkAuth();
+    });
+
+    expect(result.current.user).toEqual(mockUser);
+    expect(result.current.error).toBeNull();
+  });
+
   it('handles logout backend failure gracefully (catch branch)', async () => {
     httpGetMock.mockResolvedValueOnce(mockUser);
 

@@ -52,13 +52,25 @@ const createWrapper = () => {
   });
   const wrapper = ({ children }: { children: React.ReactNode }) =>
     React.createElement(QueryClientProvider, { client: queryClient }, children);
-  return { wrapper };
+  return { wrapper, queryClient };
 };
 
 describe('useUpcomingBookings', () => {
   beforeEach(() => {
     queryFnMock.mockReset();
     useCurrentUserMock.mockReset();
+  });
+
+  it('uses the default upcoming-bookings limit when no limit is provided', async () => {
+    const bookings = { items: [{ id: 'b-default' }] };
+    useCurrentUserMock.mockReturnValue({ id: 'user-default' });
+    queryFnMock.mockReturnValue(() => Promise.resolve(bookings));
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useUpcomingBookings(), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(queryFnMock).toHaveBeenCalledWith('/api/v1/bookings/upcoming?limit=2', { requireAuth: true });
   });
 
   it('fetches upcoming bookings for authenticated users', async () => {
@@ -101,6 +113,17 @@ describe('useRecentSearches', () => {
   beforeEach(() => {
     getRecentSearchesMock.mockReset();
     convertApiResponseMock.mockReset();
+  });
+
+  it('uses the default recent-search limit when no limit is provided', async () => {
+    getRecentSearchesMock.mockResolvedValueOnce({ data: [], status: 200 });
+    convertApiResponseMock.mockReturnValue([]);
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useRecentSearches(), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(getRecentSearchesMock).toHaveBeenCalledWith(3);
   });
 
   it('returns recent searches on success', async () => {
@@ -179,6 +202,29 @@ describe('useFeaturedServices', () => {
 
     await waitFor(() => expect(getTopServicesMock).toHaveBeenCalled());
   });
+
+  it('falls back to the legacy featured query key when services keys are unavailable', async () => {
+    const { queryKeys } = require('@/lib/react-query/queryClient') as typeof import('@/lib/react-query/queryClient');
+    const mutableQueryKeys = queryKeys as typeof queryKeys & { services?: typeof queryKeys.services };
+    const originalServices = mutableQueryKeys.services;
+    mutableQueryKeys.services = undefined as unknown as typeof originalServices;
+    getTopServicesMock.mockResolvedValueOnce({ data: { categories: ['fallback'] }, status: 200 });
+    convertApiResponseMock.mockImplementation((response) => response.data);
+
+    try {
+      const { wrapper, queryClient } = createWrapper();
+      const { result } = renderHook(() => useFeaturedServices(), { wrapper });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      const featuredQuery = queryClient
+        .getQueryCache()
+        .findAll()
+        .find((query) => JSON.stringify(query.queryKey) === JSON.stringify(['services', 'featured']));
+      expect(featuredQuery).toBeDefined();
+    } finally {
+      mutableQueryKeys.services = originalServices;
+    }
+  });
 });
 
 describe('useBookingHistory', () => {
@@ -186,6 +232,17 @@ describe('useBookingHistory', () => {
     httpJsonMock.mockReset();
     useCurrentUserMock.mockReset();
     withApiBaseMock.mockClear();
+  });
+
+  it('uses the default booking-history page size when no limit is provided', async () => {
+    useCurrentUserMock.mockReturnValue({ id: 'user-history-default' });
+    httpJsonMock.mockResolvedValueOnce({ items: [{ id: 'history-default' }] });
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useBookingHistory(), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(withApiBaseMock).toHaveBeenCalledWith('/api/v1/bookings?status=COMPLETED&per_page=50');
   });
 
   it('fetches booking history for authenticated users', async () => {
@@ -402,5 +459,32 @@ describe('useHomepageData', () => {
     expect(result.current.featuredServices.data).toEqual({ categories: ['music'] });
     // History should have error
     expect(result.current.bookingHistory.error?.message).toBe('History auth expired');
+  });
+
+  it('uses the fallback featured query key inside the homepage aggregate hook', async () => {
+    const { queryKeys } = require('@/lib/react-query/queryClient') as typeof import('@/lib/react-query/queryClient');
+    const mutableQueryKeys = queryKeys as typeof queryKeys & { services?: typeof queryKeys.services };
+    const originalServices = mutableQueryKeys.services;
+    mutableQueryKeys.services = undefined as unknown as typeof originalServices;
+    useCurrentUserMock.mockReturnValue(null);
+    queryFnMock.mockReturnValue(() => Promise.resolve(undefined));
+    getRecentSearchesMock.mockResolvedValueOnce({ data: [], status: 200 });
+    getTopServicesMock.mockResolvedValueOnce({ data: { categories: ['featured'] }, status: 200 });
+    convertApiResponseMock.mockImplementation((response) => response.data);
+
+    try {
+      const { wrapper, queryClient } = createWrapper();
+      const { result } = renderHook(() => useHomepageData(), { wrapper });
+
+      await waitFor(() => expect(result.current.isAnyLoading).toBe(false));
+      const featuredQuery = queryClient
+        .getQueryCache()
+        .findAll()
+        .find((query) => JSON.stringify(query.queryKey) === JSON.stringify(['services', 'featured']));
+      expect(featuredQuery).toBeDefined();
+      expect(result.current.featuredServices.data).toEqual({ categories: ['featured'] });
+    } finally {
+      mutableQueryKeys.services = originalServices;
+    }
   });
 });

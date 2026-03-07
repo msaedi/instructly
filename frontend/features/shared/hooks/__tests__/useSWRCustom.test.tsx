@@ -353,4 +353,51 @@ describe('useSWRCustom', () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.data).toBe('strict-payload');
   });
+
+  it('reuses an in-flight request for the same key and ignores its cleanup after the key changes', async () => {
+    let resolveFirst!: (value: string) => void;
+    let resolveSecond!: (value: string) => void;
+    const fetcher = jest.fn((key: string) => {
+      if (key === 'key-1') {
+        return new Promise<string>((resolve) => {
+          resolveFirst = resolve;
+        });
+      }
+      return new Promise<string>((resolve) => {
+        resolveSecond = resolve;
+      });
+    });
+
+    const { result, rerender } = renderHook(
+      ({ key, fetcherFn }: { key: string; fetcherFn: typeof fetcher }) =>
+        useSWRCustom(key, fetcherFn, { dedupingInterval: 5000 }),
+      { initialProps: { key: 'key-1', fetcherFn: fetcher } }
+    );
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(result.current.isLoading).toBe(true);
+
+    const fetcherSameKey = jest.fn(fetcher);
+    rerender({ key: 'key-1', fetcherFn: fetcherSameKey });
+    expect(fetcherSameKey).not.toHaveBeenCalled();
+
+    rerender({ key: 'key-2', fetcherFn: fetcher });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      resolveFirst('stale-first-payload');
+      await Promise.resolve();
+    });
+
+    expect(result.current.data).toBeUndefined();
+    expect(result.current.isLoading).toBe(true);
+
+    await act(async () => {
+      resolveSecond('fresh-second-payload');
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.data).toBe('fresh-second-payload');
+  });
 });
