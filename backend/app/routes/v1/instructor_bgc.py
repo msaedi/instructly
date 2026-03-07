@@ -87,6 +87,16 @@ def _bgc_invite_rate_limited_problem() -> dict[str, Any]:
     }
 
 
+def _identity_verification_required_problem() -> dict[str, Any]:
+    return {
+        "type": "about:blank",
+        "title": "Identity verification required",
+        "status": status.HTTP_400_BAD_REQUEST,
+        "detail": "Identity verification must be completed before starting a background check.",
+        "code": "identity_verification_required",
+    }
+
+
 def _checkr_auth_problem(detail: str | None = None) -> dict[str, Any]:
     return {
         "type": "about:blank",
@@ -321,6 +331,23 @@ async def trigger_background_check_invite(
         BGC_INVITES_TOTAL.labels(outcome="ok").inc()
         return response
 
+    if not getattr(profile, "identity_verified_at", None):
+        logger.info(
+            "Background check invite blocked; identity verification required",
+            extra={
+                "evt": "bgc_invite",
+                "instructor_id": instructor_id,
+                "outcome": "identity_verification_required",
+            },
+        )
+        BGC_INVITES_TOTAL.labels(outcome="error").inc()
+        problem = _identity_verification_required_problem()
+        problem["instance"] = f"/api/v1/instructors/{instructor_id}/bgc/invite"
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=problem,
+        )
+
     latest_consent = repo.latest_consent(instructor_id)
     now = datetime.now(timezone.utc)
     consent_recent = bool(
@@ -384,6 +411,13 @@ async def trigger_background_check_invite(
             package_override=payload.package_slug,
         )
     except ServiceException as exc:
+        if exc.code == "identity_verification_required":
+            problem = _identity_verification_required_problem()
+            problem["instance"] = f"/api/v1/instructors/{instructor_id}/bgc/invite"
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=problem,
+            )
         if exc.code == "invalid_work_location":
             details = exc.details if isinstance(exc.details, dict) else {}
             problem = _invalid_work_location_problem(
@@ -668,9 +702,33 @@ async def trigger_background_check_recheck(
             already_in_progress=True,
         )
 
+    if not getattr(profile, "identity_verified_at", None):
+        logger.info(
+            "Background check re-check blocked; identity verification required",
+            extra={
+                "evt": "bgc_recheck",
+                "instructor_id": instructor_id,
+                "outcome": "identity_verification_required",
+            },
+        )
+        BGC_INVITES_TOTAL.labels(outcome="error").inc()
+        problem = _identity_verification_required_problem()
+        problem["instance"] = f"/api/v1/instructors/{instructor_id}/bgc/recheck"
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=problem,
+        )
+
     try:
         invite_result = await asyncio.to_thread(background_check_service.invite, instructor_id)
     except ServiceException as exc:
+        if exc.code == "identity_verification_required":
+            problem = _identity_verification_required_problem()
+            problem["instance"] = f"/api/v1/instructors/{instructor_id}/bgc/recheck"
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=problem,
+            )
         if exc.code == "invalid_work_location":
             details = exc.details if isinstance(exc.details, dict) else {}
             problem = _invalid_work_location_problem(

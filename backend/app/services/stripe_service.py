@@ -191,6 +191,129 @@ class StripeService(BaseService):
         reason = self._stripe_value(last_error, "reason")
         return code, reason
 
+    @staticmethod
+    def _normalized_identity_value(value: Any) -> str:
+        """Normalize free-form identity fields for case-insensitive comparison."""
+        if value is None:
+            return ""
+        return str(value).strip().lower()
+
+    @staticmethod
+    def _clean_identity_string(value: Any) -> Optional[str]:
+        """Return a trimmed string value or None when empty."""
+        if value is None:
+            return None
+        cleaned = str(value).strip()
+        return cleaned or None
+
+    @staticmethod
+    def _stripe_has_field(obj: Any, key: str) -> bool:
+        """Detect whether a Stripe object or test double explicitly exposes a field."""
+        if isinstance(obj, dict):
+            return key in obj
+        return hasattr(obj, key)
+
+    def _parse_identity_dob(self, dob_value: Any) -> Optional[date]:
+        """Convert Stripe DOB payloads into a Python date."""
+        if not dob_value:
+            return None
+
+        day = self._stripe_value(dob_value, "day")
+        month = self._stripe_value(dob_value, "month")
+        year = self._stripe_value(dob_value, "year")
+        if day in (None, "") or month in (None, "") or year in (None, ""):
+            return None
+
+        try:
+            return date(int(year), int(month), int(day))
+        except (TypeError, ValueError):
+            return None
+
+    def _persist_verified_identity(
+        self,
+        *,
+        profile_id: str,
+        user_id: str,
+        session: Any,
+        session_id: str | None = None,
+        refresh_session: bool = False,
+    ) -> None:
+        """Persist verified Stripe Identity outputs and mismatch flags on the instructor."""
+
+        resolved_session = session
+        resolved_session_id = self._clean_identity_string(
+            self._stripe_value(session, "id", session_id) or session_id
+        )
+        verified_at = datetime.now(timezone.utc)
+
+        if refresh_session and resolved_session_id:
+            try:
+                resolved_session = cast(Any, stripe.identity.VerificationSession).retrieve(
+                    resolved_session_id,
+                    expand=["verified_outputs"],
+                )
+            except stripe.StripeError as exc:
+                self.logger.warning(
+                    "Failed to retrieve Stripe verified outputs for session %s: %s",
+                    resolved_session_id,
+                    str(exc),
+                )
+                self.instructor_repository.update(
+                    profile_id,
+                    identity_verified_at=verified_at,
+                    identity_verification_session_id=resolved_session_id,
+                )
+                return
+
+        verified_outputs = (
+            self._stripe_value(resolved_session, "verified_outputs")
+            if self._stripe_has_field(resolved_session, "verified_outputs")
+            else None
+        )
+        verified_first_name = self._clean_identity_string(
+            self._stripe_value(verified_outputs, "first_name") if verified_outputs else None
+        )
+        verified_last_name = self._clean_identity_string(
+            self._stripe_value(verified_outputs, "last_name") if verified_outputs else None
+        )
+        verified_dob = self._parse_identity_dob(
+            self._stripe_value(verified_outputs, "dob") if verified_outputs else None
+        )
+
+        identity_name_mismatch = False
+        user = self.user_repository.get_by_id(user_id)
+        if user and verified_last_name:
+            signup_last_name = self._normalized_identity_value(getattr(user, "last_name", None))
+            verified_last_name_normalized = self._normalized_identity_value(verified_last_name)
+            identity_name_mismatch = bool(
+                signup_last_name
+                and verified_last_name_normalized
+                and signup_last_name != verified_last_name_normalized
+            )
+            if identity_name_mismatch:
+                self.logger.warning(
+                    "Identity last-name mismatch for user %s: signup='%s' verified='%s'",
+                    user_id,
+                    getattr(user, "last_name", None),
+                    verified_last_name,
+                )
+
+        self.instructor_repository.update(
+            profile_id,
+            identity_verified_at=verified_at,
+            identity_verification_session_id=resolved_session_id,
+            verified_first_name=verified_first_name,
+            verified_last_name=verified_last_name,
+            verified_dob=verified_dob,
+            identity_name_mismatch=identity_name_mismatch,
+        )
+
+        if verified_outputs is None:
+            self.logger.warning(
+                "Stripe identity session %s verified without verified_outputs payload",
+                resolved_session_id or "unknown",
+            )
+
     def _identity_session_payload(self, session: Any, *, reuse_existing: bool) -> Dict[str, str]:
         """Return the API payload for a Stripe Identity session."""
         client_secret = self._stripe_value(session, "client_secret")
@@ -406,7 +529,10 @@ class StripeService(BaseService):
         self._check_stripe_configured()
 
         try:
-            session = cast(Any, stripe.identity.VerificationSession).retrieve(session_id)
+            session = cast(Any, stripe.identity.VerificationSession).retrieve(
+                session_id,
+                expand=["verified_outputs"],
+            )
         except stripe.StripeError as exc:
             self.logger.error(
                 "Failed to retrieve identity session %s: %s",
@@ -423,9 +549,11 @@ class StripeService(BaseService):
         stripe_status = str(self._stripe_value(session, "status", "unknown") or "unknown")
         last_error_code, last_error_reason = self._identity_last_error(session)
         if stripe_status == "verified":
-            self.instructor_repository.update(
-                profile_id,
-                identity_verified_at=datetime.now(timezone.utc),
+            self._persist_verified_identity(
+                profile_id=profile_id,
+                user_id=user.id,
+                session=session,
+                session_id=session_id,
             )
             return IdentityRefreshResponse(
                 status="verified",
@@ -1912,7 +2040,8 @@ class StripeService(BaseService):
             if existing_session_id:
                 try:
                     existing_session = cast(Any, stripe.identity.VerificationSession).retrieve(
-                        existing_session_id
+                        existing_session_id,
+                        expand=["verified_outputs"],
                     )
                 except stripe.StripeError as exc:
                     self.logger.error(
@@ -1930,9 +2059,11 @@ class StripeService(BaseService):
 
                 if existing_status == "verified":
                     if profile and not profile.identity_verified_at:
-                        self.instructor_repository.update(
-                            profile.id,
-                            identity_verified_at=datetime.now(timezone.utc),
+                        self._persist_verified_identity(
+                            profile_id=profile.id,
+                            user_id=user_id,
+                            session=existing_session,
+                            session_id=existing_session_id,
                         )
                     raise ServiceException("Identity verification already completed")
 
@@ -4354,12 +4485,12 @@ class StripeService(BaseService):
             # On verified, mark identity_verified_at and store session id
             if verification_status == "verified":
                 try:
-                    from datetime import datetime, timezone as _tz
-
-                    self.instructor_repository.update(
-                        profile.id,
-                        identity_verified_at=datetime.now(_tz.utc),
-                        identity_verification_session_id=obj.get("id"),
+                    self._persist_verified_identity(
+                        profile_id=profile.id,
+                        user_id=user_id,
+                        session=obj,
+                        session_id=obj.get("id"),
+                        refresh_session=True,
                     )
                 except Exception as e:
                     self.logger.error(

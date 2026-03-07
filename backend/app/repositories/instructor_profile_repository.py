@@ -438,6 +438,8 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         invitation_id: str | None = None,
         note: Any = _UNSET,
         includes_canceled: Any = _UNSET,
+        submitted_first_name: Any = _UNSET,
+        submitted_last_name: Any = _UNSET,
     ) -> None:
         """Persist background check metadata for a specific instructor profile."""
 
@@ -458,6 +460,10 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 profile.bgc_note = cast(Optional[str], note)
             if includes_canceled is not _UNSET:
                 profile.bgc_includes_canceled = bool(includes_canceled)
+            if submitted_first_name is not _UNSET:
+                profile.bgc_submitted_first_name = cast(Optional[str], submitted_first_name)
+            if submitted_last_name is not _UNSET:
+                profile.bgc_submitted_last_name = cast(Optional[str], submitted_last_name)
 
             self.db.flush()
         except SQLAlchemyError as exc:

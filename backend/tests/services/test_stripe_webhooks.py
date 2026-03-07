@@ -2,7 +2,7 @@
 Webhook handler tests for StripeService.
 """
 
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -887,10 +887,20 @@ def test_payout_webhook_unhandled_event(stripe_service: StripeService) -> None:
     assert stripe_service._handle_payout_webhook(event) is False
 
 
+@patch("stripe.identity.VerificationSession.retrieve")
 def test_identity_webhook_verified_updates_profile(
-    stripe_service: StripeService, test_instructor: tuple
+    mock_retrieve, stripe_service: StripeService, test_instructor: tuple
 ) -> None:
     user, profile, _ = test_instructor
+    mock_retrieve.return_value = {
+        "id": "vs_verified",
+        "status": "verified",
+        "verified_outputs": {
+            "first_name": "Test",
+            "last_name": "Instructor",
+            "dob": {"day": 12, "month": 5, "year": 1990},
+        },
+    }
     event = {
         "type": "identity.verification_session.verified",
         "data": {
@@ -903,6 +913,66 @@ def test_identity_webhook_verified_updates_profile(
     updated = stripe_service.instructor_repository.get_by_user_id(user.id)
     assert updated.identity_verified_at is not None
     assert updated.identity_verification_session_id == "vs_verified"
+    assert updated.verified_first_name == "Test"
+    assert updated.verified_last_name == "Instructor"
+    assert updated.verified_dob == date(1990, 5, 12)
+    assert updated.identity_name_mismatch is False
+
+
+@patch("stripe.identity.VerificationSession.retrieve")
+def test_identity_webhook_verified_flags_last_name_mismatch(
+    mock_retrieve, stripe_service: StripeService, test_instructor: tuple
+) -> None:
+    user, profile, _ = test_instructor
+    mock_retrieve.return_value = {
+        "id": "vs_mismatch",
+        "status": "verified",
+        "verified_outputs": {
+            "first_name": "Homer",
+            "last_name": "Simpson",
+        },
+    }
+    event = {
+        "type": "identity.verification_session.verified",
+        "data": {
+            "object": {"id": "vs_mismatch", "status": "verified", "metadata": {"user_id": user.id}}
+        },
+    }
+
+    assert stripe_service._handle_identity_webhook(event) is True
+
+    updated = stripe_service.instructor_repository.get_by_user_id(user.id)
+    assert updated.verified_first_name == "Homer"
+    assert updated.verified_last_name == "Simpson"
+    assert updated.identity_name_mismatch is True
+
+
+@patch("stripe.identity.VerificationSession.retrieve")
+def test_identity_webhook_verified_handles_empty_verified_outputs(
+    mock_retrieve, stripe_service: StripeService, test_instructor: tuple
+) -> None:
+    user, profile, _ = test_instructor
+    mock_retrieve.return_value = {
+        "id": "vs_empty",
+        "status": "verified",
+        "verified_outputs": None,
+    }
+    event = {
+        "type": "identity.verification_session.verified",
+        "data": {
+            "object": {"id": "vs_empty", "status": "verified", "metadata": {"user_id": user.id}}
+        },
+    }
+
+    assert stripe_service._handle_identity_webhook(event) is True
+
+    updated = stripe_service.instructor_repository.get_by_user_id(user.id)
+    assert updated.identity_verified_at is not None
+    assert updated.identity_verification_session_id == "vs_empty"
+    assert updated.verified_first_name is None
+    assert updated.verified_last_name is None
+    assert updated.verified_dob is None
+    assert updated.identity_name_mismatch is False
 
 
 def test_identity_webhook_requires_input_preserves_session_id(
@@ -959,10 +1029,16 @@ def test_identity_webhook_requires_input_update_failure(
         assert stripe_service._handle_identity_webhook(event) is True
 
 
+@patch("stripe.identity.VerificationSession.retrieve")
 def test_identity_webhook_update_failure_returns_false(
-    stripe_service: StripeService, test_instructor: tuple
+    mock_retrieve, stripe_service: StripeService, test_instructor: tuple
 ) -> None:
     user, profile, _ = test_instructor
+    mock_retrieve.return_value = {
+        "id": "vs_fail",
+        "status": "verified",
+        "verified_outputs": {"last_name": "Instructor"},
+    }
     event = {
         "type": "identity.verification_session.verified",
         "data": {

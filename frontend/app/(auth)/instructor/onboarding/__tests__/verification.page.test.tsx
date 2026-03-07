@@ -56,6 +56,7 @@ const mockVerifyIdentity = jest.fn();
 const mockLoadStripe = jest.fn(async (_publishableKey: string) => ({
   verifyIdentity: mockVerifyIdentity,
 }));
+let capturedBgcIdentityVerified: boolean | undefined;
 
 jest.mock('next/navigation', () => ({
   useRouter: () => routerProxy,
@@ -87,7 +88,10 @@ jest.mock('sonner', () => {
 
 jest.mock('@/components/instructor/BGCStep', () => ({
   __esModule: true,
-  BGCStep: () => <div data-testid="bgc-step">BGC Step</div>,
+  BGCStep: (props: { identityVerified?: boolean }) => {
+    capturedBgcIdentityVerified = props.identityVerified;
+    return <div data-testid="bgc-step">BGC Step</div>;
+  },
 }));
 
 const mockRefreshStepStatus = jest.fn();
@@ -154,6 +158,7 @@ describe('Verification page', () => {
     mockVerifyIdentity.mockResolvedValue({});
     mockLoadStripe.mockClear();
     mockRefreshStepStatus.mockClear();
+    capturedBgcIdentityVerified = undefined;
     (toast.success as jest.Mock).mockClear();
     (toast.error as jest.Mock).mockClear();
     (toast.info as jest.Mock).mockClear();
@@ -201,6 +206,7 @@ describe('Verification page', () => {
 
     await waitFor(() => expect(screen.getByTestId('bgc-step')).toBeInTheDocument());
     expect(screen.queryByText(/choose file/i)).not.toBeInTheDocument();
+    expect(capturedBgcIdentityVerified).toBe(false);
   });
 
   it('keeps peer section headings at h2 level', async () => {

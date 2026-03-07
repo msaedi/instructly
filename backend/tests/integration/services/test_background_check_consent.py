@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import pytest
 
 from app.api.dependencies.auth import get_current_user
@@ -33,6 +35,7 @@ def _create_owner_and_profile(db, *, status: str | None = None):
     db.flush()
 
     profile = InstructorProfile(user_id=owner.id)
+    profile.identity_verified_at = datetime.now(timezone.utc)
     if status:
         profile.bgc_status = status
     db.add(profile)

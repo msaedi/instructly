@@ -1,4 +1,6 @@
 
+from datetime import datetime, timezone
+
 from pydantic import SecretStr
 import pytest
 
@@ -6,6 +8,11 @@ from app.core.exceptions import NotFoundException, ServiceException
 from app.integrations.checkr_client import CheckrError
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 from app.services.background_check_service import BackgroundCheckService
+
+
+def _mark_identity_verified(test_instructor, db) -> None:
+    test_instructor.instructor_profile.identity_verified_at = datetime.now(timezone.utc)
+    db.commit()
 
 
 class _StubCheckrClient:
@@ -53,6 +60,7 @@ def bgc_service(db):
 
 def test_invite_success_updates_profile(db, bgc_service, test_instructor, monkeypatch):
     test_instructor.instructor_profile.is_live = False
+    _mark_identity_verified(test_instructor, db)
     db.commit()
 
     monkeypatch.setattr(
@@ -95,6 +103,7 @@ def test_invite_missing_user_raises(monkeypatch, db):
 
 
 def test_invite_missing_zip_raises(db, bgc_service, test_instructor):
+    _mark_identity_verified(test_instructor, db)
     test_instructor.zip_code = ""
     db.commit()
 
@@ -103,6 +112,7 @@ def test_invite_missing_zip_raises(db, bgc_service, test_instructor):
 
 
 def test_invite_missing_package_raises(db, test_instructor):
+    _mark_identity_verified(test_instructor, db)
     repo = InstructorProfileRepository(db)
     service = BackgroundCheckService(
         db,
@@ -116,6 +126,7 @@ def test_invite_missing_package_raises(db, test_instructor):
 
 
 def test_invite_checkr_error(db, test_instructor, monkeypatch):
+    _mark_identity_verified(test_instructor, db)
     repo = InstructorProfileRepository(db)
     service = BackgroundCheckService(
         db,
@@ -135,6 +146,7 @@ def test_invite_checkr_error(db, test_instructor, monkeypatch):
 
 
 def test_invite_missing_candidate_id(db, test_instructor, monkeypatch):
+    _mark_identity_verified(test_instructor, db)
     repo = InstructorProfileRepository(db)
 
     class _NoCandidateClient(_StubCheckrClient):

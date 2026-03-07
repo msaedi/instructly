@@ -991,7 +991,15 @@ class TestStripeService:
             identity_verification_session_id="vs_verified",
             identity_verified_at=None,
         )
-        mock_retrieve.return_value = SimpleNamespace(status="verified")
+        mock_retrieve.return_value = SimpleNamespace(
+            id="vs_verified",
+            status="verified",
+            verified_outputs=SimpleNamespace(
+                first_name="Test",
+                last_name="Instructor",
+                dob=SimpleNamespace(day=1, month=2, year=1990),
+            ),
+        )
 
         refreshed = stripe_service.refresh_instructor_identity(user=user)
 
@@ -1002,6 +1010,11 @@ class TestStripeService:
         updated_profile = stripe_service.instructor_repository.get_by_user_id(user.id)
         assert updated_profile.bgc_in_dispute is False
         assert updated_profile.identity_verified_at is not None
+        assert updated_profile.identity_verification_session_id == "vs_verified"
+        assert updated_profile.verified_first_name == "Test"
+        assert updated_profile.verified_last_name == "Instructor"
+        assert updated_profile.verified_dob == date(1990, 2, 1)
+        assert updated_profile.identity_name_mismatch is False
 
     @patch("stripe.identity.VerificationSession.retrieve")
     def test_refresh_instructor_identity_returns_processing(
@@ -4052,6 +4065,11 @@ class TestStripeService:
         mock_retrieve.return_value = {
             "id": "vs_verified",
             "status": "verified",
+            "verified_outputs": {
+                "first_name": "Test",
+                "last_name": "Instructor",
+                "dob": {"day": 14, "month": 3, "year": 1988},
+            },
         }
 
         with pytest.raises(ServiceException, match="Identity verification already completed"):
@@ -4061,6 +4079,9 @@ class TestStripeService:
 
         updated_profile = stripe_service.instructor_repository.get_by_user_id(user.id)
         assert updated_profile.identity_verified_at is not None
+        assert updated_profile.verified_first_name == "Test"
+        assert updated_profile.verified_last_name == "Instructor"
+        assert updated_profile.verified_dob == date(1988, 3, 14)
         mock_create.assert_not_called()
 
     @patch("stripe.identity.VerificationSession.create")

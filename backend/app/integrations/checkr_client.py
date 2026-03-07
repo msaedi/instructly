@@ -78,6 +78,13 @@ class CheckrClient:
             raise ValueError("report_id must be provided")
         return self.request("GET", f"/reports/{report_id}")
 
+    def get_candidate(self, candidate_id: str) -> Dict[str, Any]:
+        """Fetch a Checkr candidate by identifier."""
+
+        if not candidate_id:
+            raise ValueError("candidate_id must be provided")
+        return self.request("GET", f"/candidates/{candidate_id}")
+
     def request(
         self,
         method: str,
@@ -163,6 +170,7 @@ class FakeCheckrClient(CheckrClient):
     def __init__(self) -> None:
         super().__init__(api_key="fake-checkr-key", base_url="https://api.checkr.com/v1")
         self._logger = logging.getLogger(self.__class__.__name__)
+        self._candidates: dict[str, Dict[str, Any]] = {}
 
     def create_candidate(
         self,
@@ -172,11 +180,13 @@ class FakeCheckrClient(CheckrClient):
     ) -> Dict[str, Any]:
         candidate_id = f"fake-candidate-{uuid4().hex}"
         self._logger.debug("Fake candidate created", extra={"candidate_id": candidate_id})
-        return {
+        candidate = {
             "id": candidate_id,
             "object": "candidate",
             **{k: v for k, v in payload.items() if v is not None},
         }
+        self._candidates[candidate_id] = dict(candidate)
+        return candidate
 
     def create_invitation(self, **payload: Any) -> Dict[str, Any]:
         candidate_id = payload.get("candidate_id") or f"fake-candidate-{uuid4().hex}"
@@ -203,4 +213,15 @@ class FakeCheckrClient(CheckrClient):
             "object": "report",
             "result": "clear",
             "status": "complete",
+        }
+
+    def get_candidate(self, candidate_id: str) -> Dict[str, Any]:
+        if not candidate_id:
+            raise ValueError("candidate_id must be provided")
+        candidate = self._candidates.get(candidate_id)
+        if candidate is not None:
+            return dict(candidate)
+        return {
+            "id": candidate_id,
+            "object": "candidate",
         }

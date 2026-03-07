@@ -101,6 +101,19 @@ describe('BGCStep', () => {
       });
     });
 
+    it('requires identity verification before rendering the start button', async () => {
+      render(<BGCStep instructorId={mockInstructorId} identityVerified={false} />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('Complete ID verification before starting a background check.')
+        ).toBeInTheDocument();
+      });
+      expect(
+        screen.queryByRole('button', { name: /start background check/i })
+      ).not.toBeInTheDocument();
+    });
+
     it('displays valid until label', async () => {
       bgcStatusMock.mockResolvedValue({
         ...defaultStatusResponse,

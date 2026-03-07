@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import json
 from typing import Any
 
@@ -40,7 +41,14 @@ def configure_checkr_settings():
         settings.checkr_hosted_workflow = original_workflow
 
 
-def _create_instructor(db, *, status: str = "pending") -> InstructorProfile:
+def _create_instructor(
+    db,
+    *,
+    status: str = "pending",
+    identity_verified: bool = True,
+    verified_first_name: str | None = None,
+    verified_last_name: str | None = None,
+) -> InstructorProfile:
     user = User(
         email="instructor@example.com",
         hashed_password=get_password_hash("StrongP@ssw0rd"),
@@ -54,6 +62,9 @@ def _create_instructor(db, *, status: str = "pending") -> InstructorProfile:
 
     profile = InstructorProfile(user_id=user.id)
     profile.bgc_status = status
+    profile.identity_verified_at = datetime.now(timezone.utc) if identity_verified else None
+    profile.verified_first_name = verified_first_name
+    profile.verified_last_name = verified_last_name
     db.add(profile)
     db.flush()
     db.refresh(profile)
@@ -119,6 +130,47 @@ def test_invite_returns_candidate_and_invitation_ids(db):
     assert profile.bgc_env == settings.checkr_env
     assert profile.checkr_candidate_id == "cand_123"
     assert profile.checkr_invitation_id == "inv_123"
+    assert profile.bgc_submitted_first_name == "Ada"
+    assert profile.bgc_submitted_last_name == "Lovelace"
+
+
+def test_invite_uses_verified_name_when_available(db):
+    captured_requests: dict[str, dict] = {}
+
+    def handler(request):
+        body = json.loads(request.content.decode())
+        if request.url.path.endswith("/candidates"):
+            captured_requests["candidate"] = body
+            return Response(201, json={"id": "cand_verified"})
+        if request.url.path.endswith("/invitations"):
+            return Response(201, json={"id": "inv_verified", "report_id": "rpt_verified"})
+        raise AssertionError(f"Unexpected path {request.url.path}")
+
+    service = _service_factory(db, MockTransport(handler))
+    profile = _create_instructor(
+        db,
+        verified_first_name="Augusta",
+        verified_last_name="King",
+    )
+
+    service.invite(profile.id)
+
+    assert captured_requests["candidate"]["first_name"] == "Augusta"
+    assert captured_requests["candidate"]["last_name"] == "King"
+
+    db.refresh(profile)
+    assert profile.bgc_submitted_first_name == "Augusta"
+    assert profile.bgc_submitted_last_name == "King"
+
+
+def test_invite_requires_identity_verification(db):
+    service = _service_factory(db, MockTransport(lambda request: Response(201, json={"id": "unused"})))
+    profile = _create_instructor(db, identity_verified=False)
+
+    with pytest.raises(ServiceException) as exc:
+        service.invite(profile.id)
+
+    assert exc.value.code == "identity_verification_required"
 
 
 def test_invite_propagates_checkr_errors_without_updates(db):

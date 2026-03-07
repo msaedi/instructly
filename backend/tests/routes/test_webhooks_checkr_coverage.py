@@ -262,10 +262,14 @@ def _client_with_overrides(monkeypatch, workflow_service):
 
     job_repo = _JobRepo()
     log_repo = _LogRepo()
+    bgc_service = SimpleNamespace(
+        client=SimpleNamespace(get_candidate=lambda candidate_id: {"id": candidate_id})
+    )
 
     app.dependency_overrides[checkr_routes.get_background_check_workflow_service] = lambda: workflow_service
     app.dependency_overrides[checkr_routes.get_background_job_repo] = lambda: job_repo
     app.dependency_overrides[checkr_routes.get_bgc_webhook_log_repo] = lambda: log_repo
+    app.dependency_overrides[checkr_routes.get_background_check_service] = lambda: bgc_service
 
     monkeypatch.setattr(checkr_routes.settings, "checkr_webhook_user", _Secret("user"))
     monkeypatch.setattr(checkr_routes.settings, "checkr_webhook_pass", _Secret("pass"))
@@ -790,6 +794,9 @@ def test_handle_webhook_returns_early_for_processed_ledger_event(monkeypatch):
     app.dependency_overrides[checkr_routes.get_background_check_workflow_service] = lambda: _Workflow()
     app.dependency_overrides[checkr_routes.get_background_job_repo] = lambda: _JobRepo()
     app.dependency_overrides[checkr_routes.get_bgc_webhook_log_repo] = lambda: _LogRepo()
+    app.dependency_overrides[checkr_routes.get_background_check_service] = lambda: SimpleNamespace(
+        client=SimpleNamespace(get_candidate=lambda candidate_id: {"id": candidate_id})
+    )
 
     monkeypatch.setattr(checkr_routes.settings, "checkr_webhook_user", _Secret("user"))
     monkeypatch.setattr(checkr_routes.settings, "checkr_webhook_pass", _Secret("pass"))

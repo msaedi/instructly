@@ -57,6 +57,7 @@ def _make_profile(bgc_status: str | None = None, bgc_env: str | None = "sandbox"
     return SimpleNamespace(
         id="profile-1",
         user_id="user-1",
+        identity_verified_at=datetime.now(timezone.utc),
         bgc_status=bgc_status,
         bgc_report_id="rpt_1",
         bgc_invited_at=None,
@@ -79,6 +80,7 @@ def test_helper_problem_builders():
 
     rate_limited = bgc_routes._bgc_invite_rate_limited_problem()
     assert rate_limited["code"] == "bgc_invite_rate_limited"
+    assert bgc_routes._identity_verification_required_problem()["code"] == "identity_verification_required"
 
     assert bgc_routes._checkr_auth_problem()["code"] == "checkr_auth_error"
 
@@ -196,8 +198,29 @@ async def test_invite_requires_consent(monkeypatch):
             current_user=SimpleNamespace(id="user-1", is_admin=False),
             db=None,
             background_check_service=_BGCServiceStub(),
+    )
+    assert exc.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_invite_requires_identity_verification(monkeypatch):
+    profile = _make_profile()
+    profile.identity_verified_at = None
+    repo = _RepoStub(profile, consent=SimpleNamespace(consented_at=datetime.now(timezone.utc)))
+
+    monkeypatch.setattr(bgc_routes, "InstructorProfileRepository", lambda _db: repo)
+    monkeypatch.setattr(bgc_routes, "BGC_INVITES_TOTAL", _CounterStub())
+
+    with pytest.raises(HTTPException) as exc:
+        await bgc_routes.trigger_background_check_invite(
+            payload=_invite_payload(),
+            instructor_id=profile.id,
+            current_user=SimpleNamespace(id="user-1", is_admin=False),
+            db=None,
+            background_check_service=_BGCServiceStub(),
         )
     assert exc.value.status_code == 400
+    assert exc.value.detail["code"] == "identity_verification_required"
 
 
 @pytest.mark.asyncio
@@ -480,8 +503,28 @@ async def test_recheck_requires_consent(monkeypatch):
             current_user=SimpleNamespace(id="user-1", is_admin=False),
             db=None,
             background_check_service=_BGCServiceStub(),
+    )
+    assert exc.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_recheck_requires_identity_verification(monkeypatch):
+    profile = _make_profile()
+    profile.identity_verified_at = None
+    repo = _RepoStub(profile, consent=SimpleNamespace(consented_at=datetime.now(timezone.utc)))
+
+    monkeypatch.setattr(bgc_routes, "InstructorProfileRepository", lambda _db: repo)
+    monkeypatch.setattr(bgc_routes, "BGC_INVITES_TOTAL", _CounterStub())
+
+    with pytest.raises(HTTPException) as exc:
+        await bgc_routes.trigger_background_check_recheck(
+            instructor_id=profile.id,
+            current_user=SimpleNamespace(id="user-1", is_admin=False),
+            db=None,
+            background_check_service=_BGCServiceStub(),
         )
     assert exc.value.status_code == 400
+    assert exc.value.detail["code"] == "identity_verification_required"
 
 
 @pytest.mark.asyncio

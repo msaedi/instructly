@@ -623,50 +623,38 @@ _TEST_RUN_LOCK_KEY = 987654322
 def _serialize_test_database_sessions():
     """Prevent concurrent pytest sessions from mutating the shared test DB.
 
-    Uses pg_try_advisory_lock with stale-session cleanup so a crashed
-    pytest run never permanently blocks future runs.
+    The dedicated lock-holding connection stays idle for the lifetime of
+    a healthy pytest run, so terminating "idle" holders is unsafe: a
+    second pytest process can kill an active suite mid-run and corrupt
+    unrelated tests. Block on the advisory lock instead.
     """
     if test_engine.dialect.name == "sqlite":
         yield
         return
 
     conn = test_engine.connect()
-
-    # Try to acquire; if blocked, terminate the stale holder and retry
-    result = conn.execute(
-        text("SELECT pg_try_advisory_lock(:key)"), {"key": _TEST_RUN_LOCK_KEY}
-    )
+    result = conn.execute(text("SELECT pg_try_advisory_lock(:key)"), {"key": _TEST_RUN_LOCK_KEY})
     acquired = result.scalar()
     conn.commit()
 
     if not acquired:
-        # Kill idle sessions holding this lock (stale from crashed runs)
-        conn.execute(
-            text("""
-                SELECT pg_terminate_backend(l.pid)
-                FROM pg_locks l
-                JOIN pg_stat_activity a ON a.pid = l.pid
-                WHERE l.locktype = 'advisory'
-                  AND l.objid = :key
-                  AND l.granted = true
-                  AND a.state = 'idle'
-            """),
-            {"key": _TEST_RUN_LOCK_KEY},
+        print(
+            "\nAnother pytest session is already using the shared test database; "
+            "waiting for the advisory lock to be released.\n"
         )
-        conn.commit()
-
-        # Now do a blocking acquire (stale holder is gone)
-        conn.execute(
-            text("SELECT pg_advisory_lock(:key)"), {"key": _TEST_RUN_LOCK_KEY}
-        )
+        conn.execute(text("SELECT pg_advisory_lock(:key)"), {"key": _TEST_RUN_LOCK_KEY})
         conn.commit()
 
     try:
         yield
     finally:
-        conn.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": _TEST_RUN_LOCK_KEY})
-        conn.commit()
-        conn.close()
+        try:
+            conn.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": _TEST_RUN_LOCK_KEY})
+            conn.commit()
+        except Exception:
+            pass
+        finally:
+            conn.close()
 
 
 def ensure_outbox_table() -> None:
@@ -812,6 +800,62 @@ def _prepare_database() -> None:
                     """
                     ALTER TABLE instructor_profiles
                     ADD COLUMN IF NOT EXISTS payout_hold_released_at TIMESTAMPTZ
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE instructor_profiles
+                    ADD COLUMN IF NOT EXISTS verified_first_name VARCHAR(100)
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE instructor_profiles
+                    ADD COLUMN IF NOT EXISTS verified_last_name VARCHAR(100)
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE instructor_profiles
+                    ADD COLUMN IF NOT EXISTS verified_dob DATE
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE instructor_profiles
+                    ADD COLUMN IF NOT EXISTS identity_name_mismatch BOOLEAN NOT NULL DEFAULT false
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE instructor_profiles
+                    ADD COLUMN IF NOT EXISTS bgc_name_mismatch BOOLEAN NOT NULL DEFAULT false
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE instructor_profiles
+                    ADD COLUMN IF NOT EXISTS bgc_submitted_first_name VARCHAR(100)
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE instructor_profiles
+                    ADD COLUMN IF NOT EXISTS bgc_submitted_last_name VARCHAR(100)
                     """
                 )
             )

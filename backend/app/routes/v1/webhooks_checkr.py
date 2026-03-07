@@ -25,7 +25,10 @@ from ...api.dependencies.repositories import (
     get_background_job_repo,
     get_bgc_webhook_log_repo,
 )
-from ...api.dependencies.services import get_background_check_workflow_service
+from ...api.dependencies.services import (
+    get_background_check_service,
+    get_background_check_workflow_service,
+)
 from ...core.config import settings
 from ...core.exceptions import NonRetryableError, RepositoryException
 from ...core.metrics import CHECKR_WEBHOOK_TOTAL
@@ -34,6 +37,7 @@ from ...repositories.background_job_repository import BackgroundJobRepository
 from ...repositories.bgc_webhook_log_repository import BGCWebhookLogRepository
 from ...repositories.instructor_profile_repository import InstructorProfileRepository
 from ...schemas.webhook_responses import WebhookAckResponse
+from ...services.background_check_service import BackgroundCheckService
 from ...services.background_check_workflow_service import (
     BackgroundCheckWorkflowService,
 )
@@ -319,6 +323,85 @@ def _bind_report_to_profile(
     return result
 
 
+def _clean_name_value(value: Any) -> str | None:
+    if value is None:
+        return None
+    cleaned = str(value).strip()
+    return cleaned or None
+
+
+def _normalized_name_value(value: Any) -> str:
+    cleaned = _clean_name_value(value)
+    return cleaned.lower() if cleaned else ""
+
+
+async def _sync_candidate_identity_cross_check(
+    *,
+    repo: Any,
+    profile: Any,
+    candidate_id: str | None,
+    background_check_service: Any | None,
+) -> None:
+    """Best-effort sync of the Checkr-submitted name onto the instructor profile."""
+
+    if not candidate_id or profile is None or background_check_service is None:
+        return
+
+    client = getattr(background_check_service, "client", None)
+    get_candidate = getattr(client, "get_candidate", None)
+    update_profile = getattr(repo, "update", None)
+    profile_id = getattr(profile, "id", None)
+    if not callable(get_candidate) or not callable(update_profile) or not profile_id:
+        return
+
+    try:
+        candidate = await asyncio.to_thread(get_candidate, candidate_id)
+    except Exception as exc:
+        logger.warning(
+            "Failed to retrieve Checkr candidate %s for identity cross-check: %s",
+            candidate_id,
+            str(exc),
+        )
+        return
+
+    if not isinstance(candidate, dict):
+        return
+
+    candidate_first_name = _clean_name_value(candidate.get("first_name"))
+    candidate_last_name = _clean_name_value(candidate.get("last_name"))
+    verified_last_name = _clean_name_value(getattr(profile, "verified_last_name", None))
+
+    update_fields: dict[str, Any] = {}
+    if candidate_first_name is not None:
+        update_fields["bgc_submitted_first_name"] = candidate_first_name
+    if candidate_last_name is not None:
+        update_fields["bgc_submitted_last_name"] = candidate_last_name
+    if candidate_last_name is not None and verified_last_name is not None:
+        mismatch = _normalized_name_value(candidate_last_name) != _normalized_name_value(
+            verified_last_name
+        )
+        update_fields["bgc_name_mismatch"] = mismatch
+        if mismatch:
+            logger.warning(
+                "Background check last-name mismatch for profile %s: checkr='%s' verified='%s'",
+                profile_id,
+                candidate_last_name,
+                verified_last_name,
+            )
+
+    if not update_fields:
+        return
+
+    try:
+        await asyncio.to_thread(update_profile, profile_id, **update_fields)
+    except Exception as exc:
+        logger.warning(
+            "Failed to persist Checkr candidate identity for profile %s: %s",
+            profile_id,
+            str(exc),
+        )
+
+
 async def _process_checkr_payload(
     *,
     event_type: str,
@@ -329,6 +412,7 @@ async def _process_checkr_payload(
     job_repository: BackgroundJobRepository,
     log_repository: BGCWebhookLogRepository,
     resource_id: str | None,
+    background_check_service: Any | None = None,
     skip_dedup: bool = False,
 ) -> tuple[str | None, CheckrProcessingOutcome]:
     processing_error: str | None = None
@@ -526,6 +610,12 @@ async def _process_checkr_payload(
                     "Background check requires review",
                     extra={"instructor_id": profile.id, "report_id": report_id},
                 )
+            await _sync_candidate_identity_cross_check(
+                repo=repo,
+                profile=profile,
+                candidate_id=candidate_id,
+                background_check_service=background_check_service,
+            )
 
             CHECKR_WEBHOOK_TOTAL.labels(result=result_label, outcome="success").inc()
             logger.info(
@@ -824,6 +914,7 @@ async def handle_checkr_webhook(
     ),
     job_repository: BackgroundJobRepository = Depends(get_background_job_repo),
     log_repository: BGCWebhookLogRepository = Depends(get_bgc_webhook_log_repo),
+    background_check_service: BackgroundCheckService = Depends(get_background_check_service),
 ) -> WebhookAckResponse:
     """Process Checkr webhook events for background check reports."""
 
@@ -873,6 +964,9 @@ async def handle_checkr_webhook(
         )
         return WebhookAckResponse(ok=True)
     start_time = monotonic()
+    resolved_background_check_service = (
+        background_check_service if hasattr(background_check_service, "client") else None
+    )
     processing_error, processing_outcome = await _process_checkr_payload(
         event_type=event_type,
         data_object=data_object,
@@ -881,6 +975,7 @@ async def handle_checkr_webhook(
         workflow_service=workflow_service,
         job_repository=job_repository,
         log_repository=log_repository,
+        background_check_service=resolved_background_check_service,
         resource_id=resource_id,
     )
 
