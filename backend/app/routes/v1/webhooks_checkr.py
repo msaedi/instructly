@@ -949,9 +949,6 @@ async def handle_checkr_webhook(
         )
         return WebhookAckResponse(ok=True)
     start_time = monotonic()
-    resolved_background_check_service = (
-        background_check_service if hasattr(background_check_service, "client") else None
-    )
     processing_error, processing_outcome = await _process_checkr_payload(
         event_type=event_type,
         data_object=data_object,
@@ -960,7 +957,7 @@ async def handle_checkr_webhook(
         workflow_service=workflow_service,
         job_repository=job_repository,
         log_repository=log_repository,
-        background_check_service=resolved_background_check_service,
+        background_check_service=background_check_service,
         resource_id=resource_id,
     )
 

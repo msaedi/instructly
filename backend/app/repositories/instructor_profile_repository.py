@@ -722,10 +722,10 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         if profile is None:
             return None
 
-        current_report = getattr(profile, "bgc_report_id", None)
+        current_report = profile.bgc_report_id
         if current_report != report_id:
             profile.bgc_report_id = report_id
-        if env and getattr(profile, "bgc_env", None) != env:
+        if env and profile.bgc_env != env:
             profile.bgc_env = env
 
         self.db.flush()
@@ -762,10 +762,10 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         if profile is None:
             return None
 
-        current_report = getattr(profile, "bgc_report_id", None)
+        current_report = profile.bgc_report_id
         if current_report != report_id:
             profile.bgc_report_id = report_id
-        if env and getattr(profile, "bgc_env", None) != env:
+        if env and profile.bgc_env != env:
             profile.bgc_env = env
 
         self.db.flush()

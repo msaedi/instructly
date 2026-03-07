@@ -118,6 +118,7 @@ def make_profile(**overrides):
         "bgc_status": "review",
         "bgc_completed_at": None,
         "bgc_valid_until": None,
+        "bgc_in_dispute": False,
         "bgc_pre_adverse_notice_id": None,
         "bgc_pre_adverse_sent_at": None,
         "bgc_final_adverse_sent_at": None,

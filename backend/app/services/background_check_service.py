@@ -121,7 +121,7 @@ class BackgroundCheckService(BaseService):
         if not user:
             raise ServiceException("Instructor profile missing associated user")
 
-        if not getattr(profile, "identity_verified_at", None):
+        if not profile.identity_verified_at:
             raise ServiceException(
                 "Identity verification must be completed before starting a background check.",
                 code="identity_verification_required",
@@ -138,8 +138,8 @@ class BackgroundCheckService(BaseService):
         normalized_zip = self._normalize_zip(zip_code_value)
         work_location = self._resolve_work_location(normalized_zip)
 
-        verified_first_name = (getattr(profile, "verified_first_name", None) or "").strip()
-        verified_last_name = (getattr(profile, "verified_last_name", None) or "").strip()
+        verified_first_name = (profile.verified_first_name or "").strip()
+        verified_last_name = (profile.verified_last_name or "").strip()
         candidate_payload: Dict[str, Any] = {
             "first_name": verified_first_name or user.first_name,
             "last_name": verified_last_name or user.last_name,

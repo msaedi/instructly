@@ -133,8 +133,8 @@ class InstructorAdminService(BaseService):
             raise ValidationException("User is not an instructor")
 
     def _is_verified(self, profile: InstructorProfile) -> bool:
-        identity_ok = bool(getattr(profile, "identity_verified_at", None))
-        bgc_ok = (getattr(profile, "bgc_status", "") or "").lower() == "passed"
+        identity_ok = bool(profile.identity_verified_at)
+        bgc_ok = (profile.bgc_status or "").lower() == "passed"
         connected = self.payment_repo.get_connected_account_by_instructor_id(profile.id)
         connect_ok = bool(connected and getattr(connected, "onboarding_completed", False))
         return bool(identity_ok and bgc_ok and connect_ok)
@@ -543,8 +543,8 @@ class InstructorAdminService(BaseService):
 
         connected = self.payment_repo.get_connected_account_by_instructor_id(profile.id)
         previous_status = {
-            "identity": bool(getattr(profile, "identity_verified_at", None)),
-            "background_check": (getattr(profile, "bgc_status", "") or "").lower() == "passed",
+            "identity": bool(profile.identity_verified_at),
+            "background_check": (profile.bgc_status or "").lower() == "passed",
             "payment_setup": bool(connected and connected.onboarding_completed),
         }
 
@@ -569,8 +569,8 @@ class InstructorAdminService(BaseService):
                     connected.onboarding_completed = True
 
         new_status = {
-            "identity": bool(getattr(profile, "identity_verified_at", None)),
-            "background_check": (getattr(profile, "bgc_status", "") or "").lower() == "passed",
+            "identity": bool(profile.identity_verified_at),
+            "background_check": (profile.bgc_status or "").lower() == "passed",
             "payment_setup": bool(connected and connected.onboarding_completed),
         }
 

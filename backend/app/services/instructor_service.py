@@ -693,9 +693,9 @@ class InstructorService(BaseService):
         )
 
         skills_ok = bool(getattr(profile, "skills_configured", False))
-        identity_ok = bool(getattr(profile, "identity_verified_at", None))
+        identity_ok = bool(profile.identity_verified_at)
         connect_ok = bool(connect_status.get("onboarding_completed"))
-        bgc_ok = (getattr(profile, "bgc_status", "") or "").lower() == "passed"
+        bgc_ok = (profile.bgc_status or "").lower() == "passed"
 
         missing: list[str] = []
         if not skills_ok:
@@ -1265,7 +1265,7 @@ class InstructorService(BaseService):
             "service_area_summary": service_area_summary,
             # Onboarding status
             "skills_configured": getattr(profile, "skills_configured", False),
-            "identity_verified_at": getattr(profile, "identity_verified_at", None),
+            "identity_verified_at": profile.identity_verified_at,
             "background_check_uploaded_at": getattr(profile, "background_check_uploaded_at", None),
             "onboarding_completed_at": getattr(profile, "onboarding_completed_at", None),
             "is_live": getattr(profile, "is_live", False),

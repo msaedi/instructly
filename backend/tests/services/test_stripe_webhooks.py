@@ -921,6 +921,38 @@ def test_identity_webhook_verified_updates_profile(
 
 
 @patch("stripe.identity.VerificationSession.retrieve")
+def test_identity_webhook_verified_uses_prefetched_verified_outputs(
+    mock_retrieve, stripe_service: StripeService, test_instructor: tuple
+) -> None:
+    user, profile, _ = test_instructor
+    event = {
+        "type": "identity.verification_session.verified",
+        "data": {
+            "object": {
+                "id": "vs_prefetched",
+                "status": "verified",
+                "metadata": {"user_id": user.id},
+                "verified_outputs": {
+                    "first_name": "Prefetched",
+                    "last_name": "Instructor",
+                    "dob": {"day": 4, "month": 7, "year": 1992},
+                },
+            }
+        },
+    }
+
+    assert stripe_service._handle_identity_webhook(event) is True
+
+    updated = stripe_service.instructor_repository.get_by_user_id(user.id)
+    assert updated.identity_verified_at is not None
+    assert updated.identity_verification_session_id == "vs_prefetched"
+    assert updated.verified_first_name == "Prefetched"
+    assert updated.verified_last_name == "Instructor"
+    assert updated.verified_dob == date(1992, 7, 4)
+    mock_retrieve.assert_not_called()
+
+
+@patch("stripe.identity.VerificationSession.retrieve")
 def test_identity_webhook_verified_flags_last_name_mismatch(
     mock_retrieve,
     stripe_service: StripeService,

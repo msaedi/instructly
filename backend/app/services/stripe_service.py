@@ -224,16 +224,17 @@ class StripeService(BaseService):
         session: Any,
         session_id: str | None = None,
         refresh_session: bool = False,
+        prefetched_session: Any | None = None,
     ) -> None:
         """Persist verified Stripe Identity outputs and mismatch flags on the instructor."""
 
-        resolved_session = session
+        resolved_session = prefetched_session if prefetched_session is not None else session
         resolved_session_id = clean_identity_value(
-            self._stripe_value(session, "id", session_id) or session_id
+            self._stripe_value(resolved_session, "id", session_id) or session_id
         )
         verified_at = datetime.now(timezone.utc)
 
-        if refresh_session and resolved_session_id:
+        if refresh_session and prefetched_session is None and resolved_session_id:
             try:
                 resolved_session = cast(Any, stripe.identity.VerificationSession).retrieve(
                     resolved_session_id,
@@ -4488,12 +4489,14 @@ class StripeService(BaseService):
             # On verified, mark identity_verified_at and store session id
             if verification_status == "verified":
                 try:
+                    has_verified_outputs = self._stripe_has_field(obj, "verified_outputs")
                     self._persist_verified_identity(
                         profile_id=profile.id,
                         user_id=user_id,
                         session=obj,
                         session_id=obj.get("id"),
-                        refresh_session=True,
+                        refresh_session=not has_verified_outputs,
+                        prefetched_session=obj if has_verified_outputs else None,
                     )
                 except Exception as e:
                     self.logger.error(
@@ -4506,7 +4509,7 @@ class StripeService(BaseService):
                             identity_verification_session_id=obj.get("id"),
                         )
                     except Exception:
-                        logger.debug(
+                        logger.warning(
                             "Non-fatal identity webhook fallback persistence failure",
                             exc_info=True,
                         )

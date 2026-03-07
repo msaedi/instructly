@@ -150,8 +150,8 @@ def _build_case_item(
         if consent_recent_at is not None:
             consent_recent = consent_recent_at >= now - CONSENT_WINDOW
 
-    report_id = getattr(profile, "bgc_report_id", None)
-    valid_until = getattr(profile, "bgc_valid_until", None)
+    report_id = profile.bgc_report_id
+    valid_until = profile.bgc_valid_until
     expires_in_days = (
         (valid_until - now).days if valid_until is not None and valid_until > now else None
     )
@@ -162,10 +162,10 @@ def _build_case_item(
         "name": display_name,
         "email": email,
         "is_live": bool(getattr(profile, "is_live", False)),
-        "bgc_status": getattr(profile, "bgc_status", ""),
-        "bgc_includes_canceled": bool(getattr(profile, "bgc_includes_canceled", False)),
+        "bgc_status": profile.bgc_status or "",
+        "bgc_includes_canceled": bool(profile.bgc_includes_canceled),
         "bgc_report_id": report_id,
-        "bgc_completed_at": getattr(profile, "bgc_completed_at", None),
+        "bgc_completed_at": profile.bgc_completed_at,
         "created_at": getattr(profile, "created_at", None),
         "updated_at": getattr(profile, "updated_at", None),
         "checkr_report_url": _build_checkr_report_url(report_id),
@@ -174,11 +174,11 @@ def _build_case_item(
         "bgc_valid_until": valid_until,
         "bgc_expires_in_days": expires_in_days,
         "bgc_is_expired": is_expired,
-        "in_dispute": bool(getattr(profile, "bgc_in_dispute", False)),
-        "dispute_note": getattr(profile, "bgc_dispute_note", None),
-        "dispute_opened_at": getattr(profile, "bgc_dispute_opened_at", None),
-        "dispute_resolved_at": getattr(profile, "bgc_dispute_resolved_at", None),
-        "bgc_eta": getattr(profile, "bgc_eta", None),
+        "in_dispute": bool(profile.bgc_in_dispute),
+        "dispute_note": profile.bgc_dispute_note,
+        "dispute_opened_at": profile.bgc_dispute_opened_at,
+        "dispute_resolved_at": profile.bgc_dispute_resolved_at,
+        "bgc_eta": profile.bgc_eta,
     }
 
     return BGCCaseItemModel(**model_filter(BGCCaseItemModel, payload))
@@ -432,7 +432,7 @@ async def bgc_expiring(
         item_payload = {
             "instructor_id": profile.id,
             "email": getattr(user, "email", None),
-            "bgc_valid_until": getattr(profile, "bgc_valid_until", None),
+            "bgc_valid_until": profile.bgc_valid_until,
         }
         results.append(BGCExpiringItem(**model_filter(BGCExpiringItem, item_payload)))
     return results
@@ -586,7 +586,7 @@ async def bgc_review_override(
     action = payload.action
     now = datetime.now(timezone.utc)
 
-    if getattr(profile, "bgc_in_dispute", False) and action == "reject":
+    if profile.bgc_in_dispute and action == "reject":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot finalize adverse action while dispute is open",
@@ -671,16 +671,18 @@ async def open_bgc_dispute(
         raise HTTPException(status_code=status_code, detail="Unable to open dispute") from exc
 
     profile = repo.get_by_id(instructor_id, load_relationships=False)
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor not found")
     logger.info(
         "Background check dispute opened",
         extra={"evt": "bgc_dispute_open", "instructor_id": instructor_id},
     )
     response_payload = {
         "ok": True,
-        "in_dispute": bool(getattr(profile, "bgc_in_dispute", False)),
-        "dispute_note": getattr(profile, "bgc_dispute_note", None),
-        "dispute_opened_at": getattr(profile, "bgc_dispute_opened_at", None),
-        "dispute_resolved_at": getattr(profile, "bgc_dispute_resolved_at", None),
+        "in_dispute": bool(profile.bgc_in_dispute),
+        "dispute_note": profile.bgc_dispute_note,
+        "dispute_opened_at": profile.bgc_dispute_opened_at,
+        "dispute_resolved_at": profile.bgc_dispute_resolved_at,
         "resumed": False,
         "scheduled_for": None,
     }
@@ -712,16 +714,18 @@ async def resolve_bgc_dispute(
         raise HTTPException(status_code=status_code, detail="Unable to resolve dispute") from exc
 
     profile = repo.get_by_id(instructor_id, load_relationships=False)
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor not found")
     logger.info(
         "Background check dispute resolved",
         extra={"evt": "bgc_dispute_resolve", "instructor_id": instructor_id},
     )
     response_payload = {
         "ok": True,
-        "in_dispute": bool(getattr(profile, "bgc_in_dispute", False)),
-        "dispute_note": getattr(profile, "bgc_dispute_note", None),
-        "dispute_opened_at": getattr(profile, "bgc_dispute_opened_at", None),
-        "dispute_resolved_at": getattr(profile, "bgc_dispute_resolved_at", None),
+        "in_dispute": bool(profile.bgc_in_dispute),
+        "dispute_note": profile.bgc_dispute_note,
+        "dispute_opened_at": profile.bgc_dispute_opened_at,
+        "dispute_resolved_at": profile.bgc_dispute_resolved_at,
         "resumed": resumed,
         "scheduled_for": scheduled_for,
     }

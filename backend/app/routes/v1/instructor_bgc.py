@@ -310,12 +310,12 @@ async def trigger_background_check_invite(
             },
         )
 
-    current_status = _status_literal(getattr(profile, "bgc_status", None))
+    current_status = _status_literal(profile.bgc_status)
 
     if current_status in {"pending", "review", "consider", "passed"}:
         response = BackgroundCheckInviteResponse(
             status=current_status,
-            report_id=getattr(profile, "bgc_report_id", None),
+            report_id=profile.bgc_report_id,
             already_in_progress=True,
         )
         logger.info(
@@ -331,7 +331,7 @@ async def trigger_background_check_invite(
         BGC_INVITES_TOTAL.labels(outcome="ok").inc()
         return response
 
-    if not getattr(profile, "identity_verified_at", None):
+    if not profile.identity_verified_at:
         logger.info(
             "Background check invite blocked; identity verification required",
             extra={
@@ -660,7 +660,7 @@ async def trigger_background_check_recheck(
         )
 
     invite_time = datetime.now(timezone.utc)
-    invited_at = getattr(profile, "bgc_invited_at", None)
+    invited_at = profile.bgc_invited_at
     if invited_at is not None and invite_time - invited_at < timedelta(hours=24):
         retry_after_seconds = int(
             (timedelta(hours=24) - (invite_time - invited_at)).total_seconds()
@@ -683,7 +683,7 @@ async def trigger_background_check_recheck(
             },
         )
 
-    current_status = _status_literal(getattr(profile, "bgc_status", None))
+    current_status = _status_literal(profile.bgc_status)
     if current_status in {"pending", "review", "consider"}:
         logger.info(
             "Background check re-check skipped; already in progress",
@@ -698,11 +698,11 @@ async def trigger_background_check_recheck(
         BGC_INVITES_TOTAL.labels(outcome="recheck_ok").inc()
         return BackgroundCheckInviteResponse(
             status=current_status,
-            report_id=getattr(profile, "bgc_report_id", None),
+            report_id=profile.bgc_report_id,
             already_in_progress=True,
         )
 
-    if not getattr(profile, "identity_verified_at", None):
+    if not profile.identity_verified_at:
         logger.info(
             "Background check re-check blocked; identity verification required",
             extra={
@@ -907,13 +907,13 @@ async def get_background_check_status(
     profile = _get_instructor_profile(instructor_id, repo)
     _ensure_owner_or_admin(current_user, profile.user_id)
 
-    status_value = _status_literal(getattr(profile, "bgc_status", None))
+    status_value = _status_literal(profile.bgc_status)
 
     latest_consent = repo.latest_consent(instructor_id)
     consent_recent_at = getattr(latest_consent, "consented_at", None)
     now = datetime.now(timezone.utc)
     consent_recent = bool(consent_recent_at and consent_recent_at >= now - CONSENT_WINDOW)
-    valid_until = getattr(profile, "bgc_valid_until", None)
+    valid_until = profile.bgc_valid_until
     expires_in_days = (
         (valid_until - now).days if valid_until is not None and valid_until > now else None
     )
@@ -921,16 +921,16 @@ async def get_background_check_status(
 
     return BackgroundCheckStatusResponse(
         status=status_value,
-        report_id=getattr(profile, "bgc_report_id", None),
-        completed_at=getattr(profile, "bgc_completed_at", None),
-        env=getattr(profile, "bgc_env", "sandbox"),
+        report_id=profile.bgc_report_id,
+        completed_at=profile.bgc_completed_at,
+        env=profile.bgc_env or "sandbox",
         consent_recent=consent_recent,
         consent_recent_at=consent_recent_at,
         valid_until=valid_until,
         expires_in_days=expires_in_days,
         is_expired=is_expired,
-        eta=getattr(profile, "bgc_eta", None),
-        bgc_includes_canceled=bool(getattr(profile, "bgc_includes_canceled", False)),
+        eta=profile.bgc_eta,
+        bgc_includes_canceled=bool(profile.bgc_includes_canceled),
     )
 
 
@@ -1009,9 +1009,7 @@ async def mock_background_check_pass(
     _ensure_owner_or_admin(current_user, profile.user_id)
 
     profile.bgc_status = "passed"
-    profile.bgc_completed_at = getattr(profile, "bgc_completed_at", None) or datetime.now(
-        timezone.utc
-    )
+    profile.bgc_completed_at = profile.bgc_completed_at or datetime.now(timezone.utc)
 
     response_payload = {"status": "passed"}
     return MockStatusResponse(**model_filter(MockStatusResponse, response_payload))

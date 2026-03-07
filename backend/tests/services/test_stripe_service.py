@@ -1088,6 +1088,18 @@ class TestStripeService:
         assert parsed is None
         assert "Invalid DOB components from Stripe" in caplog.text
 
+    def test_parse_identity_dob_valid(self, stripe_service: StripeService) -> None:
+        """Happy path: integer DOB fragments should produce a date."""
+        parsed = stripe_service._parse_identity_dob({"day": 15, "month": 6, "year": 1990})
+
+        assert parsed == date(1990, 6, 15)
+
+    def test_parse_identity_dob_string_values(self, stripe_service: StripeService) -> None:
+        """Stripe may return DOB fragments as strings."""
+        parsed = stripe_service._parse_identity_dob({"day": "15", "month": "6", "year": "1990"})
+
+        assert parsed == date(1990, 6, 15)
+
     @patch("stripe.identity.VerificationSession.retrieve")
     def test_refresh_instructor_identity_falls_back_when_verified_persistence_fails(
         self, mock_retrieve, stripe_service: StripeService, test_instructor: tuple
