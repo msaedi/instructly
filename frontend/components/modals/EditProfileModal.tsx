@@ -25,7 +25,7 @@ import { formatPlatformFeeLabel, resolvePlatformFeeRate, resolveTakeHomePct } fr
 import { evaluatePriceFloorViolations, FloorViolation, formatCents } from '@/lib/pricing/priceFloors';
 import { usePlatformFees } from '@/hooks/usePlatformConfig';
 import type { ApiErrorResponse, components } from '@/features/shared/api/types';
-import { extractApiErrorMessage } from '@/lib/apiErrors';
+import { extractApiErrorCode, extractApiErrorMessage } from '@/lib/apiErrors';
 import { toast } from 'sonner';
 import { queryKeys } from '@/src/api/queryKeys';
 import {
@@ -176,6 +176,7 @@ export default function EditProfileModal({
 }: EditProfileModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [lastNameError, setLastNameError] = useState('');
   const [savingAbout, setSavingAbout] = useState(false);
   // Areas saving state removed - handled by neighborhood persistence
   const [profileData, setProfileData] = useState<ProfileFormData>({
@@ -193,6 +194,31 @@ export default function EditProfileModal({
     description: '',
   });
   const queryClient = useQueryClient();
+
+  const updateAccountNames = useCallback(async (): Promise<boolean> => {
+    const response = await fetchWithAuth(API_ENDPOINTS.ME, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        first_name: profileData.first_name?.trim() || '',
+        last_name: profileData.last_name?.trim() || '',
+      }),
+    });
+    if (response.ok) {
+      setLastNameError('');
+      return true;
+    }
+
+    const errorData = (await response.json()) as ApiErrorResponse;
+    const message = extractApiErrorMessage(errorData, 'Failed to update profile');
+    if (extractApiErrorCode(errorData) === 'last_name_locked') {
+      setLastNameError(message);
+      toast.error('Last name must match your verified government ID. Contact support if you need to update it.');
+      return false;
+    }
+
+    throw new Error(message);
+  }, [profileData.first_name, profileData.last_name]);
 
   // Skills options (same as in become-instructor)
   const SKILLS_OPTIONS = [
@@ -933,6 +959,7 @@ export default function EditProfileModal({
     e.preventDefault();
     setLoading(true);
     setError('');
+    setLastNameError('');
 
     logger.info('Submitting profile updates', {
       servicesCount: profileData.services.length,
@@ -942,16 +969,13 @@ export default function EditProfileModal({
     try {
       // Update user first/last names
       try {
-        await fetchWithAuth(API_ENDPOINTS.ME, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            first_name: profileData.first_name?.trim() || '',
-            last_name: profileData.last_name?.trim() || '',
-          }),
-        });
+        const updatedNames = await updateAccountNames();
+        if (!updatedNames) {
+          return;
+        }
       } catch (err) {
         logger.warn('Failed to update user name', err);
+        throw err;
       }
 
       // Update default address postal code
@@ -1101,18 +1125,16 @@ export default function EditProfileModal({
     try {
       setSavingAbout(true);
       setError('');
+      setLastNameError('');
       // First, update personal info (names and ZIP)
       try {
-        await fetchWithAuth(API_ENDPOINTS.ME, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            first_name: profileData.first_name?.trim() || '',
-            last_name: profileData.last_name?.trim() || '',
-          }),
-        });
+        const updatedNames = await updateAccountNames();
+        if (!updatedNames) {
+          return;
+        }
       } catch (err) {
         logger.warn('Failed to update user name in about section', err);
+        throw err;
       }
 
       try {
@@ -1263,10 +1285,18 @@ export default function EditProfileModal({
                 id="last_name"
                 type="text"
                 value={profileData.last_name}
-                onChange={(e) => setProfileData({ ...profileData, last_name: e.target.value })}
+                onChange={(e) => {
+                  setProfileData({ ...profileData, last_name: e.target.value });
+                  setLastNameError('');
+                }}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
                 placeholder="Last name"
               />
+              {lastNameError && (
+                <p className="mt-2 text-sm text-red-600 dark:text-red-400" role="alert">
+                  {lastNameError}
+                </p>
+              )}
             </div>
             <div>
               <label htmlFor="postal_code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">ZIP CODE</label>

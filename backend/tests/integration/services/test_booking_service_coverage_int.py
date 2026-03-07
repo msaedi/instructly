@@ -2421,7 +2421,7 @@ class TestPaymentProcessingScenariosIntegration:
 
         booking = create_test_booking(
             db, test_student, test_instructor_with_availability, instructor_service,
-            start_utc.date(), start_utc.time(), end_utc.time(),
+            start_utc.date(), time(10, 0), time(11, 0),
             payment_intent_id="pi_between_12_24",
             payment_status=PaymentStatus.AUTHORIZED.value,
             offset_index=35,
@@ -2465,15 +2465,12 @@ class TestPaymentProcessingScenariosIntegration:
         now = datetime.now(timezone.utc)
         start_utc = now + timedelta(hours=6)
         end_utc = start_utc + timedelta(hours=1)
-        if end_utc.date() != start_utc.date():
-            start_utc = start_utc - timedelta(hours=1)
-            end_utc = start_utc + timedelta(hours=1)
 
         _ensure_connected_account(db, test_instructor_with_availability)
 
         booking = create_test_booking(
             db, test_student, test_instructor_with_availability, instructor_service,
-            start_utc.date(), start_utc.time(), end_utc.time(),
+            start_utc.date(), time(10, 0), time(11, 0),
             payment_intent_id="pi_under_12",
             payment_status=PaymentStatus.AUTHORIZED.value,
             offset_index=36,
@@ -2527,8 +2524,8 @@ class TestPaymentProcessingScenariosIntegration:
             test_instructor_with_availability,
             instructor_service,
             original_start_utc.date(),
-            original_start_utc.time(),
-            original_end_utc.time(),
+            time(10, 0),
+            time(11, 0),
             payment_status=PaymentStatus.AUTHORIZED.value,
             offset_index=48,
         )
@@ -2541,8 +2538,8 @@ class TestPaymentProcessingScenariosIntegration:
             test_instructor_with_availability,
             instructor_service,
             start_utc.date(),
-            start_utc.time(),
-            end_utc.time(),
+            time(10, 0),
+            time(11, 0),
             payment_intent_id="pi_gaming_cancel",
             payment_status=PaymentStatus.AUTHORIZED.value,
             offset_index=42,
@@ -2715,8 +2712,8 @@ class TestPaymentProcessingScenariosIntegration:
             test_instructor_with_availability,
             instructor_service,
             original_start_utc.date(),
-            original_start_utc.time(),
-            original_end_utc.time(),
+            time(10, 0),
+            time(11, 0),
             payment_status=PaymentStatus.AUTHORIZED.value,
             offset_index=53,
         )
@@ -2729,8 +2726,8 @@ class TestPaymentProcessingScenariosIntegration:
             test_instructor_with_availability,
             instructor_service,
             start_utc.date(),
-            start_utc.time(),
-            end_utc.time(),
+            time(10, 0),
+            time(11, 0),
             payment_intent_id="pi_gaming_success",
             payment_status=PaymentStatus.AUTHORIZED.value,
             offset_index=54,
@@ -2861,7 +2858,7 @@ class TestPaymentProcessingScenariosIntegration:
 
         booking = create_test_booking(
             db, test_student, test_instructor_with_availability, instructor_service,
-            start_utc.date(), start_utc.time(), end_utc.time(),
+            start_utc.date(), time(10, 0), time(11, 0),
             payment_intent_id="pi_late_reverse_fail",
             payment_status=PaymentStatus.AUTHORIZED.value,
             offset_index=61,
@@ -2907,7 +2904,7 @@ class TestPaymentProcessingScenariosIntegration:
 
         booking = create_test_booking(
             db, test_student, test_instructor_with_availability, instructor_service,
-            start_utc.date(), start_utc.time(), end_utc.time(),
+            start_utc.date(), time(10, 0), time(11, 0),
             payment_intent_id="pi_under12_payout_fail",
             payment_status=PaymentStatus.AUTHORIZED.value,
             offset_index=62,
@@ -2960,8 +2957,8 @@ class TestPaymentProcessingScenariosIntegration:
             test_instructor_with_availability,
             instructor_service,
             original_start_utc.date(),
-            original_start_utc.time(),
-            original_end_utc.time(),
+            time(10, 0),
+            time(11, 0),
             payment_status=PaymentStatus.AUTHORIZED.value,
             offset_index=64,
         )
@@ -2974,8 +2971,8 @@ class TestPaymentProcessingScenariosIntegration:
             test_instructor_with_availability,
             instructor_service,
             start_utc.date(),
-            start_utc.time(),
-            end_utc.time(),
+            time(10, 0),
+            time(11, 0),
             payment_intent_id="pi_gaming_capture_fail",
             payment_status=PaymentStatus.AUTHORIZED.value,
             offset_index=65,
@@ -3018,7 +3015,7 @@ class TestPaymentProcessingScenariosIntegration:
 
         booking = create_test_booking(
             db, test_student, test_instructor_with_availability, instructor_service,
-            start_utc.date(), start_utc.time(), end_utc.time(),
+            start_utc.date(), time(10, 0), time(11, 0),
             payment_intent_id="pi_under12_reverse_fail",
             payment_status=PaymentStatus.AUTHORIZED.value,
             offset_index=66,

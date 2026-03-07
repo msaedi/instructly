@@ -405,8 +405,9 @@ async def _cleanup_candidate_identity_pii(
         await asyncio.to_thread(
             repo.update,
             profile.id,
+            # verified_last_name intentionally retained — needed for last-name-lock
+            # enforcement in PATCH /auth/me and ongoing mismatch detection.
             verified_first_name=None,
-            verified_last_name=None,
             verified_dob=None,
             bgc_submitted_first_name=None,
             bgc_submitted_last_name=None,

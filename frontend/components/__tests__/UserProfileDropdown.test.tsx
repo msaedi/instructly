@@ -526,6 +526,98 @@ describe('UserProfileDropdown', () => {
 
       Element.prototype.getBoundingClientRect = originalGetBoundingClientRect;
     });
+
+    it('does not throw when the open-state updater runs after the click event currentTarget goes stale', () => {
+      mockUseAuth.mockReturnValue({
+        user: {
+          id: '01K2GY3VEVJWKZDVH5HMNXEVQ1',
+          first_name: 'Safe',
+          last_name: 'Open',
+          roles: [RoleName.STUDENT],
+        },
+        logout: mockLogout,
+        isLoading: false,
+      });
+
+      const originalUseState = React.useState;
+      const deferredUpdaters: Array<() => void> = [];
+      let useStateCall = 0;
+
+      const useStateSpy = jest.spyOn(React, 'useState').mockImplementation(
+        ((...args: [unknown?]) => {
+          const initialState = args[0];
+          useStateCall += 1;
+
+          if (useStateCall === 1) {
+            const initialValue =
+              typeof initialState === 'function'
+                ? (initialState as () => unknown)()
+                : initialState;
+            let currentValue = initialValue;
+            const deferredSetState: React.Dispatch<React.SetStateAction<unknown>> = (value) => {
+              deferredUpdaters.push(() => {
+                currentValue =
+                  typeof value === 'function'
+                    ? (value as (prevState: unknown) => unknown)(currentValue)
+                    : value;
+              });
+            };
+            return [currentValue, deferredSetState];
+          }
+
+          if (args.length === 0) {
+            return originalUseState();
+          }
+
+          return originalUseState(initialState);
+        }) as typeof React.useState
+      );
+
+      render(<UserProfileDropdown />);
+
+      const button = screen.getByRole('button', { name: /open user menu/i });
+      expect(() => {
+        fireEvent.click(button);
+      }).not.toThrow();
+      expect(deferredUpdaters).toHaveLength(1);
+      expect(() => {
+        deferredUpdaters[0]?.();
+      }).not.toThrow();
+
+      useStateSpy.mockRestore();
+    });
+
+    it('ignores a null button when computing dropdown position', () => {
+      mockUseAuth.mockReturnValue({
+        user: {
+          id: '01K2GY3VEVJWKZDVH5HMNXEVQ2',
+          first_name: 'Null',
+          last_name: 'Guard',
+          roles: [RoleName.STUDENT],
+        },
+        logout: mockLogout,
+        isLoading: false,
+      });
+
+      const originalUseCallback = React.useCallback;
+      const capturedCallbacks: Array<unknown> = [];
+      const useCallbackSpy = jest.spyOn(React, 'useCallback').mockImplementation(((fn, deps) => {
+        capturedCallbacks.push(fn);
+        return originalUseCallback(fn, deps);
+      }) as typeof React.useCallback);
+
+      render(<UserProfileDropdown />);
+
+      const updatePosition = capturedCallbacks.find(
+        (fn): fn is (button: HTMLButtonElement | null) => void =>
+          typeof fn === 'function' && fn.toString().includes('getBoundingClientRect')
+      );
+
+      expect(updatePosition).toBeDefined();
+      expect(() => updatePosition?.(null)).not.toThrow();
+
+      useCallbackSpy.mockRestore();
+    });
   });
 
   describe('SSR hydration (server snapshot path)', () => {

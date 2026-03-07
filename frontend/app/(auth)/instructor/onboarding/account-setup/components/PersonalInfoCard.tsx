@@ -6,6 +6,7 @@ import type { ProfileFormState } from '@/features/instructor-profile/types';
 type PersonalInfoCardProps = {
   context?: 'dashboard' | 'onboarding';
   profile: ProfileFormState;
+  lastNameError?: string | null;
   onProfileChange: (updates: Partial<ProfileFormState>) => void;
   isOpen?: boolean;
   onToggle?: () => void;
@@ -14,6 +15,7 @@ type PersonalInfoCardProps = {
 export function PersonalInfoCard({
   context = 'dashboard',
   profile,
+  lastNameError = null,
   onProfileChange,
   isOpen = true,
   onToggle,
@@ -86,6 +88,11 @@ export function PersonalInfoCard({
               value={profile.last_name}
               onChange={(e) => handleChange('last_name', e.target.value)}
             />
+            {lastNameError && (
+              <p className="mt-2 text-sm text-red-600 dark:text-red-400" role="alert">
+                {lastNameError}
+              </p>
+            )}
           </div>
           <div className="py-2">
             <label htmlFor="postal_code" className="text-gray-600 dark:text-gray-400 mb-2 block">ZIP Code</label>

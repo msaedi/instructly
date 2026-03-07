@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import json
 from typing import Any
 
@@ -48,6 +48,7 @@ def _create_instructor(
     identity_verified: bool = True,
     verified_first_name: str | None = None,
     verified_last_name: str | None = None,
+    verified_dob: date | None = None,
 ) -> InstructorProfile:
     user = User(
         email="instructor@example.com",
@@ -65,6 +66,7 @@ def _create_instructor(
     profile.identity_verified_at = datetime.now(timezone.utc) if identity_verified else None
     profile.verified_first_name = verified_first_name
     profile.verified_last_name = verified_last_name
+    profile.verified_dob = verified_dob
     db.add(profile)
     db.flush()
     db.refresh(profile)
@@ -161,6 +163,51 @@ def test_invite_uses_verified_name_when_available(db):
     db.refresh(profile)
     assert profile.bgc_submitted_first_name == "Augusta"
     assert profile.bgc_submitted_last_name == "King"
+
+
+def test_bgc_candidate_includes_dob_when_available(db):
+    captured_requests: dict[str, dict] = {}
+
+    def handler(request):
+        body = json.loads(request.content.decode())
+        if request.url.path.endswith("/candidates"):
+            captured_requests["candidate"] = body
+            return Response(201, json={"id": "cand_dob"})
+        if request.url.path.endswith("/invitations"):
+            return Response(201, json={"id": "inv_dob", "report_id": "rpt_dob"})
+        raise AssertionError(f"Unexpected path {request.url.path}")
+
+    service = _service_factory(db, MockTransport(handler))
+    profile = _create_instructor(
+        db,
+        verified_first_name="Augusta",
+        verified_last_name="King",
+        verified_dob=date(1990, 6, 15),
+    )
+
+    service.invite(profile.id)
+
+    assert captured_requests["candidate"]["dob"] == "1990-06-15"
+
+
+def test_bgc_candidate_omits_dob_when_not_available(db):
+    captured_requests: dict[str, dict] = {}
+
+    def handler(request):
+        body = json.loads(request.content.decode())
+        if request.url.path.endswith("/candidates"):
+            captured_requests["candidate"] = body
+            return Response(201, json={"id": "cand_no_dob"})
+        if request.url.path.endswith("/invitations"):
+            return Response(201, json={"id": "inv_no_dob", "report_id": "rpt_no_dob"})
+        raise AssertionError(f"Unexpected path {request.url.path}")
+
+    service = _service_factory(db, MockTransport(handler))
+    profile = _create_instructor(db, verified_first_name="Ada", verified_last_name="Lovelace")
+
+    service.invite(profile.id)
+
+    assert "dob" not in captured_requests["candidate"]
 
 
 def test_invite_requires_identity_verification(db):

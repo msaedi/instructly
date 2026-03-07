@@ -979,7 +979,7 @@ def _prepare_database() -> None:
                     ADD CONSTRAINT check_time_order
                     CHECK (
                         CASE
-                            WHEN end_time = time '00:00:00' AND start_time <> time '00:00:00' THEN TRUE
+                            WHEN end_time < start_time THEN TRUE
                             ELSE start_time < end_time
                         END
                     )

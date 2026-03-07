@@ -7,7 +7,8 @@ import { toast } from 'sonner';
 import { ArrowLeft, Settings, ChevronDown, Shield, Power, KeyRound, Gift } from 'lucide-react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
-import type { AddressListResponse } from '@/features/shared/api/types';
+import { extractApiErrorCode, extractApiErrorMessage } from '@/lib/apiErrors';
+import type { AddressListResponse, ApiErrorResponse } from '@/features/shared/api/types';
 import TfaModal from '@/components/security/TfaModal';
 import ChangePasswordModal from '@/components/security/ChangePasswordModal';
 import DeleteAccountModal from '@/components/security/DeleteAccountModal';
@@ -67,6 +68,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   const [mobile, setMobile] = useState('');
   const [zip, setZip] = useState('');
   const [savingAccount, setSavingAccount] = useState(false);
+  const [accountNameError, setAccountNameError] = useState('');
   const [formInitialized, setFormInitialized] = useState(false);
   const [smsPhone, setSmsPhone] = useState('');
   const [smsCode, setSmsCode] = useState('');
@@ -512,23 +514,30 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   const handleSaveAccount = async () => {
     try {
       setSavingAccount(true);
+      setAccountNameError('');
       const trimmed = (fullName || '').trim();
       const parts = trimmed.split(/\s+/);
       const lastName = parts.length > 1 ? parts.pop() || '' : '';
       const firstName = parts.join(' ');
 
-      try {
-        await fetchWithAuth(API_ENDPOINTS.ME, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            first_name: firstName,
-            last_name: lastName,
-            phone: (mobile || '').toString().trim(),
-          }),
-        });
-      } catch {
-        // ignore patch errors; toast covers failure below
+      const userResponse = await fetchWithAuth(API_ENDPOINTS.ME, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          first_name: firstName,
+          last_name: lastName,
+          phone: (mobile || '').toString().trim(),
+        }),
+      });
+      if (!userResponse.ok) {
+        const errorBody = (await userResponse.json()) as ApiErrorResponse;
+        const message = extractApiErrorMessage(errorBody, 'Failed to update account details');
+        if (extractApiErrorCode(errorBody) === 'last_name_locked') {
+          setAccountNameError(message);
+          toast.error('Last name must match your verified government ID. Contact support if you need to update it.');
+          return;
+        }
+        throw new Error(message);
       }
 
       try {
@@ -634,9 +643,17 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                       <input
                         type="text"
                         value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
+                        onChange={(e) => {
+                          setFullName(e.target.value);
+                          setAccountNameError('');
+                        }}
                         className="w-full px-3 py-2 insta-form-input focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
                       />
+                      {accountNameError && (
+                        <p className="mt-2 text-xs text-red-600 dark:text-red-400" role="alert">
+                          {accountNameError}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Email</label>

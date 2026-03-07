@@ -80,16 +80,34 @@ jest.mock('@/features/instructor-profile/SkillsPricingInline', () => {
 });
 
 jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/PersonalInfoCard', () => {
-  function PersonalInfoCard({ profile, onProfileChange, onToggle }: { profile: { first_name?: string; last_name?: string; postal_code?: string }; onProfileChange: (updates: Record<string, unknown>) => void; onToggle: () => void }) {
+  function PersonalInfoCard({
+    profile,
+    lastNameError,
+    onProfileChange,
+    onToggle,
+  }: {
+    profile: { first_name?: string; last_name?: string; postal_code?: string };
+    lastNameError?: string | null;
+    onProfileChange: (updates: Record<string, unknown>) => void;
+    onToggle: () => void;
+  }) {
     return (
       <section>
         <div data-testid="personal-info">{profile.first_name}-{profile.last_name}-{profile.postal_code}</div>
+        {lastNameError ? <div role="alert">{lastNameError}</div> : null}
         <label htmlFor="postal-code">Zip Code</label>
         <input
           id="postal-code"
           type="text"
           value={profile.postal_code ?? ''}
           onChange={(event) => onProfileChange({ postal_code: event.target.value })}
+        />
+        <label htmlFor="last-name">Last Name</label>
+        <input
+          id="last-name"
+          type="text"
+          value={profile.last_name ?? ''}
+          onChange={(event) => onProfileChange({ last_name: event.target.value })}
         />
         <button type="button" onClick={() => onProfileChange({ first_name: 'Updated' })}>Update Name</button>
         <button type="button" onClick={() => onProfileChange({
@@ -1249,7 +1267,7 @@ describe('InstructorProfileForm', () => {
     });
   });
 
-  it('handles user name PATCH failure silently during save', async () => {
+  it('blocks save when user name PATCH fails with a non-lock error', async () => {
     const { Wrapper } = createWrapper();
     mockUseSession.mockReturnValue({
       data: { id: 'user-1', first_name: 'Test', last_name: 'User' },
@@ -1266,7 +1284,6 @@ describe('InstructorProfileForm', () => {
         return { ok: true, status: 200, json: async () => ({ items: [] }) };
       }
       if (url === API_ENDPOINTS.ME && options?.method === 'PATCH') {
-        // Return a failure response rather than throwing - allows profile save to proceed
         return { ok: false, status: 500, json: async () => ({ detail: 'Internal error' }) };
       }
       if (url === '/api/v1/addresses/me') {
@@ -1287,10 +1304,13 @@ describe('InstructorProfileForm', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /save changes/i }));
 
-    // Profile save should succeed even if user PATCH fails - it's caught silently
     await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith('Profile saved', expect.any(Object));
+      expect(screen.getByText('Failed to save profile')).toBeInTheDocument();
     });
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(
+      mockFetchWithAuth.mock.calls.some((call) => call[0] === API_ENDPOINTS.INSTRUCTOR_PROFILE)
+    ).toBe(false);
   });
 
   it('handles service areas submit failure during save', async () => {
@@ -5341,6 +5361,126 @@ describe('InstructorProfileForm', () => {
       });
 
       formatProblemMessages.mockReturnValue(['Bad request']);
+    });
+
+    it('shows a last-name field error when the account update is locked by verified identity', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'T', last_name: 'User' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'A'.repeat(420), has_profile_picture: true },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        if (url === API_ENDPOINTS.ME) {
+          return {
+            ok: false,
+            status: 400,
+            json: async () => ({
+              detail: {
+                message:
+                  'Last name must match your verified government ID. Contact support if you need to update it.',
+                code: 'last_name_locked',
+              },
+            }),
+          };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(
+            /last name must match your verified government id\. contact support if you need to update it\./i
+          )
+        ).toBeInTheDocument();
+      });
+      expect(toast.error).toHaveBeenCalledWith(
+        'Last name must match your verified government ID. Contact support if you need to update it.'
+      );
+      expect(toast.success).not.toHaveBeenCalled();
+      expect(
+        mockFetchWithAuth.mock.calls.some((call) => call[0] === API_ENDPOINTS.INSTRUCTOR_PROFILE)
+      ).toBe(false);
+    });
+
+    it('clears the last-name field error when the last name changes after a lock response', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'T', last_name: 'User' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'A'.repeat(420), has_profile_picture: true },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        if (url === API_ENDPOINTS.ME) {
+          return {
+            ok: false,
+            status: 400,
+            json: async () => ({
+              detail: {
+                message:
+                  'Last name must match your verified government ID. Contact support if you need to update it.',
+                code: 'last_name_locked',
+              },
+            }),
+          };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(
+            /last name must match your verified government id\. contact support if you need to update it\./i
+          )
+        ).toBeInTheDocument();
+      });
+      expect(toast.error).toHaveBeenCalledWith(
+        'Last name must match your verified government ID. Contact support if you need to update it.'
+      );
+
+      await user.type(screen.getByLabelText('Last Name'), 'Rosen');
+
+      await waitFor(() => {
+        expect(
+          screen.queryByText(
+            /last name must match your verified government id\. contact support if you need to update it\./i
+          )
+        ).not.toBeInTheDocument();
+      });
     });
 
     it('handles profile error response when json parsing fails', async () => {

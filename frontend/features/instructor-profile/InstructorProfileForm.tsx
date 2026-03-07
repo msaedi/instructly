@@ -10,6 +10,7 @@ import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { withApiBase } from '@/lib/apiBase';
+import { extractApiErrorCode, extractApiErrorMessage } from '@/lib/apiErrors';
 import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { logger } from '@/lib/logger';
 import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
@@ -125,6 +126,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastNameError, setLastNameError] = useState<string | null>(null);
   // Success toast handled via Sonner; no local success banner state
   const [profile, setProfile] = useState<ProfileFormState>({
     first_name: '',
@@ -137,6 +139,9 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   });
   const [instructorMeta, setInstructorMeta] = useState<InstructorProfileResponse | null>(null);
   const handleProfileChange = useCallback((updates: Partial<ProfileFormState>) => {
+    if (Object.prototype.hasOwnProperty.call(updates, 'last_name')) {
+      setLastNameError(null);
+    }
     setProfile((prev) => ({ ...prev, ...updates }));
   }, []);
   const [isNYC, setIsNYC] = useState<boolean>(true); // default to true for now
@@ -532,9 +537,10 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
     try {
       setSaving(true);
       setError(null);
+      setLastNameError(null);
       // Update user info if changed
       if (profile.first_name || profile.last_name) {
-        await fetchWithAuth(API_ENDPOINTS.ME, {
+        const nameResponse = await fetchWithAuth(API_ENDPOINTS.ME, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -542,6 +548,16 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
             last_name: profile.last_name.trim(),
           }),
         });
+        if (!nameResponse.ok) {
+          const errorData = (await nameResponse.json()) as ApiErrorResponse;
+          const message = extractApiErrorMessage(errorData, 'Failed to update account details');
+          if (extractApiErrorCode(errorData) === 'last_name_locked') {
+            setLastNameError(message);
+            toast.error('Last name must match your verified government ID. Contact support if you need to update it.');
+            return;
+          }
+          throw new Error(message);
+        }
       }
 
       const payload = buildInstructorProfilePayload(profile);
@@ -896,6 +912,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
         <PersonalInfoCard
           context={context}
           profile={profile}
+          lastNameError={lastNameError}
           onProfileChange={handleProfileChange}
           isOpen={openPersonal}
           onToggle={() => setOpenPersonal((v) => !v)}

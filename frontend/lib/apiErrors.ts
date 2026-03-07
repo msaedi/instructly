@@ -28,3 +28,14 @@ export function extractApiErrorMessage(
 
   return fallback;
 }
+
+export function extractApiErrorCode(response: ApiErrorResponse): string | undefined {
+  const { detail } = response;
+
+  if (typeof detail === 'object' && detail !== null && typeof detail.code === 'string') {
+    return detail.code;
+  }
+
+  const topLevelCode = (response as ApiErrorResponse & { code?: unknown }).code;
+  return typeof topLevelCode === 'string' ? topLevelCode : undefined;
+}

@@ -145,6 +145,8 @@ class BackgroundCheckService(BaseService):
             "last_name": verified_last_name or user.last_name,
             "email": user.email,
         }
+        if profile.verified_dob:
+            candidate_payload["dob"] = profile.verified_dob.isoformat()
 
         optional_fields: Dict[str, Optional[str]] = {
             "phone": getattr(user, "phone", None),

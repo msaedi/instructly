@@ -298,7 +298,7 @@ def test_report_completed_nulls_pii_after_cross_check_with_mismatch(
     assert profile.identity_name_mismatch is True
     assert profile.bgc_name_mismatch is True
     assert profile.verified_first_name is None
-    assert profile.verified_last_name is None
+    assert profile.verified_last_name == "Smith"
     assert profile.verified_dob is None
     assert profile.bgc_submitted_first_name is None
     assert profile.bgc_submitted_last_name is None
@@ -345,7 +345,45 @@ def test_report_completed_nulls_pii_after_cross_check_on_match(
     db.refresh(profile)
     assert profile.bgc_name_mismatch is False
     assert profile.verified_first_name is None
-    assert profile.verified_last_name is None
+    assert profile.verified_last_name == "Smith"
+    assert profile.verified_dob is None
+    assert profile.bgc_submitted_first_name is None
+    assert profile.bgc_submitted_last_name is None
+
+
+def test_pii_cleanup_retains_verified_last_name(client, db: Session, candidate_payloads) -> None:
+    profile = _create_instructor_with_candidate(
+        db,
+        candidate_id="cand_retain_last_name",
+        verified_first_name="John",
+        verified_last_name="Rosen",
+        verified_dob=date(1990, 1, 2),
+        bgc_submitted_first_name="John",
+        bgc_submitted_last_name="Rosen",
+    )
+    candidate_payloads["cand_retain_last_name"] = {
+        "id": "cand_retain_last_name",
+        "first_name": "John",
+        "last_name": "Rosen",
+    }
+
+    payload = {
+        "type": "report.completed",
+        "data": {
+            "object": {
+                "id": "rpt_retain_last_name",
+                "result": "clear",
+                "candidate_id": "cand_retain_last_name",
+            }
+        },
+    }
+    body = json.dumps(payload).encode("utf-8")
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
+
+    assert response.status_code == 200
+    db.refresh(profile)
+    assert profile.verified_first_name is None
+    assert profile.verified_last_name == "Rosen"
     assert profile.verified_dob is None
     assert profile.bgc_submitted_first_name is None
     assert profile.bgc_submitted_last_name is None
@@ -418,7 +456,6 @@ def test_report_completed_pii_cleanup_failure_does_not_fail_webhook(
     def _patched_update(self, id: str, **kwargs):
         cleanup_keys = {
             "verified_first_name",
-            "verified_last_name",
             "verified_dob",
             "bgc_submitted_first_name",
             "bgc_submitted_last_name",

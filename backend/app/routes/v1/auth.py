@@ -1100,6 +1100,8 @@ async def update_current_user(
         def _update_user_profile() -> tuple[Any, ...]:
             """Perform all DB ops in one thread."""
             u = auth_service.get_current_user(current_user)
+            profile_repo = InstructorProfileRepository(db)
+            profile = profile_repo.get_by_user_id(u.id)
 
             # Use repository for updates
             from app.repositories import RepositoryFactory
@@ -1115,6 +1117,20 @@ async def update_current_user(
             if user_update.last_name is not None:
                 audit_before["last_name"] = getattr(u, "last_name", None)
                 upd_data["last_name"] = user_update.last_name
+                if profile and profile.verified_last_name:
+                    new_last_name = normalize_name(user_update.last_name)
+                    verified_last_name = normalize_name(profile.verified_last_name)
+                    if new_last_name != verified_last_name:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail={
+                                "message": (
+                                    "Last name must match your verified government ID. "
+                                    "Contact support if you need to update it."
+                                ),
+                                "code": "last_name_locked",
+                            },
+                        )
             if user_update.phone is not None:
                 old_phone = getattr(u, "phone", None)
                 audit_before["phone"] = old_phone
@@ -1151,8 +1167,6 @@ async def update_current_user(
                 raise NotFoundException("Failed to update user")
 
             if user_update.last_name is not None:
-                profile_repo = InstructorProfileRepository(db)
-                profile = profile_repo.get_by_user_id(upd_user.id)
                 if (
                     profile
                     and profile.identity_name_mismatch
@@ -1209,6 +1223,8 @@ async def update_current_user(
         return AuthUserWithPermissionsResponse(
             **model_filter(AuthUserWithPermissionsResponse, response_data)
         )
+    except HTTPException:
+        raise
     except NotFoundException:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

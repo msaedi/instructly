@@ -6496,15 +6496,17 @@ describe('EditProfileModal', () => {
   });
 
   describe('about save error paths', () => {
-    it('handles user name PATCH failure silently', async () => {
+    it('surfaces user name PATCH error responses and blocks about save', async () => {
       const user = userEvent.setup();
       const onSuccess = jest.fn();
       const onClose = jest.fn();
 
       fetchWithAuthMock.mockImplementation((url: string, options?: RequestInit) => {
         if (url.includes('users/me') && options?.method === 'PATCH') {
-          // Simulate PATCH failure - should be caught silently
-          return Promise.reject(new Error('PATCH failed'));
+          return Promise.resolve({
+            ok: false,
+            json: () => Promise.resolve({ detail: 'PATCH failed' }),
+          });
         }
         if (url.includes('instructors/me') && options?.method === 'PUT') {
           return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
@@ -6544,14 +6546,89 @@ describe('EditProfileModal', () => {
         expect(screen.getByRole('dialog')).toBeInTheDocument();
       });
 
-      // Click save - name PATCH will fail silently, but profile PUT should succeed
+      // Click save - name PATCH failure should block the profile save.
       const saveButton = screen.getByRole('button', { name: /save/i });
       await user.click(saveButton);
 
-      // Should still call onSuccess (name PATCH failure is silent)
       await waitFor(() => {
-        expect(onSuccess).toHaveBeenCalled();
+        expect(screen.getByText('PATCH failed')).toBeInTheDocument();
       });
+      expect(onSuccess).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
+      expect(
+        fetchWithAuthMock.mock.calls.some(
+          ([url, options]) => typeof url === 'string' && url.includes('instructors/me') && options?.method === 'PUT'
+        )
+      ).toBe(false);
+    });
+
+    it('shows the last-name lock inline error and skips about save when the account name is locked', async () => {
+      const user = userEvent.setup();
+      const onSuccess = jest.fn();
+      const onClose = jest.fn();
+
+      fetchWithAuthMock.mockImplementation((url: string, options?: RequestInit) => {
+        if (url.includes('users/me') && options?.method === 'PATCH') {
+          return Promise.resolve({
+            ok: false,
+            json: () =>
+              Promise.resolve({
+                detail: {
+                  message:
+                    'Last name must match your verified government ID. Contact support if you need to update it.',
+                  code: 'last_name_locked',
+                },
+              }),
+          });
+        }
+        if (url.includes('instructors/me')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockInstructorProfile),
+          });
+        }
+        if (url.includes('users/me')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ first_name: 'John', last_name: 'Doe' }),
+          });
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+      });
+
+      render(
+        <EditProfileModal
+          {...defaultProps}
+          variant="about"
+          onSuccess={onSuccess}
+          onClose={onClose}
+        />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByRole('button', { name: /save/i }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(
+            /last name must match your verified government id\. contact support if you need to update it\./i
+          )
+        ).toBeInTheDocument();
+      });
+      expect(jest.requireMock('sonner').toast.error).toHaveBeenCalledWith(
+        'Last name must match your verified government ID. Contact support if you need to update it.'
+      );
+      expect(onSuccess).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
+      expect(
+        fetchWithAuthMock.mock.calls.some(
+          ([url, options]) => typeof url === 'string' && url.includes('instructors/me') && options?.method === 'PUT'
+        )
+      ).toBe(false);
     });
 
     it('handles address PATCH when postal code changes', async () => {
@@ -7898,8 +7975,8 @@ describe('EditProfileModal', () => {
       });
     });
 
-    /* ---------- handleSubmit: user name PATCH failure is silent ---------- */
-    it('handleSubmit continues when user name PATCH fails', async () => {
+    /* ---------- handleSubmit: user name PATCH failure blocks save ---------- */
+    it('handleSubmit shows an error when user name PATCH fails', async () => {
       const user = userEvent.setup();
       const onSuccess = jest.fn();
 
@@ -7934,10 +8011,74 @@ describe('EditProfileModal', () => {
       const saveButton = screen.getByRole('button', { name: /save changes/i });
       await user.click(saveButton);
 
-      // Should still succeed (name failure is silently caught)
       await waitFor(() => {
-        expect(onSuccess).toHaveBeenCalled();
+        expect(screen.getByText('Name update failed')).toBeInTheDocument();
       });
+      expect(onSuccess).not.toHaveBeenCalled();
+      expect(
+        fetchWithAuthMock.mock.calls.some(
+          ([url, options]) => typeof url === 'string' && url.includes('instructors/me') && options?.method === 'PUT'
+        )
+      ).toBe(false);
+    });
+
+    it('handleSubmit shows the last-name lock inline error when the account name is locked', async () => {
+      const user = userEvent.setup();
+      const onSuccess = jest.fn();
+
+      fetchWithAuthMock.mockImplementation((url: string, options?: RequestInit) => {
+        if (url.includes('users/me') && options?.method === 'PATCH') {
+          return Promise.resolve({
+            ok: false,
+            json: () =>
+              Promise.resolve({
+                detail: {
+                  message:
+                    'Last name must match your verified government ID. Contact support if you need to update it.',
+                  code: 'last_name_locked',
+                },
+              }),
+          });
+        }
+        if (url.includes('instructors/me')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockInstructorProfile),
+          });
+        }
+        if (url.includes('users/me')) {
+          return Promise.resolve({ ok: true, json: () => Promise.resolve({ first_name: 'John', last_name: 'Doe' }) });
+        }
+        if (url.includes('addresses/me')) {
+          return Promise.resolve({ ok: true, json: () => Promise.resolve({ items: [] }) });
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+      });
+
+      render(
+        <EditProfileModal {...defaultProps} variant="full" onSuccess={onSuccess} />,
+        { wrapper: createWrapper() }
+      );
+      await waitFor(() => { expect(screen.getByRole('dialog')).toBeInTheDocument(); });
+
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(
+            /last name must match your verified government id\. contact support if you need to update it\./i
+          )
+        ).toBeInTheDocument();
+      });
+      expect(jest.requireMock('sonner').toast.error).toHaveBeenCalledWith(
+        'Last name must match your verified government ID. Contact support if you need to update it.'
+      );
+      expect(onSuccess).not.toHaveBeenCalled();
+      expect(
+        fetchWithAuthMock.mock.calls.some(
+          ([url, options]) => typeof url === 'string' && url.includes('instructors/me') && options?.method === 'PUT'
+        )
+      ).toBe(false);
     });
 
     /* ---------- fetchProfile: users/me not ok is ignored ---------- */
@@ -8935,8 +9076,8 @@ describe('EditProfileModal', () => {
       });
     });
 
-    /* ---------- user name PATCH failure in about variant is silent ---------- */
-    it('handleSaveBioExperience continues when user name PATCH throws', async () => {
+    /* ---------- user name PATCH failure in about variant blocks save ---------- */
+    it('handleSaveBioExperience shows an error when user name PATCH throws', async () => {
       const user = userEvent.setup();
       const onSuccess = jest.fn();
 
@@ -8971,10 +9112,15 @@ describe('EditProfileModal', () => {
       const saveButton = screen.getByRole('button', { name: /save/i });
       await user.click(saveButton);
 
-      // Should still succeed
       await waitFor(() => {
-        expect(onSuccess).toHaveBeenCalled();
+        expect(screen.getByText('Name PATCH failed')).toBeInTheDocument();
       });
+      expect(onSuccess).not.toHaveBeenCalled();
+      expect(
+        fetchWithAuthMock.mock.calls.some(
+          ([url, options]) => typeof url === 'string' && url.includes('instructors/me') && options?.method === 'PUT'
+        )
+      ).toBe(false);
     });
   });
 

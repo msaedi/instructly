@@ -54,7 +54,10 @@ export default function UserProfileDropdown({ hideDashboardItem = false }: UserP
 
   // No-op viewport effect (reverted to desktop-style dropdown only)
 
-  const updateDropdownPosition = useCallback((button: HTMLButtonElement) => {
+  const updateDropdownPosition = useCallback((button: HTMLButtonElement | null) => {
+    if (!button) {
+      return;
+    }
     const rect = button.getBoundingClientRect();
     setDropdownPosition({
       top: rect.bottom + window.scrollY + 8,
@@ -124,15 +127,16 @@ export default function UserProfileDropdown({ hideDashboardItem = false }: UserP
       {/* Desktop trigger */}
       <button
         ref={buttonRef}
-        onClick={(event) =>
+        onClick={(event) => {
+          const button = event.currentTarget;
           setIsOpen((prev) => {
             const next = !prev;
             if (next) {
-              updateDropdownPosition(event.currentTarget);
+              updateDropdownPosition(button);
             }
             return next;
-          })
-        }
+          });
+        }}
         className="hidden sm:inline-flex items-center justify-center gap-2 rounded-full pr-2 pl-1 py-1 transition-colors mr-0 focus:outline-none"
         aria-label={isOpen ? 'Close user menu' : 'Open user menu'}
         aria-haspopup="menu"

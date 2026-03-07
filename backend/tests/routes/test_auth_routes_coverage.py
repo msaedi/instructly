@@ -1304,7 +1304,7 @@ async def test_update_current_user_clears_name_mismatch_when_last_name_matches_v
 
 
 @pytest.mark.asyncio
-async def test_update_current_user_does_not_clear_name_mismatch_when_last_name_differs(
+async def test_update_current_user_rejects_last_name_not_matching_verified(
     monkeypatch, test_instructor, db
 ):
     user = test_instructor
@@ -1327,14 +1327,81 @@ async def test_update_current_user_does_not_clear_name_mismatch_when_last_name_d
     auth_service = _StubAuthService(user_obj=user)
     payload = auth_routes.UserUpdate(last_name="Different")
 
+    with pytest.raises(HTTPException) as exc_info:
+        await auth_routes.update_current_user(_DummyRequest(), payload, user.email, auth_service, db)
+
+    refreshed = profile_repo.get_by_user_id(user.id)
+    assert refreshed is not None
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == {
+        "message": (
+            "Last name must match your verified government ID. "
+            "Contact support if you need to update it."
+        ),
+        "code": "last_name_locked",
+    }
+    assert refreshed.user.last_name == user.last_name
+    assert refreshed.identity_name_mismatch is True
+    assert invalidated == []
+
+
+@pytest.mark.asyncio
+async def test_update_current_user_allows_last_name_change_before_verification(
+    monkeypatch, test_instructor, db
+):
+    user = test_instructor
+    invalidated: list[tuple[str, object]] = []
+    monkeypatch.setattr(
+        auth_routes,
+        "invalidate_cached_user_by_id_sync",
+        lambda user_id, db_session: invalidated.append((user_id, db_session)) or True,
+    )
+
+    auth_service = _StubAuthService(user_obj=user)
+    payload = auth_routes.UserUpdate(last_name="Unverified")
+
+    response = await auth_routes.update_current_user(
+        _DummyRequest(), payload, user.email, auth_service, db
+    )
+
+    refreshed = InstructorProfileRepository(db).get_by_user_id(user.id)
+    assert refreshed is not None
+    assert response.last_name == "Unverified"
+    assert refreshed.user.last_name == "Unverified"
+    assert invalidated == [(user.id, db)]
+
+
+@pytest.mark.asyncio
+async def test_update_current_user_case_insensitive_last_name_lock(monkeypatch, test_instructor, db):
+    user = test_instructor
+    profile_repo = InstructorProfileRepository(db)
+    profile = profile_repo.get_by_user_id(user.id)
+    assert profile is not None
+    profile_repo.update(
+        profile.id,
+        identity_name_mismatch=True,
+        verified_last_name="Rosen",
+    )
+
+    invalidated: list[tuple[str, object]] = []
+    monkeypatch.setattr(
+        auth_routes,
+        "invalidate_cached_user_by_id_sync",
+        lambda user_id, db_session: invalidated.append((user_id, db_session)) or True,
+    )
+
+    auth_service = _StubAuthService(user_obj=user)
+    payload = auth_routes.UserUpdate(last_name="ROSEN")
+
     response = await auth_routes.update_current_user(
         _DummyRequest(), payload, user.email, auth_service, db
     )
 
     refreshed = profile_repo.get_by_user_id(user.id)
     assert refreshed is not None
-    assert response.last_name == "Different"
-    assert refreshed.identity_name_mismatch is True
+    assert response.last_name == "ROSEN"
+    assert refreshed.identity_name_mismatch is False
+    assert refreshed.user.last_name == "ROSEN"
     assert invalidated == [(user.id, db)]
 
 
