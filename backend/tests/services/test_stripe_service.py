@@ -1078,6 +1078,16 @@ class TestStripeService:
         assert updated_profile.verified_dob is None
         assert updated_profile.identity_name_mismatch is False
 
+    def test_parse_identity_dob_logs_invalid_components(
+        self, stripe_service: StripeService, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Invalid Stripe DOB fragments should log a warning and return None."""
+        with caplog.at_level(logging.WARNING):
+            parsed = stripe_service._parse_identity_dob({"day": 32, "month": 13, "year": 1990})
+
+        assert parsed is None
+        assert "Invalid DOB components from Stripe" in caplog.text
+
     @patch("stripe.identity.VerificationSession.retrieve")
     def test_refresh_instructor_identity_falls_back_when_verified_persistence_fails(
         self, mock_retrieve, stripe_service: StripeService, test_instructor: tuple

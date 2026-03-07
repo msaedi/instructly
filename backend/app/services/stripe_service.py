@@ -65,6 +65,7 @@ from ..schemas.payment_schemas import (
     PayoutSummary,
     TransactionHistoryItem,
 )
+from ..utils.identity import clean_identity_value, normalize_name, redact_name
 from ..utils.url_validation import is_allowed_origin, origin_from_header
 from .base import BaseService
 from .cache_service import CacheService, CacheServiceSyncAdapter
@@ -192,21 +193,6 @@ class StripeService(BaseService):
         return code, reason
 
     @staticmethod
-    def _normalized_identity_value(value: Any) -> str:
-        """Normalize free-form identity fields for case-insensitive comparison."""
-        if value is None:
-            return ""
-        return str(value).strip().lower()
-
-    @staticmethod
-    def _clean_identity_string(value: Any) -> Optional[str]:
-        """Return a trimmed string value or None when empty."""
-        if value is None:
-            return None
-        cleaned = str(value).strip()
-        return cleaned or None
-
-    @staticmethod
     def _stripe_has_field(obj: Any, key: str) -> bool:
         """Detect whether a Stripe object or test double explicitly exposes a field."""
         if isinstance(obj, dict):
@@ -226,7 +212,8 @@ class StripeService(BaseService):
 
         try:
             return date(int(year), int(month), int(day))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
+            logger.warning("Invalid DOB components from Stripe: %s", exc)
             return None
 
     def _persist_verified_identity(
@@ -241,7 +228,7 @@ class StripeService(BaseService):
         """Persist verified Stripe Identity outputs and mismatch flags on the instructor."""
 
         resolved_session = session
-        resolved_session_id = self._clean_identity_string(
+        resolved_session_id = clean_identity_value(
             self._stripe_value(session, "id", session_id) or session_id
         )
         verified_at = datetime.now(timezone.utc)
@@ -270,10 +257,10 @@ class StripeService(BaseService):
             if self._stripe_has_field(resolved_session, "verified_outputs")
             else None
         )
-        verified_first_name = self._clean_identity_string(
+        verified_first_name = clean_identity_value(
             self._stripe_value(verified_outputs, "first_name") if verified_outputs else None
         )
-        verified_last_name = self._clean_identity_string(
+        verified_last_name = clean_identity_value(
             self._stripe_value(verified_outputs, "last_name") if verified_outputs else None
         )
         verified_dob = self._parse_identity_dob(
@@ -283,8 +270,8 @@ class StripeService(BaseService):
         identity_name_mismatch = False
         user = self.user_repository.get_by_id(user_id)
         if user and verified_last_name:
-            signup_last_name = self._normalized_identity_value(getattr(user, "last_name", None))
-            verified_last_name_normalized = self._normalized_identity_value(verified_last_name)
+            signup_last_name = normalize_name(getattr(user, "last_name", None))
+            verified_last_name_normalized = normalize_name(verified_last_name)
             identity_name_mismatch = bool(
                 signup_last_name
                 and verified_last_name_normalized
@@ -292,10 +279,10 @@ class StripeService(BaseService):
             )
             if identity_name_mismatch:
                 self.logger.warning(
-                    "Identity last-name mismatch for user %s: signup='%s' verified='%s'",
+                    "Identity last-name mismatch for user %s: signup_last=%s verified_last=%s",
                     user_id,
-                    getattr(user, "last_name", None),
-                    verified_last_name,
+                    redact_name(getattr(user, "last_name", None)),
+                    redact_name(verified_last_name),
                 )
 
         self.instructor_repository.update(
@@ -4512,7 +4499,18 @@ class StripeService(BaseService):
                     self.logger.error(
                         f"Failed updating identity verification on profile {profile.id}: {e}"
                     )
-                    return False
+                    try:
+                        self.instructor_repository.update(
+                            profile.id,
+                            identity_verified_at=datetime.now(timezone.utc),
+                            identity_verification_session_id=obj.get("id"),
+                        )
+                    except Exception:
+                        logger.debug(
+                            "Non-fatal identity webhook fallback persistence failure",
+                            exc_info=True,
+                        )
+                    return True
                 return True
 
             # Processing: Stripe is still reviewing — keep session_id as "in progress"

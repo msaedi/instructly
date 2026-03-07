@@ -530,6 +530,36 @@ describe('BGCStep', () => {
       });
     });
 
+    it('handles identity_verification_required when starting background check', async () => {
+      bgcInviteMock.mockRejectedValue(
+        createApiProblemError(
+          400,
+          'identity_verification_required',
+          'Identity verification must be completed before starting a background check.'
+        )
+      );
+
+      render(<BGCStep instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /start background check/i })).toBeEnabled();
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /start background check/i }));
+      });
+
+      await waitFor(() => {
+        expect(toastMock.info).toHaveBeenCalledWith(
+          'Complete ID verification first.',
+          expect.objectContaining({
+            description:
+              'Identity verification must be completed before starting a background check.',
+          })
+        );
+      });
+    });
+
     it('handles bgc_consent_required and retries after consent', async () => {
       const ensureConsent = jest.fn().mockResolvedValue(true);
       bgcInviteMock
@@ -851,6 +881,36 @@ describe('BGCStep', () => {
         expect(toastMock.error).toHaveBeenCalledWith(
           'Background check configuration error: work location rejected.',
           expect.any(Object)
+        );
+      });
+    });
+
+    it('handles identity_verification_required for recheck', async () => {
+      bgcRecheckMock.mockRejectedValue(
+        createApiProblemError(
+          400,
+          'identity_verification_required',
+          'Identity verification must be completed before starting a background check.'
+        )
+      );
+
+      render(<BGCStep instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /re-check/i })).toBeEnabled();
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /re-check/i }));
+      });
+
+      await waitFor(() => {
+        expect(toastMock.info).toHaveBeenCalledWith(
+          'Complete ID verification first.',
+          expect.objectContaining({
+            description:
+              'Identity verification must be completed before starting a background check.',
+          })
         );
       });
     });

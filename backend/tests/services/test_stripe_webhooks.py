@@ -3,6 +3,7 @@ Webhook handler tests for StripeService.
 """
 
 from datetime import date, datetime, time, timedelta, timezone
+import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -921,7 +922,10 @@ def test_identity_webhook_verified_updates_profile(
 
 @patch("stripe.identity.VerificationSession.retrieve")
 def test_identity_webhook_verified_flags_last_name_mismatch(
-    mock_retrieve, stripe_service: StripeService, test_instructor: tuple
+    mock_retrieve,
+    stripe_service: StripeService,
+    test_instructor: tuple,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     user, profile, _ = test_instructor
     mock_retrieve.return_value = {
@@ -939,12 +943,16 @@ def test_identity_webhook_verified_flags_last_name_mismatch(
         },
     }
 
-    assert stripe_service._handle_identity_webhook(event) is True
+    with caplog.at_level(logging.WARNING):
+        assert stripe_service._handle_identity_webhook(event) is True
 
     updated = stripe_service.instructor_repository.get_by_user_id(user.id)
     assert updated.verified_first_name == "Homer"
     assert updated.verified_last_name == "Simpson"
     assert updated.identity_name_mismatch is True
+    assert "signup_last=I****(10) verified_last=S****(7)" in caplog.text
+    assert "Instructor" not in caplog.text
+    assert "Simpson" not in caplog.text
 
 
 @patch("stripe.identity.VerificationSession.retrieve")
@@ -1030,7 +1038,7 @@ def test_identity_webhook_requires_input_update_failure(
 
 
 @patch("stripe.identity.VerificationSession.retrieve")
-def test_identity_webhook_update_failure_returns_false(
+def test_identity_webhook_update_failure_returns_true(
     mock_retrieve, stripe_service: StripeService, test_instructor: tuple
 ) -> None:
     user, profile, _ = test_instructor
@@ -1047,7 +1055,26 @@ def test_identity_webhook_update_failure_returns_false(
     }
 
     with patch.object(stripe_service.instructor_repository, "update", side_effect=Exception("boom")):
-        assert stripe_service._handle_identity_webhook(event) is False
+        assert stripe_service._handle_identity_webhook(event) is True
+
+
+def test_identity_webhook_verified_falls_back_to_timestamp_only_on_persist_error(
+    stripe_service: StripeService, test_instructor: tuple
+) -> None:
+    user, profile, _ = test_instructor
+    event = {
+        "type": "identity.verification_session.verified",
+        "data": {
+            "object": {"id": "vs_fallback", "status": "verified", "metadata": {"user_id": user.id}}
+        },
+    }
+
+    with patch.object(stripe_service, "_persist_verified_identity", side_effect=Exception("boom")):
+        assert stripe_service._handle_identity_webhook(event) is True
+
+    updated = stripe_service.instructor_repository.get_by_user_id(user.id)
+    assert updated.identity_verified_at is not None
+    assert updated.identity_verification_session_id == "vs_fallback"
 
 
 def test_identity_webhook_processing_keeps_session_id(

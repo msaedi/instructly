@@ -1,6 +1,7 @@
 import base64
 from datetime import datetime, timedelta, timezone
 import json
+import logging
 import types
 from types import SimpleNamespace
 
@@ -250,7 +251,7 @@ def test_report_completed_without_report_binding_uses_candidate(client, db: Sess
 
 
 def test_report_completed_updates_submitted_name_and_flags_mismatch(
-    client, db: Session, candidate_payloads
+    client, db: Session, candidate_payloads, caplog: pytest.LogCaptureFixture
 ) -> None:
     profile = _create_instructor_with_candidate(
         db,
@@ -274,13 +275,17 @@ def test_report_completed_updates_submitted_name_and_flags_mismatch(
         },
     }
     body = json.dumps(payload).encode("utf-8")
-    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
+    with caplog.at_level(logging.WARNING):
+        response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
 
     assert response.status_code == 200
     db.refresh(profile)
     assert profile.bgc_submitted_first_name == "Lady"
     assert profile.bgc_submitted_last_name == "Gaga"
     assert profile.bgc_name_mismatch is True
+    assert "checkr_last=G****(4) verified_last=S****(5)" in caplog.text
+    assert "Gaga" not in caplog.text
+    assert "Smith" not in caplog.text
 
 
 def test_report_completed_updates_submitted_name_without_flag_on_match(

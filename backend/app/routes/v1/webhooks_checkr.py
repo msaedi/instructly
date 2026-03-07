@@ -32,6 +32,7 @@ from ...api.dependencies.services import (
 from ...core.config import settings
 from ...core.exceptions import NonRetryableError, RepositoryException
 from ...core.metrics import CHECKR_WEBHOOK_TOTAL
+from ...models.instructor import InstructorProfile
 from ...models.webhook_event import WebhookEvent
 from ...repositories.background_job_repository import BackgroundJobRepository
 from ...repositories.bgc_webhook_log_repository import BGCWebhookLogRepository
@@ -42,6 +43,7 @@ from ...services.background_check_workflow_service import (
     BackgroundCheckWorkflowService,
 )
 from ...services.webhook_ledger_service import WebhookLedgerService
+from ...utils.identity import clean_identity_value, normalize_name, redact_name
 
 logger = logging.getLogger(__name__)
 
@@ -323,39 +325,24 @@ def _bind_report_to_profile(
     return result
 
 
-def _clean_name_value(value: Any) -> str | None:
-    if value is None:
-        return None
-    cleaned = str(value).strip()
-    return cleaned or None
-
-
-def _normalized_name_value(value: Any) -> str:
-    cleaned = _clean_name_value(value)
-    return cleaned.lower() if cleaned else ""
-
-
 async def _sync_candidate_identity_cross_check(
     *,
-    repo: Any,
-    profile: Any,
+    repo: InstructorProfileRepository,
+    profile: InstructorProfile | None,
     candidate_id: str | None,
-    background_check_service: Any | None,
+    background_check_service: BackgroundCheckService | None,
 ) -> None:
     """Best-effort sync of the Checkr-submitted name onto the instructor profile."""
 
     if not candidate_id or profile is None or background_check_service is None:
         return
 
-    client = getattr(background_check_service, "client", None)
-    get_candidate = getattr(client, "get_candidate", None)
-    update_profile = getattr(repo, "update", None)
-    profile_id = getattr(profile, "id", None)
-    if not callable(get_candidate) or not callable(update_profile) or not profile_id:
-        return
+    profile_id = profile.id
 
     try:
-        candidate = await asyncio.to_thread(get_candidate, candidate_id)
+        candidate = await asyncio.to_thread(
+            background_check_service.client.get_candidate, candidate_id
+        )
     except Exception as exc:
         logger.warning(
             "Failed to retrieve Checkr candidate %s for identity cross-check: %s",
@@ -367,9 +354,9 @@ async def _sync_candidate_identity_cross_check(
     if not isinstance(candidate, dict):
         return
 
-    candidate_first_name = _clean_name_value(candidate.get("first_name"))
-    candidate_last_name = _clean_name_value(candidate.get("last_name"))
-    verified_last_name = _clean_name_value(getattr(profile, "verified_last_name", None))
+    candidate_first_name = clean_identity_value(candidate.get("first_name"))
+    candidate_last_name = clean_identity_value(candidate.get("last_name"))
+    verified_last_name = clean_identity_value(profile.verified_last_name)
 
     update_fields: dict[str, Any] = {}
     if candidate_first_name is not None:
@@ -377,23 +364,21 @@ async def _sync_candidate_identity_cross_check(
     if candidate_last_name is not None:
         update_fields["bgc_submitted_last_name"] = candidate_last_name
     if candidate_last_name is not None and verified_last_name is not None:
-        mismatch = _normalized_name_value(candidate_last_name) != _normalized_name_value(
-            verified_last_name
-        )
+        mismatch = normalize_name(candidate_last_name) != normalize_name(verified_last_name)
         update_fields["bgc_name_mismatch"] = mismatch
         if mismatch:
             logger.warning(
-                "Background check last-name mismatch for profile %s: checkr='%s' verified='%s'",
+                "Background check last-name mismatch for profile %s: checkr_last=%s verified_last=%s",
                 profile_id,
-                candidate_last_name,
-                verified_last_name,
+                redact_name(candidate_last_name),
+                redact_name(verified_last_name),
             )
 
     if not update_fields:
         return
 
     try:
-        await asyncio.to_thread(update_profile, profile_id, **update_fields)
+        await asyncio.to_thread(repo.update, profile_id, **update_fields)
     except Exception as exc:
         logger.warning(
             "Failed to persist Checkr candidate identity for profile %s: %s",
@@ -412,7 +397,7 @@ async def _process_checkr_payload(
     job_repository: BackgroundJobRepository,
     log_repository: BGCWebhookLogRepository,
     resource_id: str | None,
-    background_check_service: Any | None = None,
+    background_check_service: BackgroundCheckService | None = None,
     skip_dedup: bool = False,
 ) -> tuple[str | None, CheckrProcessingOutcome]:
     processing_error: str | None = None
