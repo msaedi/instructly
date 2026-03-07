@@ -375,6 +375,7 @@ export interface AdminInstructorDetailResponse {
   bgc_in_dispute?: boolean;
   bgc_includes_canceled?: boolean;
   bgc_is_expired?: boolean;
+  bgc_name_mismatch?: boolean;
   bgc_report_id?: string | null;
   bgc_status?: string | null;
   bgc_valid_until?: string | null;
@@ -1382,6 +1383,7 @@ export interface AvailabilityWindowResponse {
 }
 
 export interface BGCCaseCountsResponse {
+  all: number;
   pending: number;
   review: number;
 }
@@ -3664,6 +3666,7 @@ Student-facing endpoints will show only instructor last initial.
 export interface InstructorProfileResponse {
   background_check_object_key?: string | null;
   background_check_uploaded_at?: string | null;
+  bgc_name_mismatch?: boolean;
   /** Background check status for public display */
   bgc_status?: string | null;
   /**

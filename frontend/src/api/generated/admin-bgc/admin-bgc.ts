@@ -455,7 +455,7 @@ export function useAdminLatestConsentApiV1AdminBackgroundChecksConsentInstructor
 }
 
 /**
- * Return total counts for review and pending background check queues.
+ * Return total counts for all, review, and pending background check queues.
  * @summary Bgc Counts
  */
 export const getBgcCountsApiV1AdminBackgroundChecksCountsGetUrl = () => {

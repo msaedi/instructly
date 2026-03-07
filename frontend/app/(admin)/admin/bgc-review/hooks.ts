@@ -45,6 +45,7 @@ export interface AdminInstructorDetail {
   name: string;
   email: string;
   is_live: boolean;
+  bgc_name_mismatch: boolean;
   bgc_status: string | null;
   bgcIncludesCanceled?: boolean;
   bgc_report_id: string | null;
@@ -101,6 +102,7 @@ const normalizeInstructorDetail = (detail: AdminInstructorDetailApi): AdminInstr
   name: detail.name,
   email: detail.email,
   is_live: Boolean(detail.is_live),
+  bgc_name_mismatch: Boolean(detail.bgc_name_mismatch),
   bgc_status: detail.bgc_status ?? null,
   bgcIncludesCanceled: Boolean(detail.bgc_includes_canceled),
   bgc_report_id: detail.bgc_report_id ?? null,
@@ -229,6 +231,28 @@ export function useBGCInvite() {
   return useMutation({
     mutationFn: ({ id, packageSlug }: { id: string; packageSlug?: string | null }) =>
       httpPost<BGCInviteResponse>(`/api/v1/instructors/${id}/bgc/invite`, packageSlug ? { package_slug: packageSlug } : {}),
+    onSuccess: (_, variables) => {
+      invalidateBackgroundCheckQueries(queryClient, variables.id);
+    },
+  });
+}
+
+export function useBGCClearMismatch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) =>
+      httpPost<AdminInstructorDetailApi>(`/api/v1/admin/instructors/${id}/clear-bgc-mismatch`, {}),
+    onSuccess: (_, variables) => {
+      invalidateBackgroundCheckQueries(queryClient, variables.id);
+    },
+  });
+}
+
+export function useBGCReset() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) =>
+      httpPost<AdminInstructorDetailApi>(`/api/v1/admin/instructors/${id}/reset-bgc`, {}),
     onSuccess: (_, variables) => {
       invalidateBackgroundCheckQueries(queryClient, variables.id);
     },

@@ -145,24 +145,36 @@ class TestPerformanceOverhead:
             delay_ms = 10
             n_iterations = 50
 
-            # Measure with metrics
-            times_with = []
-            for _ in range(n_iterations):
-                start = time.perf_counter()
+            # Warm up coroutine creation and metric label initialization.
+            for _ in range(5):
                 await service_with.async_operation(delay_ms)
-                times_with.append(time.perf_counter() - start)
-
-            # Measure without metrics
-            times_without = []
-            for _ in range(n_iterations):
-                start = time.perf_counter()
                 await service_without.async_operation(delay_ms)
-                times_without.append(time.perf_counter() - start)
 
-            # Calculate overhead
-            avg_with = statistics.mean(times_with)
-            avg_without = statistics.mean(times_without)
-            overhead_ms = (avg_with - avg_without) * 1000
+            # Pair decorated and undecorated awaits back-to-back, alternating order
+            # so event loop jitter and suite contention are not mistaken for
+            # decorator overhead.
+            overhead_samples_ms = []
+            for iteration in range(n_iterations):
+                if iteration % 2 == 0:
+                    start = time.perf_counter()
+                    await service_with.async_operation(delay_ms)
+                    with_metrics = time.perf_counter() - start
+
+                    start = time.perf_counter()
+                    await service_without.async_operation(delay_ms)
+                    without_metrics = time.perf_counter() - start
+                else:
+                    start = time.perf_counter()
+                    await service_without.async_operation(delay_ms)
+                    without_metrics = time.perf_counter() - start
+
+                    start = time.perf_counter()
+                    await service_with.async_operation(delay_ms)
+                    with_metrics = time.perf_counter() - start
+
+                overhead_samples_ms.append((with_metrics - without_metrics) * 1000)
+
+            overhead_ms = statistics.mean(overhead_samples_ms)
 
             # For async operations, overhead should be less than 1ms
             assert overhead_ms < 1, f"Async monitoring overhead is {overhead_ms:.2f}ms"

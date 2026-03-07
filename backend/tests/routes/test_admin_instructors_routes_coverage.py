@@ -13,6 +13,8 @@ class _RepoStub:
         self._profile = profile
         self.db = object()
         self.count = 0
+        self.updated = []
+        self.committed = False
 
     def get_by_id_join_user(self, instructor_id):
         if self._profile is None:
@@ -24,6 +26,15 @@ class _RepoStub:
 
     def count_founding_instructors(self):
         return self.count
+
+    def update(self, profile_id, **kwargs):
+        self.updated.append((profile_id, kwargs))
+        for key, value in kwargs.items():
+            setattr(self._profile, key, value)
+        return self._profile
+
+    def commit(self):
+        self.committed = True
 
 
 @pytest.mark.asyncio
@@ -41,6 +52,7 @@ async def test_admin_instructor_detail_builds_name_and_expiry():
         id="profile-1",
         user=SimpleNamespace(first_name="Jane", last_name="Doe", full_name=None, email="j@e.com"),
         is_live=True,
+        bgc_name_mismatch=True,
         bgc_status="pending",
         bgc_includes_canceled=False,
         bgc_report_id="rpt-1",
@@ -60,6 +72,75 @@ async def test_admin_instructor_detail_builds_name_and_expiry():
     assert response.name == "Jane Doe"
     assert response.bgc_is_expired is True
     assert response.bgc_expires_in_days is None
+    assert response.bgc_name_mismatch is True
+
+
+@pytest.mark.asyncio
+async def test_clear_bgc_mismatch_updates_flag(monkeypatch):
+    now = datetime.now(timezone.utc)
+    profile = SimpleNamespace(
+        id="profile-1",
+        user=SimpleNamespace(first_name="Jane", last_name="Doe", full_name=None, email="j@e.com"),
+        is_live=False,
+        bgc_name_mismatch=True,
+        bgc_status="review",
+        bgc_includes_canceled=False,
+        bgc_report_id="rpt-1",
+        bgc_completed_at=None,
+        created_at=now,
+        updated_at=now,
+        bgc_valid_until=None,
+        bgc_in_dispute=False,
+        bgc_dispute_note=None,
+        bgc_dispute_opened_at=None,
+        bgc_dispute_resolved_at=None,
+    )
+    repo = _RepoStub(profile)
+    monkeypatch.setattr(routes, "AuditService", lambda _db: SimpleNamespace(log=lambda **_kwargs: None))
+
+    response = await routes.clear_bgc_mismatch(
+        "profile-1",
+        request=SimpleNamespace(headers={}),
+        repo=repo,
+        current_admin=SimpleNamespace(id="admin-1", email="admin@example.com"),
+    )
+
+    assert repo.updated == [("profile-1", {"bgc_name_mismatch": False})]
+    assert repo.committed is True
+    assert response.bgc_name_mismatch is False
+
+
+@pytest.mark.asyncio
+async def test_reset_bgc_blocks_live_instructor():
+    now = datetime.now(timezone.utc)
+    profile = SimpleNamespace(
+        id="profile-1",
+        user=SimpleNamespace(first_name="Jane", last_name="Doe", full_name=None, email="j@e.com"),
+        is_live=True,
+        bgc_name_mismatch=True,
+        bgc_status="passed",
+        bgc_includes_canceled=False,
+        bgc_report_id="rpt-1",
+        bgc_completed_at=now,
+        created_at=now,
+        updated_at=now,
+        bgc_valid_until=None,
+        bgc_in_dispute=False,
+        bgc_dispute_note=None,
+        bgc_dispute_opened_at=None,
+        bgc_dispute_resolved_at=None,
+    )
+    repo = _RepoStub(profile)
+
+    with pytest.raises(Exception) as exc:
+        await routes.reset_bgc(
+            "profile-1",
+            request=SimpleNamespace(headers={}),
+            repo=repo,
+            current_admin=SimpleNamespace(id="admin-1", email="admin@example.com"),
+        )
+
+    assert getattr(exc.value, "status_code", None) == 400
 
 
 @pytest.mark.asyncio

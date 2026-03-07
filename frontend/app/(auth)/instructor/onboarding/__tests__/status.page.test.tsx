@@ -125,6 +125,7 @@ const mockProfile: {
   identity_verified_at: string | null;
   identity_verification_session_id: string | null;
   identity_name_mismatch: boolean;
+  bgc_name_mismatch: boolean;
   skills_configured: boolean;
   services: unknown[];
   is_live: boolean;
@@ -133,6 +134,7 @@ const mockProfile: {
   identity_verified_at: null,
   identity_verification_session_id: null,
   identity_name_mismatch: false,
+  bgc_name_mismatch: false,
   skills_configured: false,
   services: [],
   is_live: false,
@@ -181,6 +183,7 @@ describe('Onboarding status page – BGC consent regression', () => {
     capturedEnsureConsent = undefined;
     capturedIdentityVerified = undefined;
     mockProfile.identity_name_mismatch = false;
+    mockProfile.bgc_name_mismatch = false;
     mockProfile.identity_verified_at = null;
     mockProfile.identity_verification_session_id = null;
     mockProfile.skills_configured = false;
@@ -241,6 +244,49 @@ describe('Onboarding status page – BGC consent regression', () => {
     expect(
       screen.getByRole('button', { name: /complete required steps to go live/i })
     ).toBeDisabled();
+  });
+
+  it('shows background check mismatch banners and disables go-live', async () => {
+    mockProfile.identity_verified_at = '2026-03-05T12:00:00Z';
+    mockProfile.bgc_name_mismatch = true;
+    mockGoLiveCheck.canGoLive = false;
+    mockGoLiveCheck.missing = ['Background check name must match verified identity'];
+
+    renderWithClient(<OnboardingStatusPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByText(/doesn't match your verified identity/i).length
+      ).toBeGreaterThan(0);
+    });
+    expect(
+      screen.queryByRole('link', { name: /profile settings/i })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /complete required steps to go live/i })
+    ).toBeDisabled();
+  });
+
+  it('shows both mismatch notices when identity and background check flags are set', async () => {
+    mockProfile.identity_verified_at = '2026-03-05T12:00:00Z';
+    mockProfile.identity_name_mismatch = true;
+    mockProfile.bgc_name_mismatch = true;
+    mockGoLiveCheck.canGoLive = false;
+    mockGoLiveCheck.missing = [
+      'Account name must match government ID',
+      'Background check name must match verified identity',
+    ];
+
+    renderWithClient(<OnboardingStatusPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/your account name must match your government id before you can go live/i)
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getAllByText(/doesn't match your verified identity/i).length
+    ).toBeGreaterThan(0);
   });
 
   it('renders the BackgroundCheckDisclosureModal (hidden by default)', async () => {

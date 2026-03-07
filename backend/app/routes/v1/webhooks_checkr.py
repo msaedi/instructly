@@ -391,35 +391,6 @@ async def _sync_candidate_identity_cross_check(
     return comparison_completed
 
 
-async def _cleanup_candidate_identity_pii(
-    *,
-    repo: InstructorProfileRepository,
-    profile: InstructorProfile | None,
-) -> None:
-    """Best-effort cleanup of transient identity cross-check PII."""
-
-    if profile is None:
-        return
-
-    try:
-        await asyncio.to_thread(
-            repo.update,
-            profile.id,
-            # verified_last_name intentionally retained — needed for last-name-lock
-            # enforcement in PATCH /auth/me and ongoing mismatch detection.
-            verified_first_name=None,
-            verified_dob=None,
-            bgc_submitted_first_name=None,
-            bgc_submitted_last_name=None,
-        )
-    except Exception as exc:
-        logger.warning(
-            "Failed to clear identity cross-check PII for profile %s: %s",
-            profile.id,
-            str(exc),
-        )
-
-
 async def _process_checkr_payload(
     *,
     event_type: str,
@@ -628,17 +599,12 @@ async def _process_checkr_payload(
                     "Background check requires review",
                     extra={"instructor_id": profile.id, "report_id": report_id},
                 )
-            cross_check_succeeded = await _sync_candidate_identity_cross_check(
+            await _sync_candidate_identity_cross_check(
                 repo=repo,
                 profile=profile,
                 candidate_id=candidate_id,
                 background_check_service=background_check_service,
             )
-            if cross_check_succeeded and normalized_result in {"clear", "consider"}:
-                await _cleanup_candidate_identity_pii(
-                    repo=repo,
-                    profile=profile,
-                )
 
             CHECKR_WEBHOOK_TOTAL.labels(result=result_label, outcome="success").inc()
             logger.info(

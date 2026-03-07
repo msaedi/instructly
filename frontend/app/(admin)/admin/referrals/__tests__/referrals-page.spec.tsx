@@ -35,7 +35,7 @@ describe('AdminReferralsPage', () => {
     global.fetch = jest.fn((input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input.toString();
       if (url.includes('/api/v1/admin/background-checks/counts')) {
-        return Promise.resolve(createJsonResponse({ review: 3, pending: 2 }));
+        return Promise.resolve(createJsonResponse({ all: 5, review: 3, pending: 2 }));
       }
       if (url.includes('/api/v1/admin/referrals/health')) {
         return Promise.resolve(

@@ -21,6 +21,7 @@ type MockProfile = {
   identity_verified_at: string | null;
   identity_verification_session_id: string | null;
   identity_name_mismatch?: boolean;
+  bgc_name_mismatch?: boolean;
 };
 
 type MockRefreshResponse = {
@@ -330,6 +331,33 @@ describe('Verification page', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: /update my name/i }));
     expect(mockPush).toHaveBeenCalledWith('/instructor/settings');
+  });
+
+  it('shows BGC mismatch banner when bgc_name_mismatch is true', async () => {
+    mockRawData = makeRawData({ bgc_name_mismatch: true });
+
+    renderWithClient(<Step4Verification />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          /the information submitted during your background check doesn't match your verified identity/i
+        )
+      ).toBeInTheDocument()
+    );
+  });
+
+  it('does not show BGC mismatch banner when bgc_name_mismatch is false', async () => {
+    mockRawData = makeRawData({ bgc_name_mismatch: false });
+
+    renderWithClient(<Step4Verification />);
+
+    await waitFor(() => expect(screen.getByTestId('bgc-step')).toBeInTheDocument());
+    expect(
+      screen.queryByText(
+        /the information submitted during your background check doesn't match your verified identity/i
+      )
+    ).not.toBeInTheDocument();
   });
 
   it('renders the requires_input state with a mapped amber banner and retry button', async () => {

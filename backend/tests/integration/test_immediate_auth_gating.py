@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 import ulid
@@ -17,6 +18,8 @@ try:  # pragma: no cover - allow execution from backend/ or repo root
     from backend.tests.factories.booking_builders import create_booking_pg_safe
 except ModuleNotFoundError:  # pragma: no cover
     from tests.factories.booking_builders import create_booking_pg_safe
+
+LESSON_TZ = ZoneInfo("America/New_York")
 
 
 def _get_service(db: Session, instructor: User) -> InstructorService:
@@ -38,7 +41,8 @@ def _get_service(db: Session, instructor: User) -> InstructorService:
 
 def _safe_start_window(hours_from_now: int) -> tuple[datetime, datetime]:
     now = datetime.now(timezone.utc)
-    start_dt = (now + timedelta(hours=hours_from_now)).replace(minute=0, second=0, microsecond=0)
+    start_dt = (now + timedelta(hours=hours_from_now)).astimezone(LESSON_TZ)
+    start_dt = start_dt.replace(minute=0, second=0, microsecond=0)
     end_dt = start_dt + timedelta(hours=1)
     if end_dt.date() != start_dt.date():
         start_dt = (start_dt - timedelta(hours=2)).replace(minute=0, second=0, microsecond=0)
@@ -61,8 +65,8 @@ def _create_pending_booking(
         instructor_id=instructor.id,
         instructor_service_id=service.id,
         booking_date=start_dt.date(),
-        start_time=start_dt.time(),
-        end_time=end_dt.time(),
+        start_time=start_dt.time().replace(tzinfo=None),
+        end_time=end_dt.time().replace(tzinfo=None),
         service_name="Auth Gating",
         hourly_rate=float(service.hourly_rate or 120.0),
         total_price=float(service.hourly_rate or 120.0),

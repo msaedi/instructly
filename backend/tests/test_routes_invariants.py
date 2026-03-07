@@ -1443,6 +1443,8 @@ class TestRoutingInvariants:
 
         expected_admin_instructors_endpoints = [
             "/api/v1/admin/instructors/{instructor_id}",  # GET
+            "/api/v1/admin/instructors/{instructor_id}/clear-bgc-mismatch",  # POST
+            "/api/v1/admin/instructors/{instructor_id}/reset-bgc",  # POST
         ]
 
         missing = []

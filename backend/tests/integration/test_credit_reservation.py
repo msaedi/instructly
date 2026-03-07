@@ -5,6 +5,7 @@ Integration tests for Phase 3 credit reservation lifecycle.
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from unittest.mock import MagicMock, patch
+from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy.orm import Session
@@ -24,6 +25,8 @@ try:  # pragma: no cover - allow execution from backend/ or repo root
     from backend.tests.factories.booking_builders import create_booking_pg_safe
 except ModuleNotFoundError:  # pragma: no cover
     from tests.factories.booking_builders import create_booking_pg_safe
+
+LESSON_TZ = ZoneInfo("America/New_York")
 
 
 @pytest.fixture(autouse=True)
@@ -50,7 +53,8 @@ def _get_service(db: Session, instructor: Any) -> tuple[InstructorProfile, Instr
 
 def _safe_start_window(hours_from_now: int) -> tuple[datetime, datetime]:
     now = datetime.now(timezone.utc)
-    start_dt = (now + timedelta(hours=hours_from_now)).replace(minute=0, second=0, microsecond=0)
+    start_dt = (now + timedelta(hours=hours_from_now)).astimezone(LESSON_TZ)
+    start_dt = start_dt.replace(minute=0, second=0, microsecond=0)
     end_dt = start_dt + timedelta(hours=1)
     if end_dt.date() != start_dt.date():
         start_dt = (start_dt - timedelta(hours=2)).replace(
@@ -78,8 +82,8 @@ def _create_booking(
         instructor_id=instructor_id,
         instructor_service_id=service.id,
         booking_date=start_dt.date(),
-        start_time=start_dt.time(),
-        end_time=end_dt.time(),
+        start_time=start_dt.time().replace(tzinfo=None),
+        end_time=end_dt.time().replace(tzinfo=None),
         service_name="Test Service",
         hourly_rate=hourly_rate,
         total_price=hourly_rate,

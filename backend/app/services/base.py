@@ -202,7 +202,7 @@ class BaseService:
                         return func(*args, **kwargs)
 
                     service = cast(BaseService, args[0])
-                    start_time = time.time()
+                    start_time = time.perf_counter()
                     success = False
                     error_type: Optional[str] = None
 
@@ -215,7 +215,7 @@ class BaseService:
                         error_type = type(exc).__name__
                         raise
                     finally:
-                        elapsed = time.time() - start_time
+                        elapsed = time.perf_counter() - start_time
                         service._record_metric(operation_name, elapsed, success)
 
                         if elapsed > 1.0 and hasattr(service, "logger"):
@@ -248,7 +248,7 @@ class BaseService:
                     return await cast(Awaitable[Any], result_obj)
 
                 service = cast(BaseService, args[0])
-                start_time = time.time()
+                start_time = time.perf_counter()
                 success = False
                 error_type: Optional[str] = None
 
@@ -262,7 +262,7 @@ class BaseService:
                     error_type = type(exc).__name__
                     raise
                 finally:
-                    elapsed = time.time() - start_time
+                    elapsed = time.perf_counter() - start_time
                     service._record_metric(operation_name, elapsed, success)
 
                     if elapsed > 1.0 and hasattr(service, "logger"):
@@ -304,7 +304,7 @@ class BaseService:
         Args:
             operation_name: Name of the operation for metrics
         """
-        start_time = time.time()
+        start_time = time.perf_counter()
         success = False
 
         try:
@@ -314,7 +314,7 @@ class BaseService:
             success = False
             raise
         finally:
-            elapsed = time.time() - start_time
+            elapsed = time.perf_counter() - start_time
             self._record_metric(operation_name, elapsed, success)
 
             # Log slow operations
@@ -344,7 +344,7 @@ class BaseService:
         """
         Async context manager to measure operation performance.
         """
-        start_time = time.time()
+        start_time = time.perf_counter()
         success = False
         try:
             yield
@@ -353,7 +353,7 @@ class BaseService:
             success = False
             raise
         finally:
-            elapsed = time.time() - start_time
+            elapsed = time.perf_counter() - start_time
             self._record_metric(operation_name, elapsed, success)
 
             if elapsed > 1.0:

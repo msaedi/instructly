@@ -493,6 +493,7 @@ class InstructorProfileResponse(InstructorProfileBase):
     )
     identity_verified_at: Optional[datetime] = Field(default=None)
     identity_name_mismatch: bool = Field(default=False)
+    bgc_name_mismatch: bool = Field(default=False)
     identity_verification_session_id: Optional[str] = Field(default=None)
     background_check_object_key: Optional[str] = Field(default=None)
     background_check_uploaded_at: Optional[datetime] = Field(default=None)
@@ -690,6 +691,7 @@ class InstructorProfileResponse(InstructorProfileBase):
             skills_configured=getattr(instructor_profile, "skills_configured", False),
             identity_verified_at=getattr(instructor_profile, "identity_verified_at", None),
             identity_name_mismatch=getattr(instructor_profile, "identity_name_mismatch", False),
+            bgc_name_mismatch=getattr(instructor_profile, "bgc_name_mismatch", False),
             background_check_uploaded_at=getattr(
                 instructor_profile, "background_check_uploaded_at", None
             ),

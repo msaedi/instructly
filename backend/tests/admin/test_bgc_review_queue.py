@@ -192,7 +192,7 @@ class TestAdminBGCReviewQueue:
         counts_response = client.get("/api/v1/admin/background-checks/counts", headers=headers)
         assert counts_response.status_code == 200
         counts = counts_response.json()
-        assert counts == {"review": 1, "pending": 2}
+        assert counts == {"all": 3, "review": 1, "pending": 2}
 
         review_cases = client.get("/api/v1/admin/background-checks/cases?status=review", headers=headers)
         assert review_cases.status_code == 200
@@ -311,3 +311,169 @@ class TestAdminBGCReviewQueue:
         assert len(page2_payload["items"]) == expected_page2_items, f"Page 2 should have {expected_page2_items} items, got {len(page2_payload['items'])}"
         assert page2_payload["has_next"] is False, "Page 2 should not have next page"
         assert page2_payload["has_prev"] is True, "Page 2 should have previous page"
+
+    def test_clear_bgc_mismatch_and_reset_bgc(self, client, db):
+        permission_service = PermissionService(db)
+
+        admin = User(
+            email="admin_reset_bgc@example.com",
+            hashed_password=get_password_hash("AdminPass123!"),
+            first_name="Admin",
+            last_name="Reset",
+            phone="+12125557777",
+            zip_code="10001",
+        )
+        db.add(admin)
+        db.flush()
+        permission_service.assign_role(admin.id, RoleName.ADMIN)
+
+        instructor_user = User(
+            email="reset_bgc_instructor@example.com",
+            hashed_password=get_password_hash("InstructorPass123!"),
+            first_name="Reset",
+            last_name="Instructor",
+            phone="+13475557777",
+            zip_code="10002",
+        )
+        db.add(instructor_user)
+        db.flush()
+        permission_service.assign_role(instructor_user.id, RoleName.INSTRUCTOR)
+
+        profile = InstructorProfile(
+            user_id=instructor_user.id,
+            bgc_name_mismatch=True,
+            bgc_status="passed",
+            bgc_report_id="rpt_reset123",
+            bgc_report_result="clear",
+            bgc_env="sandbox",
+            bgc_completed_at=datetime.now(timezone.utc),
+            bgc_valid_until=datetime.now(timezone.utc) + timedelta(days=30),
+            bgc_eta=datetime.now(timezone.utc) + timedelta(days=2),
+            bgc_invited_at=datetime.now(timezone.utc) - timedelta(days=3),
+            bgc_includes_canceled=True,
+            bgc_in_dispute=True,
+            bgc_dispute_note="Need rerun",
+            bgc_dispute_opened_at=datetime.now(timezone.utc) - timedelta(days=1),
+            bgc_pre_adverse_notice_id="pre_123",
+            bgc_pre_adverse_sent_at=datetime.now(timezone.utc) - timedelta(days=1),
+            bgc_final_adverse_sent_at=datetime.now(timezone.utc) - timedelta(hours=12),
+            bgc_review_email_sent_at=datetime.now(timezone.utc) - timedelta(hours=6),
+            checkr_candidate_id="cand_123",
+            checkr_invitation_id="inv_123",
+            bgc_note="review",
+            verified_first_name="Reset",
+            verified_last_name="Instructor",
+            verified_dob=datetime.now(timezone.utc).date(),
+            bgc_submitted_first_name="Reset",
+            bgc_submitted_last_name="Mismatch",
+        )
+        db.add(profile)
+        db.commit()
+        db.refresh(profile)
+
+        token = create_access_token(data={"sub": admin.email})
+        headers = {"Authorization": f"Bearer {token}"}
+
+        clear_response = client.post(
+            f"/api/v1/admin/instructors/{profile.id}/clear-bgc-mismatch",
+            headers=headers,
+        )
+        assert clear_response.status_code == 200
+        assert clear_response.json()["bgc_name_mismatch"] is False
+
+        db.refresh(profile)
+        assert profile.bgc_name_mismatch is False
+        assert profile.bgc_status == "passed"
+
+        reset_response = client.post(
+            f"/api/v1/admin/instructors/{profile.id}/reset-bgc",
+            headers=headers,
+        )
+        assert reset_response.status_code == 200
+        reset_payload = reset_response.json()
+        assert reset_payload["bgc_name_mismatch"] is False
+        assert reset_payload["bgc_status"] is None
+
+        db.refresh(profile)
+        assert profile.bgc_name_mismatch is False
+        assert profile.bgc_status is None
+        assert profile.bgc_report_id is None
+        assert profile.bgc_report_result is None
+        assert profile.bgc_completed_at is None
+        assert profile.bgc_valid_until is None
+        assert profile.bgc_eta is None
+        assert profile.bgc_invited_at is None
+        assert profile.bgc_includes_canceled is False
+        assert profile.bgc_in_dispute is False
+        assert profile.bgc_dispute_note is None
+        assert profile.bgc_pre_adverse_notice_id is None
+        assert profile.bgc_pre_adverse_sent_at is None
+        assert profile.bgc_final_adverse_sent_at is None
+        assert profile.bgc_review_email_sent_at is None
+        assert profile.checkr_candidate_id is None
+        assert profile.checkr_invitation_id is None
+        assert profile.bgc_note is None
+        assert profile.bgc_submitted_first_name is None
+        assert profile.bgc_submitted_last_name is None
+        assert profile.verified_first_name == "Reset"
+        assert profile.verified_last_name == "Instructor"
+        assert profile.verified_dob is not None
+
+    def test_reset_bgc_requires_admin_and_blocks_live_instructor(self, client, db):
+        permission_service = PermissionService(db)
+
+        admin = User(
+            email="admin_live_block@example.com",
+            hashed_password=get_password_hash("AdminPass123!"),
+            first_name="Admin",
+            last_name="Live",
+            phone="+12125558888",
+            zip_code="10001",
+        )
+        student = User(
+            email="student_live_block@example.com",
+            hashed_password=get_password_hash("StudentPass123!"),
+            first_name="Student",
+            last_name="Viewer",
+            phone="+13475558888",
+            zip_code="10002",
+        )
+        instructor_user = User(
+            email="live_reset_instructor@example.com",
+            hashed_password=get_password_hash("InstructorPass123!"),
+            first_name="Live",
+            last_name="Instructor",
+            phone="+13475559999",
+            zip_code="10003",
+        )
+        db.add_all([admin, student, instructor_user])
+        db.flush()
+        permission_service.assign_role(admin.id, RoleName.ADMIN)
+        permission_service.assign_role(instructor_user.id, RoleName.INSTRUCTOR)
+
+        profile = InstructorProfile(
+            user_id=instructor_user.id,
+            is_live=True,
+            bgc_name_mismatch=True,
+            bgc_status="passed",
+        )
+        db.add(profile)
+        db.commit()
+        db.refresh(profile)
+
+        student_token = create_access_token(data={"sub": student.email})
+        student_headers = {"Authorization": f"Bearer {student_token}"}
+        forbidden_response = client.post(
+            f"/api/v1/admin/instructors/{profile.id}/reset-bgc",
+            headers=student_headers,
+        )
+        assert forbidden_response.status_code == 403
+
+        admin_token = create_access_token(data={"sub": admin.email})
+        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+        live_response = client.post(
+            f"/api/v1/admin/instructors/{profile.id}/reset-bgc",
+            headers=admin_headers,
+        )
+        assert live_response.status_code == 400
+        assert live_response.json()["code"] == "bgc_reset_live_block"

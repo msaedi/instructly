@@ -43,6 +43,7 @@ class BGCReviewListResponse(StrictModel):
 
 
 class BGCCaseCountsResponse(StrictModel):
+    all: int
     review: int
     pending: int
 

@@ -62,6 +62,15 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         # without rolling back unrelated staged work on the session.
         self._external_call_lock_savepoint: Any | None = None
 
+    @staticmethod
+    def _rollback_savepoint(savepoint: Any | None) -> None:
+        """Rollback an active savepoint when one was successfully created."""
+        if savepoint is None:
+            return
+        if not getattr(savepoint, "is_active", True):
+            return
+        savepoint.rollback()
+
     def create(self, **kwargs: Any) -> Booking:
         """Create a booking, exposing integrity errors for conflict handling."""
         try:
@@ -104,6 +113,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         dispute = self.get_dispute_by_booking_id(booking_id)
         if dispute is not None:
             return dispute
+        nested: Any | None = None
         try:
             nested = self.db.begin_nested()
             dispute = BookingDispute(booking_id=booking_id)
@@ -111,7 +121,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.db.flush()
             return dispute
         except IntegrityError:
-            nested.rollback()
+            if nested is None:
+                raise
+            self._rollback_savepoint(nested)
             dispute = self.get_dispute_by_booking_id(booking_id)
             if dispute is not None:
                 return dispute
@@ -119,7 +131,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 f"Failed to ensure booking dispute after retry for booking {booking_id}"
             )
         except Exception:
-            nested.rollback()
+            self._rollback_savepoint(nested)
             raise
 
     def ensure_transfer(self, booking_id: str) -> BookingTransfer:
@@ -127,6 +139,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         transfer = self.get_transfer_by_booking_id(booking_id)
         if transfer is not None:
             return transfer
+        nested: Any | None = None
         try:
             nested = self.db.begin_nested()
             transfer = BookingTransfer(booking_id=booking_id)
@@ -134,7 +147,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.db.flush()
             return transfer
         except IntegrityError:
-            nested.rollback()
+            if nested is None:
+                raise
+            self._rollback_savepoint(nested)
             transfer = self.get_transfer_by_booking_id(booking_id)
             if transfer is not None:
                 return transfer
@@ -142,7 +157,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 f"Failed to ensure booking transfer after retry for booking {booking_id}"
             )
         except Exception:
-            nested.rollback()
+            self._rollback_savepoint(nested)
             raise
 
     def get_no_show_by_booking_id(self, booking_id: str) -> Optional[BookingNoShow]:
@@ -178,6 +193,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         no_show = self.get_no_show_by_booking_id(booking_id)
         if no_show is not None:
             return no_show
+        nested: Any | None = None
         try:
             nested = self.db.begin_nested()
             no_show = BookingNoShow(booking_id=booking_id)
@@ -185,7 +201,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.db.flush()
             return no_show
         except IntegrityError:
-            nested.rollback()
+            if nested is None:
+                raise
+            self._rollback_savepoint(nested)
             no_show = self.get_no_show_by_booking_id(booking_id)
             if no_show is not None:
                 return no_show
@@ -193,7 +211,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 f"Failed to ensure booking no-show after retry for booking {booking_id}"
             )
         except Exception:
-            nested.rollback()
+            self._rollback_savepoint(nested)
             raise
 
     def ensure_lock(self, booking_id: str) -> BookingLock:
@@ -201,6 +219,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         lock = self.get_lock_by_booking_id(booking_id)
         if lock is not None:
             return lock
+        nested: Any | None = None
         try:
             nested = self.db.begin_nested()
             lock = BookingLock(booking_id=booking_id)
@@ -208,7 +227,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.db.flush()
             return lock
         except IntegrityError:
-            nested.rollback()
+            if nested is None:
+                raise
+            self._rollback_savepoint(nested)
             lock = self.get_lock_by_booking_id(booking_id)
             if lock is not None:
                 return lock
@@ -216,7 +237,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 f"Failed to ensure booking lock after retry for booking {booking_id}"
             )
         except Exception:
-            nested.rollback()
+            self._rollback_savepoint(nested)
             raise
 
     def get_reschedule_by_booking_id(self, booking_id: str) -> Optional[BookingReschedule]:
@@ -238,6 +259,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         reschedule = self.get_reschedule_by_booking_id(booking_id)
         if reschedule is not None:
             return reschedule
+        nested: Any | None = None
         try:
             nested = self.db.begin_nested()
             reschedule = BookingReschedule(booking_id=booking_id)
@@ -245,7 +267,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.db.flush()
             return reschedule
         except IntegrityError:
-            nested.rollback()
+            if nested is None:
+                raise
+            self._rollback_savepoint(nested)
             reschedule = self.get_reschedule_by_booking_id(booking_id)
             if reschedule is not None:
                 return reschedule
@@ -253,7 +277,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 f"Failed to ensure booking reschedule after retry for booking {booking_id}"
             )
         except Exception:
-            nested.rollback()
+            self._rollback_savepoint(nested)
             raise
 
     def get_payment_by_booking_id(self, booking_id: str) -> Optional[BookingPayment]:
@@ -275,6 +299,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         payment = self.get_payment_by_booking_id(booking_id)
         if payment is not None:
             return payment
+        nested: Any | None = None
         try:
             nested = self.db.begin_nested()
             payment = BookingPayment(booking_id=booking_id)
@@ -282,7 +307,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.db.flush()
             return payment
         except IntegrityError:
-            nested.rollback()
+            if nested is None:
+                raise
+            self._rollback_savepoint(nested)
             payment = self.get_payment_by_booking_id(booking_id)
             if payment is not None:
                 return payment
@@ -290,7 +317,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 f"Failed to ensure booking payment after retry for booking {booking_id}"
             )
         except Exception:
-            nested.rollback()
+            self._rollback_savepoint(nested)
             raise
 
     def get_video_session_by_booking_id(self, booking_id: str) -> Optional[BookingVideoSession]:
@@ -314,6 +341,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         video_session = self.get_video_session_by_booking_id(booking_id)
         if video_session is not None:
             return video_session
+        nested: Any | None = None
         try:
             nested = self.db.begin_nested()
             video_session = BookingVideoSession(
@@ -323,7 +351,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.db.flush()
             return video_session
         except IntegrityError:
-            nested.rollback()
+            if nested is None:
+                raise
+            self._rollback_savepoint(nested)
             video_session = self.get_video_session_by_booking_id(booking_id)
             if video_session is not None:
                 return video_session
@@ -331,7 +361,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 f"Failed to ensure booking video session after retry for booking {booking_id}"
             )
         except Exception:
-            nested.rollback()
+            self._rollback_savepoint(nested)
             raise
 
     def release_lock_for_external_call(self) -> None:
@@ -343,11 +373,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         """
         savepoint = self._external_call_lock_savepoint
         self._external_call_lock_savepoint = None
-        if savepoint is None:
-            return
-        if not getattr(savepoint, "is_active", True):
-            return
-        savepoint.rollback()
+        self._rollback_savepoint(savepoint)
 
     def get_video_no_show_candidates(
         self, sql_cutoff: datetime

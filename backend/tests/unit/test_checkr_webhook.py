@@ -258,7 +258,7 @@ def test_report_completed_without_report_binding_uses_candidate(client, db: Sess
     assert history[0].result == "clear"
 
 
-def test_report_completed_nulls_pii_after_cross_check_with_mismatch(
+def test_report_completed_retains_pii_after_cross_check_with_mismatch(
     client, db: Session, candidate_payloads, caplog: pytest.LogCaptureFixture
 ) -> None:
     profile = _create_instructor_with_candidate(
@@ -297,17 +297,17 @@ def test_report_completed_nulls_pii_after_cross_check_with_mismatch(
     db.refresh(profile)
     assert profile.identity_name_mismatch is True
     assert profile.bgc_name_mismatch is True
-    assert profile.verified_first_name is None
+    assert profile.verified_first_name == "John"
     assert profile.verified_last_name == "Smith"
-    assert profile.verified_dob is None
-    assert profile.bgc_submitted_first_name is None
-    assert profile.bgc_submitted_last_name is None
+    assert profile.verified_dob == date(1990, 1, 2)
+    assert profile.bgc_submitted_first_name == "Lady"
+    assert profile.bgc_submitted_last_name == "Gaga"
     assert "checkr_last=G****(4) verified_last=S****(5)" in caplog.text
     assert "Gaga" not in caplog.text
     assert "Smith" not in caplog.text
 
 
-def test_report_completed_nulls_pii_after_cross_check_on_match(
+def test_report_completed_retains_pii_after_cross_check_on_match(
     client, db: Session, candidate_payloads
 ) -> None:
     profile = _create_instructor_with_candidate(
@@ -344,14 +344,14 @@ def test_report_completed_nulls_pii_after_cross_check_on_match(
     assert response.status_code == 200
     db.refresh(profile)
     assert profile.bgc_name_mismatch is False
-    assert profile.verified_first_name is None
+    assert profile.verified_first_name == "John"
     assert profile.verified_last_name == "Smith"
-    assert profile.verified_dob is None
-    assert profile.bgc_submitted_first_name is None
-    assert profile.bgc_submitted_last_name is None
+    assert profile.verified_dob == date(1990, 1, 2)
+    assert profile.bgc_submitted_first_name == "John"
+    assert profile.bgc_submitted_last_name == "smith"
 
 
-def test_pii_cleanup_retains_verified_last_name(client, db: Session, candidate_payloads) -> None:
+def test_report_completed_does_not_null_pii(client, db: Session, candidate_payloads) -> None:
     profile = _create_instructor_with_candidate(
         db,
         candidate_id="cand_retain_last_name",
@@ -382,11 +382,11 @@ def test_pii_cleanup_retains_verified_last_name(client, db: Session, candidate_p
 
     assert response.status_code == 200
     db.refresh(profile)
-    assert profile.verified_first_name is None
+    assert profile.verified_first_name == "John"
     assert profile.verified_last_name == "Rosen"
-    assert profile.verified_dob is None
-    assert profile.bgc_submitted_first_name is None
-    assert profile.bgc_submitted_last_name is None
+    assert profile.verified_dob == date(1990, 1, 2)
+    assert profile.bgc_submitted_first_name == "John"
+    assert profile.bgc_submitted_last_name == "Rosen"
 
 
 def test_report_completed_retains_pii_when_cross_check_fails(client, db: Session) -> None:
@@ -431,63 +431,6 @@ def test_report_completed_retains_pii_when_cross_check_fails(client, db: Session
     assert profile.verified_dob == date(1985, 4, 3)
     assert profile.bgc_submitted_first_name == "Jane"
     assert profile.bgc_submitted_last_name == "Smith"
-
-
-def test_report_completed_pii_cleanup_failure_does_not_fail_webhook(
-    client, db: Session, candidate_payloads, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    profile = _create_instructor_with_candidate(
-        db,
-        candidate_id="cand_cleanup_failure",
-        verified_first_name="John",
-        verified_last_name="Smith",
-        verified_dob=date(1990, 1, 2),
-        bgc_submitted_first_name="John",
-        bgc_submitted_last_name="Smith",
-    )
-    candidate_payloads["cand_cleanup_failure"] = {
-        "id": "cand_cleanup_failure",
-        "first_name": "Lady",
-        "last_name": "Gaga",
-    }
-
-    original_update = InstructorProfileRepository.update
-
-    def _patched_update(self, id: str, **kwargs):
-        cleanup_keys = {
-            "verified_first_name",
-            "verified_dob",
-            "bgc_submitted_first_name",
-            "bgc_submitted_last_name",
-        }
-        if set(kwargs.keys()) == cleanup_keys and all(value is None for value in kwargs.values()):
-            raise RuntimeError("cleanup failed")
-        return original_update(self, id, **kwargs)
-
-    monkeypatch.setattr(InstructorProfileRepository, "update", _patched_update)
-
-    payload = {
-        "type": "report.completed",
-        "data": {
-            "object": {
-                "id": "rpt_cleanup_failure",
-                "result": "clear",
-                "candidate_id": "cand_cleanup_failure",
-            }
-        },
-    }
-    body = json.dumps(payload).encode("utf-8")
-    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
-
-    assert response.status_code == 200
-    db.refresh(profile)
-    assert profile.bgc_name_mismatch is True
-    assert profile.verified_first_name == "John"
-    assert profile.verified_last_name == "Smith"
-    assert profile.verified_dob == date(1990, 1, 2)
-    assert profile.bgc_submitted_first_name == "Lady"
-    assert profile.bgc_submitted_last_name == "Gaga"
-
 
 def test_report_completed_suspended_does_not_null_pii(
     client, db: Session, candidate_payloads

@@ -291,16 +291,16 @@ class TestBaseServicePerformanceMonitoring:
         # Use unique operation name
         slow_op_name = "test_slow_query_unique"
 
-        # Mock time.time to simulate elapsed time > 1s without actually sleeping
+        # Mock time.perf_counter to simulate elapsed time > 1s without actually sleeping
         # This saves ~1s of test execution time
         call_count = [0]
-        def mock_time():
+        def mock_perf_counter():
             call_count[0] += 1
             # First call returns 0, second call returns 1.5 (simulating 1.5s elapsed)
             return 0.0 if call_count[0] == 1 else 1.5
 
         with caplog.at_level("WARNING"):
-            with patch("app.services.base.time.time", side_effect=mock_time):
+            with patch("app.services.base.time.perf_counter", side_effect=mock_perf_counter):
                 with service.measure_operation_context(slow_op_name):
                     pass  # No actual sleep needed
 

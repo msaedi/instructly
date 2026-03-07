@@ -268,15 +268,15 @@ class TestPerformanceMonitoring:
         mock_db = Mock(spec=Session)
         service = BaseService(mock_db)
 
-        # Mock time.time() to simulate 1.5s elapsed time without actual sleep
+        # Mock time.perf_counter() to simulate 1.5s elapsed time without actual sleep
         call_count = [0]
-        def mock_time():
+        def mock_perf_counter():
             call_count[0] += 1
             return 0.0 if call_count[0] == 1 else 1.5
 
         # Patch logger to check warning
         with patch.object(service.logger, "warning") as mock_warning:
-            with patch("time.time", side_effect=mock_time):
+            with patch("app.services.base.time.perf_counter", side_effect=mock_perf_counter):
                 # Use measure_operation_context for timing
                 with service.measure_operation_context("slow_query"):
                     pass  # No actual sleep needed - time is mocked

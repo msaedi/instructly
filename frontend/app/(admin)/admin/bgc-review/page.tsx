@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { RefreshCw, Loader2, CheckCircle2, XCircle, Copy } from 'lucide-react';
+import * as Dialog from '@radix-ui/react-dialog';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { formatDistanceToNow } from 'date-fns';
 import { useQueryClient } from '@tanstack/react-query';
@@ -24,6 +25,8 @@ import {
   useBGCDisputeResolve,
   useBGCRecheck,
   useBGCInvite,
+  useBGCClearMismatch,
+  useBGCReset,
   type AdminInstructorDetail,
   type BGCCaseItem,
 } from './hooks';
@@ -70,11 +73,13 @@ export default function AdminBGCReviewPage() {
   const previewDetail = useAdminInstructorDetail(isPreviewOpen ? previewId : null);
   const recheckMutation = useBGCRecheck();
   const inviteMutation = useBGCInvite();
+  const clearMismatchMutation = useBGCClearMismatch();
+  const resetBGCMutation = useBGCReset();
   const [recheckBlockedCode, setRecheckBlockedCode] = useState<'consent' | 'rate_limited' | null>(null);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
 
   const countsQuery = useBGCCounts(isAdmin && !authLoading);
-  const counts = countsQuery.data ?? { review: 0, pending: 0 };
-  const totalCases = counts.review + counts.pending;
+  const counts = countsQuery.data ?? { all: 0, review: 0, pending: 0 };
 
   const queryTerm = searchTerm.trim();
   const { data, isLoading, isFetching } = useBGCCases(
@@ -108,6 +113,7 @@ export default function AdminBGCReviewPage() {
   useEffect(() => {
     if (!isPreviewOpen) {
       setRecheckBlockedCode(null);
+      setResetDialogOpen(false);
     }
   }, [isPreviewOpen]);
 
@@ -129,9 +135,9 @@ export default function AdminBGCReviewPage() {
     () => [
       { value: 'review' as const, label: 'Review', count: counts.review },
       { value: 'pending' as const, label: 'Pending', count: counts.pending },
-      { value: 'all' as const, label: 'All', count: totalCases },
+      { value: 'all' as const, label: 'All', count: counts.all },
     ],
-    [counts.pending, counts.review, totalCases],
+    [counts.all, counts.pending, counts.review],
   );
 
   const isRefreshing = isFetching && !isLoading;
@@ -289,6 +295,60 @@ export default function AdminBGCReviewPage() {
     setPreviewOpen(false);
     setPreviewId(null);
     setDisputeNoteDraft('');
+    setResetDialogOpen(false);
+  };
+
+  const handleClearMismatch = async () => {
+    if (!previewId) return;
+    try {
+      await clearMismatchMutation.mutateAsync({ id: previewId });
+      toast.success('Background check mismatch cleared');
+    } catch (error) {
+      const message =
+        error instanceof ApiProblemError
+          ? error.problem.detail || 'Unable to clear background check mismatch'
+          : error instanceof Error
+            ? error.message
+            : 'Unable to clear background check mismatch';
+      toast.error('Unable to clear background check mismatch', { description: message });
+    }
+  };
+
+  const handleResetBGC = async () => {
+    if (!previewId) return;
+    if (previewDetail.data?.is_live) {
+      toast.error('Unable to reset background check', {
+        description: 'Instructor is currently live. Set offline before resetting background check.',
+      });
+      return;
+    }
+    try {
+      await resetBGCMutation.mutateAsync({ id: previewId });
+      setResetDialogOpen(false);
+      toast.success('Background check reset');
+    } catch (error) {
+      if (
+        error instanceof ApiProblemError &&
+        (
+          error.problem.code === 'bgc_reset_live_block' ||
+          error.problem.detail.includes('Set offline before resetting background check.')
+        )
+      ) {
+        toast.error('Unable to reset background check', {
+          description:
+            error.problem.detail ||
+            'Instructor is currently live. Set offline before resetting background check.',
+        });
+        return;
+      }
+      const message =
+        error instanceof ApiProblemError
+          ? error.problem.detail || 'Unable to reset background check'
+          : error instanceof Error
+            ? error.message
+            : 'Unable to reset background check';
+      toast.error('Unable to reset background check', { description: message });
+    }
   };
 
   return (
@@ -676,11 +736,15 @@ export default function AdminBGCReviewPage() {
                         onDisputeNoteChange={setDisputeNoteDraft}
                         onOpenDispute={handleOpenDispute}
                         onResolveDispute={handleResolveDispute}
+                        onClearMismatch={() => void handleClearMismatch()}
+                        onRequestReset={() => setResetDialogOpen(true)}
                         openPending={openDisputeMutation.isPending}
                         resolvePending={resolveDisputeMutation.isPending}
                         onRecheck={() => void handleRecheck()}
                         recheckPending={recheckMutation.isPending}
                         recheckBlockedCode={recheckBlockedCode}
+                        clearMismatchPending={clearMismatchMutation.isPending}
+                        resetPending={resetBGCMutation.isPending}
                       />
                     ) : (
                       <div>No instructor selected.</div>
@@ -689,6 +753,39 @@ export default function AdminBGCReviewPage() {
                 </div>
               </div>
             )}
+            <Dialog.Root open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+              <Dialog.Portal>
+                <Dialog.Overlay className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" />
+                <Dialog.Content className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                  <div className="w-full max-w-md rounded-xl border border-gray-200/80 bg-white p-6 shadow-xl dark:border-gray-700/60 dark:bg-gray-900">
+                    <div className="space-y-3">
+                      <Dialog.Title className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                        Reset background check?
+                      </Dialog.Title>
+                      <Dialog.Description className="text-sm text-gray-600 dark:text-gray-300">
+                        This will clear the current background check state and require the instructor to complete Checkr again.
+                      </Dialog.Description>
+                    </div>
+                    <div className="mt-6 flex justify-end gap-3">
+                      <Dialog.Close asChild>
+                        <Button type="button" variant="outline">
+                          Cancel
+                        </Button>
+                      </Dialog.Close>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        onClick={() => void handleResetBGC()}
+                        disabled={resetBGCMutation.isPending}
+                      >
+                        {resetBGCMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Reset BGC
+                      </Button>
+                    </div>
+                  </div>
+                </Dialog.Content>
+              </Dialog.Portal>
+            </Dialog.Root>
             </section>
           </div>
         </div>
@@ -703,22 +800,30 @@ function PreviewContent({
   onDisputeNoteChange,
   onOpenDispute,
   onResolveDispute,
+  onClearMismatch,
+  onRequestReset,
   openPending,
   resolvePending,
   onRecheck,
   recheckPending,
   recheckBlockedCode,
+  clearMismatchPending,
+  resetPending,
 }: {
   detail: AdminInstructorDetail;
   disputeNote: string;
   onDisputeNoteChange: (value: string) => void;
   onOpenDispute: () => void;
   onResolveDispute: () => void;
+  onClearMismatch: () => void;
+  onRequestReset: () => void;
   openPending: boolean;
   resolvePending: boolean;
   onRecheck: () => void;
   recheckPending: boolean;
   recheckBlockedCode: 'consent' | 'rate_limited' | null;
+  clearMismatchPending: boolean;
+  resetPending: boolean;
 }) {
   const openedLabel = detail.bgc_dispute_opened_at
     ? formatDistanceToNow(new Date(detail.bgc_dispute_opened_at), { addSuffix: true })
@@ -757,6 +862,11 @@ function PreviewContent({
       {detail.bgc_in_dispute ? (
         <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
           Background check is currently in dispute. Final adverse actions are paused until the dispute is resolved. Capture dispute updates in the note before resolving.
+        </div>
+      ) : null}
+      {detail.bgc_name_mismatch ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+          Background check name mismatch detected. Review the case, then either clear the mismatch or reset the background check for a fresh run.
         </div>
       ) : null}
       <div>
@@ -897,6 +1007,26 @@ function PreviewContent({
         >
           {resolvePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           Resolve dispute
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={onClearMismatch}
+          disabled={clearMismatchPending || !detail.bgc_name_mismatch}
+        >
+          {clearMismatchPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          Clear BGC Mismatch
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={onRequestReset}
+          disabled={resetPending}
+        >
+          {resetPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          Reset BGC
         </Button>
       </div>
     </dl>

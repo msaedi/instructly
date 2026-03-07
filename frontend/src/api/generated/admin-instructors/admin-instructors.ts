@@ -5,15 +5,18 @@
  * iNSTAiNSTRU - NYC's Premier Instructor Marketplace
  * OpenAPI spec version: 1.0.0
  */
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
   DefinedUseQueryResult,
+  MutationFunction,
   QueryClient,
   QueryFunction,
   QueryKey,
   UndefinedInitialDataOptions,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from '@tanstack/react-query';
@@ -355,3 +358,206 @@ export function useAdminInstructorDetailApiV1AdminInstructorsInstructorIdGet<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Clear a BGC name mismatch flag after admin review.
+ * @summary Clear Bgc Mismatch
+ */
+export const getClearBgcMismatchApiV1AdminInstructorsInstructorIdClearBgcMismatchPostUrl = (
+  instructorId: string
+) => {
+  return `/api/v1/admin/instructors/${instructorId}/clear-bgc-mismatch`;
+};
+
+export const clearBgcMismatchApiV1AdminInstructorsInstructorIdClearBgcMismatchPost = async (
+  instructorId: string,
+  options?: RequestInit
+): Promise<AdminInstructorDetailResponse> => {
+  return customFetch<AdminInstructorDetailResponse>(
+    getClearBgcMismatchApiV1AdminInstructorsInstructorIdClearBgcMismatchPostUrl(instructorId),
+    {
+      ...options,
+      method: 'POST',
+    }
+  );
+};
+
+export const getClearBgcMismatchApiV1AdminInstructorsInstructorIdClearBgcMismatchPostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof clearBgcMismatchApiV1AdminInstructorsInstructorIdClearBgcMismatchPost>
+      >,
+      TError,
+      { instructorId: string },
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof clearBgcMismatchApiV1AdminInstructorsInstructorIdClearBgcMismatchPost>
+    >,
+    TError,
+    { instructorId: string },
+    TContext
+  > => {
+    const mutationKey = ['clearBgcMismatchApiV1AdminInstructorsInstructorIdClearBgcMismatchPost'];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof clearBgcMismatchApiV1AdminInstructorsInstructorIdClearBgcMismatchPost>
+      >,
+      { instructorId: string }
+    > = (props) => {
+      const { instructorId } = props ?? {};
+
+      return clearBgcMismatchApiV1AdminInstructorsInstructorIdClearBgcMismatchPost(
+        instructorId,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type ClearBgcMismatchApiV1AdminInstructorsInstructorIdClearBgcMismatchPostMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof clearBgcMismatchApiV1AdminInstructorsInstructorIdClearBgcMismatchPost>
+    >
+  >;
+
+export type ClearBgcMismatchApiV1AdminInstructorsInstructorIdClearBgcMismatchPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Clear Bgc Mismatch
+ */
+export const useClearBgcMismatchApiV1AdminInstructorsInstructorIdClearBgcMismatchPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof clearBgcMismatchApiV1AdminInstructorsInstructorIdClearBgcMismatchPost>
+      >,
+      TError,
+      { instructorId: string },
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof clearBgcMismatchApiV1AdminInstructorsInstructorIdClearBgcMismatchPost>>,
+  TError,
+  { instructorId: string },
+  TContext
+> => {
+  return useMutation(
+    getClearBgcMismatchApiV1AdminInstructorsInstructorIdClearBgcMismatchPostMutationOptions(
+      options
+    ),
+    queryClient
+  );
+};
+/**
+ * Reset BGC state so an instructor can complete a fresh screening.
+ * @summary Reset Bgc
+ */
+export const getResetBgcApiV1AdminInstructorsInstructorIdResetBgcPostUrl = (
+  instructorId: string
+) => {
+  return `/api/v1/admin/instructors/${instructorId}/reset-bgc`;
+};
+
+export const resetBgcApiV1AdminInstructorsInstructorIdResetBgcPost = async (
+  instructorId: string,
+  options?: RequestInit
+): Promise<AdminInstructorDetailResponse> => {
+  return customFetch<AdminInstructorDetailResponse>(
+    getResetBgcApiV1AdminInstructorsInstructorIdResetBgcPostUrl(instructorId),
+    {
+      ...options,
+      method: 'POST',
+    }
+  );
+};
+
+export const getResetBgcApiV1AdminInstructorsInstructorIdResetBgcPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resetBgcApiV1AdminInstructorsInstructorIdResetBgcPost>>,
+    TError,
+    { instructorId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof resetBgcApiV1AdminInstructorsInstructorIdResetBgcPost>>,
+  TError,
+  { instructorId: string },
+  TContext
+> => {
+  const mutationKey = ['resetBgcApiV1AdminInstructorsInstructorIdResetBgcPost'];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof resetBgcApiV1AdminInstructorsInstructorIdResetBgcPost>>,
+    { instructorId: string }
+  > = (props) => {
+    const { instructorId } = props ?? {};
+
+    return resetBgcApiV1AdminInstructorsInstructorIdResetBgcPost(instructorId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ResetBgcApiV1AdminInstructorsInstructorIdResetBgcPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof resetBgcApiV1AdminInstructorsInstructorIdResetBgcPost>>
+>;
+
+export type ResetBgcApiV1AdminInstructorsInstructorIdResetBgcPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Reset Bgc
+ */
+export const useResetBgcApiV1AdminInstructorsInstructorIdResetBgcPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof resetBgcApiV1AdminInstructorsInstructorIdResetBgcPost>>,
+      TError,
+      { instructorId: string },
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof resetBgcApiV1AdminInstructorsInstructorIdResetBgcPost>>,
+  TError,
+  { instructorId: string },
+  TContext
+> => {
+  return useMutation(
+    getResetBgcApiV1AdminInstructorsInstructorIdResetBgcPostMutationOptions(options),
+    queryClient
+  );
+};

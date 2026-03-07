@@ -13,6 +13,7 @@ class AdminInstructorDetailResponse(StrictModel):
     name: str
     email: str
     is_live: bool
+    bgc_name_mismatch: bool = False
     bgc_status: Optional[str] = None
     bgc_report_id: Optional[str] = None
     bgc_completed_at: Optional[datetime] = None

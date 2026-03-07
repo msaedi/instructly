@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import pytest
 
@@ -40,7 +40,16 @@ def _ensure_role(db, role_name: RoleName) -> Role:
 
 
 def _create_instructor(
-    db, *, bgc_status: str, identity_name_mismatch: bool = False
+    db,
+    *,
+    bgc_status: str,
+    identity_name_mismatch: bool = False,
+    bgc_name_mismatch: bool = False,
+    verified_first_name: str | None = None,
+    verified_last_name: str | None = None,
+    verified_dob: date | None = None,
+    bgc_submitted_first_name: str | None = None,
+    bgc_submitted_last_name: str | None = None,
 ) -> tuple[User, InstructorProfile]:
     _ensure_role(db, RoleName.INSTRUCTOR)
     user = User(
@@ -65,6 +74,12 @@ def _create_instructor(
         skills_configured=True,
         identity_verified_at=datetime.now(timezone.utc),
         identity_name_mismatch=identity_name_mismatch,
+        bgc_name_mismatch=bgc_name_mismatch,
+        verified_first_name=verified_first_name,
+        verified_last_name=verified_last_name,
+        verified_dob=verified_dob,
+        bgc_submitted_first_name=bgc_submitted_first_name,
+        bgc_submitted_last_name=bgc_submitted_last_name,
         bgc_status=bgc_status,
     )
     db.add(profile)
@@ -117,14 +132,64 @@ def test_go_live_blocked_when_identity_name_mismatch(client, db):
         assert response.status_code == 400
         payload = response.json()
         assert isinstance(payload, dict)
-        assert payload.get("code") == "identity_name_mismatch_block"
+        assert payload.get("code") == "name_mismatch_block"
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_current_active_user, None)
+
+
+def test_go_live_blocked_when_bgc_name_mismatch(client, db):
+    user, _ = _create_instructor(db, bgc_status="passed", bgc_name_mismatch=True)
+    app = client.app
+    try:
+        app.dependency_overrides[get_current_user] = lambda: user
+        app.dependency_overrides[get_current_active_user] = lambda: user
+
+        headers = _csrf_headers(client)
+        response = client.post("/api/v1/instructors/me/go-live", headers=headers, json={})
+        assert response.status_code == 400
+        payload = response.json()
+        assert isinstance(payload, dict)
+        assert payload.get("code") == "name_mismatch_block"
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_current_active_user, None)
+
+
+def test_go_live_blocked_when_both_name_mismatches_present(client, db):
+    user, _ = _create_instructor(
+        db,
+        bgc_status="passed",
+        identity_name_mismatch=True,
+        bgc_name_mismatch=True,
+    )
+    app = client.app
+    try:
+        app.dependency_overrides[get_current_user] = lambda: user
+        app.dependency_overrides[get_current_active_user] = lambda: user
+
+        headers = _csrf_headers(client)
+        response = client.post("/api/v1/instructors/me/go-live", headers=headers, json={})
+        assert response.status_code == 400
+        payload = response.json()
+        assert isinstance(payload, dict)
+        assert payload.get("code") == "name_mismatch_block"
+        assert "identity verification and background check" in payload.get("detail", "")
     finally:
         app.dependency_overrides.pop(get_current_user, None)
         app.dependency_overrides.pop(get_current_active_user, None)
 
 
 def test_go_live_succeeds_with_passed_bgc(client, db):
-    user, profile = _create_instructor(db, bgc_status="passed")
+    user, profile = _create_instructor(
+        db,
+        bgc_status="passed",
+        verified_first_name="Jane",
+        verified_last_name="Rosen",
+        verified_dob=date(1990, 6, 15),
+        bgc_submitted_first_name="Jane",
+        bgc_submitted_last_name="Rosen",
+    )
     profile.bgc_completed_at = datetime.now(timezone.utc)
     db.add(profile)
     db.commit()
@@ -138,6 +203,12 @@ def test_go_live_succeeds_with_passed_bgc(client, db):
         assert response.status_code == 200
         payload = response.json()
         assert payload["is_live"] is True
+        db.refresh(profile)
+        assert profile.verified_first_name is None
+        assert profile.verified_last_name == "Rosen"
+        assert profile.verified_dob is None
+        assert profile.bgc_submitted_first_name is None
+        assert profile.bgc_submitted_last_name is None
     finally:
         app.dependency_overrides.pop(get_current_user, None)
         app.dependency_overrides.pop(get_current_active_user, None)

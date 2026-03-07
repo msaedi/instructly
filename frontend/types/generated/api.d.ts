@@ -646,7 +646,7 @@ export type paths = {
         };
         /**
          * Bgc Counts
-         * @description Return total counts for review and pending background check queues.
+         * @description Return total counts for all, review, and pending background check queues.
          */
         get: operations["bgc_counts_api_v1_admin_background_checks_counts_get"];
         put?: never;
@@ -1059,6 +1059,46 @@ export type paths = {
         get: operations["admin_instructor_detail_api_v1_admin_instructors__instructor_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/instructors/{instructor_id}/clear-bgc-mismatch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Clear Bgc Mismatch
+         * @description Clear a BGC name mismatch flag after admin review.
+         */
+        post: operations["clear_bgc_mismatch_api_v1_admin_instructors__instructor_id__clear_bgc_mismatch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/instructors/{instructor_id}/reset-bgc": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Bgc
+         * @description Reset BGC state so an instructor can complete a fresh screening.
+         */
+        post: operations["reset_bgc_api_v1_admin_instructors__instructor_id__reset_bgc_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8238,6 +8278,11 @@ export type components = {
              * @default false
              */
             bgc_is_expired: boolean;
+            /**
+             * Bgc Name Mismatch
+             * @default false
+             */
+            bgc_name_mismatch: boolean;
             /** Bgc Report Id */
             bgc_report_id?: string | null;
             /** Bgc Status */
@@ -9497,6 +9542,8 @@ export type components = {
         };
         /** BGCCaseCountsResponse */
         BGCCaseCountsResponse: {
+            /** All */
+            all: number;
             /** Pending */
             pending: number;
             /** Review */
@@ -13280,6 +13327,11 @@ export type components = {
             background_check_object_key?: string | null;
             /** Background Check Uploaded At */
             background_check_uploaded_at?: string | null;
+            /**
+             * Bgc Name Mismatch
+             * @default false
+             */
+            bgc_name_mismatch: boolean;
             /**
              * Bgc Status
              * @description Background check status for public display
@@ -22794,6 +22846,68 @@ export interface operations {
         };
     };
     admin_instructor_detail_api_v1_admin_instructors__instructor_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                instructor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminInstructorDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clear_bgc_mismatch_api_v1_admin_instructors__instructor_id__clear_bgc_mismatch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                instructor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminInstructorDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_bgc_api_v1_admin_instructors__instructor_id__reset_bgc_post: {
         parameters: {
             query?: never;
             header?: never;

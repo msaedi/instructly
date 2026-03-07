@@ -234,6 +234,7 @@ describe('AdminBGCReviewPage', () => {
       name: 'Review Instructor',
       email: 'review@example.com',
       is_live: false,
+      bgc_name_mismatch: false,
       bgc_status: 'review',
       bgcIncludesCanceled: false,
       bgc_report_id: 'rpt_test123',
@@ -255,7 +256,11 @@ describe('AdminBGCReviewPage', () => {
       const url = typeof input === 'string' ? input : input.toString();
 
       if (url.includes('/api/v1/admin/background-checks/counts')) {
-        return createJsonResponse({ review: reviewItems.length, pending: pendingItems.length });
+        return createJsonResponse({
+          all: reviewItems.length + pendingItems.length + 1,
+          review: reviewItems.length,
+          pending: pendingItems.length,
+        });
       }
 
       if (url.includes('/api/v1/admin/background-checks/cases')) {
@@ -309,6 +314,36 @@ describe('AdminBGCReviewPage', () => {
       }
 
       if (url.includes('/api/v1/admin/instructors/')) {
+        if (url.includes('/clear-bgc-mismatch')) {
+          reviewDetail = {
+            ...reviewDetail,
+            bgc_name_mismatch: false,
+          };
+          return createJsonResponse(serializeAdminDetailForApi(reviewDetail));
+        }
+        if (url.includes('/reset-bgc')) {
+          if (reviewDetail.is_live) {
+            return createJsonResponse(
+              {
+                type: 'about:blank',
+                title: 'Unable to reset background check',
+                status: 400,
+                detail:
+                  'Instructor is currently live. Set offline before resetting background check.',
+                code: 'bgc_reset_live_block',
+              },
+              400,
+            );
+          }
+          reviewDetail = {
+            ...reviewDetail,
+            bgc_name_mismatch: false,
+            bgc_status: null,
+            bgc_report_id: null,
+            bgc_completed_at: null,
+          };
+          return createJsonResponse(serializeAdminDetailForApi(reviewDetail));
+        }
         return createJsonResponse(serializeAdminDetailForApi(reviewDetail));
       }
 
@@ -774,6 +809,88 @@ describe('AdminBGCReviewPage', () => {
       expect((toast.success as jest.Mock)).toHaveBeenCalledWith('Background check re-check requested'),
     );
     expect(mutateAsync).toHaveBeenCalledWith({ id: '01TEST0INSTRUCTOR' });
+  });
+
+  it('shows mismatch controls and clears the BGC mismatch flag', async () => {
+    reviewDetail = {
+      ...reviewDetail,
+      bgc_name_mismatch: true,
+    };
+
+    const user = userEvent.setup();
+    renderWithClient(<AdminBGCReviewPage />);
+
+    await screen.findByText('Review Instructor');
+    await user.click(screen.getByRole('button', { name: /review instructor/i }));
+
+    await screen.findByText(/background check name mismatch detected/i);
+
+    const clearButton = await screen.findByRole('button', { name: /clear bgc mismatch/i });
+    expect(clearButton).toBeEnabled();
+
+    await user.click(clearButton);
+
+    await waitFor(() =>
+      expect((toast.success as jest.Mock)).toHaveBeenCalledWith('Background check mismatch cleared'),
+    );
+    await waitFor(() =>
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/admin/instructors/01TEST0INSTRUCTOR/clear-bgc-mismatch'),
+        expect.objectContaining({ method: 'POST' }),
+      ),
+    );
+  });
+
+  it('opens reset confirmation and resets background check state', async () => {
+    const user = userEvent.setup();
+    renderWithClient(<AdminBGCReviewPage />);
+
+    await screen.findByText('Review Instructor');
+    await user.click(screen.getByRole('button', { name: /review instructor/i }));
+
+    const resetButton = await screen.findByRole('button', { name: /^Reset BGC$/i });
+    await user.click(resetButton);
+
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: /^Reset BGC$/i }));
+
+    await waitFor(() =>
+      expect((toast.success as jest.Mock)).toHaveBeenCalledWith('Background check reset'),
+    );
+    await waitFor(() =>
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/admin/instructors/01TEST0INSTRUCTOR/reset-bgc'),
+        expect.objectContaining({ method: 'POST' }),
+      ),
+    );
+  });
+
+  it('surfaces the live reset block from the admin reset endpoint', async () => {
+    reviewDetail = {
+      ...reviewDetail,
+      is_live: true,
+    };
+
+    const user = userEvent.setup();
+    renderWithClient(<AdminBGCReviewPage />);
+
+    await screen.findByText('Review Instructor');
+    await user.click(screen.getByRole('button', { name: /review instructor/i }));
+
+    const resetButton = await screen.findByRole('button', { name: /^Reset BGC$/i });
+    await user.click(resetButton);
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: /^Reset BGC$/i }));
+
+    await waitFor(() =>
+      expect((toast.error as jest.Mock)).toHaveBeenCalledWith(
+        'Unable to reset background check',
+        expect.objectContaining({
+          description:
+            'Instructor is currently live. Set offline before resetting background check.',
+        }),
+      ),
+    );
   });
 
   it('disables re-check when consent is missing', async () => {

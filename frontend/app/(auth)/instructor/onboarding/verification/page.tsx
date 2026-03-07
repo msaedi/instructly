@@ -510,6 +510,7 @@ export default function Step4Verification() {
           ? 'Retry verification'
           : 'Start verification';
   const showIdentityMismatchBanner = identityStatus === 'verified' && identityNameMismatch;
+  const bgcNameMismatch = Boolean(rawData.profile?.['bgc_name_mismatch']);
 
   return (
     <div className="min-h-screen insta-onboarding-page">
@@ -671,6 +672,18 @@ export default function Step4Verification() {
                 </p>
               </div>
             </div>
+            {bgcNameMismatch && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                <p>
+                  The information submitted during your background check doesn&apos;t match your
+                  verified identity. Please contact support at{' '}
+                  <a className="font-medium underline" href="mailto:support@instainstru.com">
+                    support@instainstru.com
+                  </a>{' '}
+                  to resolve this.
+                </p>
+              </div>
+            )}
             {instructorProfileId ? (
               <BGCStep
                 instructorId={instructorProfileId}

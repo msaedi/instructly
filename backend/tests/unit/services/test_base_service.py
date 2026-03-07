@@ -49,7 +49,7 @@ class TestBaseServiceAdditionalCoverage:
 
         service = TestService(Mock())
 
-        with patch("app.services.base.time.time", side_effect=[0.0, 2.0]):
+        with patch("app.services.base.time.perf_counter", side_effect=[0.0, 2.0]):
             with patch.object(service.logger, "warning") as mock_warning:
                 assert await service.async_op() == "done"
 
@@ -92,7 +92,7 @@ class TestBaseServiceAdditionalCoverage:
         monkeypatch.setattr(base_module, "PROMETHEUS_AVAILABLE", True)
         monkeypatch.setattr(base_module, "prometheus_metrics", FakePrometheus())
 
-        with patch("app.services.base.time.time", side_effect=[0.0, 2.0]):
+        with patch("app.services.base.time.perf_counter", side_effect=[0.0, 2.0]):
             with patch.object(base_module.logger, "debug") as mock_debug:
                 with patch.object(service.logger, "warning") as mock_warning:
                     async with service.async_measure_operation_context("async_ctx"):

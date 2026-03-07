@@ -128,14 +128,11 @@ export default function UserProfileDropdown({ hideDashboardItem = false }: UserP
       <button
         ref={buttonRef}
         onClick={(event) => {
-          const button = event.currentTarget;
-          setIsOpen((prev) => {
-            const next = !prev;
-            if (next) {
-              updateDropdownPosition(button);
-            }
-            return next;
-          });
+          const nextOpen = !isOpen;
+          if (nextOpen) {
+            updateDropdownPosition(buttonRef.current ?? event.currentTarget);
+          }
+          setIsOpen(nextOpen);
         }}
         className="hidden sm:inline-flex items-center justify-center gap-2 rounded-full pr-2 pl-1 py-1 transition-colors mr-0 focus:outline-none"
         aria-label={isOpen ? 'Close user menu' : 'Open user menu'}

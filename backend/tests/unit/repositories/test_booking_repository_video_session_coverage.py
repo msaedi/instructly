@@ -151,6 +151,28 @@ class TestEnsureVideoSession:
 
         nested.rollback.assert_called_once()
 
+    def test_begin_nested_failure_reraises_original_error(self) -> None:
+        """Savepoint setup failures must not be masked by UnboundLocalError."""
+        repo, mock_db = _make_repo()
+        mock_db.query.return_value.filter.return_value.one_or_none.return_value = None
+        mock_db.begin_nested.side_effect = RuntimeError("savepoint failed")
+
+        with pytest.raises(RuntimeError, match="savepoint failed"):
+            repo.ensure_video_session("bk_1", "room_1")
+
+        mock_db.flush.assert_not_called()
+
+    def test_begin_nested_integrity_error_reraises_original_conflict(self) -> None:
+        """A conflict raised before the savepoint exists should bubble up unchanged."""
+        repo, mock_db = _make_repo()
+        mock_db.query.return_value.filter.return_value.one_or_none.return_value = None
+        mock_db.begin_nested.side_effect = IntegrityError("overlap", {}, None)
+
+        with pytest.raises(IntegrityError):
+            repo.ensure_video_session("bk_1", "room_1")
+
+        mock_db.flush.assert_not_called()
+
 
 # ------------------------------------------------------------------
 # release_lock_for_external_call / lock savepoint scope

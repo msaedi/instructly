@@ -527,7 +527,7 @@ describe('UserProfileDropdown', () => {
       Element.prototype.getBoundingClientRect = originalGetBoundingClientRect;
     });
 
-    it('does not throw when the open-state updater runs after the click event currentTarget goes stale', () => {
+    it('toggles with a direct boolean state update when opening the dropdown', () => {
       mockUseAuth.mockReturnValue({
         user: {
           id: '01K2GY3VEVJWKZDVH5HMNXEVQ1',
@@ -540,7 +540,7 @@ describe('UserProfileDropdown', () => {
       });
 
       const originalUseState = React.useState;
-      const deferredUpdaters: Array<() => void> = [];
+      const setStateValues: Array<unknown> = [];
       let useStateCall = 0;
 
       const useStateSpy = jest.spyOn(React, 'useState').mockImplementation(
@@ -549,20 +549,13 @@ describe('UserProfileDropdown', () => {
           useStateCall += 1;
 
           if (useStateCall === 1) {
-            const initialValue =
-              typeof initialState === 'function'
-                ? (initialState as () => unknown)()
-                : initialState;
-            let currentValue = initialValue;
-            const deferredSetState: React.Dispatch<React.SetStateAction<unknown>> = (value) => {
-              deferredUpdaters.push(() => {
-                currentValue =
-                  typeof value === 'function'
-                    ? (value as (prevState: unknown) => unknown)(currentValue)
-                    : value;
-              });
+            const [state, setState] =
+              args.length === 0 ? originalUseState() : originalUseState(initialState);
+            const wrappedSetState: React.Dispatch<React.SetStateAction<unknown>> = (value) => {
+              setStateValues.push(value);
+              (setState as React.Dispatch<React.SetStateAction<unknown>>)(value);
             };
-            return [currentValue, deferredSetState];
+            return [state, wrappedSetState];
           }
 
           if (args.length === 0) {
@@ -579,14 +572,11 @@ describe('UserProfileDropdown', () => {
       expect(() => {
         fireEvent.click(button);
       }).not.toThrow();
-      expect(deferredUpdaters).toHaveLength(1);
-      expect(() => {
-        deferredUpdaters[0]?.();
-      }).not.toThrow();
+      expect(setStateValues).toHaveLength(1);
+      expect(setStateValues[0]).toBe(true);
 
       useStateSpy.mockRestore();
     });
-
     it('ignores a null button when computing dropdown position', () => {
       mockUseAuth.mockReturnValue({
         user: {

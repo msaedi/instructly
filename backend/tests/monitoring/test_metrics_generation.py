@@ -255,22 +255,22 @@ class TestMetricsGeneration:
         class TestService(BaseService):
             @BaseService.measure_operation("slow_logged_operation")
             def slow_logged_operation(self):
-                # Operation completes instantly - slowness simulated via time.time() mock
+                # Operation completes instantly - slowness simulated via time.perf_counter() mock
                 return "logged"
 
         # Create service instance with real logger to test logging
         db_mock = Mock()
         service = TestService(db_mock)
 
-        # Mock time.time() to simulate 1.5s elapsed time without actual sleep
+        # Mock time.perf_counter() to simulate 1.5s elapsed time without actual sleep
         call_count = [0]
-        def mock_time():
+        def mock_perf_counter():
             call_count[0] += 1
             return 0.0 if call_count[0] == 1 else 1.5
 
         # Mock the logger to verify calls
         with patch.object(service, "logger") as mock_logger:
-            with patch("time.time", side_effect=mock_time):
+            with patch("app.services.base.time.perf_counter", side_effect=mock_perf_counter):
                 # Execute operation
                 result = service.slow_logged_operation()
 

@@ -15,6 +15,7 @@ import { DISCLOSURE_VERSION } from '@/config/constants';
 import { ShieldCheck } from 'lucide-react';
 import { useGoLiveInstructor } from '@/src/api/services/instructors';
 import { logger } from '@/lib/logger';
+import { ApiProblemError } from '@/lib/api/fetch';
 import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
 import { useOnboardingStepStatus, canInstructorGoLive } from '@/features/instructor-onboarding/useOnboardingStepStatus';
 import type { components } from '@/features/shared/api/types';
@@ -153,6 +154,7 @@ export default function OnboardingStatusPage() {
   const needsStripe = !(connectStatus && connectStatus.onboarding_completed);
   const identityVerified = Boolean(profile?.['identity_verified_at']);
   const identityNameMismatch = Boolean(profile?.['identity_name_mismatch']);
+  const bgcNameMismatch = Boolean(profile?.['bgc_name_mismatch']);
   const identityPending = !identityVerified && Boolean(profile?.['identity_verification_session_id']);
   const needsIdentity = !identityVerified && !identityPending;
   const needsSkills = !(profile && ((profile['skills_configured']) || (Array.isArray(profile['services']) && profile['services'].length > 0)));
@@ -165,6 +167,7 @@ export default function OnboardingStatusPage() {
   if (needsSkills) pendingLabels.push('Add skills');
   if (needsIdentity) pendingLabels.push('Verify Identity');
   if (identityNameMismatch) pendingLabels.push('Update account name');
+  if (bgcNameMismatch) pendingLabels.push('Resolve background check mismatch');
   if (needsBGC) pendingLabels.push('Start background check');
   if (needsStripe) pendingLabels.push('Payment setup');
 
@@ -180,7 +183,11 @@ export default function OnboardingStatusPage() {
       await goLiveMutation.mutateAsync();
       window.location.href = '/instructor/dashboard';
     } catch (error) {
-      // Mutation will handle error state
+      if (error instanceof ApiProblemError && error.problem.code === 'name_mismatch_block') {
+        toast.error('Name mismatch detected', {
+          description: error.problem.detail || 'Please resolve the mismatch before going live.',
+        });
+      }
       logger.error('Failed to go live', error as Error);
     } finally {
       setSaving(false);
@@ -306,6 +313,14 @@ export default function OnboardingStatusPage() {
                 <p className="text-sm text-gray-500 dark:text-gray-400">Invite yourself via Checkr to complete your screening.</p>
               </div>
             </div>
+            {bgcNameMismatch ? (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                <p>
+                  The information submitted during your background check doesn&apos;t match your verified identity.
+                  Please contact support at support@instainstru.com to resolve this.
+                </p>
+              </div>
+            ) : null}
             <BGCStep
               instructorId={instructorProfileId}
               identityVerified={identityVerified}
@@ -354,6 +369,14 @@ export default function OnboardingStatusPage() {
                   profile settings
                 </Link>
                 .
+              </p>
+            </div>
+          )}
+          {bgcNameMismatch && (
+            <div className="w-full max-w-2xl rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+              <p>
+                The information submitted during your background check doesn&apos;t match your verified identity.
+                Please contact support at support@instainstru.com before going live.
               </p>
             </div>
           )}

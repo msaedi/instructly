@@ -89,14 +89,14 @@ class TestBaseServiceMetrics:
         """Test that slow operations trigger warnings."""
         from unittest.mock import patch
 
-        # Mock time.time() to simulate 1.5s elapsed time without actual sleep
+        # Mock time.perf_counter() to simulate 1.5s elapsed time without actual sleep
         call_count = [0]
-        def mock_time():
+        def mock_perf_counter():
             call_count[0] += 1
             # First call returns start time, second call returns end time (1.5s later)
             return 0.0 if call_count[0] == 1 else 1.5
 
-        with patch("time.time", side_effect=mock_time):
+        with patch("app.services.base.time.perf_counter", side_effect=mock_perf_counter):
             test_service.slow_operation()
 
         # Check that warning was logged

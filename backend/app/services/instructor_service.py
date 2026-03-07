@@ -680,11 +680,17 @@ class InstructorService(BaseService):
         profile = self.profile_repository.find_one_by(user_id=user_id)
         if not profile:
             raise NotFoundException("Instructor profile not found")
+        mismatch_sources: list[str] = []
         if profile.identity_name_mismatch:
+            mismatch_sources.append("identity verification")
+        if profile.bgc_name_mismatch:
+            mismatch_sources.append("background check")
+        if mismatch_sources:
+            mismatch_summary = " and ".join(mismatch_sources)
             raise ServiceException(
-                "Your account name must match your government ID before you can go live. "
-                "Please update your name in profile settings.",
-                code="identity_name_mismatch_block",
+                f"Name mismatch detected in {mismatch_summary}. "
+                "Please contact support to resolve this before going live.",
+                code="name_mismatch_block",
             )
 
         config_service = ConfigService(self.db)
@@ -726,12 +732,25 @@ class InstructorService(BaseService):
                     profile.id,
                     is_live=True,
                     onboarding_completed_at=datetime.now(timezone.utc),
+                    # PII cleanup: retain only verified_last_name for last-name-lock enforcement
+                    verified_first_name=None,
+                    verified_dob=None,
+                    bgc_submitted_first_name=None,
+                    bgc_submitted_last_name=None,
                     skills_configured=True
                     if not getattr(profile, "skills_configured", False)
                     else profile.skills_configured,
                 )
             else:
-                updated_profile = self.profile_repository.update(profile.id, is_live=True)
+                updated_profile = self.profile_repository.update(
+                    profile.id,
+                    is_live=True,
+                    # PII cleanup: retain only verified_last_name for last-name-lock enforcement
+                    verified_first_name=None,
+                    verified_dob=None,
+                    bgc_submitted_first_name=None,
+                    bgc_submitted_last_name=None,
+                )
 
             lifecycle_service = InstructorLifecycleService(self.db)
             lifecycle_service.record_went_live(profile.user_id)
@@ -1273,6 +1292,7 @@ class InstructorService(BaseService):
             "skills_configured": getattr(profile, "skills_configured", False),
             "identity_verified_at": profile.identity_verified_at,
             "identity_name_mismatch": getattr(profile, "identity_name_mismatch", False),
+            "bgc_name_mismatch": getattr(profile, "bgc_name_mismatch", False),
             "background_check_uploaded_at": getattr(profile, "background_check_uploaded_at", None),
             "onboarding_completed_at": getattr(profile, "onboarding_completed_at", None),
             "is_live": getattr(profile, "is_live", False),

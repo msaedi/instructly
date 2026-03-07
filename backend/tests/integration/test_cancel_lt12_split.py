@@ -2,8 +2,9 @@
 Integration tests for <12h cancellation 50/50 split (policy v2.1.1).
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy.orm import Session
@@ -22,6 +23,8 @@ try:  # pragma: no cover - fallback for direct backend pytest runs
     from backend.tests.utils.booking_timezone import booking_timezone_fields
 except ModuleNotFoundError:  # pragma: no cover
     from tests.utils.booking_timezone import booking_timezone_fields
+
+LESSON_TZ = ZoneInfo("America/New_York")
 
 
 @pytest.fixture(autouse=True)
@@ -110,8 +113,8 @@ def _create_booking(
     db: Session, student: User, instructor: User, svc: InstructorService, when: datetime
 ) -> Booking:
     booking_date = when.date()
-    start_time = when.time()
-    end_time = (when + timedelta(hours=1)).time()
+    start_time = when.time().replace(tzinfo=None)
+    end_time = (when + timedelta(hours=1)).time().replace(tzinfo=None)
     bk = Booking(
         id=str(ulid.ULID()),
         student_id=student.id,
@@ -141,14 +144,22 @@ def _create_booking(
     return bk
 
 
+def _safe_start_window(hours_from_now: int) -> datetime:
+    now = datetime.now(timezone.utc)
+    start_dt = (now + timedelta(hours=hours_from_now)).astimezone(LESSON_TZ)
+    start_dt = start_dt.replace(minute=0, second=0, microsecond=0)
+    end_dt = start_dt + timedelta(hours=1)
+    if end_dt.date() != start_dt.date():
+        start_dt = (start_dt - timedelta(hours=2)).replace(minute=0, second=0, microsecond=0)
+    return start_dt
+
+
 @pytest.fixture
 def lt12_booking(db: Session):
     instructor, profile, svc = _create_instructor_with_service(db)
     student = _create_student(db)
-    when = datetime.now() + timedelta(hours=3)
-    when = when.replace(minute=0, second=0, microsecond=0)
-    if (when + timedelta(hours=1)).date() != when.date():
-        when = (when + timedelta(hours=2)).replace(minute=0, second=0, microsecond=0)
+    _ = profile
+    when = _safe_start_window(3)
     booking = _create_booking(db, student, instructor, svc, when)
     return booking, student
 

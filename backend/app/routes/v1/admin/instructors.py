@@ -8,15 +8,18 @@ from datetime import datetime, timezone
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.api.dependencies.auth import require_admin
 from app.api.dependencies.repositories import get_instructor_repo
+from app.models.instructor import InstructorProfile
+from app.models.user import User
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 from app.schemas.admin_instructor_responses import (
     AdminInstructorDetailResponse,
     FoundingCountResponse,
 )
+from app.services.audit_service import AuditService
 from app.services.config_service import ConfigService
 from app.utils.strict import model_filter
 
@@ -25,18 +28,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["admin-instructors"])
 
 
-@router.get("/{instructor_id}", response_model=AdminInstructorDetailResponse)
-async def admin_instructor_detail(
-    instructor_id: str,
-    repo: InstructorProfileRepository = Depends(get_instructor_repo),
-    _: None = Depends(require_admin),
+def _build_admin_instructor_detail_response(
+    profile: InstructorProfile,
+    repo: InstructorProfileRepository,
 ) -> AdminInstructorDetailResponse:
-    """Return administrative instructor detail including consent recency."""
-
-    profile = repo.get_by_id_join_user(instructor_id)
-    if not profile:
-        raise HTTPException(status_code=404, detail="instructor not found")
-
+    """Build the shared admin instructor detail response payload."""
     user = getattr(profile, "user", None)
     raw_full_name = getattr(user, "full_name", None) if user is not None else None
     if not raw_full_name:
@@ -61,6 +57,7 @@ async def admin_instructor_detail(
         "name": raw_full_name or "",
         "email": email,
         "is_live": bool(getattr(profile, "is_live", False)),
+        "bgc_name_mismatch": bool(getattr(profile, "bgc_name_mismatch", False)),
         "bgc_status": profile.bgc_status,
         "bgc_includes_canceled": bool(profile.bgc_includes_canceled),
         "bgc_report_id": profile.bgc_report_id,
@@ -80,6 +77,125 @@ async def admin_instructor_detail(
     return AdminInstructorDetailResponse(
         **model_filter(AdminInstructorDetailResponse, response_payload)
     )
+
+
+@router.get("/{instructor_id}", response_model=AdminInstructorDetailResponse)
+async def admin_instructor_detail(
+    instructor_id: str,
+    repo: InstructorProfileRepository = Depends(get_instructor_repo),
+    _: None = Depends(require_admin),
+) -> AdminInstructorDetailResponse:
+    """Return administrative instructor detail including consent recency."""
+
+    profile = repo.get_by_id_join_user(instructor_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="instructor not found")
+
+    return _build_admin_instructor_detail_response(profile, repo)
+
+
+@router.post("/{instructor_id}/clear-bgc-mismatch", response_model=AdminInstructorDetailResponse)
+async def clear_bgc_mismatch(
+    instructor_id: str,
+    request: Request,
+    repo: InstructorProfileRepository = Depends(get_instructor_repo),
+    current_admin: User = Depends(require_admin),
+) -> AdminInstructorDetailResponse:
+    """Clear a BGC name mismatch flag after admin review."""
+
+    profile = repo.get_by_id_join_user(instructor_id)
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="instructor not found")
+
+    repo.update(profile.id, bgc_name_mismatch=False)
+    repo.commit()
+    refreshed = repo.get_by_id_join_user(profile.id)
+    if not refreshed:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="instructor not found")
+
+    try:
+        AuditService(repo.db).log(
+            action="instructor.clear_bgc_mismatch",
+            resource_type="instructor",
+            resource_id=profile.id,
+            actor=current_admin,
+            actor_type="user",
+            description="Cleared background check name mismatch flag",
+            metadata={"bgc_name_mismatch": False},
+            request=request,
+        )
+    except Exception:
+        logger.warning("Audit log write failed for clearing BGC mismatch", exc_info=True)
+
+    return _build_admin_instructor_detail_response(refreshed, repo)
+
+
+@router.post("/{instructor_id}/reset-bgc", response_model=AdminInstructorDetailResponse)
+async def reset_bgc(
+    instructor_id: str,
+    request: Request,
+    repo: InstructorProfileRepository = Depends(get_instructor_repo),
+    current_admin: User = Depends(require_admin),
+) -> AdminInstructorDetailResponse:
+    """Reset BGC state so an instructor can complete a fresh screening."""
+
+    profile = repo.get_by_id_join_user(instructor_id)
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="instructor not found")
+    if profile.is_live:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": "Instructor is currently live. Set offline before resetting background check.",
+                "code": "bgc_reset_live_block",
+            },
+        )
+
+    repo.update(
+        profile.id,
+        bgc_name_mismatch=False,
+        bgc_status=None,
+        bgc_report_id=None,
+        bgc_completed_at=None,
+        bgc_report_result=None,
+        bgc_valid_until=None,
+        bgc_eta=None,
+        bgc_invited_at=None,
+        bgc_includes_canceled=False,
+        bgc_in_dispute=False,
+        bgc_dispute_note=None,
+        bgc_dispute_opened_at=None,
+        bgc_dispute_resolved_at=None,
+        bgc_pre_adverse_notice_id=None,
+        bgc_pre_adverse_sent_at=None,
+        bgc_final_adverse_sent_at=None,
+        bgc_review_email_sent_at=None,
+        checkr_candidate_id=None,
+        checkr_invitation_id=None,
+        bgc_note=None,
+        bgc_submitted_first_name=None,
+        bgc_submitted_last_name=None,
+    )
+    repo.commit()
+    refreshed = repo.get_by_id_join_user(profile.id)
+    if not refreshed:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="instructor not found")
+
+    try:
+        AuditService(repo.db).log(
+            action="instructor.reset_bgc",
+            resource_type="instructor",
+            resource_id=profile.id,
+            actor=current_admin,
+            actor_type="user",
+            description="Reset instructor background check state",
+            metadata={"bgc_status": None, "bgc_name_mismatch": False},
+            request=request,
+        )
+    except Exception:
+        logger.warning("Audit log write failed for resetting BGC", exc_info=True)
+
+    return _build_admin_instructor_detail_response(refreshed, repo)
 
 
 @router.get("/founding/count", response_model=FoundingCountResponse)

@@ -131,6 +131,32 @@ def test_ensure_satellite_rolls_back_and_reraises_non_integrity_error(ensure_nam
     nested.rollback.assert_called_once()
 
 
+@pytest.mark.parametrize("ensure_name", _SATELLITE_ENSURE_METHODS)
+def test_ensure_satellite_reraises_begin_nested_error_without_unbound_local(
+    ensure_name: str,
+) -> None:
+    repo, mock_db = _make_repo()
+    mock_db.query.return_value.filter.return_value.one_or_none.return_value = None
+    mock_db.begin_nested.side_effect = RuntimeError("savepoint failed")
+
+    with pytest.raises(RuntimeError, match="savepoint failed"):
+        getattr(repo, ensure_name)("bk_1")
+
+    mock_db.flush.assert_not_called()
+
+
+@pytest.mark.parametrize("ensure_name", _SATELLITE_ENSURE_METHODS)
+def test_ensure_satellite_reraises_integrity_error_from_begin_nested(ensure_name: str) -> None:
+    repo, mock_db = _make_repo()
+    mock_db.query.return_value.filter.return_value.one_or_none.return_value = None
+    mock_db.begin_nested.side_effect = IntegrityError("overlap", {}, None)
+
+    with pytest.raises(IntegrityError):
+        getattr(repo, ensure_name)("bk_1")
+
+    mock_db.flush.assert_not_called()
+
+
 def test_apply_refund_updates_wraps_unexpected_errors() -> None:
     repo, _mock_db = _make_repo()
     repo.ensure_payment = MagicMock(side_effect=RuntimeError("payment relation missing"))

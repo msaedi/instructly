@@ -57,6 +57,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             InstructorProfile.is_live.is_(True),
             InstructorProfile.bgc_status == "passed",
             InstructorProfile.identity_name_mismatch.is_(False),
+            InstructorProfile.bgc_name_mismatch.is_(False),
         )
 
     def get_public_by_id(self, instructor_id: str) -> Optional[InstructorProfile]:

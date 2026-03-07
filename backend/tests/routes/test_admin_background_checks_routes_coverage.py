@@ -316,6 +316,7 @@ def test_bgc_review_count_and_counts():
     counts = asyncio_run(bgc_routes.bgc_counts(repo=repo, _=None))
 
     assert review.count == 2
+    assert counts.all == 0
     assert counts.review == 2
     assert counts.pending == 1
 

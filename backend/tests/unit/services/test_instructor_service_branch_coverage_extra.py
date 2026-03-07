@@ -74,6 +74,7 @@ def test_go_live_missing_prerequisites_uses_default_connect_status_when_profile_
         skills_configured=False,
         identity_verified_at=None,
         identity_name_mismatch=False,
+        bgc_name_mismatch=False,
         bgc_status="pending",
     )
     service.profile_repository.find_one_by.return_value = profile
@@ -93,6 +94,7 @@ def test_go_live_updates_existing_onboarding_profile_and_returns_profile():
         skills_configured=True,
         identity_verified_at=datetime.now(timezone.utc),
         identity_name_mismatch=False,
+        bgc_name_mismatch=False,
         bgc_status="passed",
         onboarding_completed_at=datetime.now(timezone.utc),
     )
@@ -112,7 +114,14 @@ def test_go_live_updates_existing_onboarding_profile_and_returns_profile():
         result = service.go_live("user-1")
 
     assert result is profile
-    service.profile_repository.update.assert_called_once_with("profile-1", is_live=True)
+    service.profile_repository.update.assert_called_once_with(
+        "profile-1",
+        is_live=True,
+        verified_first_name=None,
+        verified_dob=None,
+        bgc_submitted_first_name=None,
+        bgc_submitted_last_name=None,
+    )
     lifecycle_cls.return_value.record_went_live.assert_called_once_with("user-1")
 
 
@@ -124,6 +133,7 @@ def test_go_live_raises_service_exception_when_update_returns_none():
         skills_configured=True,
         identity_verified_at=datetime.now(timezone.utc),
         identity_name_mismatch=False,
+        bgc_name_mismatch=False,
         bgc_status="passed",
         onboarding_completed_at=None,
     )

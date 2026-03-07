@@ -322,9 +322,10 @@ async def bgc_counts(
     repo: InstructorProfileRepository = Depends(get_instructor_repo),
     _: None = Depends(require_admin),
 ) -> BGCCaseCountsResponse:
-    """Return total counts for review and pending background check queues."""
+    """Return total counts for all, review, and pending background check queues."""
 
     payload = {
+        "all": _build_case_query(repo=repo, status="all", search=None).count(),
         "review": repo.count_by_bgc_statuses(["review", "consider"]),
         "pending": repo.count_by_bgc_status("pending"),
     }
