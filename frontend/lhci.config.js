@@ -1,6 +1,7 @@
 const budgets = require('./lhci.budgets.json');
 
 const isMain = process.env.GITHUB_REF === 'refs/heads/main';
+const useExistingServer = process.env.LHCI_USE_EXISTING_SERVER === '1';
 const parsedPort =
   process.env.LHCI_PORT && Number.parseInt(process.env.LHCI_PORT, 10) > 0
     ? Number.parseInt(process.env.LHCI_PORT, 10)
@@ -39,9 +40,8 @@ module.exports = {
   ci: {
     collect: {
       numberOfRuns: 3,
-      startServerCommand,
-      startServerReadyPattern,
       url: collectUrls,
+      ...(useExistingServer ? {} : { startServerCommand, startServerReadyPattern }),
       settings: {
         budgets,
         emulatedFormFactor: 'desktop',

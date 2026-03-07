@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
+      LHCI_PORT: "3100"
+      LHCI_USE_EXISTING_SERVER: "1"
       NEXT_PUBLIC_LH_CI: "1"
     steps:
       - uses: actions/checkout@v6
@@ -35,15 +37,15 @@ jobs:
       - name: Start frontend server (prod)
         working-directory: frontend
         run: |
-          PORT=3100 npm run start & echo $! > .server.pid
-          npx wait-on http://localhost:3100
+          PORT="$LHCI_PORT" npm run start & echo $! > .server.pid
+          npx wait-on "http://localhost:${LHCI_PORT}"
 
       - name: Warm pages
         run: |
-          curl -sSf http://localhost:3100/ >/dev/null
-          curl -sSf http://localhost:3100/login >/dev/null
-          curl -sSf http://localhost:3100/lhci/instructor >/dev/null
-          curl -sSf http://localhost:3100/instructor/availability >/dev/null
+          curl -sSf "http://localhost:${LHCI_PORT}/" >/dev/null
+          curl -sSf "http://localhost:${LHCI_PORT}/login" >/dev/null
+          curl -sSf "http://localhost:${LHCI_PORT}/lhci/instructor" >/dev/null
+          curl -sSf "http://localhost:${LHCI_PORT}/instructor/availability" >/dev/null
 
       - name: Run Lighthouse CI (hard gate)
         working-directory: frontend
