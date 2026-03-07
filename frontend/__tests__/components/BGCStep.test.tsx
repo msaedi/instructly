@@ -3,12 +3,16 @@ process.env.NEXT_PUBLIC_APP_ENV = 'preview';
 import * as React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { BGCStep } from '@/components/instructor/BGCStep';
+import { BGCStep as RawBGCStep } from '@/components/instructor/BGCStep';
 import { bgcInvite, bgcRecheck, bgcStatus } from '@/lib/api/bgc';
 import type { BGCInviteResponse, BGCStatusResponse } from '@/lib/api/bgc';
 import { ApiProblemError } from '@/lib/api/fetch';
 import { normalizeProblem } from '@/lib/errors/problem';
 import { toast } from 'sonner';
+
+const BGCStep = (props: Parameters<typeof RawBGCStep>[0]) => (
+  <RawBGCStep identityVerified={true} {...props} />
+);
 
 jest.mock('@/lib/api/bgc');
 

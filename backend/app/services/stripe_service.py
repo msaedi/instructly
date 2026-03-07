@@ -549,12 +549,20 @@ class StripeService(BaseService):
         stripe_status = str(self._stripe_value(session, "status", "unknown") or "unknown")
         last_error_code, last_error_reason = self._identity_last_error(session)
         if stripe_status == "verified":
-            self._persist_verified_identity(
-                profile_id=profile_id,
-                user_id=user.id,
-                session=session,
-                session_id=session_id,
-            )
+            try:
+                self._persist_verified_identity(
+                    profile_id=profile_id,
+                    user_id=user.id,
+                    session=session,
+                    session_id=session_id,
+                )
+            except Exception as exc:
+                self.logger.warning("Failed to persist verified identity: %s", exc)
+                self.instructor_repository.update(
+                    profile_id,
+                    identity_verified_at=datetime.now(timezone.utc),
+                    identity_verification_session_id=session_id,
+                )
             return IdentityRefreshResponse(
                 status="verified",
                 verified=True,
@@ -2059,12 +2067,20 @@ class StripeService(BaseService):
 
                 if existing_status == "verified":
                     if profile and not profile.identity_verified_at:
-                        self._persist_verified_identity(
-                            profile_id=profile.id,
-                            user_id=user_id,
-                            session=existing_session,
-                            session_id=existing_session_id,
-                        )
+                        try:
+                            self._persist_verified_identity(
+                                profile_id=profile.id,
+                                user_id=user_id,
+                                session=existing_session,
+                                session_id=existing_session_id,
+                            )
+                        except Exception as exc:
+                            self.logger.warning("Failed to persist verified identity: %s", exc)
+                            self.instructor_repository.update(
+                                profile.id,
+                                identity_verified_at=datetime.now(timezone.utc),
+                                identity_verification_session_id=existing_session_id,
+                            )
                     raise ServiceException("Identity verification already completed")
 
                 if existing_status != "canceled":

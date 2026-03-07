@@ -1,9 +1,13 @@
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import { BGCStep } from '../BGCStep';
+import { BGCStep as RawBGCStep } from '../BGCStep';
 import { bgcInvite, bgcRecheck, bgcStatus } from '@/lib/api/bgc';
 import { ApiProblemError } from '@/lib/api/fetch';
 import { toast } from 'sonner';
 import { clearPollTimer } from '../BGCStep.helpers';
+
+const BGCStep = (props: Parameters<typeof RawBGCStep>[0]) => (
+  <RawBGCStep identityVerified={true} {...props} />
+);
 
 // Mock dependencies
 jest.mock('@/lib/api/bgc', () => ({
@@ -99,6 +103,19 @@ describe('BGCStep', () => {
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /start background check/i })).toBeInTheDocument();
       });
+    });
+
+    it('defaults identity verification to false when the prop is omitted', async () => {
+      render(<RawBGCStep instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('Complete ID verification before starting a background check.')
+        ).toBeInTheDocument();
+      });
+      expect(
+        screen.queryByRole('button', { name: /start background check/i })
+      ).not.toBeInTheDocument();
     });
 
     it('requires identity verification before rendering the start button', async () => {

@@ -116,7 +116,7 @@ export function BGCStep({
   instructorId,
   onStatusUpdate,
   ensureConsent,
-  identityVerified = true,
+  identityVerified = false,
 }: BGCStepProps) {
   const [status, setStatus] = React.useState<BGCStatus | null>(null);
   const [reportId, setReportId] = React.useState<string | null>(null);
