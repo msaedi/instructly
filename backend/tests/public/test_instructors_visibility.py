@@ -42,7 +42,14 @@ def _catalog_setup(db):
     return catalog
 
 
-def _create_profile(db, *, email: str, is_live: bool, bgc_status: str) -> InstructorProfile:
+def _create_profile(
+    db,
+    *,
+    email: str,
+    is_live: bool,
+    bgc_status: str,
+    identity_name_mismatch: bool = False,
+) -> InstructorProfile:
     user = User(
         email=email,
         hashed_password="hashed",
@@ -58,6 +65,7 @@ def _create_profile(db, *, email: str, is_live: bool, bgc_status: str) -> Instru
         user_id=user.id,
         is_live=is_live,
         bgc_status=bgc_status,
+        identity_name_mismatch=identity_name_mismatch,
         bio="Experienced instructor",
         years_experience=5,
         bgc_completed_at=datetime.now(timezone.utc) if bgc_status == "passed" else None,
@@ -92,8 +100,15 @@ def test_public_visibility_rules(client, db, catalog_entry):
         is_live=False,
         bgc_status="passed",
     )
+    mismatched = _create_profile(
+        db,
+        email="mismatch@example.com",
+        is_live=True,
+        bgc_status="passed",
+        identity_name_mismatch=True,
+    )
 
-    for profile in (visible, pending, offline):
+    for profile in (visible, pending, offline, mismatched):
         service = InstructorService(
             instructor_profile_id=profile.id,
             service_catalog_id=catalog_entry.id,
@@ -120,6 +135,6 @@ def test_public_visibility_rules(client, db, catalog_entry):
     detail_ok = client.get(f"/api/v1/instructors/{visible.user_id}")
     assert detail_ok.status_code == 200
 
-    for hidden in (pending, offline):
+    for hidden in (pending, offline, mismatched):
         detail_response = client.get(f"/api/v1/instructors/{hidden.id}")
         assert detail_response.status_code == 404

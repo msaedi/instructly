@@ -3682,6 +3682,7 @@ export interface InstructorProfileResponse {
   /** Number of students who favorited this instructor */
   favorited_count?: number;
   id: string;
+  identity_name_mismatch?: boolean;
   identity_verification_session_id?: string | null;
   identity_verified_at?: string | null;
   /** Whether the current user has favorited this instructor */
@@ -3939,6 +3940,8 @@ export interface HydrateStageDetails {
 }
 
 export interface IdentityRefreshResponse {
+  /** Whether the verified ID last name differs from the account last name */
+  identity_name_mismatch?: boolean;
   /** Latest Stripe verification error code, if available */
   last_error_code?: string | null;
   /** Latest Stripe verification error reason, if available */

@@ -118,6 +118,9 @@ export default function Step4Verification() {
   );
   const [identityErrorCode, setIdentityErrorCode] = useState<string | null>(null);
   const [identityErrorReason, setIdentityErrorReason] = useState<string | null>(null);
+  const [identityNameMismatch, setIdentityNameMismatch] = useState<boolean>(
+    () => Boolean(rawData.profile?.identity_name_mismatch)
+  );
   const prevProfileSessionIdRef = useRef<string | null>(
     rawData.profile?.identity_verification_session_id ?? null
   );
@@ -166,6 +169,10 @@ export default function Step4Verification() {
     },
     []
   );
+
+  useEffect(() => {
+    setIdentityNameMismatch(Boolean(rawData.profile?.identity_name_mismatch));
+  }, [rawData.profile?.identity_name_mismatch]);
 
   useEffect(() => {
     const nextSessionId = rawData.profile?.identity_verification_session_id ?? null;
@@ -263,6 +270,7 @@ export default function Step4Verification() {
       }
 
       const data = (await res.json()) as IdentityRefreshResponse;
+      setIdentityNameMismatch(Boolean(data.identity_name_mismatch));
       await refreshStepStatus();
 
       const nextStatus = normalizeIdentityStatus(data.status, data.verified);
@@ -501,6 +509,7 @@ export default function Step4Verification() {
         : hasRetryableIdentityError
           ? 'Retry verification'
           : 'Start verification';
+  const showIdentityMismatchBanner = identityStatus === 'verified' && identityNameMismatch;
 
   return (
     <div className="min-h-screen insta-onboarding-page">
@@ -550,6 +559,28 @@ export default function Step4Verification() {
 
               {identityBanner && (
                 <div className={`col-span-2 ${identityBanner.className}`}>{identityBanner.message}</div>
+              )}
+
+              {showIdentityMismatchBanner && (
+                <div className="col-span-2 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                  <p>
+                    The last name on your ID doesn&apos;t match your account name. Please
+                    update your profile to match your government ID, or contact support at
+                    {' '}
+                    <a className="font-medium underline" href="mailto:support@instainstru.com">
+                      support@instainstru.com
+                    </a>
+                    .
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => router.push('/instructor/settings')}
+                    className="mt-3 border-amber-300 bg-white text-amber-800 hover:bg-amber-100"
+                  >
+                    Update my name
+                  </Button>
+                </div>
               )}
 
               <div className="col-span-2 mt-4 grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto] sm:items-end">

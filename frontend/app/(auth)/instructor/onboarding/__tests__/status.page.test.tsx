@@ -120,20 +120,34 @@ jest.mock('@/features/shared/hooks/useAuth', () => ({
 }));
 
 /* ---------- Step status mock — use stable refs to avoid infinite re-render ---------- */
-const stableProfile = {
+const mockProfile: {
+  id: string;
+  identity_verified_at: string | null;
+  identity_verification_session_id: string | null;
+  identity_name_mismatch: boolean;
+  skills_configured: boolean;
+  services: unknown[];
+  is_live: boolean;
+} = {
   id: 'profile-1',
   identity_verified_at: null,
   identity_verification_session_id: null,
+  identity_name_mismatch: false,
   skills_configured: false,
   services: [],
   is_live: false,
 };
-const stableConnectStatus = { onboarding_completed: false };
+const mockConnectStatus = { onboarding_completed: false };
+const mockGoLiveCheck = {
+  canGoLive: false,
+  missing: ['bgc', 'stripe'],
+};
+
 const stableRawData = {
-  profile: stableProfile,
+  profile: mockProfile,
   user: { first_name: 'Test', last_name: 'User' },
   serviceAreas: ['area-1'],
-  connectStatus: stableConnectStatus,
+  connectStatus: mockConnectStatus,
   bgcStatus: null,
 };
 
@@ -150,8 +164,8 @@ jest.mock('@/features/instructor-onboarding/useOnboardingStepStatus', () => ({
     refresh: jest.fn(),
   }),
   canInstructorGoLive: () => ({
-    canGoLive: false,
-    missing: ['bgc', 'stripe'],
+    canGoLive: mockGoLiveCheck.canGoLive,
+    missing: mockGoLiveCheck.missing,
   }),
 }));
 
@@ -166,6 +180,14 @@ describe('Onboarding status page – BGC consent regression', () => {
   beforeEach(() => {
     capturedEnsureConsent = undefined;
     capturedIdentityVerified = undefined;
+    mockProfile.identity_name_mismatch = false;
+    mockProfile.identity_verified_at = null;
+    mockProfile.identity_verification_session_id = null;
+    mockProfile.skills_configured = false;
+    mockProfile.services = [];
+    mockProfile.is_live = false;
+    mockGoLiveCheck.canGoLive = false;
+    mockGoLiveCheck.missing = ['bgc', 'stripe'];
   });
 
   it('renders the BGC step component', async () => {
@@ -198,6 +220,27 @@ describe('Onboarding status page – BGC consent regression', () => {
     });
 
     expect(capturedIdentityVerified).toBe(false);
+  });
+
+  it('shows a go-live block message and disables the button when names mismatch', async () => {
+    mockProfile.identity_name_mismatch = true;
+    mockProfile.identity_verified_at = '2026-03-05T12:00:00Z';
+    mockGoLiveCheck.canGoLive = false;
+    mockGoLiveCheck.missing = ['Account name must match government ID'];
+
+    renderWithClient(<OnboardingStatusPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/your account name must match your government id before you can go live/i)
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole('link', { name: /profile settings/i })
+    ).toHaveAttribute('href', '/instructor/settings');
+    expect(
+      screen.getByRole('button', { name: /complete required steps to go live/i })
+    ).toBeDisabled();
   });
 
   it('renders the BackgroundCheckDisclosureModal (hidden by default)', async () => {

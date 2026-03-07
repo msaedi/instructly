@@ -13060,6 +13060,12 @@ export type components = {
         /** IdentityRefreshResponse */
         IdentityRefreshResponse: {
             /**
+             * Identity Name Mismatch
+             * @description Whether the verified ID last name differs from the account last name
+             * @default false
+             */
+            identity_name_mismatch: boolean;
+            /**
              * Last Error Code
              * @description Latest Stripe verification error code, if available
              */
@@ -13303,6 +13309,11 @@ export type components = {
             favorited_count: number;
             /** Id */
             id: string;
+            /**
+             * Identity Name Mismatch
+             * @default false
+             */
+            identity_name_mismatch: boolean;
             /** Identity Verification Session Id */
             identity_verification_session_id?: string | null;
             /** Identity Verified At */

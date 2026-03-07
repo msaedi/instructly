@@ -7,6 +7,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 import pytest
 
 from app.auth import get_password_hash
+from app.repositories.instructor_profile_repository import InstructorProfileRepository
 from app.routes.v1 import auth as auth_routes
 from app.schemas.security import PasswordChangeRequest
 
@@ -1264,6 +1265,100 @@ async def test_update_current_user_updates_phone_and_zip(monkeypatch, test_stude
     )
     assert response.phone == "+15551234567"
     assert response.timezone == "America/New_York"
+    assert invalidated == [(user.id, db)]
+
+
+@pytest.mark.asyncio
+async def test_update_current_user_clears_name_mismatch_when_last_name_matches_verified(
+    monkeypatch, test_instructor, db
+):
+    user = test_instructor
+    profile_repo = InstructorProfileRepository(db)
+    profile = profile_repo.get_by_user_id(user.id)
+    assert profile is not None
+    profile_repo.update(
+        profile.id,
+        identity_name_mismatch=True,
+        verified_last_name="Matched",
+    )
+
+    invalidated: list[tuple[str, object]] = []
+    monkeypatch.setattr(
+        auth_routes,
+        "invalidate_cached_user_by_id_sync",
+        lambda user_id, db_session: invalidated.append((user_id, db_session)) or True,
+    )
+
+    auth_service = _StubAuthService(user_obj=user)
+    payload = auth_routes.UserUpdate(last_name="Matched")
+
+    response = await auth_routes.update_current_user(
+        _DummyRequest(), payload, user.email, auth_service, db
+    )
+
+    refreshed = profile_repo.get_by_user_id(user.id)
+    assert refreshed is not None
+    assert response.last_name == "Matched"
+    assert refreshed.identity_name_mismatch is False
+    assert invalidated == [(user.id, db)]
+
+
+@pytest.mark.asyncio
+async def test_update_current_user_does_not_clear_name_mismatch_when_last_name_differs(
+    monkeypatch, test_instructor, db
+):
+    user = test_instructor
+    profile_repo = InstructorProfileRepository(db)
+    profile = profile_repo.get_by_user_id(user.id)
+    assert profile is not None
+    profile_repo.update(
+        profile.id,
+        identity_name_mismatch=True,
+        verified_last_name="Verified",
+    )
+
+    invalidated: list[tuple[str, object]] = []
+    monkeypatch.setattr(
+        auth_routes,
+        "invalidate_cached_user_by_id_sync",
+        lambda user_id, db_session: invalidated.append((user_id, db_session)) or True,
+    )
+
+    auth_service = _StubAuthService(user_obj=user)
+    payload = auth_routes.UserUpdate(last_name="Different")
+
+    response = await auth_routes.update_current_user(
+        _DummyRequest(), payload, user.email, auth_service, db
+    )
+
+    refreshed = profile_repo.get_by_user_id(user.id)
+    assert refreshed is not None
+    assert response.last_name == "Different"
+    assert refreshed.identity_name_mismatch is True
+    assert invalidated == [(user.id, db)]
+
+
+@pytest.mark.asyncio
+async def test_update_current_user_ignores_name_mismatch_for_non_instructors(
+    monkeypatch, test_student, db
+):
+    user = test_student
+    invalidated: list[tuple[str, object]] = []
+    monkeypatch.setattr(
+        auth_routes,
+        "invalidate_cached_user_by_id_sync",
+        lambda user_id, db_session: invalidated.append((user_id, db_session)) or True,
+    )
+
+    auth_service = _StubAuthService(user_obj=user)
+    payload = auth_routes.UserUpdate(last_name="Studentson")
+
+    response = await auth_routes.update_current_user(
+        _DummyRequest(), payload, user.email, auth_service, db
+    )
+
+    assert response.last_name == "Studentson"
+    assert InstructorProfileRepository(db).get_by_user_id(user.id) is None
     assert invalidated == [(user.id, db)]
 
 

@@ -152,6 +152,7 @@ export default function OnboardingStatusPage() {
 
   const needsStripe = !(connectStatus && connectStatus.onboarding_completed);
   const identityVerified = Boolean(profile?.['identity_verified_at']);
+  const identityNameMismatch = Boolean(profile?.['identity_name_mismatch']);
   const identityPending = !identityVerified && Boolean(profile?.['identity_verification_session_id']);
   const needsIdentity = !identityVerified && !identityPending;
   const needsSkills = !(profile && ((profile['skills_configured']) || (Array.isArray(profile['services']) && profile['services'].length > 0)));
@@ -163,6 +164,7 @@ export default function OnboardingStatusPage() {
   if (needsServiceAreas) pendingLabels.push('Add service areas');
   if (needsSkills) pendingLabels.push('Add skills');
   if (needsIdentity) pendingLabels.push('Verify Identity');
+  if (identityNameMismatch) pendingLabels.push('Update account name');
   if (needsBGC) pendingLabels.push('Start background check');
   if (needsStripe) pendingLabels.push('Payment setup');
 
@@ -342,6 +344,19 @@ export default function OnboardingStatusPage() {
         </div>
 
         <div className="mt-8 flex flex-col items-center justify-center gap-4">
+          {identityNameMismatch && (
+            <div className="w-full max-w-2xl rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+              <p>
+                Your account name must match your government ID before you can go live.
+                Update your name in
+                {' '}
+                <Link href="/instructor/settings" className="font-medium underline">
+                  profile settings
+                </Link>
+                .
+              </p>
+            </div>
+          )}
           {pendingRequired.length === 0 && (
             <p className="text-lg text-emerald-600 font-medium">All required steps complete!</p>
           )}

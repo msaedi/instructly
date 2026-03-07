@@ -34,6 +34,7 @@ class TestGetAsyncCacheRedisClientCoverage:
         """Lines 51->54: In test mode, closes existing client and returns None."""
         loop = asyncio.get_running_loop()
         dummy = AsyncMock()
+        dummy.connection_pool = SimpleNamespace(disconnect=AsyncMock())
         cache_redis._clients_by_loop[loop] = dummy
 
         monkeypatch.setattr(settings, "is_testing", True, raising=False)
@@ -42,7 +43,7 @@ class TestGetAsyncCacheRedisClientCoverage:
         result = await cache_redis.get_async_cache_redis_client()
 
         assert result is None
-        dummy.aclose.assert_awaited()
+        dummy.aclose.assert_awaited_once_with(close_connection_pool=False)
         assert loop not in cache_redis._clients_by_loop
 
     @pytest.mark.asyncio
@@ -51,6 +52,7 @@ class TestGetAsyncCacheRedisClientCoverage:
         loop = asyncio.get_running_loop()
         dummy = AsyncMock()
         dummy.aclose.side_effect = Exception("Close failed")
+        dummy.connection_pool = SimpleNamespace(disconnect=AsyncMock())
         cache_redis._clients_by_loop[loop] = dummy
 
         monkeypatch.setattr(settings, "is_testing", True, raising=False)
@@ -75,6 +77,7 @@ class TestGetAsyncCacheRedisClientCoverage:
         # Mock the AsyncRedis to fail ping (so we don't actually connect)
         dummy_client = AsyncMock()
         dummy_client.ping.side_effect = RuntimeError("Connection failed")
+        dummy_client.connection_pool = SimpleNamespace(disconnect=AsyncMock())
 
         try:
             with patch.object(cache_redis.AsyncRedis, "from_url", return_value=dummy_client):
@@ -230,7 +233,7 @@ class TestCloseAsyncCacheRedisClient:
 
         await cache_redis.close_async_cache_redis_client()
 
-        dummy.aclose.assert_awaited()
+        dummy.aclose.assert_awaited_once_with(close_connection_pool=False)
         dummy.connection_pool.disconnect.assert_awaited()
         assert loop not in cache_redis._clients_by_loop
 
@@ -247,4 +250,4 @@ class TestCloseAsyncCacheRedisClient:
         # Should not raise despite disconnect error
         await cache_redis.close_async_cache_redis_client()
 
-        dummy.aclose.assert_awaited()
+        dummy.aclose.assert_awaited_once_with(close_connection_pool=False)

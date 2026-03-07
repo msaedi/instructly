@@ -115,6 +115,10 @@ class IdentityRefreshResponse(StrictModel):
 
     status: str = Field(..., description="Latest verification status from Stripe")
     verified: bool = Field(..., description="Whether the user is now verified")
+    identity_name_mismatch: bool = Field(
+        default=False,
+        description="Whether the verified ID last name differs from the account last name",
+    )
     last_error_code: Optional[str] = Field(
         None, description="Latest Stripe verification error code, if available"
     )

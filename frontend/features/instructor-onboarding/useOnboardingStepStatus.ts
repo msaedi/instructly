@@ -185,6 +185,9 @@ export function canInstructorGoLive(rawData: {
   if (!profile?.identity_verified_at) {
     missing.push('ID verification');
   }
+  if (profile?.identity_name_mismatch) {
+    missing.push('Account name must match government ID');
+  }
 
   // Check background check
   if (bgcStatus !== 'passed') missing.push('Background check');

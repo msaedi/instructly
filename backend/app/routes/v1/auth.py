@@ -80,6 +80,7 @@ from ...utils.cookies import (
     session_cookie_candidates,
     set_auth_cookies,
 )
+from ...utils.identity import normalize_name
 from ...utils.invite_cookie import invite_cookie_name
 from ...utils.strict import model_filter
 from ...utils.token_utils import parse_epoch_claim, parse_token_iat
@@ -1148,6 +1149,19 @@ async def update_current_user(
 
             if not upd_user:
                 raise NotFoundException("Failed to update user")
+
+            if user_update.last_name is not None:
+                profile_repo = InstructorProfileRepository(db)
+                profile = profile_repo.get_by_user_id(upd_user.id)
+                if (
+                    profile
+                    and profile.identity_name_mismatch
+                    and profile.verified_last_name
+                    and normalize_name(upd_user.last_name)
+                    == normalize_name(profile.verified_last_name)
+                ):
+                    profile_repo.update(profile.id, identity_name_mismatch=False)
+
             invalidate_cached_user_by_id_sync(upd_user.id, db)
 
             # Get permissions for the response

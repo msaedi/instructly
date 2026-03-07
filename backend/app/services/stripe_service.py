@@ -512,6 +512,7 @@ class StripeService(BaseService):
             return IdentityRefreshResponse(
                 status="verified",
                 verified=True,
+                identity_name_mismatch=profile.identity_name_mismatch,
                 last_error_code=None,
                 last_error_reason=None,
             )
@@ -521,6 +522,7 @@ class StripeService(BaseService):
             return IdentityRefreshResponse(
                 status="not_started",
                 verified=False,
+                identity_name_mismatch=profile.identity_name_mismatch,
                 last_error_code=None,
                 last_error_reason=None,
             )
@@ -541,6 +543,7 @@ class StripeService(BaseService):
             return IdentityRefreshResponse(
                 status="error",
                 verified=False,
+                identity_name_mismatch=profile.identity_name_mismatch,
                 last_error_code=None,
                 last_error_reason=None,
             )
@@ -562,9 +565,11 @@ class StripeService(BaseService):
                     identity_verified_at=datetime.now(timezone.utc),
                     identity_verification_session_id=session_id,
                 )
+            refreshed_profile = self.instructor_repository.get_by_user_id(user.id) or profile
             return IdentityRefreshResponse(
                 status="verified",
                 verified=True,
+                identity_name_mismatch=refreshed_profile.identity_name_mismatch,
                 last_error_code=None,
                 last_error_reason=None,
             )
@@ -576,6 +581,7 @@ class StripeService(BaseService):
         return IdentityRefreshResponse(
             status=stripe_status or "unknown",
             verified=False,
+            identity_name_mismatch=profile.identity_name_mismatch,
             last_error_code=last_error_code,
             last_error_reason=last_error_reason,
         )

@@ -73,6 +73,7 @@ def test_go_live_missing_prerequisites_uses_default_connect_status_when_profile_
         user_id="user-1",
         skills_configured=False,
         identity_verified_at=None,
+        identity_name_mismatch=False,
         bgc_status="pending",
     )
     service.profile_repository.find_one_by.return_value = profile
@@ -91,6 +92,7 @@ def test_go_live_updates_existing_onboarding_profile_and_returns_profile():
         user_id="user-1",
         skills_configured=True,
         identity_verified_at=datetime.now(timezone.utc),
+        identity_name_mismatch=False,
         bgc_status="passed",
         onboarding_completed_at=datetime.now(timezone.utc),
     )
@@ -121,6 +123,7 @@ def test_go_live_raises_service_exception_when_update_returns_none():
         user_id="user-1",
         skills_configured=True,
         identity_verified_at=datetime.now(timezone.utc),
+        identity_name_mismatch=False,
         bgc_status="passed",
         onboarding_completed_at=None,
     )

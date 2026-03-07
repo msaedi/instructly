@@ -237,6 +237,7 @@ class TestGoLiveMethod:
         mock_profile.id = "profile-123"
         mock_profile.skills_configured = True
         mock_profile.identity_verified_at = "2024-01-01T00:00:00Z"
+        mock_profile.identity_name_mismatch = False
         mock_profile.bgc_status = "passed"
         mock_profile.onboarding_completed_at = None  # Not yet completed
         service.profile_repository = MagicMock()
@@ -271,6 +272,7 @@ class TestGoLiveMethod:
         mock_profile.id = "profile-123"
         mock_profile.skills_configured = False
         mock_profile.identity_verified_at = "2024-01-01T00:00:00Z"
+        mock_profile.identity_name_mismatch = False
         mock_profile.bgc_status = "passed"
         service.profile_repository = MagicMock()
         service.profile_repository.find_one_by.return_value = mock_profile
@@ -304,6 +306,7 @@ class TestGoLiveMethod:
         mock_profile.id = "profile-123"
         mock_profile.skills_configured = True
         mock_profile.identity_verified_at = None
+        mock_profile.identity_name_mismatch = False
         mock_profile.bgc_status = "passed"
         service.profile_repository = MagicMock()
         service.profile_repository.find_one_by.return_value = mock_profile
@@ -337,6 +340,7 @@ class TestGoLiveMethod:
         mock_profile.id = "profile-123"
         mock_profile.skills_configured = True
         mock_profile.identity_verified_at = "2024-01-01T00:00:00Z"
+        mock_profile.identity_name_mismatch = False
         mock_profile.bgc_status = "passed"
         service.profile_repository = MagicMock()
         service.profile_repository.find_one_by.return_value = mock_profile
@@ -370,6 +374,7 @@ class TestGoLiveMethod:
         mock_profile.id = "profile-123"
         mock_profile.skills_configured = True
         mock_profile.identity_verified_at = "2024-01-01T00:00:00Z"
+        mock_profile.identity_name_mismatch = False
         mock_profile.bgc_status = "pending"  # Not passed
         service.profile_repository = MagicMock()
         service.profile_repository.find_one_by.return_value = mock_profile
@@ -418,6 +423,7 @@ class TestGoLiveMethod:
         mock_profile.id = "profile-123"
         mock_profile.skills_configured = False
         mock_profile.identity_verified_at = None
+        mock_profile.identity_name_mismatch = False
         mock_profile.bgc_status = None
         service.profile_repository = MagicMock()
         service.profile_repository.find_one_by.return_value = mock_profile
@@ -443,6 +449,25 @@ class TestGoLiveMethod:
                     assert "identity" in missing
                     assert "stripe_connect" in missing
                     assert "background_check" in missing
+
+    def test_go_live_blocked_with_name_mismatch(self):
+        """Test go_live fails when the account last name does not match ID verification."""
+        from app.core.exceptions import ServiceException
+        from app.services.instructor_service import InstructorService
+
+        mock_db = MagicMock()
+        service = InstructorService(mock_db)
+
+        mock_profile = MagicMock()
+        mock_profile.id = "profile-123"
+        mock_profile.identity_name_mismatch = True
+        service.profile_repository = MagicMock()
+        service.profile_repository.find_one_by.return_value = mock_profile
+
+        with pytest.raises(ServiceException) as exc_info:
+            service.go_live("user-123")
+
+        assert exc_info.value.code == "identity_name_mismatch_block"
 
 
 class TestGetInstructorUser:

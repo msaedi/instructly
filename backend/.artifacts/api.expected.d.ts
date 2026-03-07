@@ -7648,6 +7648,7 @@ export type components = {
  result_count: number;
  };
  IdentityRefreshResponse: {
+ identity_name_mismatch: boolean;
  last_error_code?: string | null;
  last_error_reason?: string | null;
  status: string;
@@ -7706,6 +7707,7 @@ export type components = {
  created_at: string;
  favorited_count: number;
  id: string;
+ identity_name_mismatch: boolean;
  identity_verification_session_id?: string | null;
  identity_verified_at?: string | null;
  is_favorited?: boolean | null;

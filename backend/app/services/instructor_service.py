@@ -680,6 +680,12 @@ class InstructorService(BaseService):
         profile = self.profile_repository.find_one_by(user_id=user_id)
         if not profile:
             raise NotFoundException("Instructor profile not found")
+        if profile.identity_name_mismatch:
+            raise ServiceException(
+                "Your account name must match your government ID before you can go live. "
+                "Please update your name in profile settings.",
+                code="identity_name_mismatch_block",
+            )
 
         config_service = ConfigService(self.db)
         pricing_service = PricingService(self.db)
@@ -1266,6 +1272,7 @@ class InstructorService(BaseService):
             # Onboarding status
             "skills_configured": getattr(profile, "skills_configured", False),
             "identity_verified_at": profile.identity_verified_at,
+            "identity_name_mismatch": getattr(profile, "identity_name_mismatch", False),
             "background_check_uploaded_at": getattr(profile, "background_check_uploaded_at", None),
             "onboarding_completed_at": getattr(profile, "onboarding_completed_at", None),
             "is_live": getattr(profile, "is_live", False),

@@ -196,6 +196,7 @@ const mockInstructorProfile = {
   buffer_time_minutes: 15,
   created_at: '2025-01-01T00:00:00Z',
   favorited_count: 0,
+  identity_name_mismatch: false,
   is_founding_instructor: false,
   is_live: false,
   min_advance_booking_hours: 2,

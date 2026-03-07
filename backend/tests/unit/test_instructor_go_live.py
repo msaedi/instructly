@@ -39,7 +39,9 @@ def _ensure_role(db, role_name: RoleName) -> Role:
     return role
 
 
-def _create_instructor(db, *, bgc_status: str) -> tuple[User, InstructorProfile]:
+def _create_instructor(
+    db, *, bgc_status: str, identity_name_mismatch: bool = False
+) -> tuple[User, InstructorProfile]:
     _ensure_role(db, RoleName.INSTRUCTOR)
     user = User(
         email=f"go-live-{bgc_status}@example.com",
@@ -62,6 +64,7 @@ def _create_instructor(db, *, bgc_status: str) -> tuple[User, InstructorProfile]
         buffer_time_minutes=15,
         skills_configured=True,
         identity_verified_at=datetime.now(timezone.utc),
+        identity_name_mismatch=identity_name_mismatch,
         bgc_status=bgc_status,
     )
     db.add(profile)
@@ -97,6 +100,24 @@ def test_go_live_blocked_when_bgc_not_passed(client, db):
             if not missing:
                 missing = payload.get("errors", {}).get("missing", [])
         assert "background_check" in missing
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_current_active_user, None)
+
+
+def test_go_live_blocked_when_identity_name_mismatch(client, db):
+    user, _ = _create_instructor(db, bgc_status="passed", identity_name_mismatch=True)
+    app = client.app
+    try:
+        app.dependency_overrides[get_current_user] = lambda: user
+        app.dependency_overrides[get_current_active_user] = lambda: user
+
+        headers = _csrf_headers(client)
+        response = client.post("/api/v1/instructors/me/go-live", headers=headers, json={})
+        assert response.status_code == 400
+        payload = response.json()
+        assert isinstance(payload, dict)
+        assert payload.get("code") == "identity_name_mismatch_block"
     finally:
         app.dependency_overrides.pop(get_current_user, None)
         app.dependency_overrides.pop(get_current_active_user, None)

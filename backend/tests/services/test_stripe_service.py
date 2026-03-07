@@ -1017,6 +1017,23 @@ class TestStripeService:
         assert updated_profile.verified_dob == date(1990, 2, 1)
         assert updated_profile.identity_name_mismatch is False
 
+    def test_refresh_returns_identity_name_mismatch_flag(
+        self, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        """Already-verified profiles should surface the mismatch flag in refresh responses."""
+        user, profile, _ = test_instructor
+        stripe_service.instructor_repository.update(
+            profile.id,
+            identity_verified_at=datetime.now(timezone.utc),
+            identity_name_mismatch=True,
+        )
+
+        refreshed = stripe_service.refresh_instructor_identity(user=user)
+
+        assert refreshed.verified is True
+        assert refreshed.status == "verified"
+        assert refreshed.identity_name_mismatch is True
+
     @patch("stripe.identity.VerificationSession.retrieve")
     def test_refresh_instructor_identity_compares_last_name_case_insensitively(
         self, mock_retrieve, stripe_service: StripeService, test_instructor: tuple

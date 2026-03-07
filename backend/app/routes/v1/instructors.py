@@ -38,6 +38,7 @@ from ...core.exceptions import (
     BusinessRuleException,
     DomainException,
     NotFoundException,
+    ServiceException,
     raise_503_if_pool_exhaustion,
 )
 from ...core.ulid_helper import is_valid_ulid
@@ -315,6 +316,11 @@ async def go_live(
     try:
         profile = await asyncio.to_thread(instructor_service.go_live, current_user.id)
     except BusinessRuleException as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"message": exc.message, "code": exc.code, "details": exc.details},
+        )
+    except ServiceException as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"message": exc.message, "code": exc.code, "details": exc.details},

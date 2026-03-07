@@ -479,6 +479,28 @@ describe('canInstructorGoLive', () => {
     expect(result.canGoLive).toBe(false);
   });
 
+  it('blocks go-live when the account name does not match government ID', () => {
+    const result = canInstructorGoLive({
+      profile: {
+        bio: 'x'.repeat(400),
+        services: [{ id: 'svc-1' }],
+        identity_verified_at: '2024-01-01T00:00:00Z',
+        identity_name_mismatch: true,
+      } as never,
+      user: {
+        first_name: 'Jane',
+        last_name: 'Doe',
+        has_profile_picture: true,
+      } as never,
+      serviceAreas: [{ id: 'area-1' } as never],
+      connectStatus: { onboarding_completed: true } as never,
+      bgcStatus: 'passed',
+    });
+
+    expect(result.canGoLive).toBe(false);
+    expect(result.missing).toContain('Account name must match government ID');
+  });
+
   it('handles null profile gracefully', () => {
     const result = canInstructorGoLive({
       profile: null,

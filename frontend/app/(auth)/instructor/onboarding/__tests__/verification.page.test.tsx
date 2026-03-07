@@ -20,12 +20,14 @@ type MockProfile = {
   id: string;
   identity_verified_at: string | null;
   identity_verification_session_id: string | null;
+  identity_name_mismatch?: boolean;
 };
 
 type MockRefreshResponse = {
   body?: {
     status?: string;
     verified?: boolean;
+    identity_name_mismatch?: boolean;
     last_error_code?: string | null;
     last_error_reason?: string | null;
   };
@@ -37,6 +39,7 @@ const makeProfile = (overrides: Partial<MockProfile> = {}): MockProfile => ({
   id: 'profile-1',
   identity_verified_at: null,
   identity_verification_session_id: null,
+  identity_name_mismatch: false,
   ...overrides,
 });
 
@@ -288,6 +291,45 @@ describe('Verification page', () => {
       expect(screen.getByText(/identity verification complete\./i)).toBeInTheDocument()
     );
     expect(screen.getByRole('button', { name: /^verified$/i })).toBeDisabled();
+    expect(
+      screen.queryByText(/the last name on your id doesn't match your account name/i)
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows an amber mismatch banner when verification is complete with a name mismatch', async () => {
+    mockRawData = makeRawData({
+      identity_verified_at: '2026-03-05T12:00:00Z',
+      identity_verification_session_id: 'vs_verified',
+      identity_name_mismatch: true,
+    });
+
+    renderWithClient(<Step4Verification />);
+
+    await waitFor(() =>
+      expect(screen.getByText(/identity verification complete\./i)).toBeInTheDocument()
+    );
+    expect(
+      screen.getByText(/the last name on your id doesn't match your account name/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /update my name/i })
+    ).toBeInTheDocument();
+  });
+
+  it('navigates to profile settings from the mismatch banner', async () => {
+    mockRawData = makeRawData({
+      identity_verified_at: '2026-03-05T12:00:00Z',
+      identity_verification_session_id: 'vs_verified',
+      identity_name_mismatch: true,
+    });
+
+    renderWithClient(<Step4Verification />);
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /update my name/i })).toBeInTheDocument()
+    );
+    fireEvent.click(screen.getByRole('button', { name: /update my name/i }));
+    expect(mockPush).toHaveBeenCalledWith('/instructor/settings');
   });
 
   it('renders the requires_input state with a mapped amber banner and retry button', async () => {
