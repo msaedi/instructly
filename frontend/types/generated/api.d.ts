@@ -8289,6 +8289,10 @@ export type components = {
             bgc_status?: string | null;
             /** Bgc Submitted Dob */
             bgc_submitted_dob?: string | null;
+            /** Bgc Submitted First Name */
+            bgc_submitted_first_name?: string | null;
+            /** Bgc Submitted Last Name */
+            bgc_submitted_last_name?: string | null;
             /** Bgc Valid Until */
             bgc_valid_until?: string | null;
             /** Consent Recent At */
@@ -8307,6 +8311,10 @@ export type components = {
             updated_at?: string | null;
             /** Verified Dob */
             verified_dob?: string | null;
+            /** Verified First Name */
+            verified_first_name?: string | null;
+            /** Verified Last Name */
+            verified_last_name?: string | null;
         };
         /** AdminLocationLearningAliasActionResponse */
         AdminLocationLearningAliasActionResponse: {

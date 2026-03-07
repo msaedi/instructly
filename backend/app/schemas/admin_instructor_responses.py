@@ -14,7 +14,11 @@ class AdminInstructorDetailResponse(StrictModel):
     email: str
     is_live: bool
     bgc_name_mismatch: bool = False
+    verified_first_name: Optional[str] = None
+    verified_last_name: Optional[str] = None
     verified_dob: Optional[date] = None
+    bgc_submitted_first_name: Optional[str] = None
+    bgc_submitted_last_name: Optional[str] = None
     bgc_submitted_dob: Optional[date] = None
     bgc_status: Optional[str] = None
     bgc_report_id: Optional[str] = None

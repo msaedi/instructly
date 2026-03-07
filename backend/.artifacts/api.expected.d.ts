@@ -5904,6 +5904,8 @@ export type components = {
  bgc_report_id?: string | null;
  bgc_status?: string | null;
  bgc_submitted_dob?: string | null;
+ bgc_submitted_first_name?: string | null;
+ bgc_submitted_last_name?: string | null;
  bgc_valid_until?: string | null;
  consent_recent_at?: string | null;
  created_at?: string | null;
@@ -5913,6 +5915,8 @@ export type components = {
  name: string;
  updated_at?: string | null;
  verified_dob?: string | null;
+ verified_first_name?: string | null;
+ verified_last_name?: string | null;
  };
  AdminLocationLearningAliasActionResponse: {
  alias_id: string;

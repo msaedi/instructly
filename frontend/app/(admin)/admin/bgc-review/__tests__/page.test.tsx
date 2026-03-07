@@ -235,7 +235,11 @@ describe('AdminBGCReviewPage', () => {
       email: 'review@example.com',
       is_live: false,
       bgc_name_mismatch: false,
+      verified_first_name: null,
+      verified_last_name: null,
       verified_dob: null,
+      bgc_submitted_first_name: null,
+      bgc_submitted_last_name: null,
       bgc_submitted_dob: null,
       bgc_status: 'review',
       bgcIncludesCanceled: false,
@@ -1008,11 +1012,16 @@ describe('AdminBGCReviewPage', () => {
     await waitFor(() => expect(recheckButton).toHaveAttribute('title', 'Try later'));
   });
 
-  it('renders both DOB values in detail preview when present', async () => {
+  it('renders identity comparison grid when bgc_name_mismatch is true', async () => {
     reviewDetail = {
       ...reviewDetail,
-      verified_dob: '1990-06-15',
-      bgc_submitted_dob: '1990-03-14',
+      bgc_name_mismatch: true,
+      verified_first_name: 'Jenny',
+      verified_last_name: 'Rosen',
+      verified_dob: '1970-01-12',
+      bgc_submitted_first_name: 'Homer',
+      bgc_submitted_last_name: 'Simpson',
+      bgc_submitted_dob: '1983-02-10',
     };
 
     const user = userEvent.setup();
@@ -1022,16 +1031,42 @@ describe('AdminBGCReviewPage', () => {
     await user.click(screen.getByRole('button', { name: /review instructor/i }));
 
     await screen.findByText(/Instructor Preview/i);
-    expect(screen.getByText('1990-06-15')).toBeInTheDocument();
-    expect(screen.getByText('1990-03-14')).toBeInTheDocument();
-    expect(screen.getByText(/Verified DOB/i)).toBeInTheDocument();
-    expect(screen.getByText(/BGC Submitted DOB/i)).toBeInTheDocument();
+    expect(screen.getByText(/Verified \(Stripe\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/Submitted \(Checkr\)/i)).toBeInTheDocument();
+    expect(screen.getByText('Jenny Rosen')).toBeInTheDocument();
+    expect(screen.getByText('Homer Simpson')).toBeInTheDocument();
+    expect(screen.getByText('1970-01-12')).toBeInTheDocument();
+    expect(screen.getByText('1983-02-10')).toBeInTheDocument();
   });
 
-  it('renders safely when DOB values are null', async () => {
+  it('hides identity comparison grid when bgc_name_mismatch is false', async () => {
     reviewDetail = {
       ...reviewDetail,
+      bgc_name_mismatch: false,
+      verified_first_name: 'Jenny',
+      verified_last_name: 'Rosen',
+    };
+
+    const user = userEvent.setup();
+    renderWithClient(<AdminBGCReviewPage />);
+
+    await screen.findByText('Review Instructor');
+    await user.click(screen.getByRole('button', { name: /review instructor/i }));
+
+    await screen.findByText(/Instructor Preview/i);
+    expect(screen.queryByText(/Verified \(Stripe\)/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Submitted \(Checkr\)/i)).not.toBeInTheDocument();
+  });
+
+  it('renders dashes for null identity values in comparison grid', async () => {
+    reviewDetail = {
+      ...reviewDetail,
+      bgc_name_mismatch: true,
+      verified_first_name: 'Jenny',
+      verified_last_name: 'Rosen',
       verified_dob: null,
+      bgc_submitted_first_name: null,
+      bgc_submitted_last_name: null,
       bgc_submitted_dob: null,
     };
 
@@ -1042,7 +1077,8 @@ describe('AdminBGCReviewPage', () => {
     await user.click(screen.getByRole('button', { name: /review instructor/i }));
 
     await screen.findByText(/Instructor Preview/i);
-    expect(screen.queryByText(/Verified DOB/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/BGC Submitted DOB/i)).not.toBeInTheDocument();
+    expect(screen.getByText('Jenny Rosen')).toBeInTheDocument();
+    const dashes = screen.getAllByText('—');
+    expect(dashes.length).toBeGreaterThanOrEqual(2);
   });
 });

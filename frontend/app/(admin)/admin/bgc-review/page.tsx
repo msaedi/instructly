@@ -794,6 +794,44 @@ export default function AdminBGCReviewPage() {
   );
 }
 
+function IdentityComparisonGrid({ detail }: { detail: AdminInstructorDetail }) {
+  const verifiedName = [detail.verified_first_name, detail.verified_last_name]
+    .filter(Boolean)
+    .join(' ');
+  const submittedName = [detail.bgc_submitted_first_name, detail.bgc_submitted_last_name]
+    .filter(Boolean)
+    .join(' ');
+  const namesMismatch =
+    Boolean(verifiedName) &&
+    Boolean(submittedName) &&
+    verifiedName.toLowerCase() !== submittedName.toLowerCase();
+  const dobMismatch =
+    Boolean(detail.verified_dob) &&
+    Boolean(detail.bgc_submitted_dob) &&
+    detail.verified_dob !== detail.bgc_submitted_dob;
+
+  return (
+    <div className="rounded-lg border border-amber-100 bg-amber-50/50 p-3 text-sm dark:border-amber-900/40 dark:bg-amber-950/20">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+        <div className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+          Verified (Stripe)
+        </div>
+        <div className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+          Submitted (Checkr)
+        </div>
+        <div>{verifiedName || '—'}</div>
+        <div className={namesMismatch ? 'font-medium text-amber-700 dark:text-amber-400' : ''}>
+          {submittedName || '—'}
+        </div>
+        <div>{detail.verified_dob || '—'}</div>
+        <div className={dobMismatch ? 'font-medium text-amber-700 dark:text-amber-400' : ''}>
+          {detail.bgc_submitted_dob || '—'}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PreviewContent({
   detail,
   disputeNote,
@@ -865,21 +903,12 @@ function PreviewContent({
         </div>
       ) : null}
       {detail.bgc_name_mismatch ? (
-        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-          Background check name mismatch detected. Review the case, then either clear the mismatch or reset the background check for a fresh run.
-        </div>
-      ) : null}
-      {(detail.verified_dob || detail.bgc_submitted_dob) ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <div>
-            <dt className="text-xs uppercase text-gray-400 dark:text-gray-300">Verified DOB</dt>
-            <dd>{detail.verified_dob || '—'}</dd>
+        <>
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+            Background check name mismatch detected. Review the case, then either clear the mismatch or reset the background check for a fresh run.
           </div>
-          <div>
-            <dt className="text-xs uppercase text-gray-400 dark:text-gray-300">BGC Submitted DOB</dt>
-            <dd>{detail.bgc_submitted_dob || '—'}</dd>
-          </div>
-        </div>
+          <IdentityComparisonGrid detail={detail} />
+        </>
       ) : null}
       <div>
         <dt className="text-xs uppercase text-gray-400 dark:text-gray-300">Name</dt>
