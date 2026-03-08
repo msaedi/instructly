@@ -651,6 +651,12 @@ def upgrade() -> None:
         "service_format_pricing",
         ["format", "hourly_rate"],
     )
+    op.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_service_format_pricing_service_covering
+        ON service_format_pricing(service_id) INCLUDE (hourly_rate, format)
+        """
+    )
     op.create_check_constraint(
         "check_service_format_price_positive",
         "service_format_pricing",
@@ -836,6 +842,7 @@ def downgrade() -> None:
         "idx_service_format_pricing_format_hourly_rate",
         table_name="service_format_pricing",
     )
+    op.execute("DROP INDEX IF EXISTS idx_service_format_pricing_service_covering")
     op.drop_index("idx_service_format_pricing_service_id", table_name="service_format_pricing")
     op.drop_table("service_format_pricing")
 

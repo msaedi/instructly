@@ -96,22 +96,6 @@ export function useInstructorProfile(instructorId: string) {
         result.skill = skillValue;
       }
 
-      if (Array.isArray(svc.location_types) && svc.location_types.length) {
-        result.location_types = svc.location_types;
-      }
-
-      if (typeof svc.offers_travel === 'boolean') {
-        result.offers_travel = svc.offers_travel;
-      }
-
-      if (typeof svc.offers_at_location === 'boolean') {
-        result.offers_at_location = svc.offers_at_location;
-      }
-
-      if (typeof svc.offers_online === 'boolean') {
-        result.offers_online = svc.offers_online;
-      }
-
       if (Array.isArray(svc.levels_taught) && svc.levels_taught.length) {
         result.levels_taught = svc.levels_taught;
       }

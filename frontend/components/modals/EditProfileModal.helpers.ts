@@ -40,75 +40,10 @@ export const updateOptionalPlaceLabel = <T extends AddressPlace>(
     return { ...place, label: nextLabel };
   });
 
-export const removeIndexedItem = <T>(items: T[], index: number): T[] => {
-  if (!items[index]) {
-    return items;
-  }
-  return items.filter((_, currentIndex) => currentIndex !== index);
-};
-
-type ServiceLike = {
-  hourly_rate?: number;
-};
-
-export const updateIndexedServiceField = <T extends ServiceLike>(
-  services: T[],
-  index: number,
-  field: keyof T,
-  value: string | number,
-): T[] => {
-  const service = services[index];
-  if (!service) {
-    return services;
-  }
-
-  const nextValue =
-    field === 'hourly_rate' && typeof value === 'number' && Number.isNaN(value)
-      ? 0
-      : value;
-
-  const next = [...services];
-  next[index] = { ...service, [field]: nextValue as T[keyof T] };
-  return next;
-};
-
 export const getNeighborhoodMatchId = (match: {
   neighborhood_id?: string | null;
   id?: string | null;
 }): string | null => match.neighborhood_id || match.id || null;
-
-export const removeServiceFromProfile = <
-  TProfile extends { services: TService[] },
-  TService extends { skill?: string },
->(
-  profileData: TProfile,
-  index: number,
-): { nextProfileData: TProfile; removedService: TService | null } => {
-  const nextServices = removeIndexedItem(profileData.services, index);
-  if (nextServices === profileData.services) {
-    return { nextProfileData: profileData, removedService: null };
-  }
-  return {
-    nextProfileData: { ...profileData, services: nextServices },
-    removedService: profileData.services[index] ?? null,
-  };
-};
-
-export const updateServiceInProfile = <
-  TProfile extends { services: TService[] },
-  TService extends ServiceLike,
->(
-  profileData: TProfile,
-  index: number,
-  field: keyof TService,
-  value: string | number,
-): TProfile => {
-  const nextServices = updateIndexedServiceField(profileData.services, index, field, value);
-  if (nextServices === profileData.services) {
-    return profileData;
-  }
-  return { ...profileData, services: nextServices };
-};
 
 export const getGlobalNeighborhoodMatchesWithIds = <T extends {
   neighborhood_id?: string | null;

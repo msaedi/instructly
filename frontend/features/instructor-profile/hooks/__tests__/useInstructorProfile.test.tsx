@@ -117,7 +117,6 @@ describe('useInstructorProfile', () => {
     expect(service?.min_hourly_rate).toBe(75);
     expect(service?.duration_options).toEqual([30, 60, 90]);
     expect(service?.description).toBe('Learn piano');
-    expect(service?.location_types).toEqual(['in_person', 'online']);
     expect(service?.levels_taught).toEqual(['beginner', 'intermediate']);
     expect(service?.age_groups).toEqual(['kids', 'adults']);
   });
@@ -412,67 +411,8 @@ describe('useInstructorProfile', () => {
     expect(service?.duration_options).toEqual([60]);
   });
 
-  it('maps service boolean flags offers_travel, offers_at_location, offers_online', async () => {
-    mockUseInstructor.mockReturnValue({
-      data: {
-        user_id: '01K2TEST00000000000000001',
-        user: { first_name: 'Test', last_initial: 'U' },
-        services: [
-          {
-            id: 'svc-flags',
-            min_hourly_rate: 60,
-            format_prices: [{ format: 'online', hourly_rate: 60 }],
-            offers_travel: true,
-            offers_at_location: true,
-            offers_online: true,
-          },
-        ],
-      },
-      isLoading: false,
-      error: null,
-    });
-
-    const { result } = renderHook(() => useInstructorProfile('01K2TEST00000000000000001'), { wrapper });
-
-    await waitFor(() => {
-      expect(result.current.data?.services).toBeDefined();
-    });
-
-    const service = result.current.data?.services[0];
-    expect(service?.offers_travel).toBe(true);
-    expect(service?.offers_at_location).toBe(true);
-    expect(service?.offers_online).toBe(true);
-  });
-
-  it('omits boolean flags when they are not booleans (e.g. undefined)', async () => {
-    mockUseInstructor.mockReturnValue({
-      data: {
-        user_id: '01K2TEST00000000000000001',
-        user: { first_name: 'Test', last_initial: 'U' },
-        services: [
-          {
-            id: 'svc-no-flags',
-            min_hourly_rate: 60,
-            format_prices: [{ format: 'online', hourly_rate: 60 }],
-            // offers_travel, offers_at_location, offers_online are all undefined
-          },
-        ],
-      },
-      isLoading: false,
-      error: null,
-    });
-
-    const { result } = renderHook(() => useInstructorProfile('01K2TEST00000000000000001'), { wrapper });
-
-    await waitFor(() => {
-      expect(result.current.data?.services).toBeDefined();
-    });
-
-    const service = result.current.data?.services[0];
-    expect(service?.offers_travel).toBeUndefined();
-    expect(service?.offers_at_location).toBeUndefined();
-    expect(service?.offers_online).toBeUndefined();
-  });
+  // offers_travel, offers_at_location, offers_online are no longer mapped by the hook —
+  // format capabilities are derived from format_prices via availableFormatsFromPrices().
 
   it('maps preferred_teaching_locations with approx_lat and approx_lng', async () => {
     mockUseInstructor.mockReturnValue({

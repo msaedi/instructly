@@ -23,9 +23,9 @@ import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useScrollLock } from '@/hooks/useScrollLock';
 import {
   formatCents,
-  normalizeModality,
   type NormalizedModality,
 } from '@/lib/pricing/priceFloors';
+import { availableFormatsFromPrices } from '@/lib/pricing/formatPricing';
 import {
   areNumberSetsEqual,
   consumePreparedBookingTiming,
@@ -185,10 +185,10 @@ export default function TimeSelectionModal({
   }, [selectedService]);
 
   const selectedModality = useMemo<NormalizedModality>(() => {
-    const locationTypes = selectedService?.location_types ?? [];
-    if (locationTypes.length > 0) {
-      const primary = locationTypes.find((value) => /online|remote|virtual/i.test(String(value))) ?? locationTypes[0];
-      return normalizeModality(primary);
+    const formats = availableFormatsFromPrices(selectedService?.format_prices ?? []);
+    if (formats.length > 0) {
+      const primary = formats.includes('online') ? 'online' : formats[0];
+      return primary === 'online' ? 'online' : 'in_person';
     }
     return 'online';
   }, [selectedService]);

@@ -540,7 +540,6 @@ function InstructorProfileContent() {
               min_hourly_rate: s.min_hourly_rate,
               format_prices: s.format_prices,
               duration_options: s.duration_options || [60],
-              location_types: s.location_types || []
             }))
           }}
           preSelectedDate={bookingModal.selectedDate || ''}

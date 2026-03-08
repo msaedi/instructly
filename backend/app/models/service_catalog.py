@@ -16,7 +16,7 @@ Categories derive through subcategories (no direct category_id on services).
 
 from decimal import Decimal
 import logging
-from typing import Any, Dict, List, Optional, Set, cast
+from typing import Any, Dict, List, Optional, Set, TypedDict, cast
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
@@ -62,6 +62,11 @@ BOOKING_TO_SERVICE_FORMAT = {
     "neutral_location": SERVICE_FORMAT_INSTRUCTOR_LOCATION,
 }
 PRICE_QUANTUM = Decimal("0.01")
+
+
+class SerializedFormatPrice(TypedDict):
+    format: str
+    hourly_rate: Decimal
 
 
 class ServiceCategory(Base):
@@ -492,7 +497,7 @@ class InstructorService(Base):
         return sorted(price_rows, key=lambda row: rank.get(row.format, len(rank)))
 
     @property
-    def serialized_format_prices(self) -> List[Dict[str, Decimal]]:
+    def serialized_format_prices(self) -> list[SerializedFormatPrice]:
         """Serialize child format prices for API payloads."""
         return [
             {
@@ -631,6 +636,10 @@ class InstructorService(Base):
                 )
             return normalized_location
 
+        # neutral_location (park, library, etc.) — both parties travel to a third place.
+        # Prefer instructor_location rate: the instructor isn't hosting, similar cost structure.
+        # Fall back to student_location rate if instructor_location not offered.
+        # Never fall back to online — neutral implies a physical meeting.
         if SERVICE_FORMAT_INSTRUCTOR_LOCATION in price_map:
             return SERVICE_FORMAT_INSTRUCTOR_LOCATION
         if SERVICE_FORMAT_STUDENT_LOCATION in price_map:
@@ -747,6 +756,11 @@ class ServiceFormatPrice(Base):
             name="check_service_format_price_format",
         ),
         Index("idx_service_format_pricing_format_hourly_rate", "format", "hourly_rate"),
+        Index(
+            "idx_service_format_pricing_service_covering",
+            "service_id",
+            postgresql_include=["hourly_rate", "format"],
+        ),
     )
 
     service = relationship("InstructorService", back_populates="format_prices")

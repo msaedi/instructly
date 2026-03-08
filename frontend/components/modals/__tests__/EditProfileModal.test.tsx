@@ -61,15 +61,6 @@ jest.mock('@/lib/logger', () => ({
 }));
 
 jest.mock('@/lib/instructorServices', () => ({
-  normalizeInstructorServices: jest.fn((services) =>
-    Promise.resolve(
-      services.map((s: Record<string, unknown>) => ({
-        ...s,
-        service_catalog_name: s['service_catalog_name'] ?? s['name'] ?? 'Service',
-      }))
-    )
-  ),
-  hydrateCatalogNameById: jest.fn((id) => (id ? id : undefined)),
   displayServiceName: jest.fn((service) => {
     const name = service?.service_catalog_name ?? service?.name ?? service?.skill ?? 'Service';
     return typeof name === 'string' ? name : 'Service';
@@ -104,7 +95,6 @@ jest.mock('@/lib/profileSchemaDebug', () => ({
   buildProfileUpdateBody: jest.fn((profileData) => ({
     bio: profileData.bio,
     years_experience: profileData.years_experience,
-    services: profileData.services,
   })),
 }));
 
@@ -1586,47 +1576,6 @@ describe('EditProfileModal', () => {
 
   });
 
-  describe('skills section in full variant', () => {
-    it('renders add service section', async () => {
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      });
-
-      // Should show Add Service button text
-      await waitFor(() => {
-        expect(screen.getByText('Add Service')).toBeInTheDocument();
-      });
-    });
-
-    it('renders skill select dropdown', async () => {
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      });
-
-      // Should have skill select label
-      await waitFor(() => {
-        expect(screen.getByText('Select Skill')).toBeInTheDocument();
-      });
-    });
-
-    it('renders hourly rate input in add service section', async () => {
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      });
-
-      // Should have hourly rate label text
-      await waitFor(() => {
-        expect(screen.getByText('Hourly Rate')).toBeInTheDocument();
-      });
-    });
-  });
-
   describe('character counter', () => {
     it('shows bio character counter', async () => {
       render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
@@ -1661,67 +1610,6 @@ describe('EditProfileModal', () => {
       await user.click(closeButton);
 
       expect(onClose).toHaveBeenCalled();
-    });
-  });
-
-  describe('service operations', () => {
-    it('clicks add service button', async () => {
-      const user = userEvent.setup();
-
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      });
-
-      // Click the Add Service button
-      const addButton = await screen.findByText('Add Service');
-      await user.click(addButton);
-
-      // The error message should show for invalid data
-      await waitFor(() => {
-        expect(screen.getByText(/please select a skill/i)).toBeInTheDocument();
-      });
-    });
-
-    it('shows existing services in full variant', async () => {
-      const propsWithServices = {
-        ...defaultProps,
-        services: [
-          { skill: 'Piano', hourly_rate: 75, description: 'Piano lessons' },
-          { skill: 'Guitar', hourly_rate: 65, description: 'Guitar lessons' },
-        ],
-      };
-
-      render(<EditProfileModal {...propsWithServices} />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      });
-
-      // Services should be displayed
-      await waitFor(() => {
-        expect(screen.getByText('Piano')).toBeInTheDocument();
-      });
-    });
-
-    it('allows entering service details', async () => {
-      const user = userEvent.setup();
-
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      });
-
-      // Find the hourly rate input and enter a value
-      const hourlyRateInput = screen.getByPlaceholderText('Hourly rate');
-      await user.clear(hourlyRateInput);
-      await user.type(hourlyRateInput, '85');
-
-      await waitFor(() => {
-        expect(hourlyRateInput).toHaveValue(85);
-      });
     });
   });
 
@@ -1832,21 +1720,6 @@ describe('EditProfileModal', () => {
       // Should have public spaces section
       await waitFor(() => {
         expect(screen.getByText(/Preferred Public Spaces/i)).toBeInTheDocument();
-      });
-    });
-  });
-
-  describe('pricing floor violations', () => {
-    it('renders pricing section in full variant', async () => {
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      });
-
-      // The Hourly Rate label should be visible (pricing is part of add service section)
-      await waitFor(() => {
-        expect(screen.getByText('Hourly Rate')).toBeInTheDocument();
       });
     });
   });
@@ -2019,21 +1892,6 @@ describe('EditProfileModal', () => {
     });
   });
 
-  describe('select skill dropdown', () => {
-    it('renders skill select with options', async () => {
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      });
-
-      // Should have select skill label
-      await waitFor(() => {
-        expect(screen.getByText('Select Skill')).toBeInTheDocument();
-      });
-    });
-  });
-
   describe('full profile submission', () => {
     it('renders submission button in full variant', async () => {
       render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
@@ -2077,27 +1935,6 @@ describe('EditProfileModal', () => {
 
       // The modal should render without errors
       expect(screen.getByRole('dialog')).toBeInTheDocument();
-    });
-  });
-
-  describe('add service validation', () => {
-    it('shows error when adding service without skill', async () => {
-      const user = userEvent.setup();
-
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      });
-
-      // Click Add Service without selecting a skill
-      const addButton = await screen.findByText('Add Service');
-      await user.click(addButton);
-
-      // Should show validation error
-      await waitFor(() => {
-        expect(screen.getByText(/please select a skill/i)).toBeInTheDocument();
-      });
     });
   });
 
@@ -2219,28 +2056,6 @@ describe('EditProfileModal', () => {
         const firstNameInput = screen.getByLabelText(/first name/i);
         // Should have some value (from API mock or props)
         expect(firstNameInput).toBeInTheDocument();
-      });
-    });
-  });
-
-  describe('existing services display', () => {
-    it('shows services from user prop', async () => {
-      const propsWithServices = {
-        ...defaultProps,
-        services: [
-          { skill: 'Yoga', hourly_rate: 80, description: 'Yoga instruction' },
-        ],
-      };
-
-      render(<EditProfileModal {...propsWithServices} />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      });
-
-      // Should display the service
-      await waitFor(() => {
-        expect(screen.getByText('Yoga')).toBeInTheDocument();
       });
     });
   });
@@ -2507,267 +2322,6 @@ describe('EditProfileModal', () => {
 
       // Modal should render without error
       expect(screen.getByLabelText(/zip code/i)).toBeInTheDocument();
-    });
-  });
-
-  describe('addService with validation', () => {
-    it('filters out already-added skills from dropdown', async () => {
-      fetchWithAuthMock.mockImplementation((url: string) => {
-        if (url.includes('instructors/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({
-              ...mockInstructorProfile,
-              services: [{ skill: 'Yoga', hourly_rate: 50, service_catalog_name: 'Yoga' }],
-            }),
-          });
-        }
-        if (url.includes('users/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ first_name: 'John', last_name: 'Doe' }),
-          });
-        }
-        if (url.includes('addresses/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ items: [] }),
-          });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
-      });
-
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      });
-
-      // Wait for form to render
-      await waitFor(() => {
-        expect(screen.getByText('Select Skill')).toBeInTheDocument();
-      });
-
-      // The dropdown should NOT contain 'Yoga' since it's already in services
-      const skillSelect = screen.getByLabelText('Select Skill');
-      const options = Array.from(skillSelect.querySelectorAll('option'));
-      const yogaOption = options.find(opt => opt.textContent === 'Yoga');
-
-      // Yoga should not be in the dropdown options (filtered out)
-      expect(yogaOption).toBeUndefined();
-
-      // But Piano should still be available
-      const pianoOption = options.find(opt => opt.textContent === 'Piano');
-      expect(pianoOption).toBeDefined();
-    });
-
-    it('successfully adds new service', async () => {
-      const user = userEvent.setup();
-
-      fetchWithAuthMock.mockImplementation((url: string) => {
-        if (url.includes('instructors/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({
-              ...mockInstructorProfile,
-              services: [],
-            }),
-          });
-        }
-        if (url.includes('users/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ first_name: 'John', last_name: 'Doe' }),
-          });
-        }
-        if (url.includes('addresses/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ items: [] }),
-          });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
-      });
-
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText('Select Skill')).toBeInTheDocument();
-      });
-
-      // Select a skill
-      const skillSelect = document.getElementById('new-skill') as HTMLSelectElement;
-      await user.selectOptions(skillSelect, 'Piano');
-
-      // Set hourly rate (use id='new-rate' - no placeholder on add form)
-      const rateInput = document.getElementById('new-rate') as HTMLInputElement;
-      await user.clear(rateInput);
-      await user.type(rateInput, '75');
-
-      // Click Add Service
-      const addButton = screen.getByRole('button', { name: /add service/i });
-      await user.click(addButton);
-
-      // Service should be added - Piano should appear in the services list
-      await waitFor(() => {
-        const pianoElements = screen.getAllByText('Piano');
-        expect(pianoElements.length).toBeGreaterThan(0);
-      });
-    });
-  });
-
-  describe('removeService', () => {
-    it('removes service when Remove button clicked', async () => {
-      const user = userEvent.setup();
-
-      fetchWithAuthMock.mockImplementation((url: string) => {
-        if (url.includes('instructors/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({
-              ...mockInstructorProfile,
-              services: [
-                { skill: 'Yoga', hourly_rate: 50, service_catalog_name: 'Yoga' },
-                { skill: 'Piano', hourly_rate: 60, service_catalog_name: 'Piano' },
-              ],
-            }),
-          });
-        }
-        if (url.includes('users/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ first_name: 'John', last_name: 'Doe' }),
-          });
-        }
-        if (url.includes('addresses/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ items: [] }),
-          });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
-      });
-
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText('Yoga')).toBeInTheDocument();
-      });
-
-      // Find and click Remove button for first service
-      const removeButtons = screen.getAllByText('Remove');
-      await user.click(removeButtons[0] as HTMLElement);
-
-      // First service should be removed
-      await waitFor(() => {
-        // Yoga should no longer be in the services list (only in dropdown)
-        const yogaElements = screen.queryAllByText('Yoga');
-        // Should only be in the dropdown now
-        expect(yogaElements.length).toBeLessThanOrEqual(1);
-      });
-    });
-  });
-
-  describe('updateService', () => {
-    it('updates service hourly rate', async () => {
-      const user = userEvent.setup();
-
-      fetchWithAuthMock.mockImplementation((url: string) => {
-        if (url.includes('instructors/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({
-              ...mockInstructorProfile,
-              services: [{ skill: 'Yoga', hourly_rate: 50, service_catalog_name: 'Yoga' }],
-            }),
-          });
-        }
-        if (url.includes('users/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ first_name: 'John', last_name: 'Doe' }),
-          });
-        }
-        if (url.includes('addresses/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ items: [] }),
-          });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
-      });
-
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText('Yoga')).toBeInTheDocument();
-      });
-
-      // Find the service's rate input (existing services have placeholder='Hourly rate')
-      // The add form has no placeholder on its rate input
-      const serviceRateInput = screen.getByPlaceholderText('Hourly rate') as HTMLInputElement;
-      await user.clear(serviceRateInput);
-      await user.type(serviceRateInput, '85');
-
-      expect(serviceRateInput).toHaveValue(85);
-    });
-
-    it('updates service description', async () => {
-      const user = userEvent.setup();
-
-      fetchWithAuthMock.mockImplementation((url: string) => {
-        if (url.includes('instructors/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({
-              ...mockInstructorProfile,
-              services: [{ skill: 'Yoga', hourly_rate: 50, service_catalog_name: 'Yoga', description: '' }],
-            }),
-          });
-        }
-        if (url.includes('users/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ first_name: 'John', last_name: 'Doe' }),
-          });
-        }
-        if (url.includes('addresses/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ items: [] }),
-          });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
-      });
-
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText('Yoga')).toBeInTheDocument();
-      });
-
-      // Find description textarea for service and update
-      const descriptionTextareas = screen.getAllByPlaceholderText(/description/i);
-      const serviceDescTextarea = descriptionTextareas[1] as HTMLTextAreaElement;
-      await user.type(serviceDescTextarea, 'Relaxing yoga sessions');
-
-      expect(serviceDescTextarea).toHaveValue('Relaxing yoga sessions');
     });
   });
 
@@ -3249,94 +2803,6 @@ describe('EditProfileModal', () => {
       await waitFor(() => {
         expect(screen.queryByTestId('chip-n1')).not.toBeInTheDocument();
       });
-    });
-  });
-
-  describe('new service form description', () => {
-    it('updates new service description', async () => {
-      const user = userEvent.setup();
-
-      fetchWithAuthMock.mockImplementation((url: string) => {
-        if (url.includes('instructors/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({
-              ...mockInstructorProfile,
-              services: [],
-            }),
-          });
-        }
-        if (url.includes('users/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ first_name: 'John', last_name: 'Doe' }),
-          });
-        }
-        if (url.includes('addresses/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ items: [] }),
-          });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
-      });
-
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      });
-
-      // Find description textarea for new service
-      const descriptionTextarea = screen.getByPlaceholderText(/brief description of this service/i);
-      await user.type(descriptionTextarea, 'Expert instruction');
-
-      expect(descriptionTextarea).toHaveValue('Expert instruction');
-    });
-
-    it('updates new service hourly rate', async () => {
-      const user = userEvent.setup();
-
-      fetchWithAuthMock.mockImplementation((url: string) => {
-        if (url.includes('instructors/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({
-              ...mockInstructorProfile,
-              services: [],
-            }),
-          });
-        }
-        if (url.includes('users/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ first_name: 'John', last_name: 'Doe' }),
-          });
-        }
-        if (url.includes('addresses/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ items: [] }),
-          });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
-      });
-
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      });
-
-      // Find the new rate input by id (add service form has id='new-rate')
-      await waitFor(() => {
-        expect(document.getElementById('new-rate')).not.toBeNull();
-      });
-      const rateInput = document.getElementById('new-rate') as HTMLInputElement;
-      await user.clear(rateInput);
-      await user.type(rateInput, '100');
-
-      expect(rateInput).toHaveValue(100);
     });
   });
 
@@ -4129,48 +3595,6 @@ describe('EditProfileModal', () => {
     });
   });
 
-  describe('duplicate skill validation via add form', () => {
-    it('shows error when trying to add an already existing skill', async () => {
-      const user = userEvent.setup();
-
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      });
-
-      // Wait for form to load
-      await waitFor(() => {
-        expect(screen.getByText(/personal information/i)).toBeInTheDocument();
-      });
-
-      // Find add skill form elements
-      const skillSelect = document.getElementById('new-skill') as HTMLSelectElement;
-      const rateInput = document.getElementById('new-rate') as HTMLInputElement;
-      // The button may be named "Add" without "skill"
-      const addButtons = screen.queryAllByRole('button', { name: /^add$/i });
-
-      if (skillSelect && rateInput && addButtons.length > 0) {
-        const addButton = addButtons[0]!;
-        // Try to add 'Yoga' which is already in profile (from SKILLS_OPTIONS)
-        await user.selectOptions(skillSelect, 'Yoga');
-        await user.type(rateInput, '50');
-        await user.click(addButton);
-
-        // Should show duplicate error
-        await waitFor(() => {
-          const errorText = screen.queryByText(/already offer/i);
-          if (errorText) {
-            expect(errorText).toBeInTheDocument();
-          }
-        });
-      } else {
-        // Form structure is different - just verify dialog renders
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      }
-    });
-  });
-
   describe('handleSubmit empty service areas', () => {
     it('shows error when submitting with no service areas selected', async () => {
       const user = userEvent.setup();
@@ -4291,42 +3715,6 @@ describe('EditProfileModal', () => {
     });
   });
 
-  describe('addService with invalid data', () => {
-    it('shows error when trying to add service without rate', async () => {
-      const user = userEvent.setup();
-
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      });
-
-      // Wait for form to load
-      await waitFor(() => {
-        expect(screen.getByText(/personal information/i)).toBeInTheDocument();
-      });
-
-      // Find add skill form elements
-      const skillSelect = document.getElementById('new-skill') as HTMLSelectElement;
-      const addButtons = screen.queryAllByRole('button', { name: /^add$/i });
-
-      if (skillSelect && addButtons.length > 0) {
-        // Select a skill but don't fill rate
-        await user.selectOptions(skillSelect, 'Piano');
-        // Click add without filling rate
-        await user.click(addButtons[0]!);
-
-        // Should show validation error
-        await waitFor(() => {
-          const errorText = screen.queryByText(/valid hourly rate/i);
-          if (errorText) {
-            expect(errorText).toBeInTheDocument();
-          }
-        });
-      }
-    });
-  });
-
   describe('loadBoroughNeighborhoods error handling', () => {
     it('handles fetch error gracefully', async () => {
       // Mock fetch to fail
@@ -4419,63 +3807,6 @@ describe('EditProfileModal', () => {
 
       // Verify fetchWithAuth was called
       expect(fetchWithAuthMock).toHaveBeenCalled();
-    });
-  });
-
-  describe('duplicate skill error', () => {
-    it('shows error when adding a duplicate skill', async () => {
-      const user = userEvent.setup();
-
-      fetchWithAuthMock.mockImplementation((url: string) => {
-        if (url.includes('instructors/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({
-              ...mockInstructorProfile,
-              services: [{ skill: 'Piano', hourly_rate: 60, service_catalog_name: 'Piano' }],
-            }),
-          });
-        }
-        if (url.includes('users/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ first_name: 'John', last_name: 'Doe' }),
-          });
-        }
-        if (url.includes('addresses/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ items: [] }),
-          });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
-      });
-
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText('Piano')).toBeInTheDocument();
-      });
-
-      // Try to add Piano again - the select filters out existing skills
-      // So we test by clicking Add Service without selecting a skill
-      const addButton = screen.getByRole('button', { name: /add service/i });
-
-      // First fill in valid data
-      const rateInput = document.getElementById('new-rate') as HTMLInputElement;
-      await user.clear(rateInput);
-      await user.type(rateInput, '50');
-
-      // Click add without a skill selected should show validation error
-      await user.click(addButton);
-
-      await waitFor(() => {
-        expect(screen.getByText(/please select a skill/i)).toBeInTheDocument();
-      });
     });
   });
 
@@ -5084,42 +4415,7 @@ describe('EditProfileModal', () => {
     });
 
     /* ---------- removeService: boundary check (invalid index) ---------- */
-    it('removeService ignores out-of-bounds index', async () => {
-      render(<EditProfileModal {...defaultProps} variant="full" />, { wrapper: createWrapper() });
-      await waitFor(() => { expect(screen.getByRole('dialog')).toBeInTheDocument(); });
-
-      // Profile loads with one service (Piano Lessons)
-      await waitFor(() => {
-        expect(screen.getByText('Piano Lessons')).toBeInTheDocument();
-      });
-
-      // The component has a guard: if (!serviceToRemove) return;
-      // Just verify the service is rendered and the component doesn't crash
-      expect(screen.getByText('Piano Lessons')).toBeInTheDocument();
-    });
-
     /* ---------- updateService: NaN hourly_rate handling ---------- */
-    it('updateService converts NaN hourly_rate to 0', async () => {
-      const user = userEvent.setup();
-      render(<EditProfileModal {...defaultProps} variant="full" />, { wrapper: createWrapper() });
-      await waitFor(() => { expect(screen.getByRole('dialog')).toBeInTheDocument(); });
-
-      // Wait for services to load
-      await waitFor(() => {
-        expect(screen.getByText('Piano Lessons')).toBeInTheDocument();
-      });
-
-      // Find the hourly rate input for the existing service
-      const rateInput = screen.getByDisplayValue('60');
-      await user.clear(rateInput);
-      // Clearing a number input generates NaN via parseFloat('')
-      // The component should set it to 0
-      await waitFor(() => {
-        // After clear, the field is empty or 0
-        expect(rateInput).toBeInTheDocument();
-      });
-    });
-
     /* ---------- handleServicesSave: no location option error ---------- */
     /* ---------- handleServicesSave: unparseable JSON response ---------- */
     /* ---------- handleAreasSave: direct API path (no onSave) ---------- */
@@ -5654,20 +4950,6 @@ describe('EditProfileModal', () => {
     });
 
     /* ---------- addService: missing skill validation ---------- */
-    it('addService shows error when skill is empty', async () => {
-      const user = userEvent.setup();
-      render(<EditProfileModal {...defaultProps} variant="full" />, { wrapper: createWrapper() });
-      await waitFor(() => { expect(screen.getByRole('dialog')).toBeInTheDocument(); });
-
-      // Click "Add Service" without selecting a skill
-      const addButton = screen.getByRole('button', { name: /add service/i });
-      await user.click(addButton);
-
-      await waitFor(() => {
-        expect(screen.getByText(/please select a skill/i)).toBeInTheDocument();
-      });
-    });
-
     /* ---------- services prefilling: both age groups → 'both' ---------- */
     /* ---------- services prefilling: empty levels_taught defaults ---------- */
     /* ---------- services prefilling: empty duration_options defaults ---------- */
@@ -6084,40 +5366,6 @@ describe('EditProfileModal', () => {
     });
 
     /* ---------- save button disabled when services list is empty ---------- */
-    it('disables Save Changes button when services list is empty', async () => {
-      fetchWithAuthMock.mockImplementation((url: string) => {
-        if (url.includes('instructors/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({
-              ...mockInstructorProfile,
-              services: [],
-            }),
-          });
-        }
-        if (url.includes('users/me')) {
-          return Promise.resolve({ ok: true, json: () => Promise.resolve({ first_name: 'John', last_name: 'Doe' }) });
-        }
-        if (url.includes('addresses/me')) {
-          return Promise.resolve({ ok: true, json: () => Promise.resolve({ items: [] }) });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
-      });
-
-      render(
-        <EditProfileModal {...defaultProps} variant="full" />,
-        { wrapper: createWrapper() }
-      );
-      await waitFor(() => { expect(screen.getByRole('dialog')).toBeInTheDocument(); });
-
-      // Wait for profile to load
-      await waitFor(() => {
-        expect(screen.getByLabelText(/first name/i)).toHaveValue('John');
-      });
-
-      const saveButton = screen.getByRole('button', { name: /save changes/i });
-      expect(saveButton).toBeDisabled();
-    });
   });
 
   describe('Batch 10: handleSubmit network error', () => {
@@ -6579,184 +5827,6 @@ describe('EditProfileModal', () => {
     });
   });
 
-  describe('Batch 11: addService validation and service management (full variant)', () => {
-    it('addService rejects empty skill name', async () => {
-      const user = userEvent.setup();
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-      await waitFor(() => { expect(screen.getByRole('dialog')).toBeInTheDocument(); });
-
-      // Find Add Service button and click without selecting a skill
-      const addButton = screen.getByRole('button', { name: /add service/i });
-      await user.click(addButton);
-
-      await waitFor(() => {
-        expect(screen.getByText(/please select a skill and set a valid hourly rate/i)).toBeInTheDocument();
-      });
-    });
-
-    it('addService filters duplicate skill from dropdown', async () => {
-      // Mock profile with existing Yoga service so Yoga is already in profileData.services
-      fetchWithAuthMock.mockImplementation((url: string) => {
-        if (url.includes('instructors/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({
-              ...mockInstructorProfile,
-              services: [
-                {
-                  ...mockInstructorProfile.services[0],
-                  skill: 'Yoga',
-                  service_catalog_name: 'Yoga',
-                },
-              ],
-            }),
-          });
-        }
-        if (url.includes('users/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ first_name: 'John', last_name: 'Doe' }),
-          });
-        }
-        if (url.includes('addresses/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ items: [] }),
-          });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
-      });
-
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-      await waitFor(() => { expect(screen.getByRole('dialog')).toBeInTheDocument(); });
-
-      // Wait for profile to load and services to populate
-      await waitFor(() => {
-        expect(screen.getByLabelText(/bio/i)).toBeInTheDocument();
-      });
-
-      // The dropdown should filter out Yoga since the profile already has it
-      const skillSelect = screen.getByRole('combobox');
-      const options = Array.from(skillSelect.querySelectorAll('option')).map((o) => o.textContent);
-      expect(options).not.toContain('Yoga');
-      // Other skills should still be present
-      expect(options).toContain('Meditation');
-      expect(options).toContain('Piano');
-    });
-
-    it('addService succeeds with valid skill and rate', async () => {
-      const user = userEvent.setup();
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-      await waitFor(() => { expect(screen.getByRole('dialog')).toBeInTheDocument(); });
-
-      // Wait for profile to load
-      await waitFor(() => {
-        expect(screen.getByLabelText(/bio/i)).toBeInTheDocument();
-      });
-
-      // Select a skill from the dropdown (Meditation is available, Yoga would be too since
-      // the default mock profile uses service_catalog_name not skill)
-      const skillSelect = screen.getByRole('combobox');
-      await user.selectOptions(skillSelect, 'Meditation');
-
-      // Click add
-      const addButton = screen.getByRole('button', { name: /add service/i });
-      await user.click(addButton);
-
-      // Should not show an error -- the service was added
-      expect(screen.queryByText(/please select a skill/i)).not.toBeInTheDocument();
-    });
-
-    it('removeService removes a service from the list', async () => {
-      const user = userEvent.setup();
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-      await waitFor(() => { expect(screen.getByRole('dialog')).toBeInTheDocument(); });
-
-      // Wait for services to render
-      await waitFor(() => {
-        expect(screen.getByLabelText(/bio/i)).toBeInTheDocument();
-      });
-
-      // The mock profile has 1 service. Remove it.
-      const removeButtons = screen.getAllByRole('button', { name: /remove/i });
-      const removeBtn = removeButtons.find((btn) => btn.textContent?.includes('Remove'));
-      if (removeBtn) {
-        await user.click(removeBtn);
-      }
-
-      // No services added yet message should appear
-      await waitFor(() => {
-        expect(screen.getByText(/no services added yet/i)).toBeInTheDocument();
-      });
-    });
-
-    it('updateService handles NaN hourly rate as zero', async () => {
-      const user = userEvent.setup();
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-      await waitFor(() => { expect(screen.getByRole('dialog')).toBeInTheDocument(); });
-
-      await waitFor(() => {
-        expect(screen.getByLabelText(/bio/i)).toBeInTheDocument();
-      });
-
-      // Find hourly rate input in the services section (full variant)
-      const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
-      if (rateInputs[0]) {
-        await user.clear(rateInputs[0]);
-        // Clearing a number input sets its underlying value to NaN via parseFloat('')
-        // The updateService function converts NaN to 0
-        expect(rateInputs[0]).toHaveValue(0);
-      }
-    });
-
-    it('displayName falls back to skill when catalog_name is missing', async () => {
-      const profileWithSkillName = {
-        ...mockInstructorProfile,
-        services: [
-          {
-            ...mockInstructorProfile.services[0],
-            service_catalog_name: null,
-            skill: 'CustomSkill',
-          },
-        ],
-      };
-
-      fetchWithAuthMock.mockImplementation((url: string) => {
-        if (url.includes('instructors/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve(profileWithSkillName),
-          });
-        }
-        if (url.includes('users/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ first_name: 'John', last_name: 'Doe' }),
-          });
-        }
-        if (url.includes('addresses/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ items: [] }),
-          });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
-      });
-
-      // hydrateCatalogNameById mock returns undefined for unknown IDs
-      const { hydrateCatalogNameById: hydrateMock } = jest.requireMock('@/lib/instructorServices');
-      hydrateMock.mockReturnValue(undefined);
-
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-      await waitFor(() => { expect(screen.getByRole('dialog')).toBeInTheDocument(); });
-
-      // Wait for profile to load with the custom service
-      await waitFor(() => {
-        expect(screen.getByLabelText(/bio/i)).toBeInTheDocument();
-      });
-    });
-  });
-
   describe('Batch 11: areas variant — preferred locations prefill', () => {
     it('prefills preferred teaching locations on areas variant', async () => {
       render(
@@ -7062,30 +6132,6 @@ describe('EditProfileModal', () => {
     });
   });
 
-  describe('Batch 12: full variant — removeService clears all services showing empty state', () => {
-    it('removeService removes a service and shows empty state', async () => {
-      const user = userEvent.setup();
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-      await waitFor(() => { expect(screen.getByRole('dialog')).toBeInTheDocument(); });
-
-      // Wait for services to load
-      await waitFor(() => {
-        expect(screen.getByLabelText(/bio/i)).toBeInTheDocument();
-      });
-
-      // Remove the existing service
-      const removeButtons = screen.getAllByRole('button', { name: /remove/i });
-      const firstRemove = removeButtons[0];
-      if (firstRemove) {
-        await user.click(firstRemove);
-        // After removing, the empty state should appear
-        await waitFor(() => {
-          expect(screen.getByText(/no services added yet/i)).toBeInTheDocument();
-        });
-      }
-    });
-  });
-
   describe('Batch 12: full variant — toggleArea adds then removes borough', () => {
     it('toggles a borough in the full variant service areas', async () => {
       const user = userEvent.setup();
@@ -7102,120 +6148,6 @@ describe('EditProfileModal', () => {
       // Click again to un-toggle
       await user.click(queensCheckbox);
       expect(queensCheckbox).not.toBeChecked();
-    });
-  });
-
-  describe('Batch 14: full variant — service name fallback order', () => {
-    it('falls back from catalog name to skill text and service id label in existing services', async () => {
-      const {
-        hydrateCatalogNameById: mockHydrate,
-        normalizeInstructorServices: mockNormalizeInstructorServices,
-      } = jest.requireMock('@/lib/instructorServices');
-      mockHydrate.mockReturnValue(undefined);
-      mockNormalizeInstructorServices.mockResolvedValue([
-        {
-          service_catalog_id: 'svc-skill-fallback',
-          service_catalog_name: null,
-          skill: 'Legacy Piano',
-          name: '',
-          hourly_rate: 60,
-          description: '',
-        },
-        {
-          service_catalog_id: 'svc-id-only',
-          service_catalog_name: null,
-          skill: '',
-          name: '',
-          hourly_rate: 75,
-          description: '',
-        },
-      ]);
-
-      fetchWithAuthMock.mockImplementation((url: string) => {
-        if (url.includes('instructors/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({
-              ...mockInstructorProfile,
-              services: [],
-            }),
-          });
-        }
-        if (url.includes('users/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ first_name: 'Test', last_name: 'User' }),
-          });
-        }
-        if (url.includes('addresses/me')) {
-          return Promise.resolve({ ok: true, json: () => Promise.resolve({ items: [] }) });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
-      });
-
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByText('Legacy Piano')).toBeInTheDocument();
-        expect(screen.getByText('Service svc-id-only')).toBeInTheDocument();
-      });
-    });
-
-    it('uses hydrated catalog names and falls all the way back to a plain Service label when nothing else exists', async () => {
-      const {
-        hydrateCatalogNameById: mockHydrate,
-        normalizeInstructorServices: mockNormalizeInstructorServices,
-      } = jest.requireMock('@/lib/instructorServices');
-      mockHydrate.mockImplementation((id: string) =>
-        id === 'svc-hydrated' ? 'Hydrated Guitar' : undefined
-      );
-      mockNormalizeInstructorServices.mockResolvedValue([
-        {
-          service_catalog_id: 'svc-hydrated',
-          service_catalog_name: null,
-          skill: '',
-          name: '',
-          hourly_rate: 60,
-          description: '',
-        },
-        {
-          service_catalog_id: '',
-          service_catalog_name: null,
-          skill: '',
-          name: '',
-          hourly_rate: 75,
-          description: '',
-        },
-      ]);
-
-      fetchWithAuthMock.mockImplementation((url: string) => {
-        if (url.includes('instructors/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({
-              ...mockInstructorProfile,
-              services: [],
-            }),
-          });
-        }
-        if (url.includes('users/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ first_name: 'Test', last_name: 'User' }),
-          });
-        }
-        if (url.includes('addresses/me')) {
-          return Promise.resolve({ ok: true, json: () => Promise.resolve({ items: [] }) });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
-      });
-
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByText('Hydrated Guitar')).toBeInTheDocument();
-        expect(screen.getAllByText(/^Service$/).length).toBeGreaterThan(0);
-      });
     });
   });
 
@@ -7463,104 +6395,6 @@ describe('EditProfileModal', () => {
         // Give a brief delay to ensure no async operation happens
         await new Promise((r) => setTimeout(r, 100));
         expect(global.fetch).not.toHaveBeenCalled();
-      });
-    });
-
-    describe('addService duplicate skill check (lines 1048-1053)', () => {
-      it('shows error when adding a service with an already-existing skill', async () => {
-        const user = userEvent.setup();
-
-        render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-
-        await waitFor(() => {
-          expect(screen.getByRole('dialog')).toBeInTheDocument();
-        });
-
-        // Wait for the profile to load (services are populated from mockInstructorProfile)
-        await waitFor(() => {
-          expect(screen.getByText(/services & rates/i)).toBeInTheDocument();
-        });
-
-        // The mockInstructorProfile has a service with skill 'Piano Lessons'.
-        // However, the dropdown filters out already-added skills. The addService
-        // function's duplicate check (line 1048) uses `s.skill === newService.skill`,
-        // comparing by the `skill` field. In the mock profile, the existing service
-        // has `service_catalog_name: 'Piano Lessons'`, not `skill: 'Piano'`.
-        //
-        // To trigger the duplicate check we need to programmatically set the select
-        // to a value that matches an existing service's skill field.
-        // The dropdown uses SKILLS_OPTIONS which are strings like 'Piano'.
-        // But the existing service from the mock has no `skill` field set — it only
-        // has `service_catalog_name: 'Piano Lessons'`.
-        //
-        // The duplicate check at line 1048 does:
-        //   profileData.services.some((s) => s.skill === newService.skill)
-        //
-        // This checks `s.skill`, not `s.service_catalog_name`. So if profileData.services
-        // were populated with a service where `skill: 'Piano'`, selecting 'Piano'
-        // from the dropdown would trigger the duplicate.
-        //
-        // However, the dropdown already filters out skills that match existing services
-        // via `SKILLS_OPTIONS.filter(skill => !profileData.services.some(s => s.skill === skill))`.
-        // This means the duplicate check at line 1048 is a defense-in-depth guard —
-        // the dropdown prevents selection of duplicates, but the check guards against
-        // programmatic manipulation.
-        //
-        // BUG HUNTING: The duplicate check uses exact string match:
-        //   s.skill === newService.skill
-        // "Piano" vs "piano" would pass as different skills, which could lead
-        // to duplicate services with different casing.
-
-        // To test: we need to render with a profile that has a skill field matching
-        // a SKILLS_OPTIONS value. Let's add a service manually first via the UI,
-        // then try to add the same one again.
-
-        // First, select a skill from the dropdown
-        const skillSelect = screen.getByLabelText(/select skill/i);
-        await user.selectOptions(skillSelect, 'Yoga');
-
-        // Set hourly rate
-        const rateInput = screen.getByLabelText(/hourly rate/i);
-        await user.clear(rateInput);
-        await user.type(rateInput, '60');
-
-        // Click "Add Service" to add the skill
-        const addButton = screen.getByRole('button', { name: /add service/i });
-        await user.click(addButton);
-
-        // Yoga should now be in the services list
-        await waitFor(() => {
-          expect(screen.getByText(/yoga/i)).toBeInTheDocument();
-        });
-
-        // Now the dropdown should NOT show Yoga anymore (filtered out).
-        // The addService duplicate check would only trigger if we could
-        // somehow set newService.skill to 'Yoga' without using the dropdown.
-        // Since the dropdown prevents this, the error at line 1050-1053
-        // is unreachable through normal UI — confirming it's defense-in-depth.
-      });
-
-      it('shows error when trying to add a service without a valid skill or rate', async () => {
-        const user = userEvent.setup();
-
-        render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-
-        await waitFor(() => {
-          expect(screen.getByRole('dialog')).toBeInTheDocument();
-        });
-
-        await waitFor(() => {
-          expect(screen.getByText(/services & rates/i)).toBeInTheDocument();
-        });
-
-        // Try to add a service without selecting a skill (empty skill)
-        const addButton = screen.getByRole('button', { name: /add service/i });
-        await user.click(addButton);
-
-        // Should show error for missing skill
-        await waitFor(() => {
-          expect(screen.getByText(/please select a skill and set a valid hourly rate/i)).toBeInTheDocument();
-        });
       });
     });
 
@@ -7823,61 +6657,6 @@ describe('EditProfileModal', () => {
 
       // Restore
       getServiceAreaBoroughs.mockReturnValue(['Manhattan', 'Brooklyn']);
-    });
-  });
-
-  describe('branch coverage: addService — validation branches (lines 1041-1053)', () => {
-    it('shows validation error when skill is empty on add', async () => {
-      const user = userEvent.setup();
-
-      render(
-        <EditProfileModal {...defaultProps} variant="full" />,
-        { wrapper: createWrapper() }
-      );
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      });
-
-      // Do not select a skill, just click add
-      const addButton = screen.getByRole('button', { name: /add service/i });
-      await user.click(addButton);
-
-      // Should show validation error
-      await waitFor(() => {
-        expect(screen.getByText(/please select a skill and set a valid hourly rate/i)).toBeInTheDocument();
-      });
-    });
-
-    it('shows validation error when hourly rate is 0', async () => {
-      const user = userEvent.setup();
-
-      render(
-        <EditProfileModal {...defaultProps} variant="full" />,
-        { wrapper: createWrapper() }
-      );
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      });
-
-      // Select a skill
-      const skillSelect = screen.getByLabelText(/select skill/i);
-      await user.selectOptions(skillSelect, 'Piano');
-
-      // Set rate to 0
-      const rateInput = screen.getByLabelText(/hourly rate/i);
-      await user.clear(rateInput);
-      await user.type(rateInput, '0');
-
-      // Click add
-      const addButton = screen.getByRole('button', { name: /add service/i });
-      await user.click(addButton);
-
-      // Should show validation error about rate
-      await waitFor(() => {
-        expect(screen.getByText(/please select a skill and set a valid hourly rate/i)).toBeInTheDocument();
-      });
     });
   });
 
@@ -8271,98 +7050,6 @@ describe('EditProfileModal', () => {
       // onSuccess and onClose should NOT have been called
       expect(onSuccess).not.toHaveBeenCalled();
       expect(onClose).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('B3: uncovered branch — duplicate skill error (lines 1049-1053)', () => {
-    it('shows error when adding a skill that matches an existing service', async () => {
-      const user = userEvent.setup();
-
-      // Start with NO services so we can add Yoga through the normal dropdown flow.
-      // Then try to add Yoga AGAIN. The second addition triggers the duplicate skill check.
-      const profileNoServices = {
-        ...mockInstructorProfile,
-        services: [] as typeof mockInstructorProfile.services,
-        service_area_boroughs: ['Manhattan'],
-      };
-
-      fetchWithAuthMock.mockImplementation((url: string) => {
-        if (url.includes('instructors/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve(profileNoServices),
-          });
-        }
-        if (url.includes('users/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ first_name: 'John', last_name: 'Doe' }),
-          });
-        }
-        if (url.includes('addresses/me')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ items: [] }),
-          });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
-      });
-
-      render(<EditProfileModal {...defaultProps} />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-      });
-
-      // Wait for the Services & Rates section to render (default variant includes it)
-      await waitFor(() => {
-        expect(screen.getByText(/services & rates/i)).toBeInTheDocument();
-      });
-
-      // Step 1: Add 'Yoga' the first time through the normal dropdown
-      const newSkillDropdown = screen.getByLabelText(/select skill/i);
-
-      // Verify 'Yoga' is available as an option
-      const yogaOption = screen.getByRole('option', { name: 'Yoga' });
-      expect(yogaOption).toBeInTheDocument();
-
-      await user.selectOptions(newSkillDropdown, 'Yoga');
-
-      const rateInput = screen.getByLabelText(/hourly rate/i);
-      await user.clear(rateInput);
-      await user.type(rateInput, '50');
-
-      const addButton = screen.getByRole('button', { name: /add service/i });
-      await user.click(addButton);
-
-      // Verify Yoga was added successfully by checking that 'Yoga' is no longer in the dropdown
-      // (the filter removes already-added skills from the dropdown)
-      await waitFor(() => {
-        expect(screen.queryByRole('option', { name: 'Yoga' })).not.toBeInTheDocument();
-      });
-
-      // Step 2: Now try to add 'Yoga' again.
-      // 'Yoga' is filtered from dropdown options, so we cannot use selectOptions.
-      // We need to set the select value to 'Yoga' and trigger the onChange handler.
-      // Use Object.defineProperty to override the value getter so React reads 'Yoga'
-      // from event.target.value during the change event dispatch.
-      Object.defineProperty(newSkillDropdown, 'value', {
-        get() { return 'Yoga'; },
-        configurable: true,
-      });
-      fireEvent.change(newSkillDropdown);
-
-      // Set rate again (form was reset after first add)
-      await user.clear(rateInput);
-      await user.type(rateInput, '50');
-
-      // Click "Add Service" — this should trigger the duplicate skill error
-      await user.click(addButton);
-
-      // Should show duplicate skill error message
-      await waitFor(() => {
-        expect(screen.getByText(/you already offer yoga/i)).toBeInTheDocument();
-      });
     });
   });
 

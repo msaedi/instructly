@@ -2549,6 +2549,7 @@ describe('TimeSelectionModal', () => {
         services: [{
           ...mockService,
           min_hourly_rate: 10,
+          format_prices: [{ format: 'online', hourly_rate: 10 }] as Array<{ format: string; hourly_rate: number }>,
           location_types: ['online'] as string[],
         }],
       };
@@ -4185,7 +4186,7 @@ describe('TimeSelectionModal', () => {
 
       const onlineInstructor = {
         ...mockInstructor,
-        services: [{ ...mockService, location_types: ['online'] as string[] }],
+        services: [{ ...mockService, format_prices: [{ format: 'online', hourly_rate: 60 }] as Array<{ format: string; hourly_rate: number }>, location_types: ['online'] as string[] }],
       };
 
       render(<TimeSelectionModal {...defaultProps} instructor={onlineInstructor} onClose={onClose} />);

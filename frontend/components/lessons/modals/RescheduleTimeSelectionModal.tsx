@@ -110,7 +110,7 @@ interface RescheduleTimeSelectionModalProps {
     services: Array<{
       id?: string;
       duration_options: number[];
-      hourly_rate: number;
+      min_hourly_rate: number;
       skill: string;
     }>;
   };
@@ -167,7 +167,7 @@ export default function RescheduleTimeSelectionModal({
   const getDurationOptions = useCallback(() => {
     const selectedService = at(instructor.services, 0);
     const durations = selectedService?.duration_options || [30, 60, 90, 120];
-    const hourlyRate = selectedService?.hourly_rate || 100;
+    const hourlyRate = selectedService?.min_hourly_rate || 100;
 
     return durations.map((duration) => ({
       duration,
@@ -501,7 +501,7 @@ export default function RescheduleTimeSelectionModal({
   // Calculate price
   const getCurrentPrice = () => {
     const service = at(instructor.services, 0);
-    const hourlyRate = service?.hourly_rate || 100;
+    const hourlyRate = service?.min_hourly_rate || 100;
     return Math.round((hourlyRate * selectedDuration) / 60);
   };
 

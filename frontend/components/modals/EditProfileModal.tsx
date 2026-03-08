@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { X, Plus, Trash2, DollarSign, ChevronDown, MapPin } from 'lucide-react';
+import { X, ChevronDown, MapPin } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import Modal from '@/components/Modal';
@@ -12,7 +12,6 @@ import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { logger } from '@/lib/logger';
 import { useInstructorServiceAreas } from '@/hooks/queries/useInstructorServiceAreas';
 import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteInput';
-import { normalizeInstructorServices, hydrateCatalogNameById } from '@/lib/instructorServices';
 import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 import { buildProfileUpdateBody } from '@/lib/profileSchemaDebug';
 import type { InstructorProfile, ServiceAreaNeighborhood } from '@/types/instructor';
@@ -24,8 +23,6 @@ import { queryKeys } from '@/src/api/queryKeys';
 import {
   addPreferredPlace,
   getGlobalNeighborhoodMatchesWithIds,
-  removeServiceFromProfile,
-  updateServiceInProfile,
   updateOptionalPlaceLabel,
 } from './EditProfileModal.helpers';
 
@@ -34,23 +31,6 @@ type AuthUserResponse = components['schemas']['AuthUserWithPermissionsResponse']
 type AddressListResponse = components['schemas']['AddressListResponse'];
 type AddressResponse = components['schemas']['AddressResponse'];
 type NeighborhoodsListResponse = components['schemas']['NeighborhoodsListResponse'];
-type EditableService = {
-  service_catalog_id?: string;
-  service_catalog_name?: string | null;
-  name?: string | null;
-  skill?: string;
-  hourly_rate?: number;
-  description?: string | null;
-  requirements?: string | null;
-  age_groups?: string[] | null;
-  levels_taught?: string[] | null;
-  equipment_required?: string[] | null;
-  offers_travel?: boolean | null;
-  offers_at_location?: boolean | null;
-  offers_online?: boolean | null;
-  duration_options?: number[] | null;
-};
-
 // Simple address type for profile editing
 type AddressItem = AddressResponse;
 
@@ -107,8 +87,6 @@ interface ProfileFormData {
   service_area_boroughs: string[];
   /** Years of teaching experience */
   years_experience: number;
-  /** Services offered by the instructor */
-  services: EditableService[];
   /** First name (from account) */
   first_name: string;
   /** Last name (from account) */
@@ -137,15 +115,9 @@ export default function EditProfileModal({
     bio: '',
     service_area_boroughs: [] as string[],
     years_experience: 1,
-    services: [] as EditableService[],
     first_name: '',
     last_name: '',
     postal_code: '',
-  });
-  const [newService, setNewService] = useState<EditableService>({
-    skill: '',
-    hourly_rate: 50,
-    description: '',
   });
   const queryClient = useQueryClient();
 
@@ -173,30 +145,6 @@ export default function EditProfileModal({
 
     throw new Error(message);
   }, [profileData.first_name, profileData.last_name]);
-
-  // Skills options (same as in become-instructor)
-  const SKILLS_OPTIONS = [
-    'Yoga',
-    'Meditation',
-    'Piano',
-    'Music Theory',
-    'Spanish',
-    'ESL',
-    'Personal Training',
-    'Nutrition',
-    'Photography',
-    'Photo Editing',
-    'Programming',
-    'Web Development',
-    'Data Science',
-    'Language Tutoring',
-    'Art',
-    'Drawing',
-    'Painting',
-    'Dance',
-    'Fitness',
-    'Cooking',
-  ];
 
   // NYC areas for dropdown
   const nycAreas = [
@@ -331,20 +279,16 @@ export default function EditProfileModal({
         logger.warn('Failed to fetch default address', err);
       }
 
-      const normalizedServices = await normalizeInstructorServices(data.services ?? []);
-
       setProfileData({
         bio: data.bio || '',
         service_area_boroughs: boroughSelection,
         years_experience: data.years_experience || 1,
-        services: normalizedServices,
         first_name: firstName,
         last_name: lastName,
         postal_code: postalCode,
       });
 
       logger.debug('Profile data loaded', {
-        servicesCount: Array.isArray(data['services']) ? data['services'].length : 0,
         boroughCount: boroughSelection.length,
       });
     } catch (err) {
@@ -657,7 +601,6 @@ export default function EditProfileModal({
     setLastNameError('');
 
     logger.info('Submitting profile updates', {
-      servicesCount: profileData.services.length,
       boroughCount: profileData.service_area_boroughs.length,
     });
 
@@ -712,7 +655,6 @@ export default function EditProfileModal({
       const payload = buildProfileUpdateBody(profileData, {
         bio: profileData.bio,
         years_experience: profileData.years_experience,
-        services: profileData.services,
       });
 
       const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, {
@@ -740,60 +682,6 @@ export default function EditProfileModal({
   };
 
   /**
-   * Add a new service to the profile
-   */
-  const addService = () => {
-    // Check if any field is empty
-    if (!newService.skill || !newService.hourly_rate || newService.hourly_rate <= 0) {
-      logger.warn('Attempted to add service with invalid data', newService);
-      setError('Please select a skill and set a valid hourly rate');
-      return;
-    }
-
-    // Check for duplicate skills
-    if (profileData.services.some((s) => s.skill === newService.skill)) {
-      logger.warn('Attempted to add duplicate skill', { skill: newService.skill });
-      setError(
-        `You already offer ${newService.skill}. Please choose a different skill or update the existing one.`
-      );
-      return;
-    }
-
-    logger.info('Adding new service', newService);
-    setError(''); // Clear any previous errors
-    setProfileData({
-      ...profileData,
-      services: [...profileData.services, newService as EditableService],
-    });
-
-    // Reset the form
-    setNewService({ skill: '', hourly_rate: 50, description: '' });
-  };
-
-  /**
-   * Remove a service from the profile
-   */
-  const removeService = (index: number) => {
-    setProfileData((prev) => {
-      const { nextProfileData, removedService } = removeServiceFromProfile(prev, index);
-      if (nextProfileData !== prev && removedService) {
-        logger.info('Removing service', { index, skill: removedService.skill });
-      }
-      return nextProfileData;
-    });
-  };
-
-  /**
-   * Update a specific field of a service
-   */
-  const updateService = (index: number, field: keyof EditableService, value: string | number) => {
-    logger.debug('Updating service', { index, field, value });
-    setProfileData((prev: ProfileFormData) =>
-      updateServiceInProfile<ProfileFormData, EditableService>(prev, index, field, value)
-    );
-  };
-
-  /**
    * Toggle area of service selection
    */
   const toggleArea = (area: string) => {
@@ -809,7 +697,7 @@ export default function EditProfileModal({
 
   if (!isOpen) return null;
 
-  const canSubmit = profileData.services.length > 0 && profileData.service_area_boroughs.length > 0;
+  const canSubmit = profileData.service_area_boroughs.length > 0;
 
   const isAboutOnly = variant === 'about';
   const isAreasOnly = isAreasVariant;
@@ -862,7 +750,6 @@ export default function EditProfileModal({
       const payload = buildProfileUpdateBody(profileData, {
         bio: profileData.bio,
         years_experience: profileData.years_experience,
-        services: profileData.services,
       });
 
       const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, {
@@ -1372,167 +1259,6 @@ export default function EditProfileModal({
                   <p className="mt-3 text-sm text-red-600">Please select at least one area of service</p>
                 )}
               </>
-            )}
-          </div>
-        )}
-
-        {/* Services Section */}
-        {!isAboutOnly && !isAreasOnly && (
-          <div className="px-6 py-6">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-              Services & Rates {profileData.services.length > 0 && (
-                <span className="text-sm text-gray-500 dark:text-gray-400 font-normal">
-                  ({profileData.services.length} service{profileData.services.length !== 1 ? 's' : ''})
-                </span>
-              )}
-            </h3>
-
-            {/* Add new service form */}
-            <div className="mb-6 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900">
-              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Add New Service</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-                <div>
-                  <label htmlFor="new-skill" className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                    Select Skill
-                  </label>
-                  <select
-                    id="new-skill"
-                    value={newService.skill || ''}
-                    onChange={(e) => setNewService({ ...newService, skill: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none
-                             focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
-                  >
-                    <option value="">Choose a skill...</option>
-                    {SKILLS_OPTIONS.filter(
-                      (skill) => !profileData.services.some((s) => s.skill === skill)
-                    ).map((skill) => (
-                      <option key={skill} value={skill}>
-                        {skill}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="new-rate" className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                    Hourly Rate
-                  </label>
-                  <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-300" />
-                    <input
-                      id="new-rate"
-                      type="number"
-                      value={newService.hourly_rate || 0}
-                      onChange={(e) =>
-                        setNewService({ ...newService, hourly_rate: parseFloat(e.target.value) || 0 })
-                      }
-                      className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none
-                               focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
-                      min="0"
-                      step="0.01"
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="mb-3">
-                <label htmlFor="new-description" className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                  Description (optional)
-                </label>
-                <textarea
-                  id="new-description"
-                  value={newService.description || ''}
-                  onChange={(e) => setNewService({ ...newService, description: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none
-                           focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
-                  rows={2}
-                  placeholder="Brief description of this service..."
-                />
-              </div>
-              <button
-                type="button"
-                onClick={addService}
-                className="w-full px-3 py-2 bg-[#7E22CE] text-white text-sm rounded-lg
-                         hover:bg-[#5c0a9a] transition-colors focus:outline-none focus:ring-2
-                         focus:ring-offset-2 focus:ring-[#7E22CE] flex items-center justify-center gap-2 font-semibold"
-              >
-                <Plus className="w-4 h-4" />
-                Add Service
-              </button>
-            </div>
-
-            {/* Existing services list */}
-            <div className="space-y-3">
-              {profileData.services.map((service, index) => {
-                const hydrated = hydrateCatalogNameById(service.service_catalog_id || '');
-                const displayName =
-                  [
-                    service.service_catalog_name,
-                    hydrated,
-                    service.skill,
-                    service.name,
-                  ].find((value): value is string => typeof value === 'string' && value.trim().length > 0) ??
-                  (service.service_catalog_id ? `Service ${service.service_catalog_id}` : 'Service');
-
-                if (!service.service_catalog_name && !hydrated && process.env.NODE_ENV !== 'production') {
-                  logger.warn('Service chip missing catalog name (modal)', {
-                    serviceCatalogId: service.service_catalog_id,
-                  });
-                }
-
-                return (
-                <div key={index} className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-                    <div>
-                      <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{displayName}</span>
-                    </div>
-                    <div>
-                      <div className="relative">
-                        <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-300" />
-                        <input
-                          type="number"
-                          placeholder="Hourly rate"
-                          value={service.hourly_rate}
-                          onChange={(e) =>
-                            updateService(index, 'hourly_rate', parseFloat(e.target.value))
-                          }
-                          className="w-full pl-9 pr-12 py-2 border border-gray-300 dark:border-gray-700 rounded-lg
-                                   focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500
-                                   focus:border-transparent"
-                          min="0"
-                          step="0.01"
-                          required
-                        />
-                        <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400">
-                          /hour
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <textarea
-                    placeholder="Description (optional)"
-                    value={service.description || ''}
-                    onChange={(e) => updateService(index, 'description', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none
-                             focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500 mb-3"
-                    rows={2}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeService(index)}
-                    className="text-sm text-red-600 hover:text-red-700 dark:hover:text-red-300 transition-colors
-                             flex items-center gap-1"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Remove
-                  </button>
-                </div>
-              );
-              })}
-            </div>
-
-            {profileData.services.length === 0 && (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                <p>No services added yet. Add your first service above!</p>
-              </div>
             )}
           </div>
         )}

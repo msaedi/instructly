@@ -5,11 +5,19 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any, Dict, Iterable, List, cast
 
+from sqlalchemy import case
 from sqlalchemy.orm import Session
 
-from app.models.service_catalog import ServiceFormatPrice
+from app.models.service_catalog import SERVICE_PRICE_FORMAT_ORDER, ServiceFormatPrice
 
 from .base_repository import BaseRepository
+
+# CASE expression to order pricing rows by canonical format order
+_FORMAT_ORDER_EXPR = case(
+    {fmt: idx for idx, fmt in enumerate(SERVICE_PRICE_FORMAT_ORDER)},
+    value=ServiceFormatPrice.format,
+    else_=99,
+)
 
 
 class ServiceFormatPricingRepository(BaseRepository[ServiceFormatPrice]):
@@ -25,6 +33,7 @@ class ServiceFormatPricingRepository(BaseRepository[ServiceFormatPrice]):
         self.db.query(ServiceFormatPrice).filter(
             ServiceFormatPrice.service_id == service_id
         ).delete()
+        self.db.flush()  # Ensure deletes execute before inserts to avoid UNIQUE constraint timing issues
         rows: List[ServiceFormatPrice] = []
         for price in prices:
             row = self.create(service_id=service_id, **price)
@@ -37,7 +46,7 @@ class ServiceFormatPricingRepository(BaseRepository[ServiceFormatPrice]):
             List[ServiceFormatPrice],
             self.db.query(ServiceFormatPrice)
             .filter(ServiceFormatPrice.service_id == service_id)
-            .order_by(ServiceFormatPrice.created_at.asc())
+            .order_by(_FORMAT_ORDER_EXPR)
             .all(),
         )
 
@@ -51,7 +60,7 @@ class ServiceFormatPricingRepository(BaseRepository[ServiceFormatPrice]):
         rows = (
             self.db.query(ServiceFormatPrice)
             .filter(ServiceFormatPrice.service_id.in_(ids))
-            .order_by(ServiceFormatPrice.created_at.asc())
+            .order_by(_FORMAT_ORDER_EXPR)
             .all()
         )
         grouped: Dict[str, List[ServiceFormatPrice]] = defaultdict(list)

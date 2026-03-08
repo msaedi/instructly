@@ -2,10 +2,6 @@ import {
   addPreferredPlace,
   getGlobalNeighborhoodMatchesWithIds,
   getNeighborhoodMatchId,
-  removeServiceFromProfile,
-  removeIndexedItem,
-  updateServiceInProfile,
-  updateIndexedServiceField,
   updateOptionalPlaceLabel,
 } from '../EditProfileModal.helpers';
 
@@ -63,55 +59,10 @@ describe('EditProfileModal helpers', () => {
     expect(cleared[1]).toEqual({ address: 'Central Park' });
   });
 
-  it('removes indexed items and leaves missing indexes untouched', () => {
-    const items = [{ id: 'one' }, { id: 'two' }];
-
-    expect(removeIndexedItem(items, 4)).toBe(items);
-    expect(removeIndexedItem(items, 0)).toEqual([{ id: 'two' }]);
-  });
-
-  it('updates indexed service fields and normalizes NaN hourly rates', () => {
-    const services = [
-      { skill: 'Piano', hourly_rate: 75 },
-      { skill: 'Guitar', hourly_rate: 60 },
-    ];
-
-    expect(updateIndexedServiceField(services, 9, 'hourly_rate', 90)).toBe(services);
-
-    const updatedRate = updateIndexedServiceField(services, 0, 'hourly_rate', Number.NaN);
-    expect(updatedRate[0]).toEqual({ skill: 'Piano', hourly_rate: 0 });
-
-    const updatedSkill = updateIndexedServiceField(services, 1, 'skill', 'Bass');
-    expect(updatedSkill[1]).toEqual({ skill: 'Bass', hourly_rate: 60 });
-  });
-
   it('prefers neighborhood_id and falls back to id when matching neighborhoods', () => {
     expect(getNeighborhoodMatchId({ neighborhood_id: 'n-1', id: 'fallback' })).toBe('n-1');
     expect(getNeighborhoodMatchId({ id: 'fallback' })).toBe('fallback');
     expect(getNeighborhoodMatchId({})).toBeNull();
-  });
-
-  it('removes and updates services without mutating the original profile on invalid indexes', () => {
-    const profileData = {
-      services: [
-        { skill: 'Piano', hourly_rate: 75 },
-        { skill: 'Guitar', hourly_rate: 60 },
-      ],
-    };
-
-    const missingRemoval = removeServiceFromProfile(profileData, 9);
-    expect(missingRemoval.nextProfileData).toBe(profileData);
-    expect(missingRemoval.removedService).toBeNull();
-
-    const removed = removeServiceFromProfile(profileData, 1);
-    expect(removed.removedService).toEqual({ skill: 'Guitar', hourly_rate: 60 });
-    expect(removed.nextProfileData.services).toEqual([{ skill: 'Piano', hourly_rate: 75 }]);
-
-    expect(updateServiceInProfile(profileData, 9, 'hourly_rate', 90)).toBe(profileData);
-    expect(updateServiceInProfile(profileData, 0, 'hourly_rate', Number.NaN).services[0]).toEqual({
-      skill: 'Piano',
-      hourly_rate: 0,
-    });
   });
 
   it('filters global neighborhood matches down to renderable ids', () => {

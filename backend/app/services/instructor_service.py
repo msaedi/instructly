@@ -866,6 +866,11 @@ class InstructorService(BaseService):
 
     def _floor_for_format(self, format_name: str) -> Decimal:
         """Resolve the configured price floor for a service format."""
+        if format_name not in PRICE_FLOOR_CONFIG_KEYS:
+            raise BusinessRuleException(
+                f"Unknown pricing format: {format_name}",
+                code="UNKNOWN_PRICING_FORMAT",
+            )
         pricing_config, _ = self.config_service.get_pricing_config()
         floors = pricing_config.get("price_floor_cents", {})
         floor_key = PRICE_FLOOR_CONFIG_KEYS[format_name]
