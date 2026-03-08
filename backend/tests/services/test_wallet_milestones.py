@@ -98,7 +98,7 @@ def instructor_setup(db):
 
 def _create_completed_booking(db, student, instructor_service, instructor_id: str, index: int) -> Booking:
     base_date = datetime.now(timezone.utc).date()
-    start_hour = 14 + index  # stagger bookings per index to prevent overlaps
+    start_hour = 6 + index  # stagger bookings per index (7-17), avoids midnight wrap
     start_time = time(start_hour % 24, 0)
     end_time = (datetime.combine(base_date, start_time) + timedelta(minutes=60)).time()
 

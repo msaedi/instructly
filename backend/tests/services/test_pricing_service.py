@@ -38,8 +38,9 @@ def _create_booking(
     """Persist and return a booking tailored for pricing tests."""
 
     hourly_rate_decimal = Decimal(str(hourly_rate)).quantize(Decimal("0.01"))
+    today = date.today()  # tz-pattern-ok: test fixture, DST handled by booking_timezone_fields
     start_time = time(10, 0)
-    end_dt = datetime.combine(date.today(), start_time) + timedelta(minutes=duration_minutes)
+    end_dt = datetime.combine(today, start_time) + timedelta(minutes=duration_minutes)
     total_price = (
         hourly_rate_decimal * Decimal(duration_minutes) / Decimal(60)
     ).quantize(Decimal("0.01"))
@@ -49,7 +50,7 @@ def _create_booking(
         student_id=student.id,
        instructor_id=instructor.id,
         instructor_service_id=service.id,
-        booking_date=date.today(),
+        booking_date=today,
         start_time=start_time,
         end_time=end_dt.time(),
         service_name="Test Service",

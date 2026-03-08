@@ -19,6 +19,7 @@ from app.models.service_catalog import InstructorService
 from app.repositories.payment_repository import PaymentRepository
 from app.services.booking_service import BookingService
 from app.services.credit_service import CreditService
+from app.services.timezone_service import TimezoneService
 from app.tasks.payment_tasks import _process_capture_for_booking
 
 try:  # pragma: no cover - allow execution from backend/ or repo root
@@ -61,6 +62,15 @@ def _safe_start_window(hours_from_now: int) -> tuple[datetime, datetime]:
             minute=0, second=0, microsecond=0
         )
         end_dt = start_dt + timedelta(hours=1)
+    # Skip DST gap (2:00-3:00 AM spring-forward) — push to 3:00 AM
+    for dt in (start_dt, end_dt):
+        naive = dt.replace(tzinfo=None)
+        if naive.hour == 2 and TimezoneService.validate_time_exists(
+            naive.date(), naive.time(), "America/New_York"
+        )[0] is False:
+            start_dt = start_dt.replace(hour=3)
+            end_dt = start_dt + timedelta(hours=1)
+            break
     return start_dt, end_dt
 
 

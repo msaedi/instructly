@@ -18,6 +18,7 @@ from app.models.service_catalog import InstructorService, ServiceCatalog, Servic
 from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.services.booking_service import BookingService
+from app.services.timezone_service import TimezoneService
 
 try:  # pragma: no cover - fallback for direct backend pytest runs
     from backend.tests.utils.booking_timezone import booking_timezone_fields
@@ -151,6 +152,12 @@ def _safe_start_window(hours_from_now: int) -> datetime:
     end_dt = start_dt + timedelta(hours=1)
     if end_dt.date() != start_dt.date():
         start_dt = (start_dt - timedelta(hours=2)).replace(minute=0, second=0, microsecond=0)
+    # Skip DST gap (2:00-3:00 AM spring-forward) — push to 3:00 AM
+    naive = start_dt.replace(tzinfo=None)
+    if naive.hour == 2 and TimezoneService.validate_time_exists(
+        naive.date(), naive.time(), "America/New_York"
+    )[0] is False:
+        start_dt = start_dt.replace(hour=3)
     return start_dt
 
 
