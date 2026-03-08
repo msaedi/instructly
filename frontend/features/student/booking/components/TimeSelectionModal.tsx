@@ -122,7 +122,8 @@ export interface TimeSelectionModalProps {
     services: Array<{
       id?: string;
       duration_options: number[];
-      hourly_rate: number;
+      min_hourly_rate: number;
+      format_prices: Array<{ format: string; hourly_rate: number }>;
       skill: string;
       location_types?: string[];
     }>;
@@ -178,7 +179,7 @@ export default function TimeSelectionModal({
 
   const selectedHourlyRate = useMemo(() => {
     if (!selectedService) return 0;
-    const raw = (selectedService as unknown as Record<string, unknown>)?.['hourly_rate'] as unknown;
+    const raw = (selectedService as unknown as Record<string, unknown>)?.['min_hourly_rate'] as unknown;
     const parsed = typeof raw === 'number' ? raw : parseFloat(String(raw ?? '0'));
     return Number.isFinite(parsed) ? parsed : 0;
   }, [selectedService]);

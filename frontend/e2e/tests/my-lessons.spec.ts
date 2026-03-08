@@ -349,8 +349,30 @@ async function setupMocksAndAuth(page: Page) {
         bio: 'PhD in Physics',
         rating: 4.9,
         total_reviews: 89,
-        services: ['Physics', 'Mathematics'],
-        hourly_rate: 80,
+        services: [
+          {
+            id: '01J5TESTSERV00000000000002',
+            service_catalog_id: '01J5TESTSERV00000000000002',
+            name: 'Physics',
+            skill: 'Physics',
+            min_hourly_rate: 80,
+            format_prices: [{ format: 'student_location', hourly_rate: 80 }],
+            description: 'Physics lessons',
+            duration_options: [60],
+            is_active: true,
+          },
+          {
+            id: '01J5TESTSERV00000000000003',
+            service_catalog_id: '01J5TESTSERV00000000000003',
+            name: 'Mathematics',
+            skill: 'Mathematics',
+            min_hourly_rate: 80,
+            format_prices: [{ format: 'student_location', hourly_rate: 80 }],
+            description: 'Mathematics lessons',
+            duration_options: [60],
+            is_active: true,
+          }
+        ],
       }),
     });
   });

@@ -69,7 +69,8 @@ export async function mockInstructorProfile(page: Page) {
               service_catalog_id: TEST_ULIDS.service1,
               name: 'Piano',  // Added 'name' field
               skill: 'Piano',
-              hourly_rate: 120,
+              min_hourly_rate: 120,
+              format_prices: [{ format: 'student_location', hourly_rate: 120 }],
               description: 'Professional piano lessons',
               duration_options: [30, 45, 60, 90],
               is_active: true
@@ -425,7 +426,8 @@ export async function setupAllMocks(
               service_catalog_id: TEST_ULIDS.service1,
               name: 'Piano',
               description: 'Professional piano lessons',
-              price_per_hour: 120,
+              min_hourly_rate: 120,
+              format_prices: [{ format: 'student_location', hourly_rate: 120 }],
               relevance_score: 0.95,
             },
             other_matches: [],
@@ -836,7 +838,8 @@ export async function setupAllMocks(
               service_catalog_id: TEST_ULIDS.service1,
               name: 'Piano',
               skill: 'Piano',
-              hourly_rate: 120,
+              min_hourly_rate: 120,
+              format_prices: [{ format: 'student_location', hourly_rate: 120 }],
               description: 'Professional piano lessons',
               duration_options: [30, 45, 60, 90],
               is_active: true

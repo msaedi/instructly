@@ -421,11 +421,15 @@ describe('PaymentConfirmation', () => {
         {
           id: 'svc-1',
           skill: 'Piano',
-          hourly_rate: 100,
+          min_hourly_rate: 100,
           duration_options: [60],
           offers_online: true,
           offers_travel: true,
           offers_at_location: false,
+          format_prices: [
+            { format: 'online', hourly_rate: 100 },
+            { format: 'student_location', hourly_rate: 100 },
+          ],
         },
       ],
       preferred_teaching_locations: [],
@@ -1005,11 +1009,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [30, 60, 90],
             offers_online: true,
             offers_travel: false,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+            ],
           },
         ],
       });
@@ -1034,11 +1041,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [30, 60, 90],
             offers_online: true,
             offers_travel: false,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+            ],
           },
         ],
       });
@@ -2553,20 +2563,26 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [30, 60, 90],
             offers_online: true,
             offers_travel: false,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+            ],
           },
           {
             id: 'svc-2',
             skill: 'Guitar',
-            hourly_rate: 80,
+            min_hourly_rate: 80,
             duration_options: [30, 60],
             offers_online: true,
             offers_travel: false,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 80 },
+            ],
           },
         ],
       });
@@ -4036,11 +4052,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: false,
             offers_at_location: true,
+            format_prices: [
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -4081,11 +4100,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -4216,11 +4238,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: false,
             offers_at_location: true,
+            format_prices: [
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -4340,11 +4365,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -4374,11 +4402,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -4623,11 +4654,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: false,
             offers_at_location: true,
+            format_prices: [
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -4658,11 +4692,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -4694,11 +4732,16 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: true,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -4736,11 +4779,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: false,
             offers_at_location: true,
+            format_prices: [
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -4833,11 +4879,16 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: true,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -4858,11 +4909,16 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
-            offers_at_location: true, // offers but no locations defined
+            offers_at_location: true,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+              { format: 'instructor_location', hourly_rate: 100 },
+            ], // offers but no locations defined
           },
         ],
         preferred_teaching_locations: [],
@@ -4915,11 +4971,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -5066,11 +5126,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: false,
             offers_at_location: true,
+            format_prices: [
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -5103,11 +5166,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: false,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -5179,11 +5245,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: false,
             offers_at_location: true,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -5210,11 +5280,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -5317,11 +5391,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: false,
             offers_at_location: true,
+            format_prices: [
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -5361,11 +5438,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: false,
             offers_at_location: true,
+            format_prices: [
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -5386,11 +5466,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -5424,11 +5507,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -5590,20 +5676,28 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-meta-1',
             skill: 'Guitar',
-            hourly_rate: 80,
+            min_hourly_rate: 80,
             duration_options: [30, 60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 80 },
+              { format: 'student_location', hourly_rate: 80 },
+            ],
           },
           {
             id: 'svc-2',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -5628,20 +5722,27 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-booking-1',
             skill: 'Drums',
-            hourly_rate: 90,
+            min_hourly_rate: 90,
             duration_options: [60],
             offers_online: true,
             offers_travel: false,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 90 },
+            ],
           },
           {
             id: 'svc-2',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -5669,20 +5770,28 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-session-1',
             skill: 'Violin',
-            hourly_rate: 120,
+            min_hourly_rate: 120,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 120 },
+              { format: 'student_location', hourly_rate: 120 },
+            ],
           },
           {
             id: 'svc-2',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -5706,11 +5815,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'only-service',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -5739,20 +5852,27 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-a',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: false,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+            ],
           },
           {
             id: 'svc-b',
             skill: 'Guitar',
-            hourly_rate: 80,
+            min_hourly_rate: 80,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 80 },
+              { format: 'student_location', hourly_rate: 80 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -5913,11 +6033,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: false,
             offers_at_location: true,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -5941,11 +6065,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: false,
             offers_at_location: true,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -6324,11 +6452,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: false,
             offers_at_location: true,
+            format_prices: [
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -6362,11 +6493,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: false,
             offers_at_location: true,
+            format_prices: [
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -6399,11 +6533,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: false,
             offers_at_location: true,
+            format_prices: [
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -6436,11 +6573,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -6476,11 +6616,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -6515,11 +6658,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -6560,11 +6706,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: false,
             offers_at_location: true,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: 'not_an_array',
@@ -6583,11 +6733,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: false,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+            ],
           },
         ],
         // No preferred_teaching_locations or preferred_public_spaces keys at all
@@ -6604,11 +6757,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: false,
             offers_at_location: true,
+            format_prices: [
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -6646,11 +6802,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: false,
             offers_at_location: true,
+            format_prices: [
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -6682,11 +6841,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: false,
             offers_at_location: true,
+            format_prices: [
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -6723,11 +6885,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: false,
             offers_at_location: true,
+            format_prices: [
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -6768,11 +6933,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -6818,11 +6987,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -6938,11 +7111,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -6988,11 +7165,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -7037,11 +7218,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -7085,11 +7270,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -7134,11 +7323,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -7177,11 +7370,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -7214,11 +7411,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -7251,11 +7452,16 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: true,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -7300,11 +7506,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -7358,11 +7568,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -7406,11 +7620,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [30, 60, 90],
             offers_online: true,
             offers_travel: false,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -7456,11 +7673,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -7560,11 +7781,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -7618,11 +7843,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: false,
             offers_at_location: true,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -7732,11 +7961,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -7786,11 +8019,16 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: true,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -8865,11 +9103,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: false,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -8903,11 +9144,16 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: true,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -8954,11 +9200,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: false,
             offers_at_location: true,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -8982,11 +9232,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: false,
             offers_at_location: true,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -9231,11 +9485,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [30, 60, 90],
             offers_online: true,
             offers_travel: false,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+            ],
           },
         ],
       });
@@ -9310,11 +9567,16 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: true,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -9372,11 +9634,16 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: true,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -9441,11 +9708,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -9820,11 +10091,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -9862,11 +10137,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -9913,11 +10192,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -10119,11 +10402,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -10156,11 +10442,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -10214,11 +10503,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -10293,11 +10586,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-travel-only',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -10342,11 +10638,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-studio',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: false,
             offers_at_location: true,
+            format_prices: [
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -10399,11 +10698,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-public',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -10462,11 +10764,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-1',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -10570,10 +10876,11 @@ describe('PaymentConfirmation', () => {
         services: [
           {
             id: 'svc-malformed',
-            hourly_rate: 90,
+            min_hourly_rate: 90,
             offers_online: false,
             offers_travel: false,
             offers_at_location: false,
+            format_prices: [],
           },
         ],
         preferred_teaching_locations: [],
@@ -10687,11 +10994,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-bare',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -10754,11 +11064,15 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-retry',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: true,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'online', hourly_rate: 100 },
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -10815,11 +11129,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-studio-no-meta',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: false,
             offers_at_location: true,
+            format_prices: [
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -10913,11 +11230,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-studio',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: false,
             offers_at_location: true,
+            format_prices: [
+              { format: 'instructor_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [
@@ -10998,11 +11318,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-travel-only',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],
@@ -11064,11 +11387,14 @@ describe('PaymentConfirmation', () => {
           {
             id: 'svc-travel',
             skill: 'Piano',
-            hourly_rate: 100,
+            min_hourly_rate: 100,
             duration_options: [60],
             offers_online: false,
             offers_travel: true,
             offers_at_location: false,
+            format_prices: [
+              { format: 'student_location', hourly_rate: 100 },
+            ],
           },
         ],
         preferred_teaching_locations: [],

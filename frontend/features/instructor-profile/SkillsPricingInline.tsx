@@ -44,13 +44,18 @@ import {
   type SelectedService,
 } from './SkillsPricingInline.helpers';
 
+/** Set of format keys that are currently enabled across all services. */
+export type EnabledFormats = { student_location: boolean; instructor_location: boolean; online: boolean };
+
 interface Props {
   className?: string;
   /** Pre-fetched instructor profile to avoid duplicate API calls */
   instructorProfile?: InstructorProfileResponse | null;
+  /** Callback fired whenever the set of enabled formats changes across all services. */
+  onFormatsChange?: ((formats: EnabledFormats) => void) | undefined;
 }
 
-export default function SkillsPricingInline({ className, instructorProfile }: Props) {
+export default function SkillsPricingInline({ className, instructorProfile, onFormatsChange }: Props) {
   const { user } = useAuth();
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [servicesByCategory, setServicesByCategory] = useState<Record<string, CategoryServiceDetail[]>>({});
@@ -239,6 +244,22 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
     },
     [setSelectedServicesWithDirty]
   );
+
+  // Report enabled formats to parent whenever selectedServices change
+  const onFormatsChangeRef = useRef(onFormatsChange);
+  onFormatsChangeRef.current = onFormatsChange;
+
+  useEffect(() => {
+    const cb = onFormatsChangeRef.current;
+    if (!cb) return;
+    const enabled: EnabledFormats = { student_location: false, instructor_location: false, online: false };
+    for (const svc of selectedServices) {
+      if ('student_location' in svc.format_prices) enabled.student_location = true;
+      if ('instructor_location' in svc.format_prices) enabled.instructor_location = true;
+      if ('online' in svc.format_prices) enabled.online = true;
+    }
+    cb(enabled);
+  }, [selectedServices]);
 
   const initializeMissingFilters = useCallback(
     (serviceId: string, defaults: FilterSelections) => {

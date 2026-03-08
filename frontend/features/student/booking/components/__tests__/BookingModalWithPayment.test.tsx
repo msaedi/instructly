@@ -34,15 +34,15 @@ const instructor: Instructor = {
   service_area_summary: 'NYC',
   years_experience: 5,
   services: [
-    { id: 'service-1', skill: 'Piano', hourly_rate: 100, duration_options: [60], duration: 60 },
+    { id: 'service-1', skill: 'Piano', min_hourly_rate: 100, format_prices: [{ format: 'online', hourly_rate: 100 }], duration_options: [60], duration: 60 },
   ],
 };
 
 const instructorMultipleServices: Instructor = {
   ...instructor,
   services: [
-    { id: 'service-1', skill: 'Piano', hourly_rate: 100, duration_options: [60], duration: 60 },
-    { id: 'service-2', skill: 'Guitar', hourly_rate: 80, duration_options: [30, 60], duration: 30 },
+    { id: 'service-1', skill: 'Piano', min_hourly_rate: 100, format_prices: [{ format: 'online', hourly_rate: 100 }], duration_options: [60], duration: 60 },
+    { id: 'service-2', skill: 'Guitar', min_hourly_rate: 80, format_prices: [{ format: 'online', hourly_rate: 80 }], duration_options: [30, 60], duration: 30 },
   ],
 };
 
@@ -420,7 +420,8 @@ describe('BookingModalWithPayment', () => {
         {
           id: 'service-1',
           skill: 'Piano',
-          hourly_rate: 'not_a_number' as unknown as number,
+          min_hourly_rate: 'not_a_number' as unknown as number,
+          format_prices: [],
           duration_options: [60],
           duration: 60,
         },
@@ -508,7 +509,7 @@ describe('BookingModalWithPayment', () => {
     const instructorBadRate: Instructor = {
       ...instructor,
       services: [
-        { id: 'service-1', skill: 'Piano', hourly_rate: 'not-a-number' as unknown as number, duration_options: [60], duration: 60 },
+        { id: 'service-1', skill: 'Piano', min_hourly_rate: 'not-a-number' as unknown as number, format_prices: [], duration_options: [60], duration: 60 },
       ],
     };
 
@@ -537,7 +538,7 @@ describe('BookingModalWithPayment', () => {
     const instructorStringRate: Instructor = {
       ...instructor,
       services: [
-        { id: 'service-1', skill: 'Piano', hourly_rate: '75' as unknown as number, duration_options: [60], duration: 60 },
+        { id: 'service-1', skill: 'Piano', min_hourly_rate: '75' as unknown as number, format_prices: [], duration_options: [60], duration: 60 },
       ],
     };
 
@@ -614,7 +615,8 @@ describe('BookingModalWithPayment', () => {
         {
           id: 'service-1',
           skill: 'Piano',
-          hourly_rate: null as unknown as number,
+          min_hourly_rate: null as unknown as number,
+          format_prices: [],
           duration_options: [60],
           duration: 60,
         },
@@ -640,7 +642,8 @@ describe('BookingModalWithPayment', () => {
         {
           id: 'service-1',
           skill: 'Piano',
-          hourly_rate: undefined as unknown as number,
+          min_hourly_rate: undefined as unknown as number,
+          format_prices: [],
           duration_options: [60],
           duration: 60,
         },
@@ -741,7 +744,8 @@ describe('BookingModalWithPayment', () => {
         {
           id: 'service-1',
           skill: 'Piano',
-          hourly_rate: 120,
+          min_hourly_rate: 120,
+          format_prices: [{ format: 'online', hourly_rate: 120 }],
           duration_options: [60],
           duration: undefined as unknown as number,
         },
@@ -881,7 +885,8 @@ describe('BookingModalWithPayment', () => {
           {
             id: 'service-1',
             skill: 'Piano',
-            hourly_rate: null as unknown as number,
+            min_hourly_rate: null as unknown as number,
+            format_prices: [],
             duration_options: [60],
             duration: 60,
           },
@@ -907,7 +912,8 @@ describe('BookingModalWithPayment', () => {
           {
             id: 'service-1',
             skill: 'Piano',
-            hourly_rate: undefined as unknown as number,
+            min_hourly_rate: undefined as unknown as number,
+            format_prices: [],
             duration_options: [60],
             duration: 60,
           },

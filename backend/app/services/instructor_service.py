@@ -749,6 +749,34 @@ class InstructorService(BaseService):
                 details={"missing": missing},
             )
 
+        # Validate format prerequisites: locations must exist for location-based formats
+        active_services = self.service_repository.find_by(
+            instructor_profile_id=profile.id, is_active=True
+        )
+        active_formats: set[str] = set()
+        for svc in active_services:
+            for fp in getattr(svc, "format_prices", []):
+                active_formats.add(fp.format)
+
+        if SERVICE_FORMAT_STUDENT_LOCATION in active_formats:
+            service_areas = self.service_area_repository.list_for_instructor(
+                profile.user_id, active_only=True
+            )
+            if not service_areas:
+                raise BusinessRuleException(
+                    "Cannot go live with travel format — add at least one service area first",
+                    code="NO_SERVICE_AREAS",
+                )
+
+        if SERVICE_FORMAT_INSTRUCTOR_LOCATION in active_formats:
+            teaching_locations = self.get_instructor_teaching_locations(profile.user_id)
+            if not teaching_locations:
+                raise BusinessRuleException(
+                    "Cannot go live with 'at my location' format"
+                    " — add at least one teaching location first",
+                    code="NO_TEACHING_LOCATIONS",
+                )
+
         with self.transaction():
             if not getattr(profile, "onboarding_completed_at", None):
                 updated_profile = self.profile_repository.update(
@@ -906,24 +934,6 @@ class InstructorService(BaseService):
                 raise BusinessRuleException(
                     f"Minimum price for {format_name} is ${floor_value}",
                     code="PRICE_BELOW_FLOOR",
-                )
-
-        if SERVICE_FORMAT_STUDENT_LOCATION in seen_formats:
-            service_areas = self.service_area_repository.list_for_instructor(
-                instructor_id, active_only=True
-            )
-            if not service_areas:
-                raise BusinessRuleException(
-                    "Cannot enable travel - add at least one service area first",
-                    code="NO_SERVICE_AREAS",
-                )
-
-        if SERVICE_FORMAT_INSTRUCTOR_LOCATION in seen_formats:
-            teaching_locations = self.get_instructor_teaching_locations(instructor_id)
-            if not teaching_locations:
-                raise BusinessRuleException(
-                    "Cannot enable 'at my location' - add at least one teaching location first",
-                    code="NO_TEACHING_LOCATIONS",
                 )
 
         if SERVICE_FORMAT_ONLINE in seen_formats and not bool(catalog_service.online_capable):

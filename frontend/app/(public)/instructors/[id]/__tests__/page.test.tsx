@@ -129,10 +129,11 @@ describe('InstructorProfilePage', () => {
             id: 'svc-1',
             service_catalog_id: 'cat-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
-            offers_travel: true,
-            offers_at_location: true,
-            offers_online: false,
+            min_hourly_rate: 60,
+            format_prices: [
+              { format: 'student_location', hourly_rate: 60 },
+              { format: 'instructor_location', hourly_rate: 60 },
+            ],
           },
         ],
         preferred_teaching_locations: [

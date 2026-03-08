@@ -342,14 +342,15 @@ function PaymentConfirmationInner({
     if (!selectedService) {
       return types;
     }
-    if (selectedService.offers_online) {
+    const formats = (selectedService.format_prices ?? []).map(fp => fp.format);
+    if (formats.includes('online')) {
       types.push('online');
     }
-    if (selectedService.offers_travel) {
+    if (formats.includes('student_location')) {
       types.push('student_location');
       types.push('neutral_location');
     }
-    if (selectedService.offers_at_location && teachingLocations.length > 0) {
+    if (formats.includes('instructor_location') && teachingLocations.length > 0) {
       types.push('instructor_location');
     }
     return Array.from(new Set(types));
@@ -2640,17 +2641,19 @@ function PaymentConfirmationInner({
               ? instructorServices.map((service) => ({
                   id: service.id,
                   skill: service.skill || '',
-                  hourly_rate: service.hourly_rate,
+                  min_hourly_rate: service.min_hourly_rate,
+                  format_prices: service.format_prices ?? [],
                   duration_options: service.duration_options || [30, 60, 90],
                   location_types: [
-                    ...(service.offers_travel || service.offers_at_location ? ['in_person'] : []),
-                    ...(service.offers_online ? ['online'] : []),
+                    ...((service.format_prices ?? []).some(fp => fp.format === 'student_location' || fp.format === 'instructor_location') ? ['in_person'] : []),
+                    ...((service.format_prices ?? []).some(fp => fp.format === 'online') ? ['online'] : []),
                   ],
                 }))
               : [{
                   id: sessionStorage.getItem('serviceId') || '',
                   skill: booking.lessonType,
-                  hourly_rate: booking.basePrice / (booking.duration / 60),
+                  min_hourly_rate: booking.basePrice / (booking.duration / 60),
+                  format_prices: [],
                   duration_options: [30, 60, 90], // fallback to standard durations
                   location_types: [locationType === 'online' ? 'online' : 'in_person'],
                 }]

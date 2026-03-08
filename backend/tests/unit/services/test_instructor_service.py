@@ -221,7 +221,7 @@ def test_normalize_capability_flags():
     ]
 
 
-def test_validate_service_format_prices_requires_locations():
+def test_validate_service_format_prices_requires_at_least_one_format():
     service = _build_service()
     catalog_service = SimpleNamespace(name="Piano", online_capable=True)
 
@@ -233,24 +233,25 @@ def test_validate_service_format_prices_requires_locations():
         )
     assert exc.value.code == "NO_LOCATION_OPTIONS"
 
-    service.service_area_repository.list_for_instructor.return_value = []
-    with pytest.raises(BusinessRuleException) as exc:
-        service.validate_service_format_prices(
-            instructor_id="user-1",
-            catalog_service=catalog_service,
-            format_prices=_format_prices(90.0, "student_location"),
-        )
-    assert exc.value.code == "NO_SERVICE_AREAS"
 
-    service.service_area_repository.list_for_instructor.return_value = [SimpleNamespace()]
-    service.get_instructor_teaching_locations = MagicMock(return_value=[])
-    with pytest.raises(BusinessRuleException) as exc:
-        service.validate_service_format_prices(
-            instructor_id="user-1",
-            catalog_service=catalog_service,
-            format_prices=_format_prices(90.0, "instructor_location"),
-        )
-    assert exc.value.code == "NO_TEACHING_LOCATIONS"
+def test_validate_service_format_prices_allows_location_formats_without_locations():
+    """Location formats are allowed on save — prerequisites are checked at go-live."""
+    service = _build_service()
+    catalog_service = SimpleNamespace(name="Piano", online_capable=True)
+
+    # student_location should succeed even without service areas
+    service.validate_service_format_prices(
+        instructor_id="user-1",
+        catalog_service=catalog_service,
+        format_prices=_format_prices(90.0, "student_location"),
+    )
+
+    # instructor_location should succeed even without teaching locations
+    service.validate_service_format_prices(
+        instructor_id="user-1",
+        catalog_service=catalog_service,
+        format_prices=_format_prices(90.0, "instructor_location"),
+    )
 
 
 def test_update_services_reactivate_create_soft_and_hard_delete():

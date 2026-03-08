@@ -18,8 +18,6 @@ type FormatPricingCardsProps = {
   formatErrors?: Partial<Record<ServiceFormat, string>> | undefined;
   studentLocationDisabled?: boolean | undefined;
   studentLocationDisabledReason?: string | undefined;
-  instructorLocationDisabled?: boolean | undefined;
-  instructorLocationDisabledReason?: string | undefined;
 };
 
 export function FormatPricingCards({
@@ -30,8 +28,6 @@ export function FormatPricingCards({
   formatErrors,
   studentLocationDisabled,
   studentLocationDisabledReason,
-  instructorLocationDisabled,
-  instructorLocationDisabledReason,
 }: FormatPricingCardsProps) {
   function isEnabled(format: ServiceFormat): boolean {
     return format in formatPrices;
@@ -39,13 +35,11 @@ export function FormatPricingCards({
 
   function isCardDisabled(format: ServiceFormat): boolean {
     if (format === 'student_location') return studentLocationDisabled === true;
-    if (format === 'instructor_location') return instructorLocationDisabled === true;
     return false;
   }
 
   function getDisabledReason(format: ServiceFormat): string | undefined {
     if (format === 'student_location') return studentLocationDisabledReason;
-    if (format === 'instructor_location') return instructorLocationDisabledReason;
     return undefined;
   }
 

@@ -188,8 +188,11 @@ export interface InstructorService {
   /** Skill name (e.g., "Piano", "Yoga", "Spanish") */
   skill?: string;
 
-  /** Hourly rate in USD */
-  hourly_rate: number;
+  /** Lowest hourly rate across all enabled formats */
+  min_hourly_rate: number;
+
+  /** Per-format pricing rows from the API */
+  format_prices: Array<{ format: string; hourly_rate: number }>;
 
   /** Optional service description */
   description: string | null;
@@ -412,6 +415,6 @@ export function getPrimaryService(services: InstructorService[]): InstructorServ
   if (!services || services.length === 0) return null;
 
   return services.reduce((primary, service) =>
-    service.hourly_rate < primary.hourly_rate ? service : primary
+    service.min_hourly_rate < primary.min_hourly_rate ? service : primary
   );
 }

@@ -17,9 +17,9 @@ describe('BookingButton', () => {
     background_check_completed: true,
     profile_image_url: null,
     services: [
-      { id: 'svc-1', skill: 'Piano', hourly_rate: 60, duration_options: [30, 60] },
-      { id: 'svc-2', skill: 'Guitar', hourly_rate: 45, duration_options: [30, 60] },
-      { id: 'svc-3', skill: 'Violin', hourly_rate: 80, duration_options: [60] },
+      { id: 'svc-1', skill: 'Piano', min_hourly_rate: 60, format_prices: [{ format: 'online', hourly_rate: 60 }], duration_options: [30, 60] },
+      { id: 'svc-2', skill: 'Guitar', min_hourly_rate: 45, format_prices: [{ format: 'online', hourly_rate: 45 }], duration_options: [30, 60] },
+      { id: 'svc-3', skill: 'Violin', min_hourly_rate: 80, format_prices: [{ format: 'online', hourly_rate: 80 }], duration_options: [60] },
     ],
     favorited_count: 0,
     user: {
@@ -98,7 +98,7 @@ describe('BookingButton', () => {
   it('handles single service correctly', () => {
     const singleServiceInstructor: InstructorProfile = {
       ...mockInstructorWithServices,
-      services: [{ id: 'svc-1', skill: 'Piano', hourly_rate: 75, duration_options: [60] }],
+      services: [{ id: 'svc-1', skill: 'Piano', min_hourly_rate: 75, format_prices: [{ format: 'online', hourly_rate: 75 }], duration_options: [60] }],
     } as InstructorProfile;
 
     render(<BookingButton instructor={singleServiceInstructor} />);
@@ -110,8 +110,8 @@ describe('BookingButton', () => {
     const zeroRateInstructor: InstructorProfile = {
       ...mockInstructorWithServices,
       services: [
-        { id: 'svc-1', skill: 'Piano', hourly_rate: 0, duration_options: [60] },
-        { id: 'svc-2', skill: 'Guitar', hourly_rate: 50, duration_options: [60] },
+        { id: 'svc-1', skill: 'Piano', min_hourly_rate: 0, format_prices: [{ format: 'online', hourly_rate: 0 }], duration_options: [60] },
+        { id: 'svc-2', skill: 'Guitar', min_hourly_rate: 50, format_prices: [{ format: 'online', hourly_rate: 50 }], duration_options: [60] },
       ],
     } as InstructorProfile;
 

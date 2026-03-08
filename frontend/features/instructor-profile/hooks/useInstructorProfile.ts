@@ -13,6 +13,8 @@ type ServerInstructorProfileResult = {
     skill?: string;
     duration_options?: number[];
     hourly_rate?: number | string;
+    min_hourly_rate?: number | string;
+    format_prices?: Array<{ format: string; hourly_rate: number }>;
     description?: string | null;
     location_types?: ServiceLocationType[];
     offers_travel?: boolean;
@@ -67,11 +69,15 @@ export function useInstructorProfile(instructorId: string) {
 
     // Map service names from catalog and fix data structure
     const mappedServices: InstructorService[] = (serverInst?.services || []).map((svc) => {
-      const hourlyRate = typeof svc.hourly_rate === 'number' ? svc.hourly_rate : Number.parseFloat(String(svc.hourly_rate ?? '0'));
+      const serverFormatPrices = Array.isArray(svc.format_prices) ? svc.format_prices : [];
+      const minRateRaw = typeof svc.min_hourly_rate === 'number'
+        ? svc.min_hourly_rate
+        : Number.parseFloat(String(svc.min_hourly_rate ?? '0'));
       const result: InstructorService = {
         id: svc.id || '',
         duration_options: Array.isArray(svc.duration_options) && svc.duration_options.length > 0 ? svc.duration_options : [60],
-        hourly_rate: Number.isFinite(hourlyRate) ? hourlyRate : 0,
+        min_hourly_rate: Number.isFinite(minRateRaw) ? minRateRaw : 0,
+        format_prices: serverFormatPrices,
         description: svc.description ?? null,
       };
 

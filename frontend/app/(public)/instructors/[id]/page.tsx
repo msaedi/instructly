@@ -25,7 +25,7 @@ import { navigationStateManager } from '@/lib/navigation/navigationStateManager'
 import { format } from 'date-fns';
 import { useBackgroundConfig } from '@/lib/config/backgroundProvider';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
-import { getString, getNumber, isFeatureCollection } from '@/lib/typesafe';
+import { getString, isFeatureCollection } from '@/lib/typesafe';
 import type { InstructorService } from '@/types/instructor';
 import { at } from '@/lib/ts/safe';
 import { useAuth } from '@/features/shared/hooks/useAuth';
@@ -169,9 +169,15 @@ function InstructorProfileContent() {
     });
   }, [bookingModal, initialRestore.bookingIntent, initialRestore.openModalFromIntent]);
   const services = Array.isArray(instructor?.services) ? instructor.services : [];
-  const offersTravel = services.some((service) => service.offers_travel === true);
-  const offersAtLocation = services.some((service) => service.offers_at_location === true);
-  const offersOnline = services.some((service) => service.offers_online === true);
+  const offersTravel = services.some(svc =>
+    (svc.format_prices ?? []).some(fp => fp.format === 'student_location')
+  );
+  const offersAtLocation = services.some(svc =>
+    (svc.format_prices ?? []).some(fp => fp.format === 'instructor_location')
+  );
+  const offersOnline = services.some(svc =>
+    (svc.format_prices ?? []).some(fp => fp.format === 'online')
+  );
   const hasTeachingLocations = Array.isArray(instructor?.preferred_teaching_locations)
     ? instructor.preferred_teaching_locations.length > 0
     : false;
@@ -243,7 +249,7 @@ function InstructorProfileContent() {
 
     if (activeSelectedSlot && selectedService && instructor) {
       const bookingDate = new Date(activeSelectedSlot.date + 'T' + activeSelectedSlot.time);
-      const hourlyRate = getNumber(selectedService, 'hourly_rate', 0);
+      const hourlyRate = selectedService.min_hourly_rate ?? 0;
       const totalPrice = hourlyRate * (duration / 60);
       const basePrice = totalPrice;
       const totalAmount = basePrice;
@@ -531,7 +537,8 @@ function InstructorProfileContent() {
             services: instructor.services.map(s => ({
               id: s.id,
               skill: s.skill || '',
-              hourly_rate: s.hourly_rate,
+              min_hourly_rate: s.min_hourly_rate,
+              format_prices: s.format_prices,
               duration_options: s.duration_options || [60],
               location_types: s.location_types || []
             }))
@@ -554,7 +561,7 @@ function InstructorProfileContent() {
             if (selectedService) {
               // Create booking data directly since we have all the info
               const bookingDate = new Date(newSlot.date + 'T' + newSlot.time);
-              const hourlyRate = selectedService.hourly_rate;
+              const hourlyRate = selectedService.min_hourly_rate ?? 0;
               const totalPrice = hourlyRate * (newSlot.duration / 60);
               const basePrice = totalPrice;
               const totalAmount = basePrice;

@@ -103,6 +103,94 @@ export function hasAnyFormatEnabled(state: FormatPriceState): boolean {
   return false;
 }
 
+// ---------------------------------------------------------------------------
+// Display helpers (student-facing)
+// ---------------------------------------------------------------------------
+
+const VALID_FORMATS: ReadonlySet<string> = new Set<string>([
+  'student_location',
+  'instructor_location',
+  'online',
+]);
+
+/** Priority order for default format display when no filter active. */
+export const FORMAT_DISPLAY_PRIORITY: readonly ServiceFormat[] = [
+  'student_location',
+  'online',
+  'instructor_location',
+];
+
+/** Map format key to human-readable display label. */
+export function formatLabel(format: ServiceFormat): string {
+  const config = FORMAT_CARD_CONFIGS.find((c) => c.format === format);
+  return config?.label ?? format;
+}
+
+/** Get the hourly rate for a specific format from an API response array. */
+export function getFormatRate(
+  formatPrices: ReadonlyArray<{ format: string; hourly_rate: number }>,
+  format: string,
+): number | null {
+  const match = formatPrices.find((fp) => fp.format === format);
+  return match ? match.hourly_rate : null;
+}
+
+/** Map a search location-filter value to the matching ServiceFormat keys. */
+export function lessonTypeToFormats(lessonType: string): ServiceFormat[] {
+  if (lessonType === 'online') return ['online'];
+  if (lessonType === 'in_person') return ['student_location', 'instructor_location'];
+  if (lessonType === 'travels') return ['student_location'];
+  if (lessonType === 'studio') return ['instructor_location'];
+  return ['student_location', 'online', 'instructor_location'];
+}
+
+type ContextualPrice = {
+  rate: number;
+  label: string;
+  isFrom: boolean;
+};
+
+/**
+ * Get display price based on search context.
+ * - Filtered by lesson type → matched format rate + label
+ * - No filter / "any" → min_hourly_rate + "from"
+ */
+export function getContextualPrice(
+  formatPrices: ReadonlyArray<{ format: string; hourly_rate: number }>,
+  minHourlyRate: number,
+  lessonType?: string,
+): ContextualPrice {
+  if (lessonType && lessonType !== 'any') {
+    const formats = lessonTypeToFormats(lessonType);
+    const matches = formatPrices.filter((fp) =>
+      formats.includes(fp.format as ServiceFormat),
+    );
+    if (matches.length > 0) {
+      // For multi-format lesson types (in_person), pick the cheapest
+      const best = matches.reduce((a, b) => a.hourly_rate <= b.hourly_rate ? a : b);
+      return {
+        rate: best.hourly_rate,
+        label: formats.length > 1 ? 'In-person' : formatLabel(best.format as ServiceFormat),
+        isFrom: false,
+      };
+    }
+  }
+  return { rate: minHourlyRate, label: 'from', isFrom: true };
+}
+
+/** Derive available ServiceFormat keys from a format_prices API array. */
+export function availableFormatsFromPrices(
+  formatPrices: ReadonlyArray<{ format: string; hourly_rate: number }>,
+): ServiceFormat[] {
+  return formatPrices
+    .map((fp) => fp.format)
+    .filter((f): f is ServiceFormat => VALID_FORMATS.has(f));
+}
+
+// ---------------------------------------------------------------------------
+// Instructor-side helpers
+// ---------------------------------------------------------------------------
+
 /**
  * Compute initial format_prices for a newly-added service based on
  * whether the instructor has service areas / teaching locations.

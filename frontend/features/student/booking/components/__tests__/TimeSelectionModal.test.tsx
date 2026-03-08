@@ -193,7 +193,8 @@ const storeBookingIntentMock = storeBookingIntent as jest.Mock;
 const mockService = {
   id: 'svc-1',
   duration_options: [30, 60, 90] as number[],
-  hourly_rate: 60,
+  min_hourly_rate: 60,
+  format_prices: [{ format: 'student_location', hourly_rate: 60 }] as Array<{ format: string; hourly_rate: number }>,
   skill: 'Piano Lessons',
   location_types: ['in_person'] as string[],
 };
@@ -524,8 +525,8 @@ describe('TimeSelectionModal', () => {
       const instructorWithMultipleServices = {
         ...mockInstructor,
         services: [
-          { id: 'svc-1', duration_options: [30], hourly_rate: 40, skill: 'Piano', location_types: ['in_person'] },
-          { id: 'svc-2', duration_options: [60], hourly_rate: 80, skill: 'Guitar', location_types: ['in_person'] },
+          { id: 'svc-1', duration_options: [30], min_hourly_rate: 40, format_prices: [{ format: 'student_location', hourly_rate: 40 }], skill: 'Piano', location_types: ['in_person'] },
+          { id: 'svc-2', duration_options: [60], min_hourly_rate: 80, format_prices: [{ format: 'student_location', hourly_rate: 80 }], skill: 'Guitar', location_types: ['in_person'] },
         ],
       };
 
@@ -683,7 +684,7 @@ describe('TimeSelectionModal', () => {
 
       const lowRateInstructor = {
         ...mockInstructor,
-        services: [{ ...mockService, hourly_rate: 20 }],
+        services: [{ ...mockService, min_hourly_rate: 20 }],
       };
 
       const dates = [getDateString(1)];
@@ -990,7 +991,7 @@ describe('TimeSelectionModal', () => {
 
       const veryLowRateInstructor = {
         ...mockInstructor,
-        services: [{ ...mockService, hourly_rate: 10 }], // $10/hr is way below $50 floor
+        services: [{ ...mockService, min_hourly_rate: 10 }], // $10/hr is way below $50 floor
       };
 
       const dates = [getDateString(1)];
@@ -1042,7 +1043,8 @@ describe('TimeSelectionModal', () => {
         services: [{
           id: 'svc-1',
           duration_options: [30, 60],
-          hourly_rate: 60,
+          min_hourly_rate: 60,
+          format_prices: [{ format: 'student_location', hourly_rate: 60 }],
           skill: 'Piano',
           location_types: undefined as unknown as string[],
         }],
@@ -1415,7 +1417,7 @@ describe('TimeSelectionModal', () => {
 
       const veryLowRateInstructor = {
         ...mockInstructor,
-        services: [{ ...mockService, hourly_rate: 10 }], // $10/hr is way below floor
+        services: [{ ...mockService, min_hourly_rate: 10 }], // $10/hr is way below floor
       };
 
       const dates = [getDateString(1)];
@@ -1444,7 +1446,7 @@ describe('TimeSelectionModal', () => {
 
       const veryLowRateInstructor = {
         ...mockInstructor,
-        services: [{ ...mockService, hourly_rate: 10 }],
+        services: [{ ...mockService, min_hourly_rate: 10 }],
       };
 
       const dates = [getDateString(1)];
@@ -2546,7 +2548,7 @@ describe('TimeSelectionModal', () => {
         ...mockInstructor,
         services: [{
           ...mockService,
-          hourly_rate: 10,
+          min_hourly_rate: 10,
           location_types: ['online'] as string[],
         }],
       };
@@ -2728,7 +2730,7 @@ describe('TimeSelectionModal', () => {
         ...mockInstructor,
         services: [{
           ...mockService,
-          hourly_rate: 'not_a_number' as unknown as number,
+          min_hourly_rate: 'not_a_number' as unknown as number,
         }],
       };
 
@@ -2739,7 +2741,7 @@ describe('TimeSelectionModal', () => {
     it('handles zero hourly rate', () => {
       const instructorWithZeroRate = {
         ...mockInstructor,
-        services: [{ ...mockService, hourly_rate: 0 }],
+        services: [{ ...mockService, min_hourly_rate: 0 }],
       };
 
       render(<TimeSelectionModal {...defaultProps} instructor={instructorWithZeroRate} />);
@@ -2960,7 +2962,7 @@ describe('TimeSelectionModal', () => {
         ...mockInstructor,
         services: [{
           ...mockService,
-          hourly_rate: 10,
+          min_hourly_rate: 10,
         }],
       };
 
@@ -3749,7 +3751,8 @@ describe('TimeSelectionModal', () => {
         ...mockInstructor,
         services: [{
           duration_options: [30, 60, 90] as number[],
-          hourly_rate: 60,
+          min_hourly_rate: 60,
+          format_prices: [{ format: 'student_location', hourly_rate: 60 }] as Array<{ format: string; hourly_rate: number }>,
           skill: 'Piano Lessons',
           location_types: ['in_person'] as string[],
           // no `id` property
@@ -3801,8 +3804,8 @@ describe('TimeSelectionModal', () => {
       const multiServiceInstructor = {
         ...mockInstructor,
         services: [
-          { id: 'svc-A', duration_options: [30], hourly_rate: 40, skill: 'Piano', location_types: ['in_person'] as string[] },
-          { id: 'svc-B', duration_options: [60, 120], hourly_rate: 80, skill: 'Guitar', location_types: ['online'] as string[] },
+          { id: 'svc-A', duration_options: [30], min_hourly_rate: 40, format_prices: [{ format: 'student_location', hourly_rate: 40 }] as Array<{ format: string; hourly_rate: number }>, skill: 'Piano', location_types: ['in_person'] as string[] },
+          { id: 'svc-B', duration_options: [60, 120], min_hourly_rate: 80, format_prices: [{ format: 'online', hourly_rate: 80 }] as Array<{ format: string; hourly_rate: number }>, skill: 'Guitar', location_types: ['online'] as string[] },
         ],
       };
 
@@ -3829,7 +3832,7 @@ describe('TimeSelectionModal', () => {
   });
 
   describe('hourly rate parsing edge cases — string and undefined', () => {
-    it('parses string hourly_rate "75.50" correctly', async () => {
+    it('parses string min_hourly_rate "75.50" correctly', async () => {
       const dates = [getDateString(1)];
       publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
 
@@ -3837,7 +3840,7 @@ describe('TimeSelectionModal', () => {
         ...mockInstructor,
         services: [{
           ...mockService,
-          hourly_rate: '75.50' as unknown as number,
+          min_hourly_rate: '75.50' as unknown as number,
           duration_options: [60],
         }],
       };
@@ -3848,7 +3851,7 @@ describe('TimeSelectionModal', () => {
       expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
     });
 
-    it('handles undefined hourly_rate by defaulting to 0 then using fallback 100', async () => {
+    it('handles undefined min_hourly_rate by defaulting to 0 then using fallback 100', async () => {
       const dates = [getDateString(1)];
       publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
 
@@ -3856,7 +3859,7 @@ describe('TimeSelectionModal', () => {
         ...mockInstructor,
         services: [{
           ...mockService,
-          hourly_rate: undefined as unknown as number,
+          min_hourly_rate: undefined as unknown as number,
         }],
       };
 
@@ -3916,7 +3919,8 @@ describe('TimeSelectionModal', () => {
         services: [{
           id: 'svc-1',
           duration_options: [30, 60, 90] as number[],
-          hourly_rate: 60,
+          min_hourly_rate: 60,
+          format_prices: [{ format: 'student_location', hourly_rate: 60 }] as Array<{ format: string; hourly_rate: number }>,
           skill: 'Piano',
         }],
       };
@@ -4214,7 +4218,7 @@ describe('TimeSelectionModal', () => {
 
       const inPersonLowRate = {
         ...mockInstructor,
-        services: [{ ...mockService, hourly_rate: 10, location_types: ['in_person'] as string[] }],
+        services: [{ ...mockService, min_hourly_rate: 10, location_types: ['in_person'] as string[] }],
       };
 
       const dates = [getDateString(1)];
@@ -4378,7 +4382,7 @@ describe('TimeSelectionModal', () => {
 
       const zeroRateInstructor = {
         ...mockInstructor,
-        services: [{ ...mockService, hourly_rate: 0 }],
+        services: [{ ...mockService, min_hourly_rate: 0 }],
       };
 
       render(<TimeSelectionModal {...defaultProps} instructor={zeroRateInstructor} />);
@@ -4553,7 +4557,7 @@ describe('TimeSelectionModal', () => {
       // $100/hr is well above the $10 floor
       const highRateInstructor = {
         ...mockInstructor,
-        services: [{ ...mockService, hourly_rate: 100 }],
+        services: [{ ...mockService, min_hourly_rate: 100 }],
       };
 
       const dates = [getDateString(1)];
@@ -4803,11 +4807,11 @@ describe('TimeSelectionModal', () => {
     });
   });
 
-  describe('selectedHourlyRate with negative hourly_rate', () => {
-    it('treats negative hourly_rate as valid (Number.isFinite passes)', () => {
+  describe('selectedHourlyRate with negative min_hourly_rate', () => {
+    it('treats negative min_hourly_rate as valid (Number.isFinite passes)', () => {
       const negativeRateInstructor = {
         ...mockInstructor,
-        services: [{ ...mockService, hourly_rate: -50 }],
+        services: [{ ...mockService, min_hourly_rate: -50 }],
       };
 
       render(<TimeSelectionModal {...defaultProps} instructor={negativeRateInstructor} />);
@@ -5726,8 +5730,8 @@ describe('TimeSelectionModal', () => {
       const multiService = {
         ...mockInstructor,
         services: [
-          { id: 'svc-first', duration_options: [30, 60, 90] as number[], hourly_rate: 60, skill: 'Piano', location_types: ['in_person'] as string[] },
-          { id: 'svc-second', duration_options: [60], hourly_rate: 80, skill: 'Guitar', location_types: ['online'] as string[] },
+          { id: 'svc-first', duration_options: [30, 60, 90] as number[], min_hourly_rate: 60, format_prices: [{ format: 'student_location', hourly_rate: 60 }] as Array<{ format: string; hourly_rate: number }>, skill: 'Piano', location_types: ['in_person'] as string[] },
+          { id: 'svc-second', duration_options: [60], min_hourly_rate: 80, format_prices: [{ format: 'online', hourly_rate: 80 }] as Array<{ format: string; hourly_rate: number }>, skill: 'Guitar', location_types: ['online'] as string[] },
         ],
       };
 
@@ -6643,7 +6647,8 @@ describe('TimeSelectionModal', () => {
         ...mockInstructor,
         services: [{
           duration_options: [30, 60, 90] as number[],
-          hourly_rate: 60,
+          min_hourly_rate: 60,
+          format_prices: [{ format: 'student_location', hourly_rate: 60 }] as Array<{ format: string; hourly_rate: number }>,
           skill: 'Piano',
           location_types: ['in_person'] as string[],
         }],
@@ -7456,7 +7461,7 @@ describe('TimeSelectionModal', () => {
     it('handles service with zero hourly rate', () => {
       const serviceZeroRate = {
         ...mockService,
-        hourly_rate: 0,
+        min_hourly_rate: 0,
       };
       render(
         <TimeSelectionModal
@@ -7473,7 +7478,7 @@ describe('TimeSelectionModal', () => {
     it('handles service with non-numeric hourly rate string', () => {
       const serviceStringRate = {
         ...mockService,
-        hourly_rate: 'not-a-number' as unknown as number,
+        min_hourly_rate: 'not-a-number' as unknown as number,
       };
       render(
         <TimeSelectionModal
@@ -8736,10 +8741,10 @@ describe('TimeSelectionModal', () => {
   });
 
   describe('B1: uncovered branch — selectedService null for price calculation (lines 757-758)', () => {
-    it('handles service with hourly_rate of 0', () => {
+    it('handles service with min_hourly_rate of 0', () => {
       const instructorZeroRate = {
         ...mockInstructor,
-        services: [{ ...mockService, hourly_rate: 0 }],
+        services: [{ ...mockService, min_hourly_rate: 0 }],
       };
 
       render(<TimeSelectionModal {...defaultProps} instructor={instructorZeroRate} />);
@@ -8749,10 +8754,10 @@ describe('TimeSelectionModal', () => {
       expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
     });
 
-    it('handles service with negative hourly_rate', () => {
+    it('handles service with negative min_hourly_rate', () => {
       const instructorNegativeRate = {
         ...mockInstructor,
-        services: [{ ...mockService, hourly_rate: -50 }],
+        services: [{ ...mockService, min_hourly_rate: -50 }],
       };
 
       render(<TimeSelectionModal {...defaultProps} instructor={instructorNegativeRate} />);

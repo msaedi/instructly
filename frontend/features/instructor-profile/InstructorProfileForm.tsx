@@ -36,7 +36,7 @@ import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 import type { ProfileFormState, ServiceAreaItem, ServiceAreasResponse, NYCZipCheck } from './types';
 import type { ServiceAreaNeighborhood } from '@/types/instructor';
 import { submitServiceAreasOnce } from '@/app/(auth)/instructor/profile/serviceAreaSubmit';
-import SkillsPricingInline from '@/features/instructor-profile/SkillsPricingInline';
+import SkillsPricingInline, { type EnabledFormats } from '@/features/instructor-profile/SkillsPricingInline';
 import { PersonalInfoCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/PersonalInfoCard';
 import { BioCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/BioCard';
 import { ServiceAreasCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/ServiceAreasCard';
@@ -158,6 +158,13 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   const [neutralPlaces, setNeutralPlaces] = useState<string[]>([]);
   const [preferredLocationTitles, setPreferredLocationTitles] = useState<Record<string, string>>({});
   const [bioTouched, setBioTouched] = useState<boolean>(false);
+  // Track which lesson formats are enabled across all services (driven by SkillsPricingInline).
+  // Default to true so sections show until SkillsPricingInline reports the actual state.
+  const [enabledFormats, setEnabledFormats] = useState<EnabledFormats>({
+    student_location: true,
+    instructor_location: true,
+    online: true,
+  });
   const inFlightServiceAreasRef = useRef(false);
   const redirectingRef = useRef(false);
   // Fetch guard to prevent duplicate API calls in React Strict Mode
@@ -227,6 +234,18 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
         // Use data from React Query hook instead of fetching
         const data = instructorProfileFromHook as unknown as InstructorProfileResponse;
         setInstructorMeta(data);
+        // Derive initial enabled formats from saved services
+        if (data?.services) {
+          const initial: EnabledFormats = { student_location: false, instructor_location: false, online: false };
+          for (const svc of data.services) {
+            for (const fp of svc.format_prices ?? []) {
+              if (fp.format === 'student_location') initial.student_location = true;
+              if (fp.format === 'instructor_location') initial.instructor_location = true;
+              if (fp.format === 'online') initial.online = true;
+            }
+          }
+          setEnabledFormats(initial);
+        }
         const record = (data ?? {}) as Record<string, unknown>;
         logger.debug('Prefill: /instructors/me from cache', { keys: Object.keys(record || {}) });
 
@@ -951,51 +970,6 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
           showCharCount
           maxBioChars={1000}
         />
-        {/* Service Areas & Preferred Locations — only in dashboard context (onboarding moves them to skill-selection) */}
-        {!isOnboarding && (
-          <>
-            {/* Mobile divider before Service Areas */}
-            <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
-
-            {/* Service Areas Section */}
-            <ServiceAreasCard
-              context={context}
-              isOpen={openServiceAreas}
-              onToggle={() => setOpenServiceAreas((v) => !v)}
-              globalNeighborhoodFilter={globalNeighborhoodFilter}
-              onGlobalFilterChange={(value) => setGlobalNeighborhoodFilter(value)}
-              nycBoroughs={NYC_BOROUGHS}
-              boroughNeighborhoods={boroughNeighborhoods}
-              selectedNeighborhoods={selectedNeighborhoods}
-              onToggleNeighborhood={toggleNeighborhood}
-              openBoroughs={openBoroughsMain}
-              onToggleBoroughAccordion={(borough) => toggleMainBoroughOpen(borough)}
-              loadBoroughNeighborhoods={loadBoroughNeighborhoods}
-              toggleBoroughAll={toggleBoroughAll}
-              boroughAccordionRefs={boroughAccordionRefs}
-              idToItem={idToItem}
-              isNYC={isNYC}
-              formatNeighborhoodName={toTitle}
-            />
-
-            <PreferredLocationsCard
-              context={context}
-              isOpen={openPreferredLocations}
-              onToggle={() => setOpenPreferredLocations((v) => !v)}
-              preferredAddress={preferredAddress}
-              setPreferredAddress={setPreferredAddress}
-              preferredLocations={preferredLocations}
-              setPreferredLocations={setPreferredLocations}
-              preferredLocationTitles={preferredLocationTitles}
-              setPreferredLocationTitles={setPreferredLocationTitles}
-              neutralLocations={neutralLocations}
-              setNeutralLocations={setNeutralLocations}
-              neutralPlaces={neutralPlaces}
-              setNeutralPlaces={setNeutralPlaces}
-            />
-          </>
-        )}
-
         {!isOnboarding && (
           <>
             {/* Mobile divider before Skills & Pricing */}
@@ -1022,11 +996,63 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
               </button>
               {openSkills && (
                 <div className="py-2">
-                  <SkillsPricingInline instructorProfile={instructorMeta} />
+                  <SkillsPricingInline instructorProfile={instructorMeta} onFormatsChange={setEnabledFormats} />
                 </div>
               )}
             </div>
+          </>
+        )}
 
+        {/* Service Areas — only shown when any service has student_location format enabled */}
+        {!isOnboarding && enabledFormats.student_location && (
+          <>
+            {/* Mobile divider before Service Areas */}
+            <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
+
+            {/* Service Areas Section */}
+            <ServiceAreasCard
+              context={context}
+              isOpen={openServiceAreas}
+              onToggle={() => setOpenServiceAreas((v) => !v)}
+              globalNeighborhoodFilter={globalNeighborhoodFilter}
+              onGlobalFilterChange={(value) => setGlobalNeighborhoodFilter(value)}
+              nycBoroughs={NYC_BOROUGHS}
+              boroughNeighborhoods={boroughNeighborhoods}
+              selectedNeighborhoods={selectedNeighborhoods}
+              onToggleNeighborhood={toggleNeighborhood}
+              openBoroughs={openBoroughsMain}
+              onToggleBoroughAccordion={(borough) => toggleMainBoroughOpen(borough)}
+              loadBoroughNeighborhoods={loadBoroughNeighborhoods}
+              toggleBoroughAll={toggleBoroughAll}
+              boroughAccordionRefs={boroughAccordionRefs}
+              idToItem={idToItem}
+              isNYC={isNYC}
+              formatNeighborhoodName={toTitle}
+            />
+          </>
+        )}
+
+        {/* Class Locations — only shown when any service has instructor_location format enabled */}
+        {!isOnboarding && enabledFormats.instructor_location && (
+          <PreferredLocationsCard
+            context={context}
+            isOpen={openPreferredLocations}
+            onToggle={() => setOpenPreferredLocations((v) => !v)}
+            preferredAddress={preferredAddress}
+            setPreferredAddress={setPreferredAddress}
+            preferredLocations={preferredLocations}
+            setPreferredLocations={setPreferredLocations}
+            preferredLocationTitles={preferredLocationTitles}
+            setPreferredLocationTitles={setPreferredLocationTitles}
+            neutralLocations={neutralLocations}
+            setNeutralLocations={setNeutralLocations}
+            neutralPlaces={neutralPlaces}
+            setNeutralPlaces={setNeutralPlaces}
+          />
+        )}
+
+        {!isOnboarding && (
+          <>
             {/* Mobile divider before Booking Preferences */}
             <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
 

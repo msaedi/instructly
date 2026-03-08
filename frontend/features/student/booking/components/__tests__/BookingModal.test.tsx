@@ -40,15 +40,15 @@ const instructor: Instructor = {
   service_area_summary: 'NYC',
   years_experience: 5,
   services: [
-    { id: 'service-1', skill: 'Piano', hourly_rate: 100, duration_options: [60], duration: 60 },
-    { id: 'service-2', skill: 'Guitar', hourly_rate: 80, duration_options: [30, 60], duration: 30 },
+    { id: 'service-1', skill: 'Piano', min_hourly_rate: 100, format_prices: [{ format: 'online', hourly_rate: 100 }], duration_options: [60], duration: 60 },
+    { id: 'service-2', skill: 'Guitar', min_hourly_rate: 80, format_prices: [{ format: 'online', hourly_rate: 80 }], duration_options: [30, 60], duration: 30 },
   ],
 };
 
 const instructorSingleService: Instructor = {
   ...instructor,
   services: [
-    { id: 'service-1', skill: 'Piano', hourly_rate: 100, duration_options: [60], duration: 60 },
+    { id: 'service-1', skill: 'Piano', min_hourly_rate: 100, format_prices: [{ format: 'online', hourly_rate: 100 }], duration_options: [60], duration: 60 },
   ],
 };
 
@@ -544,7 +544,7 @@ describe('BookingModal', () => {
       const instructorWithStringRate: Instructor = {
         ...instructorSingleService,
         services: [
-          { id: 'service-1', skill: 'Piano', hourly_rate: '100' as unknown as number, duration_options: [60], duration: 60 },
+          { id: 'service-1', skill: 'Piano', min_hourly_rate: '100' as unknown as number, format_prices: [], duration_options: [60], duration: 60 },
         ],
       };
 
@@ -559,7 +559,7 @@ describe('BookingModal', () => {
       const instructorWithBadRate: Instructor = {
         ...instructorSingleService,
         services: [
-          { id: 'service-1', skill: 'Piano', hourly_rate: 'invalid' as unknown as number, duration_options: [60], duration: 60 },
+          { id: 'service-1', skill: 'Piano', min_hourly_rate: 'invalid' as unknown as number, format_prices: [], duration_options: [60], duration: 60 },
         ],
       };
 
@@ -1183,7 +1183,7 @@ describe('BookingModal', () => {
       const instructorNoSkill: Instructor = {
         ...instructor,
         services: [
-          { id: 'service-1', skill: '', hourly_rate: 100, duration_options: [60], duration: 60 },
+          { id: 'service-1', skill: '', min_hourly_rate: 100, format_prices: [], duration_options: [60], duration: 60 },
         ],
       };
 
@@ -1205,7 +1205,7 @@ describe('BookingModal', () => {
       const instructorNoDuration: Instructor = {
         ...instructor,
         services: [
-          { id: 'service-1', skill: 'Piano', hourly_rate: 100, duration_options: [60] } as Instructor['services'][number],
+          { id: 'service-1', skill: 'Piano', min_hourly_rate: 100, format_prices: [], duration_options: [60] } as unknown as Instructor['services'][number],
         ],
       };
 
@@ -1318,7 +1318,7 @@ describe('BookingModal', () => {
         requireBookingService({
           id: 'service-1',
           skill: 'Piano',
-          hourly_rate: 120,
+          min_hourly_rate: 120,
           duration: 60,
         } as never),
       ).toMatchObject({

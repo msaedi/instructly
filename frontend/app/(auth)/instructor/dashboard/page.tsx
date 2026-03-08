@@ -149,7 +149,7 @@ export default function InstructorDashboardNew() {
   const [isHydratingProfile, setIsHydratingProfile] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editVariant] = useState<'about' | 'areas' | 'services' | 'full'>('full');
+  const [editVariant] = useState<'about' | 'areas' | 'full'>('full');
   // Delete profile modal removed
   const titleCardRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);

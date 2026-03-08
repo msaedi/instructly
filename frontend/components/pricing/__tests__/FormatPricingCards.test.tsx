@@ -22,8 +22,6 @@ type RenderOverrides = Partial<typeof defaultProps> & {
   formatErrors?: Partial<Record<ServiceFormat, string>>;
   studentLocationDisabled?: boolean;
   studentLocationDisabledReason?: string;
-  instructorLocationDisabled?: boolean;
-  instructorLocationDisabledReason?: string;
 };
 
 function renderCards(overrides: RenderOverrides = {}) {
@@ -155,16 +153,12 @@ describe('FormatPricingCards', () => {
     expect(screen.getByText('Add service areas first')).toBeInTheDocument();
   });
 
-  it('disabled card (instructorLocationDisabled) shows reason and toggle is disabled', () => {
-    renderCards({
-      instructorLocationDisabled: true,
-      instructorLocationDisabledReason: 'Add teaching locations first',
-    });
+  it('instructor_location card is never disabled (no prerequisite gating)', () => {
+    renderCards();
 
     const toggles = screen.getAllByRole('switch');
-    // Third toggle (instructor_location) should be disabled
-    expect(toggles[2]).toHaveAttribute('aria-disabled', 'true');
-    expect(screen.getByText('Add teaching locations first')).toBeInTheDocument();
+    // Third toggle (instructor_location) should NOT be disabled
+    expect(toggles[2]).not.toHaveAttribute('aria-disabled', 'true');
   });
 
   it('shows floor-based placeholder per format (80/60/80)', () => {

@@ -72,8 +72,12 @@ jest.mock('@/components/user/ProfilePictureUpload', () => {
   return { ProfilePictureUpload };
 });
 
+let mockOnFormatsChange: ((formats: { student_location: boolean; instructor_location: boolean; online: boolean }) => void) | undefined;
+
 jest.mock('@/features/instructor-profile/SkillsPricingInline', () => {
-  function SkillsPricingInline() {
+  function SkillsPricingInline({ onFormatsChange }: { onFormatsChange?: (formats: { student_location: boolean; instructor_location: boolean; online: boolean }) => void }) {
+    // Store callback so tests can trigger format changes
+    mockOnFormatsChange = onFormatsChange;
     return <div data-testid="skills-inline">Skills</div>;
   }
   return { __esModule: true, default: SkillsPricingInline };
@@ -2187,6 +2191,43 @@ describe('InstructorProfileForm', () => {
       await waitFor(() => {
         expect(onStepStatusChange).toHaveBeenCalledWith('failed');
       });
+    });
+
+    it('calls onStepStatusChange with failed when bio exceeds 1000 characters', async () => {
+      const { Wrapper } = createWrapper();
+      const onStepStatusChange = jest.fn();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'T', last_name: 'U' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          bio: 'A'.repeat(1001), // Exceeds 1000-char limit
+          has_profile_picture: true,
+        },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        if (url === '/api/v1/addresses/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm onStepStatusChange={onStepStatusChange} />, { wrapper: Wrapper });
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(onStepStatusChange).toHaveBeenCalledWith('failed');
+      });
+      expect(toast.error).toHaveBeenCalledWith('Bio must be 1,000 characters or fewer.');
     });
 
     it('saves preferred locations with deduplication and labels', async () => {
@@ -6735,6 +6776,126 @@ describe('InstructorProfileForm', () => {
       await waitFor(() => {
         expect(onStepStatusChange).toHaveBeenCalledWith('failed');
       });
+    });
+  });
+
+  describe('conditional format-driven sections', () => {
+    function setupProfileWithFormats(formatPrices: Array<{ format: string; hourly_rate: number }>) {
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'Taylor', last_name: 'Swift', zip_code: '10001' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: null, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          bio: 'A'.repeat(420),
+          years_experience: 5,
+          service_area_neighborhoods: [],
+          service_area_boroughs: [],
+          preferred_teaching_locations: [],
+          preferred_public_spaces: [],
+          services: [
+            {
+              id: 'svc-1',
+              service_catalog_id: 'cat-1',
+              format_prices: formatPrices,
+              min_hourly_rate: 80,
+              duration_options: [60],
+            },
+          ],
+        },
+        isLoading: false,
+      });
+      mockFetchWithAuth.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+      });
+    }
+
+    it('hides Service Areas when no service has student_location', async () => {
+      const { Wrapper } = createWrapper();
+      setupProfileWithFormats([{ format: 'online', hourly_rate: 80 }]);
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      expect(screen.queryByTestId('service-areas-count')).not.toBeInTheDocument();
+    });
+
+    it('hides Class Locations when no service has instructor_location', async () => {
+      const { Wrapper } = createWrapper();
+      setupProfileWithFormats([{ format: 'online', hourly_rate: 80 }]);
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      expect(screen.queryByTestId('preferred-locations-count')).not.toBeInTheDocument();
+    });
+
+    it('shows Service Areas when a service has student_location', async () => {
+      const { Wrapper } = createWrapper();
+      setupProfileWithFormats([{ format: 'student_location', hourly_rate: 80 }]);
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      expect(screen.getByTestId('service-areas-count')).toBeInTheDocument();
+    });
+
+    it('shows Class Locations when a service has instructor_location', async () => {
+      const { Wrapper } = createWrapper();
+      setupProfileWithFormats([{ format: 'instructor_location', hourly_rate: 80 }]);
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      expect(screen.getByTestId('preferred-locations-count')).toBeInTheDocument();
+    });
+
+    it('enabling instructor_location via SkillsPricingInline reveals Class Locations', async () => {
+      const { Wrapper } = createWrapper();
+      setupProfileWithFormats([{ format: 'online', hourly_rate: 80 }]);
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      // Initially hidden (profile only has online format)
+      expect(screen.queryByTestId('preferred-locations-count')).not.toBeInTheDocument();
+
+      // Open Skills & Pricing to mount SkillsPricingInline and capture onFormatsChange
+      const user = userEvent.setup();
+      await user.click(screen.getByText(/skills & pricing/i));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('skills-inline')).toBeInTheDocument();
+      });
+
+      // Simulate SkillsPricingInline reporting instructor_location enabled
+      act(() => {
+        mockOnFormatsChange?.({
+          student_location: false,
+          instructor_location: true,
+          online: true,
+        });
+      });
+
+      expect(screen.getByTestId('preferred-locations-count')).toBeInTheDocument();
     });
   });
 });

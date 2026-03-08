@@ -31,7 +31,7 @@ export type FilterState = {
   duration: Array<30 | 45 | 60>;
   priceMin: number | null;
   priceMax: number | null;
-  location: 'any' | 'online' | 'travels' | 'studio';
+  location: 'any' | 'in_person' | 'online' | 'travels' | 'studio';
   skillLevel: SkillLevelValue[];
   contentFilters: ContentFilterSelections;
   minRating: 'any' | '4' | '4.5';

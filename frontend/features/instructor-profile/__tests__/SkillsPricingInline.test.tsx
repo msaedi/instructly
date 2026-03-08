@@ -7713,4 +7713,38 @@ describe('SkillsPricingInline', () => {
       });
     });
   });
+
+  describe('onFormatsChange callback', () => {
+    it('reports enabled formats from selected services', async () => {
+      const onFormatsChange = jest.fn();
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [
+            {
+              service_catalog_id: 'svc-1',
+              service_catalog_name: 'Piano',
+              format_prices: [
+                { format: 'online', hourly_rate: 60 },
+                { format: 'student_location', hourly_rate: 80 },
+                { format: 'instructor_location', hourly_rate: 90 },
+              ],
+            },
+          ],
+        },
+      });
+
+      render(<SkillsPricingInline onFormatsChange={onFormatsChange} />);
+
+      await waitFor(() => {
+        expect(onFormatsChange).toHaveBeenCalledWith(
+          expect.objectContaining({
+            student_location: true,
+            online: true,
+            instructor_location: true,
+          })
+        );
+      });
+    });
+  });
 });

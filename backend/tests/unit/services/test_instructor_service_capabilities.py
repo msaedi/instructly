@@ -35,7 +35,8 @@ def _get_service(db, instructor_id: str) -> Service:
 
 
 class TestServiceCapabilityValidation:
-    def test_student_location_requires_service_areas(self, db, test_instructor) -> None:
+    def test_student_location_allowed_without_service_areas(self, db, test_instructor) -> None:
+        """Location formats are allowed on save — prerequisites checked at go-live."""
         service = _get_service(db, test_instructor.id)
         db.query(InstructorServiceArea).filter(
             InstructorServiceArea.instructor_id == test_instructor.id
@@ -43,16 +44,17 @@ class TestServiceCapabilityValidation:
         db.flush()
 
         instructor_service = InstructorService(db)
-        with pytest.raises(BusinessRuleException) as exc:
-            instructor_service.validate_service_format_prices(
-                instructor_id=test_instructor.id,
-                catalog_service=service.catalog_entry,
-                format_prices=_format_prices(90.0, "student_location"),
-            )
+        # Should NOT raise — location prerequisite checks moved to go-live
+        instructor_service.validate_service_format_prices(
+            instructor_id=test_instructor.id,
+            catalog_service=service.catalog_entry,
+            format_prices=_format_prices(90.0, "student_location"),
+        )
 
-        assert exc.value.code == "NO_SERVICE_AREAS"
-
-    def test_instructor_location_requires_teaching_locations(self, db, test_instructor) -> None:
+    def test_instructor_location_allowed_without_teaching_locations(
+        self, db, test_instructor
+    ) -> None:
+        """Location formats are allowed on save — prerequisites checked at go-live."""
         service = _get_service(db, test_instructor.id)
         db.query(InstructorPreferredPlace).filter(
             InstructorPreferredPlace.instructor_id == test_instructor.id
@@ -60,14 +62,12 @@ class TestServiceCapabilityValidation:
         db.flush()
 
         instructor_service = InstructorService(db)
-        with pytest.raises(BusinessRuleException) as exc:
-            instructor_service.validate_service_format_prices(
-                instructor_id=test_instructor.id,
-                catalog_service=service.catalog_entry,
-                format_prices=_format_prices(90.0, "instructor_location"),
-            )
-
-        assert exc.value.code == "NO_TEACHING_LOCATIONS"
+        # Should NOT raise — location prerequisite checks moved to go-live
+        instructor_service.validate_service_format_prices(
+            instructor_id=test_instructor.id,
+            catalog_service=service.catalog_entry,
+            format_prices=_format_prices(90.0, "instructor_location"),
+        )
 
     def test_at_least_one_format_required(self, db, test_instructor) -> None:
         service = _get_service(db, test_instructor.id)

@@ -9,11 +9,11 @@ instructors:
       description: Classical, jazz, and contemporary piano for all levels
       format_prices:
       - format: student_location
-        hourly_rate: 120.0
+        hourly_rate: 130.0
       - format: instructor_location
-        hourly_rate: 120.0
+        hourly_rate: 110.0
       - format: online
-        hourly_rate: 120.0
+        hourly_rate: 95.0
       duration_options:
       - 30
       - 45
@@ -74,11 +74,9 @@ instructors:
       description: Digital keyboards, synthesizers, and music production
       format_prices:
       - format: student_location
-        hourly_rate: 85.0
-      - format: instructor_location
-        hourly_rate: 85.0
+        hourly_rate: 90.0
       - format: online
-        hourly_rate: 85.0
+        hourly_rate: 75.0
       duration_options:
       - 60
   availability_pattern: afternoons_evenings
@@ -95,11 +93,9 @@ instructors:
       description: Acoustic and electric guitar for all styles
       format_prices:
       - format: student_location
-        hourly_rate: 90.0
-      - format: instructor_location
-        hourly_rate: 90.0
+        hourly_rate: 95.0
       - format: online
-        hourly_rate: 90.0
+        hourly_rate: 80.0
       duration_options:
       - 30
       - 45
@@ -117,12 +113,10 @@ instructors:
     - name: Voice & Singing
       description: Vocal technique, performance, and audition prep
       format_prices:
-      - format: student_location
-        hourly_rate: 95.0
       - format: instructor_location
         hourly_rate: 95.0
       - format: online
-        hourly_rate: 95.0
+        hourly_rate: 80.0
       duration_options:
       - 45
       - 60
@@ -141,8 +135,6 @@ instructors:
     - name: Violin
       description: Classical violin technique and repertoire
       format_prices:
-      - format: student_location
-        hourly_rate: 150.0
       - format: instructor_location
         hourly_rate: 150.0
       duration_options:
@@ -222,10 +214,8 @@ instructors:
       description: Alto, tenor, and soprano sax for jazz and classical
       format_prices:
       - format: student_location
-        hourly_rate: 85.0
+        hourly_rate: 90.0
       - format: instructor_location
-        hourly_rate: 85.0
-      - format: online
         hourly_rate: 85.0
       duration_options:
       - 45
@@ -244,11 +234,9 @@ instructors:
       description: Lyric writing, melody, and song structure
       format_prices:
       - format: student_location
-        hourly_rate: 90.0
-      - format: instructor_location
-        hourly_rate: 90.0
+        hourly_rate: 95.0
       - format: online
-        hourly_rate: 90.0
+        hourly_rate: 80.0
       duration_options:
       - 60
       - 90
@@ -266,11 +254,9 @@ instructors:
       description: K-5 math with engaging, hands-on methods
       format_prices:
       - format: student_location
-        hourly_rate: 90.0
-      - format: instructor_location
-        hourly_rate: 90.0
+        hourly_rate: 95.0
       - format: online
-        hourly_rate: 90.0
+        hourly_rate: 80.0
       duration_options:
       - 30
       - 45
@@ -294,11 +280,9 @@ instructors:
       description: Patient, encouraging approach to elementary math
       format_prices:
       - format: student_location
-        hourly_rate: 85.0
-      - format: instructor_location
-        hourly_rate: 85.0
+        hourly_rate: 90.0
       - format: online
-        hourly_rate: 85.0
+        hourly_rate: 75.0
       duration_options:
       - 30
       - 45
@@ -321,11 +305,11 @@ instructors:
       description: Comprehensive SAT prep with personalized study plans
       format_prices:
       - format: student_location
-        hourly_rate: 150.0
+        hourly_rate: 160.0
       - format: instructor_location
         hourly_rate: 150.0
       - format: online
-        hourly_rate: 150.0
+        hourly_rate: 130.0
       duration_options:
       - 90
       - 120
@@ -361,22 +345,18 @@ instructors:
       description: Foundations of algebra with real-world applications
       format_prices:
       - format: student_location
-        hourly_rate: 85.0
-      - format: instructor_location
-        hourly_rate: 85.0
+        hourly_rate: 90.0
       - format: online
-        hourly_rate: 85.0
+        hourly_rate: 75.0
       duration_options:
       - 60
     - name: Algebra
       description: Advanced algebra and trigonometry
       format_prices:
       - format: student_location
-        hourly_rate: 90.0
-      - format: instructor_location
-        hourly_rate: 90.0
+        hourly_rate: 95.0
       - format: online
-        hourly_rate: 90.0
+        hourly_rate: 80.0
       duration_options:
       - 60
   availability_pattern: standard_weekday
@@ -392,12 +372,10 @@ instructors:
     - name: Physics
       description: AP Physics, college physics, and physics olympiad prep
       format_prices:
-      - format: student_location
-        hourly_rate: 120.0
       - format: instructor_location
-        hourly_rate: 120.0
+        hourly_rate: 125.0
       - format: online
-        hourly_rate: 120.0
+        hourly_rate: 110.0
       duration_options:
       - 60
       - 90
@@ -425,12 +403,8 @@ instructors:
     - name: Chemistry
       description: General chemistry, AP Chemistry, and organic chemistry
       format_prices:
-      - format: student_location
-        hourly_rate: 85.0
       - format: instructor_location
-        hourly_rate: 85.0
-      - format: online
-        hourly_rate: 85.0
+        hourly_rate: 90.0
       duration_options:
       - 60
   availability_pattern: mornings_only
@@ -476,9 +450,7 @@ instructors:
       description: Phonics, comprehension, and reading fluency
       format_prices:
       - format: student_location
-        hourly_rate: 80.0
-      - format: instructor_location
-        hourly_rate: 80.0
+        hourly_rate: 85.0
       duration_options:
       - 30
       - 45
@@ -502,11 +474,9 @@ instructors:
       description: Complete ACT preparation with practice tests
       format_prices:
       - format: student_location
-        hourly_rate: 130.0
-      - format: instructor_location
-        hourly_rate: 130.0
+        hourly_rate: 140.0
       - format: online
-        hourly_rate: 130.0
+        hourly_rate: 120.0
       duration_options:
       - 90
   availability_pattern: weekends_only
@@ -523,11 +493,9 @@ instructors:
       description: Customized fitness programs for all fitness levels
       format_prices:
       - format: student_location
-        hourly_rate: 100.0
+        hourly_rate: 110.0
       - format: instructor_location
-        hourly_rate: 100.0
-      - format: online
-        hourly_rate: 100.0
+        hourly_rate: 95.0
       duration_options:
       - 45
       - 60
@@ -564,11 +532,11 @@ instructors:
       description: Private yoga sessions tailored to your needs
       format_prices:
       - format: student_location
-        hourly_rate: 90.0
+        hourly_rate: 100.0
       - format: instructor_location
-        hourly_rate: 90.0
+        hourly_rate: 85.0
       - format: online
-        hourly_rate: 90.0
+        hourly_rate: 70.0
       duration_options:
       - 60
       - 90
@@ -673,8 +641,6 @@ instructors:
     - name: Karate
       description: Karate, self-defense, and discipline training
       format_prices:
-      - format: student_location
-        hourly_rate: 80.0
       - format: instructor_location
         hourly_rate: 80.0
       duration_options:
@@ -697,12 +663,10 @@ instructors:
     - name: Pilates
       description: Mat Pilates and reformer sessions
       format_prices:
-      - format: student_location
-        hourly_rate: 95.0
       - format: instructor_location
-        hourly_rate: 95.0
+        hourly_rate: 100.0
       - format: online
-        hourly_rate: 95.0
+        hourly_rate: 80.0
       duration_options:
       - 60
   availability_pattern: standard_weekday
@@ -720,8 +684,6 @@ instructors:
       format_prices:
       - format: student_location
         hourly_rate: 90.0
-      - format: instructor_location
-        hourly_rate: 90.0
       duration_options:
       - 60
   availability_pattern: early_bird
@@ -738,11 +700,11 @@ instructors:
       description: Conversational Spanish, grammar, and business Spanish
       format_prices:
       - format: student_location
-        hourly_rate: 90.0
+        hourly_rate: 100.0
       - format: instructor_location
-        hourly_rate: 90.0
+        hourly_rate: 85.0
       - format: online
-        hourly_rate: 90.0
+        hourly_rate: 75.0
       duration_options:
       - 45
       - 60
@@ -778,11 +740,9 @@ instructors:
       description: English as a Second Language for all levels
       format_prices:
       - format: student_location
-        hourly_rate: 80.0
-      - format: instructor_location
-        hourly_rate: 80.0
+        hourly_rate: 85.0
       - format: online
-        hourly_rate: 80.0
+        hourly_rate: 70.0
       duration_options:
       - 60
   availability_pattern: standard_weekday
@@ -798,12 +758,10 @@ instructors:
     - name: French
       description: French conversation, grammar, and pronunciation
       format_prices:
-      - format: student_location
-        hourly_rate: 90.0
       - format: instructor_location
-        hourly_rate: 90.0
+        hourly_rate: 95.0
       - format: online
-        hourly_rate: 90.0
+        hourly_rate: 80.0
       duration_options:
       - 45
       - 60
@@ -821,11 +779,9 @@ instructors:
       description: HSK prep, business Chinese, and conversation
       format_prices:
       - format: student_location
-        hourly_rate: 85.0
-      - format: instructor_location
-        hourly_rate: 85.0
+        hourly_rate: 90.0
       - format: online
-        hourly_rate: 85.0
+        hourly_rate: 75.0
       duration_options:
       - 60
   availability_pattern: flexible_academic
@@ -883,12 +839,10 @@ instructors:
     - name: Japanese
       description: JLPT prep, conversational Japanese, and kanji
       format_prices:
-      - format: student_location
-        hourly_rate: 80.0
       - format: instructor_location
-        hourly_rate: 80.0
+        hourly_rate: 85.0
       - format: online
-        hourly_rate: 80.0
+        hourly_rate: 70.0
       duration_options:
       - 60
   availability_pattern: afternoons_evenings
@@ -905,11 +859,9 @@ instructors:
       description: American Sign Language for beginners to advanced
       format_prices:
       - format: student_location
-        hourly_rate: 90.0
-      - format: instructor_location
-        hourly_rate: 90.0
+        hourly_rate: 95.0
       - format: online
-        hourly_rate: 90.0
+        hourly_rate: 80.0
       duration_options:
       - 45
       - 60
@@ -964,11 +916,9 @@ instructors:
       description: Smartphone photography and basic editing
       format_prices:
       - format: student_location
-        hourly_rate: 85.0
-      - format: instructor_location
-        hourly_rate: 85.0
+        hourly_rate: 90.0
       - format: online
-        hourly_rate: 85.0
+        hourly_rate: 70.0
       duration_options:
       - 60
   availability_pattern: flexible_academic
@@ -1007,12 +957,10 @@ instructors:
     - name: Acting
       description: Scene study, monologues, and audition prep
       format_prices:
-      - format: student_location
-        hourly_rate: 110.0
       - format: instructor_location
-        hourly_rate: 110.0
+        hourly_rate: 115.0
       - format: online
-        hourly_rate: 110.0
+        hourly_rate: 90.0
       duration_options:
       - 60
       - 90
@@ -1103,10 +1051,8 @@ instructors:
     - name: Pottery
       description: Wheel throwing and hand building techniques
       format_prices:
-      - format: student_location
-        hourly_rate: 90.0
       - format: instructor_location
-        hourly_rate: 90.0
+        hourly_rate: 95.0
       duration_options:
       - 120
       age_groups:
@@ -1166,11 +1112,9 @@ instructors:
       description: Goal setting, career transitions, and personal development
       format_prices:
       - format: student_location
-        hourly_rate: 150.0
-      - format: instructor_location
-        hourly_rate: 150.0
+        hourly_rate: 160.0
       - format: online
-        hourly_rate: 150.0
+        hourly_rate: 135.0
       duration_options:
       - 60
       - 90
@@ -1248,12 +1192,10 @@ instructors:
     - name: Public Speaking
       description: Presentation skills, speech writing, and confidence building
       format_prices:
-      - format: student_location
-        hourly_rate: 125.0
       - format: instructor_location
-        hourly_rate: 125.0
+        hourly_rate: 130.0
       - format: online
-        hourly_rate: 125.0
+        hourly_rate: 110.0
       duration_options:
       - 60
       - 90
@@ -1291,11 +1233,11 @@ instructors:
       description: Chess strategy, tactics, and tournament prep
       format_prices:
       - format: student_location
-        hourly_rate: 80.0
+        hourly_rate: 85.0
       - format: instructor_location
         hourly_rate: 80.0
       - format: online
-        hourly_rate: 80.0
+        hourly_rate: 70.0
       duration_options:
       - 60
       age_groups:
@@ -1455,11 +1397,11 @@ instructors:
       description: Kids singing lessons with Disney songs and fun exercises
       format_prices:
       - format: student_location
-        hourly_rate: 85.0
+        hourly_rate: 90.0
       - format: instructor_location
-        hourly_rate: 85.0
+        hourly_rate: 80.0
       - format: online
-        hourly_rate: 85.0
+        hourly_rate: 70.0
       duration_options:
       - 30
       - 45
@@ -1491,11 +1433,9 @@ instructors:
       description: Spanish for kids through games, songs, and cultural activities
       format_prices:
       - format: student_location
-        hourly_rate: 85.0
-      - format: instructor_location
-        hourly_rate: 85.0
+        hourly_rate: 90.0
       - format: online
-        hourly_rate: 85.0
+        hourly_rate: 75.0
       duration_options:
       - 30
       - 45

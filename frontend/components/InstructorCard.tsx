@@ -21,6 +21,7 @@ import { useServicesCatalog } from '@/hooks/queries/useServices';
 import { useRecentReviews } from '@/src/api/services/reviews';
 import { toast } from 'sonner';
 import { getServiceAreaBoroughs, getServiceAreaDisplay } from '@/lib/profileServiceAreas';
+import { getContextualPrice, availableFormatsFromPrices } from '@/lib/pricing/formatPricing';
 import { timeToMinutes } from '@/lib/time';
 import { at } from '@/lib/ts/safe';
 import { MessageInstructorButton } from '@/components/instructor/MessageInstructorButton';
@@ -115,6 +116,7 @@ interface InstructorCardProps {
   bookingDraftId?: string;
   appliedCreditCents?: number;
   highlightServiceCatalogId?: string;
+  searchLessonType?: string;
 }
 function InstructorCard({
   instructor,
@@ -125,6 +127,7 @@ function InstructorCard({
   bookingDraftId,
   appliedCreditCents,
   highlightServiceCatalogId,
+  searchLessonType,
 }: InstructorCardProps) {
   const router = useRouter();
   const { user } = useAuth();
@@ -146,10 +149,10 @@ function InstructorCard({
   const fallbackDurationMinutes = durationOptions[0] ?? 60;
   const [selectedDuration, setSelectedDuration] = useState<number>(fallbackDurationMinutes);
   const resolvedDurationMinutes = selectedDuration ?? fallbackDurationMinutes;
-  const rawHourlyRate = primaryService?.hourly_rate as unknown;
-  const hourlyRateNumber =
-    typeof rawHourlyRate === 'number' ? rawHourlyRate : parseFloat(String(rawHourlyRate ?? '0'));
-  const safeHourlyRate = Number.isNaN(hourlyRateNumber) ? 0 : hourlyRateNumber;
+  const formatPrices = primaryService?.format_prices ?? [];
+  const minRate = primaryService?.min_hourly_rate ?? 0;
+  const { rate: contextualRate, label: contextualLabel, isFrom: contextualIsFrom } = getContextualPrice(formatPrices, minRate, searchLessonType);
+  const safeHourlyRate = contextualRate;
   const getLessonAmountForDuration = (durationMinutes: number): number =>
     Number(((safeHourlyRate * durationMinutes) / 60).toFixed(2));
 
@@ -471,15 +474,10 @@ const findNextAvailableSlot = (
                   : null;
 
                 const formatService = highlightService ?? instructor.services[0];
-                const offersTravel = Boolean(formatService?.offers_travel);
-                const hasTeachingLocations =
-                  (Array.isArray((instructor as { teaching_locations?: unknown[] }).teaching_locations) &&
-                    (instructor as { teaching_locations?: unknown[] }).teaching_locations!.length > 0) ||
-                  (Array.isArray((instructor as { preferred_teaching_locations?: unknown[] }).preferred_teaching_locations) &&
-                    (instructor as { preferred_teaching_locations?: unknown[] }).preferred_teaching_locations!.length > 0);
-                const offersAtLocation =
-                  Boolean(formatService?.offers_at_location) && Boolean(hasTeachingLocations);
-                const offersOnline = Boolean(formatService?.offers_online);
+                const formats = availableFormatsFromPrices(formatService?.format_prices ?? []);
+                const offersTravel = formats.includes('student_location');
+                const offersAtLocation = formats.includes('instructor_location');
+                const offersOnline = formats.includes('online');
                 const hasFormat = offersTravel || offersAtLocation || offersOnline;
 
                 const derivedLevels = Array.isArray(highlightService?.levels_taught)
@@ -617,13 +615,22 @@ const findNextAvailableSlot = (
             <div className="flex items-start gap-3">
               <div className="flex flex-col items-end text-right">
                 {(() => {
-                  const rateRaw = instructor.services[0]?.hourly_rate as unknown;
-                  const rateNum = typeof rateRaw === 'number' ? rateRaw : parseFloat(String(rateRaw ?? '0'));
-                  const safeRate = Number.isNaN(rateNum) ? 0 : rateNum;
+                  if (contextualRate === 0) {
+                    return (
+                      <p className={`${compact ? 'text-xl' : 'text-3xl'} font-bold text-[#7E22CE]`} data-testid="instructor-price">
+                        Contact
+                      </p>
+                    );
+                  }
                   return (
-                    <p className={`${compact ? 'text-xl' : 'text-3xl'} font-bold text-[#7E22CE]`} data-testid="instructor-price">
-                      ${safeRate}/hr
-                    </p>
+                    <>
+                      <p className={`${compact ? 'text-xl' : 'text-3xl'} font-bold text-[#7E22CE]`} data-testid="instructor-price">
+                        {contextualIsFrom ? 'from ' : ''}${contextualRate}/hr
+                      </p>
+                      {!contextualIsFrom && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{contextualLabel}</span>
+                      )}
+                    </>
                   );
                 })()}
               </div>
@@ -676,11 +683,7 @@ const findNextAvailableSlot = (
               <p className={`${compact ? 'text-xs' : 'text-sm'} font-medium text-gray-700 dark:text-gray-300`}>Duration:</p>
               <div className={`flex ${compact ? 'gap-2' : 'gap-4'}`}>
                 {durationOptions.map((duration) => {
-                  const service = at(instructor.services, 0);
-                  const rateRaw = service ? (service.hourly_rate as unknown) : 0;
-                  const rateNum = typeof rateRaw === 'number' ? rateRaw : parseFloat(String(rateRaw ?? '0'));
-                  const safeRate = Number.isNaN(rateNum) ? 0 : rateNum;
-                  const price = service ? Math.round((safeRate * duration) / 60) : 0;
+                  const price = contextualRate > 0 ? Math.round((contextualRate * duration) / 60) : 0;
                   return (
                     <label key={duration} className="flex items-center cursor-pointer">
                       <input

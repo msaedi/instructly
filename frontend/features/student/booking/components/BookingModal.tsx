@@ -38,7 +38,7 @@ export default function BookingModal({
   const [duration, setDuration] = useState(() => defaultDuration); // Default to 60 minutes
   const totalPrice = useMemo(() => {
     if (!selectedService) return 0;
-    const rateRaw = selectedService.hourly_rate as unknown;
+    const rateRaw = selectedService.min_hourly_rate as unknown;
     const rateNum = typeof rateRaw === 'number' ? rateRaw : parseFloat(String(rateRaw ?? '0'));
     const safeRate = Number.isNaN(rateNum) ? 0 : rateNum;
     const hours = duration / 60;
@@ -120,7 +120,7 @@ export default function BookingModal({
     logger.info('Service selected', {
       serviceId: service.id,
       skill: service.skill,
-      rate: service.hourly_rate,
+      rate: service.min_hourly_rate,
       duration: service.duration,
     });
   };
@@ -541,7 +541,7 @@ export default function BookingModal({
                             {service.skill}
                           </div>
                           <div className="text-sm text-gray-600 dark:text-gray-400">
-                            ${service.hourly_rate}/hour
+                            ${service.min_hourly_rate}/hour
                           </div>
                         </div>
                       </label>
@@ -557,7 +557,7 @@ export default function BookingModal({
                 </label>
                 <div className="space-y-2">
                   {[30, 60, 90].map((minutes) => {
-                    const rateRaw = selectedService ? (selectedService.hourly_rate as unknown) : 0;
+                    const rateRaw = selectedService ? (selectedService.min_hourly_rate as unknown) : 0;
                     const rateNum = typeof rateRaw === 'number' ? rateRaw : parseFloat(String(rateRaw ?? '0'));
                     const safeRate = Number.isNaN(rateNum) ? 0 : rateNum;
                     const price = selectedService ? (safeRate * minutes) / 60 : 0;

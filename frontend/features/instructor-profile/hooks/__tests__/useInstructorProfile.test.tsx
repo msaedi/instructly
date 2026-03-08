@@ -89,7 +89,8 @@ describe('useInstructorProfile', () => {
             service_catalog_id: 'cat-1',
             service_catalog_name: 'Piano',
             skill: 'Piano Lessons',
-            hourly_rate: '75.00',
+            min_hourly_rate: '75.00',
+            format_prices: [{ format: 'online', hourly_rate: 75 }],
             duration_options: [30, 60, 90],
             description: 'Learn piano',
             location_types: ['in_person', 'online'],
@@ -113,7 +114,7 @@ describe('useInstructorProfile', () => {
     expect(service?.service_catalog_id).toBe('cat-1');
     expect(service?.service_catalog_name).toBe('Piano');
     expect(service?.skill).toBe('Piano Lessons');
-    expect(service?.hourly_rate).toBe(75);
+    expect(service?.min_hourly_rate).toBe(75);
     expect(service?.duration_options).toEqual([30, 60, 90]);
     expect(service?.description).toBe('Learn piano');
     expect(service?.location_types).toEqual(['in_person', 'online']);
@@ -129,7 +130,8 @@ describe('useInstructorProfile', () => {
         services: [
           {
             id: 'svc-1',
-            hourly_rate: 50,
+            min_hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             // No location_types, levels_taught, or age_groups
           },
         ],
@@ -361,7 +363,8 @@ describe('useInstructorProfile', () => {
           {
             id: 'svc-1',
             name: 'Guitar Lessons',
-            hourly_rate: 60,
+            min_hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
           },
         ],
       },
@@ -388,7 +391,8 @@ describe('useInstructorProfile', () => {
         services: [
           {
             id: 'svc-1',
-            hourly_rate: 60,
+            min_hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             duration_options: [],
           },
         ],
@@ -416,7 +420,8 @@ describe('useInstructorProfile', () => {
         services: [
           {
             id: 'svc-flags',
-            hourly_rate: 60,
+            min_hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             offers_travel: true,
             offers_at_location: true,
             offers_online: true,
@@ -447,7 +452,8 @@ describe('useInstructorProfile', () => {
         services: [
           {
             id: 'svc-no-flags',
-            hourly_rate: 60,
+            min_hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             // offers_travel, offers_at_location, offers_online are all undefined
           },
         ],
@@ -596,7 +602,7 @@ describe('useInstructorProfile', () => {
     expect(profile?.background_check_completed).toBe(true);
   });
 
-  it('handles NaN hourly_rate', async () => {
+  it('handles NaN min_hourly_rate', async () => {
     mockUseInstructor.mockReturnValue({
       data: {
         user_id: '01K2TEST00000000000000001',
@@ -604,7 +610,8 @@ describe('useInstructorProfile', () => {
         services: [
           {
             id: 'svc-1',
-            hourly_rate: 'invalid',
+            min_hourly_rate: 'invalid',
+            format_prices: [],
           },
         ],
       },
@@ -620,7 +627,7 @@ describe('useInstructorProfile', () => {
 
     const service = result.current.data?.services[0];
     // Default to 0 when NaN
-    expect(service?.hourly_rate).toBe(0);
+    expect(service?.min_hourly_rate).toBe(0);
   });
 
   it('falls back to instructorId when both id and user_id are missing', async () => {
@@ -647,7 +654,7 @@ describe('useInstructorProfile', () => {
     expect(result.current.data?.user_id).toBe('fallback-instructor-id');
   });
 
-  it('maps service with numeric hourly_rate directly', async () => {
+  it('maps service with numeric min_hourly_rate directly', async () => {
     mockUseInstructor.mockReturnValue({
       data: {
         user_id: '01K2TEST00000000000000001',
@@ -655,7 +662,8 @@ describe('useInstructorProfile', () => {
         services: [
           {
             id: 'svc-num',
-            hourly_rate: 99.5,
+            min_hourly_rate: 99.5,
+            format_prices: [{ format: 'online', hourly_rate: 99.5 }],
             duration_options: [45],
           },
         ],
@@ -671,7 +679,7 @@ describe('useInstructorProfile', () => {
     });
 
     const service = result.current.data?.services[0];
-    expect(service?.hourly_rate).toBe(99.5);
+    expect(service?.min_hourly_rate).toBe(99.5);
     expect(service?.duration_options).toEqual([45]);
   });
 
@@ -777,7 +785,7 @@ describe('useInstructorProfile', () => {
     ]);
   });
 
-  it('maps service with null hourly_rate to 0', async () => {
+  it('maps service with null min_hourly_rate to 0', async () => {
     mockUseInstructor.mockReturnValue({
       data: {
         user_id: '01K2TEST00000000000000001',
@@ -785,7 +793,8 @@ describe('useInstructorProfile', () => {
         services: [
           {
             id: 'svc-null-rate',
-            hourly_rate: null,
+            min_hourly_rate: null,
+            format_prices: [],
             duration_options: undefined,
           },
         ],
@@ -802,7 +811,7 @@ describe('useInstructorProfile', () => {
 
     const service = result.current.data?.services[0];
     // null -> parseFloat('0') = 0 and NaN check passes -> 0
-    expect(service?.hourly_rate).toBe(0);
+    expect(service?.min_hourly_rate).toBe(0);
     // undefined duration_options -> [60]
     expect(service?.duration_options).toEqual([60]);
   });
