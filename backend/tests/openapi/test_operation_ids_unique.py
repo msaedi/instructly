@@ -1,14 +1,3 @@
-import pytest
-
-
-@pytest.fixture(scope="module")
-def openapi_schema():
-    """Generate the OpenAPI schema from the shared lightweight OpenAPI app."""
-    from app.openapi_app import openapi_app
-
-    return openapi_app.openapi()
-
-
 def test_all_openapi_operation_ids_are_unique(openapi_schema):
     doc = openapi_schema
     paths = doc.get("paths", {})

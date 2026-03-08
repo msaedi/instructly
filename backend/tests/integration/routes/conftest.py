@@ -1,5 +1,9 @@
 """Conftest for integration/routes tests - seeds fixed accounts for booking-payment tests."""
+import contextlib
 from datetime import timedelta
+from importlib import reload
+import os
+from typing import Generator
 
 from backend.tests._utils.bitmap_seed import seed_full_week
 from backend.tests._utils.fixed_accounts import (
@@ -115,3 +119,39 @@ def auth_headers_student(db: Session):
 
     token = create_access_token(data={"sub": student.email})
     return {"Authorization": f"Bearer {token}"}
+
+
+@contextlib.contextmanager
+def strict_schema_app(*extra_modules) -> Generator:
+    """Reload app with STRICT_SCHEMAS=true, yield TestClient, restore on exit.
+
+    Usage in strict test files::
+
+        @pytest.fixture(scope="module")
+        def client():
+            import app.schemas.booking as bs
+            import app.routes.v1.bookings as routes
+            with strict_schema_app(bs, routes) as c:
+                yield c
+    """
+    import app.main as main
+    import app.schemas.base as base
+
+    old = os.environ.get("STRICT_SCHEMAS")
+    os.environ["STRICT_SCHEMAS"] = "true"
+
+    reload(base)
+    for mod in extra_modules:
+        reload(mod)
+    reload(main)
+
+    yield TestClient(main.fastapi_app, raise_server_exceptions=False)
+
+    if old is None:
+        os.environ.pop("STRICT_SCHEMAS", None)
+    else:
+        os.environ["STRICT_SCHEMAS"] = old
+    reload(base)
+    for mod in extra_modules:
+        reload(mod)
+    reload(main)

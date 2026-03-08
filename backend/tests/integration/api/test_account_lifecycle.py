@@ -6,17 +6,30 @@ Tests all instructor account status change endpoints with real database.
 """
 
 from datetime import date, time, timedelta
-import time as time_module
 
 from fastapi import status
 from fastapi.testclient import TestClient
+import jwt
 import pytest
 from sqlalchemy.orm import Session
 
 from app.auth import create_access_token
+from app.core.config import settings
 from app.core.enums import RoleName
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User
+
+
+def _create_backdated_token(user: User, backdate_seconds: int = 2) -> str:
+    """Create an access token with iat set in the past, avoiding time.sleep()."""
+    token = create_access_token({"sub": user.id, "email": user.email})
+    payload = jwt.decode(
+        token,
+        settings.secret_key.get_secret_value(),
+        algorithms=[settings.algorithm],
+    )
+    payload["iat"] = payload["iat"] - backdate_seconds
+    return jwt.encode(payload, settings.secret_key.get_secret_value(), algorithm=settings.algorithm)
 
 try:  # pragma: no cover - fallback for direct backend pytest runs
     from backend.tests.utils.booking_timezone import booking_timezone_fields
@@ -111,12 +124,8 @@ class TestAccountLifecycleEndpoints:
         self, client: TestClient, instructor_with_no_bookings: User
     ):
         """Suspension should invalidate the in-flight token via tokens_valid_after."""
-        token = create_access_token(
-            {"sub": instructor_with_no_bookings.id, "email": instructor_with_no_bookings.email}
-        )
+        token = _create_backdated_token(instructor_with_no_bookings)
         headers = {"Authorization": f"Bearer {token}"}
-        # iat is second-granularity; ensure suspend timestamp is strictly later.
-        time_module.sleep(1.1)
 
         response = client.post("/api/v1/account/suspend", headers=headers)
         assert response.status_code == status.HTTP_200_OK
@@ -213,12 +222,8 @@ class TestAccountLifecycleEndpoints:
         self, client: TestClient, instructor_with_no_bookings: User
     ):
         """Deactivation should invalidate the in-flight token via tokens_valid_after."""
-        token = create_access_token(
-            {"sub": instructor_with_no_bookings.id, "email": instructor_with_no_bookings.email}
-        )
+        token = _create_backdated_token(instructor_with_no_bookings)
         headers = {"Authorization": f"Bearer {token}"}
-        # iat is second-granularity; ensure deactivation timestamp is strictly later.
-        time_module.sleep(1.1)
 
         response = client.post("/api/v1/account/deactivate", headers=headers)
         assert response.status_code == status.HTTP_200_OK

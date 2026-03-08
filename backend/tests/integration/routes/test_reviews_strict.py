@@ -1,32 +1,13 @@
-from importlib import reload
-import os
-
 from fastapi.testclient import TestClient
 import pytest
+from tests.integration.routes.conftest import strict_schema_app
 
 
 @pytest.fixture(scope="module")
 def client():
-    old = os.environ.get("STRICT_SCHEMAS")
-    os.environ["STRICT_SCHEMAS"] = "true"
-
-    import app.main as main
-    import app.routes.v1.reviews as routes  # Phase 12: Reviews migrated to v1
-    import app.schemas.base as base
-
-    reload(base)
-    reload(routes)
-    reload(main)
-    _client = TestClient(main.fastapi_app, raise_server_exceptions=False)
-    yield _client
-
-    if old is None:
-        os.environ.pop("STRICT_SCHEMAS", None)
-    else:
-        os.environ["STRICT_SCHEMAS"] = old
-    reload(base)
-    reload(routes)
-    reload(main)
+    import app.routes.v1.reviews as routes
+    with strict_schema_app(routes) as c:
+        yield c
 
 
 def test_submit_review_rejects_extra_field(client: TestClient):

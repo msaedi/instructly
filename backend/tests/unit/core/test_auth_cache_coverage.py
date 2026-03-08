@@ -551,6 +551,7 @@ def test_user_has_cached_permission_orm_fallback_iterates_roles():
 @pytest.mark.asyncio
 async def test_invalidate_cached_user_timeout(monkeypatch):
     """invalidate_cached_user returns False on timeout (Sentry 3F/3G fix)."""
+    monkeypatch.setattr(auth_cache, "_INVALIDATION_TIMEOUT_S", 0.1)
 
     async def slow_redis_client():
         await asyncio.sleep(10)  # will be cancelled by wait_for

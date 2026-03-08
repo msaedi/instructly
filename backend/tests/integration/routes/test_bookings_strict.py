@@ -1,35 +1,15 @@
-from importlib import reload
-import os
-
 from fastapi.testclient import TestClient
 import pytest
+from tests.integration.routes.conftest import strict_schema_app
 
 
 @pytest.fixture(scope="module")
 def client():
-    old = os.environ.get("STRICT_SCHEMAS")
-    os.environ["STRICT_SCHEMAS"] = "true"
-
-    import app.main as main
     import app.routes.v1.bookings as routes
-    import app.schemas.base as base
     import app.schemas.booking as bs
 
-    reload(base)
-    reload(bs)
-    reload(routes)
-    reload(main)
-    _client = TestClient(main.fastapi_app, raise_server_exceptions=False)
-    yield _client
-
-    if old is None:
-        os.environ.pop("STRICT_SCHEMAS", None)
-    else:
-        os.environ["STRICT_SCHEMAS"] = old
-    reload(base)
-    reload(bs)
-    reload(routes)
-    reload(main)
+    with strict_schema_app(bs, routes) as c:
+        yield c
 
 
 def test_create_booking_rejects_extra_field(client: TestClient):

@@ -5,7 +5,6 @@ Test authentication functionality using proper test client fixture.
 
 from datetime import datetime, timedelta, timezone
 import re
-import time as time_module
 from typing import Any
 
 from fastapi.testclient import TestClient
@@ -18,6 +17,18 @@ from app.core.config import settings
 from app.core.enums import RoleName
 from app.models.password_reset import PasswordResetToken
 from app.models.user import User
+
+
+def _create_backdated_token(user: User, backdate_seconds: int = 2) -> str:
+    """Create an access token with iat set in the past, avoiding time.sleep()."""
+    token = create_access_token({"sub": user.id, "email": user.email})
+    payload = jwt.decode(
+        token,
+        settings.secret_key.get_secret_value(),
+        algorithms=[settings.algorithm],
+    )
+    payload["iat"] = payload["iat"] - backdate_seconds
+    return jwt.encode(payload, settings.secret_key.get_secret_value(), algorithm=settings.algorithm)
 
 
 def _extract_session_token(response: Any) -> str:
@@ -289,9 +300,7 @@ class TestAuth:
     def test_change_password_invalidates_old_token_and_allows_new_login(
         self, db: Session, client: TestClient, test_student: User, test_password: str
     ):
-        old_token = create_access_token({"sub": test_student.id, "email": test_student.email})
-        # iat is second-granularity; ensure invalidation timestamp is strictly later.
-        time_module.sleep(1.1)
+        old_token = _create_backdated_token(test_student)
         change_response = client.post(
             "/api/v1/auth/change-password",
             json={"current_password": test_password, "new_password": "NewSecurePassword123"},
@@ -319,9 +328,7 @@ class TestAuth:
     def test_password_reset_invalidates_old_token_and_allows_new_login(
         self, db: Session, client: TestClient, test_student: User
     ):
-        old_token = create_access_token({"sub": test_student.id, "email": test_student.email})
-        # iat is second-granularity; ensure invalidation timestamp is strictly later.
-        time_module.sleep(1.1)
+        old_token = _create_backdated_token(test_student)
         reset_token_value = f"phase3-reset-token-{test_student.id}"
         reset_token = PasswordResetToken(
             user_id=test_student.id,
@@ -358,10 +365,8 @@ class TestAuth:
     def test_logout_all_devices_invalidates_existing_tokens(
         self, client: TestClient, test_student: User, test_password: str
     ):
-        token_a = create_access_token({"sub": test_student.id, "email": test_student.email})
-        token_b = create_access_token({"sub": test_student.id, "email": test_student.email})
-        # Ensure tokens predate tokens_valid_after set by logout-all.
-        time_module.sleep(1.1)
+        token_a = _create_backdated_token(test_student)
+        token_b = _create_backdated_token(test_student)
         headers = {"Authorization": f"Bearer {token_a}"}
 
         logout_response = client.post("/api/v1/account/logout-all-devices", headers=headers)
@@ -385,10 +390,8 @@ class TestAuth:
     def test_admin_force_logout_invalidates_target_but_keeps_admin_active(
         self, client: TestClient, test_student: User, admin_user: User
     ):
-        target_token = create_access_token({"sub": test_student.id, "email": test_student.email})
-        admin_token = create_access_token({"sub": admin_user.id, "email": admin_user.email})
-        # Ensure target token predates tokens_valid_after set by force-logout.
-        time_module.sleep(1.1)
+        target_token = _create_backdated_token(test_student)
+        admin_token = _create_backdated_token(admin_user)
         admin_headers = {"Authorization": f"Bearer {admin_token}"}
 
         force_response = client.post(

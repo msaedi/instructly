@@ -24,6 +24,8 @@ import json
 import logging
 from typing import Any, Dict, Optional, cast
 
+_INVALIDATION_TIMEOUT_S: float = 2.0
+
 from ..core.cache_redis import get_async_cache_redis_client
 from ..database import SessionLocal
 from ..models.user import User  # Used in _user_to_dict type hint and create_transient_user
@@ -125,12 +127,14 @@ async def invalidate_cached_user(user_id: str) -> bool:
         return False
 
     try:
-        redis = await asyncio.wait_for(_get_auth_redis_client(), timeout=2.0)
+        redis = await asyncio.wait_for(_get_auth_redis_client(), timeout=_INVALIDATION_TIMEOUT_S)
         if redis is None:
             return False
 
         cache_key = _cache_key_for_id(user_id)
-        deleted_total = int(await asyncio.wait_for(redis.delete(cache_key), timeout=2.0))
+        deleted_total = int(
+            await asyncio.wait_for(redis.delete(cache_key), timeout=_INVALIDATION_TIMEOUT_S)
+        )
 
         if deleted_total:
             logger.info("[AUTH-CACHE] INVALIDATED user %s", user_id)

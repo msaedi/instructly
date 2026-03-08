@@ -1,26 +1,12 @@
-from importlib import reload
-import os
-
 from fastapi.testclient import TestClient
 import pytest
+from tests.integration.routes.conftest import strict_schema_app
 
 
 @pytest.fixture(scope="module")
 def client():
-    old = os.environ.get("STRICT_SCHEMAS")
-    os.environ["STRICT_SCHEMAS"] = "true"
-
-    import app.main as main
-
-    reload(main)
-    _client = TestClient(main.fastapi_app, raise_server_exceptions=False)
-    yield _client
-
-    if old is None:
-        os.environ.pop("STRICT_SCHEMAS", None)
-    else:
-        os.environ["STRICT_SCHEMAS"] = old
-    reload(main)
+    with strict_schema_app() as c:
+        yield c
 
 
 def test_signed_upload_rejects_extra_field(client: TestClient):
