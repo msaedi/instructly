@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { DollarSign, ChevronDown, Lightbulb } from 'lucide-react';
+import { ChevronDown, Lightbulb } from 'lucide-react';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { extractApiErrorMessage } from '@/lib/apiErrors';
 import { logger } from '@/lib/logger';
@@ -11,12 +11,19 @@ import { useAuth } from '@/features/shared/hooks/useAuth';
 import { hydrateCatalogNameById, displayServiceName } from '@/lib/instructorServices';
 import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
 import { formatPlatformFeeLabel, resolvePlatformFeeRate, resolveTakeHomePct } from '@/lib/pricing/platformFees';
-import { evaluatePriceFloorViolations, formatCents, type FloorViolation } from '@/lib/pricing/priceFloors';
+import { evaluateFormatPriceFloorViolations, formatCents, type FormatFloorViolation } from '@/lib/pricing/priceFloors';
+import {
+  defaultFormatPrices,
+  formatPricesToPayload,
+  hasAnyFormatEnabled,
+  payloadToFormatPriceState,
+  type ServiceFormat,
+} from '@/lib/pricing/formatPricing';
+import { FormatPricingCards } from '@/components/pricing/FormatPricingCards';
 import { useServiceCategories, useAllServicesWithInstructors } from '@/hooks/queries/useServices';
 import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import { usePlatformFees } from '@/hooks/usePlatformConfig';
 import type { ApiErrorResponse, CategoryServiceDetail, InstructorProfileResponse, ServiceCategory } from '@/features/shared/api/types';
-import type { ServiceLocationType } from '@/types/instructor';
 import {
   ALL_AUDIENCE_GROUPS,
   AUDIENCE_LABELS,
@@ -29,7 +36,6 @@ import {
 import type { AudienceGroup, FilterSelections } from '@/lib/taxonomy/filterHelpers';
 import { RefineFiltersSection } from '@/components/taxonomy/RefineFiltersSection';
 import { queryKeys } from '@/src/api/queryKeys';
-import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { toast } from 'sonner';
 import {
   applyPendingHydrationAcceptance,
@@ -37,31 +43,6 @@ import {
   getPendingHydrationAcceptance,
   type SelectedService,
 } from './SkillsPricingInline.helpers';
-
-type ServiceCapabilities = Pick<
-  SelectedService,
-  'offers_travel' | 'offers_at_location' | 'offers_online'
->;
-
-const hasAnyLocationOption = (service: ServiceCapabilities) =>
-  service.offers_travel || service.offers_at_location || service.offers_online;
-
-const isLocationCapabilityError = (message: string) =>
-  message.includes("Cannot enable travel") ||
-  message.includes("Cannot enable 'at my location'");
-
-const locationTypesFromCapabilities = (
-  service: ServiceCapabilities
-): ServiceLocationType[] => {
-  const types: ServiceLocationType[] = [];
-  if (service.offers_travel || service.offers_at_location) {
-    types.push('in_person');
-  }
-  if (service.offers_online) {
-    types.push('online');
-  }
-  return types;
-};
 
 interface Props {
   className?: string;
@@ -80,7 +61,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
   const [svcLoading, setSvcLoading] = useState(false);
   const [svcSaving, setSvcSaving] = useState(false);
   const [error, setError] = useState('');
-  const [priceErrors, setPriceErrors] = useState<Record<string, string>>({});
+  const [priceErrors, setPriceErrors] = useState<Record<string, Partial<Record<ServiceFormat, string>>>>({});
   // Default to true (assume live) until we confirm otherwise - safer default
   const [isInstructorLive, setIsInstructorLive] = useState(true);
   const [profileLoaded, setProfileLoaded] = useState(false);
@@ -147,7 +128,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
   const lastLocalSignatureRef = useRef<string>('');
   // FIX 1: Use ref for priceErrors to avoid dependency cycle in handleSave
   // handleSave reads priceErrors but also SETS it, causing infinite re-renders
-  const priceErrorsRef = useRef<Record<string, string>>({});
+  const priceErrorsRef = useRef<Record<string, Partial<Record<ServiceFormat, string>>>>({});
   // FIX 4: Use ref for handleSave to remove it from autosave effect dependencies
   // This prevents the effect from firing twice (once for selectedServices, once for handleSave)
   const handleSaveRef = useRef<((source: 'auto' | 'manual') => Promise<void>) | null>(null);
@@ -174,81 +155,60 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
   const instructorTakeHomePct = useMemo(() => resolveTakeHomePct(platformFeeRate), [platformFeeRate]);
   const platformFeeLabel = useMemo(() => formatPlatformFeeLabel(platformFeeRate), [platformFeeRate]);
 
-  const resolveCapabilitiesFromService = useCallback((service: Record<string, unknown>): ServiceCapabilities => {
-    return {
-      offers_travel: service['offers_travel'] === true,
-      offers_at_location: service['offers_at_location'] === true,
-      offers_online: service['offers_online'] === true,
-    };
-  }, []);
-
-  const defaultCapabilities = (): ServiceCapabilities => {
-    const defaultTravel = hasServiceAreas;
-    const defaultAtLocation = hasTeachingLocations;
-    return {
-      offers_travel: defaultTravel,
-      offers_at_location: defaultAtLocation,
-      offers_online: !defaultTravel && !defaultAtLocation,
-    };
-  };
-
   const serviceFloorViolations = useMemo(() => {
-    const map = new Map<string, FloorViolation[]>();
+    const map = new Map<string, Map<ServiceFormat, FormatFloorViolation[]>>();
     if (!pricingFloors) {
       logger.debug('SkillsPricingInline: serviceFloorViolations memo - no pricing floors');
       return map;
     }
     selectedServices.forEach((service) => {
-      const locationTypes = locationTypesFromCapabilities(service);
-      if (!locationTypes.length) {
-        logger.debug('SkillsPricingInline: serviceFloorViolations memo - no location types', {
+      if (!hasAnyFormatEnabled(service.format_prices)) {
+        logger.debug('SkillsPricingInline: serviceFloorViolations memo - no formats enabled', {
           serviceId: service.catalog_service_id,
         });
         return;
       }
-      const hourlyRate = Number(service.hourly_rate);
-      const violations = evaluatePriceFloorViolations({
-        hourlyRate,
+      const violations = evaluateFormatPriceFloorViolations({
+        formatPrices: service.format_prices,
         durationOptions: service.duration_options ?? [60],
-        locationTypes,
         floors: pricingFloors,
       });
       logger.debug('SkillsPricingInline: serviceFloorViolations memo - evaluated', {
         serviceId: service.catalog_service_id,
-        hourlyRate,
-        locationTypes,
+        formatPrices: service.format_prices,
         durationOptions: service.duration_options,
-        violationsCount: violations.length,
-        violations,
+        violationsSize: violations.size,
       });
-      if (violations.length > 0) map.set(service.catalog_service_id, violations);
+      if (violations.size > 0) map.set(service.catalog_service_id, violations);
     });
     return map;
   }, [pricingFloors, selectedServices]);
 
   const buildPriceFloorErrors = useCallback(() => {
-    const next: Record<string, string> = {};
-    serviceFloorViolations.forEach((violations, serviceId) => {
-      const violation = violations[0]!;
-      const serviceName =
-        selectedServices.find((s) => s.catalog_service_id === serviceId)?.name || 'this service';
-      next[serviceId] =
-        `Minimum price for a ${violation.modalityLabel} ${violation.duration}-minute private session ` +
-        `is $${formatCents(violation.floorCents)} (current $${formatCents(violation.baseCents)}). ` +
-        `Please adjust the rate for ${serviceName}.`;
+    const next: Record<string, Partial<Record<ServiceFormat, string>>> = {};
+    serviceFloorViolations.forEach((formatMap, serviceId) => {
+      const perFormat: Partial<Record<ServiceFormat, string>> = {};
+      formatMap.forEach((violations, format) => {
+        const violation = violations[0];
+        if (violation) {
+          perFormat[format] =
+            `Min price for ${violation.duration}-min session is $${formatCents(violation.floorCents)} ` +
+            `(current $${formatCents(violation.baseCents)})`;
+        }
+      });
+      if (Object.keys(perFormat).length > 0) {
+        next[serviceId] = perFormat;
+      }
     });
     return next;
-  }, [serviceFloorViolations, selectedServices]);
+  }, [serviceFloorViolations]);
 
   const serializeServices = useCallback((services: SelectedService[]) => {
     return JSON.stringify(
       services
         .map((service) => ({
           id: service.catalog_service_id,
-          hourly_rate: service.hourly_rate.trim(),
-          offers_travel: service.offers_travel,
-          offers_at_location: service.offers_at_location,
-          offers_online: service.offers_online,
+          format_prices: service.format_prices,
           duration_options: [...service.duration_options].sort((a, b) => a - b),
           filter_selections: Object.fromEntries(
             Object.entries(service.filter_selections).map(([k, v]) => [k, [...v].sort()])
@@ -368,7 +328,6 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
     const mapped: SelectedService[] = (me['services'] as unknown[] || [])
       .map((svc: unknown) => {
         const s = svc as Record<string, unknown>;
-        const capabilities = resolveCapabilitiesFromService(s);
         const catalogId = String(s['service_catalog_id'] || '');
         const serviceName = displayServiceName(
           {
@@ -396,6 +355,14 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
           skill_level: skillLevels,
         };
 
+        // Convert API format_prices array to FormatPriceState
+        const apiFormatPrices = Array.isArray(s['format_prices'])
+          ? (s['format_prices'] as Parameters<typeof payloadToFormatPriceState>[0])
+          : [];
+        const rawFormatPrices = apiFormatPrices.length > 0
+          ? payloadToFormatPriceState(apiFormatPrices)
+          : defaultFormatPrices(hasServiceAreas, hasTeachingLocations);
+
         return {
           catalog_service_id: catalogId,
           subcategory_id: catalogEntry?.subcategory_id ?? '',
@@ -404,7 +371,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
               ? (s['service_catalog_name'] as string)
               : null,
           name: serviceName,
-          hourly_rate: String(s['hourly_rate'] ?? ''),
+          format_prices: rawFormatPrices,
           eligible_age_groups: eligibleAgeGroups,
           filter_selections: mergedFilters,
           description: (s['description'] as string) || '',
@@ -415,9 +382,6 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
             Array.isArray(s['duration_options']) && (s['duration_options'] as number[]).length
               ? (s['duration_options'] as number[])
               : [60],
-          offers_travel: hasServiceAreas ? capabilities.offers_travel : false,
-          offers_at_location: hasTeachingLocations ? capabilities.offers_at_location : false,
-          offers_online: capabilities.offers_online,
         } satisfies SelectedService;
       })
       .filter((svc: SelectedService) => svc.catalog_service_id);
@@ -469,35 +433,9 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
     hasTeachingLocations,
     instructorProfile,
     profileFromHook,
-    resolveCapabilitiesFromService,
     serializeServices,
     serviceCatalogById,
   ]);
-
-  // FIX 3: Effect #5 - Capability cleanup when service areas/teaching locations removed
-  // This is a system-initiated change, not a user edit. Mark as hydrating to prevent
-  // autosave effect from treating it as a user change that needs saving.
-  useEffect(() => {
-    if (hasServiceAreas && hasTeachingLocations) return;
-    // Mark as hydrating so autosave effect skips this change
-    isHydratingRef.current = true;
-    setSelectedServices((prev) => {
-      let mutated = false;
-      const next = prev.map((service) => {
-        let updated = service;
-        if (!hasServiceAreas && updated.offers_travel) {
-          updated = { ...updated, offers_travel: false };
-          mutated = true;
-        }
-        if (!hasTeachingLocations && updated.offers_at_location) {
-          updated = { ...updated, offers_at_location: false };
-          mutated = true;
-        }
-        return updated;
-      });
-      return mutated ? next : prev;
-    });
-  }, [hasServiceAreas, hasTeachingLocations]);
 
   // Back-fill subcategory_id, eligible_age_groups, and default filter_selections
   // from catalog when taxonomy data loads after profile hydration.
@@ -570,13 +508,12 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
           subcategory_id: catalogEntry?.subcategory_id ?? '',
           service_catalog_name: svc.name,
           name: label,
-          hourly_rate: '',
+          format_prices: defaultFormatPrices(hasServiceAreas, hasTeachingLocations),
           eligible_age_groups: eligibleAgeGroups,
           filter_selections: defaultFilterSelections(eligibleAgeGroups),
           description: '',
           equipment: '',
           duration_options: [60],
-          ...defaultCapabilities(),
         },
       ];
     });
@@ -627,7 +564,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
       }
 
       // Safeguard: Live instructors must have at least one skill with a valid rate
-      const servicesWithRates = selectedServices.filter((s) => s.hourly_rate.trim() !== '');
+      const servicesWithRates = selectedServices.filter((s) => hasAnyFormatEnabled(s.format_prices));
       if (isInstructorLive && servicesWithRates.length === 0) {
         setError('Live instructors must have at least one skill. Please add a skill before saving.');
         setSvcSaving(false);
@@ -640,29 +577,29 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
         hasPricingFloors: Boolean(pricingFloors),
         pricingFloors,
         violationsSize: serviceFloorViolations.size,
-        violations: Array.from(serviceFloorViolations.entries()).map(([id, v]) => ({ id, violations: v })),
         services: selectedServices.map((s) => ({
           id: s.catalog_service_id,
-          hourly_rate: s.hourly_rate,
+          format_prices: s.format_prices,
           duration_options: s.duration_options,
-          offers_travel: s.offers_travel,
-          offers_at_location: s.offers_at_location,
-          offers_online: s.offers_online,
         })),
       });
 
       if (pricingFloors && serviceFloorViolations.size > 0) {
         const nextPriceErrors = buildPriceFloorErrors();
-        const firstError = Object.values(nextPriceErrors)[0];
-        if (firstError) {
+        if (Object.keys(nextPriceErrors).length > 0) {
+          // Build a top-level toast message from the first violation
+          const firstServiceErrors = Object.values(nextPriceErrors)[0];
+          const firstMsg = firstServiceErrors ? Object.values(firstServiceErrors)[0] : undefined;
           logger.debug('SkillsPricingInline: price floor violation detected, blocking save', {
             source,
             violationCount: serviceFloorViolations.size,
-            firstError,
+            firstMsg,
           });
           setPriceErrors(nextPriceErrors);
           // FIX 7: Show toast for ALL saves (not just manual) so user sees feedback
-          toast.error(firstError, { id: 'price-floor-error' });
+          if (firstMsg) {
+            toast.error(firstMsg, { id: 'price-floor-error' });
+          }
           setSvcSaving(false);
           return;
         }
@@ -673,27 +610,15 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
         setPriceErrors({});
       }
 
-      const hasInvalidCapabilities = selectedServices.some((service) =>
-        !hasAnyLocationOption({
-          offers_travel: hasServiceAreas ? service.offers_travel : false,
-          offers_at_location: hasTeachingLocations ? service.offers_at_location : false,
-          offers_online: service.offers_online,
-        })
-      );
-      if (hasInvalidCapabilities) {
-        setSvcSaving(false);
-        return;
-      }
-
       const payload = {
         services: selectedServices
-          .filter((service) => service.hourly_rate.trim() !== '')
+          .filter((service) => hasAnyFormatEnabled(service.format_prices))
           .map((service) => {
             // Build filter_selections for backend (without age_groups — sent separately)
             const { age_groups: _ageGroups, ...restFilters } = service.filter_selections;
             return {
               service_catalog_id: service.catalog_service_id || undefined,
-              hourly_rate: Number(service.hourly_rate),
+              format_prices: formatPricesToPayload(service.format_prices),
               age_groups: service.filter_selections['age_groups'] ?? [...service.eligible_age_groups],
               filter_selections: restFilters,
               ...(service.description?.trim() ? { description: service.description.trim() } : {}),
@@ -704,9 +629,6 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                 .filter(Boolean)?.length
                 ? { equipment_required: service.equipment.split(',').map((v) => v.trim()).filter(Boolean) }
                 : {}),
-              offers_travel: hasServiceAreas ? service.offers_travel : false,
-              offers_at_location: hasTeachingLocations ? service.offers_at_location : false,
-              offers_online: service.offers_online,
             };
           }),
       };
@@ -734,18 +656,12 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
     } catch (e: unknown) {
       logger.error('Failed to save services', e);
       const message = e instanceof Error ? e.message : 'Failed to save';
-      if (isLocationCapabilityError(message)) {
-        setError('');
-        return;
-      }
       setError(message);
     } finally {
       setSvcSaving(false);
     }
   }, [
     buildPriceFloorErrors,
-    hasServiceAreas,
-    hasTeachingLocations,
     profileLoaded,
     isInstructorLive,
     pricingConfigLoading, // FIX 9: Wait for pricing config before saving
@@ -798,7 +714,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
     lastLocalSignatureRef.current = serializeServices(selectedServices);
   }, [selectedServices, serializeServices]);
 
-  const showError = Boolean(error) && !isLocationCapabilityError(error);
+  const showError = Boolean(error);
 
   return (
     <div className={className}>
@@ -878,7 +794,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                               type="button"
                             >
                               <span className="truncate text-left">{svc.name}</span>
-                              <span className="ml-2">{isSel ? '✓' : '+'}</span>
+                              <span className="ml-2">{isSel ? '\u2713' : '+'}</span>
                             </button>
                           );
                         })}
@@ -892,14 +808,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
           {/* Your selected skills (detailed cards) */}
           <div className="space-y-4">
             {selectedServices.map((s, index) => {
-              const effectiveOffersTravel = hasServiceAreas ? s.offers_travel : false;
-              const effectiveOffersAtLocation = hasTeachingLocations ? s.offers_at_location : false;
-              const priceError = priceErrors[s.catalog_service_id];
-              const effectiveCapabilities: ServiceCapabilities = {
-                offers_travel: effectiveOffersTravel,
-                offers_at_location: effectiveOffersAtLocation,
-                offers_online: s.offers_online,
-              };
+              const formatErrors = priceErrors[s.catalog_service_id];
 
               return (
                 <div
@@ -909,10 +818,6 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     <div className="text-base font-medium text-gray-900 dark:text-gray-100">{s.service_catalog_name ?? s.name ?? 'Service'}</div>
-                    <div className="flex items-center gap-1 mt-1">
-                      <span className="text-xl font-bold text-[#7E22CE]">${s.hourly_rate || '0'}</span>
-                      <span className="text-xs text-gray-600 dark:text-gray-400">/hour</span>
-                    </div>
                   </div>
                   <button
                     type="button"
@@ -929,203 +834,76 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                   </button>
                 </div>
 
-                <div className="rounded-lg p-3 mb-3 insta-surface-card">
-                  <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Hourly Rate:</span>
-                    <div className="relative max-w-[220px]">
-                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-300" />
-                      <input
-                        type="number"
-                        placeholder="Hourly rate"
-                        value={s.hourly_rate}
-                        onChange={(e) => {
-                          const nextValue = e.target.value;
-                          setSelectedServicesWithDirty((prev) =>
-                            prev.map((x, i) => (i === index ? { ...x, hourly_rate: nextValue } : x))
-                          );
-                          if (priceError) {
-                            setPriceErrors((prev) => {
-                              if (!prev[s.catalog_service_id]) return prev;
-                              const next = { ...prev };
-                              delete next[s.catalog_service_id];
-                              return next;
-                            });
-                          }
-                        }}
-                        // FIX 2: Removed onBlur that cleared isEditingRef
-                        // isEditingRef stays true until save succeeds, protecting against hydration overwrite
-                        className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                          priceError
-                            ? 'border-red-500 focus:ring-red-200 focus:border-red-500'
-                            : 'border-gray-300 dark:border-gray-700 focus:ring-[#D4B5F0] focus:border-purple-500'
-                        }`}
-                        aria-invalid={priceError ? 'true' : 'false'}
-                        min="0"
-                        step="0.01"
-                        required
-                      />
-                    </div>
-                  </div>
-                  {priceError && (
-                    <p className="mt-1 text-xs text-red-600">{priceError}</p>
-                  )}
-                  {s.hourly_rate && Number(s.hourly_rate) > 0 && (
-                    <div className="mt-2 text-xs text-gray-600 dark:text-gray-400">
-                      You&apos;ll earn{' '}
-                      <span className="font-semibold text-[#7E22CE]">
-                        ${(Number(s.hourly_rate) * instructorTakeHomePct).toFixed(2)}
-                      </span>{' '}
-                      after the {platformFeeLabel} platform fee
-                    </div>
-                  )}
+                <div className="mb-3">
+                  <FormatPricingCards
+                    formatPrices={s.format_prices}
+                    onChange={(next) => {
+                      setSelectedServicesWithDirty((prev) =>
+                        prev.map((x, i) => (i === index ? { ...x, format_prices: next } : x))
+                      );
+                      if (formatErrors) {
+                        setPriceErrors((prev) => {
+                          if (!prev[s.catalog_service_id]) return prev;
+                          const updated = { ...prev };
+                          delete updated[s.catalog_service_id];
+                          return updated;
+                        });
+                      }
+                    }}
+                    priceFloors={pricingFloors}
+                    durationOptions={s.duration_options}
+                    takeHomePct={instructorTakeHomePct}
+                    platformFeeLabel={platformFeeLabel}
+                    formatErrors={formatErrors}
+                    studentLocationDisabled={!hasServiceAreas}
+                    studentLocationDisabledReason={
+                      !hasServiceAreas
+                        ? 'You need at least one service area to offer travel lessons'
+                        : undefined
+                    }
+                  />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                  <div className="rounded-lg p-3 insta-surface-card">
-                    <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">Age Groups</label>
-                    <div className="grid grid-cols-2 gap-1">
-                      {ALL_AUDIENCE_GROUPS.map((group) => {
-                        const selectedAgeGroups = s.filter_selections['age_groups'] ?? [];
-                        const isSelected = selectedAgeGroups.includes(group);
-                        const isEligible = s.eligible_age_groups.includes(group);
-                        return (
-                          <button
-                            key={group}
-                            disabled={!isEligible}
-                            onClick={() => {
-                              if (!isEligible) return;
-                              setSelectedServicesWithDirty((prev) => prev.map((x, i) => {
-                                if (i !== index) return x;
-                                const current = x.filter_selections['age_groups'] ?? [];
-                                const next = isSelected
-                                  ? current.filter((g) => g !== group)
-                                  : [...current, group];
-                                // Min-1 guard: can't deselect last age group
-                                if (next.length === 0) return x;
-                                return {
-                                  ...x,
-                                  filter_selections: { ...x.filter_selections, age_groups: next },
-                                };
-                              }));
-                            }}
-                            className={`px-2 py-2 text-sm rounded-md transition-colors ${
-                              !isEligible
-                                ? 'bg-gray-50 dark:bg-gray-900 text-gray-300 cursor-not-allowed'
-                                : isSelected
-                                ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
-                                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                            }`}
-                            type="button"
-                          >
-                            {AUDIENCE_LABELS[group]}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <div className="rounded-lg p-3 insta-surface-card">
-                    <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">
-                      How do you offer this skill?
-                    </label>
-                    <div className="space-y-3">
-                      {(() => {
-                        const travelDisabled = !hasServiceAreas;
-                        const travelMessage = travelDisabled
-                          ? 'You need at least one service area to offer travel lessons'
-                          : null;
-                        const atLocationDisabled = !hasTeachingLocations;
-                        const atLocationMessage = atLocationDisabled
-                          ? 'You need at least one teaching location to offer studio lessons'
-                          : null;
-
-                        return (
-                          <>
-                            <div
-                              className={`rounded-md border border-gray-200 dark:border-gray-700 p-3 ${
-                                travelDisabled ? 'opacity-60 cursor-not-allowed' : ''
-                              }`}
-                              title={travelMessage ?? undefined}
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">I travel to students</p>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400">(Within your service areas)</p>
-                                </div>
-                                <ToggleSwitch
-                                  checked={effectiveOffersTravel}
-                                  onChange={() =>
-                                    setSelectedServicesWithDirty((prev) =>
-                                      prev.map((x, i) =>
-                                        i === index ? { ...x, offers_travel: !x.offers_travel } : x
-                                      )
-                                    )
-                                  }
-                                  disabled={travelDisabled}
-                                  ariaLabel="I travel to students"
-                                  {...(travelMessage ? { title: travelMessage } : {})}
-                                />
-                              </div>
-                              {travelMessage && (
-                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{travelMessage}</p>
-                              )}
-                            </div>
-                            <div
-                              className={`rounded-md border border-gray-200 dark:border-gray-700 p-3 ${
-                                atLocationDisabled ? 'opacity-60 cursor-not-allowed' : ''
-                              }`}
-                              title={atLocationMessage ?? undefined}
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Students come to me</p>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400">(At your teaching location)</p>
-                                </div>
-                                <ToggleSwitch
-                                  checked={effectiveOffersAtLocation}
-                                  onChange={() =>
-                                    setSelectedServicesWithDirty((prev) =>
-                                      prev.map((x, i) =>
-                                        i === index ? { ...x, offers_at_location: !x.offers_at_location } : x
-                                      )
-                                    )
-                                  }
-                                  disabled={atLocationDisabled}
-                                  ariaLabel="Students come to me"
-                                  {...(atLocationMessage ? { title: atLocationMessage } : {})}
-                                />
-                              </div>
-                              {atLocationMessage && (
-                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{atLocationMessage}</p>
-                              )}
-                            </div>
-                            <div className="rounded-md border border-gray-200 dark:border-gray-700 p-3">
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Online lessons</p>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400">(Video call)</p>
-                                </div>
-                                <ToggleSwitch
-                                  checked={s.offers_online}
-                                  onChange={() =>
-                                    setSelectedServicesWithDirty((prev) =>
-                                      prev.map((x, i) =>
-                                        i === index ? { ...x, offers_online: !x.offers_online } : x
-                                      )
-                                    )
-                                  }
-                                  ariaLabel="Online lessons"
-                                />
-                              </div>
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </div>
-                    {!hasAnyLocationOption(effectiveCapabilities) && (
-                      <p className="text-xs text-red-600 mt-2">
-                        Select at least one location option for this skill.
-                      </p>
-                    )}
+                <div className="rounded-lg p-3 insta-surface-card mb-3">
+                  <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">Age Groups</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
+                    {ALL_AUDIENCE_GROUPS.map((group) => {
+                      const selectedAgeGroups = s.filter_selections['age_groups'] ?? [];
+                      const isSelected = selectedAgeGroups.includes(group);
+                      const isEligible = s.eligible_age_groups.includes(group);
+                      return (
+                        <button
+                          key={group}
+                          disabled={!isEligible}
+                          onClick={() => {
+                            if (!isEligible) return;
+                            setSelectedServicesWithDirty((prev) => prev.map((x, i) => {
+                              if (i !== index) return x;
+                              const current = x.filter_selections['age_groups'] ?? [];
+                              const next = isSelected
+                                ? current.filter((g) => g !== group)
+                                : [...current, group];
+                              // Min-1 guard: can't deselect last age group
+                              if (next.length === 0) return x;
+                              return {
+                                ...x,
+                                filter_selections: { ...x.filter_selections, age_groups: next },
+                              };
+                            }));
+                          }}
+                          className={`px-2 py-2 text-sm rounded-md transition-colors ${
+                            !isEligible
+                              ? 'bg-gray-50 dark:bg-gray-900 text-gray-300 cursor-not-allowed'
+                              : isSelected
+                              ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                          }`}
+                          type="button"
+                        >
+                          {AUDIENCE_LABELS[group]}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -1255,13 +1033,13 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                 disabled={!requestedSkill.trim() || requestSubmitting}
                 className="inline-flex items-center justify-center rounded-lg bg-[#7E22CE] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#6d1fc3] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {requestSubmitting ? 'Sending…' : 'Submit'}
+                {requestSubmitting ? 'Sending\u2026' : 'Submit'}
               </button>
             </div>
           </div>
           {requestSuccess && <p className="mt-2 text-xs text-gray-700 dark:text-gray-200">{requestSuccess}</p>}
           {svcSaving && (
-            <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">Saving changes…</p>
+            <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">Saving changes\u2026</p>
           )}
         </>
       )}

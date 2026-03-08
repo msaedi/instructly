@@ -5152,12 +5152,11 @@ describe('InstructorProfileForm', () => {
       const user = userEvent.setup();
       // Toggle Bio section
       await user.click(screen.getByRole('button', { name: /toggle bio/i }));
-      // Toggle Service Areas section
-      await user.click(screen.getByRole('button', { name: /toggle service areas/i }));
-      // Toggle Preferred Locations section
-      await user.click(screen.getByRole('button', { name: /toggle preferred locations/i }));
 
-      // In onboarding context, Skills & Booking sections should NOT be shown
+      // In onboarding context, Service Areas, Preferred Locations, Skills & Booking sections should NOT be shown
+      // (Service Areas and Preferred Locations moved to skill-selection page)
+      expect(screen.queryByRole('button', { name: /toggle service areas/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /toggle preferred locations/i })).not.toBeInTheDocument();
       expect(screen.queryByText(/skills & pricing/i)).not.toBeInTheDocument();
       expect(screen.queryByText(/booking preferences/i)).not.toBeInTheDocument();
     });

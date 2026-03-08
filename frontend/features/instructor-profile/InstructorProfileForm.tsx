@@ -538,6 +538,22 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
       setSaving(true);
       setError(null);
       setLastNameError(null);
+
+      // Client-side bio length validation (backend enforces min=10, max=1000)
+      const bioTrimmed = profile.bio.trim();
+      if (bioTrimmed.length < 10) {
+        setError('Bio must be at least 10 characters.');
+        toast.error('Bio must be at least 10 characters.');
+        onStepStatusChange?.('failed');
+        return;
+      }
+      if (bioTrimmed.length > 1000) {
+        setError('Bio must be 1,000 characters or fewer.');
+        toast.error('Bio must be 1,000 characters or fewer.');
+        onStepStatusChange?.('failed');
+        return;
+      }
+
       // Update user info if changed
       if (profile.first_name || profile.last_name) {
         const nameResponse = await fetchWithAuth(API_ENDPOINTS.ME, {
@@ -932,46 +948,53 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
           isOpen={openDetails}
           onToggle={() => setOpenDetails((v) => !v)}
           onGenerateBio={handleGenerateBio}
+          showCharCount
+          maxBioChars={1000}
         />
-        {/* Mobile divider before Service Areas */}
-        <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
+        {/* Service Areas & Preferred Locations — only in dashboard context (onboarding moves them to skill-selection) */}
+        {!isOnboarding && (
+          <>
+            {/* Mobile divider before Service Areas */}
+            <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
 
-        {/* Service Areas Section */}
-        <ServiceAreasCard
-          context={context}
-          isOpen={openServiceAreas}
-          onToggle={() => setOpenServiceAreas((v) => !v)}
-          globalNeighborhoodFilter={globalNeighborhoodFilter}
-          onGlobalFilterChange={(value) => setGlobalNeighborhoodFilter(value)}
-          nycBoroughs={NYC_BOROUGHS}
-          boroughNeighborhoods={boroughNeighborhoods}
-          selectedNeighborhoods={selectedNeighborhoods}
-          onToggleNeighborhood={toggleNeighborhood}
-          openBoroughs={openBoroughsMain}
-          onToggleBoroughAccordion={(borough) => toggleMainBoroughOpen(borough)}
-          loadBoroughNeighborhoods={loadBoroughNeighborhoods}
-          toggleBoroughAll={toggleBoroughAll}
-          boroughAccordionRefs={boroughAccordionRefs}
-          idToItem={idToItem}
-          isNYC={isNYC}
-          formatNeighborhoodName={toTitle}
-        />
+            {/* Service Areas Section */}
+            <ServiceAreasCard
+              context={context}
+              isOpen={openServiceAreas}
+              onToggle={() => setOpenServiceAreas((v) => !v)}
+              globalNeighborhoodFilter={globalNeighborhoodFilter}
+              onGlobalFilterChange={(value) => setGlobalNeighborhoodFilter(value)}
+              nycBoroughs={NYC_BOROUGHS}
+              boroughNeighborhoods={boroughNeighborhoods}
+              selectedNeighborhoods={selectedNeighborhoods}
+              onToggleNeighborhood={toggleNeighborhood}
+              openBoroughs={openBoroughsMain}
+              onToggleBoroughAccordion={(borough) => toggleMainBoroughOpen(borough)}
+              loadBoroughNeighborhoods={loadBoroughNeighborhoods}
+              toggleBoroughAll={toggleBoroughAll}
+              boroughAccordionRefs={boroughAccordionRefs}
+              idToItem={idToItem}
+              isNYC={isNYC}
+              formatNeighborhoodName={toTitle}
+            />
 
-        <PreferredLocationsCard
-          context={context}
-          isOpen={openPreferredLocations}
-          onToggle={() => setOpenPreferredLocations((v) => !v)}
-          preferredAddress={preferredAddress}
-          setPreferredAddress={setPreferredAddress}
-          preferredLocations={preferredLocations}
-          setPreferredLocations={setPreferredLocations}
-          preferredLocationTitles={preferredLocationTitles}
-          setPreferredLocationTitles={setPreferredLocationTitles}
-          neutralLocations={neutralLocations}
-          setNeutralLocations={setNeutralLocations}
-          neutralPlaces={neutralPlaces}
-          setNeutralPlaces={setNeutralPlaces}
-        />
+            <PreferredLocationsCard
+              context={context}
+              isOpen={openPreferredLocations}
+              onToggle={() => setOpenPreferredLocations((v) => !v)}
+              preferredAddress={preferredAddress}
+              setPreferredAddress={setPreferredAddress}
+              preferredLocations={preferredLocations}
+              setPreferredLocations={setPreferredLocations}
+              preferredLocationTitles={preferredLocationTitles}
+              setPreferredLocationTitles={setPreferredLocationTitles}
+              neutralLocations={neutralLocations}
+              setNeutralLocations={setNeutralLocations}
+              neutralPlaces={neutralPlaces}
+              setNeutralPlaces={setNeutralPlaces}
+            />
+          </>
+        )}
 
         {!isOnboarding && (
           <>

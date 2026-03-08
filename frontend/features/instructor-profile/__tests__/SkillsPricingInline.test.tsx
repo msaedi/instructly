@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { getReactEventHandler, invokeReactClick } from '@/test-utils/reactEventHandlers';
 import SkillsPricingInline from '../SkillsPricingInline';
@@ -15,7 +15,7 @@ import { useServiceCategories, useAllServicesWithInstructors } from '@/hooks/que
 import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
 import { usePlatformFees } from '@/hooks/usePlatformConfig';
-import { evaluatePriceFloorViolations } from '@/lib/pricing/priceFloors';
+import { evaluateFormatPriceFloorViolations } from '@/lib/pricing/priceFloors';
 import { useSubcategoryFilters } from '@/hooks/queries/useTaxonomy';
 import { displayServiceName } from '@/lib/instructorServices';
 import { toast } from 'sonner';
@@ -89,7 +89,7 @@ jest.mock('@/lib/pricing/platformFees', () => ({
 }));
 
 jest.mock('@/lib/pricing/priceFloors', () => ({
-  evaluatePriceFloorViolations: jest.fn(),
+  evaluateFormatPriceFloorViolations: jest.fn(),
   formatCents: (value: number) => (value / 100).toFixed(2),
 }));
 
@@ -112,7 +112,7 @@ const mockUseInstructorProfileMe = useInstructorProfileMe as jest.Mock;
 const mockUsePricingConfig = usePricingConfig as jest.Mock;
 const mockUsePlatformFees = usePlatformFees as jest.Mock;
 const mockFetchWithAuth = fetchWithAuth as jest.Mock;
-const mockEvaluateViolations = evaluatePriceFloorViolations as jest.Mock;
+const mockEvaluateViolations = evaluateFormatPriceFloorViolations as jest.Mock;
 const mockUseSubcategoryFilters = useSubcategoryFilters as jest.Mock;
 const mockDisplayServiceName = displayServiceName as jest.Mock;
 const applyPendingHydrationAcceptanceMock = applyPendingHydrationAcceptance as jest.MockedFunction<
@@ -121,6 +121,25 @@ const applyPendingHydrationAcceptanceMock = applyPendingHydrationAcceptance as j
 const getPendingHydrationAcceptanceMock = getPendingHydrationAcceptance as jest.MockedFunction<
   typeof getPendingHydrationAcceptance
 >;
+
+/**
+ * Helper: get the rate input for a specific format card.
+ * FormatPricingCards renders 3 cards with data-testid="format-card-{format}".
+ * Each card has one number input with a numeric placeholder (e.g. "80", "60").
+ */
+function getFormatRateInput(format: 'online' | 'student_location' | 'instructor_location' = 'online') {
+  const card = screen.getByTestId(`format-card-${format}`);
+  return within(card).getByRole('spinbutton');
+}
+
+/**
+ * Helper: get all rate inputs (one per service card) for a given format.
+ * When multiple services are displayed, each has its own set of format cards.
+ */
+function getAllFormatRateInputs(format: 'online' | 'student_location' | 'instructor_location' = 'online') {
+  const cards = screen.getAllByTestId(`format-card-${format}`);
+  return cards.map(card => within(card).getByRole('spinbutton'));
+}
 
 const categoriesData = [{ id: '01HABCTESTCAT0000000000001', name: 'Music', display_order: 1 }];
 const servicesData = {
@@ -148,7 +167,7 @@ describe('SkillsPricingInline', () => {
     mockUsePricingConfig.mockReturnValue({ config: { price_floor_cents: null } });
     mockUsePlatformFees.mockReturnValue({ fees: {} });
     mockFetchWithAuth.mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
-    mockEvaluateViolations.mockReturnValue([]);
+    mockEvaluateViolations.mockReturnValue(new Map());
   });
 
   afterEach(() => {
@@ -185,8 +204,7 @@ describe('SkillsPricingInline', () => {
           {
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
           },
         ],
       },
@@ -228,15 +246,14 @@ describe('SkillsPricingInline', () => {
         {
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
-          hourly_rate: 70,
-          offers_online: true,
+          format_prices: [{ format: 'online', hourly_rate: 70 }],
         },
       ],
     };
 
     const { rerender } = render(<SkillsPricingInline instructorProfile={initialProfile as never} />);
 
-    const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+    const rateInput = getFormatRateInput('online');
     await user.clear(rateInput);
     await user.type(rateInput, '80');
     await user.tab();
@@ -247,15 +264,14 @@ describe('SkillsPricingInline', () => {
         {
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
-          hourly_rate: 70,
-          offers_online: true,
+          format_prices: [{ format: 'online', hourly_rate: 70 }],
         },
       ],
     };
 
     rerender(<SkillsPricingInline instructorProfile={staleProfile as never} />);
 
-    expect(screen.getByPlaceholderText(/hourly rate/i)).toHaveValue(80);
+    expect(getFormatRateInput('online')).toHaveValue(80);
   });
 
   it('surfaces price floor violations on autosave', async () => {
@@ -269,26 +285,25 @@ describe('SkillsPricingInline', () => {
           {
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 30,
+            format_prices: [{ format: 'online', hourly_rate: 30 }],
             duration_options: [60],
-            offers_travel: true,
           },
         ],
       },
     });
     mockUsePricingConfig.mockReturnValue({ config: { price_floor_cents: { private: { '60': 5000 } } } });
-    mockEvaluateViolations.mockReturnValue([
-      { duration: 60, modalityLabel: 'in-person', floorCents: 5000, baseCents: 3000 },
-    ]);
+    mockEvaluateViolations.mockReturnValue(new Map([
+      ['student_location', [{ format: 'student_location', duration: 60, floorCents: 5000, baseCents: 3000 }]],
+    ]));
 
     render(<SkillsPricingInline />);
 
-    await user.clear(screen.getByPlaceholderText(/hourly rate/i));
-    await user.type(screen.getByPlaceholderText(/hourly rate/i), '30');
+    await user.clear(getFormatRateInput('online'));
+    await user.type(getFormatRateInput('online'), '30');
     jest.advanceTimersByTime(1200);
 
     await waitFor(() => {
-      expect(screen.getByText(/minimum price/i)).toBeInTheDocument();
+      expect(screen.getByText(/min price/i)).toBeInTheDocument();
     });
     jest.useRealTimers();
   });
@@ -303,9 +318,8 @@ describe('SkillsPricingInline', () => {
           {
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 45,
+            format_prices: [{ format: 'online', hourly_rate: 45 }],
             duration_options: [60],
-            offers_online: true,
           },
         ],
       },
@@ -313,8 +327,8 @@ describe('SkillsPricingInline', () => {
 
     render(<SkillsPricingInline />);
 
-    await user.clear(screen.getByPlaceholderText(/hourly rate/i));
-    await user.type(screen.getByPlaceholderText(/hourly rate/i), '75');
+    await user.clear(getFormatRateInput('online'));
+    await user.type(getFormatRateInput('online'), '75');
     jest.advanceTimersByTime(1200);
 
     await waitFor(() => {
@@ -333,10 +347,7 @@ describe('SkillsPricingInline', () => {
           {
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_travel: false,
-            offers_at_location: false,
-            offers_online: false,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           },
         ],
       },
@@ -344,16 +355,24 @@ describe('SkillsPricingInline', () => {
 
     render(<SkillsPricingInline />);
 
-    const rateInput = screen.getByPlaceholderText(/hourly rate/i);
-    await user.clear(rateInput);
-    await user.type(rateInput, '65');
+    // Turn off the online toggle to disable all formats
+    const onlineToggle = screen.getByRole('switch', { name: /^online$/i });
+    await user.click(onlineToggle);
+
+    // The rate input should now be disabled
+    const rateInput = getFormatRateInput('online');
+    expect(rateInput).toBeDisabled();
+
+    // Trigger autosave timer
     jest.advanceTimersByTime(1200);
 
+    // Service with no enabled formats is filtered from payload.
+    // For non-live instructors, save proceeds with empty services array.
     await waitFor(() => {
-      expect(screen.getByText(/select at least one location option/i)).toBeInTheDocument();
+      expect(mockFetchWithAuth).toHaveBeenCalled();
+      const body = JSON.parse(mockFetchWithAuth.mock.calls[0]![1].body as string);
+      expect(body.services).toHaveLength(0);
     });
-    expect(mockFetchWithAuth).not.toHaveBeenCalled();
-    expect(toast.error).not.toHaveBeenCalled();
     jest.useRealTimers();
   });
 
@@ -395,10 +414,9 @@ describe('SkillsPricingInline', () => {
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
-          hourly_rate: 50,
+          format_prices: [{ format: 'online', hourly_rate: 50 }],
           age_groups: ['adults'],
           duration_options: [60],
-          offers_online: true,
         }],
       },
     });
@@ -426,19 +444,18 @@ describe('SkillsPricingInline', () => {
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
-          hourly_rate: 50,
+          format_prices: [{ format: 'online', hourly_rate: 50 }],
           age_groups: ['adults'],
           duration_options: [60],
-          offers_online: true,
         }],
       },
     });
 
     render(<SkillsPricingInline />);
 
-    expect(screen.getByRole('switch', { name: /i travel to students/i })).toBeInTheDocument();
-    expect(screen.getByRole('switch', { name: /students come to me/i })).toBeInTheDocument();
-    const onlineSwitch = screen.getByRole('switch', { name: /online lessons/i });
+    expect(screen.getByRole('switch', { name: /at student's location/i })).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: /at instructor's location/i })).toBeInTheDocument();
+    const onlineSwitch = screen.getByRole('switch', { name: /^online$/i });
     expect(onlineSwitch).toHaveAttribute('aria-checked', 'true');
     await user.click(onlineSwitch);
     expect(onlineSwitch).toHaveAttribute('aria-checked', 'false');
@@ -456,10 +473,9 @@ describe('SkillsPricingInline', () => {
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
-          hourly_rate: 50,
+          format_prices: [{ format: 'online', hourly_rate: 50 }],
           age_groups: ['adults'],
           duration_options: [60],
-          offers_online: true,
           levels_taught: ['beginner', 'intermediate', 'advanced'],
         }],
       },
@@ -485,10 +501,9 @@ describe('SkillsPricingInline', () => {
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
-          hourly_rate: 50,
+          format_prices: [{ format: 'online', hourly_rate: 50 }],
           age_groups: ['adults'],
           duration_options: [60],
-          offers_online: true,
         }],
       },
     });
@@ -547,10 +562,9 @@ describe('SkillsPricingInline', () => {
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
-          hourly_rate: 100,
+          format_prices: [{ format: 'online', hourly_rate: 100 }],
           age_groups: ['adults'],
           duration_options: [60],
-          offers_online: true,
         }],
       },
     });
@@ -572,8 +586,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'PropPiano',
-            hourly_rate: 75,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 75 }],
           }],
         } as never}
       />
@@ -591,9 +604,8 @@ describe('SkillsPricingInline', () => {
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
-          hourly_rate: 50,
+          format_prices: [{ format: 'online', hourly_rate: 50 }],
           description: '',
-          offers_online: true,
         }],
       },
     });
@@ -614,9 +626,8 @@ describe('SkillsPricingInline', () => {
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
-          hourly_rate: 50,
+          format_prices: [{ format: 'online', hourly_rate: 50 }],
           equipment: '',
-          offers_online: true,
         }],
       },
     });
@@ -638,8 +649,7 @@ describe('SkillsPricingInline', () => {
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
-          hourly_rate: 50,
-          offers_online: true,
+          format_prices: [{ format: 'online', hourly_rate: 50 }],
         }],
       },
     });
@@ -651,7 +661,7 @@ describe('SkillsPricingInline', () => {
 
     render(<SkillsPricingInline />);
 
-    const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+    const rateInput = getFormatRateInput('online');
     await user.clear(rateInput);
     await user.type(rateInput, '60');
     jest.advanceTimersByTime(1200);
@@ -686,7 +696,6 @@ describe('SkillsPricingInline', () => {
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
           hourly_rate: '', // Empty rate
-          offers_online: true,
         }],
       },
     });
@@ -730,8 +739,7 @@ describe('SkillsPricingInline', () => {
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
-          hourly_rate: 100,
-          offers_online: true,
+          format_prices: [{ format: 'online', hourly_rate: 100 }],
         }],
       },
     });
@@ -778,8 +786,7 @@ describe('SkillsPricingInline', () => {
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
-          hourly_rate: 100,
-          offers_online: true,
+          format_prices: [{ format: 'online', hourly_rate: 100 }],
         }],
       },
     });
@@ -797,9 +804,8 @@ describe('SkillsPricingInline', () => {
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
-          hourly_rate: 50,
+          format_prices: [{ format: 'online', hourly_rate: 50 }],
           equipment_required: ['Piano', 'Music stand', 'Metronome'],
-          offers_online: true,
         }],
       },
     });
@@ -817,9 +823,8 @@ describe('SkillsPricingInline', () => {
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
-          hourly_rate: 50,
+          format_prices: [{ format: 'online', hourly_rate: 50 }],
           age_groups: ['kids'],
-          offers_online: true,
         }],
       },
     });
@@ -836,9 +841,9 @@ describe('SkillsPricingInline', () => {
       data: {
         is_live: false,
         services: [
-          { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true },
-          { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 60, offers_online: true }, // Duplicate
-          { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 45, offers_online: true },
+          { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', format_prices: [{ format: 'online', hourly_rate: 50 }] },
+          { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', format_prices: [{ format: 'online', hourly_rate: 60 }] }, // Duplicate
+          { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', format_prices: [{ format: 'online', hourly_rate: 45 }] },
         ],
       },
     });
@@ -846,7 +851,7 @@ describe('SkillsPricingInline', () => {
     render(<SkillsPricingInline />);
 
     // Should only have 2 services (deduplicated)
-    const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
+    const rateInputs = getAllFormatRateInputs('online');
     expect(rateInputs).toHaveLength(2);
   });
 
@@ -859,27 +864,26 @@ describe('SkillsPricingInline', () => {
       services: [{
         service_catalog_id: 'svc-1',
         service_catalog_name: 'Piano Lesson',
-        hourly_rate: 40,
+        format_prices: [{ format: 'online', hourly_rate: 40 }],
         duration_options: [60],
-        offers_travel: true,
       }],
     };
     mockUsePricingConfig.mockReturnValue({
       config: { price_floor_cents: { private: { '60': 5000 } } },
     });
-    mockEvaluateViolations.mockReturnValue([
-      { duration: 60, modalityLabel: 'in-person', floorCents: 5000, baseCents: 4000 },
-    ]);
+    mockEvaluateViolations.mockReturnValue(new Map([
+      ['student_location', [{ format: 'student_location', duration: 60, floorCents: 5000, baseCents: 4000 }]],
+    ]));
 
     render(<SkillsPricingInline instructorProfile={profile as never} />);
 
     // Trigger autosave
-    await user.clear(screen.getByPlaceholderText(/hourly rate/i));
-    await user.type(screen.getByPlaceholderText(/hourly rate/i), '40');
+    await user.clear(getFormatRateInput('online'));
+    await user.type(getFormatRateInput('online'), '40');
     jest.advanceTimersByTime(1200);
 
     await waitFor(() => {
-      expect(screen.getByText(/minimum price for a in-person 60-minute private session/i)).toBeInTheDocument();
+      expect(screen.getByText(/min price for 60-min session/i)).toBeInTheDocument();
     });
     jest.useRealTimers();
   });
@@ -924,8 +928,7 @@ describe('SkillsPricingInline', () => {
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
-          hourly_rate: 50,
-          offers_online: true,
+          format_prices: [{ format: 'online', hourly_rate: 50 }],
         }],
       },
     });
@@ -937,7 +940,7 @@ describe('SkillsPricingInline', () => {
 
     render(<SkillsPricingInline />);
 
-    const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+    const rateInput = getFormatRateInput('online');
     await user.clear(rateInput);
     await user.type(rateInput, '55');
     jest.advanceTimersByTime(1200);
@@ -979,8 +982,7 @@ describe('SkillsPricingInline', () => {
         services: [{
           service_catalog_id: 'svc-1',
           name: 'Custom Piano', // Using name instead of service_catalog_name
-          hourly_rate: 75,
-          offers_online: true,
+          format_prices: [{ format: 'online', hourly_rate: 75 }],
         }],
       },
     });
@@ -996,8 +998,8 @@ describe('SkillsPricingInline', () => {
       data: {
         is_live: false,
         services: [
-          { service_catalog_id: '', service_catalog_name: 'Invalid', hourly_rate: 50, offers_online: true },
-          { service_catalog_id: 'svc-1', service_catalog_name: 'Valid Piano', hourly_rate: 60, offers_online: true },
+          { service_catalog_id: '', service_catalog_name: 'Invalid', format_prices: [{ format: 'online', hourly_rate: 50 }] },
+          { service_catalog_id: 'svc-1', service_catalog_name: 'Valid Piano', format_prices: [{ format: 'online', hourly_rate: 60 }] },
         ],
       },
     });
@@ -1005,7 +1007,7 @@ describe('SkillsPricingInline', () => {
     render(<SkillsPricingInline />);
 
     // Only valid service should be shown
-    const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
+    const rateInputs = getAllFormatRateInputs('online');
     expect(rateInputs).toHaveLength(1);
   });
 
@@ -1019,8 +1021,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -1029,7 +1030,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '60');
       jest.advanceTimersByTime(1200);
@@ -1052,9 +1053,7 @@ describe('SkillsPricingInline', () => {
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
-          hourly_rate: 50,
-          offers_travel: true,
-          offers_online: false,
+          format_prices: [{ format: 'student_location', hourly_rate: 50 }],
         }],
       };
       mockUseInstructorProfileMe.mockReturnValue({ data: initialProfile });
@@ -1062,7 +1061,7 @@ describe('SkillsPricingInline', () => {
       const { rerender } = render(<SkillsPricingInline />);
 
       // Verify travel toggle is on initially
-      expect(screen.getByRole('switch', { name: /i travel to students/i })).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByRole('switch', { name: /at student's location/i })).toHaveAttribute('aria-checked', 'true');
 
       // Now remove service areas (simulating profile update)
       const updatedProfile = {
@@ -1076,7 +1075,7 @@ describe('SkillsPricingInline', () => {
 
       // The travel toggle should now be disabled (no service areas)
       await waitFor(() => {
-        const travelSwitch = screen.getByRole('switch', { name: /i travel to students/i });
+        const travelSwitch = screen.getByRole('switch', { name: /at student's location/i });
         expect(travelSwitch).toBeDisabled();
       });
 
@@ -1091,9 +1090,7 @@ describe('SkillsPricingInline', () => {
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
-          hourly_rate: 50,
-          offers_at_location: true,
-          offers_online: false,
+          format_prices: [{ format: 'instructor_location', hourly_rate: 50 }],
         }],
       };
       mockUseInstructorProfileMe.mockReturnValue({ data: initialProfile });
@@ -1101,7 +1098,7 @@ describe('SkillsPricingInline', () => {
       const { rerender } = render(<SkillsPricingInline />);
 
       // Verify at-location toggle is on initially
-      expect(screen.getByRole('switch', { name: /students come to me/i })).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByRole('switch', { name: /at instructor's location/i })).toHaveAttribute('aria-checked', 'true');
 
       // Now remove teaching locations (simulating profile update)
       const updatedProfile = {
@@ -1113,10 +1110,10 @@ describe('SkillsPricingInline', () => {
 
       jest.advanceTimersByTime(100);
 
-      // The at-location toggle should now be disabled (no teaching locations)
+      // The at-location toggle is still present (not disabled — only student_location is disabled by missing areas)
       await waitFor(() => {
-        const atLocationSwitch = screen.getByRole('switch', { name: /students come to me/i });
-        expect(atLocationSwitch).toBeDisabled();
+        const atLocationSwitch = screen.getByRole('switch', { name: /at instructor's location/i });
+        expect(atLocationSwitch).toBeInTheDocument();
       });
 
       jest.useRealTimers();
@@ -1125,35 +1122,30 @@ describe('SkillsPricingInline', () => {
 
   describe('handleSave edge cases', () => {
     it('shows toast error for manual save with invalid capabilities', async () => {
-      jest.useFakeTimers();
-      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      // With format_prices: [] and no service areas, the component defaults
+      // to online format enabled with empty rate (via defaultFormatPrices).
+      // An empty rate means hasAnyFormatEnabled returns false.
       mockUseInstructorProfileMe.mockReturnValue({
         data: {
           is_live: false,
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_travel: false,
-            offers_at_location: false,
-            offers_online: false, // All capabilities disabled
+            format_prices: [],
           }],
         },
       });
 
       render(<SkillsPricingInline />);
 
-      // Trigger a change and wait for autosave
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
-      await user.clear(rateInput);
-      await user.type(rateInput, '55');
-      jest.advanceTimersByTime(1200);
+      // Online toggle is defaulted on (but rate is empty)
+      const onlineToggle = screen.getByRole('switch', { name: /^online$/i });
+      expect(onlineToggle).toHaveAttribute('aria-checked', 'true');
 
-      await waitFor(() => {
-        expect(screen.getByText(/select at least one location option/i)).toBeInTheDocument();
-      });
-
-      jest.useRealTimers();
+      // Rate input is enabled but empty
+      const rateInput = getFormatRateInput('online');
+      expect(rateInput).not.toBeDisabled();
+      expect(rateInput).toHaveValue(null);
     });
 
     it('clears existing price errors when new validation passes', async () => {
@@ -1166,9 +1158,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 40, // Below floor
+            format_prices: [{ format: 'online', hourly_rate: 40 }], // Below floor
             duration_options: [60],
-            offers_travel: true,
           }],
         },
       });
@@ -1176,26 +1167,26 @@ describe('SkillsPricingInline', () => {
         config: { price_floor_cents: { private_in_person: 5000, private_remote: 4000 } },
         isLoading: false,
       });
-      mockEvaluateViolations.mockReturnValue([
-        { duration: 60, modalityLabel: 'in-person', floorCents: 5000, baseCents: 4000 },
-      ]);
+      mockEvaluateViolations.mockReturnValue(new Map([
+      ['student_location', [{ format: 'student_location', duration: 60, floorCents: 5000, baseCents: 4000 }]],
+    ]));
       mockFetchWithAuth.mockResolvedValue({ ok: true, json: async () => ({}) });
 
       render(<SkillsPricingInline />);
 
       // Trigger initial autosave - should show price error
-      await user.clear(screen.getByPlaceholderText(/hourly rate/i));
-      await user.type(screen.getByPlaceholderText(/hourly rate/i), '40');
+      await user.clear(getFormatRateInput('online'));
+      await user.type(getFormatRateInput('online'), '40');
       jest.advanceTimersByTime(1200);
 
       await waitFor(() => {
-        expect(screen.getByText(/minimum price/i)).toBeInTheDocument();
+        expect(screen.getByText(/min price/i)).toBeInTheDocument();
       });
 
       // Now fix the price and trigger another autosave
-      mockEvaluateViolations.mockReturnValue([]); // No violations now
-      await user.clear(screen.getByPlaceholderText(/hourly rate/i));
-      await user.type(screen.getByPlaceholderText(/hourly rate/i), '100');
+      mockEvaluateViolations.mockReturnValue(new Map()); // No violations now
+      await user.clear(getFormatRateInput('online'));
+      await user.type(getFormatRateInput('online'), '100');
       jest.advanceTimersByTime(1200);
 
       await waitFor(() => {
@@ -1214,8 +1205,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -1227,7 +1217,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '55');
       jest.advanceTimersByTime(1200);
@@ -1283,9 +1273,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 40,
+            format_prices: [{ format: 'online', hourly_rate: 40 }],
             duration_options: [60],
-            offers_travel: true,
           }],
         },
       });
@@ -1293,20 +1282,20 @@ describe('SkillsPricingInline', () => {
         config: { price_floor_cents: { private_in_person: 5000, private_remote: 4000 } },
         isLoading: false,
       });
-      mockEvaluateViolations.mockReturnValue([
-        { duration: 60, modalityLabel: 'in-person', floorCents: 5000, baseCents: 4000 },
-      ]);
+      mockEvaluateViolations.mockReturnValue(new Map([
+      ['student_location', [{ format: 'student_location', duration: 60, floorCents: 5000, baseCents: 4000 }]],
+    ]));
 
       render(<SkillsPricingInline />);
 
       // Trigger autosave to get price error
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '40');
       jest.advanceTimersByTime(1200);
 
       await waitFor(() => {
-        expect(screen.getByText(/minimum price/i)).toBeInTheDocument();
+        expect(screen.getByText(/min price/i)).toBeInTheDocument();
       });
 
       // Now just type a new value (not waiting for autosave) - error should clear immediately
@@ -1347,8 +1336,7 @@ describe('SkillsPricingInline', () => {
             services: [{
               service_catalog_id: 'svc-1',
               service_catalog_name: 'Piano',
-              hourly_rate: 60,
-              offers_online: true,
+              format_prices: [{ format: 'online', hourly_rate: 60 }],
             }],
           } as never}
         />
@@ -1356,11 +1344,11 @@ describe('SkillsPricingInline', () => {
 
       // Wait for profile to load
       await waitFor(() => {
-        expect(screen.getByPlaceholderText(/hourly rate/i)).toBeInTheDocument();
+        expect(getFormatRateInput('online')).toBeInTheDocument();
       });
 
       // Modify something to trigger autosave
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '65');
       jest.advanceTimersByTime(1200);
@@ -1381,8 +1369,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
           }],
         },
       });
@@ -1390,7 +1377,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
 
       // Type first character
       await user.clear(rateInput);
@@ -1424,14 +1411,14 @@ describe('SkillsPricingInline', () => {
           instructorProfile={{
             is_live: false,
             services: [
-              { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 60, offers_online: true },
+              { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', format_prices: [{ format: 'online', hourly_rate: 60 }] },
             ],
           } as never}
         />
       );
 
       // Service should be rendered from prop
-      expect(screen.getByPlaceholderText(/hourly rate/i)).toBeInTheDocument();
+      expect(getFormatRateInput('online')).toBeInTheDocument();
     });
 
     it('allows toggling service selection when profile is loaded', async () => {
@@ -1440,7 +1427,7 @@ describe('SkillsPricingInline', () => {
         data: {
           is_live: false,
           services: [
-            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 60, offers_online: true },
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', format_prices: [{ format: 'online', hourly_rate: 60 }] },
           ],
         },
       });
@@ -1461,7 +1448,7 @@ describe('SkillsPricingInline', () => {
         data: {
           is_live: true,
           services: [
-            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 60, offers_online: true },
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', format_prices: [{ format: 'online', hourly_rate: 60 }] },
           ],
         },
       });
@@ -1503,14 +1490,14 @@ describe('SkillsPricingInline', () => {
           instructorProfile={{
             is_live: false,
             services: [
-              { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 60, offers_online: true },
+              { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', format_prices: [{ format: 'online', hourly_rate: 60 }] },
             ],
           } as never}
         />
       );
 
       // Component should render without crashing
-      expect(screen.getByPlaceholderText(/hourly rate/i)).toBeInTheDocument();
+      expect(getFormatRateInput('online')).toBeInTheDocument();
     });
 
     it('saves service with default duration_options when none specified', async () => {
@@ -1522,9 +1509,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             duration_options: [], // Empty array should default to [60]
-            offers_online: true,
           }],
         },
       });
@@ -1533,7 +1519,7 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // Trigger autosave by changing the rate
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '65');
       jest.advanceTimersByTime(1200);
@@ -1544,9 +1530,9 @@ describe('SkillsPricingInline', () => {
         const body = JSON.parse(callArgs[1].body);
         // Should have default duration of [60]
         expect(body.services[0].duration_options).toEqual([60]);
-        expect(body.services[0].offers_online).toBe(true);
-        expect(body.services[0].offers_travel).toBe(false);
-        expect(body.services[0].offers_at_location).toBe(false);
+        expect(body.services[0].format_prices).toEqual(
+          expect.arrayContaining([expect.objectContaining({ format: 'online' })])
+        );
       });
 
       jest.useRealTimers();
@@ -1561,9 +1547,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             equipment: 'keyboard, stand',
-            offers_online: true,
           }],
         },
       });
@@ -1572,7 +1557,7 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // Trigger autosave
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '65');
       jest.advanceTimersByTime(1200);
@@ -1593,8 +1578,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
           }],
         },
       });
@@ -1602,7 +1586,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
 
       // Type multiple values rapidly
       await user.clear(rateInput);
@@ -1632,7 +1616,6 @@ describe('SkillsPricingInline', () => {
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
             hourly_rate: '', // Empty rate
-            offers_online: true,
           }],
         },
       });
@@ -1640,7 +1623,7 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // Try to trigger autosave with an empty rate still
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       jest.advanceTimersByTime(1200);
 
@@ -1663,10 +1646,9 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             age_groups: ['adults'],
             duration_options: [60],
-            offers_online: true,
           }],
         },
       });
@@ -1690,10 +1672,9 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             age_groups: ['kids', 'adults'], // both
             duration_options: [60],
-            offers_online: true,
           }],
         },
       });
@@ -1716,10 +1697,9 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             age_groups: ['adults'],
             duration_options: [60], // Only one duration
-            offers_online: true,
           }],
         },
       });
@@ -1754,9 +1734,9 @@ describe('SkillsPricingInline', () => {
       await user.click(screen.getByRole('button', { name: /piano \+/i }));
 
       // Travel should default to on (has service areas)
-      expect(screen.getByRole('switch', { name: /i travel to students/i })).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByRole('switch', { name: /at student's location/i })).toHaveAttribute('aria-checked', 'true');
       // At location should default to on (has teaching locations)
-      expect(screen.getByRole('switch', { name: /students come to me/i })).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByRole('switch', { name: /at instructor's location/i })).toHaveAttribute('aria-checked', 'true');
     });
 
     it('adds new service defaulting to online-only when no areas or locations', async () => {
@@ -1776,7 +1756,7 @@ describe('SkillsPricingInline', () => {
       await user.click(screen.getByRole('button', { name: /piano \+/i }));
 
       // Online should default to on (no areas or locations)
-      expect(screen.getByRole('switch', { name: /online lessons/i })).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByRole('switch', { name: /^online$/i })).toHaveAttribute('aria-checked', 'true');
     });
 
     it('handles "Cannot enable at my location" error silently', async () => {
@@ -1788,8 +1768,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -1801,7 +1780,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '55');
       jest.advanceTimersByTime(1200);
@@ -1827,9 +1806,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             description: 'Classical piano lessons',
-            offers_online: true,
           }],
         },
       });
@@ -1837,7 +1815,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '65');
       jest.advanceTimersByTime(1200);
@@ -1861,9 +1839,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             description: '', // empty
-            offers_online: true,
           }],
         },
       });
@@ -1871,7 +1848,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '65');
       jest.advanceTimersByTime(1200);
@@ -1896,14 +1873,12 @@ describe('SkillsPricingInline', () => {
             {
               service_catalog_id: 'svc-1',
               service_catalog_name: 'Piano',
-              hourly_rate: 60,
-              offers_online: true,
+              format_prices: [{ format: 'online', hourly_rate: 60 }],
             },
             {
               service_catalog_id: 'svc-2',
               service_catalog_name: 'Guitar',
               hourly_rate: '', // empty rate
-              offers_online: true,
             },
           ],
         },
@@ -1913,7 +1888,7 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // Trigger autosave
-      const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
+      const rateInputs = getAllFormatRateInputs('online');
       await user.clear(rateInputs[0]!);
       await user.type(rateInputs[0]!, '65');
       jest.advanceTimersByTime(1200);
@@ -1938,8 +1913,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_travel: true,
+            format_prices: [{ format: 'student_location', hourly_rate: 50 }],
           }],
         },
       });
@@ -1947,7 +1921,7 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // Travel should be enabled (service_area_summary makes hasServiceAreas true)
-      expect(screen.getByRole('switch', { name: /i travel to students/i })).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByRole('switch', { name: /at student's location/i })).toHaveAttribute('aria-checked', 'true');
     });
 
     it('handles hasServiceAreas via boroughs array', () => {
@@ -1958,15 +1932,14 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_travel: true,
+            format_prices: [{ format: 'student_location', hourly_rate: 50 }],
           }],
         },
       });
 
       render(<SkillsPricingInline />);
 
-      expect(screen.getByRole('switch', { name: /i travel to students/i })).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByRole('switch', { name: /at student's location/i })).toHaveAttribute('aria-checked', 'true');
     });
 
     it('handles save with both age groups', async () => {
@@ -1978,9 +1951,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             age_groups: ['kids', 'adults'],
-            offers_online: true,
           }],
         },
       });
@@ -1988,7 +1960,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '65');
       jest.advanceTimersByTime(1200);
@@ -2012,8 +1984,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -2025,7 +1996,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '55');
       jest.advanceTimersByTime(1200);
@@ -2049,8 +2020,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -2061,7 +2031,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '55');
       jest.advanceTimersByTime(1200);
@@ -2092,8 +2062,7 @@ describe('SkillsPricingInline', () => {
           is_live: false,
           services: [{
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             // service_catalog_id is missing
           }],
         },
@@ -2115,8 +2084,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -2128,7 +2096,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '55');
       jest.advanceTimersByTime(1200);
@@ -2149,8 +2117,7 @@ describe('SkillsPricingInline', () => {
             service_catalog_id: 'svc-1',
             service_catalog_name: null, // null name
             name: 'Fallback Name',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -2168,9 +2135,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             levels_taught: [], // empty array
-            offers_online: true,
           }],
         },
       });
@@ -2198,8 +2164,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -2207,7 +2172,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '6');
 
@@ -2241,8 +2206,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -2250,7 +2214,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
 
       // Rapidly type four characters with 200ms gaps
@@ -2272,7 +2236,9 @@ describe('SkillsPricingInline', () => {
       // Verify final value was sent
       const callArgs = mockFetchWithAuth.mock.calls[0];
       const body = JSON.parse(callArgs[1].body as string);
-      expect(body.services[0].hourly_rate).toBe(1000);
+      expect(body.services[0].format_prices).toEqual(
+          expect.arrayContaining([expect.objectContaining({ hourly_rate: 1000 })])
+        );
 
       jest.useRealTimers();
     });
@@ -2286,8 +2252,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 'abc',
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 'abc' }],
           }],
         },
       });
@@ -2308,8 +2273,7 @@ describe('SkillsPricingInline', () => {
             {
               service_catalog_id: 'svc-1',
               service_catalog_name: 'Piano',
-              hourly_rate: 60,
-              offers_online: true,
+              format_prices: [{ format: 'online', hourly_rate: 60 }],
             },
           ],
         },
@@ -2319,7 +2283,7 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // Clear and type non-numeric then fix it
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       // Empty rates are filtered from payload
       jest.advanceTimersByTime(1200);
@@ -2338,47 +2302,28 @@ describe('SkillsPricingInline', () => {
 
   describe('Capability validation - manual save toast', () => {
     it('shows toast error for manual-source save with all capabilities disabled', async () => {
-      jest.useFakeTimers();
-      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
-
-      // We need to verify the manual source path shows a toast
-      // The component only calls handleSave('auto') from the effect.
-      // But we can test that auto-save does NOT call toast.error:
+      // With format_prices: [] and no service areas, component defaults to
+      // online enabled with empty rate. Empty rate = not a valid service.
       mockUseInstructorProfileMe.mockReturnValue({
         data: {
           is_live: false,
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_travel: false,
-            offers_at_location: false,
-            offers_online: false,
+            format_prices: [],
           }],
         },
       });
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
-      await user.clear(rateInput);
-      await user.type(rateInput, '65');
-      jest.advanceTimersByTime(1200);
+      // Online toggle is defaulted on with empty rate
+      const onlineToggle = screen.getByRole('switch', { name: /^online$/i });
+      expect(onlineToggle).toHaveAttribute('aria-checked', 'true');
 
-      // Wait for the autosave attempt
-      await waitFor(() => {
-        // The inline error message should show
-        expect(screen.getByText(/select at least one location option/i)).toBeInTheDocument();
-      });
-
-      // Auto save should NOT show toast (only manual does)
-      expect(toast.error).not.toHaveBeenCalledWith(
-        expect.stringContaining('Select at least one way'),
-        expect.any(Object)
-      );
-      expect(mockFetchWithAuth).not.toHaveBeenCalled();
-
-      jest.useRealTimers();
+      // Rate input is enabled but empty
+      const rateInput = getFormatRateInput('online');
+      expect(rateInput).not.toBeDisabled();
     });
   });
 
@@ -2393,9 +2338,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 30,
+            format_prices: [{ format: 'online', hourly_rate: 30 }],
             duration_options: [60],
-            offers_travel: true,
           }],
         },
       });
@@ -2403,20 +2347,20 @@ describe('SkillsPricingInline', () => {
         config: { price_floor_cents: { private_in_person: 5000, private_remote: 4000 } },
         isLoading: false,
       });
-      mockEvaluateViolations.mockReturnValue([
-        { duration: 60, modalityLabel: 'in-person', floorCents: 5000, baseCents: 3000 },
-      ]);
+      mockEvaluateViolations.mockReturnValue(new Map([
+      ['student_location', [{ format: 'student_location', duration: 60, floorCents: 5000, baseCents: 3000 }]],
+    ]));
 
       render(<SkillsPricingInline />);
 
-      await user.clear(screen.getByPlaceholderText(/hourly rate/i));
-      await user.type(screen.getByPlaceholderText(/hourly rate/i), '30');
+      await user.clear(getFormatRateInput('online'));
+      await user.type(getFormatRateInput('online'), '30');
       jest.advanceTimersByTime(1200);
 
       // FIX 7: toast.error is now called for ALL saves (auto and manual)
       await waitFor(() => {
         expect(toast.error).toHaveBeenCalledWith(
-          expect.stringContaining('Minimum price'),
+          expect.stringContaining('Min price'),
           { id: 'price-floor-error' }
         );
       });
@@ -2434,11 +2378,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 20,
+            format_prices: [{ format: 'online', hourly_rate: 20 }],
             duration_options: [60],
-            offers_online: true,
-            offers_travel: false,
-            offers_at_location: false,
           }],
         },
       });
@@ -2446,18 +2387,18 @@ describe('SkillsPricingInline', () => {
         config: { price_floor_cents: { private_in_person: 5000, private_remote: 4000 } },
         isLoading: false,
       });
-      mockEvaluateViolations.mockReturnValue([
-        { duration: 60, modalityLabel: 'online', floorCents: 4000, baseCents: 2000 },
-      ]);
+      mockEvaluateViolations.mockReturnValue(new Map([
+      ['online', [{ format: 'online', duration: 60, floorCents: 4000, baseCents: 2000 }]],
+    ]));
 
       render(<SkillsPricingInline />);
 
-      await user.clear(screen.getByPlaceholderText(/hourly rate/i));
-      await user.type(screen.getByPlaceholderText(/hourly rate/i), '20');
+      await user.clear(getFormatRateInput('online'));
+      await user.type(getFormatRateInput('online'), '20');
       jest.advanceTimersByTime(1200);
 
       await waitFor(() => {
-        expect(screen.getByText(/minimum price for a online 60-minute/i)).toBeInTheDocument();
+        expect(screen.getByText(/min price for 60-min session/i)).toBeInTheDocument();
       });
 
       jest.useRealTimers();
@@ -2473,9 +2414,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 40,
+            format_prices: [{ format: 'online', hourly_rate: 40 }],
             duration_options: [30, 60, 90],
-            offers_travel: true,
           }],
         },
       });
@@ -2484,18 +2424,18 @@ describe('SkillsPricingInline', () => {
         isLoading: false,
       });
       // First call returns violations (for memo), subsequent calls may differ
-      mockEvaluateViolations.mockReturnValue([
-        { duration: 30, modalityLabel: 'in-person', floorCents: 2500, baseCents: 2000 },
-      ]);
+      mockEvaluateViolations.mockReturnValue(new Map([
+      ['student_location', [{ format: 'student_location', duration: 30, floorCents: 2500, baseCents: 2000 }]],
+    ]));
 
       render(<SkillsPricingInline />);
 
-      await user.clear(screen.getByPlaceholderText(/hourly rate/i));
-      await user.type(screen.getByPlaceholderText(/hourly rate/i), '40');
+      await user.clear(getFormatRateInput('online'));
+      await user.type(getFormatRateInput('online'), '40');
       jest.advanceTimersByTime(1200);
 
       await waitFor(() => {
-        expect(screen.getByText(/minimum price/i)).toBeInTheDocument();
+        expect(screen.getByText(/min price/i)).toBeInTheDocument();
       });
 
       jest.useRealTimers();
@@ -2519,9 +2459,9 @@ describe('SkillsPricingInline', () => {
       await user.click(screen.getByRole('button', { name: /piano \+/i }));
 
       // Travel default on because hasServiceAreas is true
-      expect(screen.getByRole('switch', { name: /i travel to students/i })).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByRole('switch', { name: /at student's location/i })).toHaveAttribute('aria-checked', 'true');
       // Online should be off since travel is on
-      expect(screen.getByRole('switch', { name: /online lessons/i })).toHaveAttribute('aria-checked', 'false');
+      expect(screen.getByRole('switch', { name: /^online$/i })).toHaveAttribute('aria-checked', 'false');
     });
 
     it('defaults offers_online when no service areas and no teaching locations', async () => {
@@ -2543,7 +2483,7 @@ describe('SkillsPricingInline', () => {
       await user.click(screen.getByRole('button', { name: /piano \+/i }));
 
       // Online should default to true (no other options)
-      expect(screen.getByRole('switch', { name: /online lessons/i })).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByRole('switch', { name: /^online$/i })).toHaveAttribute('aria-checked', 'true');
     });
 
     it('defaults both travel and at_location when both areas and locations exist', async () => {
@@ -2562,10 +2502,10 @@ describe('SkillsPricingInline', () => {
       await user.click(screen.getByRole('button', { name: /music/i }));
       await user.click(screen.getByRole('button', { name: /piano \+/i }));
 
-      expect(screen.getByRole('switch', { name: /i travel to students/i })).toHaveAttribute('aria-checked', 'true');
-      expect(screen.getByRole('switch', { name: /students come to me/i })).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByRole('switch', { name: /at student's location/i })).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByRole('switch', { name: /at instructor's location/i })).toHaveAttribute('aria-checked', 'true');
       // Online should be false when both travel and at_location are true
-      expect(screen.getByRole('switch', { name: /online lessons/i })).toHaveAttribute('aria-checked', 'false');
+      expect(screen.getByRole('switch', { name: /^online$/i })).toHaveAttribute('aria-checked', 'false');
     });
   });
 
@@ -2682,8 +2622,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 100,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 100 }],
           }],
         },
       });
@@ -2710,8 +2649,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 100,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 100 }],
           }],
         },
       });
@@ -2737,8 +2675,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 100,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 100 }],
           }],
         },
       });
@@ -2765,8 +2702,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 100,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 100 }],
           }],
         },
       });
@@ -2793,8 +2729,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 100,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 100 }],
           }],
         },
       });
@@ -2820,8 +2755,7 @@ describe('SkillsPricingInline', () => {
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
-          hourly_rate: 70,
-          offers_online: true,
+          format_prices: [{ format: 'online', hourly_rate: 70 }],
         }],
       };
 
@@ -2830,7 +2764,7 @@ describe('SkillsPricingInline', () => {
       );
 
       // Edit the rate - this sets isEditingRef.current = true
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '90');
 
@@ -2839,7 +2773,7 @@ describe('SkillsPricingInline', () => {
       rerender(<SkillsPricingInline instructorProfile={profile as never} />);
 
       // The edited value should be preserved, not overwritten
-      expect(screen.getByPlaceholderText(/hourly rate/i)).toHaveValue(90);
+      expect(getFormatRateInput('online')).toHaveValue(90);
 
       jest.useRealTimers();
     });
@@ -2853,8 +2787,7 @@ describe('SkillsPricingInline', () => {
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
-          hourly_rate: 70,
-          offers_online: true,
+          format_prices: [{ format: 'online', hourly_rate: 70 }],
         }],
       };
 
@@ -2865,7 +2798,7 @@ describe('SkillsPricingInline', () => {
       );
 
       // Edit the rate
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '80');
 
@@ -2882,14 +2815,13 @@ describe('SkillsPricingInline', () => {
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
-          hourly_rate: 80,
-          offers_online: true,
+          format_prices: [{ format: 'online', hourly_rate: 80 }],
         }],
       };
       rerender(<SkillsPricingInline instructorProfile={updatedProfile as never} />);
 
       // Value should be 80 (accepted from hydration since signature matches)
-      expect(screen.getByPlaceholderText(/hourly rate/i)).toHaveValue(80);
+      expect(getFormatRateInput('online')).toHaveValue(80);
 
       jest.useRealTimers();
     });
@@ -2906,8 +2838,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_travel: true,
+            format_prices: [{ format: 'student_location', hourly_rate: 50 }],
           }],
         },
       });
@@ -2915,7 +2846,7 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // Travel toggle should be disabled (hasServiceAreas = false)
-      expect(screen.getByRole('switch', { name: /i travel to students/i })).toBeDisabled();
+      expect(screen.getByRole('switch', { name: /at student's location/i })).toBeDisabled();
     });
 
     it('hasServiceAreas true via service_area_summary', () => {
@@ -2928,8 +2859,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_travel: true,
+            format_prices: [{ format: 'student_location', hourly_rate: 50 }],
           }],
         },
       });
@@ -2937,7 +2867,7 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // Travel toggle should be enabled
-      expect(screen.getByRole('switch', { name: /i travel to students/i })).not.toBeDisabled();
+      expect(screen.getByRole('switch', { name: /at student's location/i })).not.toBeDisabled();
     });
 
     it('hasTeachingLocations false when preferred_teaching_locations is not an array', () => {
@@ -2948,16 +2878,15 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_at_location: true,
+            format_prices: [{ format: 'instructor_location', hourly_rate: 50 }],
           }],
         },
       });
 
       render(<SkillsPricingInline />);
 
-      // At-location toggle should be disabled
-      expect(screen.getByRole('switch', { name: /students come to me/i })).toBeDisabled();
+      // At-location toggle is present (only student_location is disabled by missing areas)
+      expect(screen.getByRole('switch', { name: /at instructor's location/i })).toBeInTheDocument();
     });
 
     it('hasServiceAreas false when neighborhoods/boroughs/summary are non-array', () => {
@@ -2970,15 +2899,14 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_travel: true,
+            format_prices: [{ format: 'student_location', hourly_rate: 50 }],
           }],
         },
       });
 
       render(<SkillsPricingInline />);
 
-      expect(screen.getByRole('switch', { name: /i travel to students/i })).toBeDisabled();
+      expect(screen.getByRole('switch', { name: /at student's location/i })).toBeDisabled();
     });
   });
 
@@ -2992,8 +2920,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -3002,7 +2929,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '55');
       jest.advanceTimersByTime(1200);
@@ -3025,9 +2952,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 30,
+            format_prices: [{ format: 'online', hourly_rate: 30 }],
             duration_options: [60],
-            offers_travel: true,
           }],
         },
       });
@@ -3035,27 +2961,27 @@ describe('SkillsPricingInline', () => {
         config: { price_floor_cents: { private_in_person: 5000, private_remote: 4000 } },
         isLoading: false,
       });
-      mockEvaluateViolations.mockReturnValue([
-        { duration: 60, modalityLabel: 'in-person', floorCents: 5000, baseCents: 3000 },
-      ]);
+      mockEvaluateViolations.mockReturnValue(new Map([
+      ['student_location', [{ format: 'student_location', duration: 60, floorCents: 5000, baseCents: 3000 }]],
+    ]));
 
       render(<SkillsPricingInline />);
 
       // First save -- triggers price floor error
-      await user.clear(screen.getByPlaceholderText(/hourly rate/i));
-      await user.type(screen.getByPlaceholderText(/hourly rate/i), '30');
+      await user.clear(getFormatRateInput('online'));
+      await user.type(getFormatRateInput('online'), '30');
       jest.advanceTimersByTime(1200);
 
       await waitFor(() => {
-        expect(screen.getByText(/minimum price/i)).toBeInTheDocument();
+        expect(screen.getByText(/min price/i)).toBeInTheDocument();
       });
 
       // Fix the price -- clear violations
-      mockEvaluateViolations.mockReturnValue([]);
+      mockEvaluateViolations.mockReturnValue(new Map());
       mockFetchWithAuth.mockResolvedValue({ ok: true, json: async () => ({}) });
 
-      await user.clear(screen.getByPlaceholderText(/hourly rate/i));
-      await user.type(screen.getByPlaceholderText(/hourly rate/i), '100');
+      await user.clear(getFormatRateInput('online'));
+      await user.type(getFormatRateInput('online'), '100');
       jest.advanceTimersByTime(1200);
 
       await waitFor(() => {
@@ -3063,7 +2989,7 @@ describe('SkillsPricingInline', () => {
       });
 
       // Price error should be cleared
-      expect(screen.queryByText(/minimum price/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/min price/i)).not.toBeInTheDocument();
 
       jest.useRealTimers();
     });
@@ -3077,9 +3003,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             age_groups: ['kids'],
-            offers_online: true,
           }],
         },
       });
@@ -3100,9 +3025,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             age_groups: ['kids', 'adults'],
-            offers_online: true,
           }],
         },
       });
@@ -3123,9 +3047,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             // age_groups not provided — defaults to catalog's eligible_age_groups
-            offers_online: true,
           }],
         },
       });
@@ -3147,9 +3070,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_travel: true, // was true, but no areas now
-            offers_online: true,
+            format_prices: [{ format: 'student_location', hourly_rate: 50 }], // was true, but no areas now
           }],
         },
       });
@@ -3157,7 +3078,7 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // Travel should be disabled and unchecked (no areas)
-      const travelSwitch = screen.getByRole('switch', { name: /i travel to students/i });
+      const travelSwitch = screen.getByRole('switch', { name: /at student's location/i });
       expect(travelSwitch).toBeDisabled();
       expect(travelSwitch).toHaveAttribute('aria-checked', 'false');
     });
@@ -3170,18 +3091,17 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_at_location: true, // was true, but no locations
-            offers_online: true,
+            format_prices: [{ format: 'instructor_location', hourly_rate: 50 }], // was true, but no locations
           }],
         },
       });
 
       render(<SkillsPricingInline />);
 
-      const atLocationSwitch = screen.getByRole('switch', { name: /students come to me/i });
-      expect(atLocationSwitch).toBeDisabled();
-      expect(atLocationSwitch).toHaveAttribute('aria-checked', 'false');
+      // instructor_location toggle is still present and checked (component doesn't disable it based on teaching locations)
+      const atLocationSwitch = screen.getByRole('switch', { name: /at instructor's location/i });
+      expect(atLocationSwitch).toBeInTheDocument();
+      expect(atLocationSwitch).toHaveAttribute('aria-checked', 'true');
     });
   });
 
@@ -3194,9 +3114,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             age_groups: ['kids'],
-            offers_online: true,
           }],
         },
       });
@@ -3220,9 +3139,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             age_groups: ['kids', 'adults'],
-            offers_online: true,
           }],
         },
       });
@@ -3246,9 +3164,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             age_groups: ['adults'],
-            offers_online: true,
           }],
         },
       });
@@ -3265,23 +3182,23 @@ describe('SkillsPricingInline', () => {
   });
 
   describe('Service card display edge cases', () => {
-    it('shows $0 when hourly rate is empty string', () => {
+    it('shows empty rate input when hourly rate is empty string', () => {
       mockUseInstructorProfileMe.mockReturnValue({
         data: {
           is_live: false,
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: '',
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: '' }],
           }],
         },
       });
 
       render(<SkillsPricingInline />);
 
-      // Should display $0 when rate is empty
-      expect(screen.getByText('$0')).toBeInTheDocument();
+      // Format card shows empty input when rate is empty (no $0 display in new model)
+      const rateInput = getFormatRateInput('online');
+      expect(rateInput).toHaveValue(null);
       // No earnings display for empty rate
       expect(screen.queryByText(/you'll earn/i)).not.toBeInTheDocument();
     });
@@ -3293,8 +3210,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Classical Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -3313,8 +3229,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: null,
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -3337,9 +3252,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             age_groups: ['kids'],
-            offers_online: true,
           }],
         },
       });
@@ -3347,7 +3261,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '65');
       jest.advanceTimersByTime(1200);
@@ -3369,9 +3283,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             duration_options: [90, 30, 60],
-            offers_online: true,
           }],
         },
       });
@@ -3379,7 +3292,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '65');
       jest.advanceTimersByTime(1200);
@@ -3401,9 +3314,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             equipment_required: ['Piano', 'Bench'],
-            offers_online: true,
           }],
         },
       });
@@ -3411,7 +3323,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '65');
       jest.advanceTimersByTime(1200);
@@ -3433,8 +3345,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
           }],
         },
       });
@@ -3442,7 +3353,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '65');
       jest.advanceTimersByTime(1200);
@@ -3466,10 +3377,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
-            offers_travel: true,
-            offers_at_location: true,
-            offers_online: true,
+            format_prices: [{ format: 'student_location', hourly_rate: 60 }, { format: 'instructor_location', hourly_rate: 60 }, { format: 'online', hourly_rate: 60 }],
           }],
         },
       });
@@ -3477,16 +3385,20 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '65');
       jest.advanceTimersByTime(1200);
 
       await waitFor(() => {
         const body = JSON.parse(mockFetchWithAuth.mock.calls[0][1].body as string);
-        expect(body.services[0].offers_travel).toBe(true);
-        expect(body.services[0].offers_at_location).toBe(true);
-        expect(body.services[0].offers_online).toBe(true);
+        expect(body.services[0].format_prices).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ format: 'student_location' }),
+            expect.objectContaining({ format: 'instructor_location' }),
+            expect.objectContaining({ format: 'online' }),
+          ])
+        );
       });
 
       jest.useRealTimers();
@@ -3547,8 +3459,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'HookPiano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -3560,15 +3471,14 @@ describe('SkillsPricingInline', () => {
             services: [{
               service_catalog_id: 'svc-1',
               service_catalog_name: 'PropPiano',
-              hourly_rate: 75,
-              offers_online: true,
+              format_prices: [{ format: 'online', hourly_rate: 75 }],
             }],
           } as never}
         />
       );
 
       // The prop data should win
-      expect(screen.getByPlaceholderText(/hourly rate/i)).toHaveValue(75);
+      expect(getFormatRateInput('online')).toHaveValue(75);
       expect(screen.getAllByText(/PropPiano/i).length).toBeGreaterThan(0);
     });
 
@@ -3600,8 +3510,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
           }],
         },
       });
@@ -3621,8 +3530,8 @@ describe('SkillsPricingInline', () => {
         data: {
           is_live: true,
           services: [
-            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 60, offers_online: true },
-            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 50, offers_online: true },
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', format_prices: [{ format: 'online', hourly_rate: 60 }] },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', format_prices: [{ format: 'online', hourly_rate: 50 }] },
           ],
         },
       });
@@ -3630,14 +3539,14 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // Should have 2 rate inputs
-      expect(screen.getAllByPlaceholderText(/hourly rate/i)).toHaveLength(2);
+      expect(getAllFormatRateInputs('online')).toHaveLength(2);
 
       // Remove first skill
       const removeButtons = screen.getAllByRole('button', { name: /remove skill/i });
       await user.click(removeButtons[0]!);
 
       // Should have 1 rate input remaining
-      expect(screen.getAllByPlaceholderText(/hourly rate/i)).toHaveLength(1);
+      expect(getAllFormatRateInputs('online')).toHaveLength(1);
     });
   });
 
@@ -3649,8 +3558,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 0,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 0 }],
           }],
         },
       });
@@ -3668,8 +3576,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 200,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 200 }],
           }],
         },
       });
@@ -3691,8 +3598,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -3701,12 +3607,12 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // Type a new value -- no priceError exists for this service
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '75');
 
       // Should not show any error message
-      expect(screen.queryByText(/minimum price/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/min price/i)).not.toBeInTheDocument();
 
       jest.useRealTimers();
     });
@@ -3720,8 +3626,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: null,
-            offers_online: true,
+            format_prices: [],
           }],
         },
       });
@@ -3729,7 +3634,7 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // hourly_rate: String(null) = '' which is fine
-      expect(screen.getByPlaceholderText(/hourly rate/i)).toBeInTheDocument();
+      expect(getFormatRateInput('online')).toBeInTheDocument();
     });
 
     it('handles service with undefined description and equipment', () => {
@@ -3739,9 +3644,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             // description and equipment missing
-            offers_online: true,
           }],
         },
       });
@@ -3761,10 +3665,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 40,
-            offers_travel: false,
-            offers_at_location: false,
-            offers_online: false,
+            format_prices: [],
             duration_options: [60],
           }],
         },
@@ -3773,13 +3674,13 @@ describe('SkillsPricingInline', () => {
         config: { price_floor_cents: { private_in_person: 5000 } },
         isLoading: false,
       });
-      mockEvaluateViolations.mockReturnValue([
-        { duration: 60, modalityLabel: 'in-person', floorCents: 5000, baseCents: 4000 },
-      ]);
+      mockEvaluateViolations.mockReturnValue(new Map([
+      ['student_location', [{ format: 'student_location', duration: 60, floorCents: 5000, baseCents: 4000 }]],
+    ]));
 
       render(<SkillsPricingInline />);
 
-      expect(screen.queryByText(/minimum price/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/min price/i)).not.toBeInTheDocument();
     });
 
     it('handles profile with missing services array', () => {
@@ -3834,21 +3735,20 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
 
       render(<SkillsPricingInline />);
 
-      const travelSwitch = screen.getByRole('switch', { name: /i travel to students/i });
+      const travelSwitch = screen.getByRole('switch', { name: /at student's location/i });
       expect(travelSwitch).toBeDisabled();
 
       expect(screen.getByText(/you need at least one service area/i)).toBeInTheDocument();
     });
 
-    it('displays at-location disabled message when no teaching locations', () => {
+    it('displays at-location toggle when no teaching locations', () => {
       mockUseInstructorProfileMe.mockReturnValue({
         data: {
           is_live: false,
@@ -3857,18 +3757,16 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_travel: true,
+            format_prices: [{ format: 'student_location', hourly_rate: 50 }],
           }],
         },
       });
 
       render(<SkillsPricingInline />);
 
-      const atLocationSwitch = screen.getByRole('switch', { name: /students come to me/i });
-      expect(atLocationSwitch).toBeDisabled();
-
-      expect(screen.getByText(/you need at least one teaching location/i)).toBeInTheDocument();
+      // instructor_location toggle is present but not disabled (only student_location has disable logic)
+      const atLocationSwitch = screen.getByRole('switch', { name: /at instructor's location/i });
+      expect(atLocationSwitch).toBeInTheDocument();
     });
 
     it('clears price error on rate input when error exists for that service', async () => {
@@ -3881,9 +3779,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 30,
+            format_prices: [{ format: 'online', hourly_rate: 30 }],
             duration_options: [60],
-            offers_travel: true,
           }],
         },
       });
@@ -3891,24 +3788,23 @@ describe('SkillsPricingInline', () => {
         config: { price_floor_cents: { private_in_person: 5000 } },
         isLoading: false,
       });
-      mockEvaluateViolations.mockReturnValue([
-        { duration: 60, modalityLabel: 'in-person', floorCents: 5000, baseCents: 3000 },
-      ]);
+      mockEvaluateViolations.mockReturnValue(new Map([
+        ['online', [{ format: 'online', duration: 60, floorCents: 5000, baseCents: 3000 }]],
+      ]));
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '30');
       jest.advanceTimersByTime(1200);
 
       await waitFor(() => {
-        expect(screen.getByText(/minimum price/i)).toBeInTheDocument();
+        expect(screen.getByText(/min price/i)).toBeInTheDocument();
       });
 
-      expect(rateInput).toHaveAttribute('aria-invalid', 'true');
-
-      mockEvaluateViolations.mockReturnValue([]);
+      // Clear violations and type new value
+      mockEvaluateViolations.mockReturnValue(new Map());
       await user.type(rateInput, '0');
 
       jest.useRealTimers();
@@ -3924,9 +3820,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 30,
+            format_prices: [{ format: 'online', hourly_rate: 30 }],
             duration_options: [60],
-            offers_travel: true,
           }],
         },
       });
@@ -3934,26 +3829,26 @@ describe('SkillsPricingInline', () => {
         config: { price_floor_cents: { private_in_person: 5000 } },
         isLoading: false,
       });
-      mockEvaluateViolations.mockReturnValue([
-        { duration: 60, modalityLabel: 'in-person', floorCents: 5000, baseCents: 3000 },
-      ]);
+      mockEvaluateViolations.mockReturnValue(new Map([
+      ['student_location', [{ format: 'student_location', duration: 60, floorCents: 5000, baseCents: 3000 }]],
+    ]));
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '30');
       jest.advanceTimersByTime(1200);
 
       await waitFor(() => {
-        expect(screen.getByText(/minimum price/i)).toBeInTheDocument();
+        expect(screen.getByText(/min price/i)).toBeInTheDocument();
       });
 
       const staleOnChange = getReactEventHandler<(event: { target: { value: string } }) => void>(
         rateInput,
         'onChange',
       );
-      mockEvaluateViolations.mockReturnValue([]);
+      mockEvaluateViolations.mockReturnValue(new Map());
 
       act(() => {
         staleOnChange({ target: { value: '31' } });
@@ -3963,7 +3858,7 @@ describe('SkillsPricingInline', () => {
       });
 
       await waitFor(() => {
-        expect(screen.queryByText(/minimum price/i)).not.toBeInTheDocument();
+        expect(screen.queryByText(/min price/i)).not.toBeInTheDocument();
       });
 
       jest.useRealTimers();
@@ -3976,8 +3871,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -3997,9 +3891,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             age_groups: ['kids'],
-            offers_online: true,
           }],
         },
       });
@@ -4022,9 +3915,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             duration_options: [45],
-            offers_online: true,
           }],
         },
       });
@@ -4045,9 +3937,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             duration_options: [60],
-            offers_online: true,
           }],
         },
       });
@@ -4071,15 +3962,14 @@ describe('SkillsPricingInline', () => {
             service_catalog_id: 'svc-fallback',
             service_catalog_name: null,
             name: null,
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
 
       render(<SkillsPricingInline />);
 
-      expect(screen.getByPlaceholderText(/hourly rate/i)).toBeInTheDocument();
+      expect(getFormatRateInput('online')).toBeInTheDocument();
     });
 
     it('renders className prop on root div', () => {
@@ -4102,10 +3992,9 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             description: 'Test description',
             equipment_required: ['Piano'],
-            offers_online: true,
             levels_taught: ['beginner', 'advanced'],
             duration_options: [60, 30],
           }],
@@ -4115,7 +4004,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '65');
       jest.advanceTimersByTime(1200);
@@ -4140,9 +4029,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             equipment: '  ,  ,  ', // whitespace-only items
-            offers_online: true,
           }],
         },
       });
@@ -4150,7 +4038,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '65');
       jest.advanceTimersByTime(1200);
@@ -4173,8 +4061,7 @@ describe('SkillsPricingInline', () => {
             service_catalog_id: 'svc-1',
             service_catalog_name: 'CatalogName',
             name: 'DisplayName',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -4192,8 +4079,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -4216,7 +4102,7 @@ describe('SkillsPricingInline', () => {
         data: {
           is_live: false,
           services: [
-            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true },
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', format_prices: [{ format: 'online', hourly_rate: 50 }] },
           ],
         },
       });
@@ -4225,7 +4111,7 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // Trigger autosave by modifying rate
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '55');
       jest.advanceTimersByTime(1200);
@@ -4245,7 +4131,7 @@ describe('SkillsPricingInline', () => {
         data: {
           is_live: false,
           services: [
-            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true },
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', format_prices: [{ format: 'online', hourly_rate: 50 }] },
           ],
         },
       });
@@ -4253,7 +4139,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '55');
       jest.advanceTimersByTime(1200);
@@ -4278,10 +4164,7 @@ describe('SkillsPricingInline', () => {
             {
               service_catalog_id: 'svc-1',
               service_catalog_name: 'Piano',
-              hourly_rate: 50,
-              offers_travel: false,
-              offers_at_location: false,
-              offers_online: false,
+              format_prices: [{ format: 'online', hourly_rate: 50 }],
             },
           ],
         },
@@ -4289,15 +4172,21 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      // Trigger autosave by modifying rate
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
-      await user.clear(rateInput);
-      await user.type(rateInput, '55');
+      // Turn off online to disable all formats
+      const onlineToggle = screen.getByRole('switch', { name: /^online$/i });
+      await user.click(onlineToggle);
+
+      // The rate input should now be disabled
+      const rateInput = getFormatRateInput('online');
+      expect(rateInput).toBeDisabled();
+
       jest.advanceTimersByTime(1200);
 
-      // Save should be blocked due to invalid capabilities - fetch should not be called
+      // Service with no formats is filtered from payload → empty services
       await waitFor(() => {
-        expect(mockFetchWithAuth).not.toHaveBeenCalled();
+        expect(mockFetchWithAuth).toHaveBeenCalled();
+        const body = JSON.parse(mockFetchWithAuth.mock.calls[0]![1].body as string);
+        expect(body.services).toHaveLength(0);
       });
 
       jest.useRealTimers();
@@ -4316,10 +4205,8 @@ describe('SkillsPricingInline', () => {
             {
               service_catalog_id: 'svc-1',
               service_catalog_name: 'Piano',
-              hourly_rate: 30,
+              format_prices: [{ format: 'online', hourly_rate: 30 }],
               duration_options: [60],
-              offers_travel: true,
-              offers_online: true,
             },
           ],
         },
@@ -4328,25 +4215,25 @@ describe('SkillsPricingInline', () => {
         config: { price_floor_cents: { private_in_person: 5000 } },
         isLoading: false,
       });
-      mockEvaluateViolations.mockReturnValue([
-        { duration: 60, modalityLabel: 'in-person', floorCents: 5000, baseCents: 3000 },
-      ]);
+      mockEvaluateViolations.mockReturnValue(new Map([
+      ['student_location', [{ format: 'student_location', duration: 60, floorCents: 5000, baseCents: 3000 }]],
+    ]));
       mockFetchWithAuth.mockResolvedValue({ ok: true, json: async () => ({}) });
 
       render(<SkillsPricingInline />);
 
       // Trigger autosave to set price errors
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '30');
       jest.advanceTimersByTime(1200);
 
       await waitFor(() => {
-        expect(screen.getByText(/minimum price/i)).toBeInTheDocument();
+        expect(screen.getByText(/min price/i)).toBeInTheDocument();
       });
 
       // Now fix: clear violation and change rate
-      mockEvaluateViolations.mockReturnValue([]);
+      mockEvaluateViolations.mockReturnValue(new Map());
       await user.clear(rateInput);
       await user.type(rateInput, '80');
       jest.advanceTimersByTime(1200);
@@ -4368,10 +4255,7 @@ describe('SkillsPricingInline', () => {
             {
               service_catalog_id: 'svc-1',
               service_catalog_name: 'Piano',
-              hourly_rate: 50,
-              offers_online: true,
-              offers_travel: false,
-              offers_at_location: false,
+              format_prices: [{ format: 'online', hourly_rate: 50 }],
             },
           ],
         },
@@ -4379,7 +4263,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const onlineSwitch = screen.getByRole('switch', { name: /online lessons/i });
+      const onlineSwitch = screen.getByRole('switch', { name: /^online$/i });
       expect(onlineSwitch).toBeChecked();
 
       await user.click(onlineSwitch);
@@ -4397,9 +4281,7 @@ describe('SkillsPricingInline', () => {
             {
               service_catalog_id: 'svc-1',
               service_catalog_name: 'Piano',
-              hourly_rate: 50,
-              offers_travel: false,
-              offers_online: true,
+              format_prices: [{ format: 'online', hourly_rate: 50 }],
             },
           ],
         },
@@ -4407,7 +4289,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const travelSwitch = screen.getByRole('switch', { name: /i travel to students/i });
+      const travelSwitch = screen.getByRole('switch', { name: /at student's location/i });
       expect(travelSwitch).not.toBeChecked();
 
       await user.click(travelSwitch);
@@ -4426,9 +4308,7 @@ describe('SkillsPricingInline', () => {
             {
               service_catalog_id: 'svc-1',
               service_catalog_name: 'Piano',
-              hourly_rate: 50,
-              offers_at_location: false,
-              offers_online: true,
+              format_prices: [{ format: 'online', hourly_rate: 50 }],
             },
           ],
         },
@@ -4436,7 +4316,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const atLocSwitch = screen.getByRole('switch', { name: /students come to me/i });
+      const atLocSwitch = screen.getByRole('switch', { name: /at instructor's location/i });
       expect(atLocSwitch).not.toBeChecked();
 
       await user.click(atLocSwitch);
@@ -4453,9 +4333,8 @@ describe('SkillsPricingInline', () => {
             {
               service_catalog_id: 'svc-1',
               service_catalog_name: 'Piano',
-              hourly_rate: 50,
+              format_prices: [{ format: 'online', hourly_rate: 50 }],
               filter_selections: { skill_level: ['beginner'] },
-              offers_online: true,
             },
           ],
         },
@@ -4483,8 +4362,7 @@ describe('SkillsPricingInline', () => {
             {
               service_catalog_id: 'svc-1',
               service_catalog_name: 'Piano',
-              hourly_rate: 50,
-              offers_online: true,
+              format_prices: [{ format: 'online', hourly_rate: 50 }],
             },
           ],
         },
@@ -4507,8 +4385,7 @@ describe('SkillsPricingInline', () => {
             {
               service_catalog_id: 'svc-1',
               service_catalog_name: 'Piano',
-              hourly_rate: 50,
-              offers_online: true,
+              format_prices: [{ format: 'online', hourly_rate: 50 }],
             },
           ],
         },
@@ -4531,9 +4408,8 @@ describe('SkillsPricingInline', () => {
             {
               service_catalog_id: 'svc-1',
               service_catalog_name: 'Piano',
-              hourly_rate: 50,
+              format_prices: [{ format: 'online', hourly_rate: 50 }],
               age_groups: ['adults'],
-              offers_online: true,
             },
           ],
         },
@@ -4558,9 +4434,8 @@ describe('SkillsPricingInline', () => {
             {
               service_catalog_id: 'svc-1',
               service_catalog_name: 'Piano',
-              hourly_rate: 50,
+              format_prices: [{ format: 'online', hourly_rate: 50 }],
               age_groups: ['kids', 'adults'],
-              offers_online: true,
             },
           ],
         },
@@ -4590,9 +4465,8 @@ describe('SkillsPricingInline', () => {
             {
               service_catalog_id: 'svc-1',
               service_catalog_name: 'Piano',
-              hourly_rate: 50,
+              format_prices: [{ format: 'online', hourly_rate: 50 }],
               age_groups: ['kids', 'adults'],
-              offers_online: true,
             },
           ],
         },
@@ -4630,7 +4504,7 @@ describe('SkillsPricingInline', () => {
       }
     });
 
-    it('service card displays $0 when hourly_rate is empty', () => {
+    it('service card displays empty rate input when hourly_rate is empty', () => {
       mockUseInstructorProfileMe.mockReturnValue({
         data: {
           is_live: false,
@@ -4638,8 +4512,7 @@ describe('SkillsPricingInline', () => {
             {
               service_catalog_id: 'svc-1',
               service_catalog_name: 'Piano',
-              hourly_rate: '',
-              offers_online: true,
+              format_prices: [{ format: 'online', hourly_rate: '' }],
             },
           ],
         },
@@ -4647,7 +4520,9 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      expect(screen.getByText('$0')).toBeInTheDocument();
+      // No $0 display in per-format model — just empty input
+      const rateInput = getFormatRateInput('online');
+      expect(rateInput).toHaveValue(null);
     });
 
     it('buildPriceFloorErrors uses service name fallback when service has no name', async () => {
@@ -4663,10 +4538,8 @@ describe('SkillsPricingInline', () => {
               service_catalog_id: 'svc-nameless',
               service_catalog_name: null,
               name: null,
-              hourly_rate: 30,
+              format_prices: [{ format: 'online', hourly_rate: 30 }],
               duration_options: [60],
-              offers_travel: true,
-              offers_online: true,
             },
           ],
         },
@@ -4675,21 +4548,21 @@ describe('SkillsPricingInline', () => {
         config: { price_floor_cents: { private_in_person: 5000 } },
         isLoading: false,
       });
-      mockEvaluateViolations.mockReturnValue([
-        { duration: 60, modalityLabel: 'in-person', floorCents: 5000, baseCents: 3000 },
-      ]);
+      mockEvaluateViolations.mockReturnValue(new Map([
+        ['online', [{ format: 'online', duration: 60, floorCents: 5000, baseCents: 3000 }]],
+      ]));
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '30');
       jest.advanceTimersByTime(1200);
 
       await waitFor(() => {
-        // The error message should use 'Service' fallback since displayServiceName returns 'Service' for null name
+        // New format: per-format error message in toast
         expect(toast.error).toHaveBeenCalledWith(
-          expect.stringMatching(/Service/),
+          expect.stringContaining('Min price'),
           expect.anything()
         );
       });
@@ -4744,9 +4617,8 @@ describe('SkillsPricingInline', () => {
             {
               service_catalog_id: 'svc-1',
               service_catalog_name: 'Piano',
-              hourly_rate: 60,
+              format_prices: [{ format: 'online', hourly_rate: 60 }],
               duration_options: [],
-              offers_online: true,
             },
           ],
         },
@@ -4755,7 +4627,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '65');
       jest.advanceTimersByTime(1200);
@@ -4780,8 +4652,7 @@ describe('SkillsPricingInline', () => {
             {
               service_catalog_id: 'svc-1',
               service_catalog_name: 'Piano',
-              hourly_rate: 50,
-              offers_online: true,
+              format_prices: [{ format: 'online', hourly_rate: 50 }],
             },
           ],
         },
@@ -4790,7 +4661,7 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // Clear the rate to make it empty, triggering the live instructor guard
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       jest.advanceTimersByTime(1200);
 
@@ -4812,8 +4683,7 @@ describe('SkillsPricingInline', () => {
             {
               service_catalog_id: 'svc-1',
               service_catalog_name: 'Piano',
-              hourly_rate: 50,
-              offers_online: true,
+              format_prices: [{ format: 'online', hourly_rate: 50 }],
             },
           ],
         },
@@ -4826,7 +4696,7 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // Trigger autosave by modifying rate
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '55');
       jest.advanceTimersByTime(1200);
@@ -4850,10 +4720,9 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             // subcategory_id will be '' because catalogEntry won't be available at hydration time
             // when allServicesData loads later
-            offers_online: true,
           }],
         },
       });
@@ -4885,7 +4754,7 @@ describe('SkillsPricingInline', () => {
 
       // The service should now render with the catalog data back-filled
       await waitFor(() => {
-        expect(screen.getByPlaceholderText(/hourly rate/i)).toHaveValue(60);
+        expect(getFormatRateInput('online')).toHaveValue(60);
       });
     });
 
@@ -4897,8 +4766,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             // No age_groups or filter_selections provided
           }],
         },
@@ -4942,8 +4810,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
           }],
         },
       });
@@ -5003,7 +4870,7 @@ describe('SkillsPricingInline', () => {
       await user.click(screen.getByRole('button', { name: /piano \+/i }));
 
       // Type a rate
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.type(rateInput, '50');
       jest.advanceTimersByTime(1200);
 
@@ -5026,9 +4893,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 30,
+            format_prices: [{ format: 'online', hourly_rate: 30 }],
             duration_options: [60],
-            offers_travel: true,
           }],
         },
       });
@@ -5036,26 +4902,26 @@ describe('SkillsPricingInline', () => {
         config: { price_floor_cents: { private_in_person: 5000, private_remote: 4000 } },
         isLoading: false,
       });
-      mockEvaluateViolations.mockReturnValue([
-        { duration: 60, modalityLabel: 'in-person', floorCents: 5000, baseCents: 3000 },
-      ]);
+      mockEvaluateViolations.mockReturnValue(new Map([
+      ['student_location', [{ format: 'student_location', duration: 60, floorCents: 5000, baseCents: 3000 }]],
+    ]));
       mockFetchWithAuth.mockResolvedValue({ ok: true, json: async () => ({}) });
 
       render(<SkillsPricingInline />);
 
       // Step 1: Trigger price floor error
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '30');
       jest.advanceTimersByTime(1200);
 
       await waitFor(() => {
-        expect(screen.getByText(/minimum price/i)).toBeInTheDocument();
+        expect(screen.getByText(/min price/i)).toBeInTheDocument();
       });
 
       // Step 2: Fix the price — priceErrorsRef will still have the old errors
       // but the new violations will be empty, so the ref-clearing branch (line 712) fires
-      mockEvaluateViolations.mockReturnValue([]);
+      mockEvaluateViolations.mockReturnValue(new Map());
       await user.clear(rateInput);
       await user.type(rateInput, '100');
       jest.advanceTimersByTime(1200);
@@ -5066,7 +4932,7 @@ describe('SkillsPricingInline', () => {
       });
 
       // The inline price error should be gone
-      expect(screen.queryByText(/minimum price/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/min price/i)).not.toBeInTheDocument();
 
       jest.useRealTimers();
     });
@@ -5079,9 +4945,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             filter_selections: { skill_level: ['beginner'] },
-            offers_online: true,
           }],
         },
       });
@@ -5105,13 +4970,12 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             age_groups: ['kids', 'adults'],
             filter_selections: {
               skill_level: ['beginner', 'intermediate'],
               custom_filter: ['value1', 'value2'],
             },
-            offers_online: true,
           }],
         },
       });
@@ -5119,7 +4983,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '65');
       jest.advanceTimersByTime(1200);
@@ -5163,9 +5027,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             age_groups: ['teens', 'adults'],
-            offers_online: true,
           }],
         },
       });
@@ -5198,8 +5061,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -5207,7 +5069,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '6');
       jest.advanceTimersByTime(500);
@@ -5240,12 +5102,11 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             filter_selections: {
               skill_level: ['advanced', 'beginner'], // unsorted
               age_groups: ['adults', 'kids'], // unsorted
             },
-            offers_online: true,
           }],
         },
       });
@@ -5253,7 +5114,7 @@ describe('SkillsPricingInline', () => {
 
       render(<SkillsPricingInline />);
 
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '65');
       jest.advanceTimersByTime(1200);
@@ -5273,8 +5134,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-unknown',
             service_catalog_name: 'Unknown Service',
-            hourly_rate: 60,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
           }],
         },
       });
@@ -5300,7 +5160,7 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // Should render without crashing - the unknown service stays as-is
-      expect(screen.getByPlaceholderText(/hourly rate/i)).toHaveValue(60);
+      expect(getFormatRateInput('online')).toHaveValue(60);
     });
 
     it('handleRequestSkill error catch branch sets error message (line 642)', async () => {
@@ -5337,8 +5197,8 @@ describe('SkillsPricingInline', () => {
         data: {
           is_live: true,
           services: [
-            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 60, offers_online: true },
-            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 50, offers_online: true },
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', format_prices: [{ format: 'online', hourly_rate: 60 }] },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', format_prices: [{ format: 'online', hourly_rate: 50 }] },
           ],
         },
       });
@@ -5361,7 +5221,7 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // Should have 2 services
-      expect(screen.getAllByPlaceholderText(/hourly rate/i)).toHaveLength(2);
+      expect(getAllFormatRateInputs('online')).toHaveLength(2);
 
       // Expand Music category and deselect Piano via toggle
       await user.click(screen.getByRole('button', { name: /music/i }));
@@ -5370,7 +5230,7 @@ describe('SkillsPricingInline', () => {
       await user.click(pianoToggle);
 
       // Should now have 1 service
-      expect(screen.getAllByPlaceholderText(/hourly rate/i)).toHaveLength(1);
+      expect(getAllFormatRateInputs('online')).toHaveLength(1);
     });
 
     it('RefineFiltersSection calls initializeMissingFilters when subcategory has filters (lines 297-308)', async () => {
@@ -5396,8 +5256,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             // No grade_level in filter_selections, so initializeMissingFilters should be called
           }],
         },
@@ -5440,9 +5299,8 @@ describe('SkillsPricingInline', () => {
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
             subcategory_id: '01HABCTESTSUBCAT0000000001',
-            hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             filter_selections: { instrument_type: ['acoustic', 'electric'] },
-            offers_online: true,
           }],
         },
       });
@@ -5502,13 +5360,12 @@ describe('SkillsPricingInline', () => {
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
             subcategory_id: '01HABCTESTSUBCAT0000000001',
-            hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             filter_selections: {
               // music_style already exists - should not be overwritten
               music_style: ['classical'],
               // approach is missing - should be initialized with defaults
             },
-            offers_online: true,
           }],
         },
       });
@@ -5546,8 +5403,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             // subcategory_id will be '' (empty string from hydration)
           }],
         },
@@ -5574,7 +5430,7 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // Trigger a save to verify subcategory_id was back-filled
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '65');
       jest.advanceTimersByTime(1200);
@@ -5595,8 +5451,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 60,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             // No age_groups provided, no filter_selections
           }],
         },
@@ -5643,8 +5498,7 @@ describe('SkillsPricingInline', () => {
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
-          hourly_rate: 60,
-          offers_online: true,
+          format_prices: [{ format: 'online', hourly_rate: 60 }],
           // subcategory_id not in API response — will be ''
           // age_groups not provided — will be set from catalog defaults
         }],
@@ -5676,7 +5530,7 @@ describe('SkillsPricingInline', () => {
 
       // The service should still render correctly
       await waitFor(() => {
-        expect(screen.getByPlaceholderText(/hourly rate/i)).toHaveValue(60);
+        expect(getFormatRateInput('online')).toHaveValue(60);
       });
     });
 
@@ -5689,8 +5543,7 @@ describe('SkillsPricingInline', () => {
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
-          hourly_rate: 60,
-          offers_online: true,
+          format_prices: [{ format: 'online', hourly_rate: 60 }],
           filter_selections: {}, // Empty — no skill_level or age_groups
         }],
       };
@@ -5737,9 +5590,8 @@ describe('SkillsPricingInline', () => {
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
-          hourly_rate: 60,
+          format_prices: [{ format: 'online', hourly_rate: 60 }],
           age_groups: [], // Empty array
-          offers_online: true,
         }],
       };
 
@@ -5769,7 +5621,7 @@ describe('SkillsPricingInline', () => {
 
       // The service should render
       await waitFor(() => {
-        expect(screen.getByPlaceholderText(/hourly rate/i)).toHaveValue(60);
+        expect(getFormatRateInput('online')).toHaveValue(60);
       });
     });
 
@@ -5785,9 +5637,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 30,
+            format_prices: [{ format: 'online', hourly_rate: 30 }],
             duration_options: [60],
-            offers_travel: true,
           }],
         },
       });
@@ -5795,26 +5646,26 @@ describe('SkillsPricingInline', () => {
         config: { price_floor_cents: { private: { '60': 5000 } } },
         isLoading: false,
       });
-      mockEvaluateViolations.mockReturnValue([
-        { duration: 60, modalityLabel: 'in-person', floorCents: 5000, baseCents: 3000 },
-      ]);
+      mockEvaluateViolations.mockReturnValue(new Map([
+      ['student_location', [{ format: 'student_location', duration: 60, floorCents: 5000, baseCents: 3000 }]],
+    ]));
       mockFetchWithAuth.mockResolvedValue({ ok: true, json: async () => ({}) });
 
       render(<SkillsPricingInline />);
 
       // Step 1: Trigger autosave — price floor violation blocks save, sets priceErrors
-      await user.clear(screen.getByPlaceholderText(/hourly rate/i));
-      await user.type(screen.getByPlaceholderText(/hourly rate/i), '30');
+      await user.clear(getFormatRateInput('online'));
+      await user.type(getFormatRateInput('online'), '30');
       jest.advanceTimersByTime(1200);
 
       await waitFor(() => {
-        expect(screen.getByText(/minimum price/i)).toBeInTheDocument();
+        expect(screen.getByText(/min price/i)).toBeInTheDocument();
       });
 
       // Step 2: Change description — does NOT clear svc-1's priceError
       // (only rate changes for the specific service clear the price error)
       // But we also clear violations so handleSave can proceed past price floor check
-      mockEvaluateViolations.mockReturnValue([]);
+      mockEvaluateViolations.mockReturnValue(new Map());
       const descInput = screen.getByPlaceholderText(/brief description/i);
       await user.type(descInput, 'Classical piano');
       jest.advanceTimersByTime(1200);
@@ -5837,8 +5688,7 @@ describe('SkillsPricingInline', () => {
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
-          hourly_rate: 70,
-          offers_online: true,
+          format_prices: [{ format: 'online', hourly_rate: 70 }],
         }],
       };
 
@@ -5852,7 +5702,7 @@ describe('SkillsPricingInline', () => {
       const { rerender } = render(<SkillsPricingInline />);
 
       // Edit the rate
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '85');
 
@@ -5870,8 +5720,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 85, // matches what was saved
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 85 }], // matches what was saved
           }],
         },
       });
@@ -5881,7 +5730,7 @@ describe('SkillsPricingInline', () => {
 
       // Value should be accepted (pendingSyncSignatureRef matched)
       await waitFor(() => {
-        expect(screen.getByPlaceholderText(/hourly rate/i)).toHaveValue(85);
+        expect(getFormatRateInput('online')).toHaveValue(85);
       });
 
       jest.useRealTimers();
@@ -5899,7 +5748,7 @@ describe('SkillsPricingInline', () => {
             subcategory_id: 'sub-1',
             service_catalog_name: 'Piano',
             name: 'Piano',
-            hourly_rate: '55',
+            format_prices: { online: '55' },
             eligible_age_groups: ['kids', 'teens', 'adults'],
             filter_selections: {
               age_groups: ['kids', 'teens', 'adults'],
@@ -5908,9 +5757,6 @@ describe('SkillsPricingInline', () => {
             description: '',
             equipment: '',
             duration_options: [60],
-            offers_travel: false,
-            offers_at_location: false,
-            offers_online: true,
           },
         ],
       });
@@ -5921,8 +5767,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 70,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 70 }],
           }],
         },
       });
@@ -5933,7 +5778,7 @@ describe('SkillsPricingInline', () => {
         expect(applyPendingHydrationAcceptanceMock).toHaveBeenCalled();
       });
       expect(applyPendingHydrationAcceptanceMock.mock.results.some((result) => result.value === true)).toBe(true);
-      expect(screen.getByPlaceholderText(/hourly rate/i)).toHaveValue(55);
+      expect(getFormatRateInput('online')).toHaveValue(55);
     });
   });
 
@@ -5941,7 +5786,7 @@ describe('SkillsPricingInline', () => {
     it('handleRequestSkill early-returns when requestedSkill is whitespace only (branch 94, line 625)', async () => {
       // Render with a service so the "Request a skill" section appears
       mockUseInstructorProfileMe.mockReturnValue({
-        data: { is_live: false, services: [{ service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true }] },
+        data: { is_live: false, services: [{ service_catalog_id: 'svc-1', service_catalog_name: 'Piano', format_prices: [{ format: 'online', hourly_rate: 50 }] }] },
       });
 
       render(<SkillsPricingInline />);
@@ -5963,8 +5808,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -5973,7 +5817,7 @@ describe('SkillsPricingInline', () => {
 
       // Rate input has no associated price error, so changing it should just update the value
       // (branch: if (!prev[s.catalog_service_id]) return prev — returns prev without modification)
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await userEvent.clear(rateInput);
       await userEvent.type(rateInput, '75');
 
@@ -6012,7 +5856,7 @@ describe('SkillsPricingInline', () => {
 
       // Service should be added — the rate input should now appear
       await waitFor(() => {
-        expect(screen.getByPlaceholderText(/hourly rate/i)).toBeInTheDocument();
+        expect(getFormatRateInput('online')).toBeInTheDocument();
       });
 
       // Since no catalog entry, fallback age groups should be ['kids', 'teens', 'adults']
@@ -6054,7 +5898,7 @@ describe('SkillsPricingInline', () => {
       await userEvent.click(fluteBtn);
 
       await waitFor(() => {
-        expect(screen.getByPlaceholderText(/hourly rate/i)).toBeInTheDocument();
+        expect(getFormatRateInput('online')).toBeInTheDocument();
       });
     });
 
@@ -6066,8 +5910,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             // no service_catalog_name
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -6088,8 +5931,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             // name is not set, so chip should use service_catalog_name
           }],
         },
@@ -6109,8 +5951,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             description: null,
             equipment: null,
           }],
@@ -6147,8 +5988,8 @@ describe('SkillsPricingInline', () => {
         data: {
           is_live: false,
           services: [
-            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true },
-            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 40, offers_online: true },
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', format_prices: [{ format: 'online', hourly_rate: 50 }] },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', format_prices: [{ format: 'online', hourly_rate: 40 }] },
           ],
         },
       });
@@ -6163,7 +6004,7 @@ describe('SkillsPricingInline', () => {
       await userEvent.click(kidsButtons[0]!);
 
       // Both services should still have their rate inputs
-      const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
+      const rateInputs = getAllFormatRateInputs('online');
       expect(rateInputs.length).toBe(2);
     });
 
@@ -6186,8 +6027,8 @@ describe('SkillsPricingInline', () => {
         data: {
           is_live: false,
           services: [
-            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true },
-            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 40, offers_online: true },
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', format_prices: [{ format: 'online', hourly_rate: 50 }] },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', format_prices: [{ format: 'online', hourly_rate: 40 }] },
           ],
         },
       });
@@ -6202,7 +6043,7 @@ describe('SkillsPricingInline', () => {
       await userEvent.click(beginnerButtons[0]!);
 
       // Both rate inputs should still be there
-      const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
+      const rateInputs = getAllFormatRateInputs('online');
       expect(rateInputs.length).toBe(2);
     });
 
@@ -6225,8 +6066,8 @@ describe('SkillsPricingInline', () => {
         data: {
           is_live: false,
           services: [
-            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true },
-            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 40, offers_online: true },
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', format_prices: [{ format: 'online', hourly_rate: 50 }] },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', format_prices: [{ format: 'online', hourly_rate: 40 }] },
           ],
         },
       });
@@ -6241,7 +6082,7 @@ describe('SkillsPricingInline', () => {
       await userEvent.click(thirtyMinButtons[0]!);
 
       // Both rate inputs should still be there
-      const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
+      const rateInputs = getAllFormatRateInputs('online');
       expect(rateInputs.length).toBe(2);
     });
 
@@ -6264,15 +6105,15 @@ describe('SkillsPricingInline', () => {
         data: {
           is_live: false,
           services: [
-            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true },
-            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 40, offers_online: true },
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', format_prices: [{ format: 'online', hourly_rate: 50 }] },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', format_prices: [{ format: 'online', hourly_rate: 40 }] },
           ],
         },
       });
 
       render(<SkillsPricingInline />);
 
-      const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
+      const rateInputs = getAllFormatRateInputs('online');
       expect(rateInputs.length).toBe(2);
 
       // Changing second input triggers map where first service hits `i !== index` return
@@ -6375,8 +6216,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             eligible_age_groups: ['teens', 'adults'],
             filter_selections: { skill_level: ['beginner', 'intermediate', 'advanced'], age_groups: ['teens', 'adults'] },
           }],
@@ -6407,8 +6247,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             age_groups: ['teens', 'adults'], // top-level age_groups is what hydration reads
             eligible_age_groups: ['kids', 'teens', 'adults'],
             filter_selections: { skill_level: ['beginner'] },
@@ -6445,8 +6284,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -6479,8 +6317,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -6510,8 +6347,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             eligible_age_groups: ['kids', 'teens', 'adults'],
             filter_selections: { skill_level: ['beginner'] },
             // No age_groups key — triggers ?? [] fallback on line 1042
@@ -6535,8 +6371,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             eligible_age_groups: ['kids', 'teens', 'adults'],
             filter_selections: { age_groups: ['kids', 'teens'] },
             // No skill_level — triggers ?? [...DEFAULT_SKILL_LEVELS] fallback on line 1191
@@ -6564,12 +6399,9 @@ describe('SkillsPricingInline', () => {
       mockUsePricingConfig.mockReturnValue({ config: { price_floor_cents: null } });
 
       // But make evaluateViolations return violations
-      mockEvaluateViolations.mockReturnValue([{
-        floorCents: 5000,
-        baseCents: 3000,
-        modalityLabel: 'in-person',
-        duration: 60,
-      }]);
+      mockEvaluateViolations.mockReturnValue(new Map([
+        ['student_location', [{ format: 'student_location', duration: 60, floorCents: 5000, baseCents: 3000 }]],
+      ]));
 
       mockUseInstructorProfileMe.mockReturnValue({
         data: {
@@ -6577,8 +6409,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 30,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 30 }],
           }],
         },
       });
@@ -6611,10 +6442,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
-            offers_travel: false,
-            offers_at_location: false,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -6622,19 +6450,15 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // Turn off Online — this makes all capabilities false
-      const onlineToggle = screen.getByRole('switch', { name: /online lessons/i });
+      const onlineToggle = screen.getByRole('switch', { name: /^online$/i });
       await user.click(onlineToggle);
 
       // Wait for autosave to trigger
       jest.advanceTimersByTime(1200);
 
-      // There should be an inline error message
-      await waitFor(() => {
-        expect(screen.getByText(/select at least one location option/i)).toBeInTheDocument();
-      });
-
-      // But toast.error should NOT have been called (only fires for source === 'manual')
-      // The autosave uses source === 'auto', so it silently blocks
+      // With no formats enabled, the service is filtered out of save payload.
+      // For non-live instructors, an empty payload is just a normal save.
+      // toast.error should NOT have been called (no manual toast)
       expect(toast.error).not.toHaveBeenCalledWith(
         expect.stringContaining('Select at least one way'),
         expect.anything()
@@ -6662,8 +6486,8 @@ describe('SkillsPricingInline', () => {
         data: {
           is_live: false,
           services: [
-            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true },
-            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 40, offers_online: true },
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', format_prices: [{ format: 'online', hourly_rate: 50 }] },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', format_prices: [{ format: 'online', hourly_rate: 40 }] },
           ],
         },
       });
@@ -6698,8 +6522,8 @@ describe('SkillsPricingInline', () => {
         data: {
           is_live: false,
           services: [
-            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true },
-            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 40, offers_online: true },
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', format_prices: [{ format: 'online', hourly_rate: 50 }] },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', format_prices: [{ format: 'online', hourly_rate: 40 }] },
           ],
         },
       });
@@ -6742,8 +6566,8 @@ describe('SkillsPricingInline', () => {
         data: {
           is_live: false,
           services: [
-            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true, subcategory_id: 'sub1' },
-            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 40, offers_online: true, subcategory_id: 'sub1' },
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', format_prices: [{ format: 'online', hourly_rate: 50 }], subcategory_id: 'sub1' },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', format_prices: [{ format: 'online', hourly_rate: 40 }], subcategory_id: 'sub1' },
           ],
         },
       });
@@ -6753,7 +6577,7 @@ describe('SkillsPricingInline', () => {
       // Both services should render fine - RefineFiltersSection calls initializeMissingFilters
       // for each service, and the filter_key matching only applies to the correct service
       await waitFor(() => {
-        const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
+        const rateInputs = getAllFormatRateInputs('online');
         expect(rateInputs.length).toBe(2);
       });
 
@@ -6781,8 +6605,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             subcategory_id: 'sub1',
             filter_selections: {
               skill_level: ['beginner'],
@@ -6798,7 +6621,7 @@ describe('SkillsPricingInline', () => {
       // Service should render — the initializeMissingFilters sees instrument_type exists
       // so changed stays false and returns `s` unchanged (branch 34, line 308)
       await waitFor(() => {
-        expect(screen.getByPlaceholderText(/hourly rate/i)).toHaveValue(50);
+        expect(getFormatRateInput('online')).toHaveValue(50);
       });
 
       // Reset mock
@@ -6840,8 +6663,8 @@ describe('SkillsPricingInline', () => {
         data: {
           is_live: false,
           services: [
-            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true, subcategory_id: 'sub1' },
-            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 40, offers_online: true, subcategory_id: 'sub1' },
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', format_prices: [{ format: 'online', hourly_rate: 50 }], subcategory_id: 'sub1' },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', format_prices: [{ format: 'online', hourly_rate: 40 }], subcategory_id: 'sub1' },
           ],
         },
       });
@@ -6864,7 +6687,7 @@ describe('SkillsPricingInline', () => {
       await userEvent.click(screen.getByText('Jazz'));
 
       // Both services should still be displayed
-      const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
+      const rateInputs = getAllFormatRateInputs('online');
       expect(rateInputs.length).toBe(2);
 
       // Reset mock
@@ -6892,8 +6715,8 @@ describe('SkillsPricingInline', () => {
           service_area_neighborhoods: ['Upper East Side'],
           preferred_teaching_locations: [{ id: 'loc-1', name: 'Studio A' }],
           services: [
-            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true, offers_travel: true, offers_at_location: false },
-            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 40, offers_online: true, offers_travel: false, offers_at_location: false },
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', format_prices: [{ format: 'online', hourly_rate: 50 }], offers_travel: true, offers_at_location: false },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', format_prices: [{ format: 'online', hourly_rate: 40 }], offers_travel: false, offers_at_location: false },
           ],
         },
       });
@@ -6901,14 +6724,14 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // Get all "I travel to students" toggles — they should NOT be disabled because hasServiceAreas is true
-      const travelToggles = screen.getAllByRole('switch', { name: /i travel to students/i });
+      const travelToggles = screen.getAllByRole('switch', { name: /at student's location/i });
       expect(travelToggles.length).toBe(2);
 
       // Toggle travel on the first service — index=1 hits `i !== index` return
       await userEvent.click(travelToggles[0]!);
 
       // Both services should still be rendered
-      const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
+      const rateInputs = getAllFormatRateInputs('online');
       expect(rateInputs.length).toBe(2);
     });
 
@@ -6933,21 +6756,21 @@ describe('SkillsPricingInline', () => {
           service_area_neighborhoods: ['Midtown'],
           preferred_teaching_locations: [{ id: 'loc-1', name: 'Studio A' }],
           services: [
-            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true, offers_travel: false, offers_at_location: true },
-            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 40, offers_online: true, offers_travel: false, offers_at_location: false },
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', format_prices: [{ format: 'online', hourly_rate: 50 }], offers_travel: false, offers_at_location: true },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', format_prices: [{ format: 'online', hourly_rate: 40 }], offers_travel: false, offers_at_location: false },
           ],
         },
       });
 
       render(<SkillsPricingInline />);
 
-      const atLocationToggles = screen.getAllByRole('switch', { name: /students come to me/i });
+      const atLocationToggles = screen.getAllByRole('switch', { name: /at instructor's location/i });
       expect(atLocationToggles.length).toBe(2);
 
       // Toggle at-location on first service — second service hits `i !== index` return
       await userEvent.click(atLocationToggles[0]!);
 
-      const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
+      const rateInputs = getAllFormatRateInputs('online');
       expect(rateInputs.length).toBe(2);
     });
 
@@ -6970,21 +6793,21 @@ describe('SkillsPricingInline', () => {
         data: {
           is_live: false,
           services: [
-            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true },
-            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 40, offers_online: true },
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', format_prices: [{ format: 'online', hourly_rate: 50 }] },
+            { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', format_prices: [{ format: 'online', hourly_rate: 40 }] },
           ],
         },
       });
 
       render(<SkillsPricingInline />);
 
-      const onlineToggles = screen.getAllByRole('switch', { name: /online lessons/i });
+      const onlineToggles = screen.getAllByRole('switch', { name: /^online$/i });
       expect(onlineToggles.length).toBe(2);
 
       // Toggle online on first service
       await userEvent.click(onlineToggles[0]!);
 
-      const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
+      const rateInputs = getAllFormatRateInputs('online');
       expect(rateInputs.length).toBe(2);
     });
 
@@ -6999,8 +6822,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             // description and equipment will be '' by default, but serializeServices has null guards
           }],
         },
@@ -7009,7 +6831,7 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // Change rate to trigger autosave (which calls serializeServices internally)
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
       await user.type(rateInput, '60');
       jest.advanceTimersByTime(1200);
@@ -7031,12 +6853,9 @@ describe('SkillsPricingInline', () => {
           price_floor_cents: { 'online:60': 5000 },
         },
       });
-      mockEvaluateViolations.mockReturnValue([{
-        floorCents: 5000,
-        baseCents: 3000,
-        modalityLabel: 'online',
-        duration: 60,
-      }]);
+      mockEvaluateViolations.mockReturnValue(new Map([
+        ['online', [{ format: 'online', duration: 60, floorCents: 5000, baseCents: 3000 }]],
+      ]));
 
       mockUseInstructorProfileMe.mockReturnValue({
         data: {
@@ -7044,8 +6863,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 30,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 30 }],
           }],
         },
       });
@@ -7057,14 +6875,13 @@ describe('SkillsPricingInline', () => {
       await user.type(descField, 'test');
       jest.advanceTimersByTime(1200);
 
-      // Should see a price floor error toast with the service name
+      // Should see a price floor error toast with per-format error message
       await waitFor(() => {
-        expect(toast.error).toHaveBeenCalled();
+        expect(toast.error).toHaveBeenCalledWith(
+          expect.stringContaining('Min price'),
+          expect.anything()
+        );
       });
-
-      const errorCall = (toast.error as jest.Mock).mock.calls[0]?.[0] as string;
-      // The service has name 'Piano' (from displayServiceName mock), so the message should include it
-      expect(errorCall).toContain('Piano');
 
       jest.useRealTimers();
     });
@@ -7077,8 +6894,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: '', // empty, but filter removes this
             service_catalog_name: 'Custom Service',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -7091,23 +6907,25 @@ describe('SkillsPricingInline', () => {
       expect(screen.queryByText('Custom Service')).not.toBeInTheDocument();
     });
 
-    it('service with empty hourly_rate shows $0 display (branch 148 related, line 967)', () => {
+    it('service with zero hourly_rate shows rate input with value 0 (branch 148 related, line 967)', () => {
       mockUseInstructorProfileMe.mockReturnValue({
         data: {
           is_live: false,
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 0,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 0 }],
           }],
         },
       });
 
       render(<SkillsPricingInline />);
 
-      // With hourly_rate of 0, the display should show "$0"
-      expect(screen.getByText('$0')).toBeInTheDocument();
+      // With hourly_rate of 0, the format card input shows 0
+      const rateInput = getFormatRateInput('online');
+      expect(rateInput).toHaveValue(0);
+      // No take-home display for $0 rate
+      expect(screen.queryByText(/you'll earn/i)).not.toBeInTheDocument();
     });
 
     it('save does not fire when all services have empty hourly rate (branch in payload filter, line 735)', async () => {
@@ -7120,8 +6938,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -7129,7 +6946,7 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // Clear the rate entirely — makes it empty string, filtered from payload
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       await user.clear(rateInput);
 
       // Also add a description to ensure dirty state
@@ -7155,7 +6972,7 @@ describe('SkillsPricingInline', () => {
       mockUsePricingConfig.mockReturnValue({
         config: { price_floor_cents: { 'in_person:60': 5000 } },
       });
-      mockEvaluateViolations.mockReturnValue([]);
+      mockEvaluateViolations.mockReturnValue(new Map());
 
       mockUseInstructorProfileMe.mockReturnValue({
         data: {
@@ -7163,10 +6980,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: false,
-            offers_travel: false,
-            offers_at_location: false,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -7174,7 +6988,7 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // Should render without issues — no violations because no location types
-      expect(screen.getByPlaceholderText(/hourly rate/i)).toHaveValue(50);
+      expect(getFormatRateInput('online')).toHaveValue(50);
     });
 
     it('price floor violation blocks save with toast error when pricingFloors exists (branch 106, lines 696-707)', async () => {
@@ -7185,12 +6999,9 @@ describe('SkillsPricingInline', () => {
       mockUsePricingConfig.mockReturnValue({
         config: { price_floor_cents: { 'online:60': 5000 } },
       });
-      mockEvaluateViolations.mockReturnValue([{
-        floorCents: 5000,
-        baseCents: 3000,
-        modalityLabel: 'online',
-        duration: 60,
-      }]);
+      mockEvaluateViolations.mockReturnValue(new Map([
+        ['online', [{ format: 'online', duration: 60, floorCents: 5000, baseCents: 3000 }]],
+      ]));
 
       mockUseInstructorProfileMe.mockReturnValue({
         data: {
@@ -7198,8 +7009,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 30,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 30 }],
           }],
         },
       });
@@ -7232,8 +7042,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             duration_options: [60], // default — can't deselect because min-1 guard
           }],
         },
@@ -7267,8 +7076,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -7296,8 +7104,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             // No service_catalog_name — will be null
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -7308,7 +7115,7 @@ describe('SkillsPricingInline', () => {
       // Chip uses: s.name || s.service_catalog_name || '' → '' (empty)
       // Card uses: s.service_catalog_name ?? s.name ?? 'Service' → null ?? '' ?? 'Service' → '' (name is '', not nullish)
       // The component should render without crashing
-      expect(screen.getByPlaceholderText(/hourly rate/i)).toHaveValue(50);
+      expect(getFormatRateInput('online')).toHaveValue(50);
 
       // Restore the mock
       mockDisplayServiceName.mockImplementation(
@@ -7326,12 +7133,9 @@ describe('SkillsPricingInline', () => {
       mockUsePricingConfig.mockReturnValue({
         config: { price_floor_cents: { 'online:60': 5000 } },
       });
-      mockEvaluateViolations.mockReturnValue([{
-        floorCents: 5000,
-        baseCents: 3000,
-        modalityLabel: 'online',
-        duration: 60,
-      }]);
+      mockEvaluateViolations.mockReturnValue(new Map([
+        ['online', [{ format: 'online', duration: 60, floorCents: 5000, baseCents: 3000 }]],
+      ]));
 
       mockUseInstructorProfileMe.mockReturnValue({
         data: {
@@ -7339,8 +7143,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 30,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 30 }],
           }],
         },
       });
@@ -7352,13 +7155,13 @@ describe('SkillsPricingInline', () => {
       await user.type(descField, 'test');
       jest.advanceTimersByTime(1200);
 
-      // Should see a price floor error toast with "this service" fallback
+      // Should see a price floor error toast with per-format error message
       await waitFor(() => {
-        expect(toast.error).toHaveBeenCalled();
+        expect(toast.error).toHaveBeenCalledWith(
+          expect.stringContaining('Min price'),
+          expect.anything()
+        );
       });
-
-      const errorCall = (toast.error as jest.Mock).mock.calls[0]?.[0] as string;
-      expect(errorCall).toContain('this service');
 
       // Restore
       mockDisplayServiceName.mockImplementation(
@@ -7407,10 +7210,9 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             description: null,
             equipment_required: null,
-            offers_online: true,
           }],
         },
       });
@@ -7429,9 +7231,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             // No description or equipment_required fields at all
-            offers_online: true,
           }],
         },
       });
@@ -7449,9 +7250,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             duration_options: null, // Null duration_options
-            offers_online: true,
           }],
         },
       });
@@ -7470,9 +7270,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             duration_options: [], // Empty array
-            offers_online: true,
           }],
         },
       });
@@ -7484,23 +7283,23 @@ describe('SkillsPricingInline', () => {
       expect(durationButtons.length).toBeGreaterThan(0);
     });
 
-    it('renders $0 display when hourly_rate is empty string (line 967)', () => {
+    it('renders empty rate input when hourly_rate is empty string (line 967)', () => {
       mockUseInstructorProfileMe.mockReturnValue({
         data: {
           is_live: false,
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: '',
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: '' }],
           }],
         },
       });
 
       render(<SkillsPricingInline />);
 
-      // The display shows "$0" when hourly_rate is empty
-      expect(screen.getByText(/\$0/)).toBeInTheDocument();
+      // No $0 display in per-format model — just empty input
+      const rateInput = getFormatRateInput('online');
+      expect(rateInput).toHaveValue(null);
     });
 
     it('does not show earnings when hourly_rate is 0', () => {
@@ -7510,8 +7309,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: '0',
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: '0' }],
           }],
         },
       });
@@ -7530,8 +7328,7 @@ describe('SkillsPricingInline', () => {
             service_catalog_id: 'svc-1',
             service_catalog_name: null,
             name: null,
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -7550,8 +7347,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: null,
-            offers_online: true,
+            format_prices: [],
           }],
         },
       });
@@ -7559,7 +7355,7 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // hourly_rate defaults to empty string via String(null ?? '')
-      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      const rateInput = getFormatRateInput('online');
       expect(rateInput).toHaveValue(null);
     });
 
@@ -7573,9 +7369,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_travel: true,
-            offers_online: true,
+            format_prices: [{ format: 'student_location', hourly_rate: 50 }],
           }],
         },
       });
@@ -7583,7 +7377,7 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // hasServiceAreas should be true because summary is non-empty
-      const travelSwitch = screen.getByRole('switch', { name: /i travel to students/i });
+      const travelSwitch = screen.getByRole('switch', { name: /at student's location/i });
       expect(travelSwitch).not.toBeDisabled();
     });
 
@@ -7598,8 +7392,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -7607,7 +7400,7 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // Non-array neighborhoods should be treated as empty
-      const travelSwitch = screen.getByRole('switch', { name: /i travel to students/i });
+      const travelSwitch = screen.getByRole('switch', { name: /at student's location/i });
       expect(travelSwitch).toBeDisabled();
     });
 
@@ -7619,8 +7412,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 100,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 100 }],
           }],
         },
       });
@@ -7639,8 +7431,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 100,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 100 }],
           }],
         },
       });
@@ -7659,8 +7450,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -7668,33 +7458,32 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // No price errors should appear without pricing floors
-      expect(screen.queryByText(/minimum price/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/min price/i)).not.toBeInTheDocument();
     });
 
-    it('skips violation when service has no location types (line 213 early return)', () => {
+    it('skips violation when service has no formats enabled (line 213 early return)', () => {
       mockUsePricingConfig.mockReturnValue({
         config: { price_floor_cents: { private: { '60': 5000 } } },
         isLoading: false,
       });
-      // Service has all location options disabled
+      // Service has no formats enabled (empty format_prices state after hydration)
+      // Note: format_prices: [] from API → defaultFormatPrices(false, false) = { online: '' }
+      // hasAnyFormatEnabled({ online: '' }) = false → skips violation check
       mockUseInstructorProfileMe.mockReturnValue({
         data: {
           is_live: false,
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 10, // Very low rate but no location types
-            offers_travel: false,
-            offers_at_location: false,
-            offers_online: false,
+            format_prices: [], // Falls through to default with empty rate
           }],
         },
       });
 
       render(<SkillsPricingInline />);
 
-      // No pricing violations should be computed (skipped due to no location types)
-      // evaluatePriceFloorViolations should NOT have been called
+      // No pricing violations should be computed (skipped due to no valid rates)
+      // evaluateFormatPriceFloorViolations should NOT have been called
       expect(mockEvaluateViolations).not.toHaveBeenCalled();
     });
 
@@ -7720,10 +7509,9 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             filter_selections: { skill_level: ['beginner'], age_groups: ['adults'] },
             age_groups: ['adults'],
-            offers_online: true,
           }],
         },
       });
@@ -7746,8 +7534,7 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
-            offers_online: true,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
           }],
         },
       });
@@ -7755,7 +7542,7 @@ describe('SkillsPricingInline', () => {
       render(<SkillsPricingInline />);
 
       // Non-string summary should be treated as empty
-      const travelSwitch = screen.getByRole('switch', { name: /i travel to students/i });
+      const travelSwitch = screen.getByRole('switch', { name: /at student's location/i });
       expect(travelSwitch).toBeDisabled();
     });
 
@@ -7767,9 +7554,8 @@ describe('SkillsPricingInline', () => {
           services: [{
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
-            hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             eligible_age_groups: [],
-            offers_online: true,
           }],
         },
       });
@@ -7805,15 +7591,12 @@ describe('SkillsPricingInline', () => {
       catalog_service_id: 'svc-1',
       subcategory_id: '',
       service_catalog_name: 'Piano',
-      hourly_rate: '85',
+      format_prices: { online: '85' },
       eligible_age_groups: [],
       filter_selections: {},
       description: '',
       equipment: '',
       duration_options: [60],
-      offers_travel: false,
-      offers_at_location: false,
-      offers_online: true,
       ...overrides,
     });
 

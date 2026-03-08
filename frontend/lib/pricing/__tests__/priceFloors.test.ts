@@ -2,8 +2,10 @@ import {
   computeBasePriceCents,
   computePriceFloorCents,
   evaluatePriceFloorViolations,
+  evaluateFormatPriceFloorViolations,
   type PriceFloorConfig,
 } from '../priceFloors';
+import type { FormatPriceState } from '../formatPricing';
 
 const mockFloors: PriceFloorConfig = {
   private_in_person: 9000,
@@ -43,5 +45,98 @@ describe('priceFloors helpers', () => {
       duration: 60,
       floorCents: 9000,
     });
+  });
+});
+
+describe('evaluateFormatPriceFloorViolations', () => {
+  it('returns empty map when no formats are enabled', () => {
+    const result = evaluateFormatPriceFloorViolations({
+      formatPrices: {},
+      durationOptions: [60],
+      floors: mockFloors,
+    });
+    expect(result.size).toBe(0);
+  });
+
+  it('skips formats with empty rate strings', () => {
+    const formatPrices: FormatPriceState = { student_location: '' };
+    const result = evaluateFormatPriceFloorViolations({
+      formatPrices,
+      durationOptions: [60],
+      floors: mockFloors,
+    });
+    expect(result.size).toBe(0);
+  });
+
+  it('detects violation for student_location using in_person floor', () => {
+    const formatPrices: FormatPriceState = { student_location: '60' };
+    const result = evaluateFormatPriceFloorViolations({
+      formatPrices,
+      durationOptions: [60],
+      floors: mockFloors,
+    });
+    expect(result.has('student_location')).toBe(true);
+    const violations = result.get('student_location')!;
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      format: 'student_location',
+      duration: 60,
+      floorCents: 9000,
+    });
+  });
+
+  it('detects violation for instructor_location using in_person floor', () => {
+    const formatPrices: FormatPriceState = { instructor_location: '60' };
+    const result = evaluateFormatPriceFloorViolations({
+      formatPrices,
+      durationOptions: [60],
+      floors: mockFloors,
+    });
+    expect(result.has('instructor_location')).toBe(true);
+    expect(result.get('instructor_location')).toHaveLength(1);
+  });
+
+  it('detects violation for online using remote floor', () => {
+    const formatPrices: FormatPriceState = { online: '50' };
+    const result = evaluateFormatPriceFloorViolations({
+      formatPrices,
+      durationOptions: [60],
+      floors: mockFloors,
+    });
+    expect(result.has('online')).toBe(true);
+    const violations = result.get('online')!;
+    expect(violations[0]).toMatchObject({
+      format: 'online',
+      floorCents: 7000,
+    });
+  });
+
+  it('returns no violations when rates meet floors', () => {
+    const formatPrices: FormatPriceState = {
+      student_location: '100',
+      online: '80',
+    };
+    const result = evaluateFormatPriceFloorViolations({
+      formatPrices,
+      durationOptions: [60],
+      floors: mockFloors,
+    });
+    expect(result.size).toBe(0);
+  });
+
+  it('evaluates each format independently across multiple durations', () => {
+    const formatPrices: FormatPriceState = {
+      student_location: '60',
+      online: '80',
+    };
+    const result = evaluateFormatPriceFloorViolations({
+      formatPrices,
+      durationOptions: [60, 45],
+      floors: mockFloors,
+    });
+    // student_location at $60 violates $90 floor for both durations
+    expect(result.get('student_location')).toHaveLength(2);
+    // online at $80 is above $70 floor — no violation
+    expect(result.has('online')).toBe(false);
   });
 });

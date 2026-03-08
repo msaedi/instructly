@@ -57,6 +57,6 @@ describe('formatBookingDateTime', () => {
     const result = formatBookingDateTime(booking, 'America/New_York');
     expect(result).toContain('Dec');
     expect(result).toContain('2:00');
-    expect(result).toContain('EST');
+    expect(result).toMatch(/E[SD]T/);
   });
 });

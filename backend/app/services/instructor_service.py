@@ -588,14 +588,8 @@ class InstructorService(BaseService):
             resolved_bio = basic_updates.get("bio", profile.bio)
             resolved_years = basic_updates.get("years_experience", profile.years_experience)
 
-            services_configured_now = False
-            # Handle service updates if provided
-            if update_data.services is not None:
-                services_configured_now = self._update_services(
-                    profile.id, user_id, update_data.services
-                )
-
-            # Replace preferred teaching locations if provided
+            # Replace preferred teaching locations BEFORE services
+            # (service validation checks teaching locations exist in DB)
             if update_data.preferred_teaching_locations is not None:
                 self._replace_preferred_places(
                     instructor_id=user_id,
@@ -609,6 +603,13 @@ class InstructorService(BaseService):
                     instructor_id=user_id,
                     kind="public_space",
                     items=update_data.preferred_public_spaces,
+                )
+
+            services_configured_now = False
+            # Handle service updates if provided
+            if update_data.services is not None:
+                services_configured_now = self._update_services(
+                    profile.id, user_id, update_data.services
                 )
 
             bio_value = str(resolved_bio or "").strip()

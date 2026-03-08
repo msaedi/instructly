@@ -9,12 +9,27 @@ import { useAuth } from '@/features/shared/hooks/useAuth';
 import type {
   ApiErrorResponse,
   CategoryServiceDetail,
+  NeighborhoodsListResponse,
   ServiceCategory,
 } from '@/features/shared/api/types';
+import type { ServiceAreaItem } from '@/features/instructor-profile/types';
 import { logger } from '@/lib/logger';
 import { submitSkillRequest } from '@/lib/api/skillRequest';
 import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
-import { FloorViolation, evaluatePriceFloorViolations, formatCents } from '@/lib/pricing/priceFloors';
+import {
+  evaluateFormatPriceFloorViolations,
+  formatCents,
+  type FormatFloorViolation,
+} from '@/lib/pricing/priceFloors';
+import {
+  type FormatPriceState,
+  type ServiceFormat,
+  defaultFormatPrices,
+  formatPricesToPayload,
+  hasAnyFormatEnabled,
+  payloadToFormatPriceState,
+} from '@/lib/pricing/formatPricing';
+import { FormatPricingCards } from '@/components/pricing/FormatPricingCards';
 import { formatPlatformFeeLabel, resolvePlatformFeeRate, resolveTakeHomePct } from '@/lib/pricing/platformFees';
 import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
 import { useOnboardingStepStatus } from '@/features/instructor-onboarding/useOnboardingStepStatus';
@@ -35,30 +50,25 @@ import {
 } from '@/lib/taxonomy/filterHelpers';
 import type { AudienceGroup, FilterSelections } from '@/lib/taxonomy/filterHelpers';
 import { RefineFiltersSection } from '@/components/taxonomy/RefineFiltersSection';
-import type { ServiceLocationType } from '@/types/instructor';
 import { queryKeys } from '@/src/api/queryKeys';
-import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { toast } from 'sonner';
+import { withApiBase } from '@/lib/apiBase';
+import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
+import { useUserAddresses } from '@/hooks/queries/useUserAddresses';
+import { ServiceAreasCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/ServiceAreasCard';
+import { PreferredLocationsCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/PreferredLocationsCard';
 
 type SelectedService = {
   catalog_service_id: string;
   subcategory_id: string;
   name: string;
-  hourly_rate: string; // keep as string for input control
+  format_prices: FormatPriceState;
   description?: string;
   equipment?: string; // comma-separated freeform for UI
   filter_selections: FilterSelections;
   eligible_age_groups: AudienceGroup[];
   duration_options: number[];
-  offers_travel: boolean;
-  offers_at_location: boolean;
-  offers_online: boolean;
 };
-
-type ServiceCapabilities = Pick<
-  SelectedService,
-  'offers_travel' | 'offers_at_location' | 'offers_online'
->;
 
 type CategoryServiceGroup = {
   subcategory_id: string;
@@ -69,25 +79,12 @@ type CategoryServiceGroup = {
 const subcategoryCollapseKey = (categoryId: string, subcategoryId: string): string =>
   `${categoryId}__${subcategoryId}`;
 
-const hasAnyLocationOption = (service: ServiceCapabilities) =>
-  service.offers_travel || service.offers_at_location || service.offers_online;
-
-const isLocationCapabilityError = (message: string) =>
-  message.includes("Cannot enable travel") ||
-  message.includes("Cannot enable 'at my location'");
-
-const locationTypesFromCapabilities = (
-  service: ServiceCapabilities
-): ServiceLocationType[] => {
-  const types: ServiceLocationType[] = [];
-  if (service.offers_travel || service.offers_at_location) {
-    types.push('in_person');
-  }
-  if (service.offers_online) {
-    types.push('online');
-  }
-  return types;
-};
+function toTitle(s: string): string {
+  return s
+    .split(/[\s-]+/)
+    .map((w) => (w.length > 0 ? w[0]!.toUpperCase() + w.slice(1).toLowerCase() : ''))
+    .join(' ');
+}
 
 const getErrorMessage = (error: unknown, fallback: string): string => {
   if (error instanceof Error && error.message.trim().length > 0) {
@@ -188,26 +185,231 @@ function Step3SkillsPricingInner() {
     [platformFeeRate]
   );
 
-  const resolveCapabilitiesFromService = useCallback(
-    (service: Record<string, unknown>): ServiceCapabilities => {
-      return {
-        offers_travel: service['offers_travel'] === true,
-        offers_at_location: service['offers_at_location'] === true,
-        offers_online: service['offers_online'] === true,
-      };
-    },
-    []
-  );
+  // ── Service Areas state (for ServiceAreasCard) ──
+  const [isNYC, setIsNYC] = useState<boolean>(true);
+  const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<Set<string>>(new Set());
+  const [boroughNeighborhoods, setBoroughNeighborhoods] = useState<Record<string, ServiceAreaItem[]>>({});
+  const [openBoroughsMain, setOpenBoroughsMain] = useState<Set<string>>(new Set());
+  const [globalNeighborhoodFilter, setGlobalNeighborhoodFilter] = useState<string>('');
+  const [idToItem, setIdToItem] = useState<Record<string, ServiceAreaItem>>({});
+  const boroughAccordionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  const defaultCapabilities = useCallback((): ServiceCapabilities => {
-    const defaultTravel = hasServiceAreas;
-    const defaultAtLocation = hasTeachingLocations;
-    return {
-      offers_travel: defaultTravel,
-      offers_at_location: defaultAtLocation,
-      offers_online: !defaultTravel && !defaultAtLocation,
-    };
-  }, [hasServiceAreas, hasTeachingLocations]);
+  // ── Preferred Locations state (for PreferredLocationsCard) ──
+  const [preferredAddress, setPreferredAddress] = useState<string>('');
+  const [preferredLocations, setPreferredLocations] = useState<string[]>([]);
+  const [preferredLocationTitles, setPreferredLocationTitles] = useState<Record<string, string>>({});
+  const [neutralLocations, setNeutralLocations] = useState<string>('');
+  const [neutralPlaces, setNeutralPlaces] = useState<string[]>([]);
+
+  const { data: addressesDataFromHook } = useUserAddresses();
+
+  const NYC_BOROUGHS = useMemo(() => ['Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island'] as const, []);
+
+  const loadBoroughNeighborhoods = useCallback(async (borough: string): Promise<ServiceAreaItem[]> => {
+    if (boroughNeighborhoods[borough]) return boroughNeighborhoods[borough] || [];
+    try {
+      const url = withApiBase(`/api/v1/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`);
+      const r = await fetchWithSessionRefresh(url, { credentials: 'include' });
+      if (r.ok) {
+        const data = (await r.json()) as NeighborhoodsListResponse;
+        const list = (data.items ?? []).flatMap((raw) => {
+          const record = raw as Record<string, unknown>;
+          const neighborhoodId =
+            typeof record['neighborhood_id'] === 'string'
+              ? (record['neighborhood_id'] as string)
+              : typeof record['id'] === 'string'
+              ? (record['id'] as string)
+              : '';
+          if (!neighborhoodId) return [];
+          return [
+            {
+              neighborhood_id: neighborhoodId,
+              ntacode:
+                typeof record['ntacode'] === 'string'
+                  ? (record['ntacode'] as string)
+                  : typeof record['code'] === 'string'
+                  ? (record['code'] as string)
+                  : null,
+              name: typeof record['name'] === 'string' ? (record['name'] as string) : null,
+              borough: record['borough'] ?? null,
+            } as ServiceAreaItem,
+          ];
+        });
+        setBoroughNeighborhoods((prev) => ({ ...prev, [borough]: list }));
+        setIdToItem((prev) => {
+          const next = { ...prev } as Record<string, ServiceAreaItem>;
+          for (const it of list) {
+            if (it.neighborhood_id) next[it.neighborhood_id] = it;
+          }
+          return next;
+        });
+        return list;
+      }
+    } catch (err) {
+      logger.warn('Failed to load borough neighborhoods', { borough, err });
+    }
+    return boroughNeighborhoods[borough] || [];
+  }, [boroughNeighborhoods]);
+
+  useEffect(() => {
+    if (globalNeighborhoodFilter.trim().length > 0) {
+      NYC_BOROUGHS.forEach((b) => {
+        void loadBoroughNeighborhoods(b);
+      });
+    }
+  }, [globalNeighborhoodFilter, NYC_BOROUGHS, loadBoroughNeighborhoods]);
+
+  const toggleMainBoroughOpen = async (b: string) => {
+    const el = boroughAccordionRefs.current[b];
+    const prevTop = el?.getBoundingClientRect().top ?? 0;
+    setOpenBoroughsMain((prev) => {
+      const next = new Set(prev);
+      if (next.has(b)) {
+        next.delete(b);
+      } else {
+        next.add(b);
+      }
+      return next;
+    });
+    await loadBoroughNeighborhoods(b);
+    requestAnimationFrame(() => {
+      const newTop = boroughAccordionRefs.current[b]?.getBoundingClientRect().top ?? prevTop;
+      if (Math.abs(newTop - prevTop) > 5) {
+        window.scrollBy({ top: newTop - prevTop, behavior: 'smooth' });
+      }
+    });
+  };
+
+  const toggleBoroughAll = (borough: string, value: boolean, itemsOverride?: ServiceAreaItem[]) => {
+    const items = itemsOverride || boroughNeighborhoods[borough] || [];
+    setSelectedNeighborhoods((prev) => {
+      const next = new Set(prev);
+      for (const n of items) {
+        const nid = n.neighborhood_id;
+        if (!nid) continue;
+        if (value) next.add(nid);
+        else next.delete(nid);
+      }
+      return next;
+    });
+  };
+
+  const toggleNeighborhood = (id: string) => {
+    setSelectedNeighborhoods((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Prefill service areas & preferred locations from profile
+  const serviceAreasPrefilled = useRef(false);
+  useEffect(() => {
+    if (serviceAreasPrefilled.current) return;
+    if (!isAuthenticated || !rawData.profile) return;
+    serviceAreasPrefilled.current = true;
+
+    // Prefill preferred teaching locations
+    const teachingFromApi = Array.isArray(rawData.profile?.['preferred_teaching_locations'])
+      ? (rawData.profile['preferred_teaching_locations'] as Array<Record<string, unknown>>)
+      : [];
+    const teachingTitles: Record<string, string> = {};
+    const teachingAddresses: string[] = [];
+    const seenTeaching = new Set<string>();
+    for (const item of teachingFromApi) {
+      const rawAddress = typeof item?.['address'] === 'string' ? item['address'].trim() : '';
+      if (!rawAddress) continue;
+      const key = rawAddress.toLowerCase();
+      if (seenTeaching.has(key)) continue;
+      seenTeaching.add(key);
+      teachingAddresses.push(rawAddress);
+      const labelValue = typeof item?.['label'] === 'string' ? item['label'].trim() : '';
+      teachingTitles[rawAddress] = labelValue;
+      if (teachingAddresses.length === 2) break;
+    }
+    setPreferredLocations(teachingAddresses);
+    setPreferredLocationTitles(teachingTitles);
+
+    // Prefill preferred public spaces
+    const publicFromApi = Array.isArray(rawData.profile?.['preferred_public_spaces'])
+      ? (rawData.profile['preferred_public_spaces'] as Array<Record<string, unknown>>)
+      : [];
+    const publicAddresses: string[] = [];
+    const seenPublic = new Set<string>();
+    for (const item of publicFromApi) {
+      const rawAddress = typeof item?.['address'] === 'string' ? item['address'].trim() : '';
+      if (!rawAddress) continue;
+      const key = rawAddress.toLowerCase();
+      if (seenPublic.has(key)) continue;
+      seenPublic.add(key);
+      publicAddresses.push(rawAddress);
+      if (publicAddresses.length === 2) break;
+    }
+    setNeutralPlaces(publicAddresses);
+
+    // Prefill service areas (neighborhoods)
+    void (async () => {
+      try {
+        const areasRes = await fetchWithAuth('/api/v1/addresses/service-areas/me');
+        if (areasRes.ok) {
+          const areas = await areasRes.json() as { items?: ServiceAreaItem[] };
+          const items = (areas.items || []) as ServiceAreaItem[];
+          const ids = items
+            .map((a) => a['neighborhood_id'] || (a as Record<string, unknown>)['id'] as string)
+            .filter((v: string | undefined): v is string => typeof v === 'string');
+          setSelectedNeighborhoods(new Set(ids));
+          setIdToItem((prev) => {
+            const next = { ...prev } as Record<string, ServiceAreaItem>;
+            for (const a of items) {
+              const nid = a['neighborhood_id'] || (a as Record<string, unknown>)['id'] as string;
+              if (nid) next[nid] = a;
+            }
+            return next;
+          });
+        }
+      } catch (err) {
+        logger.warn('Failed to prefill service areas', err);
+      }
+    })();
+
+    // Detect NYC from default address postal code
+    void (async () => {
+      try {
+        if (addressesDataFromHook?.items) {
+          const items = addressesDataFromHook.items;
+          const def = items.find((a) => a.is_default) ?? items[0];
+          const zip = def?.postal_code;
+          if (zip) {
+            const nycRes = await fetchWithSessionRefresh(withApiBase(`${API_ENDPOINTS.NYC_ZIP_CHECK}?zip=${encodeURIComponent(zip)}`), {
+              credentials: 'include',
+            });
+            if (nycRes.ok) {
+              const nyc = await nycRes.json() as { is_nyc?: boolean };
+              setIsNYC(!!nyc['is_nyc']);
+            }
+          }
+        }
+      } catch (err) {
+        logger.warn('Failed to check NYC zip', err);
+      }
+    })();
+  }, [isAuthenticated, rawData.profile, addressesDataFromHook]);
+
+  // Derive hasServiceAreas / hasTeachingLocations from local state too
+  const hasServiceAreasLocal = selectedNeighborhoods.size > 0;
+  const hasTeachingLocationsLocal = preferredLocations.length > 0;
+  // Combined: true if profile data OR local state has them
+  const effectiveHasServiceAreas = hasServiceAreas || hasServiceAreasLocal;
+  const effectiveHasTeachingLocations = hasTeachingLocations || hasTeachingLocationsLocal;
+
+  // Whether any selected service uses student_location or instructor_location
+  const anyServiceUsesStudentLocation = selected.some(
+    (svc) => 'student_location' in svc.format_prices
+  );
+  const anyServiceUsesInstructorLocation = selected.some(
+    (svc) => 'instructor_location' in svc.format_prices
+  );
 
   const servicesByCategory = useMemo(() => {
     const map: Record<string, CategoryServiceDetail[]> = {};
@@ -302,26 +504,20 @@ function Step3SkillsPricingInner() {
     return groupedByCategory;
   }, [categories, servicesByCategory, subcategoryNameById, subcategoryOrderById]);
 
-  const floorViolationsByService = useMemo(() => {
-    const map = new Map<string, FloorViolation[]>();
+  const formatViolationsByService = useMemo(() => {
+    const map = new Map<string, Map<ServiceFormat, FormatFloorViolation[]>>();
     if (!pricingFloors) {
       return map;
     }
 
     selected.forEach((service) => {
-      const locationTypes = locationTypesFromCapabilities(service);
-      if (!locationTypes.length) {
-        return;
-      }
-
-      const violations = evaluatePriceFloorViolations({
-        hourlyRate: Number(service.hourly_rate),
+      const violations = evaluateFormatPriceFloorViolations({
+        formatPrices: service.format_prices,
         durationOptions: service.duration_options ?? [60],
-        locationTypes,
         floors: pricingFloors,
       });
 
-      if (violations.length > 0) {
+      if (violations.size > 0) {
         map.set(service.catalog_service_id, violations);
       }
     });
@@ -329,7 +525,7 @@ function Step3SkillsPricingInner() {
     return map;
   }, [pricingFloors, selected]);
 
-  const hasFloorViolations = floorViolationsByService.size > 0;
+  const hasFloorViolations = formatViolationsByService.size > 0;
 
   const catalogLoadError = useMemo(() => {
     if (categoriesError) {
@@ -472,7 +668,6 @@ function Step3SkillsPricingInner() {
         }
 
         const catalogEntry = serviceCatalogById.get(catalogServiceId);
-        const capabilities = resolveCapabilitiesFromService(service);
         const eligibleAgeGroups = normalizeAudienceGroups(
           catalogEntry?.eligible_age_groups,
           [...ALL_AUDIENCE_GROUPS]
@@ -493,6 +688,19 @@ function Step3SkillsPricingInner() {
               : [...eligibleAgeGroups],
         };
 
+        // Resolve format_prices from API response
+        const rawFormatPrices = Array.isArray(service['format_prices'])
+          ? (service['format_prices'] as Array<Record<string, unknown>>)
+          : [];
+        const apiFormatPrices = rawFormatPrices.length > 0
+          ? payloadToFormatPriceState(
+              rawFormatPrices.map((fp) => ({
+                format: String(fp['format'] ?? '') as 'student_location' | 'instructor_location' | 'online',
+                hourly_rate: Number(fp['hourly_rate'] ?? 0),
+              }))
+            )
+          : defaultFormatPrices(effectiveHasServiceAreas, effectiveHasTeachingLocations);
+
         accumulator.push({
           catalog_service_id: catalogServiceId,
           subcategory_id:
@@ -505,7 +713,7 @@ function Step3SkillsPricingInner() {
               : isNonEmptyString(service['service_catalog_name'])
               ? String(service['service_catalog_name'])
               : catalogEntry?.name) ?? 'Unknown Service',
-          hourly_rate: String(service['hourly_rate'] ?? ''),
+          format_prices: apiFormatPrices,
           description: String(service['description'] || ''),
           equipment: Array.isArray(service['equipment_required'])
             ? service['equipment_required'].join(', ')
@@ -516,11 +724,6 @@ function Step3SkillsPricingInner() {
             Array.isArray(service['duration_options']) && service['duration_options'].length
               ? (service['duration_options'] as number[])
               : [60],
-          offers_travel: hasServiceAreas ? capabilities.offers_travel : false,
-          offers_at_location: hasTeachingLocations
-            ? capabilities.offers_at_location
-            : false,
-          offers_online: capabilities.offers_online,
         });
 
         return accumulator;
@@ -531,17 +734,17 @@ function Step3SkillsPricingInner() {
     prefilledFromProfileRef.current = true;
     setSelected(mapped);
   }, [
-    hasServiceAreas,
-    hasTeachingLocations,
+    effectiveHasServiceAreas,
+    effectiveHasTeachingLocations,
     isAuthenticated,
     rawData.profile?.services,
-    resolveCapabilitiesFromService,
     serviceCatalogById,
     user,
   ]);
 
+  // When service areas or teaching locations are removed, disable corresponding formats
   useEffect(() => {
-    if (hasServiceAreas && hasTeachingLocations) {
+    if (effectiveHasServiceAreas && effectiveHasTeachingLocations) {
       return;
     }
 
@@ -549,12 +752,14 @@ function Step3SkillsPricingInner() {
       let changed = false;
       const next = previous.map((service) => {
         let updated = service;
-        if (!hasServiceAreas && updated.offers_travel) {
-          updated = { ...updated, offers_travel: false };
+        if (!effectiveHasServiceAreas && 'student_location' in updated.format_prices) {
+          const { student_location: _removed, ...rest } = updated.format_prices;
+          updated = { ...updated, format_prices: rest };
           changed = true;
         }
-        if (!hasTeachingLocations && updated.offers_at_location) {
-          updated = { ...updated, offers_at_location: false };
+        if (!effectiveHasTeachingLocations && 'instructor_location' in updated.format_prices) {
+          const { instructor_location: _removed, ...rest } = updated.format_prices;
+          updated = { ...updated, format_prices: rest };
           changed = true;
         }
         return updated;
@@ -562,7 +767,7 @@ function Step3SkillsPricingInner() {
 
       return changed ? next : previous;
     });
-  }, [hasServiceAreas, hasTeachingLocations]);
+  }, [effectiveHasServiceAreas, effectiveHasTeachingLocations]);
 
   useEffect(() => {
     if (!selected.length || !serviceCatalogById.size) {
@@ -655,13 +860,12 @@ function Step3SkillsPricingInner() {
         catalog_service_id: service.id,
         subcategory_id: service.subcategory_id,
         name: service.name,
-        hourly_rate: '',
+        format_prices: defaultFormatPrices(effectiveHasServiceAreas, effectiveHasTeachingLocations),
         description: '',
         equipment: '',
         filter_selections: defaultFilterSelections(eligibleAgeGroups),
         eligible_age_groups: eligibleAgeGroups,
         duration_options: [60],
-        ...defaultCapabilities(),
       },
     ]);
   };
@@ -692,41 +896,38 @@ function Step3SkillsPricingInner() {
       setSaving(true);
       setError(null);
 
-      const hasInvalidCapabilities = selected.some((service) =>
-        !hasAnyLocationOption({
-          offers_travel: hasServiceAreas ? service.offers_travel : false,
-          offers_at_location: hasTeachingLocations ? service.offers_at_location : false,
-          offers_online: service.offers_online,
-        })
+      const hasInvalidFormats = selected.some(
+        (service) => !hasAnyFormatEnabled(service.format_prices)
       );
 
-      if (hasInvalidCapabilities) {
+      if (hasInvalidFormats) {
         toast.error(
-          'Select at least one way to offer this skill (travel, at your studio, or online)'
+          'Enable at least one lesson format and set a rate for each selected skill'
         );
         setSaving(false);
         return;
       }
 
       if (pricingFloors && hasFloorViolations) {
-        const firstViolation = floorViolationsByService.entries().next();
+        const firstViolation = formatViolationsByService.entries().next();
         if (!firstViolation.done) {
-          const [serviceId, violations] = firstViolation.value;
-          const violation = violations[0];
-          if (!violation) {
-            setSaving(false);
-            return;
+          const [serviceId, violationsMap] = firstViolation.value;
+          const firstFormat = violationsMap.entries().next();
+          if (!firstFormat.done) {
+            const [, formatViolations] = firstFormat.value;
+            const violation = formatViolations[0];
+            if (violation) {
+              const serviceName =
+                selected.find((service) => service.catalog_service_id === serviceId)?.name ||
+                'this service';
+
+              setError(
+                `Minimum price for a ${violation.duration}-minute private session is $${formatCents(violation.floorCents)} (current $${formatCents(violation.baseCents)}). Please update the rate for ${serviceName}.`
+              );
+              setSaving(false);
+              return;
+            }
           }
-
-          const serviceName =
-            selected.find((service) => service.catalog_service_id === serviceId)?.name ||
-            'this service';
-
-          setError(
-            `Minimum price for a ${violation.modalityLabel} ${violation.duration}-minute private session is $${formatCents(violation.floorCents)} (current $${formatCents(violation.baseCents)}). Please update the rate for ${serviceName}.`
-          );
-          setSaving(false);
-          return;
         }
       }
 
@@ -757,66 +958,94 @@ function Step3SkillsPricingInner() {
         return;
       }
 
-      const payload = {
-        services: selected
-          .filter((service) => service.hourly_rate.trim() !== '')
-          .map((service) => {
-            const normalizedSelections = normalizeFilterSelections(
-              service.filter_selections
-            );
-            const ageGroups = normalizeAudienceGroups(
-              normalizedSelections['age_groups'],
-              service.eligible_age_groups
-            );
+      // Save service areas before the profile PUT (backend validates they exist)
+      if (anyServiceUsesStudentLocation && selectedNeighborhoods.size > 0) {
+        const neighborhoodIds = [...selectedNeighborhoods];
+        const areasRes = await fetchWithAuth('/api/v1/addresses/service-areas/me', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ neighborhood_ids: neighborhoodIds }),
+        });
+        if (!areasRes.ok) {
+          setError('Failed to save service areas. Please try again.');
+          setSaving(false);
+          return;
+        }
+      }
 
-            const skillLevelSelections = normalizeSkillLevels(
-              normalizedSelections['skill_level']
-            );
+      const servicesPayload = selected
+        .filter((service) => hasAnyFormatEnabled(service.format_prices))
+        .map((service) => {
+          const normalizedSelections = normalizeFilterSelections(
+            service.filter_selections
+          );
+          const ageGroups = normalizeAudienceGroups(
+            normalizedSelections['age_groups'],
+            service.eligible_age_groups
+          );
 
-            const taxonomyFilterSelections: FilterSelections = {
-              ...normalizedSelections,
-              skill_level: [...skillLevelSelections],
-            };
-            delete taxonomyFilterSelections['age_groups'];
+          const skillLevelSelections = normalizeSkillLevels(
+            normalizedSelections['skill_level']
+          );
 
-            for (const key of Object.keys(taxonomyFilterSelections)) {
-              if ((taxonomyFilterSelections[key] ?? []).length === 0) {
-                delete taxonomyFilterSelections[key];
-              }
+          const taxonomyFilterSelections: FilterSelections = {
+            ...normalizedSelections,
+            skill_level: [...skillLevelSelections],
+          };
+          delete taxonomyFilterSelections['age_groups'];
+
+          for (const key of Object.keys(taxonomyFilterSelections)) {
+            if ((taxonomyFilterSelections[key] ?? []).length === 0) {
+              delete taxonomyFilterSelections[key];
             }
+          }
 
-            return {
-              service_catalog_id: service.catalog_service_id,
-              hourly_rate: Number(service.hourly_rate),
-              age_groups: ageGroups.length > 0 ? ageGroups : undefined,
-              description:
-                service.description && service.description.trim()
-                  ? service.description.trim()
-                  : undefined,
-              duration_options: (
-                service.duration_options && service.duration_options.length
-                  ? service.duration_options
-                  : [60]
-              ).sort((a, b) => a - b),
-              filter_selections:
-                Object.keys(taxonomyFilterSelections).length > 0
-                  ? taxonomyFilterSelections
-                  : undefined,
-              equipment_required:
-                service.equipment && service.equipment.trim()
-                  ? service.equipment
-                      .split(',')
-                      .map((entry) => entry.trim())
-                      .filter((entry) => entry.length > 0)
-                  : undefined,
-              offers_travel: hasServiceAreas ? service.offers_travel : false,
-              offers_at_location: hasTeachingLocations
-                ? service.offers_at_location
-                : false,
-              offers_online: service.offers_online,
-            };
-          }),
+          return {
+            service_catalog_id: service.catalog_service_id,
+            format_prices: formatPricesToPayload(service.format_prices),
+            age_groups: ageGroups.length > 0 ? ageGroups : undefined,
+            description:
+              service.description && service.description.trim()
+                ? service.description.trim()
+                : undefined,
+            duration_options: (
+              service.duration_options && service.duration_options.length
+                ? service.duration_options
+                : [60]
+            ).sort((a, b) => a - b),
+            filter_selections:
+              Object.keys(taxonomyFilterSelections).length > 0
+                ? taxonomyFilterSelections
+                : undefined,
+            equipment_required:
+              service.equipment && service.equipment.trim()
+                ? service.equipment
+                    .split(',')
+                    .map((entry) => entry.trim())
+                    .filter((entry) => entry.length > 0)
+                : undefined,
+          };
+        });
+
+      // Include teaching locations and public spaces in profile payload
+      // (backend saves these before validating services)
+      const payload: Record<string, unknown> = {
+        services: servicesPayload,
       };
+
+      if (anyServiceUsesInstructorLocation && preferredLocations.length > 0) {
+        payload['preferred_teaching_locations'] = preferredLocations.map((address) => ({
+          address,
+          label: preferredLocationTitles[address] || null,
+        }));
+      }
+
+      if (anyServiceUsesInstructorLocation && neutralPlaces.length > 0) {
+        payload['preferred_public_spaces'] = neutralPlaces.map((address) => ({
+          address,
+          label: null,
+        }));
+      }
 
       const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, {
         method: 'PUT',
@@ -848,9 +1077,7 @@ function Step3SkillsPricingInner() {
       }
       const message =
         saveError instanceof Error ? saveError.message : 'Failed to save';
-      if (!isLocationCapabilityError(message)) {
-        setError(message);
-      }
+      setError(message);
     } finally {
       setSaving(false);
     }
@@ -892,7 +1119,7 @@ function Step3SkillsPricingInner() {
     return <div className="p-8">Loading…</div>;
   }
 
-  const showError = Boolean(error) && !isLocationCapabilityError(error ?? '');
+  const showError = Boolean(error);
 
   return (
     <div className="min-h-screen insta-onboarding-page">
@@ -1174,22 +1401,20 @@ function Step3SkillsPricingInner() {
           ) : (
             <div className="grid gap-4">
               {selected.map((service) => {
-                const violations = pricingFloors
-                  ? floorViolationsByService.get(service.catalog_service_id) ?? []
-                  : [];
+                const serviceViolationsMap = pricingFloors
+                  ? formatViolationsByService.get(service.catalog_service_id)
+                  : undefined;
 
-                const effectiveOffersTravel = hasServiceAreas
-                  ? service.offers_travel
-                  : false;
-                const effectiveOffersAtLocation = hasTeachingLocations
-                  ? service.offers_at_location
-                  : false;
-
-                const effectiveCapabilities: ServiceCapabilities = {
-                  offers_travel: effectiveOffersTravel,
-                  offers_at_location: effectiveOffersAtLocation,
-                  offers_online: service.offers_online,
-                };
+                // Build per-format error strings for FormatPricingCards
+                const formatErrors: Partial<Record<ServiceFormat, string>> = {};
+                if (serviceViolationsMap) {
+                  for (const [fmt, violations] of serviceViolationsMap) {
+                    const first = violations[0];
+                    if (first) {
+                      formatErrors[fmt] = `Min $${formatCents(first.floorCents)} for ${first.duration}min (current $${formatCents(first.baseCents)})`;
+                    }
+                  }
+                }
 
                 const selectedAgeGroups = normalizeAudienceGroups(
                   service.filter_selections['age_groups'],
@@ -1207,14 +1432,6 @@ function Step3SkillsPricingInner() {
                     <div className="flex items-start justify-between mb-4">
                       <div>
                         <div className="text-lg font-medium text-gray-900 dark:text-gray-100">{service.name}</div>
-                        <div className="flex items-center gap-3 mt-2">
-                          <div className="flex items-center gap-1">
-                            <span className="text-2xl font-bold text-[#7E22CE]">
-                              ${service.hourly_rate || '0'}
-                            </span>
-                            <span className="text-sm text-gray-600 dark:text-gray-400">/hour</span>
-                          </div>
-                        </div>
                       </div>
 
                       <button
@@ -1247,55 +1464,38 @@ function Step3SkillsPricingInner() {
                       </button>
                     </div>
 
-                    <div className="mb-4 bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Hourly Rate:</span>
-                        <div className="flex items-center gap-1">
-                          <span className="text-gray-500 dark:text-gray-400">$</span>
-                          <input
-                            type="number"
-                            min={1}
-                            step="1"
-                            inputMode="decimal"
-                            className="w-24 rounded-md border border-gray-300 dark:border-gray-700 px-2 py-1.5 text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500"
-                            placeholder="75"
-                            value={service.hourly_rate}
-                            onChange={(event) =>
-                              updateSelectedService(
-                                service.catalog_service_id,
-                                (currentService) => ({
-                                  ...currentService,
-                                  hourly_rate: event.target.value,
-                                })
-                              )
+                    <div className="mb-4">
+                      <FormatPricingCards
+                        formatPrices={service.format_prices}
+                        onChange={(next) =>
+                          updateSelectedService(
+                            service.catalog_service_id,
+                            (currentService) => ({
+                              ...currentService,
+                              format_prices: next,
+                            })
+                          )
+                        }
+                        priceFloors={pricingFloors}
+                        durationOptions={service.duration_options}
+                        takeHomePct={instructorTakeHomePct}
+                        platformFeeLabel={platformFeeLabel}
+                        {...(Object.keys(formatErrors).length > 0
+                          ? { formatErrors }
+                          : {})}
+                        {...(!effectiveHasServiceAreas
+                          ? {
+                              studentLocationDisabled: true,
+                              studentLocationDisabledReason:
+                                'Add service areas below to enable this format',
                             }
-                          />
-                          <span className="text-gray-500 dark:text-gray-400">/hr</span>
-                        </div>
-                      </div>
+                          : {})}
+                      />
 
-                      {service.hourly_rate && Number(service.hourly_rate) > 0 && (
-                        <div className="mt-2 text-xs text-gray-600 dark:text-gray-400">
-                          You&apos;ll earn{' '}
-                          <span className="font-semibold text-[#7E22CE]">
-                            ${Number(Number(service.hourly_rate) * instructorTakeHomePct).toFixed(2)}
-                          </span>{' '}
-                          after the {platformFeeLabel} platform fee
-                        </div>
-                      )}
-
-                      {violations.length > 0 && (
-                        <div className="mt-2 space-y-1 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                          {violations.map((violation, index) => (
-                            <div
-                              key={`${violation.modalityLabel}-${violation.duration}-${index}`}
-                            >
-                              Minimum for {violation.modalityLabel} {violation.duration}
-                              -minute private session is ${formatCents(violation.floorCents)}
-                              {' '}(current ${formatCents(violation.baseCents)}).
-                            </div>
-                          ))}
-                        </div>
+                      {Object.keys(service.format_prices).length === 0 && (
+                        <p className="text-xs text-red-600 mt-2">
+                          Enable at least one lesson format for this skill.
+                        </p>
                       )}
                     </div>
 
@@ -1344,135 +1544,6 @@ function Step3SkillsPricingInner() {
                             );
                           })}
                         </div>
-                      </div>
-
-                      <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">
-                          How do you offer this skill?
-                        </label>
-                        <div className="space-y-3">
-                          {(() => {
-                            const travelDisabled = !hasServiceAreas;
-                            const travelMessage = travelDisabled
-                              ? 'You need at least one service area to offer travel lessons'
-                              : null;
-                            const atLocationDisabled = !hasTeachingLocations;
-                            const atLocationMessage = atLocationDisabled
-                              ? 'You need at least one teaching location to offer studio lessons'
-                              : null;
-
-                            return (
-                              <>
-                                <div
-                                  className={`rounded-md border border-gray-200 dark:border-gray-700 p-3 ${
-                                    travelDisabled ? 'opacity-60 cursor-not-allowed' : ''
-                                  }`}
-                                  title={travelMessage ?? undefined}
-                                >
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                        I travel to students
-                                      </p>
-                                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                                        (Within your service areas)
-                                      </p>
-                                    </div>
-                                    <ToggleSwitch
-                                      checked={effectiveOffersTravel}
-                                      onChange={() =>
-                                        updateSelectedService(
-                                          service.catalog_service_id,
-                                          (currentService) => ({
-                                            ...currentService,
-                                            offers_travel: !currentService.offers_travel,
-                                          })
-                                        )
-                                      }
-                                      disabled={travelDisabled}
-                                      ariaLabel="I travel to students"
-                                      {...(travelMessage ? { title: travelMessage } : {})}
-                                    />
-                                  </div>
-                                  {travelMessage && (
-                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{travelMessage}</p>
-                                  )}
-                                </div>
-
-                                <div
-                                  className={`rounded-md border border-gray-200 dark:border-gray-700 p-3 ${
-                                    atLocationDisabled ? 'opacity-60 cursor-not-allowed' : ''
-                                  }`}
-                                  title={atLocationMessage ?? undefined}
-                                >
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                        Students come to me
-                                      </p>
-                                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                                        (At your teaching location)
-                                      </p>
-                                    </div>
-                                    <ToggleSwitch
-                                      checked={effectiveOffersAtLocation}
-                                      onChange={() =>
-                                        updateSelectedService(
-                                          service.catalog_service_id,
-                                          (currentService) => ({
-                                            ...currentService,
-                                            offers_at_location:
-                                              !currentService.offers_at_location,
-                                          })
-                                        )
-                                      }
-                                      disabled={atLocationDisabled}
-                                      ariaLabel="Students come to me"
-                                      {...(atLocationMessage
-                                        ? { title: atLocationMessage }
-                                        : {})}
-                                    />
-                                  </div>
-                                  {atLocationMessage && (
-                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                      {atLocationMessage}
-                                    </p>
-                                  )}
-                                </div>
-
-                                <div className="rounded-md border border-gray-200 dark:border-gray-700 p-3">
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                        Online lessons
-                                      </p>
-                                      <p className="text-xs text-gray-500 dark:text-gray-400">(Video call)</p>
-                                    </div>
-                                    <ToggleSwitch
-                                      checked={service.offers_online}
-                                      onChange={() =>
-                                        updateSelectedService(
-                                          service.catalog_service_id,
-                                          (currentService) => ({
-                                            ...currentService,
-                                            offers_online: !currentService.offers_online,
-                                          })
-                                        )
-                                      }
-                                      ariaLabel="Online lessons"
-                                    />
-                                  </div>
-                                </div>
-                              </>
-                            );
-                          })()}
-                        </div>
-
-                        {!hasAnyLocationOption(effectiveCapabilities) && (
-                          <p className="text-xs text-red-600 mt-2">
-                            Select at least one location option for this skill.
-                          </p>
-                        )}
                       </div>
 
                       <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
@@ -1636,6 +1707,50 @@ function Step3SkillsPricingInner() {
             </div>
           )}
         </div>
+
+        {/* Service Areas — shown when any service has student_location enabled */}
+        {anyServiceUsesStudentLocation && (
+          <div className="mt-6">
+            <div className="insta-onboarding-divider" />
+            <ServiceAreasCard
+              context="onboarding"
+              globalNeighborhoodFilter={globalNeighborhoodFilter}
+              onGlobalFilterChange={(value) => setGlobalNeighborhoodFilter(value)}
+              nycBoroughs={NYC_BOROUGHS}
+              boroughNeighborhoods={boroughNeighborhoods}
+              selectedNeighborhoods={selectedNeighborhoods}
+              onToggleNeighborhood={toggleNeighborhood}
+              openBoroughs={openBoroughsMain}
+              onToggleBoroughAccordion={(borough) => toggleMainBoroughOpen(borough)}
+              loadBoroughNeighborhoods={loadBoroughNeighborhoods}
+              toggleBoroughAll={toggleBoroughAll}
+              boroughAccordionRefs={boroughAccordionRefs}
+              idToItem={idToItem}
+              isNYC={isNYC}
+              formatNeighborhoodName={toTitle}
+            />
+          </div>
+        )}
+
+        {/* Preferred Locations — shown when any service has instructor_location enabled */}
+        {anyServiceUsesInstructorLocation && (
+          <div className="mt-6">
+            <div className="insta-onboarding-divider" />
+            <PreferredLocationsCard
+              context="onboarding"
+              preferredAddress={preferredAddress}
+              setPreferredAddress={setPreferredAddress}
+              preferredLocations={preferredLocations}
+              setPreferredLocations={setPreferredLocations}
+              preferredLocationTitles={preferredLocationTitles}
+              setPreferredLocationTitles={setPreferredLocationTitles}
+              neutralLocations={neutralLocations}
+              setNeutralLocations={setNeutralLocations}
+              neutralPlaces={neutralPlaces}
+              setNeutralPlaces={setNeutralPlaces}
+            />
+          </div>
+        )}
 
         <div className="insta-surface-card mt-0 sm:mt-8 p-4 sm:p-6">
           <div className="flex items-start justify-between mb-2">

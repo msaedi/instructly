@@ -1,5 +1,7 @@
 import { logger } from '@/lib/logger';
 import type { ServiceLocationType } from '@/types/instructor';
+import type { FormatPriceState, ServiceFormat } from './formatPricing';
+import { FORMAT_CARD_CONFIGS } from './formatPricing';
 
 export type PriceFloorConfig = {
   private_in_person: number;
@@ -96,4 +98,59 @@ export function evaluatePriceFloorViolations(options: {
     });
   });
   return violations;
+}
+
+export type FormatFloorViolation = {
+  format: ServiceFormat;
+  duration: number;
+  floorCents: number;
+  baseCents: number;
+};
+
+/**
+ * Evaluate price floor violations per-format.
+ * Returns a Map keyed by format — only formats with violations are present.
+ */
+export function evaluateFormatPriceFloorViolations(options: {
+  formatPrices: FormatPriceState;
+  durationOptions: number[];
+  floors: PriceFloorConfig;
+}): Map<ServiceFormat, FormatFloorViolation[]> {
+  const { formatPrices, durationOptions, floors } = options;
+  const result = new Map<ServiceFormat, FormatFloorViolation[]>();
+
+  const durations = (durationOptions.length > 0 ? durationOptions : [60])
+    .map((v) => Number(v))
+    .filter((v) => Number.isFinite(v) && v > 0);
+  if (durations.length === 0) return result;
+
+  for (const config of FORMAT_CARD_CONFIGS) {
+    const rateStr = formatPrices[config.format];
+    if (rateStr === undefined || rateStr === '') continue;
+
+    const hourlyRate = Number(rateStr);
+    if (!Number.isFinite(hourlyRate) || hourlyRate <= 0) continue;
+
+    const modality: NormalizedModality = config.floorModality === 'in_person' ? 'in_person' : 'online';
+    const violations: FormatFloorViolation[] = [];
+
+    for (const duration of durations) {
+      const floorCents = computePriceFloorCents(floors, modality, duration);
+      const baseCents = computeBasePriceCents(hourlyRate, duration);
+      if (baseCents < floorCents) {
+        violations.push({
+          format: config.format,
+          duration,
+          floorCents,
+          baseCents,
+        });
+      }
+    }
+
+    if (violations.length > 0) {
+      result.set(config.format, violations);
+    }
+  }
+
+  return result;
 }
