@@ -213,7 +213,10 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
         try:
             result = (
                 self.db.query(InstructorService)
-                .options(joinedload(InstructorService.catalog_entry))
+                .options(
+                    joinedload(InstructorService.catalog_entry),
+                    joinedload(InstructorService.format_prices),
+                )
                 .filter(InstructorService.id == service_id, InstructorService.is_active == True)
                 .first()
             )

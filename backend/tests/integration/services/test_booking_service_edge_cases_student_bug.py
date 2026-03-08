@@ -28,6 +28,14 @@ except ModuleNotFoundError:  # pragma: no cover
     from tests.conftest import add_service_areas_for_boroughs
 
 
+def _format_prices(hourly_rate: float) -> list[dict[str, float | str]]:
+    return [
+        {"format": "student_location", "hourly_rate": hourly_rate},
+        {"format": "instructor_location", "hourly_rate": hourly_rate},
+        {"format": "online", "hourly_rate": hourly_rate},
+    ]
+
+
 @pytest.fixture(autouse=True)
 def _no_price_floors(disable_price_floors):
     """Double-booking regression uses sub-floor rates."""
@@ -106,8 +114,7 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session, cata
     math_service = Service(
         instructor_profile_id=profile1.id,
         service_catalog_id=math_catalog.id,
-        hourly_rate=50.0,
-        offers_travel=True,
+        format_prices=_format_prices(50.0),
         is_active=True,
     )
     db.add(math_service)
@@ -155,11 +162,11 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session, cata
     piano_service = Service(
         instructor_profile_id=profile2.id,
         service_catalog_id=piano_catalog.id,
-        hourly_rate=75.0,
-        offers_online=True,
+        format_prices=_format_prices(75.0),
         is_active=True,
     )
     db.add(piano_service)
+    db.flush()
 
     # Add availability for both instructors on the same day
     tomorrow = date.today() + timedelta(days=1)

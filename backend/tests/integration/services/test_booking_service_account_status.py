@@ -404,7 +404,9 @@ class TestBookingServiceAccountStatus:
         service = Service(
             instructor_profile_id=profile.id,
             service_catalog_id=available_service.id,
-            hourly_rate=100,
+            format_prices=[
+                {"format": "online", "hourly_rate": 100},
+            ],
             duration_options=[60],
             is_active=True,
         )
@@ -469,7 +471,9 @@ class TestBookingServiceAccountStatus:
         service = Service(
             instructor_profile_id=profile.id,
             service_catalog_id=available_service.id,
-            hourly_rate=90,
+            format_prices=[
+                {"format": "online", "hourly_rate": 90},
+            ],
             duration_options=[60],
             is_active=True,
         )

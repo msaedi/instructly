@@ -17,6 +17,7 @@ from app.schemas.service_catalog_responses import (
     CategoryWithServices,
     TopCategoryItem,
 )
+from app.schemas.service_pricing import ServiceFormatPriceIn
 from app.schemas.subcategory import (
     CategoryTreeResponse,
     CategoryWithSubcategories,
@@ -36,6 +37,10 @@ from app.schemas.taxonomy_filter import (
 
 _ULID = "01JAAAAAAAAAAAAAAAAAAAAAAА"  # 26-char test ID
 _ULID2 = "01JBBBBBBBBBBBBBBBBBBBBBBB"
+
+
+def _format_prices(rate: float = 50.0) -> list[ServiceFormatPriceIn]:
+    return [ServiceFormatPriceIn(format="online", hourly_rate=rate)]
 
 
 # ── 2A. Subcategory schemas ───────────────────────────────────
@@ -260,10 +265,7 @@ class TestInstructorSchemaUpdates:
 
         s = ServiceCreate(
             service_catalog_id=_ULID,
-            hourly_rate=50.0,
-            offers_travel=False,
-            offers_at_location=False,
-            offers_online=True,
+            format_prices=_format_prices(),
             filter_selections={"grade_level": ["elementary"]},
         )
         assert s.filter_selections == {"grade_level": ["elementary"]}
@@ -274,10 +276,7 @@ class TestInstructorSchemaUpdates:
 
         s = ServiceCreate(
             service_catalog_id=_ULID,
-            hourly_rate=50.0,
-            offers_travel=False,
-            offers_at_location=False,
-            offers_online=True,
+            format_prices=_format_prices(),
         )
         assert s.filter_selections is None or s.filter_selections == {}
 
@@ -287,10 +286,7 @@ class TestInstructorSchemaUpdates:
 
         s = ServiceCreate(
             service_catalog_id=_ULID,
-            hourly_rate=50.0,
-            offers_travel=False,
-            offers_at_location=False,
-            offers_online=True,
+            format_prices=_format_prices(),
             filter_selections={},
         )
         assert s.filter_selections == {}

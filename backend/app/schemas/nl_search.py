@@ -16,6 +16,8 @@ from typing import Dict, List, Literal, Optional, Union
 from pydantic import Field
 
 from ._strict_base import StrictModel
+from .base import Money
+from .service_pricing import ServiceFormatPriceOut
 
 # =============================================================================
 # Instructor-Level Result Schemas (New Architecture)
@@ -62,7 +64,11 @@ class ServiceMatch(StrictModel):
     service_catalog_id: str = Field(..., description="Service catalog ID (for click tracking)")
     name: str = Field(..., description="Service name")
     description: Optional[str] = Field(None, description="Service description")
-    price_per_hour: int = Field(..., ge=0, description="Hourly rate in dollars")
+    min_hourly_rate: Money = Field(..., ge=0, description="Lowest enabled hourly rate")
+    format_prices: List[ServiceFormatPriceOut] = Field(
+        default_factory=list,
+        description="Enabled per-format hourly pricing rows for this service",
+    )
     relevance_score: float = Field(..., ge=0, le=1, description="Semantic match score")
     offers_travel: Optional[bool] = Field(
         None, description="Instructor travels to student for this service"
@@ -145,7 +151,11 @@ class NLSearchResult(StrictModel):
     instructor_id: str = Field(..., description="Instructor user ID")
     name: str = Field(..., description="Service name")
     description: Optional[str] = Field(None, description="Service description")
-    price_per_hour: int = Field(..., description="Hourly rate in dollars")
+    min_hourly_rate: Money = Field(..., description="Lowest enabled hourly rate")
+    format_prices: List[ServiceFormatPriceOut] = Field(
+        default_factory=list,
+        description="Enabled per-format hourly pricing rows for this service",
+    )
     rank: int = Field(..., ge=1, description="Result ranking position")
     score: float = Field(..., ge=0, le=2, description="Final ranking score")
     scores: NLSearchScores = Field(..., description="Component score breakdown")

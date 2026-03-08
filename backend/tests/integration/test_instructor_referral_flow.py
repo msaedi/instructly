@@ -72,7 +72,9 @@ def _get_instructor_service(db: Session, profile: InstructorProfile) -> Instruct
     service = InstructorService(
         instructor_profile_id=profile.id,
         service_catalog_id=catalog.id,
-        hourly_rate=75.0,
+        format_prices=[
+            {"format": "online", "hourly_rate": 75.0},
+        ],
         duration_options=[60],
         is_active=True,
     )

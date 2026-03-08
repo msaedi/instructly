@@ -540,7 +540,6 @@ def upgrade() -> None:
         sa.Column("id", sa.String(26), nullable=False),
         sa.Column("instructor_profile_id", sa.String(26), nullable=False),
         sa.Column("service_catalog_id", sa.String(26), nullable=False),
-        sa.Column("hourly_rate", sa.Numeric(10, 2), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("requirements", sa.Text(), nullable=True),
         sa.Column("duration_options", sa.ARRAY(sa.Integer), nullable=False, server_default="{60}"),
@@ -609,9 +608,6 @@ def upgrade() -> None:
     )
 
     op.create_check_constraint(
-        "check_hourly_rate_positive", "instructor_services", "hourly_rate > 0"
-    )
-    op.create_check_constraint(
         "check_duration_options_not_empty",
         "instructor_services",
         "array_length(duration_options, 1) > 0",
@@ -620,6 +616,55 @@ def upgrade() -> None:
         "check_duration_options_range",
         "instructor_services",
         "duration_options[1] >= 15 AND duration_options[1] <= 720",
+    )
+
+    op.create_table(
+        "service_format_pricing",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("service_id", sa.String(26), nullable=False),
+        sa.Column("format", sa.String(32), nullable=False),
+        sa.Column("hourly_rate", sa.Numeric(10, 2), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=True,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            onupdate=sa.func.now(),
+            nullable=True,
+        ),
+        sa.ForeignKeyConstraint(["service_id"], ["instructor_services.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("service_id", "format", name="uq_service_format_pricing_service_format"),
+    )
+    op.create_index(
+        "idx_service_format_pricing_service_id",
+        "service_format_pricing",
+        ["service_id"],
+    )
+    op.create_index(
+        "idx_service_format_pricing_format_hourly_rate",
+        "service_format_pricing",
+        ["format", "hourly_rate"],
+    )
+    op.create_check_constraint(
+        "check_service_format_price_positive",
+        "service_format_pricing",
+        "hourly_rate > 0",
+    )
+    op.create_check_constraint(
+        "check_service_format_price_cap",
+        "service_format_pricing",
+        "hourly_rate <= 1000",
+    )
+    op.create_check_constraint(
+        "check_service_format_price_format",
+        "service_format_pricing",
+        "format IN ('student_location', 'instructor_location', 'online')",
     )
 
     print("Creating bgc_webhook_log table...")
@@ -778,9 +823,24 @@ def downgrade() -> None:
     op.drop_index("ix_bgc_webhook_log_event_type_created_at", table_name="bgc_webhook_log")
     op.drop_table("bgc_webhook_log")
 
+    op.drop_constraint(
+        "check_service_format_price_format", "service_format_pricing", type_="check"
+    )
+    op.drop_constraint(
+        "check_service_format_price_cap", "service_format_pricing", type_="check"
+    )
+    op.drop_constraint(
+        "check_service_format_price_positive", "service_format_pricing", type_="check"
+    )
+    op.drop_index(
+        "idx_service_format_pricing_format_hourly_rate",
+        table_name="service_format_pricing",
+    )
+    op.drop_index("idx_service_format_pricing_service_id", table_name="service_format_pricing")
+    op.drop_table("service_format_pricing")
+
     op.drop_constraint("check_duration_options_range", "instructor_services", type_="check")
     op.drop_constraint("check_duration_options_not_empty", "instructor_services", type_="check")
-    op.drop_constraint("check_hourly_rate_positive", "instructor_services", type_="check")
     op.drop_index("idx_instructor_services_filter_selections", table_name="instructor_services")
     op.drop_index("unique_instructor_catalog_service_active", table_name="instructor_services")
     op.drop_index("ix_instructor_services_profile_active", table_name="instructor_services")

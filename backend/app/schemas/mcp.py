@@ -9,6 +9,7 @@ from typing import Any, Literal, Optional
 from pydantic import EmailStr, Field
 
 from ._strict_base import StrictModel, StrictRequestModel
+from .service_pricing import ServiceFormatPriceOut
 
 
 class MCPActor(StrictModel):
@@ -132,7 +133,11 @@ class MCPInstructorService(StrictModel):
     name: str
     slug: Optional[str] = None
     category: str
-    hourly_rate: Decimal
+    min_hourly_rate: Optional[Decimal] = None
+    format_prices: list[ServiceFormatPriceOut] = Field(default_factory=list)
+    offers_travel: bool = False
+    offers_at_location: bool = False
+    offers_online: bool = False
     is_active: bool
 
 

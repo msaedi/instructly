@@ -83,7 +83,9 @@ def midnight_fixtures(db: Session, test_instructor, test_student):
         service = Service(
             instructor_profile_id=profile.id,
             service_catalog_id=catalog_service.id,
-            hourly_rate=50.0,
+            format_prices=[
+                {"format": "online", "hourly_rate": 50.0},
+            ],
             description="Test",
             is_active=True,
         )

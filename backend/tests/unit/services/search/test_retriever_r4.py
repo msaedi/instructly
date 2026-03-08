@@ -51,7 +51,7 @@ async def test_search_skips_vector_when_text_strong(monkeypatch) -> None:
             "catalog_id": "cat_1",
             "name": "Piano",
             "description": "",
-            "price_per_hour": 50,
+            "min_hourly_rate": 50,
             "instructor_id": "inst_1",
             "text_score": 0.95,
         }
@@ -125,7 +125,7 @@ def test_vector_search_repo_wrapper() -> None:
             "catalog_id": "cat_1",
             "name": "Piano",
             "description": "",
-            "price_per_hour": 50,
+            "min_hourly_rate": 50,
             "instructor_id": "inst_1",
             "vector_score": 0.9,
         }
@@ -146,7 +146,7 @@ def test_text_search_repo_wrapper() -> None:
             "catalog_id": "cat_1",
             "name": "Piano",
             "description": "",
-            "price_per_hour": 50,
+            "min_hourly_rate": 50,
             "instructor_id": "inst_1",
             "text_score": 0.9,
         }

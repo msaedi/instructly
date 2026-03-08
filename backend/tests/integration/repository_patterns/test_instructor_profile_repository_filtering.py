@@ -194,58 +194,76 @@ class TestInstructorProfileRepositoryFiltering:
             Service(
                 instructor_profile_id=profiles[0].id,
                 service_catalog_id=catalog_map.get("Piano", catalog_services[0].id),
-                hourly_rate=80.0,
+                format_prices=[
+                    {"format": "online", "hourly_rate": 80.0},
+                ],
                 is_active=True,
             ),
             Service(
                 instructor_profile_id=profiles[0].id,
                 service_catalog_id=catalog_map.get("Guitar", catalog_services[0].id),
-                hourly_rate=70.0,
+                format_prices=[
+                    {"format": "online", "hourly_rate": 70.0},
+                ],
                 is_active=True,
             ),
             Service(
                 instructor_profile_id=profiles[0].id,
                 service_catalog_id=catalog_map.get("Music Theory", catalog_services[0].id),
-                hourly_rate=60.0,
+                format_prices=[
+                    {"format": "online", "hourly_rate": 60.0},
+                ],
                 is_active=False,
             ),
             # Jane Smith's services
             Service(
                 instructor_profile_id=profiles[1].id,
                 service_catalog_id=catalog_map.get("Yoga", catalog_services[0].id),
-                hourly_rate=65.0,
+                format_prices=[
+                    {"format": "online", "hourly_rate": 65.0},
+                ],
                 is_active=True,
             ),
             Service(
                 instructor_profile_id=profiles[1].id,
                 service_catalog_id=catalog_map.get("Meditation", catalog_services[0].id),
-                hourly_rate=50.0,
+                format_prices=[
+                    {"format": "online", "hourly_rate": 50.0},
+                ],
                 is_active=True,
             ),
             # Bob Wilson's services
             Service(
                 instructor_profile_id=profiles[2].id,
                 service_catalog_id=catalog_map.get("Piano", catalog_services[0].id),
-                hourly_rate=100.0,
+                format_prices=[
+                    {"format": "online", "hourly_rate": 100.0},
+                ],
                 is_active=True,
             ),
             Service(
                 instructor_profile_id=profiles[2].id,
                 service_catalog_id=catalog_map.get("Violin", catalog_services[0].id),
-                hourly_rate=120.0,
+                format_prices=[
+                    {"format": "online", "hourly_rate": 120.0},
+                ],
                 is_active=True,
             ),
             # Alice Brown's services
             Service(
                 instructor_profile_id=profiles[3].id,
                 service_catalog_id=catalog_map.get("Ballet", catalog_services[0].id),
-                hourly_rate=90.0,
+                format_prices=[
+                    {"format": "online", "hourly_rate": 90.0},
+                ],
                 is_active=True,
             ),
             Service(
                 instructor_profile_id=profiles[3].id,
                 service_catalog_id=catalog_map.get("Contemporary Dance", catalog_services[0].id),
-                hourly_rate=85.0,
+                format_prices=[
+                    {"format": "online", "hourly_rate": 85.0},
+                ],
                 is_active=True,
             ),
         ]
@@ -476,7 +494,7 @@ class TestInstructorProfileRepositoryFiltering:
         repository.db.flush()
 
         service = Service(
-            instructor_profile_id=profile.id, service_catalog_id=rock_catalog.id, hourly_rate=75.0, is_active=True
+            instructor_profile_id=profile.id, service_catalog_id=rock_catalog.id, format_prices=[{"format": "online", "hourly_rate": 75.0}], is_active=True
         )
         repository.db.add(service)
         repository.db.commit()

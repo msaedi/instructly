@@ -46,12 +46,22 @@ class RetrieverRepository:
 
         query = text(
             """
+            WITH service_price_summary AS (
+                SELECT
+                    sfp.service_id,
+                    MIN(sfp.hourly_rate) AS min_hourly_rate,
+                    MAX(CASE WHEN sfp.format = 'student_location' THEN 1 ELSE 0 END) AS has_student_location,
+                    MAX(CASE WHEN sfp.format = 'instructor_location' THEN 1 ELSE 0 END) AS has_instructor_location,
+                    MAX(CASE WHEN sfp.format = 'online' THEN 1 ELSE 0 END) AS has_online
+                FROM service_format_pricing sfp
+                GROUP BY sfp.service_id
+            )
             SELECT
                 ins.id as instructor_service_id,
                 sc.id as catalog_id,
                 sc.name,
                 sc.description,
-                ins.hourly_rate as price_per_hour,
+                sps.min_hourly_rate,
                 ip.user_id as instructor_id,
                 ss.id as subcategory_id,
                 ss.name as subcategory_name,
@@ -65,6 +75,7 @@ class RetrieverRepository:
             JOIN service_subcategories ss ON ss.id = sc.subcategory_id
             JOIN service_categories scat ON scat.id = ss.category_id
             JOIN instructor_services ins ON ins.service_catalog_id = sc.id
+            JOIN service_price_summary sps ON sps.service_id = ins.id
             JOIN instructor_profiles ip ON ip.id = ins.instructor_profile_id
             WHERE sc.is_active = true
                 AND ins.is_active = true
@@ -90,7 +101,8 @@ class RetrieverRepository:
                 "catalog_id": row.catalog_id,
                 "name": row.name,
                 "description": row.description,
-                "price_per_hour": int(row.price_per_hour),
+                "min_hourly_rate": float(row.min_hourly_rate),
+                "price_per_hour": float(row.min_hourly_rate),
                 "instructor_id": row.instructor_id,
                 "subcategory_id": row.subcategory_id,
                 "subcategory_name": row.subcategory_name,
@@ -122,12 +134,22 @@ class RetrieverRepository:
         """
         query = text(
             """
+            WITH service_price_summary AS (
+                SELECT
+                    sfp.service_id,
+                    MIN(sfp.hourly_rate) AS min_hourly_rate,
+                    MAX(CASE WHEN sfp.format = 'student_location' THEN 1 ELSE 0 END) AS has_student_location,
+                    MAX(CASE WHEN sfp.format = 'instructor_location' THEN 1 ELSE 0 END) AS has_instructor_location,
+                    MAX(CASE WHEN sfp.format = 'online' THEN 1 ELSE 0 END) AS has_online
+                FROM service_format_pricing sfp
+                GROUP BY sfp.service_id
+            )
             SELECT
                 ins.id as instructor_service_id,
                 sc.id as catalog_id,
                 sc.name,
                 sc.description,
-                ins.hourly_rate as price_per_hour,
+                sps.min_hourly_rate,
                 ip.user_id as instructor_id,
                 ss.id as subcategory_id,
                 ss.name as subcategory_name,
@@ -141,6 +163,7 @@ class RetrieverRepository:
             JOIN service_subcategories ss ON ss.id = sc.subcategory_id
             JOIN service_categories scat ON scat.id = ss.category_id
             JOIN instructor_services ins ON ins.service_catalog_id = sc.id
+            JOIN service_price_summary sps ON sps.service_id = ins.id
             JOIN instructor_profiles ip ON ip.id = ins.instructor_profile_id
             WHERE sc.is_active = true
                 AND ins.is_active = true
@@ -171,7 +194,8 @@ class RetrieverRepository:
                 "catalog_id": row.catalog_id,
                 "name": row.name,
                 "description": row.description,
-                "price_per_hour": int(row.price_per_hour),
+                "min_hourly_rate": float(row.min_hourly_rate),
+                "price_per_hour": float(row.min_hourly_rate),
                 "instructor_id": row.instructor_id,
                 "subcategory_id": row.subcategory_id,
                 "subcategory_name": row.subcategory_name,
@@ -201,15 +225,25 @@ class RetrieverRepository:
 
         query = text(
             """
+            WITH service_price_summary AS (
+                SELECT
+                    sfp.service_id,
+                    MIN(sfp.hourly_rate) AS min_hourly_rate,
+                    MAX(CASE WHEN sfp.format = 'student_location' THEN 1 ELSE 0 END) AS has_student_location,
+                    MAX(CASE WHEN sfp.format = 'instructor_location' THEN 1 ELSE 0 END) AS has_instructor_location,
+                    MAX(CASE WHEN sfp.format = 'online' THEN 1 ELSE 0 END) AS has_online
+                FROM service_format_pricing sfp
+                GROUP BY sfp.service_id
+            )
             SELECT
                 ins.id as instructor_service_id,
                 sc.id as catalog_id,
                 sc.name,
                 sc.description,
-                ins.hourly_rate as price_per_hour,
-                ins.offers_travel,
-                ins.offers_at_location,
-                ins.offers_online,
+                sps.min_hourly_rate,
+                CASE WHEN sps.has_student_location = 1 THEN true ELSE false END AS offers_travel,
+                CASE WHEN sps.has_instructor_location = 1 THEN true ELSE false END AS offers_at_location,
+                CASE WHEN sps.has_online = 1 THEN true ELSE false END AS offers_online,
                 ip.user_id as instructor_id,
                 ins.duration_options,
                 ins.filter_selections,
@@ -218,6 +252,7 @@ class RetrieverRepository:
                 scat.name as category_name
             FROM instructor_services ins
             JOIN service_catalog sc ON sc.id = ins.service_catalog_id
+            JOIN service_price_summary sps ON sps.service_id = ins.id
             JOIN service_subcategories ss ON ss.id = sc.subcategory_id
             JOIN service_categories scat ON scat.id = ss.category_id
             JOIN instructor_profiles ip ON ip.id = ins.instructor_profile_id
@@ -237,7 +272,8 @@ class RetrieverRepository:
                 "catalog_id": str(row.catalog_id),
                 "name": row.name,
                 "description": row.description,
-                "price_per_hour": int(row.price_per_hour),
+                "min_hourly_rate": float(row.min_hourly_rate),
+                "price_per_hour": float(row.min_hourly_rate),
                 "offers_travel": row.offers_travel,
                 "offers_at_location": row.offers_at_location,
                 "offers_online": row.offers_online,
@@ -270,7 +306,7 @@ class RetrieverRepository:
         if not instructor_ids:
             return []
 
-        query = text(
+        query = text(  # nosec B608
             """
             SELECT
                 ip.user_id as instructor_id,
@@ -320,7 +356,7 @@ class RetrieverRepository:
         if not instructor_ids:
             return []
 
-        query = text(
+        query = text(  # nosec B608
             """
             SELECT
                 r.instructor_id,
@@ -547,14 +583,24 @@ class RetrieverRepository:
 
         query = text(
             """
-            WITH matched_services AS (
+            WITH service_price_summary AS (
+                SELECT
+                    sfp.service_id,
+                    MIN(sfp.hourly_rate) AS min_hourly_rate,
+                    MAX(CASE WHEN sfp.format = 'student_location' THEN 1 ELSE 0 END) AS has_student_location,
+                    MAX(CASE WHEN sfp.format = 'instructor_location' THEN 1 ELSE 0 END) AS has_instructor_location,
+                    MAX(CASE WHEN sfp.format = 'online' THEN 1 ELSE 0 END) AS has_online
+                FROM service_format_pricing sfp
+                GROUP BY sfp.service_id
+            ),
+            matched_services AS (
                 -- Step 1: Vector search to find matching services
                 SELECT
                     ins.id as service_id,
                     sc.id as service_catalog_id,
                     sc.name as service_name,
                     sc.description as service_description,
-                    ins.hourly_rate as price_per_hour,
+                    sps.min_hourly_rate,
                     ip.user_id as instructor_id,
                     ip.id as profile_id,
                     ss.name as subcategory_name,
@@ -565,13 +611,14 @@ class RetrieverRepository:
                 JOIN service_catalog sc ON sc.id = ins.service_catalog_id
                 JOIN service_subcategories ss ON ss.id = sc.subcategory_id
                 JOIN service_categories scat ON scat.id = ss.category_id
+                JOIN service_price_summary sps ON sps.service_id = ins.id
                 JOIN instructor_profiles ip ON ip.id = ins.instructor_profile_id
                 WHERE sc.is_active = true
                     AND ins.is_active = true
                     AND sc.embedding_v2 IS NOT NULL
                     AND ip.is_live = true
                     AND ip.bgc_status = 'passed'
-                    AND (:max_price IS NULL OR ins.hourly_rate <= :max_price)
+                    AND (:max_price IS NULL OR sps.min_hourly_rate <= :max_price)
                 ORDER BY sc.embedding_v2 <=> CAST(:embedding AS vector)
                 LIMIT :search_limit
             ),
@@ -587,7 +634,8 @@ class RetrieverRepository:
                             'service_catalog_id', service_catalog_id,
                             'name', service_name,
                             'description', service_description,
-                            'price_per_hour', price_per_hour,
+                            'min_hourly_rate', min_hourly_rate,
+                            'price_per_hour', min_hourly_rate,
                             'subcategory_name', subcategory_name,
                             'category_name', category_name,
                             'relevance_score', relevance_score
@@ -718,13 +766,23 @@ class RetrieverRepository:
         """
         query = text(
             """
-            WITH matched_services AS (
+            WITH service_price_summary AS (
+                SELECT
+                    sfp.service_id,
+                    MIN(sfp.hourly_rate) AS min_hourly_rate,
+                    MAX(CASE WHEN sfp.format = 'student_location' THEN 1 ELSE 0 END) AS has_student_location,
+                    MAX(CASE WHEN sfp.format = 'instructor_location' THEN 1 ELSE 0 END) AS has_instructor_location,
+                    MAX(CASE WHEN sfp.format = 'online' THEN 1 ELSE 0 END) AS has_online
+                FROM service_format_pricing sfp
+                GROUP BY sfp.service_id
+            ),
+            matched_services AS (
                 SELECT
                     ins.id as service_id,
                     sc.id as service_catalog_id,
                     sc.name as service_name,
                     sc.description as service_description,
-                    ins.hourly_rate as price_per_hour,
+                    sps.min_hourly_rate,
                     ip.user_id as instructor_id,
                     ip.id as profile_id,
                     ss.name as subcategory_name,
@@ -738,12 +796,13 @@ class RetrieverRepository:
                 JOIN service_catalog sc ON sc.id = ins.service_catalog_id
                 JOIN service_subcategories ss ON ss.id = sc.subcategory_id
                 JOIN service_categories scat ON scat.id = ss.category_id
+                JOIN service_price_summary sps ON sps.service_id = ins.id
                 JOIN instructor_profiles ip ON ip.id = ins.instructor_profile_id
                 WHERE sc.is_active = true
                   AND ins.is_active = true
                   AND ip.is_live = true
                   AND ip.bgc_status = 'passed'
-                  AND (:max_price IS NULL OR ins.hourly_rate <= :max_price)
+                  AND (:max_price IS NULL OR sps.min_hourly_rate <= :max_price)
                   AND (
                         sc.name % :corrected_query
                         OR sc.name % :original_query
@@ -763,7 +822,8 @@ class RetrieverRepository:
                             'service_catalog_id', service_catalog_id,
                             'name', service_name,
                             'description', service_description,
-                            'price_per_hour', price_per_hour,
+                            'min_hourly_rate', min_hourly_rate,
+                            'price_per_hour', min_hourly_rate,
                             'subcategory_name', subcategory_name,
                             'category_name', category_name,
                             'relevance_score', relevance_score

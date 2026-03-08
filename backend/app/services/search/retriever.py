@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from decimal import Decimal
 import logging
 import os
 import time
@@ -66,7 +67,7 @@ EMBEDDING_SOFT_TIMEOUT_MS = (
 TRIGRAM_GENERIC_TOKENS = frozenset({"lesson", "lessons", "class", "classes"})
 
 
-@dataclass
+@dataclass(init=False)
 class ServiceCandidate:
     """
     A service candidate from retrieval with scoring details.
@@ -83,9 +84,34 @@ class ServiceCandidate:
     # Service data (eagerly loaded to avoid N+1)
     name: str
     description: Optional[str]
-    price_per_hour: int
     instructor_id: str
+    min_hourly_rate: float
     subcategory_id: Optional[str] = None
+
+    def __init__(
+        self,
+        *,
+        service_id: str,
+        service_catalog_id: str,
+        hybrid_score: float,
+        vector_score: Optional[float],
+        text_score: Optional[float],
+        name: str,
+        description: Optional[str],
+        instructor_id: str,
+        min_hourly_rate: float,
+        subcategory_id: Optional[str] = None,
+    ) -> None:
+        self.service_id = service_id
+        self.service_catalog_id = service_catalog_id
+        self.hybrid_score = hybrid_score
+        self.vector_score = vector_score
+        self.text_score = text_score
+        self.name = name
+        self.description = description
+        self.instructor_id = instructor_id
+        self.min_hourly_rate = float(min_hourly_rate)
+        self.subcategory_id = subcategory_id
 
 
 @dataclass
@@ -328,7 +354,7 @@ class PostgresRetriever:
                     "service_catalog_id": row["catalog_id"],
                     "name": row["name"],
                     "description": row["description"],
-                    "price_per_hour": row["price_per_hour"],
+                    "min_hourly_rate": row.get("min_hourly_rate"),
                     "instructor_id": row["instructor_id"],
                     "subcategory_id": row.get("subcategory_id"),
                 },
@@ -366,7 +392,7 @@ class PostgresRetriever:
                     "service_catalog_id": row["catalog_id"],
                     "name": row["name"],
                     "description": row["description"],
-                    "price_per_hour": row["price_per_hour"],
+                    "min_hourly_rate": row.get("min_hourly_rate"),
                     "instructor_id": row["instructor_id"],
                     "subcategory_id": row.get("subcategory_id"),
                 },
@@ -462,6 +488,13 @@ class PostgresRetriever:
                 # Text only - apply penalty (text_score guaranteed non-None here)
                 hybrid_score = (text_score or 0.0) * SINGLE_SOURCE_PENALTY
 
+            min_hourly_rate_raw = service_data.get("min_hourly_rate")
+            min_hourly_rate = (
+                float(min_hourly_rate_raw)
+                if isinstance(min_hourly_rate_raw, (Decimal, float, int, str))
+                else 0.0
+            )
+
             candidates.append(
                 ServiceCandidate(
                     service_id=service_id,
@@ -473,7 +506,7 @@ class PostgresRetriever:
                     description=str(service_data["description"])
                     if service_data["description"]
                     else None,
-                    price_per_hour=int(service_data["price_per_hour"]),
+                    min_hourly_rate=min_hourly_rate,
                     instructor_id=str(service_data["instructor_id"]),
                     subcategory_id=str(service_data["subcategory_id"])
                     if service_data.get("subcategory_id")
@@ -520,7 +553,7 @@ class PostgresRetriever:
                 text_score=score,
                 name=str(data["name"]),
                 description=str(data["description"]) if data["description"] else None,
-                price_per_hour=int(data["price_per_hour"]),
+                min_hourly_rate=float(data["min_hourly_rate"]),
                 instructor_id=str(data["instructor_id"]),
                 subcategory_id=str(data["subcategory_id"]) if data.get("subcategory_id") else None,
             )

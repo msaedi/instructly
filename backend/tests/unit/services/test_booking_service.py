@@ -282,7 +282,7 @@ def test_check_availability_available_true(booking_service: BookingService) -> N
     ("location_type", "flags", "code"),
     [
         ("student_location", {"offers_travel": False}, "TRAVEL_NOT_OFFERED"),
-        ("neutral_location", {"offers_travel": False}, "TRAVEL_NOT_OFFERED"),
+        ("neutral_location", {"offers_travel": False, "offers_at_location": False}, "IN_PERSON_NOT_OFFERED"),
         ("instructor_location", {"offers_at_location": False}, "AT_LOCATION_NOT_OFFERED"),
         (None, {"offers_online": False}, "ONLINE_NOT_OFFERED"),
     ],
@@ -300,6 +300,18 @@ def test_validate_location_capability_errors(
         booking_service._validate_location_capability(service, location_type)
 
     assert exc_info.value.code == code
+
+
+def test_validate_location_capability_allows_neutral_with_at_location_only(
+    booking_service: BookingService,
+) -> None:
+    service = SimpleNamespace(
+        offers_travel=False,
+        offers_at_location=True,
+        offers_online=True,
+    )
+
+    booking_service._validate_location_capability(service, "neutral_location")
 
 
 # --- conflict checks ---

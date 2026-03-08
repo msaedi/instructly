@@ -545,7 +545,7 @@ def test_transform_instructor_results_filters_price():
                     "service_catalog_id": "c1",
                     "name": "Piano",
                     "description": None,
-                    "price_per_hour": 60,
+                    "min_hourly_rate": 60,
                     "relevance_score": 0.9,
                 }
             ],

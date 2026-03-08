@@ -137,7 +137,9 @@ class TestPaymentIntegration:
             id=str(ulid.ULID()),
             instructor_profile_id=profile.id,
             service_catalog_id=service.id,
-            hourly_rate=80.0,
+            format_prices=[
+                {"format": "online", "hourly_rate": 80.0},
+            ],
         )
         db.add(instructor_service)
         db.flush()
@@ -833,7 +835,9 @@ class TestPaymentAnalytics:
             id=str(ulid.ULID()),
             instructor_profile_id=profile.id,
             service_catalog_id=service.id,
-            hourly_rate=80.0,
+            format_prices=[
+                {"format": "online", "hourly_rate": 80.0},
+            ],
         )
         db.add(instructor_service)
         db.flush()

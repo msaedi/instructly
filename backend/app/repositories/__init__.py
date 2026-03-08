@@ -60,6 +60,7 @@ from .referral_repository import (
     WalletTransactionRepository,
 )
 from .search_event_repository import SearchEventRepository
+from .service_format_pricing_repository import ServiceFormatPricingRepository
 from .subcategory_repository import SubcategoryRepository
 from .taxonomy_filter_repository import TaxonomyFilterRepository
 from .week_operation_repository import WeekOperationRepository
@@ -85,6 +86,7 @@ __all__ = [
     "WeekOperationRepository",
     "InstructorProfileRepository",
     "SearchEventRepository",
+    "ServiceFormatPricingRepository",
     "ReferralCodeRepository",
     "ReferralClickRepository",
     "ReferralAttributionRepository",

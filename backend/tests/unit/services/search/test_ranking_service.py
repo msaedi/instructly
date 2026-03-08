@@ -191,6 +191,50 @@ class TestPriceScore:
         score = ranking_service._calculate_price_score(50, None)
         assert score == 0.7
 
+    def test_price_score_uses_lesson_type_specific_rate(
+        self,
+        ranking_service: RankingService,
+    ) -> None:
+        """Lesson-type-specific pricing should override the global minimum for scoring."""
+        candidate = FilteredCandidate(
+            service_id="svc_001",
+            service_catalog_id="cat_001",
+            instructor_id="inst_001",
+            hybrid_score=0.9,
+            name="Mixed Format Lessons",
+            description="Online cheap, in-person expensive",
+            min_hourly_rate=60,
+            lesson_type_hourly_rate=120,
+        )
+        query = ParsedQuery(
+            original_query="in person piano under $80",
+            service_query="piano",
+            parsing_mode="regex",
+            lesson_type="in_person",
+            max_price=80,
+        )
+
+        ranked = ranking_service._score_candidate(
+            candidate,
+            {
+                "avg_rating": 4.8,
+                "review_count": 25,
+                "last_active_at": datetime.now(timezone.utc),
+                "response_rate": 95,
+                "has_photo": True,
+                "has_bio": True,
+                "has_background_check": True,
+                "has_identity_verified": True,
+            },
+            "both",
+            ["all"],
+            None,
+            query,
+            founding_boost=1.0,
+        )
+
+        assert ranked.price_score == 0.5
+
 
 class TestFreshnessScore:
     """Tests for freshness score calculation."""

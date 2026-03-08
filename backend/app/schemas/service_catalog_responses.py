@@ -5,6 +5,7 @@ from typing import List, Literal, Optional
 from pydantic import Field
 
 from ._strict_base import StrictModel
+from .service_pricing import ServiceFormatPriceOut
 
 
 class SearchFiltersApplied(StrictModel):
@@ -32,10 +33,14 @@ class InstructorSearchResultService(StrictModel):
     id: str
     catalog_service_id: str
     name: str
-    hourly_rate: float
+    min_hourly_rate: Optional[float] = None
+    format_prices: List[ServiceFormatPriceOut] = Field(default_factory=list)
     custom_description: Optional[str] = None
     is_active: bool = True
     duration_options: List[int] = Field(default_factory=list)
+    offers_travel: bool = False
+    offers_at_location: bool = False
+    offers_online: bool = False
 
 
 class InstructorSearchResult(StrictModel):

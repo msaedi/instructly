@@ -203,7 +203,10 @@ class TestDSTTransitions:
         end_time = time(2, 30)
 
         # The duration calculation should still work correctly
-        pricing = booking_service._calculate_pricing(Mock(hourly_rate=100), start_time, end_time)
+        service = Mock()
+        service.hourly_rate_for_location_type.return_value = 100
+        service.price_for_booking.return_value = 100.0
+        pricing = booking_service._calculate_pricing(service, start_time, end_time)
 
         # Should be 60 minutes even though 2-3 AM doesn't exist
         assert pricing["duration_minutes"] == 60
@@ -228,7 +231,10 @@ class TestDSTTransitions:
         end_time = time(2, 30)
 
         # For booking purposes, we treat it as clock time (60 minutes)
-        pricing = booking_service._calculate_pricing(Mock(hourly_rate=100), start_time, end_time)
+        service = Mock()
+        service.hourly_rate_for_location_type.return_value = 100
+        service.price_for_booking.return_value = 100.0
+        pricing = booking_service._calculate_pricing(service, start_time, end_time)
 
         # Should be 60 minutes based on clock time
         assert pricing["duration_minutes"] == 60

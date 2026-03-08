@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, time
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -56,21 +57,33 @@ def test_student_location_outside_service_area_fails(db) -> None:
     assert exc.value.code == "OUTSIDE_SERVICE_AREA"
 
 
-def test_neutral_location_in_service_area_succeeds(db) -> None:
+def test_neutral_location_with_travel_only_checks_service_area(db) -> None:
     service = _make_service(db, True)
     booking_data = _make_travel_booking("neutral_location")
+    instructor_service = SimpleNamespace(offers_travel=True, offers_at_location=False)
 
-    service._validate_service_area(booking_data, booking_data.instructor_id)
+    service._validate_service_area(booking_data, booking_data.instructor_id, instructor_service)
 
     service.filter_repository.is_location_in_service_area.assert_called_once()
 
 
-def test_neutral_location_outside_service_area_fails(db) -> None:
+def test_neutral_location_with_travel_only_outside_service_area_fails(db) -> None:
     service = _make_service(db, False)
     booking_data = _make_travel_booking("neutral_location")
+    instructor_service = SimpleNamespace(offers_travel=True, offers_at_location=False)
 
     with pytest.raises(ValidationException, match="outside the instructor's service area"):
-        service._validate_service_area(booking_data, booking_data.instructor_id)
+        service._validate_service_area(booking_data, booking_data.instructor_id, instructor_service)
+
+
+def test_neutral_location_with_at_location_skips_service_area_check(db) -> None:
+    service = _make_service(db, True)
+    booking_data = _make_travel_booking("neutral_location")
+    instructor_service = SimpleNamespace(offers_travel=False, offers_at_location=True)
+
+    service._validate_service_area(booking_data, booking_data.instructor_id, instructor_service)
+
+    service.filter_repository.is_location_in_service_area.assert_not_called()
 
 
 def test_online_skips_service_area_check(db) -> None:

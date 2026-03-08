@@ -8,11 +8,15 @@ import pytest
 from app.core.enums import RoleName
 from app.core.exceptions import (
     BusinessRuleException,
-    ForbiddenException,
     NotFoundException,
 )
 from app.schemas.instructor import InstructorProfileCreate, InstructorProfileUpdate, ServiceCreate
 from app.services.instructor_service import InstructorService, get_instructor_service
+
+
+def _format_prices(rate: float = 60.0, *formats: str) -> list[dict[str, float | str]]:
+    selected_formats = formats or ("online",)
+    return [{"format": format_name, "hourly_rate": rate} for format_name in selected_formats]
 
 
 def _build_service() -> InstructorService:
@@ -27,16 +31,26 @@ def _build_service() -> InstructorService:
     service.analytics_repository = MagicMock()
     service.preferred_place_repository = MagicMock()
     service.service_area_repository = MagicMock()
+    service.taxonomy_filter_repository = MagicMock()
+    service.service_format_pricing_repository = MagicMock()
+    service.service_format_pricing_repository.get_prices_for_services.return_value = {}
+    service.config_service = MagicMock()
+    service.config_service.get_pricing_config.return_value = (
+        {
+            "price_floor_cents": {
+                "private_in_person": 8000,
+                "private_remote": 6000,
+            }
+        },
+        None,
+    )
     return service
 
 
 def _make_service_create(catalog_id: str) -> ServiceCreate:
     return ServiceCreate(
-        offers_travel=False,
-        offers_at_location=False,
-        offers_online=True,
         service_catalog_id=catalog_id,
-        hourly_rate=60.0,
+        format_prices=_format_prices(),
         description="Lessons",
         duration_options=[60],
     )
@@ -68,7 +82,8 @@ def test_create_instructor_profile_with_services_assigns_role():
             result = service.create_instructor_profile(user, profile_data)
 
     assert result == {"id": "profile-1"}
-    service.service_repository.bulk_create.assert_called_once()
+    service.service_repository.create.assert_called_once()
+    service.service_format_pricing_repository.sync_format_prices.assert_called_once()
     perm_cls.return_value.assign_role.assert_called_once_with("user-1", RoleName.INSTRUCTOR)
 
 
@@ -194,63 +209,53 @@ def test_validate_catalog_ids_invalid_raises():
 def test_normalize_capability_flags():
     service = _build_service()
 
-    updates = {"offers_travel": True, "offers_at_location": None, "offers_online": True}
-    service._normalize_capability_flags(updates)
-    assert updates == {"offers_travel": True, "offers_online": True}
-
-    updates = {}
-    service._normalize_capability_flags(updates, apply_defaults=True)
-    assert updates == {"offers_travel": False, "offers_at_location": False, "offers_online": True}
-
-
-def test_update_service_capabilities_updates_and_invalidates_cache():
-    service = _build_service()
-    service.cache_service = MagicMock()
-    service._invalidate_instructor_caches = MagicMock()
-    service.validate_service_capabilities = MagicMock()
-    service._instructor_service_to_dict = MagicMock(return_value={"id": "svc-1"})
-
-    instructor_profile = SimpleNamespace(user_id="user-1")
-    svc = SimpleNamespace(
-        id="svc-1",
-        instructor_profile=instructor_profile,
-        offers_travel=False,
-        offers_at_location=False,
-        offers_online=True,
+    normalized = service._normalize_format_prices(
+        [
+            {"format": "online", "hourly_rate": 60.0},
+            SimpleNamespace(format="student_location", hourly_rate=90.0),
+        ]
     )
-    service.service_repository.get_by_id.return_value = svc
+    assert normalized == [
+        {"format": "online", "hourly_rate": pytest.approx(60.0)},
+        {"format": "student_location", "hourly_rate": pytest.approx(90.0)},
+    ]
 
-    with patch("app.services.instructor_service.invalidate_on_service_change") as invalidate_mock:
-        result = service.update_service_capabilities(
-            "svc-1", "user-1", {"offers_travel": True, "offers_online": False}
+
+def test_validate_service_format_prices_requires_locations():
+    service = _build_service()
+    catalog_service = SimpleNamespace(name="Piano", online_capable=True)
+
+    with pytest.raises(BusinessRuleException) as exc:
+        service.validate_service_format_prices(
+            instructor_id="user-1",
+            catalog_service=catalog_service,
+            format_prices=[],
         )
+    assert exc.value.code == "NO_LOCATION_OPTIONS"
 
-    assert result["id"] == "svc-1"
-    service._invalidate_instructor_caches.assert_called_once_with("user-1")
-    invalidate_mock.assert_called_once_with("svc-1", "update")
+    service.service_area_repository.list_for_instructor.return_value = []
+    with pytest.raises(BusinessRuleException) as exc:
+        service.validate_service_format_prices(
+            instructor_id="user-1",
+            catalog_service=catalog_service,
+            format_prices=_format_prices(90.0, "student_location"),
+        )
+    assert exc.value.code == "NO_SERVICE_AREAS"
 
-
-def test_update_service_capabilities_forbidden():
-    service = _build_service()
-    svc = SimpleNamespace(id="svc-1", instructor_profile=SimpleNamespace(user_id="other"))
-    service.service_repository.get_by_id.return_value = svc
-
-    with pytest.raises(ForbiddenException):
-        service.update_service_capabilities("svc-1", "user-1", {"offers_online": True})
-
-
-def test_update_service_capabilities_not_found():
-    service = _build_service()
-    service.service_repository.get_by_id.return_value = None
-
-    with pytest.raises(NotFoundException):
-        service.update_service_capabilities("svc-1", "user-1", {"offers_online": True})
+    service.service_area_repository.list_for_instructor.return_value = [SimpleNamespace()]
+    service.get_instructor_teaching_locations = MagicMock(return_value=[])
+    with pytest.raises(BusinessRuleException) as exc:
+        service.validate_service_format_prices(
+            instructor_id="user-1",
+            catalog_service=catalog_service,
+            format_prices=_format_prices(90.0, "instructor_location"),
+        )
+    assert exc.value.code == "NO_TEACHING_LOCATIONS"
 
 
 def test_update_services_reactivate_create_soft_and_hard_delete():
     service = _build_service()
     service._validate_catalog_ids = MagicMock()
-    service.validate_service_capabilities = MagicMock()
 
     active_keep = MagicMock()
     active_keep.id = "svc-a"
@@ -280,17 +285,30 @@ def test_update_services_reactivate_create_soft_and_hard_delete():
         return kwargs.get("instructor_service_id") == "svc-b"
 
     service.booking_repository.exists.side_effect = _has_bookings
+    service.catalog_repository.get_by_id.side_effect = [
+        SimpleNamespace(
+            id="cat-c",
+            name="Yoga",
+            subcategory_id="sub-1",
+            online_capable=True,
+            eligible_age_groups=["adults"],
+        ),
+        SimpleNamespace(
+            id="cat-new",
+            name="Pilates",
+            subcategory_id="sub-2",
+            online_capable=True,
+            eligible_age_groups=["adults"],
+        ),
+    ]
 
     services_data = [
         _make_service_create("cat-c"),
         _make_service_create("cat-new"),
     ]
+    service.service_repository.create.return_value = SimpleNamespace(id="svc-new")
 
-    with patch(
-        "app.services.instructor_service.Service",
-        side_effect=lambda **kwargs: SimpleNamespace(**kwargs),
-    ):
-        result = service._update_services("profile-1", "user-1", services_data)
+    result = service._update_services("profile-1", "user-1", services_data)
 
     assert result is False
     assert any(
@@ -300,6 +318,7 @@ def test_update_services_reactivate_create_soft_and_hard_delete():
     service.service_repository.update.assert_any_call("svc-b", is_active=False)
     service.service_repository.delete.assert_any_call("svc-a")
     service.service_repository.create.assert_called_once()
+    assert service.service_format_pricing_repository.sync_format_prices.call_count == 2
     service.profile_repository.update.assert_called_once_with("profile-1", skills_configured=True)
 
 
@@ -578,19 +597,31 @@ def test_create_instructor_service_from_catalog_errors_and_success():
 
     service.profile_repository.find_one_by.return_value = None
     with pytest.raises(NotFoundException):
-        service.create_instructor_service_from_catalog("user-1", "cat-1", 60.0)
+        service.create_instructor_service_from_catalog(
+            "user-1", "cat-1", _format_prices()
+        )
 
     profile = SimpleNamespace(id="profile-1")
     service.profile_repository.find_one_by.return_value = profile
     service.catalog_repository.get_by_id.return_value = None
     with pytest.raises(NotFoundException):
-        service.create_instructor_service_from_catalog("user-1", "cat-1", 60.0)
+        service.create_instructor_service_from_catalog(
+            "user-1", "cat-1", _format_prices()
+        )
 
-    catalog = SimpleNamespace(id="cat-1", name="Yoga")
+    catalog = SimpleNamespace(
+        id="cat-1",
+        name="Yoga",
+        subcategory_id="sub-1",
+        online_capable=True,
+        eligible_age_groups=["adults"],
+    )
     service.catalog_repository.get_by_id.return_value = catalog
     service.service_repository.find_one_by.return_value = SimpleNamespace(id="svc-1")
     with pytest.raises(BusinessRuleException):
-        service.create_instructor_service_from_catalog("user-1", "cat-1", 60.0)
+        service.create_instructor_service_from_catalog(
+            "user-1", "cat-1", _format_prices()
+        )
 
     service.service_repository.find_one_by.return_value = None
     created_service = SimpleNamespace(id="svc-1", service_catalog_id="cat-1")
@@ -600,7 +631,11 @@ def test_create_instructor_service_from_catalog_errors_and_success():
 
     with patch("app.services.instructor_service.invalidate_on_service_change"):
         with patch.object(service, "_instructor_service_to_dict", return_value={"id": "svc-1"}):
-            result = service.create_instructor_service_from_catalog("user-1", "cat-1", 60.0)
+            result = service.create_instructor_service_from_catalog(
+                "user-1",
+                "cat-1",
+                _format_prices(),
+            )
 
     assert result == {"id": "svc-1"}
     service._invalidate_instructor_caches.assert_called_once_with("user-1")
@@ -655,7 +690,7 @@ def test_search_services_enhanced_tracks_analytics_and_price_range():
     service.catalog_repository.search_services.return_value = [svc]
     service._catalog_service_to_dict = MagicMock(return_value={"id": "svc-1"})
     service._get_instructors_for_service_in_price_range = MagicMock(
-        return_value=[SimpleNamespace(hourly_rate=75)]
+        return_value=[SimpleNamespace(min_hourly_rate=75)]
     )
     service._calculate_price_range = MagicMock(return_value={"min": 75, "max": 75})
 
@@ -671,14 +706,14 @@ def test_search_services_enhanced_tracks_analytics_and_price_range():
 def test_get_instructors_for_service_in_price_range_filters():
     service = _build_service()
     service.service_repository.find_by.return_value = [
-        SimpleNamespace(hourly_rate=40),
-        SimpleNamespace(hourly_rate=60),
-        SimpleNamespace(hourly_rate=120),
+        SimpleNamespace(min_hourly_rate=40),
+        SimpleNamespace(min_hourly_rate=60),
+        SimpleNamespace(min_hourly_rate=120),
     ]
 
     results = service._get_instructors_for_service_in_price_range("svc-1", 50, 100)
 
-    assert [s.hourly_rate for s in results] == [60]
+    assert [s.min_hourly_rate for s in results] == [60]
 
 
 def test_get_top_services_per_category_cache_hit_and_set():

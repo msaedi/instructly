@@ -14,12 +14,47 @@ Targets:
   Plus 58 branch parts (if/elif/else chains)
 """
 
+from types import SimpleNamespace
 from typing import Any, Optional
 from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 
+from app.core.exceptions import BusinessRuleException
 from app.services.instructor_service import InstructorService
+
+
+def _format_prices(rate: float = 60.0, *formats: str) -> list[dict[str, float | str]]:
+    selected_formats = formats or ("online",)
+    return [{"format": format_name, "hourly_rate": rate} for format_name in selected_formats]
+
+
+def _attach_pricing(service: Any, rate: float = 60.0, *formats: str) -> Any:
+    selected_formats = formats or ("online",)
+    service.min_hourly_rate = rate
+    service.serialized_format_prices = _format_prices(rate, *selected_formats)
+    service.format_prices = [
+        SimpleNamespace(format=format_name, hourly_rate=rate) for format_name in selected_formats
+    ]
+    service.offers_travel = "student_location" in selected_formats
+    service.offers_at_location = "instructor_location" in selected_formats
+    service.offers_online = "online" in selected_formats
+    return service
+
+
+def _make_service_create(
+    catalog_id: str = "cat-1",
+    rate: float = 60.0,
+    *formats: str,
+):
+    from app.schemas.instructor import ServiceCreate
+
+    return ServiceCreate(
+        service_catalog_id=catalog_id,
+        format_prices=_format_prices(rate, *(formats or ("online",))),
+        description="L",
+        duration_options=[60],
+    )
 
 
 def _make_service() -> InstructorService:
@@ -37,6 +72,18 @@ def _make_service() -> InstructorService:
     svc.preferred_place_repository = MagicMock()
     svc.service_area_repository = MagicMock()
     svc.taxonomy_filter_repository = MagicMock()
+    svc.service_format_pricing_repository = MagicMock()
+    svc.service_format_pricing_repository.get_prices_for_services.return_value = {}
+    svc.config_service = MagicMock()
+    svc.config_service.get_pricing_config.return_value = (
+        {
+            "price_floor_cents": {
+                "private_in_person": 8000,
+                "private_remote": 6000,
+            }
+        },
+        None,
+    )
     svc.logger = MagicMock()
     return svc
 
@@ -197,16 +244,13 @@ class TestProfileToDictBranches:
         mock_svc.service_catalog_id = "CAT_01"
         mock_svc.catalog_entry = MagicMock()
         mock_svc.catalog_entry.name = "Piano"
-        mock_svc.hourly_rate = 50
         mock_svc.description = "Piano lessons"
         mock_svc.age_groups = ["adults"]
         mock_svc.filter_selections = {}
         mock_svc.equipment_required = None
-        mock_svc.offers_travel = False
-        mock_svc.offers_at_location = False
-        mock_svc.offers_online = True
         mock_svc.duration_options = [60]
         mock_svc.is_active = True
+        _attach_pricing(mock_svc, 50.0)
 
         profile = _make_mock_profile()
         # Simulate profile.services being None
@@ -239,15 +283,12 @@ class TestProfileToDictBranches:
         active_svc.service_catalog_id = "CAT_01"
         active_svc.catalog_entry = MagicMock()
         active_svc.catalog_entry.name = "Piano"
-        active_svc.hourly_rate = 50
         active_svc.description = "Piano"
         active_svc.age_groups = []
         active_svc.filter_selections = {}
         active_svc.equipment_required = None
-        active_svc.offers_travel = False
-        active_svc.offers_at_location = False
-        active_svc.offers_online = True
         active_svc.duration_options = [60]
+        _attach_pricing(active_svc, 50.0)
 
         inactive_svc = MagicMock()
         inactive_svc.is_active = False
@@ -255,15 +296,12 @@ class TestProfileToDictBranches:
         inactive_svc.service_catalog_id = "CAT_02"
         inactive_svc.catalog_entry = MagicMock()
         inactive_svc.catalog_entry.name = "Guitar"
-        inactive_svc.hourly_rate = 45
         inactive_svc.description = "Guitar"
         inactive_svc.age_groups = []
         inactive_svc.filter_selections = {}
         inactive_svc.equipment_required = None
-        inactive_svc.offers_travel = False
-        inactive_svc.offers_at_location = False
-        inactive_svc.offers_online = True
         inactive_svc.duration_options = [60]
+        _attach_pricing(inactive_svc, 45.0)
 
         profile = _make_mock_profile(services=[active_svc, inactive_svc])
 
@@ -621,35 +659,31 @@ class TestNormalizeTaxonomyFilters:
 
 @pytest.mark.unit
 class TestCacheInvalidation:
-    """Cover cache invalidation branch when cache_service is set."""
+    """Cover cache invalidation branches on modern service writes."""
 
-    def test_update_service_capabilities_with_cache(self):
-        """L867-869: cache_service is set -> _invalidate_instructor_caches called."""
+    def test_create_service_with_cache_invalidates_instructor_keys(self):
         svc = _make_service()
         svc.cache_service = MagicMock()
 
+        profile = MagicMock()
+        profile.id = "PROF_01"
+        svc.profile_repository.find_one_by.return_value = profile
+
+        catalog = MagicMock()
+        catalog.id = "CAT_01"
+        catalog.name = "Piano"
+        catalog.subcategory_id = "SUB_01"
+        catalog.online_capable = True
+        catalog.eligible_age_groups = ["adults"]
+        svc.catalog_repository.get_by_id.return_value = catalog
+        svc.service_repository.find_one_by.return_value = None
+
         mock_service = MagicMock()
         mock_service.id = "SVC_01"
-        mock_service.instructor_profile = MagicMock()
-        mock_service.instructor_profile.user_id = "USR_01"
-        mock_service.offers_travel = False
-        mock_service.offers_at_location = False
-        mock_service.offers_online = True
-        mock_service.catalog_entry = MagicMock()
-        mock_service.catalog_entry.name = "Piano"
-        mock_service.catalog_entry.description = "Piano lessons"
         mock_service.service_catalog_id = "CAT_01"
-        mock_service.hourly_rate = 50
-        mock_service.description = "Piano"
-        mock_service.filter_selections = {}
-        mock_service.duration_options = [60]
-        mock_service.is_active = True
-        mock_service.created_at = None
-        mock_service.updated_at = None
-        mock_service.category = "Music"
-
-        svc.service_repository.get_by_id.return_value = mock_service
-        svc.service_area_repository.list_for_instructor.return_value = []
+        mock_service.catalog_entry = catalog
+        _attach_pricing(mock_service, 60.0)
+        svc.service_repository.create.return_value = mock_service
 
         # Mock transaction
         svc.db.begin_nested = MagicMock()
@@ -657,8 +691,10 @@ class TestCacheInvalidation:
         svc.db.begin_nested.return_value.__exit__ = MagicMock(return_value=False)
 
         with patch("app.services.instructor_service.invalidate_on_service_change"):
-            svc.update_service_capabilities(
-                "SVC_01", "USR_01", {"offers_online": True}
+            svc.create_instructor_service_from_catalog(
+                "USR_01",
+                "CAT_01",
+                _format_prices(60.0),
             )
 
         svc.cache_service.delete.assert_called()
@@ -727,6 +763,7 @@ class TestCreateServiceAgeGroups:
         mock_catalog.name = "Piano"
         mock_catalog.subcategory_id = "SUB_01"
         mock_catalog.eligible_age_groups = ["kids", "adults"]
+        mock_catalog.online_capable = True
         svc.catalog_repository.get_by_id.return_value = mock_catalog
 
         svc.service_repository.find_one_by.return_value = None  # No existing
@@ -735,17 +772,14 @@ class TestCreateServiceAgeGroups:
         mock_created.id = "SVC_01"
         mock_created.service_catalog_id = "CAT_01"
         mock_created.catalog_entry = mock_catalog
-        mock_created.hourly_rate = 50
         mock_created.description = "Piano"
         mock_created.filter_selections = {}
         mock_created.duration_options = [60]
-        mock_created.offers_travel = False
-        mock_created.offers_at_location = False
-        mock_created.offers_online = True
         mock_created.is_active = True
         mock_created.created_at = None
         mock_created.updated_at = None
         mock_created.category = "Music"
+        _attach_pricing(mock_created, 80.0)
         svc.service_repository.create.return_value = mock_created
 
         # Mock transaction
@@ -757,7 +791,7 @@ class TestCreateServiceAgeGroups:
             svc.create_instructor_service_from_catalog(
                 instructor_id="USR_01",
                 catalog_service_id="CAT_01",
-                hourly_rate=50,
+                format_prices=_format_prices(80.0),
                 age_groups=["kids"],
             )
 
@@ -794,7 +828,7 @@ class TestCreateInstructorProfileNoServices:
                 result = svc.create_instructor_profile(user, data)
 
         assert result == {"id": "PROF_01"}
-        svc.service_repository.bulk_create.assert_not_called()
+        svc.service_repository.create.assert_not_called()
 
 
 @pytest.mark.unit
@@ -861,21 +895,15 @@ class TestUpdateProfileAutoBioZipAndCatalog:
         """522->530: user has no zip_code => skip geocoding => city = 'New York'."""
         from types import SimpleNamespace
 
-        from app.schemas.instructor import ServiceCreate
-
         svc = self._setup()
         svc.user_repository.get_by_id.return_value = SimpleNamespace(
             first_name="Dana", zip_code=None
         )
         svc.catalog_repository.get_by_id.return_value = SimpleNamespace(name="Piano")
 
-        sc = ServiceCreate(
-            offers_travel=False, offers_at_location=False, offers_online=True,
-            service_catalog_id="cat-1", hourly_rate=60.0, description="L", duration_options=[60],
-        )
         update_data = MagicMock()
         update_data.model_dump.return_value = {}
-        update_data.services = [sc]
+        update_data.services = [_make_service_create("cat-1")]
         update_data.preferred_teaching_locations = None
         update_data.preferred_public_spaces = None
 
@@ -891,21 +919,15 @@ class TestUpdateProfileAutoBioZipAndCatalog:
         from types import SimpleNamespace
         from unittest.mock import Mock
 
-        from app.schemas.instructor import ServiceCreate
-
         svc = self._setup()
         svc.user_repository.get_by_id.return_value = SimpleNamespace(
             first_name="Sam", zip_code="10001"
         )
         svc.catalog_repository.get_by_id.return_value = SimpleNamespace(name="Chess")
 
-        sc = ServiceCreate(
-            offers_travel=False, offers_at_location=False, offers_online=True,
-            service_catalog_id="cat-1", hourly_rate=60.0, description="L", duration_options=[60],
-        )
         update_data = MagicMock()
         update_data.model_dump.return_value = {}
-        update_data.services = [sc]
+        update_data.services = [_make_service_create("cat-1")]
         update_data.preferred_teaching_locations = None
         update_data.preferred_public_spaces = None
 
@@ -924,8 +946,6 @@ class TestUpdateProfileAutoBioZipAndCatalog:
         """536->532: catalog_entry.name is None => skill skipped."""
         from types import SimpleNamespace
 
-        from app.schemas.instructor import ServiceCreate
-
         svc = self._setup()
         svc.user_repository.get_by_id.return_value = SimpleNamespace(
             first_name="Lee", zip_code=None
@@ -935,17 +955,9 @@ class TestUpdateProfileAutoBioZipAndCatalog:
             SimpleNamespace(name="Yoga"),
         ]
 
-        sc1 = ServiceCreate(
-            offers_travel=False, offers_at_location=False, offers_online=True,
-            service_catalog_id="cat-1", hourly_rate=60.0, description="L", duration_options=[60],
-        )
-        sc2 = ServiceCreate(
-            offers_travel=False, offers_at_location=False, offers_online=True,
-            service_catalog_id="cat-2", hourly_rate=60.0, description="L", duration_options=[60],
-        )
         update_data = MagicMock()
         update_data.model_dump.return_value = {}
-        update_data.services = [sc1, sc2]
+        update_data.services = [_make_service_create("cat-1"), _make_service_create("cat-2")]
         update_data.preferred_teaching_locations = None
         update_data.preferred_public_spaces = None
 
@@ -958,29 +970,30 @@ class TestUpdateProfileAutoBioZipAndCatalog:
 
 
 @pytest.mark.unit
-class TestUpdateServiceCapabilitiesMissed:
-    """Covers line 789 (service not found) and 867->869 no-cache branch."""
+class TestValidateServiceFormatPricesMissed:
+    """Covers modern format-price validation branches."""
 
-    def test_service_not_found(self):
+    def test_empty_format_prices_raises(self):
         svc = _make_service()
-        svc.service_repository.get_by_id.return_value = None
-        from app.core.exceptions import NotFoundException
+        catalog = SimpleNamespace(name="Piano", online_capable=True)
 
-        with pytest.raises(NotFoundException):
-            svc.update_service_capabilities("SVC_X", "USR_01", {})
+        with pytest.raises(BusinessRuleException, match="at least one location option"):
+            svc.validate_service_format_prices(
+                instructor_id="USR_01",
+                catalog_service=catalog,
+                format_prices=[],
+            )
 
-    def test_no_cache_service_skips_invalidation(self):
+    def test_online_not_supported_raises(self):
         svc = _make_service()
-        svc.cache_service = None
-        mock_service = MagicMock()
-        mock_service.instructor_profile.user_id = "USR_01"
-        mock_service.offers_online = True
-        svc.service_repository.get_by_id.return_value = mock_service
+        catalog = SimpleNamespace(name="Ceramics", online_capable=False)
 
-        with patch.object(svc, "validate_service_capabilities"):
-            with patch.object(svc, "_instructor_service_to_dict", return_value={}):
-                with patch("app.services.instructor_service.invalidate_on_service_change"):
-                    svc.update_service_capabilities("SVC_01", "USR_01", {})
+        with pytest.raises(BusinessRuleException, match="cannot be offered online"):
+            svc.validate_service_format_prices(
+                instructor_id="USR_01",
+                catalog_service=catalog,
+                format_prices=_format_prices(60.0),
+            )
 
 
 @pytest.mark.unit
@@ -994,14 +1007,8 @@ class TestUpdateServicesCatalogMissing:
         svc.catalog_repository.get_by_id.return_value = None
 
         from app.core.exceptions import NotFoundException
-        from app.schemas.instructor import ServiceCreate
-
-        sc = ServiceCreate(
-            offers_travel=False, offers_at_location=False, offers_online=True,
-            service_catalog_id="cat-1", hourly_rate=60.0, description="L", duration_options=[60],
-        )
         with pytest.raises(NotFoundException, match="Catalog service not found"):
-            svc._update_services("p-1", "u-1", [sc])
+            svc._update_services("p-1", "u-1", [_make_service_create("cat-1")])
 
 
 @pytest.mark.unit
@@ -1256,7 +1263,7 @@ class TestSearchServicesEnhancedMissed:
         svc.analytics_repository.get_or_create.return_value = analytics
 
         inst_svc = MagicMock()
-        inst_svc.hourly_rate = 75.0
+        inst_svc.min_hourly_rate = 75.0
         svc.service_repository.find_by.return_value = [inst_svc]
 
         result = svc.search_services_enhanced(
@@ -1362,7 +1369,7 @@ class TestGetAllServicesWithInstructorsCacheBranches:
         svc.analytics_repository.get_or_create.return_value = analytics
 
         inst_svc = MagicMock()
-        inst_svc.hourly_rate = 75.0
+        inst_svc.min_hourly_rate = 75.0
         svc.service_repository.find_by.return_value = [inst_svc]
 
         result = svc.get_all_services_with_instructors()

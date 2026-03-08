@@ -3598,6 +3598,23 @@ export interface ServiceAreaNeighborhood {
   ntacode?: string | null;
 }
 
+export type ServiceFormatPriceOutFormat =
+  (typeof ServiceFormatPriceOutFormat)[keyof typeof ServiceFormatPriceOutFormat];
+
+export const ServiceFormatPriceOutFormat = {
+  student_location: 'student_location',
+  instructor_location: 'instructor_location',
+  online: 'online',
+} as const;
+
+/**
+ * Read-only per-format hourly rate for a service.
+ */
+export interface ServiceFormatPriceOut {
+  format: ServiceFormatPriceOutFormat;
+  hourly_rate: number;
+}
+
 /**
  * Instructor's filter choices for this service (e.g., {'grade_level': ['elementary']})
  */
@@ -3623,11 +3640,13 @@ export interface ServiceResponse {
   equipment_required?: string[] | null;
   /** Instructor's filter choices for this service (e.g., {'grade_level': ['elementary']}) */
   filter_selections?: ServiceResponseFilterSelections;
-  /** Hourly rate in USD */
-  hourly_rate: number;
+  /** Enabled per-format hourly pricing rows */
+  format_prices?: ServiceFormatPriceOut[];
   id: string;
   /** Whether this service is currently active for the instructor */
   is_active?: boolean | null;
+  /** Lowest enabled hourly rate for this service */
+  min_hourly_rate?: number | null;
   /** Resolved name of the service from the catalog */
   name?: string | null;
   /** Whether the instructor offers lessons at their location for this service */
@@ -4022,6 +4041,23 @@ export interface InstructorFilterContext {
   current_selections?: InstructorFilterContextCurrentSelections;
 }
 
+export type ServiceFormatPriceInFormat =
+  (typeof ServiceFormatPriceInFormat)[keyof typeof ServiceFormatPriceInFormat];
+
+export const ServiceFormatPriceInFormat = {
+  student_location: 'student_location',
+  instructor_location: 'instructor_location',
+  online: 'online',
+} as const;
+
+/**
+ * Writable per-format hourly rate for a service.
+ */
+export interface ServiceFormatPriceIn {
+  format: ServiceFormatPriceInFormat;
+  hourly_rate: number | string;
+}
+
 /**
  * Instructor's filter choices for this service (e.g., {'grade_level': ['elementary']})
  */
@@ -4043,14 +4079,11 @@ export interface ServiceCreate {
   equipment_required?: string[] | null;
   /** Instructor's filter choices for this service (e.g., {'grade_level': ['elementary']}) */
   filter_selections?: ServiceCreateFilterSelections;
-  /** Hourly rate in USD */
-  hourly_rate: number | string;
-  /** Whether the instructor offers lessons at their location for this service */
-  offers_at_location?: boolean | null;
-  /** Whether the instructor offers online lessons for this service */
-  offers_online?: boolean | null;
-  /** Whether the instructor travels to student locations for this service */
-  offers_travel?: boolean | null;
+  /**
+   * Per-format hourly pricing for this service
+   * @minItems 1
+   */
+  format_prices: ServiceFormatPriceIn[];
   requirements?: string | null;
   /** ID of the service from catalog */
   service_catalog_id: string;
@@ -4180,10 +4213,14 @@ export interface InstructorSearchResultService {
   catalog_service_id: string;
   custom_description?: string | null;
   duration_options?: number[];
-  hourly_rate: number;
+  format_prices?: ServiceFormatPriceOut[];
   id: string;
   is_active?: boolean;
+  min_hourly_rate?: number | null;
   name: string;
+  offers_at_location?: boolean;
+  offers_online?: boolean;
+  offers_travel?: boolean;
 }
 
 /**
@@ -4232,15 +4269,6 @@ export interface InstructorServiceAreaCheckResponse {
 }
 
 /**
- * Partial update for instructor service location capabilities.
- */
-export interface InstructorServiceCapabilitiesUpdate {
-  offers_at_location?: boolean | null;
-  offers_online?: boolean | null;
-  offers_travel?: boolean | null;
-}
-
-/**
  * Create instructor service from catalog.
  */
 export interface InstructorServiceCreate {
@@ -4251,11 +4279,10 @@ export interface InstructorServiceCreate {
   /** Custom duration options in minutes (uses catalog defaults if not provided) */
   duration_options?: number[] | null;
   /**
-   * Hourly rate for this service
-   * @maximum 10000
-   * @exclusiveMinimum 0
+   * Per-format hourly pricing for this service
+   * @minItems 1
    */
-  hourly_rate: number;
+  format_prices: ServiceFormatPriceIn[];
 }
 
 export type InstructorServiceResponseFilterSelections = { [key: string]: string[] };
@@ -4270,9 +4297,10 @@ export interface InstructorServiceResponse {
   description?: string | null;
   duration_options?: number[];
   filter_selections?: InstructorServiceResponseFilterSelections;
-  hourly_rate: number;
+  format_prices?: ServiceFormatPriceOut[];
   id: string;
   is_active?: boolean;
+  min_hourly_rate?: number | null;
   name: string;
   offers_at_location?: boolean;
   offers_online?: boolean;
@@ -4784,10 +4812,13 @@ export interface MCPInstructorOnboarding {
 
 export interface MCPInstructorService {
   category: string;
-  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
-  hourly_rate: string;
+  format_prices?: ServiceFormatPriceOut[];
   is_active: boolean;
+  min_hourly_rate?: string | null;
   name: string;
+  offers_at_location?: boolean;
+  offers_online?: boolean;
+  offers_travel?: boolean;
   slug?: string | null;
 }
 
@@ -5570,6 +5601,10 @@ export interface NLSearchMeta {
 export interface ServiceMatch {
   /** Service description */
   description?: string | null;
+  /** Enabled per-format hourly pricing rows for this service */
+  format_prices?: ServiceFormatPriceOut[];
+  /** Lowest enabled hourly rate */
+  min_hourly_rate: number;
   /** Service name */
   name: string;
   /** Instructor teaches at their own location for this service */
@@ -5578,11 +5613,6 @@ export interface ServiceMatch {
   offers_online?: boolean | null;
   /** Instructor travels to student for this service */
   offers_travel?: boolean | null;
-  /**
-   * Hourly rate in dollars
-   * @minimum 0
-   */
-  price_per_hour: number;
   /**
    * Semantic match score
    * @minimum 0

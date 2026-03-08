@@ -118,6 +118,21 @@ def test_delete_all_preferred_places(
     test_instructor,
     auth_headers_instructor: dict,
 ) -> None:
+    profile = (
+        db.query(InstructorProfile)
+        .filter(InstructorProfile.user_id == test_instructor.id)
+        .first()
+    )
+    assert profile is not None
+    services = (
+        db.query(Service)
+        .filter(Service.instructor_profile_id == profile.id)
+        .all()
+    )
+    for service in services:
+        service.offers_at_location = False
+    db.commit()
+
     seed_payload = {
         "preferred_teaching_locations": [
             {"address": "123 Main St, New York, NY", "label": "Studio"},

@@ -683,10 +683,12 @@ class TestStudentDoubleBookingPrevention:
             piano_service = Service(
                 instructor_profile_id=profile2.id,
                 service_catalog_id=piano_catalog.id,
-                hourly_rate=100.0,
+                format_prices=[
+                    {"format": "student_location", "hourly_rate": 100.0},
+                    {"format": "online", "hourly_rate": 100.0},
+                ],
                 duration_options=[60],  # Add duration_options
-                offers_travel=True,
-                is_active=True,
+                                is_active=True,
             )
             db.add(piano_service)
         piano_service.offers_travel = True
@@ -859,10 +861,12 @@ class TestStudentDoubleBookingPrevention:
             piano_service = Service(
                 instructor_profile_id=profile2.id,
                 service_catalog_id=piano_catalog.id,
-                hourly_rate=100.0,
+                format_prices=[
+                    {"format": "student_location", "hourly_rate": 100.0},
+                    {"format": "online", "hourly_rate": 100.0},
+                ],
                 duration_options=[60],  # Add duration_options
-                offers_travel=True,
-                is_active=True,
+                                is_active=True,
             )
             db.add(piano_service)
         piano_service.offers_travel = True

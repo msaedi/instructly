@@ -617,7 +617,7 @@ function StudentDashboardContent() {
                               .filter((v): v is string => Boolean(v))
                           )
                         );
-                        const primaryRate = services?.[0]?.hourly_rate as number | undefined;
+                        const primaryRate = services?.[0]?.min_hourly_rate as number | undefined;
                         const primarySubject = uniqueServices[0] || null;
                         const primaryArea = getServiceAreaDisplay(fav.profile ?? {}) || null;
                         const yearsExp = fav.profile?.years_experience || null;

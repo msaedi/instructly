@@ -270,6 +270,7 @@ from app.models.service_catalog import (
     ServiceAnalytics,
     ServiceCatalog,
     ServiceCategory,
+    ServiceFormatPrice,
 )
 from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
@@ -292,6 +293,51 @@ BOROUGH_ABBR: dict[str, str] = {
     "Bronx": "BR",
     "Staten Island": "SI",
 }
+
+
+def _build_service_format_price_rows(
+    hourly_rate: float,
+    *,
+    include_student_location: bool = False,
+    include_instructor_location: bool = False,
+    include_online: bool = True,
+) -> list[ServiceFormatPrice]:
+    rows: list[ServiceFormatPrice] = []
+    if include_student_location:
+        rows.append(ServiceFormatPrice(format="student_location", hourly_rate=hourly_rate))
+    if include_instructor_location:
+        rows.append(ServiceFormatPrice(format="instructor_location", hourly_rate=hourly_rate))
+    if include_online:
+        rows.append(ServiceFormatPrice(format="online", hourly_rate=hourly_rate))
+    return rows
+
+
+def _seed_service_format_prices(
+    service: Service,
+    hourly_rate: float,
+    *,
+    include_student_location: bool = False,
+    include_instructor_location: bool = False,
+    include_online: bool = True,
+) -> None:
+    service.format_prices = _build_service_format_price_rows(
+        hourly_rate,
+        include_student_location=include_student_location,
+        include_instructor_location=include_instructor_location,
+        include_online=include_online,
+    )
+
+
+def _booking_price_snapshot(
+    service: Service,
+    *,
+    duration_minutes: int,
+    location_type: str,
+) -> tuple[object, object]:
+    return (
+        service.hourly_rate_for_location_type(location_type),
+        service.price_for_booking(duration_minutes, location_type),
+    )
 
 BOROUGH_CENTROID: dict[str, tuple[float, float]] = {
     "Manhattan": (-73.985, 40.758),
@@ -1697,20 +1743,25 @@ def test_instructor(db: Session, test_password: str) -> User:
     services = []
     for catalog_service in catalog_services:
         if catalog_service.slug == "piano":
-            hourly_rate = 50.0
+            hourly_rate = 85.0
             duration_options = [30, 60, 90]
         else:  # guitar
-            hourly_rate = 45.0
+            hourly_rate = 80.0
             duration_options = [60]
 
         service = Service(
             instructor_profile_id=profile.id,
             service_catalog_id=catalog_service.id,
-            hourly_rate=hourly_rate,
             description=catalog_service.description,
             duration_options=duration_options,
-            offers_travel=True,
             is_active=True,
+        )
+        _seed_service_format_prices(
+            service,
+            hourly_rate,
+            include_student_location=True,
+            include_instructor_location=True,
+            include_online=True,
         )
         services.append(service)
     for service in services:
@@ -1953,17 +2004,30 @@ def test_booking(db: Session, test_student: User, test_instructor_with_availabil
         service = Service(
             instructor_profile_id=profile.id,
             service_catalog_id=catalog_service.id,
-            hourly_rate=50.0,
             description=catalog_service.description,
             duration_options=[60],
             is_active=True,
         )
         db.add(service)
         db.flush()
+        _seed_service_format_prices(
+            service,
+            80.0,
+            include_student_location=True,
+            include_instructor_location=True,
+            include_online=True,
+        )
+        db.flush()
 
     # Get service name from catalog
     catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.id == service.service_catalog_id).first()
     service_name = catalog_service.name if catalog_service else "Test Service"
+
+    hourly_rate, total_price = _booking_price_snapshot(
+        service,
+        duration_minutes=180,
+        location_type="student_location",
+    )
 
     booking = create_booking_pg_safe(
         db,
@@ -1974,10 +2038,11 @@ def test_booking(db: Session, test_student: User, test_instructor_with_availabil
         start_time=time(9, 0),
         end_time=time(12, 0),
         service_name=service_name,
-        hourly_rate=service.hourly_rate,
-        total_price=float(service.hourly_rate) * 3,
+        hourly_rate=hourly_rate,
+        total_price=total_price,
         duration_minutes=180,
         status=BookingStatus.CONFIRMED,
+        location_type="student_location",
         meeting_location="Test Location",
         service_area="Manhattan",
         offset_index=0,
@@ -2116,6 +2181,12 @@ def test_instructor_with_bookings(db: Session, test_instructor_with_availability
 
     tomorrow = date.today() + timedelta(days=1)
 
+    hourly_rate, total_price = _booking_price_snapshot(
+        service,
+        duration_minutes=180,
+        location_type="student_location",
+    )
+
     create_booking_pg_safe(
         db,
         student_id=test_student.id,
@@ -2125,10 +2196,11 @@ def test_instructor_with_bookings(db: Session, test_instructor_with_availability
         start_time=time(9, 0),
         end_time=time(12, 0),
         service_name=service_name,
-        hourly_rate=service.hourly_rate,
-        total_price=float(service.hourly_rate) * 3,
+        hourly_rate=hourly_rate,
+        total_price=total_price,
         duration_minutes=180,
         status=BookingStatus.CONFIRMED,
+        location_type="student_location",
         meeting_location="Test Location",
         offset_index=0,
         cancel_duplicate=True,
@@ -2155,12 +2227,19 @@ def test_instructor_with_inactive_service(db: Session, test_instructor: User) ->
     inactive_service = Service(
         instructor_profile_id=profile.id,
         service_catalog_id=catalog_service.id,
-        hourly_rate=60.0,
         description="This service is inactive",
         duration_options=[60],
         is_active=False,
     )
     db.add(inactive_service)
+    db.flush()
+    _seed_service_format_prices(
+        inactive_service,
+        80.0,
+        include_student_location=True,
+        include_instructor_location=True,
+        include_online=True,
+    )
     db.flush()
 
     return test_instructor
@@ -2482,11 +2561,18 @@ def sample_instructors_with_services(db: Session, test_password: str) -> list[Us
         instructor_profile_id=piano_profile.id,
         service_catalog_id=piano_catalog.id,
         description="Expert piano instruction",
-        hourly_rate=75.0,
         duration_options=[30, 60, 90],
         is_active=True,
     )
     db.add(piano_service)
+    db.flush()
+    _seed_service_format_prices(
+        piano_service,
+        85.0,
+        include_student_location=True,
+        include_instructor_location=True,
+        include_online=True,
+    )
     db.commit()  # Commit to ensure service is created
 
     # Update analytics for Piano
@@ -2542,11 +2628,18 @@ def sample_instructors_with_services(db: Session, test_password: str) -> list[Us
         instructor_profile_id=yoga_profile.id,
         service_catalog_id=yoga_catalog.id,
         description="Professional yoga instruction",
-        hourly_rate=60.0,
         duration_options=[60, 90],
         is_active=True,
     )
     db.add(yoga_service)
+    db.flush()
+    _seed_service_format_prices(
+        yoga_service,
+        80.0,
+        include_student_location=True,
+        include_instructor_location=True,
+        include_online=True,
+    )
     db.commit()  # Commit to ensure service is created
 
     # Update analytics for Yoga

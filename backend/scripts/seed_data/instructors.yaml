@@ -2,13 +2,18 @@ instructors:
 - email: sarah.chen@example.com
   phone: '+12125551001'
   profile:
-    bio: Julliard-trained pianist with 15 years of teaching experience. Specializes
-      in classical and jazz piano.
+    bio: Julliard-trained pianist with 15 years of teaching experience. Specializes in classical and jazz piano.
     years_experience: 15
     services:
     - name: Piano
       description: Classical, jazz, and contemporary piano for all levels
-      price: 120.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 120.0
+      - format: instructor_location
+        hourly_rate: 120.0
+      - format: online
+        hourly_rate: 120.0
       duration_options:
       - 30
       - 45
@@ -25,9 +30,6 @@ instructors:
         - beginner
         - intermediate
         - advanced
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: flexible_academic
   current_tier_pct: 10.0
   seed_completed_last_30d: 12
@@ -37,13 +39,16 @@ instructors:
 - email: michael.rodriguez@example.com
   phone: '+12125551002'
   profile:
-    bio: Former concert pianist offering affordable lessons for beginners. Patient
-      and encouraging teaching style.
+    bio: Former concert pianist offering affordable lessons for beginners. Patient and encouraging teaching style.
     years_experience: 8
     services:
     - name: Piano
       description: Piano fundamentals and music theory
-      price: 85.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 85.0
+      - format: instructor_location
+        hourly_rate: 85.0
       duration_options:
       - 30
       - 45
@@ -55,9 +60,6 @@ instructors:
         skill_level:
         - beginner
         - intermediate
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: evenings_weekends
   first_name: Michael
   last_name: Rodriguez
@@ -70,12 +72,15 @@ instructors:
     services:
     - name: Keyboard
       description: Digital keyboards, synthesizers, and music production
-      price: 85.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 85.0
+      - format: instructor_location
+        hourly_rate: 85.0
+      - format: online
+        hourly_rate: 85.0
       duration_options:
       - 60
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: afternoons_evenings
   first_name: Jason
   last_name: Park
@@ -83,20 +88,22 @@ instructors:
 - email: carlos.garcia@example.com
   phone: '+12125551004'
   profile:
-    bio: Session guitarist with 20 years experience. Rock, blues, jazz, and classical
-      styles.
+    bio: Session guitarist with 20 years experience. Rock, blues, jazz, and classical styles.
     years_experience: 20
     services:
     - name: Guitar
       description: Acoustic and electric guitar for all styles
-      price: 90.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 90.0
+      - format: instructor_location
+        hourly_rate: 90.0
+      - format: online
+        hourly_rate: 90.0
       duration_options:
       - 30
       - 45
       - 60
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: full_availability
   first_name: Carlos
   last_name: Garcia
@@ -104,19 +111,21 @@ instructors:
 - email: amanda.johnson@example.com
   phone: '+12125551005'
   profile:
-    bio: Broadway performer with vocal coaching expertise. Belt, mix, and classical
-      techniques.
+    bio: Broadway performer with vocal coaching expertise. Belt, mix, and classical techniques.
     years_experience: 12
     services:
     - name: Voice & Singing
       description: Vocal technique, performance, and audition prep
-      price: 95.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 95.0
+      - format: instructor_location
+        hourly_rate: 95.0
+      - format: online
+        hourly_rate: 95.0
       duration_options:
       - 45
       - 60
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: mornings_only
   current_tier_pct: 12.0
   seed_completed_last_30d: 6
@@ -131,16 +140,17 @@ instructors:
     services:
     - name: Violin
       description: Classical violin technique and repertoire
-      price: 150.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 150.0
+      - format: instructor_location
+        hourly_rate: 150.0
       duration_options:
       - 60
       filter_selections:
         skill_level:
         - intermediate
         - advanced
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: weekends_only
   first_name: Yuki
   last_name: Tanaka
@@ -153,13 +163,14 @@ instructors:
     services:
     - name: Drums & Percussion
       description: Drum kit, hand percussion, and rhythm training
-      price: 85.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 85.0
+      - format: instructor_location
+        hourly_rate: 85.0
       duration_options:
       - 45
       - 60
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: evenings_weekends
   first_name: Marcus
   last_name: Williams
@@ -172,18 +183,24 @@ instructors:
     services:
     - name: Bass
       description: Electric and upright bass techniques
-      price: 80.0
+      format_prices:
+      - format: online
+        hourly_rate: 80.0
       duration_options:
       - 45
       - 60
     - name: Music Theory
       description: Comprehensive music theory and composition
-      price: 75.0
+      format_prices:
+      - format: online
+        hourly_rate: 75.0
       duration_options:
       - 60
     - name: Ukulele
       description: Fun ukulele lessons for all ages
-      price: 60.0
+      format_prices:
+      - format: online
+        hourly_rate: 60.0
       duration_options:
       - 30
       - 45
@@ -203,13 +220,16 @@ instructors:
     services:
     - name: Saxophone
       description: Alto, tenor, and soprano sax for jazz and classical
-      price: 85.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 85.0
+      - format: instructor_location
+        hourly_rate: 85.0
+      - format: online
+        hourly_rate: 85.0
       duration_options:
       - 45
       - 60
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: standard_weekday
   first_name: Robert
   last_name: Davis
@@ -222,13 +242,16 @@ instructors:
     services:
     - name: Songwriting
       description: Lyric writing, melody, and song structure
-      price: 90.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 90.0
+      - format: instructor_location
+        hourly_rate: 90.0
+      - format: online
+        hourly_rate: 90.0
       duration_options:
       - 60
       - 90
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: afternoons_evenings
   first_name: Lily
   last_name: Anderson
@@ -241,7 +264,13 @@ instructors:
     services:
     - name: Math Through Play
       description: K-5 math with engaging, hands-on methods
-      price: 90.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 90.0
+      - format: instructor_location
+        hourly_rate: 90.0
+      - format: online
+        hourly_rate: 90.0
       duration_options:
       - 30
       - 45
@@ -251,9 +280,6 @@ instructors:
       filter_selections:
         skill_level:
         - beginner
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: flexible_academic
   first_name: Jennifer
   last_name: Kim
@@ -261,13 +287,18 @@ instructors:
 - email: thomas.lee@example.com
   phone: '+12125551012'
   profile:
-    bio: Former elementary school teacher with a passion for building strong math
-      foundations.
+    bio: Former elementary school teacher with a passion for building strong math foundations.
     years_experience: 5
     services:
     - name: Math Through Play
       description: Patient, encouraging approach to elementary math
-      price: 85.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 85.0
+      - format: instructor_location
+        hourly_rate: 85.0
+      - format: online
+        hourly_rate: 85.0
       duration_options:
       - 30
       - 45
@@ -276,9 +307,6 @@ instructors:
       filter_selections:
         skill_level:
         - beginner
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: afternoons_evenings
   first_name: Thomas
   last_name: Lee
@@ -291,13 +319,16 @@ instructors:
     services:
     - name: SAT
       description: Comprehensive SAT prep with personalized study plans
-      price: 150.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 150.0
+      - format: instructor_location
+        hourly_rate: 150.0
+      - format: online
+        hourly_rate: 150.0
       duration_options:
       - 90
       - 120
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: weekends_only
   first_name: Rachel
   last_name: Patel
@@ -310,13 +341,12 @@ instructors:
     services:
     - name: SAT
       description: SAT math and verbal strategies
-      price: 85.0
+      format_prices:
+      - format: online
+        hourly_rate: 85.0
       duration_options:
       - 60
       - 90
-      offers_travel: false
-      offers_at_location: false
-      offers_online: true
   availability_pattern: evenings_weekends
   first_name: Steven
   last_name: Chang
@@ -329,20 +359,26 @@ instructors:
     services:
     - name: Algebra
       description: Foundations of algebra with real-world applications
-      price: 85.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 85.0
+      - format: instructor_location
+        hourly_rate: 85.0
+      - format: online
+        hourly_rate: 85.0
       duration_options:
       - 60
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
     - name: Algebra
       description: Advanced algebra and trigonometry
-      price: 90.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 90.0
+      - format: instructor_location
+        hourly_rate: 90.0
+      - format: online
+        hourly_rate: 90.0
       duration_options:
       - 60
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: standard_weekday
   first_name: Maria
   last_name: Gonzalez
@@ -355,16 +391,21 @@ instructors:
     services:
     - name: Physics
       description: AP Physics, college physics, and physics olympiad prep
-      price: 120.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 120.0
+      - format: instructor_location
+        hourly_rate: 120.0
+      - format: online
+        hourly_rate: 120.0
       duration_options:
       - 60
       - 90
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
     - name: Calculus
       description: AP Calculus AB/BC and college calculus
-      price: 110.0
+      format_prices:
+      - format: online
+        hourly_rate: 110.0
       duration_options:
       - 60
       - 90
@@ -383,12 +424,15 @@ instructors:
     services:
     - name: Chemistry
       description: General chemistry, AP Chemistry, and organic chemistry
-      price: 85.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 85.0
+      - format: instructor_location
+        hourly_rate: 85.0
+      - format: online
+        hourly_rate: 85.0
       duration_options:
       - 60
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: mornings_only
   first_name: Susan
   last_name: Martinez
@@ -401,19 +445,20 @@ instructors:
     services:
     - name: Kids Coding (Scratch)
       description: Scratch, Python, and web development for kids and teens
-      price: 95.0
+      format_prices:
+      - format: online
+        hourly_rate: 95.0
       duration_options:
       - 60
       - 90
       age_groups:
       - Kids
       - Teens
-      offers_travel: false
-      offers_at_location: false
-      offers_online: true
     - name: Python
       description: Python programming from basics to advanced
-      price: 100.0
+      format_prices:
+      - format: online
+        hourly_rate: 100.0
       duration_options:
       - 60
       - 90
@@ -429,7 +474,11 @@ instructors:
     services:
     - name: Reading
       description: Phonics, comprehension, and reading fluency
-      price: 80.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 80.0
+      - format: instructor_location
+        hourly_rate: 80.0
       duration_options:
       - 30
       - 45
@@ -439,9 +488,6 @@ instructors:
       filter_selections:
         skill_level:
         - beginner
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: full_availability
   first_name: Patricia
   last_name: Brown
@@ -454,12 +500,15 @@ instructors:
     services:
     - name: ACT
       description: Complete ACT preparation with practice tests
-      price: 130.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 130.0
+      - format: instructor_location
+        hourly_rate: 130.0
+      - format: online
+        hourly_rate: 130.0
       duration_options:
       - 90
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: weekends_only
   first_name: Kevin
   last_name: Zhang
@@ -472,13 +521,16 @@ instructors:
     services:
     - name: Personal Training
       description: Customized fitness programs for all fitness levels
-      price: 100.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 100.0
+      - format: instructor_location
+        hourly_rate: 100.0
+      - format: online
+        hourly_rate: 100.0
       duration_options:
       - 45
       - 60
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: early_bird
   first_name: Marcus
   last_name: Johnson
@@ -491,12 +543,13 @@ instructors:
     services:
     - name: Personal Training
       description: Weight loss, muscle building, and general fitness
-      price: 85.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 85.0
+      - format: instructor_location
+        hourly_rate: 85.0
       duration_options:
       - 45
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: mornings_only
   first_name: Jessica
   last_name: Rivera
@@ -509,13 +562,16 @@ instructors:
     services:
     - name: Yoga
       description: Private yoga sessions tailored to your needs
-      price: 90.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 90.0
+      - format: instructor_location
+        hourly_rate: 90.0
+      - format: online
+        hourly_rate: 90.0
       duration_options:
       - 60
       - 90
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: early_bird
   first_name: Priya
   last_name: Sharma
@@ -528,12 +584,13 @@ instructors:
     services:
     - name: Yoga
       description: Hatha yoga, restorative yoga, and meditation
-      price: 85.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 85.0
+      - format: instructor_location
+        hourly_rate: 85.0
       duration_options:
       - 60
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: flexible_academic
   first_name: Emma
   last_name: White
@@ -546,7 +603,11 @@ instructors:
     services:
     - name: Swimming
       description: Private swimming lessons at your pool or local facility
-      price: 85.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 85.0
+      - format: instructor_location
+        hourly_rate: 85.0
       duration_options:
       - 30
       - 45
@@ -554,9 +615,6 @@ instructors:
       - Kids
       - Teens
       - Adults
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: mornings_only
   first_name: Michael
   last_name: Turner
@@ -569,16 +627,17 @@ instructors:
     services:
     - name: Tennis
       description: Tennis technique, strategy, and match play
-      price: 95.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 95.0
+      - format: instructor_location
+        hourly_rate: 95.0
       duration_options:
       - 60
       age_groups:
       - Kids
       - Teens
       - Adults
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: full_availability
   first_name: Sophia
   last_name: Rodriguez
@@ -591,15 +650,16 @@ instructors:
     services:
     - name: Basketball
       description: Shooting, dribbling, defense, and game IQ
-      price: 90.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 90.0
+      - format: instructor_location
+        hourly_rate: 90.0
       duration_options:
       - 60
       age_groups:
       - Kids
       - Teens
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: afternoons_evenings
   first_name: Dwayne
   last_name: Jackson
@@ -612,7 +672,11 @@ instructors:
     services:
     - name: Karate
       description: Karate, self-defense, and discipline training
-      price: 80.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 80.0
+      - format: instructor_location
+        hourly_rate: 80.0
       duration_options:
       - 45
       - 60
@@ -620,9 +684,6 @@ instructors:
       - Kids
       - Teens
       - Adults
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: evenings_weekends
   first_name: Ken
   last_name: Yamamoto
@@ -635,12 +696,15 @@ instructors:
     services:
     - name: Pilates
       description: Mat Pilates and reformer sessions
-      price: 95.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 95.0
+      - format: instructor_location
+        hourly_rate: 95.0
+      - format: online
+        hourly_rate: 95.0
       duration_options:
       - 60
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: standard_weekday
   first_name: Lauren
   last_name: Clark
@@ -653,12 +717,13 @@ instructors:
     services:
     - name: Running
       description: 5K to marathon training, form analysis, and injury prevention
-      price: 90.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 90.0
+      - format: instructor_location
+        hourly_rate: 90.0
       duration_options:
       - 60
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: early_bird
   first_name: Chris
   last_name: Evans
@@ -671,13 +736,16 @@ instructors:
     services:
     - name: Spanish
       description: Conversational Spanish, grammar, and business Spanish
-      price: 90.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 90.0
+      - format: instructor_location
+        hourly_rate: 90.0
+      - format: online
+        hourly_rate: 90.0
       duration_options:
       - 45
       - 60
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: flexible_academic
   first_name: Carlos
   last_name: Mendez
@@ -690,13 +758,12 @@ instructors:
     services:
     - name: Spanish
       description: Spanish for beginners and intermediate learners
-      price: 65.0
+      format_prices:
+      - format: online
+        hourly_rate: 65.0
       duration_options:
       - 30
       - 45
-      offers_travel: false
-      offers_at_location: false
-      offers_online: true
   availability_pattern: evenings_weekends
   first_name: Lucia
   last_name: Fernandez
@@ -709,12 +776,15 @@ instructors:
     services:
     - name: English (ESL/EFL)
       description: English as a Second Language for all levels
-      price: 80.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 80.0
+      - format: instructor_location
+        hourly_rate: 80.0
+      - format: online
+        hourly_rate: 80.0
       duration_options:
       - 60
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: standard_weekday
   first_name: Jennifer
   last_name: Taylor
@@ -727,13 +797,16 @@ instructors:
     services:
     - name: French
       description: French conversation, grammar, and pronunciation
-      price: 90.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 90.0
+      - format: instructor_location
+        hourly_rate: 90.0
+      - format: online
+        hourly_rate: 90.0
       duration_options:
       - 45
       - 60
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: afternoons_evenings
   first_name: Pierre
   last_name: Dubois
@@ -746,12 +819,15 @@ instructors:
     services:
     - name: Mandarin
       description: HSK prep, business Chinese, and conversation
-      price: 85.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 85.0
+      - format: instructor_location
+        hourly_rate: 85.0
+      - format: online
+        hourly_rate: 85.0
       duration_options:
       - 60
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: flexible_academic
   first_name: Wei
   last_name: Zhang
@@ -764,13 +840,12 @@ instructors:
     services:
     - name: Italian
       description: Italian for travel, business, or personal enrichment
-      price: 65.0
+      format_prices:
+      - format: online
+        hourly_rate: 65.0
       duration_options:
       - 45
       - 60
-      offers_travel: false
-      offers_at_location: false
-      offers_online: true
   availability_pattern: evenings_weekends
   first_name: Marco
   last_name: Rossi
@@ -783,12 +858,16 @@ instructors:
     services:
     - name: German
       description: German for business and academic purposes
-      price: 75.0
+      format_prices:
+      - format: online
+        hourly_rate: 75.0
       duration_options:
       - 60
     - name: Russian
       description: Russian language and Cyrillic script
-      price: 80.0
+      format_prices:
+      - format: online
+        hourly_rate: 80.0
       duration_options:
       - 60
   availability_pattern: standard_weekday
@@ -803,12 +882,15 @@ instructors:
     services:
     - name: Japanese
       description: JLPT prep, conversational Japanese, and kanji
-      price: 80.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 80.0
+      - format: instructor_location
+        hourly_rate: 80.0
+      - format: online
+        hourly_rate: 80.0
       duration_options:
       - 60
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: afternoons_evenings
   first_name: Yuki
   last_name: Nakamura
@@ -821,13 +903,16 @@ instructors:
     services:
     - name: Sign Language
       description: American Sign Language for beginners to advanced
-      price: 90.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 90.0
+      - format: instructor_location
+        hourly_rate: 90.0
+      - format: online
+        hourly_rate: 90.0
       duration_options:
       - 45
       - 60
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: full_availability
   first_name: Sarah
   last_name: Mitchell
@@ -840,12 +925,11 @@ instructors:
     services:
     - name: Korean
       description: Korean language, Hangul, and cultural immersion
-      price: 75.0
+      format_prices:
+      - format: online
+        hourly_rate: 75.0
       duration_options:
       - 60
-      offers_travel: false
-      offers_at_location: false
-      offers_online: true
   availability_pattern: evenings_weekends
   first_name: Jin
   last_name: Park
@@ -858,13 +942,14 @@ instructors:
     services:
     - name: Photography
       description: Digital photography, composition, and Lightroom editing
-      price: 95.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 95.0
+      - format: instructor_location
+        hourly_rate: 95.0
       duration_options:
       - 90
       - 120
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: weekends_only
   first_name: David
   last_name: Chen
@@ -877,12 +962,15 @@ instructors:
     services:
     - name: Photography
       description: Smartphone photography and basic editing
-      price: 85.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 85.0
+      - format: instructor_location
+        hourly_rate: 85.0
+      - format: online
+        hourly_rate: 85.0
       duration_options:
       - 60
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: flexible_academic
   first_name: Lisa
   last_name: Nguyen
@@ -895,16 +983,17 @@ instructors:
     services:
     - name: Drawing
       description: Pencil, charcoal, and figure drawing
-      price: 85.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 85.0
+      - format: instructor_location
+        hourly_rate: 85.0
       duration_options:
       - 90
       age_groups:
       - Kids
       - Teens
       - Adults
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: standard_weekday
   first_name: Robert
   last_name: Lewis
@@ -917,13 +1006,16 @@ instructors:
     services:
     - name: Acting
       description: Scene study, monologues, and audition prep
-      price: 110.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 110.0
+      - format: instructor_location
+        hourly_rate: 110.0
+      - format: online
+        hourly_rate: 110.0
       duration_options:
       - 60
       - 90
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: afternoons_evenings
   first_name: Michelle
   last_name: Adams
@@ -936,7 +1028,11 @@ instructors:
     services:
     - name: Ballet
       description: Classical ballet for intermediate and advanced dancers
-      price: 100.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 100.0
+      - format: instructor_location
+        hourly_rate: 100.0
       duration_options:
       - 60
       - 90
@@ -947,9 +1043,6 @@ instructors:
         skill_level:
         - intermediate
         - advanced
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: mornings_only
   first_name: Anastasia
   last_name: Petrova
@@ -962,12 +1055,16 @@ instructors:
     services:
     - name: Watercolor
       description: Watercolor techniques from basic to advanced
-      price: 80.0
+      format_prices:
+      - format: online
+        hourly_rate: 80.0
       duration_options:
       - 90
     - name: Acrylic
       description: Acrylic painting and mixed media
-      price: 85.0
+      format_prices:
+      - format: online
+        hourly_rate: 85.0
       duration_options:
       - 90
   availability_pattern: weekends_only
@@ -982,16 +1079,17 @@ instructors:
     services:
     - name: Hip Hop
       description: Hip hop choreography and freestyle
-      price: 90.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 90.0
+      - format: instructor_location
+        hourly_rate: 90.0
       duration_options:
       - 60
       age_groups:
       - Kids
       - Teens
       - Adults
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: evenings_weekends
   first_name: Tyrone
   last_name: Washington
@@ -1004,15 +1102,16 @@ instructors:
     services:
     - name: Pottery
       description: Wheel throwing and hand building techniques
-      price: 90.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 90.0
+      - format: instructor_location
+        hourly_rate: 90.0
       duration_options:
       - 120
       age_groups:
       - Teens
       - Adults
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: full_availability
   first_name: Emily
   last_name: Stone
@@ -1025,13 +1124,12 @@ instructors:
     services:
     - name: Illustration
       description: Digital illustration and design fundamentals
-      price: 85.0
+      format_prices:
+      - format: online
+        hourly_rate: 85.0
       duration_options:
       - 60
       - 90
-      offers_travel: false
-      offers_at_location: false
-      offers_online: true
   availability_pattern: flexible_academic
   first_name: Jason
   last_name: Kim
@@ -1044,15 +1142,16 @@ instructors:
     services:
     - name: Jazz & Contemporary
       description: Jazz technique, leaps, turns, and combinations
-      price: 80.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 80.0
+      - format: instructor_location
+        hourly_rate: 80.0
       duration_options:
       - 60
       age_groups:
       - Kids
       - Teens
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: afternoons_evenings
   first_name: Nicole
   last_name: Harris
@@ -1065,13 +1164,16 @@ instructors:
     services:
     - name: Life Coaching
       description: Goal setting, career transitions, and personal development
-      price: 150.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 150.0
+      - format: instructor_location
+        hourly_rate: 150.0
+      - format: online
+        hourly_rate: 150.0
       duration_options:
       - 60
       - 90
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: standard_weekday
   first_name: Rachel
   last_name: Green
@@ -1084,12 +1186,11 @@ instructors:
     services:
     - name: Life Coaching
       description: Practical strategies for personal and professional growth
-      price: 85.0
+      format_prices:
+      - format: online
+        hourly_rate: 85.0
       duration_options:
       - 60
-      offers_travel: false
-      offers_at_location: false
-      offers_online: true
   availability_pattern: evenings_weekends
   first_name: James
   last_name: Foster
@@ -1102,13 +1203,14 @@ instructors:
     services:
     - name: Cuisines
       description: Italian, French, and modern American cuisine
-      price: 120.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 120.0
+      - format: instructor_location
+        hourly_rate: 120.0
       duration_options:
       - 90
       - 120
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: flexible_academic
   first_name: Antonio
   last_name: Ricci
@@ -1121,12 +1223,16 @@ instructors:
     services:
     - name: Wine Tasting
       description: Wine tasting techniques and food pairing
-      price: 100.0
+      format_prices:
+      - format: online
+        hourly_rate: 100.0
       duration_options:
       - 90
     - name: Wine Tasting
       description: Wine regions, varietals, and collecting
-      price: 95.0
+      format_prices:
+      - format: online
+        hourly_rate: 95.0
       duration_options:
       - 60
   availability_pattern: evenings_weekends
@@ -1141,13 +1247,16 @@ instructors:
     services:
     - name: Public Speaking
       description: Presentation skills, speech writing, and confidence building
-      price: 125.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 125.0
+      - format: instructor_location
+        hourly_rate: 125.0
+      - format: online
+        hourly_rate: 125.0
       duration_options:
       - 60
       - 90
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: standard_weekday
   first_name: Mark
   last_name: Stevens
@@ -1160,13 +1269,14 @@ instructors:
     services:
     - name: Makeup
       description: Personal makeup lessons and special event looks
-      price: 90.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 90.0
+      - format: instructor_location
+        hourly_rate: 90.0
       duration_options:
       - 60
       - 90
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: full_availability
   first_name: Ashley
   last_name: James
@@ -1179,16 +1289,19 @@ instructors:
     services:
     - name: Chess
       description: Chess strategy, tactics, and tournament prep
-      price: 80.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 80.0
+      - format: instructor_location
+        hourly_rate: 80.0
+      - format: online
+        hourly_rate: 80.0
       duration_options:
       - 60
       age_groups:
       - Kids
       - Teens
       - Adults
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
   availability_pattern: afternoons_evenings
   first_name: Vladimir
   last_name: Petrov
@@ -1201,13 +1314,12 @@ instructors:
     services:
     - name: Career Coaching
       description: Resume building, interview prep, and career strategy
-      price: 110.0
+      format_prices:
+      - format: online
+        hourly_rate: 110.0
       duration_options:
       - 60
       - 90
-      offers_travel: false
-      offers_at_location: false
-      offers_online: true
   availability_pattern: flexible_academic
   first_name: Linda
   last_name: Thompson
@@ -1220,12 +1332,13 @@ instructors:
     services:
     - name: Dog Training
       description: Basic obedience, behavior modification, and puppy training
-      price: 85.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 85.0
+      - format: instructor_location
+        hourly_rate: 85.0
       duration_options:
       - 60
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: weekends_only
   first_name: Jessica
   last_name: Cooper
@@ -1238,16 +1351,17 @@ instructors:
     services:
     - name: Baking
       description: French pastries, artisan breads, and cake decorating
-      price: 100.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 100.0
+      - format: instructor_location
+        hourly_rate: 100.0
       duration_options:
       - 120
       age_groups:
       - Kids
       - Teens
       - Adults
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: mornings_only
   first_name: Claire
   last_name: Dubois
@@ -1261,7 +1375,9 @@ instructors:
     services:
     - name: Guitar
       description: Classical guitar technique and repertoire
-      price: 85.0
+      format_prices:
+      - format: online
+        hourly_rate: 85.0
       duration_options:
       - 45
       - 60
@@ -1278,13 +1394,17 @@ instructors:
     services:
     - name: Yoga
       description: Vinyasa and restorative yoga
-      price: 95.0
+      format_prices:
+      - format: online
+        hourly_rate: 95.0
       duration_options:
       - 60
       - 90
     - name: Meditation
       description: Guided meditation techniques
-      price: 75.0
+      format_prices:
+      - format: online
+        hourly_rate: 75.0
       duration_options:
       - 30
       - 45
@@ -1295,31 +1415,32 @@ instructors:
 - email: emily.carter@example.com
   phone: '+12125551064'
   profile:
-    bio: Elementary school art teacher specializing in fun, creative projects for
-      kids.
+    bio: Elementary school art teacher specializing in fun, creative projects for kids.
     years_experience: 8
     services:
     - name: Drawing
       description: Fun drawing lessons for kids - cartoons, animals, and more!
-      price: 80.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 80.0
+      - format: instructor_location
+        hourly_rate: 80.0
       duration_options:
       - 45
       - 60
       age_groups:
       - Kids
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
     - name: Watercolor
       description: Messy, fun watercolor projects for young artists
-      price: 80.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 80.0
+      - format: instructor_location
+        hourly_rate: 80.0
       duration_options:
       - 60
       age_groups:
       - Kids
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: afternoons_evenings
   first_name: Emily
   last_name: Carter
@@ -1332,26 +1453,30 @@ instructors:
     services:
     - name: Voice & Singing
       description: Kids singing lessons with Disney songs and fun exercises
-      price: 85.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 85.0
+      - format: instructor_location
+        hourly_rate: 85.0
+      - format: online
+        hourly_rate: 85.0
       duration_options:
       - 30
       - 45
       age_groups:
       - Kids
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
     - name: Drums & Percussion
       description: Beginning drums for kids - rhythm games and basic beats
-      price: 85.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 85.0
+      - format: instructor_location
+        hourly_rate: 85.0
       duration_options:
       - 30
       - 45
       age_groups:
       - Kids
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: flexible_academic
   first_name: Tommy
   last_name: Nguyen
@@ -1364,26 +1489,28 @@ instructors:
     services:
     - name: Spanish
       description: Spanish for kids through games, songs, and cultural activities
-      price: 85.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 85.0
+      - format: instructor_location
+        hourly_rate: 85.0
+      - format: online
+        hourly_rate: 85.0
       duration_options:
       - 30
       - 45
       age_groups:
       - Kids
-      offers_travel: true
-      offers_at_location: true
-      offers_online: true
     - name: French
       description: Fun French lessons for children with songs and activities
-      price: 65.0
+      format_prices:
+      - format: online
+        hourly_rate: 65.0
       duration_options:
       - 30
       - 45
       age_groups:
       - Kids
-      offers_travel: false
-      offers_at_location: false
-      offers_online: true
   availability_pattern: afternoons_evenings
   first_name: Isabella
   last_name: Santos
@@ -1396,26 +1523,26 @@ instructors:
     services:
     - name: Kids Coding (Scratch)
       description: Scratch programming and fun coding games for kids 7-12
-      price: 70.0
+      format_prices:
+      - format: online
+        hourly_rate: 70.0
       duration_options:
       - 45
       - 60
       age_groups:
       - Kids
-      offers_travel: false
-      offers_at_location: false
-      offers_online: true
     - name: Robotics
       description: Build and program simple robots - perfect for curious kids!
-      price: 80.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 80.0
+      - format: instructor_location
+        hourly_rate: 80.0
       duration_options:
       - 60
       age_groups:
       - Kids
       - Teens
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: weekends_only
   first_name: Sarah
   last_name: Johnson
@@ -1428,7 +1555,11 @@ instructors:
     services:
     - name: Ballet
       description: Pre-ballet and beginning ballet for little dancers
-      price: 85.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 85.0
+      - format: instructor_location
+        hourly_rate: 85.0
       duration_options:
       - 45
       age_groups:
@@ -1436,19 +1567,17 @@ instructors:
       filter_selections:
         skill_level:
         - beginner
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
     - name: Jazz & Contemporary
       description: Fun, energetic jazz dance for kids with popular music
-      price: 85.0
+      format_prices:
+      - format: student_location
+        hourly_rate: 85.0
+      - format: instructor_location
+        hourly_rate: 85.0
       duration_options:
       - 45
       age_groups:
       - Kids
-      offers_travel: true
-      offers_at_location: true
-      offers_online: false
   availability_pattern: afternoons_evenings
   first_name: Brittany
   last_name: Jones
@@ -1462,7 +1591,9 @@ instructors:
     services:
     - name: Cuisines
       description: Professional cooking techniques
-      price: 120.0
+      format_prices:
+      - format: online
+        hourly_rate: 120.0
       duration_options:
       - 90
       - 120

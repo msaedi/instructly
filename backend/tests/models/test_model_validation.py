@@ -198,7 +198,9 @@ class TestModelInstantiation:
         service = Service(
             instructor_profile_id=profile.id,
             service_catalog_id=catalog_service.id,
-            hourly_rate=75.0,
+            format_prices=[
+                {"format": "online", "hourly_rate": 75.0},
+            ],
             description="Learn Python from basics to advanced",
             duration_options=[60, 90],
         )
@@ -650,7 +652,7 @@ class TestDefaultValues:
             # If all are used, skip this test
             pytest.skip("All catalog services already used by test instructor")
 
-        service = Service(instructor_profile_id=profile.id, service_catalog_id=catalog_service.id, hourly_rate=50.0)
+        service = Service(instructor_profile_id=profile.id, service_catalog_id=catalog_service.id, format_prices=[{"format": "online", "hourly_rate": 50.0}])
         db.add(service)
         db.flush()
 

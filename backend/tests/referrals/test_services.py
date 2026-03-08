@@ -351,7 +351,9 @@ def test_instructor_flow_creates_payout(db, referral_service, monkeypatch):
     service = InstructorService(
         instructor_profile_id=instructor_profile.id,
         service_catalog_id=catalog.id,
-        hourly_rate=120.0,
+        format_prices=[
+            {"format": "online", "hourly_rate": 120.0},
+        ],
         duration_options=[60],
         is_active=True,
     )

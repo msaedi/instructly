@@ -39,7 +39,6 @@ from ...schemas.service_catalog import (
     CatalogServiceResponse,
     CategoryResponse,
     FilterValidationResponse,
-    InstructorServiceCapabilitiesUpdate,
     InstructorServiceCreate,
     InstructorServiceResponse,
     UpdateFilterSelectionsRequest,
@@ -140,44 +139,13 @@ async def add_service_to_profile(
             instructor_service.create_instructor_service_from_catalog,
             instructor_id=current_user.id,
             catalog_service_id=service_data.catalog_service_id,
-            hourly_rate=service_data.hourly_rate,
+            format_prices=[price.model_dump() for price in service_data.format_prices],
             custom_description=service_data.custom_description,
             duration_options=service_data.duration_options,
         )
     except DomainException as exc:
         raise exc.to_http_exception() from exc
     return InstructorServiceResponse(**created)
-
-
-@router.patch(
-    "/{service_id}/capabilities",
-    response_model=InstructorServiceResponse,
-    dependencies=[Depends(rate_limit("write"))],
-)
-async def update_service_capabilities(
-    service_id: str,
-    capabilities: InstructorServiceCapabilitiesUpdate = Body(...),
-    current_user: User = Depends(get_current_active_user),
-    instructor_service: InstructorService = Depends(get_instructor_service),
-) -> InstructorServiceResponse:
-    """Update location capabilities for an instructor service."""
-    if not current_user.is_instructor:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Only instructors can update services"
-        )
-
-    updates = capabilities.model_dump(exclude_unset=True)
-    try:
-        updated = await asyncio.to_thread(
-            instructor_service.update_service_capabilities,
-            service_id=service_id,
-            instructor_id=current_user.id,
-            updates=updates,
-        )
-    except DomainException as exc:
-        raise exc.to_http_exception() from exc
-
-    return InstructorServiceResponse(**updated)
 
 
 @router.get(

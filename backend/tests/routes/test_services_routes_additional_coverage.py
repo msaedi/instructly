@@ -58,7 +58,7 @@ class TestServicesRoutesAdditionalCoverage:
             "/api/v1/services/instructor/add",
             json={
                 "catalog_service_id": "svc",
-                "hourly_rate": 50.0,
+                "format_prices": [{"format": "online", "hourly_rate": 50.0}],
                 "custom_description": "Test",
                 "duration_options": [60],
             },
@@ -77,7 +77,7 @@ class TestServicesRoutesAdditionalCoverage:
             "/api/v1/services/instructor/add",
             json={
                 "catalog_service_id": "svc",
-                "hourly_rate": 50.0,
+                "format_prices": [{"format": "online", "hourly_rate": 50.0}],
                 "custom_description": "Test",
                 "duration_options": [60],
             },
@@ -96,7 +96,7 @@ class TestServicesRoutesAdditionalCoverage:
             "/api/v1/services/instructor/add",
             json={
                 "catalog_service_id": "svc",
-                "hourly_rate": 50.0,
+                "format_prices": [{"format": "online", "hourly_rate": 50.0}],
                 "custom_description": "Test",
                 "duration_options": [60],
             },
@@ -188,8 +188,13 @@ class TestServicesRoutesAdditionalCoverage:
             "id": "svc-1",
             "catalog_service_id": "cat-svc",
             "name": "Piano Lessons",
+            "service_catalog_name": "Piano Lessons",
             "category": "Music",
-            "hourly_rate": 75.0,
+            "min_hourly_rate": 75.0,
+            "format_prices": [{"format": "online", "hourly_rate": 75.0}],
+            "offers_travel": False,
+            "offers_at_location": False,
+            "offers_online": True,
             "description": "Learn piano",
             "duration_options": [60],
             "is_active": True,
@@ -199,13 +204,14 @@ class TestServicesRoutesAdditionalCoverage:
             "/api/v1/services/instructor/add",
             json={
                 "catalog_service_id": "cat-svc",
-                "hourly_rate": 75.0,
+                "format_prices": [{"format": "online", "hourly_rate": 75.0}],
                 "custom_description": "Learn piano",
                 "duration_options": [60],
             },
         )
         assert res.status_code == 200
-        assert res.json()["hourly_rate"] == 75.0
+        assert res.json()["min_hourly_rate"] == 75.0
+        assert res.json()["format_prices"] == [{"format": "online", "hourly_rate": 75.0}]
 
         app.dependency_overrides.pop(get_current_active_user, None)
 

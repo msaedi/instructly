@@ -76,7 +76,9 @@ def _make_service(
     service = InstructorService(
         instructor_profile_id="inst-1",
         service_catalog_id=service_id,
-        hourly_rate=50.0,
+        format_prices=[
+            {"format": "online", "hourly_rate": 50.0},
+        ],
         is_active=active,
     )
     service.catalog_entry = catalog

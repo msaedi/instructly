@@ -91,7 +91,11 @@ async def test_booking_create_conflict_returns_409(
 
     availability_service = AvailabilityService(db)
     service = _get_service_with_duration(db, test_instructor, duration_minutes=60)
-    service.hourly_rate = 120.0
+    if service.format_prices:
+        for price_row in service.format_prices:
+            price_row.hourly_rate = 120.0
+    else:
+        service.format_prices = [{"format": "online", "hourly_rate": 120.0}]
     service.offers_at_location = True
     db.flush()
     target_date = date.today() + timedelta(days=9)

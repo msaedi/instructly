@@ -51,7 +51,7 @@ def mock_repository() -> Mock:
     repo.filter_by_region_coverage.return_value = ["inst_001", "inst_002"]
     repo.filter_by_any_region_coverage.return_value = ["inst_001", "inst_002"]
     repo.filter_by_parent_region.return_value = ["inst_001", "inst_002"]
-    repo.filter_by_lesson_type.return_value = ["svc_001"]
+    repo.get_lesson_type_rates.return_value = {"svc_001": 50.0}
     repo.get_instructor_min_distance_to_regions.return_value = {"inst_001": 100.0, "inst_002": 500.0}
     today = date.today()
     repo.filter_by_availability.return_value = {
@@ -98,26 +98,28 @@ class TestFilterLessonType:
         self, filter_service: FilterService, mock_repository: Mock, sample_candidates: list[FilteredCandidate]
     ) -> None:
         """Test filtering by online lesson type."""
-        mock_repository.filter_by_lesson_type.return_value = ["svc_001"]
+        mock_repository.get_lesson_type_rates.return_value = {"svc_001": 50.0}
 
         result = filter_service._filter_lesson_type(sample_candidates, "online")
 
         assert len(result) == 1
         assert result[0].service_id == "svc_001"
-        mock_repository.filter_by_lesson_type.assert_called_once_with(
-            ["svc_001", "svc_002"], "online"
+        assert result[0].lesson_type_hourly_rate == 50.0
+        mock_repository.get_lesson_type_rates.assert_called_once_with(
+            ["svc_001", "svc_002"], "online", max_price=None
         )
 
     def test_filter_lesson_type_in_person(
         self, filter_service: FilterService, mock_repository: Mock, sample_candidates: list[FilteredCandidate]
     ) -> None:
         """Test filtering by in_person lesson type."""
-        mock_repository.filter_by_lesson_type.return_value = ["svc_002"]
+        mock_repository.get_lesson_type_rates.return_value = {"svc_002": 85.0}
 
         result = filter_service._filter_lesson_type(sample_candidates, "in_person")
 
         assert len(result) == 1
         assert result[0].service_id == "svc_002"
+        assert result[0].lesson_type_hourly_rate == 85.0
 
     def test_filter_lesson_type_any_returns_all(
         self, filter_service: FilterService, sample_candidates: list[FilteredCandidate]
@@ -140,7 +142,7 @@ class TestFilterLessonType:
         self, filter_service: FilterService, mock_repository: Mock, sample_candidates: list[FilteredCandidate]
     ) -> None:
         """Test when no candidates match the lesson type."""
-        mock_repository.filter_by_lesson_type.return_value = []
+        mock_repository.get_lesson_type_rates.return_value = {}
 
         result = filter_service._filter_lesson_type(sample_candidates, "online")
 

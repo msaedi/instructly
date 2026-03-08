@@ -1185,7 +1185,7 @@ function ResultCard({ result }: { result: SearchResult }) {
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{instructor.bio_snippet}</p>
           )}
           <div className="mt-2 flex items-center gap-4 text-sm">
-            <span className="font-medium text-green-600 dark:text-green-400">${best_match.price_per_hour}/hr</span>
+            <span className="font-medium text-green-600 dark:text-green-400">${best_match.min_hourly_rate}/hr</span>
             {rating.average && (
               <span className="text-gray-500 dark:text-gray-400">
                 ★ {rating.average.toFixed(1)} ({rating.count} reviews)
@@ -1243,7 +1243,7 @@ function ResultCard({ result }: { result: SearchResult }) {
               <div className="space-y-1">
                 {otherMatches.map((match) => (
                   <div key={match.service_id} className="text-xs text-gray-500 dark:text-gray-400">
-                    {match.name} - ${match.price_per_hour}/hr ({(match.relevance_score * 100).toFixed(0)}% match)
+                    {match.name} - ${match.min_hourly_rate}/hr ({(match.relevance_score * 100).toFixed(0)}% match)
                   </div>
                 ))}
               </div>

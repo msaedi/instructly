@@ -98,7 +98,7 @@ function InstructorSearch() {
       {data?.results.map((result: NonNullable<typeof data>['results'][number]) => (
         <div key={result.instructor.id}>
           {result.instructor.first_name} {result.instructor.last_initial}. - $
-          {result.best_match.price_per_hour}/hr
+          {result.best_match.min_hourly_rate}/hr
         </div>
       ))}
     </div>

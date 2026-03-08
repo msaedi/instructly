@@ -145,7 +145,9 @@ def test_active_services_with_categories_and_counts(db, test_instructor):
         InstructorService(
             instructor_profile_id=test_instructor.instructor_profile.id,
             service_catalog_id=service.id,
-            hourly_rate=50.0,
+            format_prices=[
+                {"format": "online", "hourly_rate": 50.0},
+            ],
         )
     )
     db.commit()

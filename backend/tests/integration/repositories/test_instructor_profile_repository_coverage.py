@@ -299,7 +299,7 @@ def test_find_by_service_ids_empty_and_limit(
         service_repo.create(
             instructor_profile_id=other_profile.id,
             service_catalog_id=service_catalog_id,
-            hourly_rate=65.0,
+            format_prices=[{"format": "online", "hourly_rate": 65.0}],
             description="Extra",
             duration_options=[60],
         )

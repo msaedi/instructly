@@ -5016,11 +5016,27 @@ class BookingService(BaseService):
 
         return service, instructor_profile
 
-    def _validate_service_area(self, booking_data: BookingCreate, instructor_id: str) -> None:
+    def _neutral_location_uses_service_area(self, service: InstructorService) -> bool:
+        """Neutral-location bookings only need service-area coverage when they fall back to travel."""
+        offers_at_location = bool(getattr(service, "offers_at_location", False))
+        offers_travel = bool(getattr(service, "offers_travel", False))
+        return (not offers_at_location) and offers_travel
+
+    def _validate_service_area(
+        self,
+        booking_data: BookingCreate,
+        instructor_id: str,
+        service: Optional[InstructorService] = None,
+    ) -> None:
         """
         Ensure travel-based bookings fall within the instructor's service area.
         """
-        if booking_data.location_type not in ("student_location", "neutral_location"):
+        if booking_data.location_type == "student_location":
+            pass
+        elif booking_data.location_type == "neutral_location":
+            if service is not None and not self._neutral_location_uses_service_area(service):
+                return
+        else:
             return
 
         if booking_data.location_lat is None or booking_data.location_lng is None:
@@ -5051,10 +5067,16 @@ class BookingService(BaseService):
         offers_at_location = bool(getattr(service, "offers_at_location", False))
         offers_online = bool(getattr(service, "offers_online", False))
 
-        if location_type in ("student_location", "neutral_location") and not offers_travel:
+        if location_type == "student_location" and not offers_travel:
             raise ValidationException(
                 "This instructor doesn't travel for this service",
                 code="TRAVEL_NOT_OFFERED",
+            )
+
+        if location_type == "neutral_location" and not (offers_travel or offers_at_location):
+            raise ValidationException(
+                "This instructor doesn't offer in-person lessons for this service",
+                code="IN_PERSON_NOT_OFFERED",
             )
 
         if location_type == "instructor_location" and not offers_at_location:
@@ -5096,7 +5118,7 @@ class BookingService(BaseService):
             raise ValidationException("End time must be specified before conflict checks")
 
         self._validate_location_capability(service, booking_data.location_type)
-        self._validate_service_area(booking_data, booking_data.instructor_id)
+        self._validate_service_area(booking_data, booking_data.instructor_id, service)
 
         lesson_tz = self._resolve_lesson_timezone(booking_data, instructor_profile)
         booking_start_utc, _ = self._resolve_booking_times_utc(
@@ -5202,8 +5224,9 @@ class BookingService(BaseService):
             lesson_tz,
         )
 
-        # Calculate pricing based on selected duration
-        total_price = service.session_price(selected_duration)
+        # Calculate pricing based on selected duration and requested booking format
+        total_price = service.price_for_booking(selected_duration, booking_data.location_type)
+        hourly_rate = service.hourly_rate_for_location_type(booking_data.location_type)
 
         # Derive service area summary for booking record
         service_area_summary = self._determine_service_area_summary(instructor_profile.user_id)
@@ -5222,7 +5245,7 @@ class BookingService(BaseService):
             instructor_tz_at_booking=instructor_tz,
             student_tz_at_booking=student_tz,
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
-            hourly_rate=service.hourly_rate,
+            hourly_rate=hourly_rate,
             total_price=total_price,
             duration_minutes=selected_duration,
             status=BookingStatus.CONFIRMED,
@@ -5650,7 +5673,11 @@ class BookingService(BaseService):
         return opportunities
 
     def _calculate_pricing(
-        self, service: InstructorService, start_time: time, end_time: time
+        self,
+        service: InstructorService,
+        start_time: time,
+        end_time: time,
+        location_type: str = "online",
     ) -> Dict[str, Any]:
         """Calculate booking pricing based on time range."""
         # Calculate duration
@@ -5667,13 +5694,13 @@ class BookingService(BaseService):
         duration_minutes = int(duration.total_seconds() / 60)
 
         # Calculate price based on actual booking duration
-        hours = duration_minutes / 60
-        total_price = float(service.hourly_rate) * hours
+        resolved_rate = service.hourly_rate_for_location_type(location_type)
+        total_price = float(service.price_for_booking(duration_minutes, location_type))
 
         return {
             "duration_minutes": duration_minutes,
             "total_price": total_price,
-            "hourly_rate": service.hourly_rate,
+            "hourly_rate": resolved_rate,
         }
 
     @BaseService.measure_operation("invalidate_booking_cache")

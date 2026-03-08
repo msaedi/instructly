@@ -19,7 +19,12 @@ from app.models.address import InstructorServiceArea
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.region_boundary import RegionBoundary
-from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
+from app.models.service_catalog import (
+    InstructorService as Service,
+    ServiceCatalog,
+    ServiceCategory,
+    ServiceFormatPrice,
+)
 from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 
@@ -79,13 +84,27 @@ def test_service(db: Session, test_instructor: User) -> Service:
     service = Service(
         instructor_profile_id=profile.id,
         service_catalog_id=catalog_service.id,
-        hourly_rate=50.0,
+        format_prices=[
+            {"format": "online", "hourly_rate": 50.0},
+        ],
         description="Test service",
         is_active=True,
     )
     db.add(service)
     db.commit()
     return service
+
+
+def _service_min_rate_subquery():
+    """Aggregate the public service headline price for query-pattern tests."""
+    return (
+        select(
+            ServiceFormatPrice.service_id.label("service_id"),
+            func.min(ServiceFormatPrice.hourly_rate).label("min_hourly_rate"),
+        )
+        .group_by(ServiceFormatPrice.service_id)
+        .subquery()
+    )
 
 
 @pytest.fixture
@@ -187,7 +206,9 @@ def test_instructors_with_profiles(db: Session) -> List[User]:
             service = Service(
                 instructor_profile_id=profile.id,
                 service_catalog_id=catalog_service.id,
-                hourly_rate=rate,
+                format_prices=[
+                    {"format": "online", "hourly_rate": rate},
+                ],
                 description=f"{skill} tutoring service",
                 is_active=True,
             )
@@ -336,6 +357,7 @@ class TestInstructorProfileQueryPatterns:
         """Document query for filtering profiles by hourly rate range."""
         min_rate = 50.0
         max_rate = 100.0
+        service_min_rates = _service_min_rate_subquery()
 
         # Query profiles with at least one service in rate range
         query = (
@@ -343,7 +365,14 @@ class TestInstructorProfileQueryPatterns:
             .distinct()
             .options(joinedload(InstructorProfile.user), selectinload(InstructorProfile.instructor_services))
             .join(Service)
-            .filter(and_(Service.hourly_rate >= min_rate, Service.hourly_rate <= max_rate, Service.is_active == True))
+            .join(service_min_rates, service_min_rates.c.service_id == Service.id)
+            .filter(
+                and_(
+                    service_min_rates.c.min_hourly_rate >= min_rate,
+                    service_min_rates.c.min_hourly_rate <= max_rate,
+                    Service.is_active == True,
+                )
+            )
             .join(User)
             .filter(User.is_active == True)
         )
@@ -356,7 +385,11 @@ class TestInstructorProfileQueryPatterns:
         assert len(results) >= 3  # Junior, Mid, Senior have services in range
         for profile in results:
             # Verify at least one service is in range
-            services_in_range = [s for s in profile.instructor_services if min_rate <= s.hourly_rate <= max_rate]
+            services_in_range = [
+                s
+                for s in profile.instructor_services
+                if s.min_hourly_rate is not None and min_rate <= float(s.min_hourly_rate) <= max_rate
+            ]
             assert len(services_in_range) > 0
 
     def test_query_pattern_count_profiles(self, db: Session, test_instructors_with_profiles: List[User]):
@@ -492,12 +525,18 @@ class TestInstructorProfileQueryPatterns:
             "areas": ["Manhattan", "Brooklyn"],
             "has_availability": True,
         }
+        service_min_rates = _service_min_rate_subquery()
 
         # Build complex query
         query = db.query(InstructorProfile).distinct()
 
         # Join necessary tables
-        query = query.join(User).join(Service).join(ServiceCatalog, Service.service_catalog_id == ServiceCatalog.id)
+        query = (
+            query.join(User)
+            .join(Service)
+            .join(service_min_rates, service_min_rates.c.service_id == Service.id)
+            .join(ServiceCatalog, Service.service_catalog_id == ServiceCatalog.id)
+        )
 
         # Apply filters
         filters = [User.is_active == True, Service.is_active == True]
@@ -513,7 +552,7 @@ class TestInstructorProfileQueryPatterns:
 
         # Rate filter
         if search_params["max_rate"]:
-            filters.append(Service.hourly_rate <= search_params["max_rate"])
+            filters.append(service_min_rates.c.min_hourly_rate <= search_params["max_rate"])
 
         # Area filter
         if search_params["areas"]:

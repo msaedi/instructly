@@ -151,7 +151,7 @@ class PricingService(BaseService):
             + timedelta(minutes=duration_minutes)
         ).time()
 
-        hourly_rate = Decimal(str(service.hourly_rate))
+        hourly_rate = service.hourly_rate_for_location_type(payload.location_type)
 
         booking = Booking(
             student_id=student_id,

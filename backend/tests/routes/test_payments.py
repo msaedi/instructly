@@ -511,7 +511,9 @@ class TestPaymentRoutes:
             id=str(ulid.ULID()),
             instructor_profile_id=instructor_profile.id,
             service_catalog_id=service.id,
-            hourly_rate=50.00,
+            format_prices=[
+                {"format": "online", "hourly_rate": 50.00},
+            ],
             is_active=True,
         )
         db.add(instructor_service)

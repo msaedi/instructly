@@ -84,7 +84,13 @@ from .review import Review, ReviewResponse, ReviewTip
 from .search_event import SearchEvent, SearchEventCandidate
 from .search_history import SearchHistory
 from .search_interaction import SearchInteraction
-from .service_catalog import InstructorService, ServiceAnalytics, ServiceCatalog, ServiceCategory
+from .service_catalog import (
+    InstructorService,
+    ServiceAnalytics,
+    ServiceCatalog,
+    ServiceCategory,
+    ServiceFormatPrice,
+)
 from .subcategory import ServiceSubcategory
 from .unresolved_location_query import UnresolvedLocationQuery
 from .user import User
@@ -118,6 +124,7 @@ __all__ = [
     "ServiceSubcategory",
     "ServiceCatalog",
     "InstructorService",
+    "ServiceFormatPrice",
     "ServiceAnalytics",
     # Filter models
     "FilterDefinition",

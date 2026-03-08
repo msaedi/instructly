@@ -54,15 +54,21 @@ def _get_service(db: Session, instructor: User) -> InstructorService:
         service = InstructorService(
             instructor_profile_id=profile.id,
             service_catalog_id=catalog_service.id,
-            hourly_rate=100.0,
+            format_prices=[
+                {"format": "online", "hourly_rate": 100.0},
+            ],
             description="Test service",
             is_active=True,
             duration_options=[60],
         )
         db.add(service)
         db.flush()
-    if service.hourly_rate is not None and service.hourly_rate < 80.0:
-        service.hourly_rate = 100.0
+    if service.min_hourly_rate is not None and service.min_hourly_rate < 80.0:
+        if service.format_prices:
+            for price_row in service.format_prices:
+                price_row.hourly_rate = 100.0
+        else:
+            service.format_prices = [{"format": "online", "hourly_rate": 100.0}]
         db.flush()
     return service
 

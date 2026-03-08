@@ -18,6 +18,11 @@ from app.services.instructor_service import InstructorService
 # ── Helpers ────────────────────────────────────────────────────
 
 
+def _format_prices(rate: float = 60.0, *formats: str) -> list[dict[str, float | str]]:
+    selected_formats = formats or ("online",)
+    return [{"format": format_name, "hourly_rate": rate} for format_name in selected_formats]
+
+
 def _build_service() -> InstructorService:
     """Build InstructorService with all repos mocked."""
     db = MagicMock()
@@ -32,6 +37,18 @@ def _build_service() -> InstructorService:
     svc.preferred_place_repository = MagicMock()
     svc.service_area_repository = MagicMock()
     svc.taxonomy_filter_repository = MagicMock()
+    svc.service_format_pricing_repository = MagicMock()
+    svc.service_format_pricing_repository.get_prices_for_services.return_value = {}
+    svc.config_service = MagicMock()
+    svc.config_service.get_pricing_config.return_value = (
+        {
+            "price_floor_cents": {
+                "private_in_person": 8000,
+                "private_remote": 6000,
+            }
+        },
+        None,
+    )
     return svc
 
 
@@ -149,7 +166,7 @@ class TestCreateInstructorServiceFilterValidation:
                 result = svc.create_instructor_service_from_catalog(
                     "user-1",
                     "svc-1",
-                    60.0,
+                    _format_prices(),
                     filter_selections={"grade_level": ["elementary"]},
                 )
 
@@ -173,7 +190,7 @@ class TestCreateInstructorServiceFilterValidation:
             svc.create_instructor_service_from_catalog(
                 "user-1",
                 "svc-1",
-                60.0,
+                _format_prices(),
                 filter_selections={"bogus": ["value"]},
             )
 
@@ -189,7 +206,7 @@ class TestCreateInstructorServiceFilterValidation:
             svc.create_instructor_service_from_catalog(
                 "user-1",
                 "svc-1",
-                60.0,
+                _format_prices(),
                 age_groups=["adults"],
             )
 
@@ -210,7 +227,7 @@ class TestCreateInstructorServiceFilterValidation:
 
         with patch("app.services.instructor_service.invalidate_on_service_change"):
             with patch.object(svc, "_instructor_service_to_dict", return_value={"id": "isvc-1"}):
-                svc.create_instructor_service_from_catalog("user-1", "svc-1", 60.0)
+                svc.create_instructor_service_from_catalog("user-1", "svc-1", _format_prices())
 
         svc.taxonomy_filter_repository.validate_filter_selections.assert_not_called()
 
@@ -225,26 +242,25 @@ class TestUpdateServicesFilterValidation:
         service_data = SimpleNamespace(
             service_catalog_id="cat-1",
             filter_selections={"grade": ["elem"]},
-            model_dump=lambda: {
+            model_dump=lambda **kwargs: {
                 "service_catalog_id": "cat-1",
                 "filter_selections": {"grade": ["elem"]},
-                "offers_travel": False,
-                "offers_at_location": False,
-                "offers_online": True,
-                "hourly_rate": 50.0,
+                "format_prices": _format_prices(60.0),
                 "duration_options": [60],
             },
         )
 
         svc.service_repository.find_by.return_value = []
         svc.catalog_repository.exists.return_value = True
-        catalog_svc = SimpleNamespace(subcategory_id="sub-1")
+        catalog_svc = SimpleNamespace(
+            subcategory_id="sub-1",
+            online_capable=True,
+            eligible_age_groups=["adults"],
+        )
         svc.catalog_repository.get_by_id.return_value = catalog_svc
         svc.taxonomy_filter_repository.validate_filter_selections.return_value = (True, [])
 
         svc._validate_catalog_ids = MagicMock()
-        svc._apply_location_type_capabilities = MagicMock()
-        svc.validate_service_capabilities = MagicMock()
         svc.service_repository.create.return_value = SimpleNamespace(id="new-svc")
 
         svc._update_services("prof-1", "user-1", [service_data])
@@ -260,13 +276,10 @@ class TestUpdateServicesFilterValidation:
         service_data = SimpleNamespace(
             service_catalog_id="cat-1",
             filter_selections={"bogus": ["val"]},
-            model_dump=lambda: {
+            model_dump=lambda **kwargs: {
                 "service_catalog_id": "cat-1",
                 "filter_selections": {"bogus": ["val"]},
-                "offers_travel": False,
-                "offers_at_location": False,
-                "offers_online": True,
-                "hourly_rate": 50.0,
+                "format_prices": _format_prices(60.0),
                 "duration_options": [60],
             },
         )

@@ -36,6 +36,21 @@ from app.schemas.instructor import (
 )
 
 
+def _format_prices(*entries: tuple[str, Decimal] | Decimal) -> list[dict[str, Any]]:
+    """Build per-format pricing payloads for service schema tests."""
+    if not entries:
+        entries = (Decimal("50.00"),)
+
+    normalized: list[dict[str, Any]] = []
+    for entry in entries:
+        if isinstance(entry, tuple):
+            format_name, rate = entry
+        else:
+            format_name, rate = "online", entry
+        normalized.append({"format": format_name, "hourly_rate": rate})
+    return normalized
+
+
 class TestInstructorFilterParams:
     """Tests for InstructorFilterParams query parameter schema."""
 
@@ -173,7 +188,7 @@ class TestServiceBase:
         """Helper to create valid service data."""
         return {
             "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-            "hourly_rate": Decimal("50.00"),
+            "format_prices": _format_prices(Decimal("50.00")),
         }
 
     class TestDurationOptionsValidator:
@@ -183,7 +198,7 @@ class TestServiceBase:
             """Default duration_options should be [60]."""
             data = {
                 "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
+                "format_prices": _format_prices(Decimal("50.00")),
             }
             service = ServiceCreate(**data)
             assert service.duration_options == [60]
@@ -192,7 +207,7 @@ class TestServiceBase:
             """Valid duration options within range should pass."""
             data = {
                 "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
+                "format_prices": _format_prices(Decimal("50.00")),
                 "duration_options": [30, 60, 90, 120],
             }
             service = ServiceCreate(**data)
@@ -202,7 +217,7 @@ class TestServiceBase:
             """Empty duration_options should fail (line 222-223)."""
             data = {
                 "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
+                "format_prices": _format_prices(Decimal("50.00")),
                 "duration_options": [],
             }
             # Pydantic's min_length=1 catches this before our validator
@@ -213,7 +228,7 @@ class TestServiceBase:
             """Duration below MIN_SESSION_DURATION (30) should fail (lines 225-228)."""
             data = {
                 "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
+                "format_prices": _format_prices(Decimal("50.00")),
                 "duration_options": [15],
             }
             with pytest.raises(ValidationError, match="Duration must be between"):
@@ -223,7 +238,7 @@ class TestServiceBase:
             """Duration above MAX_SESSION_DURATION (240) should fail."""
             data = {
                 "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
+                "format_prices": _format_prices(Decimal("50.00")),
                 "duration_options": [300],
             }
             with pytest.raises(ValidationError, match="Duration must be between"):
@@ -233,7 +248,7 @@ class TestServiceBase:
             """Mix of valid and invalid durations should fail."""
             data = {
                 "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
+                "format_prices": _format_prices(Decimal("50.00")),
                 "duration_options": [60, 500],
             }
             with pytest.raises(ValidationError, match="Duration must be between"):
@@ -246,7 +261,7 @@ class TestServiceBase:
             """None should pass through unchanged."""
             data = {
                 "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
+                "format_prices": _format_prices(Decimal("50.00")),
                 "age_groups": None,
             }
             service = ServiceCreate(**data)
@@ -256,7 +271,7 @@ class TestServiceBase:
             """Single 'kids' value should be valid."""
             data = {
                 "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
+                "format_prices": _format_prices(Decimal("50.00")),
                 "age_groups": ["kids"],
             }
             service = ServiceCreate(**data)
@@ -266,7 +281,7 @@ class TestServiceBase:
             """Single 'adults' value should be valid."""
             data = {
                 "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
+                "format_prices": _format_prices(Decimal("50.00")),
                 "age_groups": ["adults"],
             }
             service = ServiceCreate(**data)
@@ -276,7 +291,7 @@ class TestServiceBase:
             """Both 'kids' and 'adults' should be valid."""
             data = {
                 "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
+                "format_prices": _format_prices(Decimal("50.00")),
                 "age_groups": ["kids", "adults"],
             }
             service = ServiceCreate(**data)
@@ -286,7 +301,7 @@ class TestServiceBase:
             """Legacy 'both' keyword is no longer accepted."""
             data = {
                 "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
+                "format_prices": _format_prices(Decimal("50.00")),
                 "age_groups": ["both"],
             }
             with pytest.raises(ValidationError, match="age_groups must be one or more of"):
@@ -296,7 +311,7 @@ class TestServiceBase:
             """Values should be normalized to lowercase."""
             data = {
                 "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
+                "format_prices": _format_prices(Decimal("50.00")),
                 "age_groups": ["KIDS", "ADULTS"],
             }
             service = ServiceCreate(**data)
@@ -306,7 +321,7 @@ class TestServiceBase:
             """Duplicate values should be deduplicated (lines 251-257)."""
             data = {
                 "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
+                "format_prices": _format_prices(Decimal("50.00")),
                 "age_groups": ["kids", "kids", "adults", "adults"],
             }
             service = ServiceCreate(**data)
@@ -316,7 +331,7 @@ class TestServiceBase:
             """Mixed payloads that include legacy 'both' should fail validation."""
             data = {
                 "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
+                "format_prices": _format_prices(Decimal("50.00")),
                 "age_groups": ["both", "kids"],
             }
             with pytest.raises(ValidationError, match="age_groups must be one or more of"):
@@ -326,7 +341,7 @@ class TestServiceBase:
             """Invalid age group values should fail (lines 248-249)."""
             data = {
                 "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
+                "format_prices": _format_prices(Decimal("50.00")),
                 "age_groups": ["teenagers"],
             }
             with pytest.raises(ValidationError, match="age_groups must be one or more of"):
@@ -336,7 +351,7 @@ class TestServiceBase:
             """Whitespace should be stripped from values."""
             data = {
                 "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
+                "format_prices": _format_prices(Decimal("50.00")),
                 "age_groups": ["  kids  "],
             }
             service = ServiceCreate(**data)
@@ -348,7 +363,7 @@ class TestServiceBase:
         def test_levels_taught_rejected(self) -> None:
             data = {
                 "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
+                "format_prices": _format_prices(Decimal("50.00")),
                 "levels_taught": ["beginner"],
             }
             with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
@@ -357,7 +372,7 @@ class TestServiceBase:
         def test_location_types_rejected(self) -> None:
             data = {
                 "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
+                "format_prices": _format_prices(Decimal("50.00")),
                 "location_types": ["online"],
             }
             with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
@@ -378,7 +393,7 @@ class TestInstructorProfileBase:
                 "services": [
                     {
                         "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                        "hourly_rate": Decimal("50.00"),
+                        "format_prices": _format_prices(Decimal("50.00")),
                     }
                 ],
             }
@@ -393,7 +408,7 @@ class TestInstructorProfileBase:
                 "services": [
                     {
                         "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                        "hourly_rate": Decimal("50.00"),
+                        "format_prices": _format_prices(Decimal("50.00")),
                     }
                 ],
             }
@@ -408,7 +423,7 @@ class TestInstructorProfileBase:
                 "services": [
                     {
                         "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                        "hourly_rate": Decimal("50.00"),
+                        "format_prices": _format_prices(Decimal("50.00")),
                     }
                 ],
             }
@@ -423,7 +438,7 @@ class TestInstructorProfileBase:
                 "services": [
                     {
                         "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                        "hourly_rate": Decimal("50.00"),
+                        "format_prices": _format_prices(Decimal("50.00")),
                     }
                 ],
             }
@@ -484,11 +499,11 @@ class TestInstructorProfileUpdate:
             services = [
                 ServiceCreate(
                     service_catalog_id="01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                    hourly_rate=Decimal("50.00"),
+                    format_prices=_format_prices(Decimal("50.00")),
                 ),
                 ServiceCreate(
                     service_catalog_id="01HYYYYYYYYYYYYYYYYYYYYYY",
-                    hourly_rate=Decimal("60.00"),
+                    format_prices=_format_prices(Decimal("60.00")),
                 ),
             ]
             update = InstructorProfileUpdate(services=services)
@@ -499,11 +514,11 @@ class TestInstructorProfileUpdate:
             services = [
                 ServiceCreate(
                     service_catalog_id="01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                    hourly_rate=Decimal("50.00"),
+                    format_prices=_format_prices(Decimal("50.00")),
                 ),
                 ServiceCreate(
                     service_catalog_id="01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                    hourly_rate=Decimal("60.00"),
+                    format_prices=_format_prices(Decimal("60.00")),
                 ),
             ]
             with pytest.raises(ValidationError, match="Duplicate services are not allowed"):
@@ -734,7 +749,11 @@ class TestInstructorProfileResponseFromOrm:
         service = MagicMock()
         service.id = "01HSERVICEID1234567890123"
         service.service_catalog_id = "01HCATALOGID12345678901234"
-        service.hourly_rate = Decimal("50.00")
+        service.min_hourly_rate = Decimal("50.00")
+        service.serialized_format_prices = _format_prices(
+            ("student_location", Decimal("60.00")),
+            ("online", Decimal("50.00")),
+        )
         service.description = "Test service"
         service.requirements = None
         service.age_groups = ["adults"]
@@ -754,6 +773,8 @@ class TestInstructorProfileResponseFromOrm:
         response = InstructorProfileResponse.from_orm(profile)
         assert len(response.services) == 1
         assert response.services[0].service_catalog_name == "Yoga"
+        assert response.services[0].min_hourly_rate == Decimal("50.00")
+        assert len(response.services[0].format_prices) == 2
 
     def test_from_orm_service_no_catalog_entry(self) -> None:
         """from_orm should handle missing catalog entry (line 607)."""
@@ -762,7 +783,8 @@ class TestInstructorProfileResponseFromOrm:
         service = MagicMock()
         service.id = "01HSERVICEID1234567890123"
         service.service_catalog_id = "01HCATALOGID12345678901234"
-        service.hourly_rate = Decimal("50.00")
+        service.min_hourly_rate = Decimal("50.00")
+        service.serialized_format_prices = _format_prices(Decimal("50.00"))
         service.description = None
         service.requirements = None
         service.age_groups = None
@@ -954,19 +976,19 @@ class TestServiceResponse:
                 id="01HSERVICE3",
                 service_catalog_id="01HCATALOG_C",
                 service_catalog_name="Service C",
-                hourly_rate=Decimal("50.00"),
+                format_prices=_format_prices(Decimal("50.00")),
             ),
             ServiceResponse(
                 id="01HSERVICE1",
                 service_catalog_id="01HCATALOG_A",
                 service_catalog_name="Service A",
-                hourly_rate=Decimal("50.00"),
+                format_prices=_format_prices(Decimal("50.00")),
             ),
             ServiceResponse(
                 id="01HSERVICE2",
                 service_catalog_id="01HCATALOG_B",
                 service_catalog_name="Service B",
-                hourly_rate=Decimal("50.00"),
+                format_prices=_format_prices(Decimal("50.00")),
             ),
         ]
 

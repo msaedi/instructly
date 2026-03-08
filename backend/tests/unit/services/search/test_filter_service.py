@@ -22,6 +22,7 @@ from app.services.search.retriever import ServiceCandidate
 def mock_repository() -> Mock:
     """Create mock filter repository."""
     repo = Mock()
+    repo.get_lesson_type_rates.return_value = {}
 
     # Default location behavior - return ALL instructors to avoid soft filtering
     repo.filter_by_location.return_value = [
@@ -115,7 +116,7 @@ def sample_candidates() -> list[ServiceCandidate]:
             text_score=0.90,
             name="Piano Lessons",
             description="Learn piano",
-            price_per_hour=50,
+            min_hourly_rate=50,
             instructor_id="inst_001",
         ),
         ServiceCandidate(
@@ -126,7 +127,7 @@ def sample_candidates() -> list[ServiceCandidate]:
             text_score=0.85,
             name="Guitar Lessons",
             description="Learn guitar",
-            price_per_hour=55,
+            min_hourly_rate=55,
             instructor_id="inst_002",
         ),
         ServiceCandidate(
@@ -137,7 +138,7 @@ def sample_candidates() -> list[ServiceCandidate]:
             text_score=0.75,
             name="Violin Lessons",
             description="Learn violin",
-            price_per_hour=60,
+            min_hourly_rate=60,
             instructor_id="inst_003",
         ),
         ServiceCandidate(
@@ -148,7 +149,7 @@ def sample_candidates() -> list[ServiceCandidate]:
             text_score=0.65,
             name="Drum Lessons",
             description="Learn drums",
-            price_per_hour=65,
+            min_hourly_rate=65,
             instructor_id="inst_004",
         ),
         ServiceCandidate(
@@ -159,7 +160,7 @@ def sample_candidates() -> list[ServiceCandidate]:
             text_score=0.55,
             name="Flute Lessons",
             description="Learn flute",
-            price_per_hour=70,
+            min_hourly_rate=70,
             instructor_id="inst_005",
         ),
         ServiceCandidate(
@@ -170,7 +171,7 @@ def sample_candidates() -> list[ServiceCandidate]:
             text_score=0.45,
             name="Cello Lessons",
             description="Learn cello",
-            price_per_hour=80,
+            min_hourly_rate=80,
             instructor_id="inst_006",
         ),
     ]
@@ -207,7 +208,7 @@ class TestPriceFilter:
         result = await filter_service.filter_candidates(sample_candidates, query)
 
         # 5 candidates should pass, no soft filtering triggered
-        prices = [c.price_per_hour for c in result.candidates]
+        prices = [c.min_hourly_rate for c in result.candidates]
         assert all(p <= 70 for p in prices)
         assert len(result.candidates) == 5
         assert "price" in result.filters_applied
@@ -248,7 +249,178 @@ class TestPriceFilter:
 
         for c in result.candidates:
             assert c.passed_price is True
-            assert c.price_per_hour <= 70
+            assert c.min_hourly_rate <= 70
+
+    @pytest.mark.asyncio
+    async def test_price_filter_intersects_with_lesson_type_rates(
+        self,
+        filter_service: FilterService,
+        mock_repository: Mock,
+    ) -> None:
+        """In-person budget filtering should ignore cheaper prices from other formats."""
+        candidates = [
+            ServiceCandidate(
+                service_id="svc_online_cheap",
+                service_catalog_id="cat_001",
+                hybrid_score=0.9,
+                vector_score=0.9,
+                text_score=0.9,
+                name="Mixed Format Lessons",
+                description="Online cheap, in-person expensive",
+                min_hourly_rate=60,
+                instructor_id="inst_001",
+            ),
+            ServiceCandidate(
+                service_id="svc_in_person_budget",
+                service_catalog_id="cat_002",
+                hybrid_score=0.8,
+                vector_score=0.8,
+                text_score=0.8,
+                name="Budget In-Person Lessons",
+                description="Affordable in-person",
+                min_hourly_rate=75,
+                instructor_id="inst_002",
+            ),
+            ServiceCandidate(
+                service_id="svc_in_person_budget_2",
+                service_catalog_id="cat_003",
+                hybrid_score=0.78,
+                vector_score=0.78,
+                text_score=0.78,
+                name="Budget In-Person Lessons 2",
+                description="Affordable in-person",
+                min_hourly_rate=70,
+                instructor_id="inst_003",
+            ),
+            ServiceCandidate(
+                service_id="svc_in_person_budget_3",
+                service_catalog_id="cat_004",
+                hybrid_score=0.76,
+                vector_score=0.76,
+                text_score=0.76,
+                name="Budget In-Person Lessons 3",
+                description="Affordable in-person",
+                min_hourly_rate=68,
+                instructor_id="inst_004",
+            ),
+            ServiceCandidate(
+                service_id="svc_in_person_budget_4",
+                service_catalog_id="cat_005",
+                hybrid_score=0.74,
+                vector_score=0.74,
+                text_score=0.74,
+                name="Budget In-Person Lessons 4",
+                description="Affordable in-person",
+                min_hourly_rate=72,
+                instructor_id="inst_005",
+            ),
+            ServiceCandidate(
+                service_id="svc_in_person_budget_5",
+                service_catalog_id="cat_006",
+                hybrid_score=0.72,
+                vector_score=0.72,
+                text_score=0.72,
+                name="Budget In-Person Lessons 5",
+                description="Affordable in-person",
+                min_hourly_rate=79,
+                instructor_id="inst_006",
+            ),
+        ]
+        mock_repository.get_lesson_type_rates.return_value = {
+            "svc_in_person_budget": 75.0,
+            "svc_in_person_budget_2": 70.0,
+            "svc_in_person_budget_3": 68.0,
+            "svc_in_person_budget_4": 72.0,
+            "svc_in_person_budget_5": 79.0,
+        }
+        query = ParsedQuery(
+            original_query="in person lessons under $80",
+            service_query="lessons",
+            parsing_mode="regex",
+            lesson_type="in_person",
+            max_price=80,
+        )
+
+        result = await filter_service.filter_candidates(candidates, query)
+
+        assert [c.service_id for c in result.candidates] == [
+            "svc_in_person_budget",
+            "svc_in_person_budget_2",
+            "svc_in_person_budget_3",
+            "svc_in_person_budget_4",
+            "svc_in_person_budget_5",
+        ]
+        assert result.candidates[0].lesson_type_hourly_rate == 75.0
+        mock_repository.get_lesson_type_rates.assert_called_once_with(
+            [
+                "svc_online_cheap",
+                "svc_in_person_budget",
+                "svc_in_person_budget_2",
+                "svc_in_person_budget_3",
+                "svc_in_person_budget_4",
+                "svc_in_person_budget_5",
+            ],
+            "in_person",
+            max_price=80,
+        )
+
+    @pytest.mark.asyncio
+    async def test_soft_price_relaxation_preserves_lesson_type_intersection(
+        self,
+        filter_service: FilterService,
+        mock_repository: Mock,
+    ) -> None:
+        """Soft filtering must not reintroduce services that only match on another format."""
+        candidates = [
+            ServiceCandidate(
+                service_id="svc_online_only",
+                service_catalog_id="cat_001",
+                hybrid_score=0.9,
+                vector_score=0.9,
+                text_score=0.9,
+                name="Online Piano Lessons",
+                description="Affordable online lessons",
+                min_hourly_rate=50,
+                instructor_id="inst_001",
+            ),
+            ServiceCandidate(
+                service_id="svc_in_person_only",
+                service_catalog_id="cat_002",
+                hybrid_score=0.85,
+                vector_score=0.85,
+                text_score=0.85,
+                name="Studio Piano Lessons",
+                description="Only in person",
+                min_hourly_rate=55,
+                instructor_id="inst_002",
+            ),
+            ServiceCandidate(
+                service_id="svc_other_format",
+                service_catalog_id="cat_003",
+                hybrid_score=0.8,
+                vector_score=0.8,
+                text_score=0.8,
+                name="Home Visit Piano Lessons",
+                description="Only travel format",
+                min_hourly_rate=65,
+                instructor_id="inst_003",
+            ),
+        ]
+        mock_repository.get_lesson_type_rates.side_effect = (
+            lambda service_ids, lesson_type, max_price=None: {"svc_online_only": 50.0}
+        )
+        query = ParsedQuery(
+            original_query="online lessons under $60",
+            service_query="lessons",
+            parsing_mode="regex",
+            lesson_type="online",
+            max_price=60,
+        )
+
+        result = await filter_service.filter_candidates(candidates, query)
+
+        assert [c.service_id for c in result.candidates] == ["svc_online_only"]
+        assert result.filter_stats["after_relax_price"] == 1
 
 
 class TestLocationFilter:
@@ -553,7 +725,7 @@ class TestSoftFiltering:
                 text_score=None,
                 name=f"Lesson {i}",
                 description=None,
-                price_per_hour=50 + i * 10,
+                min_hourly_rate=50 + i * 10,
                 instructor_id=f"inst_00{i+1}",
             )
             for i in range(5)
@@ -603,7 +775,7 @@ class TestSoftFiltering:
                 text_score=None,
                 name=f"Lesson {i}",
                 description=None,
-                price_per_hour=50,
+                min_hourly_rate=50,
                 instructor_id=f"inst_00{i+1}",
             )
             for i in range(2)
@@ -648,7 +820,7 @@ class TestSoftFiltering:
                 text_score=None,
                 name="Test",
                 description=None,
-                price_per_hour=70,  # Over $60 but under $75 (60 * 1.25)
+                min_hourly_rate=70,  # Over $60 but under $75 (60 * 1.25)
                 instructor_id="inst_001",
             ),
         ]
@@ -692,7 +864,7 @@ class TestSoftFiltering:
                 text_score=None,
                 name="Test",
                 description=None,
-                price_per_hour=70,  # Over budget but within soft range
+                min_hourly_rate=70,  # Over budget but within soft range
                 instructor_id="inst_001",
             ),
         ]
@@ -967,7 +1139,7 @@ class TestFilteredCandidate:
             hybrid_score=0.85,
             name="Piano Lessons",
             description="Learn piano",
-            price_per_hour=50,
+            min_hourly_rate=50,
         )
 
         assert candidate.service_id == "svc_001"
@@ -990,7 +1162,7 @@ class TestFilteredCandidate:
             hybrid_score=0.85,
             name="Piano Lessons",
             description=None,
-            price_per_hour=70,
+            min_hourly_rate=70,
             soft_filtered=True,
             soft_filter_reasons=["price_relaxed"],
         )

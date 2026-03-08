@@ -105,7 +105,9 @@ def test_instructor(db: Session) -> tuple[User, InstructorProfile, InstructorSer
         id=str(ulid.ULID()),
         instructor_profile_id=profile.id,
         service_catalog_id=catalog.id,
-        hourly_rate=50.00,
+        format_prices=[
+            {"format": "online", "hourly_rate": 50.00},
+        ],
         is_active=True,
     )
     db.add(service)

@@ -59,7 +59,7 @@ SKILL_ADJACENT_BOOST = 0.02
 BAYESIAN_MIN_REVIEWS = 5
 
 
-@dataclass
+@dataclass(init=False)
 class RankedResult:
     """A ranked search result with all scoring details."""
 
@@ -71,7 +71,6 @@ class RankedResult:
     # Service data
     name: str
     description: Optional[str]
-    price_per_hour: int
 
     # Final ranking
     final_score: float
@@ -84,6 +83,7 @@ class RankedResult:
     price_score: float
     freshness_score: float
     completeness_score: float
+    min_hourly_rate: float
 
     # Boosts applied
     audience_boost: float = 0.0
@@ -96,6 +96,61 @@ class RankedResult:
     # Availability
     available_dates: List[date] = field(default_factory=list)
     earliest_available: Optional[date] = None
+
+    def __init__(
+        self,
+        *,
+        service_id: str,
+        service_catalog_id: str,
+        instructor_id: str,
+        name: str,
+        description: Optional[str],
+        final_score: float,
+        rank: int,
+        relevance_score: float,
+        quality_score: float,
+        distance_score: float,
+        price_score: float,
+        freshness_score: float,
+        completeness_score: float,
+        min_hourly_rate: Optional[float] = None,
+        price_per_hour: Optional[float] = None,
+        audience_boost: float = 0.0,
+        skill_boost: float = 0.0,
+        soft_filtered: bool = False,
+        soft_filter_reasons: Optional[List[str]] = None,
+        available_dates: Optional[List[date]] = None,
+        earliest_available: Optional[date] = None,
+    ) -> None:
+        rate = min_hourly_rate if min_hourly_rate is not None else price_per_hour
+        if rate is None:
+            raise ValueError("min_hourly_rate is required")
+
+        self.service_id = service_id
+        self.service_catalog_id = service_catalog_id
+        self.instructor_id = instructor_id
+        self.name = name
+        self.description = description
+        self.final_score = final_score
+        self.rank = rank
+        self.relevance_score = relevance_score
+        self.quality_score = quality_score
+        self.distance_score = distance_score
+        self.price_score = price_score
+        self.freshness_score = freshness_score
+        self.completeness_score = completeness_score
+        self.min_hourly_rate = float(rate)
+        self.audience_boost = audience_boost
+        self.skill_boost = skill_boost
+        self.soft_filtered = soft_filtered
+        self.soft_filter_reasons = list(soft_filter_reasons or [])
+        self.available_dates = list(available_dates or [])
+        self.earliest_available = earliest_available
+
+    @property
+    def price_per_hour(self) -> float:
+        """Legacy alias for tests and callers still reading price_per_hour."""
+        return float(self.min_hourly_rate)
 
 
 @dataclass
@@ -318,7 +373,7 @@ class RankingService:
 
         # 4. Price score
         price_score = self._calculate_price_score(
-            candidate.price_per_hour,
+            candidate.effective_hourly_rate,
             parsed_query.max_price,
         )
 
@@ -357,7 +412,7 @@ class RankingService:
             instructor_id=candidate.instructor_id,
             name=candidate.name,
             description=candidate.description,
-            price_per_hour=candidate.price_per_hour,
+            min_hourly_rate=candidate.min_hourly_rate,
             final_score=final_score,
             rank=0,  # Set later after sorting
             relevance_score=relevance_score,
@@ -445,7 +500,7 @@ class RankingService:
 
     def _calculate_price_score(
         self,
-        price: int,
+        price: float,
         max_price: Optional[int],
     ) -> float:
         """

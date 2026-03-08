@@ -24,6 +24,11 @@ from ..core.constants import (
 from ._strict_base import StrictModel, StrictRequestModel
 from .address import ServiceAreaNeighborhoodOut
 from .base import Money, StandardizedModel
+from .service_pricing import (
+    ServiceFormatPriceIn,
+    ServiceFormatPriceOut,
+    validate_unique_format_prices,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -165,21 +170,17 @@ class PreferredPublicSpaceOut(PreferredPublicSpaceIn):
         return data
 
 
-class ServiceBase(StandardizedModel):
+class _ServiceCommonBase(StandardizedModel):
     """
-    Base schema for instructor services.
+    Shared schema fields for instructor services.
 
     Attributes:
         service_catalog_id: ID of the service from the catalog
-        hourly_rate: Rate per hour in USD
         description: Optional description of the service
         duration_options: Available duration options for this service in minutes
     """
 
     service_catalog_id: str = Field(..., description="ID of the service from catalog")
-    hourly_rate: Money = Field(
-        ..., gt=0, le=1000, description="Hourly rate in USD"
-    )  # Changed from float
     description: Optional[str] = Field(None, max_length=500)
     requirements: Optional[str] = Field(None, max_length=500)
     age_groups: Optional[List[str]] = Field(
@@ -192,18 +193,6 @@ class ServiceBase(StandardizedModel):
     equipment_required: Optional[List[str]] = Field(
         default=None,
         description="List of equipment required (strings)",
-    )
-    offers_travel: Optional[bool] = Field(
-        default=None,
-        description="Whether the instructor travels to student locations for this service",
-    )
-    offers_at_location: Optional[bool] = Field(
-        default=None,
-        description="Whether the instructor offers lessons at their location for this service",
-    )
-    offers_online: Optional[bool] = Field(
-        default=None,
-        description="Whether the instructor offers online lessons for this service",
     )
     filter_selections: Dict[str, List[str]] = Field(
         default_factory=dict,
@@ -256,6 +245,26 @@ class ServiceBase(StandardizedModel):
         return deduped
 
 
+class ServiceBase(_ServiceCommonBase):
+    """
+    Base request schema for instructor services.
+
+    Attributes:
+        format_prices: Enabled per-format hourly pricing rows
+    """
+
+    format_prices: List[ServiceFormatPriceIn] = Field(
+        ..., min_length=1, description="Per-format hourly pricing for this service"
+    )
+
+    @field_validator("format_prices")
+    def validate_format_prices(
+        cls, value: List[ServiceFormatPriceIn]
+    ) -> List[ServiceFormatPriceIn]:
+        validate_unique_format_prices(value)
+        return value
+
+
 class ServiceCreate(StrictRequestModel, ServiceBase):
     """Schema for creating a new service."""
 
@@ -266,7 +275,7 @@ class ServiceCreate(StrictRequestModel, ServiceBase):
     )
 
 
-class ServiceResponse(ServiceBase):
+class ServiceResponse(_ServiceCommonBase):
     """
     Schema for service responses.
 
@@ -282,6 +291,14 @@ class ServiceResponse(ServiceBase):
         ...,
         max_length=255,
         description="Human-readable name of the catalog service",
+    )
+    min_hourly_rate: Money | None = Field(
+        default=None,
+        description="Lowest enabled hourly rate for this service",
+    )
+    format_prices: List[ServiceFormatPriceOut] = Field(
+        default_factory=list,
+        description="Enabled per-format hourly pricing rows",
     )
     offers_travel: bool = Field(
         default=False,
@@ -311,6 +328,13 @@ class ServiceResponse(ServiceBase):
         default=None,
         description="Whether this service is currently active for the instructor",
     )
+
+    @field_validator("format_prices")
+    def validate_response_format_prices(
+        cls, value: List[ServiceFormatPriceOut]
+    ) -> List[ServiceFormatPriceOut]:
+        validate_unique_format_prices(value)
+        return value
 
     model_config = ConfigDict(from_attributes=True, extra="forbid", validate_assignment=True)
 
@@ -578,14 +602,21 @@ class InstructorProfileResponse(InstructorProfileBase):
                 id=getattr(service, "id"),
                 service_catalog_id=getattr(service, "service_catalog_id"),
                 service_catalog_name=catalog_name or "Unknown Service",
-                hourly_rate=getattr(service, "hourly_rate"),
+                min_hourly_rate=getattr(service, "min_hourly_rate", None),
+                format_prices=[
+                    ServiceFormatPriceOut(
+                        format=price_row["format"],
+                        hourly_rate=price_row["hourly_rate"],
+                    )
+                    for price_row in (getattr(service, "serialized_format_prices", None) or [])
+                ],
                 description=getattr(service, "description", None),
                 requirements=getattr(service, "requirements", None),
                 age_groups=getattr(service, "age_groups", None),
                 equipment_required=getattr(service, "equipment_required", None),
                 offers_travel=bool(getattr(service, "offers_travel", False)),
                 offers_at_location=bool(getattr(service, "offers_at_location", False)),
-                offers_online=bool(getattr(service, "offers_online", True)),
+                offers_online=bool(getattr(service, "offers_online", False)),
                 filter_selections=getattr(service, "filter_selections", None) or {},
                 duration_options=getattr(service, "duration_options", None) or [60],
             )

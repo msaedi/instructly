@@ -19,6 +19,11 @@ from app.models.user import User
 from app.services.instructor_service import InstructorService
 
 
+def _format_prices(rate: float = 60.0, *formats: str) -> list[dict[str, float | str]]:
+    selected_formats = formats or ("online",)
+    return [{"format": format_name, "hourly_rate": rate} for format_name in selected_formats]
+
+
 class TestInstructorServiceFiltering:
     """Unit tests for InstructorService get_instructors_filtered method."""
 
@@ -41,6 +46,8 @@ class TestInstructorServiceFiltering:
     def instructor_service(self, mock_db, mock_profile_repository):
         """Create InstructorService with mocked dependencies."""
         service = InstructorService(db=mock_db, profile_repository=mock_profile_repository)
+        service.service_format_pricing_repository = Mock()
+        service.service_format_pricing_repository.get_prices_for_services.return_value = {}
         return service
 
     def create_mock_profile(self, user_id, first_name, last_name, bio, services):
@@ -77,7 +84,11 @@ class TestInstructorServiceFiltering:
             catalog_entry = Mock()
             catalog_entry.name = skill
             service.catalog_entry = catalog_entry
-            service.hourly_rate = rate
+            service.min_hourly_rate = rate
+            service.serialized_format_prices = _format_prices(rate)
+            service.offers_travel = False
+            service.offers_at_location = False
+            service.offers_online = True
             service.description = f"{skill} lessons"
             service.duration_options = [60]
             service.duration = 60

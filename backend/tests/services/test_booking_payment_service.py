@@ -334,7 +334,9 @@ class TestBookingPaymentService:
             id=str(ulid.ULID()),
             instructor_profile_id=profile.id,
             service_catalog_id=catalog.id,
-            hourly_rate=100.00,
+            format_prices=[
+                {"format": "online", "hourly_rate": 100.00},
+            ],
             duration_options=[30, 60, 90],
             is_active=True,
         )

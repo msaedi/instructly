@@ -13,6 +13,11 @@ from unittest.mock import ANY, MagicMock, patch
 import pytest
 
 
+def _format_prices(rate: float = 60.0, *formats: str) -> list[dict[str, float | str]]:
+    selected_formats = formats or ("online",)
+    return [{"format": format_name, "hourly_rate": rate} for format_name in selected_formats]
+
+
 class TestGetPublicInstructorProfile:
     """Tests for get_public_instructor_profile with caching (lines 377-399)."""
 
@@ -123,6 +128,18 @@ class TestAutoBioGeneration:
         service.service_repository = MagicMock()
         service.catalog_repository = MagicMock()
         service.user_repository = MagicMock()
+        service.service_format_pricing_repository = MagicMock()
+        service.service_format_pricing_repository.get_prices_for_services.return_value = {}
+        service.config_service = MagicMock()
+        service.config_service.get_pricing_config.return_value = (
+            {
+                "price_floor_cents": {
+                    "private_in_person": 8000,
+                    "private_remote": 6000,
+                }
+            },
+            None,
+        )
 
         # Setup profile
         mock_profile = MagicMock()
@@ -152,20 +169,14 @@ class TestAutoBioGeneration:
 
         update_data.services = [
             ServiceCreate(
-                offers_travel=False,
-                offers_at_location=False,
-                offers_online=True,
                 service_catalog_id="cat-yoga",
-                hourly_rate=60.0,
+                format_prices=_format_prices(60.0),
                 description="Yoga sessions",
                 duration_options=[60],
             ),
             ServiceCreate(
-                offers_travel=False,
-                offers_at_location=False,
-                offers_online=True,
                 service_catalog_id="cat-pilates",
-                hourly_rate=65.0,
+                format_prices=_format_prices(65.0),
                 description="Pilates sessions",
                 duration_options=[60],
             ),
@@ -199,6 +210,18 @@ class TestAutoBioGeneration:
         service.service_repository = MagicMock()
         service.catalog_repository = MagicMock()
         service.user_repository = MagicMock()
+        service.service_format_pricing_repository = MagicMock()
+        service.service_format_pricing_repository.get_prices_for_services.return_value = {}
+        service.config_service = MagicMock()
+        service.config_service.get_pricing_config.return_value = (
+            {
+                "price_floor_cents": {
+                    "private_in_person": 8000,
+                    "private_remote": 6000,
+                }
+            },
+            None,
+        )
 
         # Setup profile
         mock_profile = MagicMock()

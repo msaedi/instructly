@@ -90,7 +90,11 @@ class TestBaseServiceTransactions:
 
             if existing_service:
                 # Update the existing service
-                existing_service.hourly_rate = 100.0
+                if existing_service.format_prices:
+                    for price_row in existing_service.format_prices:
+                        price_row.hourly_rate = 100.0
+                else:
+                    existing_service.format_prices = [{"format": "online", "hourly_rate": 100.0}]
                 existing_service.description = "Testing transactions"
             else:
                 # Only create if no service exists (shouldn't happen with fixtures)
@@ -101,7 +105,9 @@ class TestBaseServiceTransactions:
                 new_service = Service(
                     instructor_profile_id=test_instructor.instructor_profile.id,
                     service_catalog_id=catalog_service.id,
-                    hourly_rate=100.0,
+                    format_prices=[
+                        {"format": "online", "hourly_rate": 100.0},
+                    ],
                     description="Testing transactions",
                     is_active=True,
                 )
