@@ -64,7 +64,7 @@ opentelemetry-semantic-conventions==0.60b1
 opentelemetry-exporter-otlp-proto-http==1.39.1
 # Auto-instrumentation - ALL SAME MINOR (0.43b0)
 opentelemetry-instrumentation-fastapi==0.60b1
-opentelemetry-instrumentation-celery==0.60b1
+opentelemetry-instrumentation-celery==0.61b0
 opentelemetry-instrumentation-redis==0.60b1
 opentelemetry-instrumentation-sqlalchemy==0.60b1
 opentelemetry-instrumentation-httpx==0.60b1
