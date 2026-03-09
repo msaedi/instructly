@@ -91,26 +91,41 @@ def _extra_service(db, instructor_id: str) -> InstructorService:
     )
     if not profile:
         raise AssertionError("Missing instructor profile")
-    existing = (
+    existing_services = (
         db.query(InstructorService)
         .filter(InstructorService.instructor_profile_id == profile.id)
-        .first()
+        .order_by(InstructorService.id.asc())
+        .all()
     )
+    existing = existing_services[0] if existing_services else None
     if not existing:
         raise AssertionError("Missing existing service")
+
+    if len(existing_services) >= 2:
+        return existing_services[1]
+
+    existing_catalog_ids = {service.service_catalog_id for service in existing_services}
     existing_catalog = (
         db.query(ServiceCatalog)
         .filter(ServiceCatalog.id == existing.service_catalog_id)
         .first()
     )
-    # Find a catalog entry in a different subcategory
+    # Prefer a different subcategory, but always require a different catalog ID
+    # so the helper never violates the active unique constraint for a profile.
     catalog = (
         db.query(ServiceCatalog)
+        .filter(~ServiceCatalog.id.in_(existing_catalog_ids))
         .filter(ServiceCatalog.subcategory_id != existing_catalog.subcategory_id)
         .first()
     )
     if not catalog:
-        catalog = existing_catalog
+        catalog = (
+            db.query(ServiceCatalog)
+            .filter(~ServiceCatalog.id.in_(existing_catalog_ids))
+            .first()
+        )
+    if not catalog:
+        pytest.skip("Need at least two catalog services to build category comparison data")
     new_service = InstructorService(
         instructor_profile_id=profile.id,
         service_catalog_id=catalog.id,

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import httpx
 from httpx import MockTransport, Response
 from pydantic import SecretStr
@@ -147,6 +149,46 @@ def test_create_invitation_filters_none_values():
     assert '"candidate_id"' in captured["body"]
 
 
+def test_create_candidate_preserves_false_and_zero_values():
+    captured: dict[str, object] = {}
+
+    def handler(request):
+        captured["body"] = json.loads(request.content.decode())
+        return Response(201, json={"id": "cand_789"}, request=request)
+
+    client = CheckrClient(api_key="sk_test", transport=MockTransport(handler))
+    payload = client.create_candidate(
+        first_name="Test",
+        no_middle_name=True,
+        work_location_country_code="US",
+        age=0,
+    )
+
+    assert payload["id"] == "cand_789"
+    assert captured["body"] == {
+        "first_name": "Test",
+        "no_middle_name": True,
+        "work_location_country_code": "US",
+        "age": 0,
+    }
+
+
+def test_request_uses_basic_auth_and_query_params():
+    captured: dict[str, object] = {}
+
+    def handler(request):
+        captured["authorization"] = request.headers.get("Authorization")
+        captured["query"] = dict(request.url.params)
+        return Response(200, json={"ok": True}, request=request)
+
+    client = CheckrClient(api_key="sk_test", transport=MockTransport(handler))
+    payload = client.request("GET", "/reports", params={"page": 2, "per_page": 50})
+
+    assert payload == {"ok": True}
+    assert str(captured["authorization"]).startswith("Basic ")
+    assert captured["query"] == {"page": "2", "per_page": "50"}
+
+
 def test_get_report_success():
     def handler(request):
         return Response(200, json={"id": "rpt_456"}, request=request)
@@ -205,3 +247,15 @@ def test_fake_checkr_client_returns_stub_for_unknown_candidate():
     payload = client.get_candidate("missing-candidate")
 
     assert payload == {"id": "missing-candidate", "object": "candidate"}
+
+
+def test_fake_checkr_client_returns_copy_of_candidate_record():
+    client = FakeCheckrClient()
+    candidate = client.create_candidate(first_name="Test", last_name="User")
+
+    fetched = client.get_candidate(candidate["id"])
+    fetched["first_name"] = "Mutated"
+
+    refreshed = client.get_candidate(candidate["id"])
+
+    assert refreshed["first_name"] == "Test"

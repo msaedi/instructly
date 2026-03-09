@@ -179,3 +179,74 @@ def test_escalate_capture_failure_persists_transfer_failure_metadata(
     assert transfer.transfer_error == "transfer failed"
     assert transfer.transfer_retry_count == 1
     assert test_student.account_locked is True
+
+
+def test_escalate_capture_failure_without_connected_account_still_locks_student(
+    db: Session,
+    test_student: User,
+    test_instructor: User,
+):
+    """Missing payout rails should still escalate and lock the student for manual follow-up."""
+    profile = test_instructor.instructor_profile
+    service = next((svc for svc in profile.instructor_services if svc.is_active), None)
+    assert service is not None, "Expected active instructor service"
+
+    now = datetime.now(timezone.utc)
+    booking = create_booking_pg_safe(
+        db,
+        student_id=test_student.id,
+        instructor_id=test_instructor.id,
+        instructor_service_id=service.id,
+        booking_date=date.today() + timedelta(days=1),
+        start_time=time(15, 0),
+        end_time=time(16, 0),
+        status=BookingStatus.COMPLETED,
+        allow_overlap=True,
+        service_name="Capture Failure No Account",
+        hourly_rate=100.0,
+        total_price=100.0,
+        duration_minutes=60,
+        location_type="neutral_location",
+        meeting_location="Test",
+        payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+        payment_intent_id="pi_capture_no_account",
+        capture_failed_at=now - timedelta(hours=80),
+    )
+
+    db.add(
+        PaymentIntent(
+            id=str(ulid.ULID()),
+            booking_id=booking.id,
+            stripe_payment_intent_id="pi_capture_no_account",
+            amount=10000,
+            application_fee=0,
+            status="requires_capture",
+            instructor_payout_cents=8800,
+        )
+    )
+    db.commit()
+
+    with patch(
+        "app.tasks.payment_tasks.StripeService.create_manual_transfer",
+        side_effect=AssertionError("manual transfer should not be attempted without an account"),
+    ):
+        _escalate_capture_failure(booking.id, now)
+
+    from app.models.booking_payment import BookingPayment as BP
+
+    db.expire_all()
+    bp = db.query(BP).filter(BP.booking_id == booking.id).one()
+    transfer = db.query(BookingTransfer).filter(BookingTransfer.booking_id == booking.id).one()
+    db.refresh(test_student)
+
+    assert bp.payment_status == PaymentStatus.MANUAL_REVIEW.value
+    assert bp.settlement_outcome == "capture_failure_escalated"
+    assert bp.instructor_payout_amount == 0
+    assert transfer.stripe_transfer_id is None
+    assert transfer.payout_transfer_failed_at == now
+    assert transfer.payout_transfer_error is None
+    assert transfer.payout_transfer_retry_count == 1
+    assert transfer.transfer_failed_at == now
+    assert transfer.transfer_error is None
+    assert transfer.transfer_retry_count == 1
+    assert test_student.account_locked is True

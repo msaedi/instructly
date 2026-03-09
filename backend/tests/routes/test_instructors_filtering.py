@@ -418,7 +418,16 @@ class TestInstructorsFilteringAPI:
                     (s for s in instructor["services"] if s["service_catalog_id"] == service_catalog.id), None
                 )
                 if service:
-                    assert service["hourly_rate"] <= 80
+                    min_hourly_rate = service.get("min_hourly_rate")
+                    if min_hourly_rate is None:
+                        format_rates = [
+                            float(price["hourly_rate"])
+                            for price in service.get("format_prices", [])
+                            if price.get("hourly_rate") is not None
+                        ]
+                        assert format_rates, "Expected service pricing details in response"
+                        min_hourly_rate = min(format_rates)
+                    assert float(min_hourly_rate) <= 80
 
     def test_standardized_response_format(self, client, sample_instructors, db: Session):
         """Test that response always has standardized format."""

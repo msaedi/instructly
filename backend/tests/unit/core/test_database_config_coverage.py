@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import builtins
+import importlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -550,3 +551,50 @@ def test_staging_and_preview_url_emit_banner_and_audit(monkeypatch) -> None:
     assert "preview" in database_config._PRINTED_ENV_BANNERS
     assert any(item[1]["environment"] == "stg" for item in audited)
     assert any(item[1]["environment"] == "preview" for item in audited)
+
+
+def test_coerce_safe_ci_db_url_returns_original_when_urlparse_raises(monkeypatch) -> None:
+    original = "postgresql://user:pass@host/original"
+
+    def _boom(_value: str) -> str:
+        raise ValueError("bad url")
+
+    monkeypatch.setattr(database_config, "urlparse", _boom)
+
+    assert database_config.DatabaseConfig._coerce_safe_ci_db_url(original) == original
+
+
+def test_preview_url_only_logs_banner_once(monkeypatch) -> None:
+    cfg = _make_config(monkeypatch)
+    logged: list[tuple[str, str]] = []
+    database_config._PRINTED_ENV_BANNERS.clear()
+
+    monkeypatch.setattr(
+        database_config, "scripts_log_info", lambda env, message: logged.append((env, message))
+    )
+    monkeypatch.setattr(cfg, "_audit_log_operation", lambda *_args, **_kwargs: None)
+
+    assert cfg._get_preview_url() == cfg.preview_url
+    assert cfg._get_preview_url() == cfg.preview_url
+    assert logged == [("preview", "Using Preview database")]
+
+
+def test_database_config_falls_back_to_print_logger_when_env_logging_import_fails(monkeypatch) -> None:
+    original_import = builtins.__import__
+
+    def _import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "app.utils.env_logging":
+            raise ImportError("missing env logger")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", _import)
+    try:
+        reloaded = importlib.reload(database_config)
+        with monkeypatch.context() as patch_ctx:
+            logged: list[str] = []
+            patch_ctx.setattr(builtins, "print", lambda message: logged.append(message))
+            reloaded.scripts_log_info("preview", "Using Preview database")
+        assert logged == ["[PREVIEW] Using Preview database"]
+    finally:
+        monkeypatch.setattr(builtins, "__import__", original_import)
+        importlib.reload(database_config)

@@ -342,3 +342,164 @@ def test_attempt_payment_capture_generic_exception_marks_session_backed_retry_st
     assert payment_record.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
     assert payment_record.capture_failed_at is not None
     assert payment_record.capture_retry_count == 1
+
+
+def test_retry_failed_authorizations_warn_only_skips_duplicate_notification():
+    booking = _booking(
+        "booking-warn",
+        payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+    )
+    payment_state = SimpleNamespace(
+        auth_failure_t13_warning_sent_at=datetime.now(timezone.utc) - timedelta(minutes=5)
+    )
+    repo_read = MagicMock()
+    repo_read.get_bookings_for_payment_retry.return_value = [booking]
+    repo_warn = MagicMock()
+    repo_warn.get_by_id.return_value = booking
+    repo_warn.ensure_payment.return_value = payment_state
+    db_read = MagicMock()
+    db_warn = MagicMock()
+    payment_repo_read = MagicMock()
+    payment_repo_warn = MagicMock()
+
+    def _payment_repo_for_db(db):
+        if db is db_read:
+            return payment_repo_read
+        if db is db_warn:
+            return payment_repo_warn
+        raise AssertionError("unexpected db")
+
+    def _booking_repo_for_db(db):
+        if db is db_warn:
+            return repo_warn
+        raise AssertionError("unexpected db")
+
+    with patch("app.database.SessionLocal", side_effect=[db_read, db_warn]):
+        with patch(
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
+            return_value=repo_read,
+        ):
+            with patch(
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
+                side_effect=_payment_repo_for_db,
+            ):
+                with patch("app.tasks.payment_tasks.BookingRepository", side_effect=_booking_repo_for_db):
+                    with patch("app.tasks.payment_tasks._get_booking_start_utc", return_value=datetime.now(timezone.utc)):
+                        with patch("app.tasks.payment_tasks.TimezoneService.hours_until", return_value=12.5):
+                            with patch("app.tasks.payment_tasks._should_retry_auth", return_value=False):
+                                with patch("app.tasks.payment_tasks.has_event_type", return_value=False):
+                                    with patch(
+                                        "app.tasks.payment_tasks.booking_lock_sync",
+                                        return_value=_lock(True),
+                                    ):
+                                        with patch("app.tasks.payment_tasks.NotificationService") as notification_cls:
+                                            result = payment_tasks.retry_failed_authorizations()
+
+    assert result["warnings_sent"] == 0
+    assert result["retried"] == 0
+    notification_cls.assert_not_called()
+    payment_repo_warn.create_payment_event.assert_not_called()
+    db_warn.commit.assert_called_once()
+
+
+def test_retry_failed_authorizations_silent_retry_skipped_does_not_increment_counts():
+    booking = _booking(
+        "booking-retry",
+        payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+    )
+    repo_read = MagicMock()
+    repo_read.get_bookings_for_payment_retry.return_value = [booking]
+    db_read = MagicMock()
+
+    with patch("app.database.SessionLocal", return_value=db_read):
+        with patch(
+            "app.tasks.payment_tasks.RepositoryFactory.create_booking_repository",
+            return_value=repo_read,
+        ):
+            with patch(
+                "app.tasks.payment_tasks.RepositoryFactory.create_payment_repository",
+                return_value=MagicMock(),
+            ):
+                with patch("app.tasks.payment_tasks._get_booking_start_utc", return_value=datetime.now(timezone.utc)):
+                    with patch("app.tasks.payment_tasks.TimezoneService.hours_until", return_value=24):
+                        with patch("app.tasks.payment_tasks._should_retry_auth", return_value=True):
+                            with patch(
+                                "app.tasks.payment_tasks.booking_lock_sync",
+                                return_value=_lock(True),
+                            ):
+                                with patch(
+                                    "app.tasks.payment_tasks._process_retry_authorization",
+                                    return_value={"skipped": True},
+                                ):
+                                    result = payment_tasks.retry_failed_authorizations()
+
+    assert result["retried"] == 0
+    assert result["success"] == 0
+    assert result["failed"] == 0
+
+
+def test_attempt_payment_capture_missing_payment_intent_short_circuits_without_event():
+    booking = _booking("booking-missing-intent", payment_intent_id=None)
+    payment_repo = MagicMock()
+    stripe_service = MagicMock()
+
+    with patch("sqlalchemy.orm.object_session", return_value=None):
+        result = payment_tasks.attempt_payment_capture(
+            booking,
+            payment_repo,
+            "instructor_completed",
+            stripe_service,
+        )
+
+    assert result == {"success": False, "error": "missing_payment_intent"}
+    stripe_service.capture_booking_payment_intent.assert_not_called()
+    payment_repo.create_payment_event.assert_not_called()
+
+
+def test_attempt_payment_capture_already_captured_without_session_records_event_only():
+    booking = _booking("booking-already-captured")
+    payment_repo = MagicMock()
+    stripe_service = MagicMock()
+    stripe_service.capture_booking_payment_intent.side_effect = stripe.error.InvalidRequestError(
+        message="already been captured",
+        param="payment_intent",
+    )
+
+    with patch("sqlalchemy.orm.object_session", return_value=None):
+        result = payment_tasks.attempt_payment_capture(
+            booking,
+            payment_repo,
+            "instructor_completed",
+            stripe_service,
+        )
+
+    assert result == {"success": True, "already_captured": True}
+    assert booking.payment_detail.payment_status == PaymentStatus.AUTHORIZED.value
+    assert payment_repo.create_payment_event.call_args.kwargs["event_type"] == "capture_already_done"
+
+
+def test_attempt_payment_capture_card_error_without_session_records_event_only():
+    booking = _booking("booking-card-error")
+    payment_repo = MagicMock()
+    stripe_service = MagicMock()
+    stripe_service.capture_booking_payment_intent.side_effect = stripe.error.CardError(
+        message="Insufficient funds",
+        param=None,
+        code="card_declined",
+        http_body=None,
+        http_status=402,
+        json_body=None,
+        headers=None,
+    )
+
+    with patch("sqlalchemy.orm.object_session", return_value=None):
+        result = payment_tasks.attempt_payment_capture(
+            booking,
+            payment_repo,
+            "instructor_completed",
+            stripe_service,
+        )
+
+    assert result == {"success": False, "card_error": True}
+    assert booking.payment_detail.payment_status == PaymentStatus.AUTHORIZED.value
+    assert payment_repo.create_payment_event.call_args.kwargs["event_type"] == "capture_failed_card"

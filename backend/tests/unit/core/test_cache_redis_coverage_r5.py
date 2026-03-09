@@ -64,6 +64,22 @@ class TestGetAsyncCacheRedisClientCoverage:
         assert result is None
 
     @pytest.mark.asyncio
+    async def test_testing_mode_without_cached_client_short_circuits_cleanly(self, monkeypatch) -> None:
+        loop = asyncio.get_running_loop()
+        self._cleanup_loop_state(loop)
+
+        monkeypatch.setattr(settings, "is_testing", True, raising=False)
+        monkeypatch.setattr(settings, "redis_url", None, raising=False)
+
+        with patch.object(cache_redis, "_close_cache_client", AsyncMock()) as close_mock:
+            with patch.object(cache_redis.AsyncRedis, "from_url") as from_url_mock:
+                result = await cache_redis.get_async_cache_redis_client()
+
+        assert result is None
+        close_mock.assert_not_awaited()
+        from_url_mock.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_lock_creation_branch(self, monkeypatch) -> None:
         """Lines 61->65: Creates lock when not present for loop."""
         loop = asyncio.get_running_loop()
@@ -292,3 +308,17 @@ async def test_disconnect_pool_connections_ignores_missing_disconnect_hook() -> 
     )
 
     await cache_redis._disconnect_pool_connections(pool)
+
+
+@pytest.mark.asyncio
+async def test_disconnect_pool_connections_uses_pool_disconnect_when_lists_absent() -> None:
+    disconnect = AsyncMock()
+    pool = SimpleNamespace(
+        _available_connections=None,
+        _in_use_connections=None,
+        disconnect=disconnect,
+    )
+
+    await cache_redis._disconnect_pool_connections(pool)
+
+    disconnect.assert_awaited_once()
