@@ -32,7 +32,6 @@ from app.core.exceptions import RepositoryException, ServiceException
 from app.database import get_db
 from app.models.booking import Booking, BookingStatus, PaymentStatus
 from app.models.payment import PaymentEvent
-from app.models.user import User
 from app.monitoring.sentry_crons import monitor_if_configured
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.factory import RepositoryFactory
@@ -1238,12 +1237,8 @@ def _escalate_capture_failure(booking_id: str, now: datetime) -> None:
                 int(getattr(transfer_record, "transfer_retry_count", 0) or 0) + 1
             )
 
-        # repo-pattern-migrate: TODO: move to UserRepository.lock_account()
-        student = db_write.query(User).filter(User.id == booking.student_id).first()
-        if student:
-            student.account_locked = True
-            student.account_locked_at = now
-            student.account_locked_reason = f"capture_failure_escalated:{booking.id}"
+        user_repo = RepositoryFactory.create_user_repository(db_write)
+        user_repo.lock_account(booking.student_id, f"capture_failure_escalated:{booking.id}")
 
         payment_repo = RepositoryFactory.create_payment_repository(db_write)
         payment_repo.create_payment_event(

@@ -468,6 +468,31 @@ class UserRepository(BaseRepository[User]):
             self.logger.error(f"Error getting all active users: {str(e)}")
             return []
 
+    def lock_account(self, user_id: str, reason: str) -> bool:
+        """
+        Lock a user account.
+
+        Sets account_locked, account_locked_at, and account_locked_reason.
+
+        Args:
+            user_id: User ID to lock.
+            reason: Human-readable reason for locking.
+
+        Returns:
+            True if user was found and locked, False otherwise.
+        """
+        try:
+            user = self.get_by_id(user_id, load_relationships=False, use_retry=False)
+            if not user:
+                return False
+            user.account_locked = True
+            user.account_locked_at = datetime.now(timezone.utc)
+            user.account_locked_reason = reason
+            return True
+        except Exception as e:
+            self.logger.error(f"Error locking account {user_id}: {str(e)}")
+            return False
+
     def list_students_paginated(
         self,
         *,
