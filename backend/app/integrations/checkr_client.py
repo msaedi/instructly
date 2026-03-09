@@ -164,13 +164,18 @@ class CheckrClient:
             raise CheckrError("Received malformed JSON from Checkr") from exc
 
 
+# Module-level store so FakeCheckrClient persists candidates across instances
+# within the same process (dev/test). Clear via _fake_candidate_store.clear()
+# in test fixtures if needed.
+_fake_candidate_store: dict[str, Dict[str, Any]] = {}
+
+
 class FakeCheckrClient(CheckrClient):
     """Simple in-memory stub that mimics Checkr for non-production flows."""
 
     def __init__(self) -> None:
         super().__init__(api_key="fake-checkr-key", base_url="https://api.checkr.com/v1")
         self._logger = logging.getLogger(self.__class__.__name__)
-        self._candidates: dict[str, Dict[str, Any]] = {}
 
     def create_candidate(
         self,
@@ -185,7 +190,7 @@ class FakeCheckrClient(CheckrClient):
             "object": "candidate",
             **{k: v for k, v in payload.items() if v is not None},
         }
-        self._candidates[candidate_id] = dict(candidate)
+        _fake_candidate_store[candidate_id] = dict(candidate)
         return candidate
 
     def create_invitation(self, **payload: Any) -> Dict[str, Any]:
@@ -218,7 +223,7 @@ class FakeCheckrClient(CheckrClient):
     def get_candidate(self, candidate_id: str) -> Dict[str, Any]:
         if not candidate_id:
             raise ValueError("candidate_id must be provided")
-        candidate = self._candidates.get(candidate_id)
+        candidate = _fake_candidate_store.get(candidate_id)
         if candidate is not None:
             return dict(candidate)
         return {

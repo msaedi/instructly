@@ -39,6 +39,7 @@ from app.services.config_service import DEFAULT_PRICING_CONFIG, ConfigService
 logger = logging.getLogger(__name__)
 
 # Optional perf logging for profiling in staging/dev.
+# NOTE: Read at module load time — changes require process restart.
 _PERF_LOG_ENABLED = os.getenv("NL_SEARCH_PERF_LOG") == "1"
 _PERF_LOG_SLOW_MS = int(os.getenv("NL_SEARCH_PERF_LOG_SLOW_MS", "0"))
 
