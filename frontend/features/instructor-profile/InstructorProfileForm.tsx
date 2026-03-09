@@ -428,42 +428,26 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
 
   const bioTooShort = profile.bio.trim().length < 400;
 
-  const handleGenerateBio = useCallback(() => {
-    const sentences = [
-      'I focus on building strong fundamentals and lasting confidence.',
-      'Each lesson is tailored to your goals, pace, and learning style.',
-      'We combine technique drills with practical applications you can use right away.',
-      'I provide clear takeaways, measurable milestones, and simple practice plans.',
-      'My approach balances encouragement with constructive, actionable feedback.',
-      'You will know what to improve next and how to practice effectively between sessions.',
-      'I bring real-world examples, curated resources, and step-by-step guidance.',
-      'Consistency matters—together we set realistic targets and celebrate progress.',
-      'Whether you are a beginner or leveling up, I will meet you where you are.',
-      'My goal is to make learning engaging, stress-free, and genuinely rewarding.',
-      'Lessons come with curated resources, homework guides, and accountability check-ins.',
-      'We track your milestones so you can clearly see how far you have come.',
-      'Expect a calm, upbeat environment where questions are encouraged and celebrated.',
-      'I adapt my teaching to visual, auditory, or hands-on learners on the fly.',
-    ];
+  const [isGeneratingBio, setIsGeneratingBio] = useState(false);
 
-    setProfile((prev) => {
-      const current = (prev.bio || '').trim();
-      const defaultIntro = 'I am a dedicated instructor who helps students learn efficiently and enjoy the process.';
-      const firstSentence = current.split('.').map((part) => part.trim()).filter(Boolean)[0];
-      const intro = firstSentence && firstSentence.length >= 10 && firstSentence.length <= 160 ? `${firstSentence}.` : defaultIntro;
-
-      const shuffled = [...sentences].sort(() => Math.random() - 0.5);
-      let assembled = intro.endsWith('.') ? intro : `${intro}.`;
-      let index = 0;
-      while (assembled.length < 400) {
-        assembled += ` ${shuffled[index % shuffled.length]}`;
-        index += 1;
+  const handleGenerateBio = useCallback(async () => {
+    setIsGeneratingBio(true);
+    try {
+      const response = await fetchWithAuth('/api/v1/instructors/me/generate-bio', {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        const errorData = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(errorData?.detail ?? 'Failed to generate bio');
       }
-
-      const next = assembled.slice(0, 560).replace(/\s+/g, ' ').trim();
-      return { ...prev, bio: next };
-    });
-    setBioTouched(true);
+      const data = (await response.json()) as { bio: string };
+      setProfile((prev) => ({ ...prev, bio: data.bio }));
+      setBioTouched(true);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to generate bio. Please try again.');
+    } finally {
+      setIsGeneratingBio(false);
+    }
   }, [setBioTouched]);
 
 
@@ -967,6 +951,8 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
           isOpen={openDetails}
           onToggle={() => setOpenDetails((v) => !v)}
           onGenerateBio={handleGenerateBio}
+          isGenerating={isGeneratingBio}
+          hasServices={(instructorMeta?.services?.length ?? 0) > 0}
           showCharCount
           maxBioChars={1000}
         />

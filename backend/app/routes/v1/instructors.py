@@ -49,6 +49,7 @@ from ...repositories.filter_repository import FilterRepository
 from ...schemas.address_responses import CoverageFeatureCollectionResponse
 from ...schemas.base_responses import PaginatedResponse
 from ...schemas.instructor import (
+    GenerateBioResponse,
     InstructorFilterParams,
     InstructorProfileCreate,
     InstructorProfileResponse,
@@ -57,6 +58,7 @@ from ...schemas.instructor import (
     ServiceAreaCheckCoordinates,
 )
 from ...services.address_service import AddressService
+from ...services.bio_generation_service import BioGenerationService
 from ...services.cache_service import CacheServiceSyncAdapter
 from ...services.favorites_service import FavoritesService
 from ...services.instructor_service import InstructorService
@@ -329,6 +331,34 @@ async def go_live(
         raise exc.to_http_exception()
 
     return InstructorProfileResponse.from_orm(profile)
+
+
+@router.post(
+    "/me/generate-bio",
+    response_model=GenerateBioResponse,
+    dependencies=[Depends(rate_limit("bio_generate"))],
+    responses={
+        401: {"description": "Not authenticated"},
+        404: {"description": "Instructor profile not found"},
+        503: {"description": "Bio generation service unavailable"},
+    },
+)
+async def generate_bio(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+) -> GenerateBioResponse:
+    """Generate a personalized bio for the current instructor using AI."""
+    try:
+        service = BioGenerationService(db)
+        bio = await service.generate_bio(current_user.id)
+        return GenerateBioResponse(bio=bio)
+    except NotFoundException as exc:
+        raise exc.to_http_exception()
+    except ServiceException as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=exc.message,
+        )
 
 
 # openapi-exempt: 204 No Content - no response body

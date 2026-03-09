@@ -446,6 +446,12 @@ class InstructorProfileCreate(StrictRequestModel, InstructorProfileBase):
     )
 
 
+class GenerateBioResponse(BaseModel):
+    """Response schema for AI-generated instructor bio."""
+
+    bio: str
+
+
 class InstructorProfileUpdate(StrictRequestModel):
     """
     Schema for updating an instructor profile.

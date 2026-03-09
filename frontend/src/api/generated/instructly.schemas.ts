@@ -3882,6 +3882,13 @@ export interface GatedPingResponse {
 }
 
 /**
+ * Response schema for AI-generated instructor bio.
+ */
+export interface GenerateBioResponse {
+  bio: string;
+}
+
+/**
  * Schema for creating guest search history (no user_id required).
  */
 export interface GuestSearchHistoryCreate {
@@ -5601,6 +5608,8 @@ export interface NLSearchMeta {
 export interface ServiceMatch {
   /** Service description */
   description?: string | null;
+  /** Hourly rate matching the queried lesson type (None when unfiltered) */
+  effective_hourly_rate?: number | null;
   /** Enabled per-format hourly pricing rows for this service */
   format_prices?: ServiceFormatPriceOut[];
   /** Lowest enabled hourly rate */

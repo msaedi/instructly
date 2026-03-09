@@ -47,6 +47,8 @@ BUCKETS: Dict[str, Dict[str, Any]] = {
     "financial": dict(rate_per_min=5, burst=0, window_s=60),
     "admin_mcp": dict(rate_per_min=60, burst=10, window_s=60),
     "admin_mcp_invite": dict(rate_per_min=10, burst=2, window_s=60),
+    # AI-powered bio generation (OpenAI call per request)
+    "bio_generate": dict(rate_per_min=5, burst=1, window_s=60),
 }
 
 # Per-bucket shadow overrides (default inherits global). Financial enforcement in PR-3.
@@ -62,6 +64,7 @@ BUCKET_SHADOW_OVERRIDES: dict[str, bool] = {
     "read": os.getenv("RATE_LIMIT_SHADOW_READ", "").lower() == "true",
     "auth_bootstrap": os.getenv("RATE_LIMIT_SHADOW_AUTH", "").lower() == "true",
     "auth_refresh": os.getenv("RATE_LIMIT_SHADOW_AUTH_REFRESH", "").lower() == "true",
+    "bio_generate": os.getenv("RATE_LIMIT_SHADOW_BIO_GENERATE", "").lower() == "true",
 }
 
 
@@ -131,6 +134,7 @@ def reload_config(cache_ttl_s: int = 30) -> Dict[str, Any]:
         "read": os.getenv("RATE_LIMIT_SHADOW_READ", "").lower() == "true",
         "auth_bootstrap": os.getenv("RATE_LIMIT_SHADOW_AUTH", "").lower() == "true",
         "auth_refresh": os.getenv("RATE_LIMIT_SHADOW_AUTH_REFRESH", "").lower() == "true",
+        "bio_generate": os.getenv("RATE_LIMIT_SHADOW_BIO_GENERATE", "").lower() == "true",
     }
 
     env_overrides = _load_overrides_from_env()
@@ -169,6 +173,7 @@ async def reload_config_async(cache_ttl_s: int = 30) -> Dict[str, Any]:
         "read": os.getenv("RATE_LIMIT_SHADOW_READ", "").lower() == "true",
         "auth_bootstrap": os.getenv("RATE_LIMIT_SHADOW_AUTH", "").lower() == "true",
         "auth_refresh": os.getenv("RATE_LIMIT_SHADOW_AUTH_REFRESH", "").lower() == "true",
+        "bio_generate": os.getenv("RATE_LIMIT_SHADOW_BIO_GENERATE", "").lower() == "true",
     }
 
     env_overrides = _load_overrides_from_env()

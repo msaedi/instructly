@@ -3359,6 +3359,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/instructors/me/generate-bio": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["generate_bio_api_v1_instructors_me_generate_bio_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/instructors/me/go-live": {
  parameters: {
  query?: never;
@@ -7608,6 +7624,9 @@ export type components = {
  GatedPingResponse: {
  ok: boolean;
  };
+ GenerateBioResponse: {
+ bio: string;
+ };
  GitStats: {
  current_branch: string;
  first_commit: string;
@@ -9907,6 +9926,7 @@ export type components = {
  };
  ServiceMatch: {
  description?: string | null;
+ effective_hourly_rate?: number | null;
  format_prices?: components["schemas"]["ServiceFormatPriceOut"][];
  min_hourly_rate: number;
  name: string;
@@ -17275,6 +17295,43 @@ export interface operations {
  content?: never;
  };
  404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ };
+ };
+ generate_bio_api_v1_instructors_me_generate_bio_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["GenerateBioResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 503: {
  headers: {
  [name: string]: unknown;
  };

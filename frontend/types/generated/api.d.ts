@@ -4415,6 +4415,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/instructors/me/generate-bio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Bio
+         * @description Generate a personalized bio for the current instructor using AI.
+         */
+        post: operations["generate_bio_api_v1_instructors_me_generate_bio_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/instructors/me/go-live": {
         parameters: {
             query?: never;
@@ -12870,6 +12890,14 @@ export type components = {
             /** Ok */
             ok: boolean;
         };
+        /**
+         * GenerateBioResponse
+         * @description Response schema for AI-generated instructor bio.
+         */
+        GenerateBioResponse: {
+            /** Bio */
+            bio: string;
+        };
         /** GitStats */
         GitStats: {
             /** Current Branch */
@@ -19450,6 +19478,11 @@ export type components = {
              * @description Service description
              */
             description?: string | null;
+            /**
+             * Effective Hourly Rate
+             * @description Hourly rate matching the queried lesson type (None when unfiltered)
+             */
+            effective_hourly_rate?: number | null;
             /**
              * Format Prices
              * @description Enabled per-format hourly pricing rows for this service
@@ -28490,6 +28523,47 @@ export interface operations {
             };
             /** @description Profile not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    generate_bio_api_v1_instructors_me_generate_bio_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenerateBioResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Instructor profile not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bio generation service unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

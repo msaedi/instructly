@@ -15,6 +15,8 @@ type BioCardProps = {
   isOpen?: boolean;
   onToggle?: () => void;
   onGenerateBio: () => void;
+  isGenerating?: boolean;
+  hasServices?: boolean;
   minBioChars?: number;
   maxBioChars?: number;
   showMinCharHint?: boolean;
@@ -39,6 +41,8 @@ export function BioCard({
   isOpen = true,
   onToggle,
   onGenerateBio,
+  isGenerating = false,
+  hasServices,
   minBioChars = 400,
   maxBioChars,
   showMinCharHint = true,
@@ -171,14 +175,20 @@ export function BioCard({
               </div>
             </div>
             {showRewriteButton && (
-              <div className="mt-3 flex justify-end">
+              <div className="mt-3 flex flex-col items-end">
                 <button
                   type="button"
                   onClick={onGenerateBio}
-                  className="inline-flex items-center justify-center px-3 py-1.5 rounded-md text-sm sm:text-xs bg-[#7E22CE] text-white shadow-sm hover:bg-purple-800 dark:hover:bg-purple-700 font-semibold"
+                  disabled={isGenerating}
+                  className="inline-flex items-center justify-center px-3 py-1.5 rounded-md text-sm sm:text-xs bg-[#7E22CE] text-white shadow-sm hover:bg-purple-800 dark:hover:bg-purple-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Rewrite with AI
+                  {isGenerating ? 'Generating...' : 'Rewrite with AI'}
                 </button>
+                {hasServices === false && (
+                  <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                    Tip: add your skills first for a more personalized bio.
+                  </p>
+                )}
               </div>
             )}
           </div>

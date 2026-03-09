@@ -150,12 +150,14 @@ jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/PersonalI
 });
 
 jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/BioCard', () => {
-  function BioCard({ profile, bioTooShort, onGenerateBio, onToggle }: { profile: { bio?: string }; bioTooShort: boolean; onGenerateBio: () => void; onToggle?: () => void }) {
+  function BioCard({ profile, bioTooShort, onGenerateBio, isGenerating, hasServices, onToggle }: { profile: { bio?: string }; bioTooShort: boolean; onGenerateBio: () => void; isGenerating?: boolean; hasServices?: boolean; onToggle?: () => void }) {
     return (
       <section>
         <div data-testid="bio-content">{profile.bio}</div>
         <div data-testid="bio-too-short">{bioTooShort ? 'short' : 'long'}</div>
-        <button type="button" onClick={onGenerateBio}>Generate Bio</button>
+        {isGenerating && <div data-testid="bio-generating">Generating...</div>}
+        {hasServices === false && <div data-testid="bio-sparse-hint">Add skills first</div>}
+        <button type="button" onClick={onGenerateBio} disabled={isGenerating}>Generate Bio</button>
         <button type="button" onClick={() => onToggle?.()}>Toggle Bio</button>
       </section>
     );
@@ -381,11 +383,19 @@ describe('InstructorProfileForm', () => {
     expect(toast.success).toHaveBeenCalled();
   });
 
-  it('generates a long bio when requested', async () => {
+  it('generates a bio via API when requested', async () => {
+    const generatedBio = 'I am a passionate piano teacher with over 5 years of experience. My approach focuses on building strong fundamentals while keeping lessons engaging and fun. Whether you are just starting out or looking to refine your technique, I tailor each session to your goals and pace. I believe in creating a calm, supportive environment where questions are always welcome. Students leave each lesson with clear takeaways and a practice plan they can follow between sessions. I look forward to helping you on your musical journey and celebrating your progress along the way.';
     const { Wrapper } = createWrapper();
     mockUseInstructorProfileMe.mockReturnValue({
       data: { bio: 'Short bio', has_profile_picture: true },
       isLoading: false,
+    });
+
+    mockFetchWithAuth.mockImplementation(async (url: string) => {
+      if (url === '/api/v1/instructors/me/generate-bio') {
+        return { ok: true, status: 200, json: async () => ({ bio: generatedBio }) };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
     });
 
     render(<InstructorProfileForm />, { wrapper: Wrapper });
@@ -394,7 +404,7 @@ describe('InstructorProfileForm', () => {
     await user.click(screen.getByRole('button', { name: /generate bio/i }));
 
     await waitFor(() => {
-      expect(screen.getByTestId('bio-too-short')).toHaveTextContent('long');
+      expect(screen.getByTestId('bio-content')).toHaveTextContent(generatedBio);
     });
   });
 
@@ -2085,32 +2095,18 @@ describe('InstructorProfileForm', () => {
       });
     });
 
-    it('generates bio preserving short existing first sentence', async () => {
+    it('shows error toast on API failure', async () => {
       const { Wrapper } = createWrapper();
       mockUseInstructorProfileMe.mockReturnValue({
         data: { bio: 'I love teaching.', has_profile_picture: false },
         isLoading: false,
       });
 
-      render(<InstructorProfileForm />, { wrapper: Wrapper });
-
-      const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: /generate bio/i }));
-
-      await waitFor(() => {
-        const content = screen.getByTestId('bio-content').textContent ?? '';
-        // Should start with the preserved first sentence
-        expect(content).toMatch(/^I love teaching\./);
-        expect(content.length).toBeGreaterThanOrEqual(400);
-      });
-    });
-
-    it('generates bio using default intro when first sentence is too long', async () => {
-      const { Wrapper } = createWrapper();
-      const longSentence = 'A'.repeat(170);
-      mockUseInstructorProfileMe.mockReturnValue({
-        data: { bio: longSentence, has_profile_picture: false },
-        isLoading: false,
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/instructors/me/generate-bio') {
+          return { ok: false, status: 503, json: async () => ({ detail: 'Bio generation temporarily unavailable' }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
       });
 
       render(<InstructorProfileForm />, { wrapper: Wrapper });
@@ -2119,27 +2115,7 @@ describe('InstructorProfileForm', () => {
       await user.click(screen.getByRole('button', { name: /generate bio/i }));
 
       await waitFor(() => {
-        const content = screen.getByTestId('bio-content').textContent ?? '';
-        expect(content).toMatch(/^I am a dedicated instructor/);
-      });
-    });
-
-    it('generates bio using default intro when first sentence is too short', async () => {
-      const { Wrapper } = createWrapper();
-      mockUseInstructorProfileMe.mockReturnValue({
-        data: { bio: 'Hi. More.', has_profile_picture: false },
-        isLoading: false,
-      });
-
-      render(<InstructorProfileForm />, { wrapper: Wrapper });
-
-      const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: /generate bio/i }));
-
-      await waitFor(() => {
-        const content = screen.getByTestId('bio-content').textContent ?? '';
-        // "Hi" is too short (<10 chars), should use default
-        expect(content).toMatch(/^I am a dedicated instructor/);
+        expect(toast.error).toHaveBeenCalledWith('Bio generation temporarily unavailable');
       });
     });
 
@@ -2959,13 +2935,21 @@ describe('InstructorProfileForm', () => {
   });
 
   describe('Bio generation edge cases', () => {
-    it('truncates generated bio at 560 characters', async () => {
+    it('populates bio from API response', async () => {
+      const apiBio = 'I teach piano with a focus on building confidence and musicality. Each session is designed around your individual goals.';
       const { Wrapper } = createWrapper();
       mockUseInstructorProfileMe.mockReturnValue({
         data: { bio: '' },
         isLoading: false,
       });
 
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/instructors/me/generate-bio') {
+          return { ok: true, status: 200, json: async () => ({ bio: apiBio }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
       render(<InstructorProfileForm />, { wrapper: Wrapper });
 
       const user = userEvent.setup();
@@ -2973,35 +2957,22 @@ describe('InstructorProfileForm', () => {
 
       await waitFor(() => {
         const content = screen.getByTestId('bio-content').textContent ?? '';
-        expect(content.length).toBeLessThanOrEqual(560);
-        expect(content.length).toBeGreaterThanOrEqual(400);
+        expect(content).toBe(apiBio);
       });
     });
 
-    it('uses default intro when bio is empty', async () => {
+    it('calls generate-bio endpoint with POST method', async () => {
       const { Wrapper } = createWrapper();
       mockUseInstructorProfileMe.mockReturnValue({
         data: { bio: '' },
         isLoading: false,
       });
 
-      render(<InstructorProfileForm />, { wrapper: Wrapper });
-
-      const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: /generate bio/i }));
-
-      await waitFor(() => {
-        const content = screen.getByTestId('bio-content').textContent ?? '';
-        expect(content).toMatch(/^I am a dedicated instructor/);
-      });
-    });
-
-    it('ensures intro ends with period before appending sentences', async () => {
-      const { Wrapper } = createWrapper();
-      // A first sentence without a trailing period in split result
-      mockUseInstructorProfileMe.mockReturnValue({
-        data: { bio: 'I teach music professionally' }, // no period, 28 chars (valid range)
-        isLoading: false,
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/instructors/me/generate-bio') {
+          return { ok: true, status: 200, json: async () => ({ bio: 'Generated bio.' }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
       });
 
       render(<InstructorProfileForm />, { wrapper: Wrapper });
@@ -3010,10 +2981,10 @@ describe('InstructorProfileForm', () => {
       await user.click(screen.getByRole('button', { name: /generate bio/i }));
 
       await waitFor(() => {
-        const content = screen.getByTestId('bio-content').textContent ?? '';
-        // The intro should start with the first sentence and have a period appended
-        expect(content).toMatch(/^I teach music professionally\./);
-        expect(content.length).toBeGreaterThanOrEqual(400);
+        expect(mockFetchWithAuth).toHaveBeenCalledWith(
+          '/api/v1/instructors/me/generate-bio',
+          expect.objectContaining({ method: 'POST' }),
+        );
       });
     });
   });
@@ -6896,6 +6867,404 @@ describe('InstructorProfileForm', () => {
       });
 
       expect(screen.getByTestId('preferred-locations-count')).toBeInTheDocument();
+    });
+  });
+
+  describe('Bio generation — branch coverage', () => {
+    it('shows fallback message when error response has no detail field', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'Test bio' },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/instructors/me/generate-bio') {
+          return { ok: false, status: 500, json: async () => ({}) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /generate bio/i }));
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith('Failed to generate bio');
+      });
+    });
+
+    it('shows fallback message when error response json() throws', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'Test bio' },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/instructors/me/generate-bio') {
+          return { ok: false, status: 500, json: async () => { throw new Error('parse error'); } };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /generate bio/i }));
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith('Failed to generate bio');
+      });
+    });
+
+    it('shows generic message when fetchWithAuth throws a non-Error', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'Test bio' },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/instructors/me/generate-bio') {
+          throw 'network failure'; // non-Error thrown
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /generate bio/i }));
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith('Failed to generate bio. Please try again.');
+      });
+    });
+  });
+
+  describe('Booking preferences — branch coverage', () => {
+    it('saves with null booking preferences using defaults', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'Test', last_name: 'User' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'A'.repeat(420), has_profile_picture: true },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        if (url === '/api/v1/addresses/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      // Unset booking prefs to exercise ?? defaults in buildInstructorProfilePayload
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /unset booking prefs/i }));
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalledWith(
+          API_ENDPOINTS.INSTRUCTOR_PROFILE,
+          expect.objectContaining({
+            body: expect.stringContaining('"min_advance_booking_hours":2'),
+          }),
+        );
+      });
+    });
+  });
+
+  describe('Save — ZIP code match skips PATCH', () => {
+    it('skips address PATCH when zip code matches existing default address', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'Test', last_name: 'User', zip_code: '10001' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({
+        data: { items: [{ id: 'addr-1', postal_code: '10001', is_default: true }] },
+        isLoading: false,
+      });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'A'.repeat(420), has_profile_picture: true },
+        isLoading: false,
+      });
+
+      const patchCalls: string[] = [];
+      mockFetchWithAuth.mockImplementation(async (url: string, options?: { method?: string }) => {
+        if (options?.method === 'PATCH' && typeof url === 'string' && url.includes('/api/v1/addresses/me/')) {
+          patchCalls.push(url);
+        }
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        if (url === '/api/v1/addresses/me') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ items: [{ id: 'addr-1', postal_code: '10001', is_default: true }] }),
+          };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(toast.success).toHaveBeenCalledWith('Profile saved', expect.any(Object));
+      });
+
+      // ZIP matches — address PATCH should NOT have been called
+      expect(patchCalls).toHaveLength(0);
+    });
+  });
+
+  describe('Inline save button guard', () => {
+    it('does not call save when already saving', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'Test', last_name: 'User' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'A'.repeat(420), has_profile_picture: true },
+        isLoading: false,
+      });
+
+      let resolveProfileSave: (() => void) | undefined;
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) {
+          return new Promise((resolve) => { resolveProfileSave = () => resolve({ ok: true, status: 200, json: async () => ({}) }); });
+        }
+        if (url === '/api/v1/addresses/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      // First click starts save
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+      // Button should now show "Saving..." and be disabled
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /saving/i })).toBeDisabled();
+      });
+
+      // Resolve the pending save
+      act(() => { resolveProfileSave?.(); });
+
+      await waitFor(() => {
+        expect(toast.success).toHaveBeenCalledWith('Profile saved', expect.any(Object));
+      });
+    });
+  });
+
+  describe('Service areas prefill — fallback ID', () => {
+    it('uses id field when neighborhood_id is missing during prefill', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'Test', last_name: 'User' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { bio: 'Test bio' },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              items: [
+                { id: 'fallback-id-1', name: 'Test Area' },  // no neighborhood_id
+                { neighborhood_id: 'normal-id-2', name: 'Normal Area' },
+              ],
+            }),
+          };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        // Both items should be counted as selected neighborhoods
+        expect(screen.getByTestId('service-areas-count')).toHaveTextContent('2');
+      });
+    });
+  });
+
+  describe('Format prices prefill', () => {
+    it('derives enabled formats from service format_prices during prefill', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'Test', last_name: 'User' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          bio: 'Test bio',
+          services: [
+            {
+              id: 'svc-1',
+              format_prices: [
+                { format: 'student_location', hourly_rate: 50 },
+                { format: 'online', hourly_rate: 40 },
+              ],
+            },
+          ],
+        },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      // The hasServices prop should be true (services array has length > 0)
+      expect(screen.queryByTestId('bio-sparse-hint')).not.toBeInTheDocument();
+    });
+
+    it('handles service with null format_prices during prefill', async () => {
+      const { Wrapper } = createWrapper();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'Test', last_name: 'User' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          bio: 'Test bio',
+          services: [
+            { id: 'svc-1', format_prices: null },
+            { id: 'svc-2' },
+          ],
+        },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return { ok: true, status: 200, json: async () => ({ items: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Progress indicator — branch coverage', () => {
+    it('reports done when bio, name, zip, neighborhoods, and photo are all present', async () => {
+      const onStepStatus = jest.fn();
+      const { Wrapper } = createWrapper();
+      const ref = React.createRef<{ save: (options?: { redirectTo?: string }) => Promise<void> }>();
+      mockUseSession.mockReturnValue({
+        data: { id: 'user-1', first_name: 'Test', last_name: 'User', zip_code: '10001' },
+        isLoading: false,
+      });
+      mockUseUserAddresses.mockReturnValue({
+        data: { items: [{ id: 'addr-1', postal_code: '10001', is_default: true }] },
+        isLoading: false,
+      });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          bio: 'A'.repeat(420),
+          has_profile_picture: true,
+          profile_picture_version: 3,
+        },
+        isLoading: false,
+      });
+
+      mockFetchWithAuth.mockImplementation(async (url: string) => {
+        if (url === '/api/v1/addresses/service-areas/me') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              items: [{ neighborhood_id: 'n1', name: 'Test' }],
+            }),
+          };
+        }
+        if (url === '/api/v1/addresses/me') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              items: [{ id: 'addr-1', postal_code: '10001', is_default: true }],
+            }),
+          };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+
+      render(
+        <InstructorProfileForm ref={ref} context="onboarding" onStepStatusChange={onStepStatus} />,
+        { wrapper: Wrapper },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+      });
+
+      // In onboarding context, save via ref (no inline save button)
+      await act(async () => {
+        await ref.current?.save();
+      });
+
+      await waitFor(() => {
+        expect(onStepStatus).toHaveBeenCalledWith('done');
+      });
     });
   });
 });

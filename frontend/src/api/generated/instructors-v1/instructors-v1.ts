@@ -24,6 +24,7 @@ import type {
 import type {
   CheckServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGetParams,
   CoverageFeatureCollectionResponse,
+  GenerateBioResponse,
   HTTPValidationError,
   InstructorProfileCreate,
   InstructorProfileResponse,
@@ -581,6 +582,91 @@ export const useUpdateProfileApiV1InstructorsMePut = <
   TContext
 > => {
   return useMutation(getUpdateProfileApiV1InstructorsMePutMutationOptions(options), queryClient);
+};
+/**
+ * Generate a personalized bio for the current instructor using AI.
+ * @summary Generate Bio
+ */
+export const getGenerateBioApiV1InstructorsMeGenerateBioPostUrl = () => {
+  return `/api/v1/instructors/me/generate-bio`;
+};
+
+export const generateBioApiV1InstructorsMeGenerateBioPost = async (
+  options?: RequestInit
+): Promise<GenerateBioResponse> => {
+  return customFetch<GenerateBioResponse>(getGenerateBioApiV1InstructorsMeGenerateBioPostUrl(), {
+    ...options,
+    method: 'POST',
+  });
+};
+
+export const getGenerateBioApiV1InstructorsMeGenerateBioPostMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateBioApiV1InstructorsMeGenerateBioPost>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof generateBioApiV1InstructorsMeGenerateBioPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['generateBioApiV1InstructorsMeGenerateBioPost'];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof generateBioApiV1InstructorsMeGenerateBioPost>>,
+    void
+  > = () => {
+    return generateBioApiV1InstructorsMeGenerateBioPost(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GenerateBioApiV1InstructorsMeGenerateBioPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof generateBioApiV1InstructorsMeGenerateBioPost>>
+>;
+
+export type GenerateBioApiV1InstructorsMeGenerateBioPostMutationError = ErrorType<void>;
+
+/**
+ * @summary Generate Bio
+ */
+export const useGenerateBioApiV1InstructorsMeGenerateBioPost = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof generateBioApiV1InstructorsMeGenerateBioPost>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof generateBioApiV1InstructorsMeGenerateBioPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(
+    getGenerateBioApiV1InstructorsMeGenerateBioPostMutationOptions(options),
+    queryClient
+  );
 };
 /**
  * Mark instructor profile as live if all prerequisites are met.
