@@ -441,8 +441,14 @@ class InstructorService(Base):
             hourly_rate = price_row.get("hourly_rate")
             if hourly_rate is None:
                 raise ValueError("format_prices entries must include hourly_rate")
+            fmt = str(price_row.get("format", ""))
+            if not fmt:
+                raise ValueError(
+                    f"format_prices entries must have a non-empty format "
+                    f"(valid: {', '.join(SERVICE_PRICE_FORMAT_ORDER)})"
+                )
             return ServiceFormatPrice(
-                format=str(price_row.get("format", "")),
+                format=fmt,
                 hourly_rate=self._coerce_decimal_rate(hourly_rate),
             )
 

@@ -513,6 +513,11 @@ class FilterService:
         if not candidates or lesson_type == "any":
             return candidates
 
+        _KNOWN_LESSON_TYPES = {"online", "in_person"}
+        if lesson_type not in _KNOWN_LESSON_TYPES:
+            logger.warning("Unknown lesson_type %r — skipping format filter", lesson_type)
+            return candidates
+
         service_ids = [c.service_id for c in candidates]
         rate_map = self.repository.get_lesson_type_rates(
             service_ids,

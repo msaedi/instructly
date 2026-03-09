@@ -226,3 +226,15 @@ def test_coerce_format_price_row_rejects_non_dict_non_model(unit_db):
 
     with pytest.raises(TypeError, match="ServiceFormatPrice or dict"):
         service._coerce_format_price_row("format_prices", "invalid")
+
+
+@pytest.mark.unit
+def test_coerce_format_price_row_rejects_empty_format(unit_db):
+    """Dict with empty-string format raises ValueError."""
+    db = unit_db
+    service = _setup_instructor_service(db)
+
+    with pytest.raises(ValueError, match="non-empty format"):
+        service._coerce_format_price_row(
+            "format_prices", {"format": "", "hourly_rate": 100}
+        )

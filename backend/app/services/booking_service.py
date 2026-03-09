@@ -5091,6 +5091,16 @@ class BookingService(BaseService):
                 code="ONLINE_NOT_OFFERED",
             )
 
+        # Verify the location_type has a matching format price configured.
+        # The offers_* checks above guard capability; this guards pricing data.
+        try:
+            service.format_for_booking_location_type(location_type)
+        except BusinessRuleException:
+            raise ValidationException(
+                "This instructor doesn't offer lessons at that location type",
+                code="LOCATION_TYPE_PRICING_NOT_FOUND",
+            )
+
     def _check_conflicts_and_rules(
         self,
         booking_data: BookingCreate,
