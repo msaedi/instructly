@@ -204,7 +204,6 @@ def test_escalate_capture_failure_handles_payment_record_error():
         transfer_retry_count=0,
         payment_detail=SimpleNamespace(payment_status=None),
     )
-    student = SimpleNamespace(account_locked=False)
 
     db_read = MagicMock()
     db_read.query.return_value.filter.return_value.first.return_value = booking_read
@@ -218,8 +217,6 @@ def test_escalate_capture_failure_handles_payment_record_error():
         if model is payment_tasks.Booking:
             query.options.return_value.filter.return_value.first.return_value = booking_write
             query.filter.return_value.options.return_value.first.return_value = booking_write
-        elif model is payment_tasks.User:
-            query.filter.return_value.first.return_value = student
         elif model is BP:
             query.filter.return_value.one_or_none.return_value = booking_write.payment_detail
         else:
@@ -233,6 +230,9 @@ def test_escalate_capture_failure_handles_payment_record_error():
 
     instructor_repo = MagicMock()
     instructor_repo.get_by_user_id.return_value = None
+
+    user_repo = MagicMock()
+    user_repo.lock_account.return_value = True
 
     pricing_service = MagicMock()
     pricing_service.compute_booking_pricing.return_value = {
@@ -249,10 +249,14 @@ def test_escalate_capture_failure_handles_payment_record_error():
                 return_value=instructor_repo,
             ):
                 with patch(
-                    "app.tasks.payment_tasks.PricingService",
-                    return_value=pricing_service,
+                    "app.tasks.payment_tasks.RepositoryFactory.create_user_repository",
+                    return_value=user_repo,
                 ):
-                    payment_tasks._escalate_capture_failure("booking_id", now)
+                    with patch(
+                        "app.tasks.payment_tasks.PricingService",
+                        return_value=pricing_service,
+                    ):
+                        payment_tasks._escalate_capture_failure("booking_id", now)
 
     assert booking_write.payment_detail.payment_status == PaymentStatus.MANUAL_REVIEW.value
 
@@ -1351,7 +1355,6 @@ def test_escalate_capture_failure_transfer_error():
         transfer_retry_count=0,
         payment_detail=SimpleNamespace(payment_status=None),
     )
-    student = SimpleNamespace(account_locked=False)
 
     db_read = MagicMock()
     db_read.query.return_value.filter.return_value.first.return_value = booking_read
@@ -1366,8 +1369,6 @@ def test_escalate_capture_failure_transfer_error():
         if model is payment_tasks.Booking:
             query.options.return_value.filter.return_value.first.return_value = booking_write
             query.filter.return_value.options.return_value.first.return_value = booking_write
-        elif model is payment_tasks.User:
-            query.filter.return_value.first.return_value = student
         elif model is BP:
             query.filter.return_value.one_or_none.return_value = booking_write.payment_detail
         else:
@@ -1385,6 +1386,9 @@ def test_escalate_capture_failure_transfer_error():
 
     instructor_repo = MagicMock()
     instructor_repo.get_by_user_id.return_value = SimpleNamespace(id="profile_id")
+
+    user_repo = MagicMock()
+    user_repo.lock_account.return_value = True
 
     pricing_service = MagicMock()
     pricing_service.compute_booking_pricing.return_value = {
@@ -1404,18 +1408,22 @@ def test_escalate_capture_failure_transfer_error():
                 return_value=instructor_repo,
             ):
                 with patch(
-                    "app.tasks.payment_tasks.PricingService",
-                    return_value=pricing_service,
+                    "app.tasks.payment_tasks.RepositoryFactory.create_user_repository",
+                    return_value=user_repo,
                 ):
                     with patch(
-                        "app.tasks.payment_tasks.StripeService",
-                        return_value=stripe_service,
+                        "app.tasks.payment_tasks.PricingService",
+                        return_value=pricing_service,
                     ):
-                        with patch("app.tasks.payment_tasks.ConfigService"):
-                            payment_tasks._escalate_capture_failure("booking_id", now)
+                        with patch(
+                            "app.tasks.payment_tasks.StripeService",
+                            return_value=stripe_service,
+                        ):
+                            with patch("app.tasks.payment_tasks.ConfigService"):
+                                payment_tasks._escalate_capture_failure("booking_id", now)
 
     assert booking_write.payment_detail.payment_status == PaymentStatus.MANUAL_REVIEW.value
-    assert student.account_locked is True
+    user_repo.lock_account.assert_called_once()
 
 
 def test_handle_authorization_failure_sets_status():
@@ -2843,8 +2851,6 @@ def test_escalate_capture_failure_commits_without_student_record():
         if model is payment_tasks.Booking:
             query.options.return_value.filter.return_value.first.return_value = booking_write
             query.filter.return_value.options.return_value.first.return_value = booking_write
-        elif model is payment_tasks.User:
-            query.filter.return_value.first.return_value = None
         elif model is BP:
             query.filter.return_value.one_or_none.return_value = booking_write.payment_detail
         else:
@@ -2853,6 +2859,8 @@ def test_escalate_capture_failure_commits_without_student_record():
 
     db_write.query.side_effect = _query_side_effect_no_student
     payment_repo_write = MagicMock()
+    user_repo = MagicMock()
+    user_repo.lock_account.return_value = False  # student not found
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_write]):
         with patch(
@@ -2863,7 +2871,11 @@ def test_escalate_capture_failure_commits_without_student_record():
                 "app.tasks.payment_tasks.RepositoryFactory.create_instructor_profile_repository",
                 return_value=instructor_repo,
             ):
-                payment_tasks._escalate_capture_failure("booking_id", now)
+                with patch(
+                    "app.tasks.payment_tasks.RepositoryFactory.create_user_repository",
+                    return_value=user_repo,
+                ):
+                    payment_tasks._escalate_capture_failure("booking_id", now)
 
     db_write.commit.assert_called_once()
     payment_repo_write.create_payment_event.assert_called_once()
