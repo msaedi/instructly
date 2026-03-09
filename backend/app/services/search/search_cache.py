@@ -125,10 +125,10 @@ class SearchCacheService:
         try:
             cached = await self.cache.get(key)
             if cached:
-                logger.debug(f"Response cache HIT: {key[:50]}")
+                logger.debug("Response cache HIT: %s", key[:50])
                 return self._deserialize_response(cached)
         except Exception as e:
-            logger.warning(f"Response cache error: {e}")
+            logger.warning("Response cache error: %s", e)
 
         return None
 
@@ -156,7 +156,7 @@ class SearchCacheService:
         # Don't cache queries with relative date references
         query_lower = query.lower()
         if any(indicator in query_lower for indicator in RELATIVE_DATE_INDICATORS):
-            logger.debug(f"Skipping response cache for relative date query: {query[:30]}")
+            logger.debug("Skipping response cache for relative date query: %s", query[:30])
             return False
 
         key = await self._response_cache_key(
@@ -166,10 +166,10 @@ class SearchCacheService:
         try:
             serialized = self._serialize_response(response)
             await self.cache.set(key, serialized, ttl=ttl or RESPONSE_CACHE_TTL)
-            logger.debug(f"Response cached: {key[:50]}")
+            logger.debug("Response cached: %s", key[:50])
             return True
         except Exception as e:
-            logger.warning(f"Failed to cache response: {e}")
+            logger.warning("Failed to cache response: %s", e)
             return False
 
     async def _response_cache_key(
@@ -231,10 +231,10 @@ class SearchCacheService:
                 new_version = current + 1
                 await self.cache.set(VERSION_KEY, new_version, ttl=60 * 60 * 24 * 30)  # 30 days
 
-            logger.info(f"Response cache invalidated, new version: {new_version}")
+            logger.info("Response cache invalidated, new version: %s", new_version)
             return int(new_version)
         except Exception as e:
-            logger.error(f"Failed to invalidate cache: {e}")
+            logger.error("Failed to invalidate cache: %s", e)
             return 1
 
     def _serialize_response(self, response: Dict[str, Any]) -> str:
@@ -283,10 +283,10 @@ class SearchCacheService:
         try:
             cached = await self.cache.get(key)
             if cached:
-                logger.debug(f"Parsed cache HIT: {query[:30]}")
+                logger.debug("Parsed cache HIT: %s", query[:30])
                 return self._deserialize_parsed_query(cached)
         except Exception as e:
-            logger.warning(f"Parsed cache error: {e}")
+            logger.warning("Parsed cache error: %s", e)
 
         return None
 
@@ -310,7 +310,7 @@ class SearchCacheService:
         # Don't cache queries with relative date references
         query_lower = query.lower()
         if any(indicator in query_lower for indicator in RELATIVE_DATE_INDICATORS):
-            logger.debug(f"Skipping cache for relative date query: {query[:30]}")
+            logger.debug("Skipping cache for relative date query: %s", query[:30])
             return False
 
         key = self._parsed_cache_key(query, region_code=region_code)
@@ -318,10 +318,10 @@ class SearchCacheService:
         try:
             serialized = self._serialize_parsed_query(parsed)
             await self.cache.set(key, serialized, ttl=PARSED_CACHE_TTL)
-            logger.debug(f"Parsed query cached: {query[:30]}")
+            logger.debug("Parsed query cached: %s", query[:30])
             return True
         except Exception as e:
-            logger.warning(f"Failed to cache parsed query: {e}")
+            logger.warning("Failed to cache parsed query: %s", e)
             return False
 
     def _parsed_cache_key(self, query: str, region_code: str | None = None) -> str:
@@ -426,14 +426,14 @@ class SearchCacheService:
         try:
             cached = await self.cache.get(key)
             if cached:
-                logger.debug(f"Location cache HIT: {location_text}")
+                logger.debug("Location cache HIT: %s", location_text)
                 if isinstance(cached, str):
                     data = json.loads(cached)
                 else:
                     data = cached
                 return CachedLocation(**data)
         except Exception as e:
-            logger.warning(f"Location cache error: {e}")
+            logger.warning("Location cache error: %s", e)
 
         return None
 
@@ -456,10 +456,10 @@ class SearchCacheService:
         try:
             serialized = json.dumps(asdict(location))
             await self.cache.set(key, serialized, ttl=LOCATION_CACHE_TTL)
-            logger.debug(f"Location cached: {location_text}")
+            logger.debug("Location cached: %s", location_text)
             return True
         except Exception as e:
-            logger.warning(f"Failed to cache location: {e}")
+            logger.warning("Failed to cache location: %s", e)
             return False
 
     def _location_cache_key(self, location_text: str, region_code: str | None = None) -> str:
@@ -499,7 +499,7 @@ class SearchCacheService:
             if await self.cache_location(loc["name"], cached_loc):
                 count += 1
 
-        logger.info(f"Warmed location cache with {count} locations")
+        logger.info("Warmed location cache with %d locations", count)
         return count
 
     # =========================================================================

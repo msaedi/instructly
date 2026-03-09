@@ -65,6 +65,11 @@ class ServiceMatch(StrictModel):
     name: str = Field(..., description="Service name")
     description: Optional[str] = Field(None, description="Service description")
     min_hourly_rate: Money = Field(..., ge=0, description="Lowest enabled hourly rate")
+    effective_hourly_rate: Optional[Money] = Field(
+        None,
+        ge=0,
+        description="Hourly rate matching the queried lesson type (None when unfiltered)",
+    )
     format_prices: List[ServiceFormatPriceOut] = Field(
         default_factory=list,
         description="Enabled per-format hourly pricing rows for this service",

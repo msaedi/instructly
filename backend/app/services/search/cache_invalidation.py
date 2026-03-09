@@ -37,7 +37,7 @@ def _fire_and_forget(coro_fn: Callable[[], Coroutine[Any, Any, None]], context: 
         from app.core.config import settings
 
         if settings.is_testing:
-            logger.debug(f"Skipping async cache invalidation in tests: {context}")
+            logger.debug("Skipping async cache invalidation in tests: %s", context)
             return
 
         task: asyncio.Task[None] = loop.create_task(coro_fn())
@@ -47,16 +47,16 @@ def _fire_and_forget(coro_fn: Callable[[], Coroutine[Any, Any, None]], context: 
                 return
             exc = t.exception()
             if exc:
-                logger.warning(f"Cache invalidation task failed: {context} - {exc}")
+                logger.warning("Cache invalidation task failed: %s - %s", context, exc)
 
         task.add_done_callback(_consume_task_exception)
     except RuntimeError:
         # No running event loop - we're in a sync context
         # Best-effort: log and skip (don't block the caller)
-        logger.debug(f"No event loop for cache invalidation: {context}")
+        logger.debug("No event loop for cache invalidation: %s", context)
     except Exception as e:
         # Cache invalidation is best-effort, don't fail the operation
-        logger.warning(f"Cache invalidation error: {context} - {e}")
+        logger.warning("Cache invalidation error: %s - %s", context, e)
 
 
 # Global cache service instance (initialized on first use or via init)
@@ -122,7 +122,7 @@ def invalidate_on_service_change(
         await cache.invalidate_response_cache()
 
     _fire_and_forget(_invalidate, context)
-    logger.info(f"Search cache invalidated: {context}")
+    logger.info("Search cache invalidated: %s", context)
 
 
 def invalidate_on_availability_change(
@@ -143,7 +143,7 @@ def invalidate_on_availability_change(
         await cache.invalidate_response_cache()
 
     _fire_and_forget(_invalidate, context)
-    logger.info(f"Search cache invalidated: {context}")
+    logger.info("Search cache invalidated: %s", context)
 
 
 def invalidate_on_price_change(
@@ -166,7 +166,7 @@ def invalidate_on_price_change(
         await cache.invalidate_response_cache()
 
     _fire_and_forget(_invalidate, context)
-    logger.info(f"Search cache invalidated: {context}")
+    logger.info("Search cache invalidated: %s", context)
 
 
 def invalidate_on_instructor_profile_change(
@@ -187,7 +187,7 @@ def invalidate_on_instructor_profile_change(
         await cache.invalidate_response_cache()
 
     _fire_and_forget(_invalidate, context)
-    logger.info(f"Search cache invalidated: {context}")
+    logger.info("Search cache invalidated: %s", context)
 
 
 def invalidate_on_review_change(
@@ -210,7 +210,7 @@ def invalidate_on_review_change(
         await cache.invalidate_response_cache()
 
     _fire_and_forget(_invalidate, context)
-    logger.info(f"Search cache invalidated: {context}")
+    logger.info("Search cache invalidated: %s", context)
 
 
 async def invalidate_all_search_cache() -> int:
@@ -224,5 +224,5 @@ async def invalidate_all_search_cache() -> int:
     """
     cache = get_search_cache()
     new_version = await cache.invalidate_response_cache()
-    logger.info(f"Search cache fully invalidated, new version: {new_version}")
+    logger.info("Search cache fully invalidated, new version: %s", new_version)
     return new_version

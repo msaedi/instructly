@@ -8,6 +8,7 @@ from typing import Any, Dict, Iterable, List, cast
 from sqlalchemy import case
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import RepositoryException
 from app.models.service_catalog import SERVICE_PRICE_FORMAT_ORDER, ServiceFormatPrice
 
 from .base_repository import BaseRepository
@@ -30,6 +31,10 @@ class ServiceFormatPricingRepository(BaseRepository[ServiceFormatPrice]):
         self, service_id: str, prices: List[dict[str, Any]]
     ) -> List[ServiceFormatPrice]:
         """Replace all pricing rows for a service within the current transaction."""
+        if not prices:
+            raise RepositoryException(
+                "Cannot sync empty format prices — at least one format required"
+            )
         self.db.query(ServiceFormatPrice).filter(
             ServiceFormatPrice.service_id == service_id
         ).delete()

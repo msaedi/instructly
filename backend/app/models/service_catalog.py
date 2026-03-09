@@ -413,6 +413,10 @@ class InstructorService(Base):
     # Relationships
     instructor_profile = relationship("InstructorProfile", back_populates="instructor_services")
     catalog_entry = relationship("ServiceCatalog", back_populates="instructor_services")
+    # IMPORTANT: Always eager-load this relationship when accessing pricing
+    # properties (min_hourly_rate, offers_*, prices_by_format, serialized_format_prices).
+    # All repository methods that return InstructorService include
+    # joinedload(InstructorService.format_prices).
     format_prices = relationship(
         "ServiceFormatPrice",
         back_populates="service",
@@ -425,7 +429,7 @@ class InstructorService(Base):
         """Normalize arbitrary numeric input to a two-decimal hourly rate."""
         return Decimal(str(value)).quantize(PRICE_QUANTUM)
 
-    @validates("format_prices")  # type: ignore[untyped-decorator]
+    @validates("format_prices")
     def _coerce_format_price_row(self, _key: str, price_row: Any) -> "ServiceFormatPrice":
         """Accept dict-style relationship rows while keeping child models canonical."""
         if isinstance(price_row, ServiceFormatPrice):
@@ -485,9 +489,28 @@ class InstructorService(Base):
 
     @property
     def prices_by_format(self) -> Dict[str, Decimal]:
-        """Return a format->hourly_rate mapping for active pricing rows."""
+        """Return a format->hourly_rate mapping for active pricing rows.
+
+        Cached per instance to avoid recomputation across multiple property
+        accesses (min_hourly_rate, offers_*, session_price, etc.).
+        Invalidated by _invalidate_price_cache() after sync_format_prices.
+        """
+        cache: dict[str, Decimal] | None = getattr(self, "_prices_by_format_cache", None)
+        if cache is not None:
+            return cache
         price_rows = getattr(self, "format_prices", None) or []
-        return {row.format: Decimal(str(row.hourly_rate)) for row in price_rows}
+        result: dict[str, Decimal] = {
+            row.format: Decimal(str(row.hourly_rate)) for row in price_rows
+        }
+        object.__setattr__(self, "_prices_by_format_cache", result)
+        return result
+
+    def _invalidate_price_cache(self) -> None:
+        """Clear cached prices_by_format after format_prices changes."""
+        try:
+            object.__delattr__(self, "_prices_by_format_cache")
+        except AttributeError:
+            pass
 
     @property
     def sorted_format_prices(self) -> List["ServiceFormatPrice"]:
@@ -519,7 +542,9 @@ class InstructorService(Base):
         """Legacy convenience accessor backed by the minimum enabled format rate."""
         return self.min_hourly_rate
 
-    def _hourly_rate_expression(cls) -> Any:
+    def _hourly_rate_expression(
+        cls,
+    ) -> Any:  # noqa: N805 — SQLAlchemy hybrid expression (classmethod by convention)
         return (
             select(func.min(ServiceFormatPrice.hourly_rate))
             .where(ServiceFormatPrice.service_id == cls.id)
@@ -544,9 +569,11 @@ class InstructorService(Base):
                 )
             )
             self.format_prices = price_rows
+            self._invalidate_price_cache()
             return
         if existing is not None:
             self.format_prices = [row for row in price_rows if row.format != format_name]
+            self._invalidate_price_cache()
 
     def _get_offers_travel(self) -> bool:
         """Whether the service offers lessons at the student's location."""
@@ -555,7 +582,7 @@ class InstructorService(Base):
     def _set_offers_travel(self, enabled: bool) -> None:
         self._set_format_enabled(SERVICE_FORMAT_STUDENT_LOCATION, bool(enabled))
 
-    def _offers_travel_expression(cls) -> Any:
+    def _offers_travel_expression(cls) -> Any:  # noqa: N805 — SQLAlchemy hybrid expression
         return (
             select(ServiceFormatPrice.id)
             .where(
@@ -578,7 +605,7 @@ class InstructorService(Base):
     def _set_offers_at_location(self, enabled: bool) -> None:
         self._set_format_enabled(SERVICE_FORMAT_INSTRUCTOR_LOCATION, bool(enabled))
 
-    def _offers_at_location_expression(cls) -> Any:
+    def _offers_at_location_expression(cls) -> Any:  # noqa: N805 — SQLAlchemy hybrid expression
         return (
             select(ServiceFormatPrice.id)
             .where(
@@ -601,7 +628,7 @@ class InstructorService(Base):
     def _set_offers_online(self, enabled: bool) -> None:
         self._set_format_enabled(SERVICE_FORMAT_ONLINE, bool(enabled))
 
-    def _offers_online_expression(cls) -> Any:
+    def _offers_online_expression(cls) -> Any:  # noqa: N805 — SQLAlchemy hybrid expression
         return (
             select(ServiceFormatPrice.id)
             .where(

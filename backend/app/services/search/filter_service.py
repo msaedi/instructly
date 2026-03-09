@@ -198,6 +198,8 @@ class FilterService:
                 location_resolution=location_resolution,
             )
 
+        import asyncio
+
         with get_db_session() as db:
             self.repository = self._repository_override or FilterRepository(db)
             self.location_resolver = self._location_resolver_override or LocationResolver(
@@ -216,7 +218,8 @@ class FilterService:
                     enable_semantic=True,
                 )
 
-            return self._filter_candidates_core(
+            return await asyncio.to_thread(
+                self._filter_candidates_core,
                 candidates,
                 parsed_query,
                 user_location,
@@ -414,7 +417,7 @@ class FilterService:
             and len(working) < MIN_RESULTS_BEFORE_SOFT_FILTER
             and total_before > 0
         ):
-            logger.info(f"Only {len(working)} results, applying soft filtering")
+            logger.info("Only %d results, applying soft filtering", len(working))
             working, relaxed_constraints = self._apply_soft_filtering(
                 original_candidates=candidates,
                 parsed_query=parsed_query,

@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 from app.constants.pricing_defaults import PRICING_DEFAULTS
 from app.core.exceptions import (
     BusinessRuleException,
-    DomainException,
     NotFoundException,
     ValidationException,
 )
@@ -181,13 +180,10 @@ class PricingService(BaseService):
             pricing_config=pricing_config,
         )
 
-        try:
-            return self._compute_pricing_from_inputs(
-                inputs=inputs,
-                applied_credit_cents=payload.applied_credit_cents,
-            )
-        except DomainException as exc:
-            raise exc
+        return self._compute_pricing_from_inputs(
+            inputs=inputs,
+            applied_credit_cents=payload.applied_credit_cents,
+        )
 
     def _compute_pricing_from_inputs(
         self,

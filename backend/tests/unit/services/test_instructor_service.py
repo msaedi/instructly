@@ -221,6 +221,14 @@ def test_normalize_capability_flags():
     ]
 
 
+def test_normalize_format_prices_rejects_none_rate():
+    """None hourly_rate raises BusinessRuleException."""
+    service = _build_service()
+
+    with pytest.raises(BusinessRuleException, match="(?i)hourly rate"):
+        service._normalize_format_prices([{"format": "online", "hourly_rate": None}])
+
+
 def test_validate_service_format_prices_requires_at_least_one_format():
     service = _build_service()
     catalog_service = SimpleNamespace(name="Piano", online_capable=True)

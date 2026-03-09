@@ -537,6 +537,136 @@ class InstructorProfileResponse(InstructorProfileBase):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @staticmethod
+    def _serialize_services(instructor_profile: Any) -> List["ServiceResponse"]:
+        """Extract and serialize instructor services with catalog names eagerly resolved."""
+        # Normalize instructor services with catalog names eagerly resolved
+        services_source: List[Any] = []
+        if hasattr(instructor_profile, "instructor_services"):
+            services_source = list(getattr(instructor_profile, "instructor_services", []) or [])
+        elif hasattr(instructor_profile, "services"):
+            services_source = list(getattr(instructor_profile, "services", []) or [])
+
+        services_data: List[ServiceResponse] = []
+        for service in sorted(services_source, key=lambda s: getattr(s, "service_catalog_id", "")):
+            catalog_entry = getattr(service, "catalog_entry", None)
+            catalog_name = (
+                getattr(catalog_entry, "name", None) if catalog_entry is not None else None
+            )
+            service_payload = ServiceResponse(
+                id=getattr(service, "id"),
+                service_catalog_id=getattr(service, "service_catalog_id"),
+                service_catalog_name=catalog_name or "Unknown Service",
+                min_hourly_rate=getattr(service, "min_hourly_rate", None),
+                format_prices=[
+                    ServiceFormatPriceOut(
+                        format=price_row["format"],
+                        hourly_rate=price_row["hourly_rate"],
+                    )
+                    for price_row in (getattr(service, "serialized_format_prices", None) or [])
+                ],
+                description=getattr(service, "description", None),
+                requirements=getattr(service, "requirements", None),
+                age_groups=getattr(service, "age_groups", None),
+                equipment_required=getattr(service, "equipment_required", None),
+                offers_travel=bool(getattr(service, "offers_travel", False)),
+                offers_at_location=bool(getattr(service, "offers_at_location", False)),
+                offers_online=bool(getattr(service, "offers_online", False)),
+                filter_selections=getattr(service, "filter_selections", None) or {},
+                duration_options=getattr(service, "duration_options", None) or [60],
+            )
+            services_data.append(service_payload)
+
+        return services_data
+
+    @staticmethod
+    def _serialize_neighborhoods(
+        instructor_profile: Any,
+    ) -> tuple[List["ServiceAreaNeighborhoodOut"], set[str]]:
+        """Extract and serialize neighborhoods from pre-loaded service_area_neighborhoods."""
+        boroughs: set[str] = set()
+        neighborhoods_payload: List[ServiceAreaNeighborhoodOut] = []
+
+        neighborhoods_source = getattr(instructor_profile, "service_area_neighborhoods", None)
+
+        if not neighborhoods_source:
+            return neighborhoods_payload, boroughs
+
+        for entry in neighborhoods_source:
+            if isinstance(entry, dict):
+                if entry.get("is_active") is False:
+                    continue
+            else:
+                if getattr(entry, "is_active", True) is False:
+                    continue
+            if isinstance(entry, dict):
+                neighborhood_id = entry.get("neighborhood_id") or entry.get("id")
+                ntacode = entry.get("ntacode") or entry.get("region_code")
+                name = entry.get("name") or entry.get("region_name")
+                borough = entry.get("borough") or entry.get("parent_region")
+            else:
+                neighborhood_id = getattr(entry, "neighborhood_id", None) or getattr(
+                    entry, "id", None
+                )
+                ntacode = getattr(entry, "ntacode", None) or getattr(entry, "region_code", None)
+                name = getattr(entry, "name", None) or getattr(entry, "region_name", None)
+                borough = getattr(entry, "borough", None) or getattr(entry, "parent_region", None)
+
+            neighborhoods_payload.append(
+                ServiceAreaNeighborhoodOut(
+                    neighborhood_id=str(neighborhood_id) if neighborhood_id else "",
+                    ntacode=ntacode,
+                    name=name,
+                    borough=borough,
+                )
+            )
+            if borough:
+                boroughs.add(borough)
+
+        return neighborhoods_payload, boroughs
+
+    @staticmethod
+    def _serialize_coverage_areas(
+        instructor_profile: Any,
+        neighborhoods_payload: List["ServiceAreaNeighborhoodOut"],
+        boroughs: set[str],
+    ) -> tuple[List["ServiceAreaNeighborhoodOut"], set[str]]:
+        """Fallback: serialize coverage areas from user.service_areas when neighborhoods are empty."""
+        if neighborhoods_payload:
+            return neighborhoods_payload, boroughs
+
+        user_service_areas: Sequence[Any] = []
+        if hasattr(instructor_profile, "user") and instructor_profile.user is not None:
+            user_service_areas = getattr(instructor_profile.user, "service_areas", []) or []
+
+        for area in user_service_areas:
+            if getattr(area, "is_active", True) is False:
+                continue
+            neighborhood = getattr(area, "neighborhood", None)
+            neighborhood_id = getattr(area, "neighborhood_id", None)
+            if neighborhood is None:
+                continue
+
+            borough = getattr(neighborhood, "parent_region", None) or getattr(
+                neighborhood, "borough", None
+            )
+            ntacode = getattr(neighborhood, "region_code", None) or getattr(
+                neighborhood, "ntacode", None
+            )
+            name = getattr(neighborhood, "region_name", None) or getattr(neighborhood, "name", None)
+            neighborhoods_payload.append(
+                ServiceAreaNeighborhoodOut(
+                    neighborhood_id=str(getattr(neighborhood, "id", neighborhood_id or "")),
+                    ntacode=ntacode,
+                    name=name,
+                    borough=borough,
+                )
+            )
+            if borough:
+                boroughs.add(borough)
+
+        return neighborhoods_payload, boroughs
+
     @classmethod
     def from_orm(
         cls, instructor_profile: Any, *, include_private_fields: bool = True
@@ -585,113 +715,13 @@ class InstructorProfileResponse(InstructorProfileBase):
                     )
                 )
 
-        # Normalize instructor services with catalog names eagerly resolved
-        services_source: List[Any] = []
-        if hasattr(instructor_profile, "instructor_services"):
-            services_source = list(getattr(instructor_profile, "instructor_services", []) or [])
-        elif hasattr(instructor_profile, "services"):
-            services_source = list(getattr(instructor_profile, "services", []) or [])
+        services_data = cls._serialize_services(instructor_profile)
 
-        services_data: List[ServiceResponse] = []
-        for service in sorted(services_source, key=lambda s: getattr(s, "service_catalog_id", "")):
-            catalog_entry = getattr(service, "catalog_entry", None)
-            catalog_name = (
-                getattr(catalog_entry, "name", None) if catalog_entry is not None else None
-            )
-            service_payload = ServiceResponse(
-                id=getattr(service, "id"),
-                service_catalog_id=getattr(service, "service_catalog_id"),
-                service_catalog_name=catalog_name or "Unknown Service",
-                min_hourly_rate=getattr(service, "min_hourly_rate", None),
-                format_prices=[
-                    ServiceFormatPriceOut(
-                        format=price_row["format"],
-                        hourly_rate=price_row["hourly_rate"],
-                    )
-                    for price_row in (getattr(service, "serialized_format_prices", None) or [])
-                ],
-                description=getattr(service, "description", None),
-                requirements=getattr(service, "requirements", None),
-                age_groups=getattr(service, "age_groups", None),
-                equipment_required=getattr(service, "equipment_required", None),
-                offers_travel=bool(getattr(service, "offers_travel", False)),
-                offers_at_location=bool(getattr(service, "offers_at_location", False)),
-                offers_online=bool(getattr(service, "offers_online", False)),
-                filter_selections=getattr(service, "filter_selections", None) or {},
-                duration_options=getattr(service, "duration_options", None) or [60],
-            )
-            services_data.append(service_payload)
+        neighborhoods_payload, boroughs = cls._serialize_neighborhoods(instructor_profile)
 
-        boroughs: set[str] = set()
-        neighborhoods_payload: List[ServiceAreaNeighborhoodOut] = []
-
-        neighborhoods_source = getattr(instructor_profile, "service_area_neighborhoods", None)
-
-        if neighborhoods_source:
-            for entry in neighborhoods_source:
-                if isinstance(entry, dict):
-                    if entry.get("is_active") is False:
-                        continue
-                else:
-                    if getattr(entry, "is_active", True) is False:
-                        continue
-                if isinstance(entry, dict):
-                    neighborhood_id = entry.get("neighborhood_id") or entry.get("id")
-                    ntacode = entry.get("ntacode") or entry.get("region_code")
-                    name = entry.get("name") or entry.get("region_name")
-                    borough = entry.get("borough") or entry.get("parent_region")
-                else:
-                    neighborhood_id = getattr(entry, "neighborhood_id", None) or getattr(
-                        entry, "id", None
-                    )
-                    ntacode = getattr(entry, "ntacode", None) or getattr(entry, "region_code", None)
-                    name = getattr(entry, "name", None) or getattr(entry, "region_name", None)
-                    borough = getattr(entry, "borough", None) or getattr(
-                        entry, "parent_region", None
-                    )
-
-                neighborhoods_payload.append(
-                    ServiceAreaNeighborhoodOut(
-                        neighborhood_id=str(neighborhood_id) if neighborhood_id else "",
-                        ntacode=ntacode,
-                        name=name,
-                        borough=borough,
-                    )
-                )
-                if borough:
-                    boroughs.add(borough)
-        else:
-            user_service_areas: Sequence[Any] = []
-            if hasattr(instructor_profile, "user") and instructor_profile.user is not None:
-                user_service_areas = getattr(instructor_profile.user, "service_areas", []) or []
-
-            for area in user_service_areas:
-                if getattr(area, "is_active", True) is False:
-                    continue
-                neighborhood = getattr(area, "neighborhood", None)
-                neighborhood_id = getattr(area, "neighborhood_id", None)
-                if neighborhood is None:
-                    continue
-
-                borough = getattr(neighborhood, "parent_region", None) or getattr(
-                    neighborhood, "borough", None
-                )
-                ntacode = getattr(neighborhood, "region_code", None) or getattr(
-                    neighborhood, "ntacode", None
-                )
-                name = getattr(neighborhood, "region_name", None) or getattr(
-                    neighborhood, "name", None
-                )
-                neighborhoods_payload.append(
-                    ServiceAreaNeighborhoodOut(
-                        neighborhood_id=str(getattr(neighborhood, "id", neighborhood_id or "")),
-                        ntacode=ntacode,
-                        name=name,
-                        borough=borough,
-                    )
-                )
-                if borough:
-                    boroughs.add(borough)
+        neighborhoods_payload, boroughs = cls._serialize_coverage_areas(
+            instructor_profile, neighborhoods_payload, boroughs
+        )
 
         sorted_boroughs = sorted(boroughs)
         if sorted_boroughs:

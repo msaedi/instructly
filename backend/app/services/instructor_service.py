@@ -402,7 +402,7 @@ class InstructorService(BaseService):
 
         if min_price is not None or max_price is not None:
             price_range = f"${min_price or 0}-${max_price or 'unlimited'}"
-            logger.info(f"Price range {price_range} returned {len(instructors)} instructors")
+            logger.info("Price range %s returned %d instructors", price_range, len(instructors))
 
         return {"instructors": instructors, "metadata": metadata}
 
@@ -470,7 +470,7 @@ class InstructorService(BaseService):
             profile.user = refreshed_user or user
             self.db.expire(profile, ["instructor_services"])
 
-        logger.info(f"Created instructor profile for user {user.id}")
+        logger.info("Created instructor profile for user %s", user.id)
 
         return self._profile_to_dict(profile)
 
@@ -482,7 +482,7 @@ class InstructorService(BaseService):
         if self.cache_service:
             cached = self.cache_service.get(cache_key)
             if cached:
-                logger.debug(f"Cache hit for instructor profile: {instructor_id}")
+                logger.debug("Cache hit for instructor profile: %s", instructor_id)
                 return cast(JsonDict, cached)
 
         profile = self.profile_repository.get_public_by_id(instructor_id)
@@ -494,7 +494,7 @@ class InstructorService(BaseService):
         # Cache for 5 minutes (300 seconds)
         if self.cache_service:
             self.cache_service.set(cache_key, result, ttl=300)
-            logger.debug(f"Cached instructor profile: {instructor_id}")
+            logger.debug("Cached instructor profile: %s", instructor_id)
 
         return result
 
@@ -678,7 +678,7 @@ class InstructorService(BaseService):
         # Invalidate search cache (fire-and-forget via asyncio.create_task)
         invalidate_on_instructor_profile_change(user_id)
 
-        logger.info(f"Deleted instructor profile for user {user_id}")
+        logger.info("Deleted instructor profile for user %s", user_id)
 
         try:
             from .availability_service import AvailabilityService
@@ -856,6 +856,11 @@ class InstructorService(BaseService):
                     f"Unsupported service pricing format: {format_name}",
                     code="INVALID_SERVICE_FORMAT",
                 )
+            if hourly_rate_value is None:
+                raise BusinessRuleException(
+                    "Hourly rate is required for each format price",
+                    code="MISSING_HOURLY_RATE",
+                )
             normalized.append(
                 {
                     "format": format_name,
@@ -1012,7 +1017,7 @@ class InstructorService(BaseService):
                 # Reactivate if needed
                 if not existing_service.is_active:
                     updates["is_active"] = True
-                    logger.info(f"Reactivated service: catalog_id {catalog_id}")
+                    logger.info("Reactivated service: catalog_id %s", catalog_id)
 
                 for key, value in updates.items():
                     setattr(existing_service, key, value)
@@ -1034,7 +1039,7 @@ class InstructorService(BaseService):
                         created_service.id, normalized_prices
                     )
                 )
-                logger.info(f"Created new service: catalog_id {catalog_id}")
+                logger.info("Created new service: catalog_id %s", catalog_id)
 
         # Handle removed services (only process active ones)
         for catalog_id, service in services_by_catalog_id.items():
@@ -1435,7 +1440,7 @@ class InstructorService(BaseService):
         self.cache_service.clear_prefix("service_catalog:search")
         self.cache_service.clear_prefix("service_catalog:trending")
 
-        logger.debug(f"Invalidated caches for instructor {user_id}")
+        logger.debug("Invalidated caches for instructor %s", user_id)
 
     # Catalog-aware methods
     @BaseService.measure_operation("get_available_catalog_services")
@@ -1605,7 +1610,7 @@ class InstructorService(BaseService):
         # Invalidate search cache (fire-and-forget via asyncio.create_task)
         invalidate_on_service_change(service.id, "create")
 
-        logger.info(f"Created service {catalog_service.name} for instructor {instructor_id}")
+        logger.info("Created service %s for instructor %s", catalog_service.name, instructor_id)
 
         # Return with catalog details
         service.catalog_entry = catalog_service
@@ -2025,7 +2030,7 @@ class InstructorService(BaseService):
         # Cache for 1 hour
         if self.cache_service:
             self.cache_service.set(cache_key, result, ttl=3600)
-            logger.debug(f"Cached top {limit} services per category for 1 hour")
+            logger.debug("Cached top %d services per category for 1 hour", limit)
 
         return result
 
@@ -2146,7 +2151,9 @@ class InstructorService(BaseService):
         # Cache for 5 minutes
         if self.cache_service:
             self.cache_service.set(cache_key, result, ttl=300)
-            logger.debug(f"Cached all {total_services} services with instructor data for 5 minutes")
+            logger.debug(
+                "Cached all %d services with instructor data for 5 minutes", total_services
+            )
 
         return result
 

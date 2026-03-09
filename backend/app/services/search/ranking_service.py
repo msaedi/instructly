@@ -84,6 +84,7 @@ class RankedResult:
     freshness_score: float
     completeness_score: float
     min_hourly_rate: float
+    effective_hourly_rate: float
 
     # Boosts applied
     audience_boost: float = 0.0
@@ -115,6 +116,7 @@ class RankedResult:
         completeness_score: float,
         min_hourly_rate: Optional[float] = None,
         price_per_hour: Optional[float] = None,
+        effective_hourly_rate: Optional[float] = None,
         audience_boost: float = 0.0,
         skill_boost: float = 0.0,
         soft_filtered: bool = False,
@@ -140,6 +142,9 @@ class RankedResult:
         self.freshness_score = freshness_score
         self.completeness_score = completeness_score
         self.min_hourly_rate = float(rate)
+        self.effective_hourly_rate = (
+            float(effective_hourly_rate) if effective_hourly_rate is not None else float(rate)
+        )
         self.audience_boost = audience_boost
         self.skill_boost = skill_boost
         self.soft_filtered = soft_filtered
@@ -413,6 +418,7 @@ class RankingService:
             name=candidate.name,
             description=candidate.description,
             min_hourly_rate=candidate.min_hourly_rate,
+            effective_hourly_rate=candidate.effective_hourly_rate,
             final_score=final_score,
             rank=0,  # Set later after sorting
             relevance_score=relevance_score,

@@ -550,7 +550,7 @@ class NLSearchService:
                     query, region_code=self._region_code
                 )
             except Exception as e:
-                logger.warning(f"Parsed query cache lookup failed: {e}")
+                logger.warning("Parsed query cache lookup failed: %s", e)
 
             loop = asyncio.get_running_loop()
             parsed_query_future: asyncio.Future[ParsedQuery] = loop.create_future()
@@ -684,7 +684,7 @@ class NLSearchService:
                         query, parsed_query, region_code=self._region_code
                     )
                 except Exception as e:
-                    logger.warning(f"Failed to cache parsed query: {e}")
+                    logger.warning("Failed to cache parsed query: %s", e)
 
             if parsed_query.needs_llm:
                 if embedding_task:
@@ -712,7 +712,7 @@ class NLSearchService:
                         query, parsed_query, region_code=self._region_code
                     )
                 except Exception as e:
-                    logger.warning(f"Failed to cache parsed query: {e}")
+                    logger.warning("Failed to cache parsed query: %s", e)
 
             if timer:
                 timer.record_stage(
@@ -988,7 +988,7 @@ class NLSearchService:
                     distance_meters=post_data.distance_meters,
                 )
             except Exception as e:
-                logger.error(f"Hydration failed: {e}")
+                logger.error("Hydration failed: %s", e)
                 results = []
                 hydrate_failed = True
                 metrics.degraded = True
@@ -2287,7 +2287,7 @@ class NLSearchService:
                     location_resolution=location_resolution,
                 )
             except Exception as exc:
-                logger.error(f"Filtering failed: {exc}")
+                logger.error("Filtering failed: %s", exc)
                 filter_failed = True
                 filter_result = FilterResult(
                     candidates=[
@@ -2328,7 +2328,7 @@ class NLSearchService:
                     user_location=user_location,
                 )
             except Exception as exc:
-                logger.error(f"Ranking failed: {exc}")
+                logger.error("Ranking failed: %s", exc)
                 ranking_failed = True
                 ranking_result = RankingResult(results=[], total_results=0)
             rank_latency_ms = int((time.perf_counter() - rank_start) * 1000)
@@ -2571,12 +2571,18 @@ class NLSearchService:
 
             best_format_prices = format_prices_by_service.get(best_ranked.service_id, [])
             best_offers = self._derive_service_offers(best_format_prices)
+            _best_eff = best_ranked.effective_hourly_rate
             best_match = ServiceMatch(
                 service_id=best_ranked.service_id,
                 service_catalog_id=best_ranked.service_catalog_id,
                 name=best_ranked.name,
                 description=best_ranked.description,
                 min_hourly_rate=best_ranked.min_hourly_rate,
+                **(
+                    {"effective_hourly_rate": _best_eff}
+                    if _best_eff != best_ranked.min_hourly_rate
+                    else {}
+                ),
                 format_prices=best_format_prices,
                 relevance_score=round(float(best_ranked.relevance_score), 3),
                 offers_travel=best_offers["offers_travel"],
@@ -2588,6 +2594,7 @@ class NLSearchService:
             for other_ranked in chosen_for_instructor[1:]:
                 other_format_prices = format_prices_by_service.get(other_ranked.service_id, [])
                 other_offers = self._derive_service_offers(other_format_prices)
+                _other_eff = other_ranked.effective_hourly_rate
                 other_matches.append(
                     ServiceMatch(
                         service_id=other_ranked.service_id,
@@ -2595,6 +2602,11 @@ class NLSearchService:
                         name=other_ranked.name,
                         description=other_ranked.description,
                         min_hourly_rate=other_ranked.min_hourly_rate,
+                        **(
+                            {"effective_hourly_rate": _other_eff}
+                            if _other_eff != other_ranked.min_hourly_rate
+                            else {}
+                        ),
                         format_prices=other_format_prices,
                         relevance_score=round(float(other_ranked.relevance_score), 3),
                         offers_travel=other_offers["offers_travel"],
@@ -2643,7 +2655,7 @@ class NLSearchService:
             )
             return result
         except Exception as e:
-            logger.warning(f"Cache check failed: {e}")
+            logger.warning("Cache check failed: %s", e)
             return None
 
     async def _parse_query(
@@ -2671,7 +2683,7 @@ class NLSearchService:
             await self.search_cache.cache_parsed_query(query, parsed, region_code=self._region_code)
 
         except Exception as e:
-            logger.error(f"Parsing failed, using basic extraction: {e}")
+            logger.error("Parsing failed, using basic extraction: %s", e)
 
             def _parse_regex_fallback() -> ParsedQuery:
                 with get_db_session() as db:
@@ -2702,7 +2714,7 @@ class NLSearchService:
                     metrics.degradation_reasons.append(result.degradation_reason)
 
         except Exception as e:
-            logger.error(f"Retrieval failed: {e}")
+            logger.error("Retrieval failed: %s", e)
             result = RetrievalResult(
                 candidates=[],
                 total_candidates=0,
@@ -2737,7 +2749,7 @@ class NLSearchService:
                 user_location=user_location,
             )
         except Exception as e:
-            logger.error(f"Filtering failed: {e}")
+            logger.error("Filtering failed: %s", e)
             # Pass through unfiltered on failure
             result = FilterResult(
                 candidates=[
@@ -2780,7 +2792,7 @@ class NLSearchService:
                 user_location=user_location,
             )
         except Exception as e:
-            logger.error(f"Ranking failed: {e}")
+            logger.error("Ranking failed: %s", e)
             # Return unranked results on failure
             result = RankingResult(
                 results=[
@@ -2791,6 +2803,7 @@ class NLSearchService:
                         name=c.name,
                         description=c.description,
                         min_hourly_rate=c.min_hourly_rate,
+                        effective_hourly_rate=c.effective_hourly_rate,
                         final_score=c.hybrid_score,
                         rank=i + 1,
                         relevance_score=c.hybrid_score,
@@ -2834,7 +2847,7 @@ class NLSearchService:
                 region_code=self._region_code,
             )
         except Exception as e:
-            logger.warning(f"Failed to cache response: {e}")
+            logger.warning("Failed to cache response: %s", e)
 
     def _transform_instructor_results(
         self,
