@@ -525,6 +525,9 @@ class FilterService:
             lesson_rate = rate_map.get(c.service_id)
             c.lesson_type_hourly_rate = lesson_rate
             if lesson_rate is not None:
+                # max_price filtering already applied by the repository query
+                # (get_lesson_type_rates), so presence in rate_map means the
+                # candidate passed both lesson-type and price constraints.
                 if max_price is not None:
                     c.passed_price = True
                 filtered.append(c)
@@ -729,6 +732,9 @@ class FilterService:
         """
 
         def _build_base_candidates() -> List[FilteredCandidate]:
+            # Note: lesson_type_hourly_rate is intentionally omitted here.
+            # Soft filtering rebuilds from the original retrieval set, and
+            # lesson-type rates are recomputed during _filter_lesson_type_rates.
             return [
                 FilteredCandidate(
                     service_id=c.service_id,

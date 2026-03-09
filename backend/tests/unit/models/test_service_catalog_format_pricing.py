@@ -6,8 +6,10 @@ from decimal import Decimal
 
 import pytest
 
+from app.core.exceptions import BusinessRuleException
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import (
+    SERVICE_PRICE_FORMAT_ORDER,
     InstructorService,
     ServiceCatalog,
     ServiceCategory,
@@ -151,3 +153,76 @@ def test_rate_exactly_001_accepted(unit_db):
 
     fetched = db.query(ServiceFormatPrice).filter(ServiceFormatPrice.id == price.id).one()
     assert fetched.hourly_rate == Decimal("0.01")
+
+
+# ---------------------------------------------------------------------------
+# 3. hourly_rate_for_location_type — missing format edge case
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_hourly_rate_for_location_type_missing_format(unit_db):
+    """hourly_rate_for_location_type raises when requested format is not configured."""
+    db = unit_db
+    service = _setup_instructor_service(db)
+    # service has only 'online' and 'student_location' — no 'instructor_location'
+
+    with pytest.raises(BusinessRuleException, match="No pricing configured"):
+        service.hourly_rate_for_location_type("instructor_location")
+
+
+# ---------------------------------------------------------------------------
+# 4. serialized_format_prices maintains SERVICE_PRICE_FORMAT_ORDER
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_serialized_format_prices_respects_order(unit_db):
+    """serialized_format_prices returns rows in SERVICE_PRICE_FORMAT_ORDER."""
+    db = unit_db
+    service = _setup_instructor_service(db)
+
+    # Add instructor_location so all 3 formats are present
+    db.add(
+        ServiceFormatPrice(
+            service_id="is-fmt",
+            format="instructor_location",
+            hourly_rate=Decimal("110.00"),
+        )
+    )
+    db.flush()
+    # Refresh to pick up the new row
+    db.refresh(service)
+    service._invalidate_price_cache()
+
+    serialized = service.serialized_format_prices
+    formats = [entry["format"] for entry in serialized]
+
+    # Must match the canonical order defined by SERVICE_PRICE_FORMAT_ORDER
+    expected = [f for f in SERVICE_PRICE_FORMAT_ORDER if f in formats]
+    assert formats == expected
+
+
+# ---------------------------------------------------------------------------
+# 5. _coerce_format_price_row — invalid inputs
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_coerce_format_price_row_rejects_dict_missing_hourly_rate(unit_db):
+    """Dict without hourly_rate raises ValueError."""
+    db = unit_db
+    service = _setup_instructor_service(db)
+
+    with pytest.raises(ValueError, match="hourly_rate"):
+        service._coerce_format_price_row("format_prices", {"format": "online"})
+
+
+@pytest.mark.unit
+def test_coerce_format_price_row_rejects_non_dict_non_model(unit_db):
+    """Non-dict, non-ServiceFormatPrice input raises TypeError."""
+    db = unit_db
+    service = _setup_instructor_service(db)
+
+    with pytest.raises(TypeError, match="ServiceFormatPrice or dict"):
+        service._coerce_format_price_row("format_prices", "invalid")

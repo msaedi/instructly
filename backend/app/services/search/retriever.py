@@ -86,6 +86,9 @@ class ServiceCandidate:
     description: Optional[str]
     instructor_id: str
     min_hourly_rate: float
+    lesson_type_hourly_rate: Optional[
+        float
+    ] = None  # Set by FilterService when lesson-type filter is active
     subcategory_id: Optional[str] = None
 
     def __init__(
@@ -100,6 +103,7 @@ class ServiceCandidate:
         description: Optional[str],
         instructor_id: str,
         min_hourly_rate: float,
+        lesson_type_hourly_rate: Optional[float] = None,
         subcategory_id: Optional[str] = None,
     ) -> None:
         self.service_id = service_id
@@ -111,6 +115,9 @@ class ServiceCandidate:
         self.description = description
         self.instructor_id = instructor_id
         self.min_hourly_rate = float(min_hourly_rate)
+        self.lesson_type_hourly_rate = (
+            float(lesson_type_hourly_rate) if lesson_type_hourly_rate is not None else None
+        )
         self.subcategory_id = subcategory_id
 
 
