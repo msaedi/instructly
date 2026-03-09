@@ -37,6 +37,18 @@ class _RepoStub:
         self.committed = True
 
 
+class _RefreshMissingRepo(_RepoStub):
+    def __init__(self, profile):
+        super().__init__(profile)
+        self._calls = 0
+
+    def get_by_id_join_user(self, instructor_id):
+        self._calls += 1
+        if self._calls == 1:
+            return super().get_by_id_join_user(instructor_id)
+        return None
+
+
 @pytest.mark.asyncio
 async def test_admin_instructor_detail_missing():
     repo = _RepoStub(None)
@@ -76,6 +88,39 @@ async def test_admin_instructor_detail_builds_name_and_expiry():
 
 
 @pytest.mark.asyncio
+async def test_admin_instructor_detail_prefers_full_name_when_present():
+    now = datetime.now(timezone.utc)
+    profile = SimpleNamespace(
+        id="profile-1",
+        user=SimpleNamespace(
+            first_name="Jane",
+            last_name="Ignored",
+            full_name="Jane Example",
+            email="j@e.com",
+        ),
+        is_live=False,
+        bgc_name_mismatch=False,
+        bgc_status="pending",
+        bgc_includes_canceled=False,
+        bgc_report_id="rpt-1",
+        bgc_completed_at=None,
+        created_at=now,
+        updated_at=now,
+        bgc_valid_until=now + timedelta(days=5),
+        bgc_in_dispute=False,
+        bgc_dispute_note=None,
+        bgc_dispute_opened_at=None,
+        bgc_dispute_resolved_at=None,
+    )
+    repo = _RepoStub(profile)
+
+    response = await routes.admin_instructor_detail("profile-1", repo=repo, _=None)
+
+    assert response.name == "Jane Example"
+    assert response.bgc_expires_in_days is not None
+
+
+@pytest.mark.asyncio
 async def test_clear_bgc_mismatch_updates_flag(monkeypatch):
     now = datetime.now(timezone.utc)
     profile = SimpleNamespace(
@@ -111,6 +156,92 @@ async def test_clear_bgc_mismatch_updates_flag(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_clear_bgc_mismatch_missing_profile_raises_not_found():
+    with pytest.raises(Exception) as exc:
+        await routes.clear_bgc_mismatch(
+            "missing",
+            request=SimpleNamespace(headers={}),
+            repo=_RepoStub(None),
+            current_admin=SimpleNamespace(id="admin-1", email="admin@example.com"),
+        )
+
+    assert getattr(exc.value, "status_code", None) == 404
+
+
+@pytest.mark.asyncio
+async def test_clear_bgc_mismatch_missing_refreshed_profile_raises_not_found(monkeypatch):
+    now = datetime.now(timezone.utc)
+    profile = SimpleNamespace(
+        id="profile-1",
+        user=SimpleNamespace(first_name="Jane", last_name="Doe", full_name=None, email="j@e.com"),
+        is_live=False,
+        bgc_name_mismatch=True,
+        bgc_status="review",
+        bgc_includes_canceled=False,
+        bgc_report_id="rpt-1",
+        bgc_completed_at=None,
+        created_at=now,
+        updated_at=now,
+        bgc_valid_until=None,
+        bgc_in_dispute=False,
+        bgc_dispute_note=None,
+        bgc_dispute_opened_at=None,
+        bgc_dispute_resolved_at=None,
+    )
+    repo = _RefreshMissingRepo(profile)
+    monkeypatch.setattr(routes, "AuditService", lambda _db: SimpleNamespace(log=lambda **_kwargs: None))
+
+    with pytest.raises(Exception) as exc:
+        await routes.clear_bgc_mismatch(
+            "profile-1",
+            request=SimpleNamespace(headers={}),
+            repo=repo,
+            current_admin=SimpleNamespace(id="admin-1", email="admin@example.com"),
+        )
+
+    assert getattr(exc.value, "status_code", None) == 404
+
+
+@pytest.mark.asyncio
+async def test_clear_bgc_mismatch_audit_failure_is_logged_and_ignored(monkeypatch, caplog):
+    now = datetime.now(timezone.utc)
+    profile = SimpleNamespace(
+        id="profile-1",
+        user=SimpleNamespace(first_name="Jane", last_name="Doe", full_name=None, email="j@e.com"),
+        is_live=False,
+        bgc_name_mismatch=True,
+        bgc_status="review",
+        bgc_includes_canceled=False,
+        bgc_report_id="rpt-1",
+        bgc_completed_at=None,
+        created_at=now,
+        updated_at=now,
+        bgc_valid_until=None,
+        bgc_in_dispute=False,
+        bgc_dispute_note=None,
+        bgc_dispute_opened_at=None,
+        bgc_dispute_resolved_at=None,
+    )
+    repo = _RepoStub(profile)
+    caplog.set_level("WARNING")
+    monkeypatch.setattr(
+        routes,
+        "AuditService",
+        lambda _db: SimpleNamespace(log=lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("audit down"))),
+    )
+
+    response = await routes.clear_bgc_mismatch(
+        "profile-1",
+        request=SimpleNamespace(headers={}),
+        repo=repo,
+        current_admin=SimpleNamespace(id="admin-1", email="admin@example.com"),
+    )
+
+    assert response.bgc_name_mismatch is False
+    assert "Audit log write failed for clearing BGC mismatch" in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_reset_bgc_blocks_live_instructor():
     now = datetime.now(timezone.utc)
     profile = SimpleNamespace(
@@ -141,6 +272,118 @@ async def test_reset_bgc_blocks_live_instructor():
         )
 
     assert getattr(exc.value, "status_code", None) == 400
+
+
+@pytest.mark.asyncio
+async def test_reset_bgc_missing_profile_raises_not_found():
+    with pytest.raises(Exception) as exc:
+        await routes.reset_bgc(
+            "missing",
+            request=SimpleNamespace(headers={}),
+            repo=_RepoStub(None),
+            current_admin=SimpleNamespace(id="admin-1", email="admin@example.com"),
+        )
+
+    assert getattr(exc.value, "status_code", None) == 404
+
+
+@pytest.mark.asyncio
+async def test_reset_bgc_missing_refreshed_profile_raises_not_found(monkeypatch):
+    now = datetime.now(timezone.utc)
+    profile = SimpleNamespace(
+        id="profile-1",
+        user=SimpleNamespace(first_name="Jane", last_name="Doe", full_name=None, email="j@e.com"),
+        is_live=False,
+        bgc_name_mismatch=True,
+        bgc_status="passed",
+        bgc_includes_canceled=False,
+        bgc_report_id="rpt-1",
+        bgc_completed_at=now,
+        created_at=now,
+        updated_at=now,
+        bgc_valid_until=None,
+        bgc_in_dispute=False,
+        bgc_dispute_note=None,
+        bgc_dispute_opened_at=None,
+        bgc_dispute_resolved_at=None,
+        bgc_report_result="clear",
+        bgc_eta=None,
+        bgc_invited_at=None,
+        bgc_pre_adverse_notice_id=None,
+        bgc_pre_adverse_sent_at=None,
+        bgc_final_adverse_sent_at=None,
+        bgc_review_email_sent_at=None,
+        checkr_candidate_id=None,
+        checkr_invitation_id=None,
+        bgc_note=None,
+        bgc_submitted_first_name=None,
+        bgc_submitted_last_name=None,
+        bgc_submitted_dob=None,
+    )
+    repo = _RefreshMissingRepo(profile)
+    monkeypatch.setattr(routes, "AuditService", lambda _db: SimpleNamespace(log=lambda **_kwargs: None))
+
+    with pytest.raises(Exception) as exc:
+        await routes.reset_bgc(
+            "profile-1",
+            request=SimpleNamespace(headers={}),
+            repo=repo,
+            current_admin=SimpleNamespace(id="admin-1", email="admin@example.com"),
+        )
+
+    assert getattr(exc.value, "status_code", None) == 404
+
+
+@pytest.mark.asyncio
+async def test_reset_bgc_audit_failure_is_logged_and_ignored(monkeypatch, caplog):
+    now = datetime.now(timezone.utc)
+    profile = SimpleNamespace(
+        id="profile-1",
+        user=SimpleNamespace(first_name="Jane", last_name="Doe", full_name=None, email="j@e.com"),
+        is_live=False,
+        bgc_name_mismatch=True,
+        bgc_status="passed",
+        bgc_includes_canceled=False,
+        bgc_report_id="rpt-1",
+        bgc_completed_at=now,
+        created_at=now,
+        updated_at=now,
+        bgc_valid_until=None,
+        bgc_in_dispute=False,
+        bgc_dispute_note=None,
+        bgc_dispute_opened_at=None,
+        bgc_dispute_resolved_at=None,
+        bgc_report_result="clear",
+        bgc_eta=None,
+        bgc_invited_at=None,
+        bgc_pre_adverse_notice_id=None,
+        bgc_pre_adverse_sent_at=None,
+        bgc_final_adverse_sent_at=None,
+        bgc_review_email_sent_at=None,
+        checkr_candidate_id=None,
+        checkr_invitation_id=None,
+        bgc_note=None,
+        bgc_submitted_first_name=None,
+        bgc_submitted_last_name=None,
+        bgc_submitted_dob=None,
+    )
+    repo = _RepoStub(profile)
+    caplog.set_level("WARNING")
+    monkeypatch.setattr(
+        routes,
+        "AuditService",
+        lambda _db: SimpleNamespace(log=lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("audit down"))),
+    )
+
+    response = await routes.reset_bgc(
+        "profile-1",
+        request=SimpleNamespace(headers={}),
+        repo=repo,
+        current_admin=SimpleNamespace(id="admin-1", email="admin@example.com"),
+    )
+
+    assert response.bgc_status is None
+    assert "Audit log write failed for resetting BGC" in caplog.text
 
 
 @pytest.mark.asyncio

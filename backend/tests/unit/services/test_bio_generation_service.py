@@ -7,10 +7,12 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from openai import OpenAIError
 import pytest
 
 from app.core.exceptions import NotFoundException, ServiceException
-from app.services.bio_generation_service import BIO_CIRCUIT, BioGenerationService
+from app.services.bio_generation_service import _BIO_TIMEOUT_S, BIO_CIRCUIT, BioGenerationService
+from app.services.search.circuit_breaker import CircuitOpenError
 
 
 @pytest.fixture(autouse=True)
@@ -142,9 +144,49 @@ class TestBuildPrompt:
         assert "teaches online" in prompt
         assert "travels to students" in prompt
 
+    def test_ignores_services_without_catalog_names_formats_or_neighborhood_names(self):
+        """Incomplete service/location data should not leak null-ish placeholders into the prompt."""
+        svc = SimpleNamespace(
+            catalog_entry=SimpleNamespace(name=None),
+            format_prices=[SimpleNamespace(format=None)],
+            is_active=True,
+        )
+        profile = _mock_profile(
+            services=[svc],
+            service_areas=[SimpleNamespace(neighborhood=SimpleNamespace(region_name=None))],
+        )
+
+        prompt = BioGenerationService._build_prompt(profile, profile.user)
+
+        assert "who teaches" not in prompt
+        assert "They offer:" not in prompt
+        assert "They teach in:" not in prompt
+
 
 class TestGenerateBio:
     """Tests for the generate_bio method."""
+
+    def test_client_property_initializes_once_and_caches_instance(self):
+        svc, _db = _make_service()
+        client = object()
+
+        with patch("app.services.bio_generation_service.AsyncOpenAI", return_value=client) as factory:
+            first = svc.client
+            second = svc.client
+
+        assert first is client
+        assert second is client
+        factory.assert_called_once_with(timeout=_BIO_TIMEOUT_S, max_retries=1)
+
+    def test_load_profile_with_details_delegates_to_repository(self):
+        svc, _db = _make_service()
+        profile = object()
+        svc._profile_repo = SimpleNamespace(get_by_user_id_with_details=MagicMock(return_value=profile))
+
+        result = svc._load_profile_with_details("user-123")
+
+        assert result is profile
+        svc._profile_repo.get_by_user_id_with_details.assert_called_once_with("user-123")
 
     @pytest.mark.asyncio
     async def test_returns_bio_string(self):
@@ -202,6 +244,32 @@ class TestGenerateBio:
                 await svc.generate_bio("user-123")
 
     @pytest.mark.asyncio
+    async def test_handles_circuit_open_error_from_guarded_call(self):
+        """Circuit-open failures raised during the guarded call should still map to a service error."""
+        profile = _mock_profile()
+        svc, _db = _make_service()
+
+        with (
+            patch.object(svc, "_load_profile_with_details", return_value=profile),
+            patch.object(BIO_CIRCUIT, "call", new=AsyncMock(side_effect=CircuitOpenError("open"))),
+        ):
+            with pytest.raises(ServiceException, match="temporarily unavailable"):
+                await svc.generate_bio("user-123")
+
+    @pytest.mark.asyncio
+    async def test_handles_openai_error_from_guarded_call(self):
+        """Provider-specific API failures should be converted into a generic service failure."""
+        profile = _mock_profile()
+        svc, _db = _make_service()
+
+        with (
+            patch.object(svc, "_load_profile_with_details", return_value=profile),
+            patch.object(BIO_CIRCUIT, "call", new=AsyncMock(side_effect=OpenAIError("boom"))),
+        ):
+            with pytest.raises(ServiceException, match="Bio generation failed"):
+                await svc.generate_bio("user-123")
+
+    @pytest.mark.asyncio
     async def test_sparse_profile_still_works(self):
         """Sparse profile (no services/areas) generates successfully."""
         profile = _mock_profile(
@@ -220,3 +288,34 @@ class TestGenerateBio:
 
         assert isinstance(result, str)
         assert len(result) > 0
+
+    @pytest.mark.asyncio
+    async def test_call_openai_returns_trimmed_message_content(self):
+        svc, _db = _make_service()
+        response = SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="  I help students grow.  "))]
+        )
+        svc._client = SimpleNamespace(
+            chat=SimpleNamespace(
+                completions=SimpleNamespace(create=AsyncMock(return_value=response))
+            )
+        )
+
+        result = await svc._call_openai("prompt text")
+
+        assert result == "I help students grow."
+
+    @pytest.mark.asyncio
+    async def test_call_openai_rejects_empty_message_content(self):
+        svc, _db = _make_service()
+        response = SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=""))]
+        )
+        svc._client = SimpleNamespace(
+            chat=SimpleNamespace(
+                completions=SimpleNamespace(create=AsyncMock(return_value=response))
+            )
+        )
+
+        with pytest.raises(ServiceException, match="empty response"):
+            await svc._call_openai("prompt text")

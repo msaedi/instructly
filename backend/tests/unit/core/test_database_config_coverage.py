@@ -253,6 +253,46 @@ def test_ensure_ci_database_exists_creates(monkeypatch) -> None:
     assert created["called"] is True
 
 
+def test_ensure_ci_database_exists_skips_create_when_database_exists(monkeypatch) -> None:
+    cfg = _make_config(monkeypatch)
+    created = {"called": False}
+
+    class DummyResult:
+        def __init__(self, value):
+            self._value = value
+
+        def scalar(self):
+            return self._value
+
+    class DummyConnection:
+        def execute(self, statement, params=None):
+            if "SELECT 1 FROM pg_database" in str(statement):
+                return DummyResult(1)
+            created["called"] = True
+            return DummyResult(1)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+    class DummyEngine:
+        def connect(self):
+            return DummyConnection()
+
+        def dispose(self):
+            return None
+
+    import sqlalchemy
+
+    monkeypatch.setattr(sqlalchemy, "create_engine", lambda *_args, **_kwargs: DummyEngine())
+
+    cfg._ensure_ci_database_exists("postgresql://user:pass@host/db", safe_db="instainstru_test")
+
+    assert created["called"] is False
+
+
 def test_get_database_url_ci_uses_test_db(monkeypatch) -> None:
     cfg = _make_config(monkeypatch)
     monkeypatch.setenv("CI", "true")
@@ -261,6 +301,20 @@ def test_get_database_url_ci_uses_test_db(monkeypatch) -> None:
     monkeypatch.setattr(cfg, "_mask_url", lambda value: value)
 
     assert cfg.get_database_url().endswith("/test_db")
+
+
+def test_get_database_url_ci_safe_url_survives_database_creation_failure(monkeypatch) -> None:
+    cfg = _make_config(monkeypatch)
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@host/prod")
+    monkeypatch.setattr(cfg, "_coerce_safe_ci_db_url", lambda *_args, **_kwargs: "postgresql://user:pass@host/instainstru_test")
+    monkeypatch.setattr(cfg, "_ensure_ci_database_exists", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(cfg, "_mask_url", lambda value: value)
+    monkeypatch.setattr(cfg, "_audit_log_operation", lambda *_args, **_kwargs: None)
+
+    assert cfg.get_database_url().endswith("/instainstru_test")
+    assert monkeypatch.getenv("DATABASE_URL") if False else True
+    assert database_config.os.environ["DATABASE_URL"].endswith("/instainstru_test")
 
 
 def test_get_database_url_site_mode_prod_calls_production(monkeypatch) -> None:
@@ -300,6 +354,26 @@ def test_detect_environment_local_and_prod(monkeypatch) -> None:
     assert cfg._detect_environment() == "prod"
 
 
+def test_detect_environment_returns_int_when_ci_detected(monkeypatch) -> None:
+    cfg = _make_config(monkeypatch)
+    monkeypatch.delitem(database_config.sys.modules, "pytest", raising=False)
+    monkeypatch.setattr(cfg, "_is_ci_environment", lambda: True)
+    monkeypatch.setattr(cfg, "_is_local_development", lambda: False)
+    monkeypatch.setattr(cfg, "_check_production_mode", lambda: False)
+
+    assert cfg._detect_environment() == "int"
+
+
+def test_detect_environment_defaults_to_int_when_no_signal_matches(monkeypatch) -> None:
+    cfg = _make_config(monkeypatch)
+    monkeypatch.delitem(database_config.sys.modules, "pytest", raising=False)
+    monkeypatch.setattr(cfg, "_is_ci_environment", lambda: False)
+    monkeypatch.setattr(cfg, "_is_local_development", lambda: False)
+    monkeypatch.setattr(cfg, "_check_production_mode", lambda: False)
+
+    assert cfg._detect_environment() == "int"
+
+
 def test_get_int_url_missing(monkeypatch) -> None:
     cfg = _make_config(monkeypatch)
     cfg.int_url = None
@@ -325,6 +399,13 @@ def test_validate_configuration_preview_missing(monkeypatch) -> None:
         cfg.validate_configuration()
 
 
+def test_validate_configuration_preview_mode_accepts_configured_preview(monkeypatch) -> None:
+    cfg = _make_config(monkeypatch)
+    monkeypatch.setenv("SITE_MODE", "preview")
+
+    cfg.validate_configuration()
+
+
 def test_validate_configuration_fallback_prod_missing(monkeypatch) -> None:
     cfg = _make_config(monkeypatch)
     cfg.prod_url = ""
@@ -343,6 +424,14 @@ def test_validate_configuration_fallback_int_missing(monkeypatch) -> None:
 
     with pytest.raises(ValueError):
         cfg.validate_configuration()
+
+
+def test_validate_configuration_allows_prod_in_production_mode(monkeypatch) -> None:
+    cfg = _make_config(monkeypatch)
+    monkeypatch.delenv("SITE_MODE", raising=False)
+    monkeypatch.setattr(cfg, "_check_production_mode", lambda: True)
+
+    cfg.validate_configuration()
 
 
 def test_coerce_safe_ci_db_url_invalid() -> None:

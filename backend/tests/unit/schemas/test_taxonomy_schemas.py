@@ -17,7 +17,7 @@ from app.schemas.service_catalog_responses import (
     CategoryWithServices,
     TopCategoryItem,
 )
-from app.schemas.service_pricing import ServiceFormatPriceIn
+from app.schemas.service_pricing import ServiceFormatPriceIn, validate_unique_format_prices
 from app.schemas.subcategory import (
     CategoryTreeResponse,
     CategoryWithSubcategories,
@@ -41,6 +41,21 @@ _ULID2 = "01JBBBBBBBBBBBBBBBBBBBBBBB"
 
 def _format_prices(rate: float = 50.0) -> list[ServiceFormatPriceIn]:
     return [ServiceFormatPriceIn(format="online", hourly_rate=rate)]
+
+
+class TestServicePricingSchemas:
+    def test_validate_unique_format_prices_requires_at_least_one_entry(self):
+        with pytest.raises(ValueError, match="At least one format price is required"):
+            validate_unique_format_prices([])
+
+    def test_validate_unique_format_prices_rejects_duplicate_formats(self):
+        prices = [
+            ServiceFormatPriceIn(format="online", hourly_rate=50),
+            ServiceFormatPriceIn(format="online", hourly_rate=60),
+        ]
+
+        with pytest.raises(ValueError, match="Each format may only appear once"):
+            validate_unique_format_prices(prices)
 
 
 # ── 2A. Subcategory schemas ───────────────────────────────────

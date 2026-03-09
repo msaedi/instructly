@@ -251,3 +251,44 @@ class TestCloseAsyncCacheRedisClient:
         await cache_redis.close_async_cache_redis_client()
 
         dummy.aclose.assert_awaited_once_with(close_connection_pool=False)
+
+
+@pytest.mark.asyncio
+async def test_disconnect_pool_connections_deduplicates_shared_connection() -> None:
+    shared = SimpleNamespace(disconnect=AsyncMock())
+    pool = SimpleNamespace(
+        _available_connections=[shared],
+        _in_use_connections=[shared],
+    )
+
+    await cache_redis._disconnect_pool_connections(pool)
+
+    shared.disconnect.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_disconnect_pool_connections_reraises_first_error_after_attempting_all() -> None:
+    first = RuntimeError("first disconnect failed")
+    conn_one = SimpleNamespace(disconnect=AsyncMock(side_effect=first))
+    conn_two = SimpleNamespace(disconnect=AsyncMock())
+    pool = SimpleNamespace(
+        _available_connections=[conn_one],
+        _in_use_connections=[conn_two],
+    )
+
+    with pytest.raises(RuntimeError, match="first disconnect failed"):
+        await cache_redis._disconnect_pool_connections(pool)
+
+    conn_one.disconnect.assert_awaited_once()
+    conn_two.disconnect.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_disconnect_pool_connections_ignores_missing_disconnect_hook() -> None:
+    pool = SimpleNamespace(
+        _available_connections=None,
+        _in_use_connections=None,
+        disconnect=None,
+    )
+
+    await cache_redis._disconnect_pool_connections(pool)

@@ -5,7 +5,7 @@ import logging
 import sys
 import types
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from app.core.config import settings
 
@@ -224,3 +224,53 @@ def test_base_task_request_context_lifecycle(monkeypatch):
     monkeypatch.setattr(celery_module, "reset_request_id", Mock(side_effect=RuntimeError("boom")))
     task.on_failure(Exception("failure"), "task-1", (), {}, None)
     assert task.request.request_id_token is None
+
+
+def test_base_task_after_return_without_request_token_is_noop(monkeypatch):
+    class DummyTask(BaseTask):
+        name = "dummy.task"
+        request = SimpleNamespace()
+
+    task = DummyTask()
+    reset = Mock()
+    monkeypatch.setattr(celery_module, "reset_request_id", reset)
+
+    task.after_return("SUCCESS", None, "task-1", (), {}, None)
+
+    reset.assert_not_called()
+
+
+def test_create_celery_app_production_import_fallback(monkeypatch):
+    from app.core import config as config_module
+
+    original_environment = getattr(config_module.settings, "environment", None)
+    monkeypatch.setattr(config_module.settings, "environment", "production", raising=False)
+
+    real_import = __import__
+
+    def _fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "app.core.config_production":
+            raise ImportError("missing production config")
+        return real_import(name, globals, locals, fromlist, level)
+
+    try:
+        with patch("builtins.__import__", side_effect=_fake_import):
+            reloaded = importlib.reload(celery_module)
+            assert reloaded.CELERY_WORKER_CONFIG is None
+    finally:
+        monkeypatch.setattr(config_module.settings, "environment", original_environment, raising=False)
+        importlib.reload(celery_module)
+
+
+def test_celery_module_registers_retention_schedule_when_enabled(monkeypatch):
+    from app.core import config as config_module
+
+    original_enabled = getattr(config_module.settings, "availability_retention_enabled", False)
+    monkeypatch.setattr(config_module.settings, "availability_retention_enabled", True, raising=False)
+
+    try:
+        reloaded = importlib.reload(celery_module)
+        assert "availability-retention-daily" in reloaded.celery_app.conf.beat_schedule
+    finally:
+        monkeypatch.setattr(config_module.settings, "availability_retention_enabled", original_enabled, raising=False)
+        importlib.reload(celery_module)

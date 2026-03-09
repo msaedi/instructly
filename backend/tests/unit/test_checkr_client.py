@@ -75,6 +75,23 @@ def test_request_raises_checkr_error_with_json_body():
     assert exc.value.error_body == {"error": "invalid_api_key"}
 
 
+def test_request_raises_checkr_error_with_non_dict_json_body():
+    def handler(request):
+        return Response(
+            422,
+            json=["candidate_already_exists"],
+            request=request,
+        )
+
+    client = CheckrClient(api_key="sk_test", transport=MockTransport(handler))
+    with pytest.raises(CheckrError) as exc:
+        client.request("GET", "/candidates/cand_123")
+
+    assert exc.value.status_code == 422
+    assert exc.value.error_type is None
+    assert exc.value.error_body == ["candidate_already_exists"]
+
+
 def test_request_raises_checkr_error_with_text_body():
     def handler(request):
         return Response(500, content=b"oops", request=request)
@@ -173,3 +190,18 @@ def test_fake_checkr_client_generates_ids():
     fetched_candidate = client.get_candidate(candidate["id"])
     assert fetched_candidate["first_name"] == "Test"
     assert fetched_candidate["last_name"] == "User"
+
+
+def test_fake_checkr_client_requires_candidate_id():
+    client = FakeCheckrClient()
+
+    with pytest.raises(ValueError, match="candidate_id"):
+        client.get_candidate("")
+
+
+def test_fake_checkr_client_returns_stub_for_unknown_candidate():
+    client = FakeCheckrClient()
+
+    payload = client.get_candidate("missing-candidate")
+
+    assert payload == {"id": "missing-candidate", "object": "candidate"}
