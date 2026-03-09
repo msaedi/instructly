@@ -315,16 +315,24 @@ def send_booking_reminders() -> dict[str, int]:
         )
 
         for booking in bookings_24h:
-            success = _send_reminder_notifications(
-                service,
-                booking,
-                INSTRUCTOR_REMINDER_24H,
-                STUDENT_REMINDER_24H,
-                REMINDER_24H,
-            )
-            if success:
-                reminders_24h += 2
-                booking.reminder_24h_sent = True
+            try:
+                success = _send_reminder_notifications(
+                    service,
+                    booking,
+                    INSTRUCTOR_REMINDER_24H,
+                    STUDENT_REMINDER_24H,
+                    REMINDER_24H,
+                )
+                if success:
+                    reminders_24h += 2
+                    booking.reminder_24h_sent = True
+            except Exception as exc:
+                session.rollback()  # Isolate failure — don't poison session for remaining bookings
+                logger.error(
+                    "Failed to send 24h reminder for booking %s: %s",
+                    booking.id,
+                    exc,
+                )
 
         bookings_1h = (
             session.query(Booking)
@@ -343,16 +351,24 @@ def send_booking_reminders() -> dict[str, int]:
         )
 
         for booking in bookings_1h:
-            success = _send_reminder_notifications(
-                service,
-                booking,
-                INSTRUCTOR_REMINDER_1H,
-                STUDENT_REMINDER_1H,
-                REMINDER_1H,
-            )
-            if success:
-                reminders_1h += 2
-                booking.reminder_1h_sent = True
+            try:
+                success = _send_reminder_notifications(
+                    service,
+                    booking,
+                    INSTRUCTOR_REMINDER_1H,
+                    STUDENT_REMINDER_1H,
+                    REMINDER_1H,
+                )
+                if success:
+                    reminders_1h += 2
+                    booking.reminder_1h_sent = True
+            except Exception as exc:
+                session.rollback()  # Isolate failure — don't poison session for remaining bookings
+                logger.error(
+                    "Failed to send 1h reminder for booking %s: %s",
+                    booking.id,
+                    exc,
+                )
 
     return {
         "reminders_24h_sent": reminders_24h,

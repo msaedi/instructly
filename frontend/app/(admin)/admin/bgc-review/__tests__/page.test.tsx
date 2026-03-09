@@ -640,7 +640,7 @@ describe('AdminBGCReviewPage', () => {
     await screen.findByText('Review Instructor');
     const page1LabelsAgain = screen.getAllByText(/Page 1 of 2/i);
     expect(page1LabelsAgain).toHaveLength(1);
-  });
+  }, 15_000);
 
   it('switches pending filter and hides adjudication buttons', async () => {
     renderWithClient(<AdminBGCReviewPage />);

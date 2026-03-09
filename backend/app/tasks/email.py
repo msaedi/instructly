@@ -72,6 +72,7 @@ def send_beta_invites_batch(
                     }
                 )
             except Exception as e:
+                db.rollback()  # Isolate failure — don't poison session for remaining emails
                 failed += 1
                 results["failed"].append({"email": em, "reason": str(e)})
 

@@ -383,6 +383,78 @@ class TestSessionScope:
             mock_session.close.assert_called_once()
 
 
+class TestSendBookingRemindersRollback:
+    """Tests for session rollback isolation in send_booking_reminders."""
+
+    @patch("app.tasks.notification_tasks._send_reminder_notifications")
+    @patch("app.tasks.notification_tasks._session_scope")
+    def test_rollback_isolates_24h_reminder_failure(
+        self, mock_scope, mock_send
+    ):
+        """First 24h booking fails; second still processes."""
+        from app.tasks.notification_tasks import send_booking_reminders
+
+        mock_session = MagicMock()
+        mock_scope.return_value.__enter__ = MagicMock(return_value=mock_session)
+        mock_scope.return_value.__exit__ = MagicMock(return_value=False)
+
+        booking1 = MagicMock()
+        booking1.id = "01AAAA"
+        booking1.reminder_24h_sent = False
+        booking2 = MagicMock()
+        booking2.id = "01BBBB"
+        booking2.reminder_24h_sent = False
+
+        # Query returns 24h bookings, empty 1h
+        mock_session.query.return_value.options.return_value.filter.return_value.all.side_effect = [
+            [booking1, booking2],  # 24h bookings
+            [],  # 1h bookings
+        ]
+
+        # First call raises, second succeeds
+        mock_send.side_effect = [RuntimeError("DB error"), True]
+
+        result = send_booking_reminders()
+
+        mock_session.rollback.assert_called_once()
+        assert result["reminders_24h_sent"] == 2  # Only second booking counted
+        assert booking2.reminder_24h_sent is True
+
+    @patch("app.tasks.notification_tasks._send_reminder_notifications")
+    @patch("app.tasks.notification_tasks._session_scope")
+    def test_rollback_isolates_1h_reminder_failure(
+        self, mock_scope, mock_send
+    ):
+        """First 1h booking fails; second still processes."""
+        from app.tasks.notification_tasks import send_booking_reminders
+
+        mock_session = MagicMock()
+        mock_scope.return_value.__enter__ = MagicMock(return_value=mock_session)
+        mock_scope.return_value.__exit__ = MagicMock(return_value=False)
+
+        booking1 = MagicMock()
+        booking1.id = "01CCCC"
+        booking1.reminder_1h_sent = False
+        booking2 = MagicMock()
+        booking2.id = "01DDDD"
+        booking2.reminder_1h_sent = False
+
+        # Query returns empty 24h bookings, then 1h bookings
+        mock_session.query.return_value.options.return_value.filter.return_value.all.side_effect = [
+            [],  # 24h bookings
+            [booking1, booking2],  # 1h bookings
+        ]
+
+        # First call raises, second succeeds
+        mock_send.side_effect = [RuntimeError("DB error"), True]
+
+        result = send_booking_reminders()
+
+        mock_session.rollback.assert_called_once()
+        assert result["reminders_1h_sent"] == 2
+        assert booking2.reminder_1h_sent is True
+
+
 class TestDispatchPending:
     """Tests for dispatch_pending task."""
 

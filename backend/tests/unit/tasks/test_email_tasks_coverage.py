@@ -254,6 +254,49 @@ class TestSendBetaInvitesBatchTask:
         mock_db.close.assert_called_once()
 
 
+class TestRollbackIsolation:
+    """Tests for session rollback isolation in batch email tasks."""
+
+    @patch("app.tasks.email.get_db")
+    @patch("app.tasks.email.BetaService")
+    @patch("celery.current_task", None)
+    def test_rollback_isolates_failure_across_emails(self, mock_beta_service, mock_get_db):
+        """First email fails with DB error; second email still processes."""
+        from app.tasks.email import send_beta_invites_batch
+
+        mock_db = MagicMock()
+        mock_get_db.return_value = iter([mock_db])
+
+        mock_invite = MagicMock()
+        mock_invite.id = "invite-1"
+        mock_invite.code = "CODE123"
+
+        call_count = [0]
+
+        def send_invite_effect(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:  # First call fails
+                raise RuntimeError("DB connection error")
+            return mock_invite, "https://join.url", "https://welcome.url"
+
+        mock_service = MagicMock()
+        mock_service.send_invite_email.side_effect = send_invite_effect
+        mock_beta_service.return_value = mock_service
+
+        result = send_beta_invites_batch(
+            emails=["fail@example.com", "success@example.com"],
+            role="student",
+            expires_in_days=7,
+            source="test",
+            base_url="https://example.com",
+        )
+
+        mock_db.rollback.assert_called_once()
+        assert len(result["sent"]) == 1
+        assert len(result["failed"]) == 1
+        assert result["sent"][0]["email"] == "success@example.com"
+
+
 class TestEmailModuleImports:
     """Tests for email module imports."""
 

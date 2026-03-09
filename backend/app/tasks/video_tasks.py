@@ -181,6 +181,7 @@ def detect_video_no_shows() -> VideoNoShowResults:
                     results["reported"] += 1
 
             except Exception as exc:
+                db.rollback()  # Isolate failure — don't poison session for remaining bookings
                 logger.error(
                     "Failed to process video no-show for booking %s: %s",
                     booking_id,
