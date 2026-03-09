@@ -77,7 +77,7 @@ class CircuitBreaker:
                 if elapsed >= self.config.timeout_seconds:
                     self._state = CircuitState.HALF_OPEN
                     self._last_state_change = time.time()
-                    logger.info(f"Circuit {self.name}: OPEN -> HALF_OPEN")
+                    logger.info("Circuit %s: OPEN -> HALF_OPEN", self.name)
                     return True
                 return False
 
@@ -96,7 +96,7 @@ class CircuitBreaker:
                     self._failure_count = 0
                     self._success_count = 0
                     self._last_state_change = time.time()
-                    logger.info(f"Circuit {self.name}: HALF_OPEN -> CLOSED")
+                    logger.info("Circuit %s: HALF_OPEN -> CLOSED", self.name)
             elif self._state == CircuitState.CLOSED:
                 # Reset failure count on success
                 self._failure_count = 0
@@ -111,7 +111,7 @@ class CircuitBreaker:
                 self._state = CircuitState.OPEN
                 self._last_state_change = time.time()
                 self._success_count = 0
-                logger.warning(f"Circuit {self.name}: HALF_OPEN -> OPEN (test failed)")
+                logger.warning("Circuit %s: HALF_OPEN -> OPEN (test failed)", self.name)
 
             elif self._state == CircuitState.CLOSED:
                 self._failure_count += 1
@@ -119,7 +119,9 @@ class CircuitBreaker:
                     self._state = CircuitState.OPEN
                     self._last_state_change = time.time()
                     logger.warning(
-                        f"Circuit {self.name}: CLOSED -> OPEN " f"({self._failure_count} failures)"
+                        "Circuit %s: CLOSED -> OPEN (%d failures)",
+                        self.name,
+                        self._failure_count,
                     )
 
     async def call(self, func: Callable[..., Awaitable[T]], *args: Any, **kwargs: Any) -> T:
@@ -147,7 +149,7 @@ class CircuitBreaker:
             self._failure_count = 0
             self._success_count = 0
             self._last_state_change = time.time()
-            logger.info(f"Circuit {self.name}: Manually reset to CLOSED")
+            logger.info("Circuit %s: Manually reset to CLOSED", self.name)
 
 
 class CircuitOpenError(Exception):

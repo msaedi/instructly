@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from decimal import Decimal
 import re
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 import ulid
@@ -11,9 +12,11 @@ from app.auth import get_password_hash
 from app.core.enums import RoleName
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import (
+    SERVICE_FORMAT_ONLINE,
     InstructorService,
     ServiceCatalog,
     ServiceCategory,
+    ServiceFormatPrice,
 )
 from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
@@ -116,6 +119,20 @@ def _resolve_instructor_profile_id(
     return profile.id
 
 
+def _build_service_format_price_models(
+    normalized_format_prices: List[Dict[str, Any]],
+) -> List[ServiceFormatPrice]:
+    """Convert normalized pricing dicts into ORM child rows."""
+    return [
+        ServiceFormatPrice(
+            id=_ulid(),
+            format=str(price_row["format"]),
+            hourly_rate=price_row["hourly_rate"],
+        )
+        for price_row in normalized_format_prices
+    ]
+
+
 def ensure_instructor_service_for_tests(
     session: Session,
     *,
@@ -123,7 +140,7 @@ def ensure_instructor_service_for_tests(
     instructor_id: Optional[str] = None,
     service_name: str = "Piano",
     duration_minutes: int = 60,
-    hourly_rate: float = 50.0,
+    format_prices: Optional[List[Dict[str, Any]]] = None,
     is_active: bool = True,
     extra_catalog_fields: Optional[Dict[str, Any]] = None,
     extra_instructor_service_fields: Optional[Dict[str, Any]] = None,
@@ -142,9 +159,24 @@ def ensure_instructor_service_for_tests(
     service_fields["duration_options"] = sorted(desired_durations)
 
     service_fields.pop("location_types", None)
-    service_fields.setdefault("offers_travel", False)
-    service_fields.setdefault("offers_at_location", False)
-    service_fields.setdefault("offers_online", True)
+    normalized_format_prices = format_prices or service_fields.pop("format_prices", None)
+    if normalized_format_prices is None:
+        normalized_format_prices = [
+            {
+                "format": SERVICE_FORMAT_ONLINE,
+                "hourly_rate": Decimal("60.00"),
+            }
+        ]
+    else:
+        normalized_format_prices = [
+            {
+                "format": str(price_row["format"]),
+                "hourly_rate": Decimal(str(price_row["hourly_rate"])).quantize(
+                    Decimal("0.01")
+                ),
+            }
+            for price_row in normalized_format_prices
+        ]
 
     profile_id = _resolve_instructor_profile_id(
         session,
@@ -227,14 +259,12 @@ def ensure_instructor_service_for_tests(
         current_options = set(service.duration_options or [])
         current_options |= desired_durations
         service.duration_options = sorted(current_options)
-        if "hourly_rate" not in service_fields:
-            service.hourly_rate = hourly_rate
+        service.format_prices = _build_service_format_price_models(normalized_format_prices)
         if "is_active" not in service_fields:
             service.is_active = is_active
         session.flush()
     else:
         service_kwargs = {
-            "hourly_rate": hourly_rate,
             "duration_options": sorted(desired_durations),
             "is_active": is_active,
         }
@@ -246,6 +276,8 @@ def ensure_instructor_service_for_tests(
             **service_kwargs,
         )
         session.add(service)
+        session.flush()
+        service.format_prices = _build_service_format_price_models(normalized_format_prices)
         session.flush()
 
     return catalog.id, service.id

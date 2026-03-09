@@ -493,13 +493,12 @@ class TestInstructorServiceEnhancements:
         instructor_svc = InstructorService(
             instructor_profile_id=mock_instructor_profile.id,
             service_catalog_id=service.id,
-            hourly_rate=80,
+            format_prices=[
+                {"format": "online", "hourly_rate": 80},
+            ],
             equipment_required=["Computer", "Python installed"],
             filter_selections={"skill_level": ["beginner", "intermediate"]},
             age_groups=["adults"],
-            offers_online=True,
-            offers_travel=False,
-            offers_at_location=False,
             is_active=True,
         )
         db.add(instructor_svc)
@@ -634,16 +633,17 @@ class TestEnhancedModels:
         instructor_service = InstructorService(
             instructor_profile_id=mock_instructor_profile.id,
             service_catalog_id=catalog_service.id,
-            hourly_rate=75,
+            format_prices=[
+                {"format": "student_location", "hourly_rate": 75},
+                {"format": "instructor_location", "hourly_rate": 75},
+                {"format": "online", "hourly_rate": 75},
+            ],
             description="Custom description",
             requirements="Basic knowledge required",
             duration_options=[30, 60, 90],
             equipment_required=["Laptop", "Notebook"],
             filter_selections={"skill_level": ["beginner", "intermediate", "advanced"]},
             age_groups=["kids", "teens"],
-            offers_travel=True,
-            offers_at_location=True,
-            offers_online=True,
             is_active=True,
         )
         db.add(instructor_service)

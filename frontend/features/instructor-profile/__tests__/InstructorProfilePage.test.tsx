@@ -75,7 +75,8 @@ const mockInstructor = {
       id: '01K2MAY484FQGFEQVN3VKGYZ59',
       service_catalog_id: '01K2MAY484FQGFEQVN3VKGYZ60',
       skill: 'Piano',
-      hourly_rate: 75,
+      min_hourly_rate: 75,
+      format_prices: [{ format: 'online', hourly_rate: 75 }],
       description: 'Piano lessons for all levels',
       duration_options: [60],
       is_active: true,
@@ -84,7 +85,8 @@ const mockInstructor = {
       id: '01K2MAY484FQGFEQVN3VKGYZ61',
       service_catalog_id: '01K2MAY484FQGFEQVN3VKGYZ62',
       skill: 'Music Theory',
-      hourly_rate: 65,
+      min_hourly_rate: 65,
+      format_prices: [{ format: 'online', hourly_rate: 65 }],
       description: 'Comprehensive music theory',
       duration_options: [45],
       is_active: true,
@@ -181,7 +183,7 @@ describe('InstructorProfilePage', () => {
           {mockInstructor.services.map((service) => (
             <div key={service.id}>
               <span>{service.skill}</span>
-              <span>${service.hourly_rate}</span>
+              <span>${service.min_hourly_rate}</span>
             </div>
           ))}
         </div>

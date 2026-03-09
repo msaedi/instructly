@@ -43,7 +43,7 @@ def test_search_results_include_teaching_locations(client: TestClient, monkeypat
                 service_catalog_id="cat-1",
                 name="Piano Lessons",
                 description=None,
-                price_per_hour=60,
+                min_hourly_rate=60,
                 relevance_score=0.9,
             ),
             other_matches=[],

@@ -117,7 +117,8 @@ describe('TimeSelectionModal preselected initialization', () => {
             {
               id: 'svc-1',
               duration_options: [30, 60, 90],
-              hourly_rate: 120,
+              min_hourly_rate: 120,
+              format_prices: [{ format: 'online', hourly_rate: 120 }],
               skill: 'Math Tutoring',
               location_types: ['online'],
             },
@@ -181,7 +182,8 @@ describe('TimeSelectionModal preselected initialization', () => {
             {
               id: 'svc-1',
               duration_options: [30, 60, 90],
-              hourly_rate: 120,
+              min_hourly_rate: 120,
+              format_prices: [{ format: 'online', hourly_rate: 120 }],
               skill: 'Math Tutoring',
               location_types: ['online'],
             },

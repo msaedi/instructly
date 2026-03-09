@@ -112,7 +112,8 @@ const instructor: TimeSelectionModalProps['instructor'] = {
     {
       id: 'svc-1',
       duration_options: [30, 45, 60],
-      hourly_rate: 120,
+      min_hourly_rate: 120,
+      format_prices: [{ format: 'online', hourly_rate: 120 }],
       skill: 'Math Tutoring',
       location_types: ['online'],
     },

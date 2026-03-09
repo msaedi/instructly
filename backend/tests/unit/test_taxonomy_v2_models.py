@@ -315,7 +315,9 @@ class TestInstructorServiceModel:
         svc = InstructorService(
             instructor_profile_id="01IPID",
             service_catalog_id="01SCID",
-            hourly_rate=75.00,
+            format_prices=[
+                {"format": "online", "hourly_rate": 75.00},
+            ],
             filter_selections={"grade_level": ["elementary"]},
         )
         assert svc.filter_selections == {"grade_level": ["elementary"]}

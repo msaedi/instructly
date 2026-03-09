@@ -106,7 +106,7 @@ class EmbeddingService:
         if self.cache:
             cached = await self.cache.get(cache_key)
             if cached is not None and isinstance(cached, list):
-                logger.debug(f"Embedding cache hit for: {normalized[:50]}")
+                logger.debug("Embedding cache hit for: %s", normalized[:50])
                 return cast(List[float], cached)
 
         # Check circuit breaker
@@ -171,7 +171,7 @@ class EmbeddingService:
                         )
                     )
                 except Exception as lock_error:
-                    logger.warning(f"[EMBED] Redis singleflight lock failed: {lock_error}")
+                    logger.warning("[EMBED] Redis singleflight lock failed: %s", lock_error)
 
                 if acquired:
                     logger.info("[EMBED] Leader for: %s", normalized[:50])
@@ -185,7 +185,7 @@ class EmbeddingService:
                             embedding = None
                         except Exception as e:
                             # Don't record_failure here - CircuitBreaker.call() already did
-                            logger.error(f"Embedding generation failed: {e}")
+                            logger.error("Embedding generation failed: %s", e)
                             embedding = None
 
                         if embedding is not None and self.cache:
@@ -196,7 +196,7 @@ class EmbeddingService:
                                     ttl=EMBEDDING_CACHE_TTL,
                                 )
                             except Exception as cache_error:
-                                logger.warning(f"Failed to cache embedding: {cache_error}")
+                                logger.warning("Failed to cache embedding: %s", cache_error)
 
                         return embedding
                     finally:
@@ -244,14 +244,14 @@ class EmbeddingService:
                 embedding = None
             except Exception as e:
                 # Don't record_failure here - CircuitBreaker.call() already did
-                logger.error(f"Embedding generation failed: {e}")
+                logger.error("Embedding generation failed: %s", e)
                 embedding = None
 
             if embedding is not None and self.cache:
                 try:
                     await self.cache.set(cache_key, embedding, ttl=EMBEDDING_CACHE_TTL)
                 except Exception as cache_error:
-                    logger.warning(f"Failed to cache embedding: {cache_error}")
+                    logger.warning("Failed to cache embedding: %s", cache_error)
 
             return embedding
         finally:
@@ -362,7 +362,7 @@ class EmbeddingService:
             embedding = await EMBEDDING_CIRCUIT.call(self.provider.embed, text)
             return embedding
         except Exception as e:
-            logger.error(f"Failed to embed service {service.id}: {e}")
+            logger.error("Failed to embed service %s: %s", service.id, e)
             return None
 
     async def embed_services_batch(
@@ -393,7 +393,7 @@ class EmbeddingService:
                     results[service.id] = embedding
 
             except Exception as e:
-                logger.error(f"Batch embedding failed: {e}")
+                logger.error("Batch embedding failed: %s", e)
                 # Try individual embedding as fallback
                 for service in batch:
                     emb = await self.embed_service(service)

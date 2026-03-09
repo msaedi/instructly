@@ -15,7 +15,8 @@ from typing import Any, Iterable, List, Optional, Sequence, cast
 
 from sqlalchemy import desc, func, or_, text
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Query, Session, joinedload, selectinload
+from sqlalchemy.orm import Query, Session, contains_eager, joinedload, selectinload
+from sqlalchemy.sql.selectable import Subquery
 
 from ..core.crypto import decrypt_report_token, encrypt_report_token, encrypt_str
 from ..core.exceptions import RepositoryException
@@ -27,7 +28,12 @@ from ..models.instructor import (
     BGCConsent,
     InstructorProfile,
 )
-from ..models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
+from ..models.service_catalog import (
+    InstructorService as Service,
+    ServiceCatalog,
+    ServiceCategory,
+    ServiceFormatPrice,
+)
 from ..models.subcategory import ServiceSubcategory
 from ..models.user import User
 from .base_repository import BaseRepository
@@ -60,6 +66,28 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             InstructorProfile.bgc_name_mismatch.is_(False),
         )
 
+    def _service_min_price_subquery(self) -> Subquery:
+        """Subquery providing min hourly rate for each instructor service."""
+        return cast(
+            Subquery,
+            self.db.query(
+                ServiceFormatPrice.service_id.label("service_id"),
+                func.min(ServiceFormatPrice.hourly_rate).label("min_hourly_rate"),
+            )
+            .group_by(ServiceFormatPrice.service_id)
+            .subquery(),
+        )
+
+    def _detail_options(self) -> tuple[Any, ...]:
+        """Common eager-loading strategy for profile detail views."""
+        return (
+            contains_eager(InstructorProfile.user)
+            .selectinload(User.service_areas)
+            .joinedload(InstructorServiceArea.neighborhood),
+            selectinload(InstructorProfile.instructor_services).joinedload(Service.catalog_entry),
+            selectinload(InstructorProfile.instructor_services).joinedload(Service.format_prices),
+        )
+
     def get_public_by_id(self, instructor_id: str) -> Optional[InstructorProfile]:
         """Return a public-facing instructor profile when visible."""
 
@@ -67,12 +95,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             query = self._apply_public_visibility(
                 self.db.query(InstructorProfile)
                 .join(InstructorProfile.user)
-                .options(
-                    selectinload(InstructorProfile.user),
-                    selectinload(InstructorProfile.instructor_services).selectinload(
-                        Service.catalog_entry
-                    ),
-                )
+                .options(*self._detail_options())
             )
             return cast(
                 Optional[InstructorProfile],
@@ -129,18 +152,9 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         try:
             query = self.db.query(InstructorProfile)
             query = query.join(InstructorProfile.user)
-            query = query.join(User.service_areas, isouter=True)
-            query = query.join(InstructorServiceArea.neighborhood, isouter=True)
             query = query.filter(User.account_status == "active")
             query = self._apply_public_visibility(query)
-            query = query.options(
-                selectinload(InstructorProfile.user)
-                .selectinload(User.service_areas)
-                .selectinload(InstructorServiceArea.neighborhood),
-                selectinload(InstructorProfile.instructor_services).selectinload(
-                    Service.catalog_entry
-                ),
-            )
+            query = query.options(*self._detail_options())
             query = query.order_by(InstructorProfile.id)
             query = query.distinct().offset(skip).limit(limit)
 
@@ -172,16 +186,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 (
                     self.db.query(InstructorProfile)
                     .join(InstructorProfile.user)
-                    .join(User.service_areas, isouter=True)
-                    .join(InstructorServiceArea.neighborhood, isouter=True)
-                    .options(
-                        selectinload(InstructorProfile.user)
-                        .selectinload(User.service_areas)
-                        .selectinload(InstructorServiceArea.neighborhood),
-                        selectinload(InstructorProfile.instructor_services).selectinload(
-                            Service.catalog_entry
-                        ),
-                    )
+                    .options(*self._detail_options())
                     .filter(InstructorProfile.user_id == user_id)
                     .first()
                 ),
@@ -1240,6 +1245,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         start_time = time.time()
 
         try:
+            service_min_price_sq = self._service_min_price_subquery()
             # Start with base query including eager loading
             query = (
                 self.db.query(InstructorProfile)
@@ -1247,6 +1253,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 .join(User.service_areas, isouter=True)
                 .join(InstructorServiceArea.neighborhood, isouter=True)
                 .join(Service, InstructorProfile.id == Service.instructor_profile_id)
+                .outerjoin(service_min_price_sq, service_min_price_sq.c.service_id == Service.id)
                 .join(ServiceCatalog, Service.service_catalog_id == ServiceCatalog.id)
                 .join(ServiceSubcategory, ServiceCatalog.subcategory_id == ServiceSubcategory.id)
                 .join(ServiceCategory, ServiceSubcategory.category_id == ServiceCategory.id)
@@ -1299,10 +1306,10 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
 
             # Apply price range filters if provided
             if min_price is not None:
-                query = query.filter(Service.hourly_rate >= min_price)
+                query = query.filter(service_min_price_sq.c.min_hourly_rate >= min_price)
 
             if max_price is not None:
-                query = query.filter(Service.hourly_rate <= max_price)
+                query = query.filter(service_min_price_sq.c.min_hourly_rate <= max_price)
 
             # Apply age group filter if provided
             if age_group:
@@ -1384,6 +1391,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             return {}
 
         try:
+            service_min_price_sq = self._service_min_price_subquery()
             # Build base query with all joins and eager loading
             query = (
                 self.db.query(InstructorProfile, Service.service_catalog_id)
@@ -1391,6 +1399,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 .join(User.service_areas, isouter=True)
                 .join(InstructorServiceArea.neighborhood, isouter=True)
                 .join(Service, InstructorProfile.id == Service.instructor_profile_id)
+                .outerjoin(service_min_price_sq, service_min_price_sq.c.service_id == Service.id)
                 .options(
                     selectinload(InstructorProfile.user),
                     selectinload(InstructorProfile.user)
@@ -1407,9 +1416,9 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
 
             # Apply price filters
             if min_price is not None:
-                query = query.filter(Service.hourly_rate >= min_price)
+                query = query.filter(service_min_price_sq.c.min_hourly_rate >= min_price)
             if max_price is not None:
-                query = query.filter(Service.hourly_rate <= max_price)
+                query = query.filter(service_min_price_sq.c.min_hourly_rate <= max_price)
 
             # Active services and users only
             query = query.filter(Service.is_active == True)

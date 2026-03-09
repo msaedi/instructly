@@ -6,9 +6,15 @@ Schemas for service catalog endpoints.
 from datetime import datetime
 from typing import Dict, List, Literal, Optional
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator
 
 from ._strict_base import StrictModel, StrictRequestModel
+from .base import Money
+from .service_pricing import (
+    ServiceFormatPriceIn,
+    ServiceFormatPriceOut,
+    validate_unique_format_prices,
+)
 
 AgeGroup = Literal["toddler", "kids", "teens", "adults"]
 
@@ -63,19 +69,31 @@ class InstructorServiceCreate(StrictRequestModel):
     """Create instructor service from catalog."""
 
     catalog_service_id: str = Field(..., description="ID of the catalog service")
-    hourly_rate: float = Field(..., gt=0, le=10000, description="Hourly rate for this service")
+    format_prices: List[ServiceFormatPriceIn] = Field(
+        ..., min_length=1, description="Per-format hourly pricing for this service"
+    )
     custom_description: Optional[str] = Field(None, description="Custom description (optional)")
     duration_options: Optional[List[int]] = Field(
         None,
         description="Custom duration options in minutes (uses catalog defaults if not provided)",
     )
 
+    @field_validator("format_prices")
+    def validate_format_prices(
+        cls, value: List[ServiceFormatPriceIn]
+    ) -> List[ServiceFormatPriceIn]:
+        validate_unique_format_prices(value)
+        return value
+
     model_config = ConfigDict(
         **StrictRequestModel.model_config,
         json_schema_extra={
             "example": {
                 "catalog_service_id": "01JEXAMPLE00000000000000",
-                "hourly_rate": 75.0,
+                "format_prices": [
+                    {"format": "student_location", "hourly_rate": 90.0},
+                    {"format": "online", "hourly_rate": 75.0},
+                ],
                 "custom_description": "Specializing in jazz piano for intermediate students",
                 "duration_options": [30, 45, 60],
             }
@@ -94,26 +112,19 @@ class InstructorServiceResponse(StrictModel):
         description="Human-readable name of the catalog service",
     )
     category: str
-    hourly_rate: float
+    min_hourly_rate: Money | None = None
+    format_prices: List[ServiceFormatPriceOut] = Field(default_factory=list)
     description: Optional[str] = None
     filter_selections: Dict[str, List[str]] = Field(default_factory=dict)
     duration_options: List[int] = Field(default_factory=lambda: [60])
     offers_travel: bool = False
     offers_at_location: bool = False
-    offers_online: bool = True
+    offers_online: bool = False
     is_active: bool = True
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True, extra="forbid", validate_assignment=True)
-
-
-class InstructorServiceCapabilitiesUpdate(StrictRequestModel):
-    """Partial update for instructor service location capabilities."""
-
-    offers_travel: Optional[bool] = None
-    offers_at_location: Optional[bool] = None
-    offers_online: Optional[bool] = None
 
 
 class ServiceCatalogSummary(StrictModel):

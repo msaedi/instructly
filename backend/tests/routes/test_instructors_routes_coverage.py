@@ -34,7 +34,11 @@ def _profile_payload(*, user_id: str, profile_id: str) -> dict:
             {
                 "id": "service-1",
                 "service_catalog_id": "catalog-1",
-                "hourly_rate": 85,
+                "min_hourly_rate": 85,
+                "format_prices": [{"format": "online", "hourly_rate": 85}],
+                "offers_travel": False,
+                "offers_at_location": False,
+                "offers_online": True,
                 "service_catalog_name": "Piano lessons",
             }
         ],
@@ -44,7 +48,14 @@ def _profile_payload(*, user_id: str, profile_id: str) -> dict:
 def _profile_object(*, user_id: str, profile_id: str) -> SimpleNamespace:
     payload = _profile_payload(user_id=user_id, profile_id=profile_id)
     user = SimpleNamespace(**payload["user"])
-    services = [SimpleNamespace(**svc) for svc in payload["services"]]
+    services = []
+    for svc in payload["services"]:
+        service_payload = {
+            **svc,
+            "serialized_format_prices": svc.get("format_prices", []),
+            "catalog_entry": SimpleNamespace(name=svc.get("service_catalog_name")),
+        }
+        services.append(SimpleNamespace(**service_payload))
     payload = {**payload, "user": user, "services": services}
     return SimpleNamespace(**payload)
 
@@ -114,7 +125,7 @@ async def test_create_profile_handles_existing_profile(test_instructor):
                 services=[
                     {
                         "service_catalog_id": "catalog-1",
-                        "hourly_rate": 50,
+                        "format_prices": [{"format": "online", "hourly_rate": 50}],
                     }
                 ],
             ),

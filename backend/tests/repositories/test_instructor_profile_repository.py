@@ -167,7 +167,9 @@ class TestInstructorProfileRepositoryEagerLoading:
             service = Service(
                 instructor_profile_id=profile.id,
                 service_catalog_id=catalog_service.id,
-                hourly_rate=50.0 + i * 10,
+                format_prices=[
+                    {"format": "online", "hourly_rate": 50.0 + i * 10},
+                ],
                 is_active=(i < 2),  # First 2 are active
             )
             db.add(service)
@@ -329,7 +331,7 @@ class TestInstructorProfileRepositoryIntegration:
             db.flush()
 
         inactive_service = Service(
-            instructor_profile_id=profile.id, service_catalog_id=inactive_catalog.id, hourly_rate=100.0, is_active=False
+            instructor_profile_id=profile.id, service_catalog_id=inactive_catalog.id, format_prices=[{"format": "online", "hourly_rate": 100.0}], is_active=False
         )
         db.add(inactive_service)
         db.flush()
@@ -430,7 +432,9 @@ class TestPerformanceImprovement:
                 service = Service(
                     instructor_profile_id=profile.id,
                     service_catalog_id=catalog_service.id,
-                    hourly_rate=50.0 + (i * 10),
+                    format_prices=[
+                        {"format": "online", "hourly_rate": 50.0 + (i * 10)},
+                    ],
                     is_active=True,
                 )
                 db.add(service)
@@ -577,7 +581,9 @@ class TestDiagnosticAndDebugging:
             service = Service(
                 instructor_profile_id=profile.id,
                 service_catalog_id=catalog_service.id,
-                hourly_rate=60.0,
+                format_prices=[
+                    {"format": "online", "hourly_rate": 60.0},
+                ],
                 is_active=(i < 2),  # First 2 are active
             )
             db.add(service)
@@ -704,7 +710,9 @@ class TestDiagnosticAndDebugging:
             service = Service(
                 instructor_profile_id=profile.id,
                 service_catalog_id=catalog_service.id,
-                hourly_rate=50.0,
+                format_prices=[
+                    {"format": "online", "hourly_rate": 50.0},
+                ],
                 is_active=(i < 2),  # First 2 active, last 2 inactive
             )
             db.add(service)

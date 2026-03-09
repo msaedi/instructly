@@ -96,7 +96,9 @@ def test_immediate_vs_scheduled_boundary(db: Session) -> None:
         instructor_profile_id=profile.id,
         service_name="Svc",
         duration_minutes=duration_minutes,
-        hourly_rate=100.0,
+        format_prices=[
+            {"format": "online", "hourly_rate": 100.0},
+        ],
         extra_instructor_service_fields={"duration_options": [30, 60, 90]},
     )
 

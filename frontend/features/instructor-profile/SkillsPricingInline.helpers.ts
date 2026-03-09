@@ -1,5 +1,6 @@
 import type { CategoryServiceDetail } from '@/features/shared/api/types';
 import { logger } from '@/lib/logger';
+import type { FormatPriceState } from '@/lib/pricing/formatPricing';
 import {
   ALL_AUDIENCE_GROUPS,
   DEFAULT_SKILL_LEVELS,
@@ -12,15 +13,12 @@ export type SelectedService = {
   subcategory_id: string;
   service_catalog_name?: string | null;
   name?: string | null;
-  hourly_rate: string;
+  format_prices: FormatPriceState;
   eligible_age_groups: AudienceGroup[];
   filter_selections: FilterSelections;
   description?: string;
   equipment?: string;
   duration_options: number[];
-  offers_travel: boolean;
-  offers_at_location: boolean;
-  offers_online: boolean;
 };
 
 export const getPendingHydrationAcceptance = ({

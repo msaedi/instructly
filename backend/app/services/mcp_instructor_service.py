@@ -156,7 +156,11 @@ class MCPInstructorService(BaseService):
                     "name": getattr(catalog, "name", ""),
                     "slug": getattr(catalog, "slug", ""),
                     "category": getattr(category, "name", "") if category else "",
-                    "hourly_rate": service.hourly_rate,
+                    "min_hourly_rate": getattr(service, "min_hourly_rate", None),
+                    "format_prices": getattr(service, "serialized_format_prices", []),
+                    "offers_travel": bool(getattr(service, "offers_travel", False)),
+                    "offers_at_location": bool(getattr(service, "offers_at_location", False)),
+                    "offers_online": bool(getattr(service, "offers_online", False)),
                     "is_active": bool(getattr(service, "is_active", False)),
                 }
             )

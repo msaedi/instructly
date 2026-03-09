@@ -410,7 +410,7 @@ export default function InstructorDashboard() {
                         <p className="text-sm text-gray-600 dark:text-gray-400">{service.description}</p>
                       )}
                     </div>
-                    <span className="font-semibold text-[#7E22CE]">${service.hourly_rate}/hr</span>
+                    <span className="font-semibold text-[#7E22CE]">${service.min_hourly_rate}/hr</span>
                   </div>
                 ))}
               </div>

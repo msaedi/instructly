@@ -13,6 +13,11 @@ from unittest.mock import ANY, MagicMock, patch
 import pytest
 
 
+def _format_prices(rate: float = 60.0, *formats: str) -> list[dict[str, float | str]]:
+    selected_formats = formats or ("online",)
+    return [{"format": format_name, "hourly_rate": rate} for format_name in selected_formats]
+
+
 class TestGetPublicInstructorProfile:
     """Tests for get_public_instructor_profile with caching (lines 377-399)."""
 
@@ -123,6 +128,18 @@ class TestAutoBioGeneration:
         service.service_repository = MagicMock()
         service.catalog_repository = MagicMock()
         service.user_repository = MagicMock()
+        service.service_format_pricing_repository = MagicMock()
+        service.service_format_pricing_repository.get_prices_for_services.return_value = {}
+        service.config_service = MagicMock()
+        service.config_service.get_pricing_config.return_value = (
+            {
+                "price_floor_cents": {
+                    "private_in_person": 8000,
+                    "private_remote": 6000,
+                }
+            },
+            None,
+        )
 
         # Setup profile
         mock_profile = MagicMock()
@@ -152,20 +169,14 @@ class TestAutoBioGeneration:
 
         update_data.services = [
             ServiceCreate(
-                offers_travel=False,
-                offers_at_location=False,
-                offers_online=True,
                 service_catalog_id="cat-yoga",
-                hourly_rate=60.0,
+                format_prices=_format_prices(60.0),
                 description="Yoga sessions",
                 duration_options=[60],
             ),
             ServiceCreate(
-                offers_travel=False,
-                offers_at_location=False,
-                offers_online=True,
                 service_catalog_id="cat-pilates",
-                hourly_rate=65.0,
+                format_prices=_format_prices(65.0),
                 description="Pilates sessions",
                 duration_options=[60],
             ),
@@ -199,6 +210,18 @@ class TestAutoBioGeneration:
         service.service_repository = MagicMock()
         service.catalog_repository = MagicMock()
         service.user_repository = MagicMock()
+        service.service_format_pricing_repository = MagicMock()
+        service.service_format_pricing_repository.get_prices_for_services.return_value = {}
+        service.config_service = MagicMock()
+        service.config_service.get_pricing_config.return_value = (
+            {
+                "price_floor_cents": {
+                    "private_in_person": 8000,
+                    "private_remote": 6000,
+                }
+            },
+            None,
+        )
 
         # Setup profile
         mock_profile = MagicMock()
@@ -486,6 +509,91 @@ class TestGoLiveMethod:
             service.go_live("user-123")
 
         assert exc_info.value.code == "name_mismatch_block"
+
+    def test_go_live_blocked_by_student_location_without_service_areas(self):
+        """Test go_live fails when a service has student_location but no service areas."""
+        from app.core.exceptions import BusinessRuleException
+        from app.services.instructor_service import InstructorService
+
+        mock_db = MagicMock()
+        service = InstructorService(mock_db)
+
+        mock_profile = MagicMock()
+        mock_profile.id = "profile-123"
+        mock_profile.user_id = "user-123"
+        mock_profile.skills_configured = True
+        mock_profile.identity_verified_at = "2024-01-01T00:00:00Z"
+        mock_profile.identity_name_mismatch = False
+        mock_profile.bgc_name_mismatch = False
+        mock_profile.bgc_status = "passed"
+        service.profile_repository = MagicMock()
+        service.profile_repository.find_one_by.return_value = mock_profile
+
+        # Active service with student_location format
+        mock_fp = MagicMock()
+        mock_fp.format = "student_location"
+        mock_svc = MagicMock()
+        mock_svc.format_prices = [mock_fp]
+        service.service_repository = MagicMock()
+        service.service_repository.find_by.return_value = [mock_svc]
+
+        # No service areas
+        service.service_area_repository = MagicMock()
+        service.service_area_repository.list_for_instructor.return_value = []
+
+        with patch("app.services.instructor_service.StripeService") as mock_stripe_cls:
+            mock_stripe_cls.return_value.check_account_status.return_value = {
+                "has_account": True,
+                "onboarding_completed": True,
+            }
+            with patch("app.services.instructor_service.ConfigService"):
+                with patch("app.services.instructor_service.PricingService"):
+                    with pytest.raises(BusinessRuleException) as exc_info:
+                        service.go_live("user-123")
+
+        assert exc_info.value.code == "NO_SERVICE_AREAS"
+
+    def test_go_live_blocked_by_instructor_location_without_teaching_locations(self):
+        """Test go_live fails when a service has instructor_location but no teaching locations."""
+        from app.core.exceptions import BusinessRuleException
+        from app.services.instructor_service import InstructorService
+
+        mock_db = MagicMock()
+        service = InstructorService(mock_db)
+
+        mock_profile = MagicMock()
+        mock_profile.id = "profile-123"
+        mock_profile.user_id = "user-123"
+        mock_profile.skills_configured = True
+        mock_profile.identity_verified_at = "2024-01-01T00:00:00Z"
+        mock_profile.identity_name_mismatch = False
+        mock_profile.bgc_name_mismatch = False
+        mock_profile.bgc_status = "passed"
+        service.profile_repository = MagicMock()
+        service.profile_repository.find_one_by.return_value = mock_profile
+
+        # Active service with instructor_location format
+        mock_fp = MagicMock()
+        mock_fp.format = "instructor_location"
+        mock_svc = MagicMock()
+        mock_svc.format_prices = [mock_fp]
+        service.service_repository = MagicMock()
+        service.service_repository.find_by.return_value = [mock_svc]
+
+        # No teaching locations
+        service.get_instructor_teaching_locations = MagicMock(return_value=[])
+
+        with patch("app.services.instructor_service.StripeService") as mock_stripe_cls:
+            mock_stripe_cls.return_value.check_account_status.return_value = {
+                "has_account": True,
+                "onboarding_completed": True,
+            }
+            with patch("app.services.instructor_service.ConfigService"):
+                with patch("app.services.instructor_service.PricingService"):
+                    with pytest.raises(BusinessRuleException) as exc_info:
+                        service.go_live("user-123")
+
+        assert exc_info.value.code == "NO_TEACHING_LOCATIONS"
 
 
 class TestGetInstructorUser:

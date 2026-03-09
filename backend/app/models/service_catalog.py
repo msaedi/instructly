@@ -14,13 +14,15 @@ The 3-level taxonomy is: Category → Subcategory → Service
 Categories derive through subcategories (no direct category_id on services).
 """
 
+from decimal import Decimal
 import logging
-from typing import Any, Dict, List, Optional, Set, cast
+from typing import Any, Dict, List, Optional, Set, TypedDict, cast
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     Column,
     DateTime,
     Float,
@@ -30,16 +32,41 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
+    select,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 import ulid
 
+from ..core.exceptions import BusinessRuleException
 from ..database import Base
 from .types import IntegerArrayType, StringArrayType
 
 logger = logging.getLogger(__name__)
+
+SERVICE_FORMAT_STUDENT_LOCATION = "student_location"
+SERVICE_FORMAT_INSTRUCTOR_LOCATION = "instructor_location"
+SERVICE_FORMAT_ONLINE = "online"
+SERVICE_PRICE_FORMAT_ORDER = (
+    SERVICE_FORMAT_STUDENT_LOCATION,
+    SERVICE_FORMAT_INSTRUCTOR_LOCATION,
+    SERVICE_FORMAT_ONLINE,
+)
+BOOKING_TO_SERVICE_FORMAT = {
+    "student_location": SERVICE_FORMAT_STUDENT_LOCATION,
+    "instructor_location": SERVICE_FORMAT_INSTRUCTOR_LOCATION,
+    "online": SERVICE_FORMAT_ONLINE,
+    "neutral_location": SERVICE_FORMAT_INSTRUCTOR_LOCATION,
+}
+PRICE_QUANTUM = Decimal("0.01")
+
+
+class SerializedFormatPrice(TypedDict):
+    format: str
+    hourly_rate: Decimal
 
 
 class ServiceCategory(Base):
@@ -244,7 +271,9 @@ class ServiceCatalog(Base):
     def price_range(self) -> tuple[Optional[float], Optional[float]]:
         """Get min and max prices from active instructors."""
         active_prices: List[float] = [
-            float(service.hourly_rate) for service in self.instructor_services if service.is_active
+            float(service.min_hourly_rate)
+            for service in self.instructor_services
+            if service.is_active and service.min_hourly_rate is not None
         ]
 
         if not active_prices:
@@ -302,7 +331,8 @@ class ServiceCatalog(Base):
                     "id": service.instructor_profile.user_id,
                     "first_name": service.instructor_profile.user.first_name,
                     "last_name": service.instructor_profile.user.last_name,
-                    "hourly_rate": service.hourly_rate,
+                    "min_hourly_rate": service.min_hourly_rate,
+                    "format_prices": service.serialized_format_prices,
                     "custom_description": service.description,
                 }
                 for service in self.instructor_services
@@ -323,7 +353,6 @@ class InstructorService(Base):
         id: ULID primary key
         instructor_profile_id: FK to instructor_profiles
         service_catalog_id: FK to service_catalog
-        hourly_rate: Instructor's rate for this service
         description: Instructor's custom description
         requirements: Requirements for students
         duration_options: Available session durations in minutes
@@ -354,7 +383,6 @@ class InstructorService(Base):
         nullable=False,
         index=True,
     )
-    hourly_rate = Column(Numeric(10, 2), nullable=False)
     description = Column(Text, nullable=True)
     requirements = Column(Text, nullable=True)
     duration_options: Mapped[List[int]] = mapped_column(
@@ -370,9 +398,6 @@ class InstructorService(Base):
         default=dict,
         server_default="{}",
     )
-    offers_travel = Column(Boolean, nullable=False, default=False)
-    offers_at_location = Column(Boolean, nullable=False, default=False)
-    offers_online = Column(Boolean, nullable=False, default=True)
     is_active = Column(Boolean, nullable=False, default=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -388,20 +413,55 @@ class InstructorService(Base):
     # Relationships
     instructor_profile = relationship("InstructorProfile", back_populates="instructor_services")
     catalog_entry = relationship("ServiceCatalog", back_populates="instructor_services")
+    # IMPORTANT: Always eager-load this relationship when accessing pricing
+    # properties (min_hourly_rate, offers_*, prices_by_format, serialized_format_prices).
+    # All repository methods that return InstructorService include
+    # joinedload(InstructorService.format_prices).
+    format_prices = relationship(
+        "ServiceFormatPrice",
+        back_populates="service",
+        cascade="all, delete-orphan",
+        order_by="ServiceFormatPrice.created_at",
+    )
 
-    def __init__(self, **kwargs: Any) -> None:
-        """Initialize service with logging."""
-        super().__init__(**kwargs)
-        logger.debug(
-            f"Creating instructor service for catalog {kwargs.get('service_catalog_id')} "
-            f"and instructor {kwargs.get('instructor_profile_id')}"
-        )
+    @staticmethod
+    def _coerce_decimal_rate(value: Any) -> Decimal:
+        """Normalize arbitrary numeric input to a two-decimal hourly rate."""
+        return Decimal(str(value)).quantize(PRICE_QUANTUM)
+
+    @validates("format_prices")
+    def _coerce_format_price_row(self, _key: str, price_row: Any) -> "ServiceFormatPrice":
+        """Accept dict-style relationship rows while keeping child models canonical."""
+        if isinstance(price_row, ServiceFormatPrice):
+            if price_row.hourly_rate is not None:
+                price_row.hourly_rate = self._coerce_decimal_rate(price_row.hourly_rate)
+            return price_row
+
+        if isinstance(price_row, dict):
+            hourly_rate = price_row.get("hourly_rate")
+            if hourly_rate is None:
+                raise ValueError("format_prices entries must include hourly_rate")
+            fmt = str(price_row.get("format", ""))
+            if not fmt:
+                raise ValueError(
+                    f"format_prices entries must have a non-empty format "
+                    f"(valid: {', '.join(SERVICE_PRICE_FORMAT_ORDER)})"
+                )
+            return ServiceFormatPrice(
+                format=fmt,
+                hourly_rate=self._coerce_decimal_rate(hourly_rate),
+            )
+
+        raise TypeError("format_prices entries must be ServiceFormatPrice or dict")
 
     def __repr__(self) -> str:
         """String representation."""
         status = " (inactive)" if not self.is_active else ""
         catalog_name = self.catalog_entry.name if self.catalog_entry else "Unknown"
-        return f"<InstructorService {catalog_name} ${self.hourly_rate}/hr{status}>"
+        headline_rate = self.min_hourly_rate
+        if headline_rate is None:
+            return f"<InstructorService {catalog_name} no-pricing{status}>"
+        return f"<InstructorService {catalog_name} ${headline_rate}/hr{status}>"
 
     @property
     def name(self) -> str:
@@ -433,18 +493,228 @@ class InstructorService(Base):
                 return slug
         return "unknown"
 
-    def session_price(self, duration_minutes: int) -> float:
+    @property
+    def prices_by_format(self) -> Dict[str, Decimal]:
+        """Return a format->hourly_rate mapping for active pricing rows.
+
+        Cached per instance to avoid recomputation across multiple property
+        accesses (min_hourly_rate, offers_*, session_price, etc.).
+        Invalidated by _invalidate_price_cache() after sync_format_prices.
+        """
+        cache: dict[str, Decimal] | None = getattr(self, "_prices_by_format_cache", None)
+        if cache is not None:
+            return cache
+        price_rows = getattr(self, "format_prices", None) or []
+        result: dict[str, Decimal] = {
+            row.format: Decimal(str(row.hourly_rate)) for row in price_rows
+        }
+        object.__setattr__(self, "_prices_by_format_cache", result)
+        return result
+
+    def _invalidate_price_cache(self) -> None:
+        """Clear cached prices_by_format after format_prices changes."""
+        try:
+            object.__delattr__(self, "_prices_by_format_cache")
+        except AttributeError:
+            pass
+
+    @property
+    def sorted_format_prices(self) -> List["ServiceFormatPrice"]:
+        """Return pricing rows in a stable format order for serialization."""
+        price_rows = list(getattr(self, "format_prices", None) or [])
+        rank = {fmt: idx for idx, fmt in enumerate(SERVICE_PRICE_FORMAT_ORDER)}
+        return sorted(price_rows, key=lambda row: rank.get(row.format, len(rank)))
+
+    @property
+    def serialized_format_prices(self) -> list[SerializedFormatPrice]:
+        """Serialize child format prices for API payloads."""
+        return [
+            {
+                "format": row.format,
+                "hourly_rate": Decimal(str(row.hourly_rate)),
+            }
+            for row in self.sorted_format_prices
+        ]
+
+    @property
+    def min_hourly_rate(self) -> Optional[Decimal]:
+        """Return the lowest enabled hourly rate for headline display/filtering."""
+        price_map = self.prices_by_format
+        if not price_map:
+            return None
+        return min(price_map.values())
+
+    def _get_hourly_rate(self) -> Optional[Decimal]:
+        """Legacy convenience accessor backed by the minimum enabled format rate."""
+        return self.min_hourly_rate
+
+    def _hourly_rate_expression(
+        cls,
+    ) -> Any:  # noqa: N805 — SQLAlchemy hybrid expression (classmethod by convention)
+        return (
+            select(func.min(ServiceFormatPrice.hourly_rate))
+            .where(ServiceFormatPrice.service_id == cls.id)
+            .correlate(cls)
+            .scalar_subquery()
+        )
+
+    hourly_rate = hybrid_property(_get_hourly_rate, expr=_hourly_rate_expression)
+
+    def _set_format_enabled(self, format_name: str, enabled: bool) -> None:
+        """Internal helper for legacy boolean setters used by tests and seed scripts."""
+        price_rows = list(getattr(self, "format_prices", None) or [])
+        existing = next((row for row in price_rows if row.format == format_name), None)
+        if enabled:
+            if existing is not None:
+                return
+            seed_rate = self.min_hourly_rate or Decimal("100.00")
+            price_rows.append(
+                ServiceFormatPrice(
+                    format=format_name,
+                    hourly_rate=self._coerce_decimal_rate(seed_rate),
+                )
+            )
+            self.format_prices = price_rows
+            self._invalidate_price_cache()
+            return
+        if existing is not None:
+            self.format_prices = [row for row in price_rows if row.format != format_name]
+            self._invalidate_price_cache()
+
+    def _get_offers_travel(self) -> bool:
+        """Whether the service offers lessons at the student's location."""
+        return SERVICE_FORMAT_STUDENT_LOCATION in self.prices_by_format
+
+    def _set_offers_travel(self, enabled: bool) -> None:
+        self._set_format_enabled(SERVICE_FORMAT_STUDENT_LOCATION, bool(enabled))
+
+    def _offers_travel_expression(cls) -> Any:  # noqa: N805 — SQLAlchemy hybrid expression
+        return (
+            select(ServiceFormatPrice.id)
+            .where(
+                ServiceFormatPrice.service_id == cls.id,
+                ServiceFormatPrice.format == SERVICE_FORMAT_STUDENT_LOCATION,
+            )
+            .exists()
+        )
+
+    offers_travel = hybrid_property(
+        _get_offers_travel,
+        fset=_set_offers_travel,
+        expr=_offers_travel_expression,
+    )
+
+    def _get_offers_at_location(self) -> bool:
+        """Whether the service offers lessons at the instructor's location."""
+        return SERVICE_FORMAT_INSTRUCTOR_LOCATION in self.prices_by_format
+
+    def _set_offers_at_location(self, enabled: bool) -> None:
+        self._set_format_enabled(SERVICE_FORMAT_INSTRUCTOR_LOCATION, bool(enabled))
+
+    def _offers_at_location_expression(cls) -> Any:  # noqa: N805 — SQLAlchemy hybrid expression
+        return (
+            select(ServiceFormatPrice.id)
+            .where(
+                ServiceFormatPrice.service_id == cls.id,
+                ServiceFormatPrice.format == SERVICE_FORMAT_INSTRUCTOR_LOCATION,
+            )
+            .exists()
+        )
+
+    offers_at_location = hybrid_property(
+        _get_offers_at_location,
+        fset=_set_offers_at_location,
+        expr=_offers_at_location_expression,
+    )
+
+    def _get_offers_online(self) -> bool:
+        """Whether the service offers online lessons."""
+        return SERVICE_FORMAT_ONLINE in self.prices_by_format
+
+    def _set_offers_online(self, enabled: bool) -> None:
+        self._set_format_enabled(SERVICE_FORMAT_ONLINE, bool(enabled))
+
+    def _offers_online_expression(cls) -> Any:  # noqa: N805 — SQLAlchemy hybrid expression
+        return (
+            select(ServiceFormatPrice.id)
+            .where(
+                ServiceFormatPrice.service_id == cls.id,
+                ServiceFormatPrice.format == SERVICE_FORMAT_ONLINE,
+            )
+            .exists()
+        )
+
+    offers_online = hybrid_property(
+        _get_offers_online,
+        fset=_set_offers_online,
+        expr=_offers_online_expression,
+    )
+
+    def format_for_booking_location_type(self, location_type: Optional[str]) -> str:
+        """Resolve booking semantics to the persisted pricing format."""
+        normalized_location = BOOKING_TO_SERVICE_FORMAT.get(
+            str(location_type or SERVICE_FORMAT_ONLINE).lower(),
+            SERVICE_FORMAT_ONLINE,
+        )
+        price_map = self.prices_by_format
+        if str(location_type or "").lower() != "neutral_location":
+            if normalized_location not in price_map:
+                raise BusinessRuleException(
+                    f"No pricing configured for requested booking format '{normalized_location}'",
+                    code="PRICING_FORMAT_NOT_FOUND",
+                    details={
+                        "location_type": location_type,
+                        "requested_format": normalized_location,
+                    },
+                )
+            return normalized_location
+
+        # neutral_location (park, library, etc.) — both parties travel to a third place.
+        # Prefer instructor_location rate: the instructor isn't hosting, similar cost structure.
+        # Fall back to student_location rate if instructor_location not offered.
+        # Never fall back to online — neutral implies a physical meeting.
+        if SERVICE_FORMAT_INSTRUCTOR_LOCATION in price_map:
+            return SERVICE_FORMAT_INSTRUCTOR_LOCATION
+        if SERVICE_FORMAT_STUDENT_LOCATION in price_map:
+            return SERVICE_FORMAT_STUDENT_LOCATION
+
+        raise BusinessRuleException(
+            "No pricing configured for requested booking format 'neutral_location'",
+            code="PRICING_FORMAT_NOT_FOUND",
+            details={
+                "location_type": location_type,
+                "requested_format": "neutral_location",
+            },
+        )
+
+    def hourly_rate_for_location_type(self, location_type: Optional[str]) -> Decimal:
+        """Resolve a booking location type to its configured hourly rate."""
+        price_map = self.prices_by_format
+        pricing_format = self.format_for_booking_location_type(location_type)
+        return price_map[pricing_format]
+
+    def session_price(self, duration_minutes: int, format: str) -> Decimal:
         """
         Calculate the price for a session of given duration.
 
         Args:
             duration_minutes: Duration of the session in minutes
+            format: One of the persisted service pricing formats
 
         Returns:
-            float: Price for the session
+            Decimal: Price for the session
         """
-        hourly_rate = float(self.hourly_rate)
-        return (hourly_rate * duration_minutes) / 60.0
+        price_map = self.prices_by_format
+        if format not in price_map:
+            raise ValueError(f"No pricing configured for format '{format}'")
+        hourly_rate = price_map[format]
+        minutes = Decimal(int(duration_minutes))
+        return (hourly_rate * minutes / Decimal("60")).quantize(PRICE_QUANTUM)
+
+    def price_for_booking(self, duration_minutes: int, location_type: Optional[str]) -> Decimal:
+        """Calculate a booking total using booking location_type semantics."""
+        pricing_format = self.format_for_booking_location_type(location_type)
+        return self.session_price(duration_minutes, pricing_format)
 
     def deactivate(self) -> None:
         """
@@ -475,7 +745,8 @@ class InstructorService(Base):
             "service_catalog_id": self.service_catalog_id,
             "name": self.catalog_entry.name if self.catalog_entry else "Unknown Service",
             "category": self.category,
-            "hourly_rate": self.hourly_rate,
+            "min_hourly_rate": self.min_hourly_rate,
+            "format_prices": self.serialized_format_prices,
             "description": self.description
             or (self.catalog_entry.description if self.catalog_entry else None),
             "requirements": self.requirements,
@@ -483,10 +754,52 @@ class InstructorService(Base):
             "equipment_required": self.equipment_required,
             "age_groups": self.age_groups,
             "filter_selections": self.filter_selections,
+            "offers_travel": self.offers_travel,
+            "offers_at_location": self.offers_at_location,
+            "offers_online": self.offers_online,
             "is_active": self.is_active,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
+
+
+class ServiceFormatPrice(Base):
+    """Per-format hourly pricing for an instructor service."""
+
+    __tablename__ = "service_format_pricing"
+
+    id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
+    service_id = Column(
+        String(26),
+        ForeignKey("instructor_services.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    format = Column(String(32), nullable=False)
+    hourly_rate = Column(Numeric(10, 2), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("service_id", "format", name="uq_service_format_pricing_service_format"),
+        CheckConstraint("hourly_rate > 0", name="check_service_format_price_positive"),
+        CheckConstraint("hourly_rate <= 1000", name="check_service_format_price_cap"),
+        CheckConstraint(
+            "format IN ('student_location', 'instructor_location', 'online')",
+            name="check_service_format_price_format",
+        ),
+        Index("idx_service_format_pricing_format_hourly_rate", "format", "hourly_rate"),
+        Index(
+            "idx_service_format_pricing_service_covering",
+            "service_id",
+            postgresql_include=["hourly_rate", "format"],
+        ),
+    )
+
+    service = relationship("InstructorService", back_populates="format_prices")
+
+    def __repr__(self) -> str:
+        return f"<ServiceFormatPrice service_id={self.service_id} format={self.format}>"
 
 
 class ServiceAnalytics(Base):

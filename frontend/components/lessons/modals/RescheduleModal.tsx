@@ -28,7 +28,7 @@ export function RescheduleModal({ isOpen, onClose, lesson }: RescheduleModalProp
       {
         id: (lesson as unknown as { service?: { id?: string } }).service?.id || '1',
         duration_options: [lesson.duration_minutes], // Use the current lesson duration
-        hourly_rate: lesson.hourly_rate,
+        min_hourly_rate: lesson.hourly_rate,
         skill: lesson.service_name,
       },
     ],

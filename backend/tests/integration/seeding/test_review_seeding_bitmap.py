@@ -66,12 +66,11 @@ def test_backfill_and_review_booking_creation(db: Session):
     service = InstructorService(
         instructor_profile_id=profile.id,
         service_catalog_id=catalog_entry.id,
-        hourly_rate=50.0,
+        format_prices=[
+            {"format": "online", "hourly_rate": 50.0},
+        ],
         duration_options=[30, 60],
-        offers_online=True,
-        offers_travel=False,
-        offers_at_location=False,
-    )
+                            )
     db.add(service)
     db.flush()
 

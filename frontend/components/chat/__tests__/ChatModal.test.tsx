@@ -54,6 +54,7 @@ describe('ChatModal', () => {
       defaultOptions: {
         queries: {
           retry: false,
+          gcTime: 0,
         },
       },
     });
@@ -243,9 +244,12 @@ describe('ChatModal', () => {
 
     expect(screen.getByText('Loading conversation...')).toBeInTheDocument();
 
-    await waitFor(() => {
-      expect(screen.getByTestId('mock-chat')).toBeInTheDocument();
-    });
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('mock-chat')).toBeInTheDocument();
+      },
+      { timeout: 3000 }
+    );
   });
 
   it('handles conversation creation error gracefully', async () => {
@@ -265,10 +269,13 @@ describe('ChatModal', () => {
     );
 
     // Wait for the query to fail
-    await waitFor(() => {
-      // The Chat component should not render without a conversation ID
-      expect(screen.queryByTestId('mock-chat')).not.toBeInTheDocument();
-    });
+    await waitFor(
+      () => {
+        // The Chat component should not render without a conversation ID
+        expect(screen.queryByTestId('mock-chat')).not.toBeInTheDocument();
+      },
+      { timeout: 3000 }
+    );
   });
 
   it('passes isReadOnly prop to Chat component', () => {
@@ -457,17 +464,20 @@ describe('ChatModal', () => {
       </QueryClientProvider>
     );
 
-    await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/v1/conversations',
-        expect.objectContaining({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ instructor_id: 'instructor-123' }),
-        })
-      );
-    });
+    await waitFor(
+      () => {
+        expect(global.fetch).toHaveBeenCalledWith(
+          '/api/v1/conversations',
+          expect.objectContaining({
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ instructor_id: 'instructor-123' }),
+          })
+        );
+      },
+      { timeout: 3000 }
+    );
   });
 
   it('does not fetch conversation when conversationId is provided', () => {

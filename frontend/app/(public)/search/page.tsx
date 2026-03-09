@@ -18,6 +18,7 @@ import { withApiBase } from '@/lib/apiBase';
 import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { SearchType } from '@/types/enums';
 import { useAuth } from '@/features/shared/hooks/useAuth';
+import { availableFormatsFromPrices } from '@/lib/pricing/formatPricing';
 import { useInstructorSearchInfinite } from '@/hooks/queries/useInstructorSearch';
 import { useInstructorCoverage } from '@/hooks/queries/useInstructorCoverage';
 import { usePublicAvailability, type InstructorAvailabilitySummary } from '@/hooks/queries/usePublicAvailability';
@@ -194,10 +195,14 @@ const normalizeTeachingLocations = (
     );
 };
 
-const getOptionalBoolean = (record: Record<string, unknown>, key: string): boolean | undefined => {
-  const value = record[key];
-  return typeof value === 'boolean' ? value : undefined;
-};
+function extractFormatPrices(match: Record<string, unknown>): Array<{ format: string; hourly_rate: number }> {
+  const raw = match['format_prices'];
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(isRecord).map(fp => ({
+    format: getString(fp, 'format', ''),
+    hourly_rate: getNumber(fp, 'hourly_rate', 0),
+  })).filter(fp => fp.format && fp.hourly_rate > 0);
+}
 
 const normalizeStringSelections = (value: unknown): string[] =>
   Array.isArray(value)
@@ -315,46 +320,36 @@ const normalizeSearchResults = (input: NormalizeSearchInput): NormalizedSearchRe
         const bestServiceCatalogId = getString(bestMatch, 'service_catalog_id', '');
         const bestServiceName = getString(bestMatch, 'name', '');
         const bestServiceDescription = getString(bestMatch, 'description', '');
-        const bestPricePerHour = getNumber(bestMatch, 'price_per_hour', 0);
-        const bestOffersTravel = getOptionalBoolean(bestMatch, 'offers_travel');
-        const bestOffersAtLocation = getOptionalBoolean(bestMatch, 'offers_at_location');
-        const bestOffersOnline = getOptionalBoolean(bestMatch, 'offers_online');
 
         // Build services array from best_match + other_matches
         const services: Instructor['services'] = [];
 
         // Add best match as first service
+        const bestFormatPrices = extractFormatPrices(bestMatch);
         services.push({
           id: bestServiceId,
           service_catalog_id: bestServiceCatalogId,
           service_catalog_name: bestServiceName,
-          hourly_rate: bestPricePerHour,
+          min_hourly_rate: getNumber(bestMatch, 'min_hourly_rate', 0),
+          format_prices: bestFormatPrices,
           description: bestServiceDescription,
           duration_options: [60],
           is_active: true,
-          ...(bestOffersTravel !== undefined ? { offers_travel: bestOffersTravel } : {}),
-          ...(bestOffersAtLocation !== undefined ? { offers_at_location: bestOffersAtLocation } : {}),
-          ...(bestOffersOnline !== undefined ? { offers_online: bestOffersOnline } : {}),
         });
 
         // Add other matches
         const otherMatches = getArray(result, 'other_matches');
         for (const match of otherMatches) {
           if (!isRecord(match)) continue;
-          const matchOffersTravel = getOptionalBoolean(match, 'offers_travel');
-          const matchOffersAtLocation = getOptionalBoolean(match, 'offers_at_location');
-          const matchOffersOnline = getOptionalBoolean(match, 'offers_online');
           services.push({
             id: getString(match, 'service_id', ''),
             service_catalog_id: getString(match, 'service_catalog_id', ''),
             service_catalog_name: getString(match, 'name', ''),
-            hourly_rate: getNumber(match, 'price_per_hour', 0),
+            min_hourly_rate: getNumber(match, 'min_hourly_rate', 0),
+            format_prices: extractFormatPrices(match),
             description: getString(match, 'description', ''),
             duration_options: [60],
             is_active: true,
-            ...(matchOffersTravel !== undefined ? { offers_travel: matchOffersTravel } : {}),
-            ...(matchOffersAtLocation !== undefined ? { offers_at_location: matchOffersAtLocation } : {}),
-            ...(matchOffersOnline !== undefined ? { offers_online: matchOffersOnline } : {}),
           });
         }
 
@@ -470,7 +465,7 @@ type MapFeatureCollection = {
 const getInstructorMinRate = (instructor: Instructor): number | null => {
   const services = Array.isArray(instructor.services) ? instructor.services : [];
   const rates = services
-    .map((service) => service.hourly_rate)
+    .map((service) => service.min_hourly_rate)
     .filter((rate): rate is number => Number.isFinite(rate));
   if (rates.length === 0) return null;
   return Math.min(...rates);
@@ -522,7 +517,7 @@ const buildQueryWithFilters = (baseQuery: string, filters: FilterState): string 
   // Append location filter
   if (filters.location === 'online') {
     query = `${query} online`;
-  } else if (filters.location === 'travels' || filters.location === 'studio') {
+  } else if (filters.location === 'in_person' || filters.location === 'travels' || filters.location === 'studio') {
     query = `${query} in-person`;
   }
 
@@ -684,6 +679,10 @@ function SearchPageInner() {
     () => false
   );
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
+  // Track whether the user has manually changed filters via the UI.
+  // When false, send the raw query to the NL backend so it can parse
+  // price / lesson-type / date keywords itself.
+  const [filtersUserModified, setFiltersUserModified] = useState(false);
   const [liveAnnouncement, setLiveAnnouncement] = useState('');
   const selectedSortIndex = SORT_OPTIONS.findIndex((option) => option.value === sortOption);
   const sortListboxId = 'search-sort-listbox';
@@ -898,6 +897,11 @@ function SearchPageInner() {
 
   const searchParamsString = searchParams.toString();
   const query = searchParams.get('q') || '';
+
+  // Reset filter-modified flag when the search query changes (new NL search)
+  useEffect(() => {
+    setFiltersUserModified(false);
+  }, [query]);
   const category = searchParams.get('category') || '';
   const serviceCatalogId = searchParams.get('service_catalog_id') || '';
   const serviceParam = searchParams.get('service') || '';
@@ -1100,8 +1104,12 @@ function SearchPageInner() {
 
   const builtSearchQuery = useMemo(() => {
     if (!query) return '';
+    // On the initial search, send the raw query so the NL backend can parse
+    // price / lesson-type / date keywords. Only apply buildQueryWithFilters
+    // after the user has interacted with the filter UI.
+    if (!filtersUserModified) return query;
     return buildQueryWithFilters(query, filters);
-  }, [query, filters]);
+  }, [query, filters, filtersUserModified]);
 
   const skillLevelCsv = useMemo(
     () => buildSkillLevelParam(selectedSkillLevel, skillLevelOptions),
@@ -1360,6 +1368,34 @@ function SearchPageInner() {
     : '';
   const searchQueryId = nlSearchMeta ? getString(nlSearchMeta, 'search_query_id', '') : '';
 
+  // Wire NL-inferred lesson_type + price to filter state (UI sync only —
+  // the backend already applied these constraints to the results)
+  useEffect(() => {
+    if (!isRecord(nlSearchMeta)) return;
+    const parsed = nlSearchMeta['parsed'];
+    if (!isRecord(parsed)) return;
+
+    const lessonType = typeof parsed['lesson_type'] === 'string' ? parsed['lesson_type'] : null;
+    const maxPrice = typeof parsed['max_price'] === 'number' ? parsed['max_price'] : null;
+    const minPrice = typeof parsed['min_price'] === 'number' ? parsed['min_price'] : null;
+
+    setFilters((prev) => {
+      let next = prev;
+      if (lessonType === 'online' && prev.location !== 'online') {
+        next = { ...next, location: 'online' };
+      } else if (lessonType === 'in_person' && prev.location !== 'in_person') {
+        next = { ...next, location: 'in_person' };
+      }
+      if (maxPrice !== null && prev.priceMax !== maxPrice) {
+        next = { ...next, priceMax: maxPrice };
+      }
+      if (minPrice !== null && prev.priceMin !== minPrice) {
+        next = { ...next, priceMin: minPrice };
+      }
+      return next;
+    });
+  }, [nlSearchMeta, filters.location]);
+
   const trackSearchClick = useCallback(
     (params: { serviceId: string; instructorId: string; position: number; action?: string }) => {
       if (!searchQueryId) return;
@@ -1481,11 +1517,13 @@ function SearchPageInner() {
       const services = Array.isArray(instructor.services) ? instructor.services : [];
       const activeServices = services.filter((svc) => svc && svc.is_active !== false);
 
-      const offersTravel = activeServices.some((svc) => svc.offers_travel === true);
-      const offersAtLocation = activeServices.some((svc) => svc.offers_at_location === true);
-      const offersOnline = activeServices.some((svc) => svc.offers_online === true);
+      const allFormats = activeServices.flatMap((svc) => availableFormatsFromPrices(svc.format_prices ?? []));
+      const offersTravel = allFormats.includes('student_location');
+      const offersAtLocation = allFormats.includes('instructor_location');
+      const offersOnline = allFormats.includes('online');
 
       if (filters.location === 'online' && !offersOnline) return false;
+      if (filters.location === 'in_person' && !offersTravel && !offersAtLocation) return false;
       if (filters.location === 'travels' && !offersTravel) return false;
       if (filters.location === 'studio') {
         const hasLocations =
@@ -1495,7 +1533,7 @@ function SearchPageInner() {
 
       if (filters.priceMin !== null || filters.priceMax !== null) {
         const rates = activeServices
-          .map((svc) => svc.hourly_rate)
+          .map((svc) => svc.min_hourly_rate)
           .filter((rate): rate is number => Number.isFinite(rate));
         if (rates.length === 0) return false;
         const matchesRate = rates.some((rate) => {
@@ -1562,9 +1600,10 @@ function SearchPageInner() {
       if (!instructorId) continue;
       const services = Array.isArray(instructor.services) ? instructor.services : [];
       const activeServices = services.filter((svc) => svc && svc.is_active !== false);
-      const offersTravel = activeServices.some((svc) => svc.offers_travel === true);
-      const offersAtLocation = activeServices.some((svc) => svc.offers_at_location === true);
-      const offersOnline = activeServices.some((svc) => svc.offers_online === true);
+      const allFormats = activeServices.flatMap((svc) => availableFormatsFromPrices(svc.format_prices ?? []));
+      const offersTravel = allFormats.includes('student_location');
+      const offersAtLocation = allFormats.includes('instructor_location');
+      const offersOnline = allFormats.includes('online');
       map.set(instructorId, { offersTravel, offersAtLocation, offersOnline });
     }
     return map;
@@ -1954,6 +1993,7 @@ function SearchPageInner() {
                       scroll: false,
                     });
                   }
+                  setFiltersUserModified(true);
                   setFilters(nextFilters);
                   setMapFilterIds(null);
                   setShowSearchAreaButton(false);
@@ -2093,6 +2133,7 @@ function SearchPageInner() {
                       >
                         <InstructorCard
                           instructor={enhancedInstructor}
+                          searchLessonType={filters.location}
                           {...(highlightServiceCatalogId ? { highlightServiceCatalogId } : {})}
                           {...(availabilityByInstructor[instructor.user_id] && {
                             availabilityData: availabilityByInstructor[instructor.user_id],
@@ -2189,7 +2230,8 @@ function SearchPageInner() {
             services: getArray(timeSelectionContext?.['instructor'], 'services') as Array<{
               id?: string;
               duration_options: number[];
-              hourly_rate: number;
+              min_hourly_rate: number;
+              format_prices: Array<{ format: string; hourly_rate: number }>;
               skill: string;
             }>
           }}

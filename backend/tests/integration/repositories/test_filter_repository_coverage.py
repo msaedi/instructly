@@ -229,3 +229,34 @@ def test_filter_by_lesson_type(db, test_instructor):
 def test_filter_by_lesson_type_empty_inputs(db):
     repo = FilterRepository(db)
     assert repo.filter_by_lesson_type([], "online") == []
+
+
+def test_get_lesson_type_rates_intersects_price_with_format(db, test_instructor):
+    repo = FilterRepository(db)
+    service = (
+        db.query(InstructorService)
+        .filter(InstructorService.instructor_profile_id == test_instructor.instructor_profile.id)
+        .first()
+    )
+
+    service.format_prices = []
+    db.flush()
+    service.format_prices = [
+        {"format": "online", "hourly_rate": 60.0},
+        {"format": "student_location", "hourly_rate": 120.0},
+    ]
+    db.flush()
+
+    in_person_under_budget = repo.get_lesson_type_rates(
+        [service.id],
+        "in_person",
+        max_price=80,
+    )
+    assert in_person_under_budget == {}
+
+    online_under_budget = repo.get_lesson_type_rates(
+        [service.id],
+        "online",
+        max_price=80,
+    )
+    assert online_under_budget[service.id] == pytest.approx(60.0)

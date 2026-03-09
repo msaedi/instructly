@@ -38,6 +38,12 @@ describe('LocationFilter', () => {
     expect(screen.getByRole('button', { name: 'Online only' })).toBeInTheDocument();
   });
 
+  it('shows "In-person" label for in_person value', () => {
+    render(<Harness initialValue="in_person" />);
+
+    expect(screen.getByRole('button', { name: 'In-person' })).toBeInTheDocument();
+  });
+
   it('shows "Travels to me" label for travels value', () => {
     render(<Harness initialValue="travels" />);
 

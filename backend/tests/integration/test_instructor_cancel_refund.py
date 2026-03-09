@@ -68,12 +68,13 @@ def _create_instructor_with_service(
         id=str(ulid.ULID()),
         instructor_profile_id=profile.id,
         service_catalog_id=svc_cat.id,
-        hourly_rate=100.00,
+        format_prices=[
+            {"format": "student_location", "hourly_rate": 100.00},
+            {"format": "instructor_location", "hourly_rate": 100.00},
+            {"format": "online", "hourly_rate": 100.00},
+        ],
         duration_options=[60],
-        offers_travel=True,
-        offers_at_location=True,
-        offers_online=True,
-        is_active=True,
+                                is_active=True,
     )
     db.add(svc)
     db.flush()

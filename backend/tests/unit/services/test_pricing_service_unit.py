@@ -31,13 +31,29 @@ def _make_payload(**overrides):
 
 
 def _make_service(**overrides):
+    hourly_rate = Decimal(str(overrides.pop("hourly_rate", Decimal("80.00"))))
+    offers_online = bool(overrides.pop("offers_online", True))
+    offers_travel = bool(overrides.pop("offers_travel", False))
+    offers_at_location = bool(overrides.pop("offers_at_location", False))
+
+    format_prices = overrides.pop("format_prices", None)
+    if format_prices is None:
+        format_prices = []
+        if offers_online:
+            format_prices.append({"format": "online", "hourly_rate": hourly_rate})
+        if offers_travel:
+            format_prices.append(
+                {"format": "student_location", "hourly_rate": hourly_rate}
+            )
+        if offers_at_location:
+            format_prices.append(
+                {"format": "instructor_location", "hourly_rate": hourly_rate}
+            )
+
     data = {
-        "hourly_rate": Decimal("80.00"),
         "instructor_profile_id": "profile_1",
         "service_catalog_id": "catalog_1",
-        "offers_online": True,
-        "offers_travel": False,
-        "offers_at_location": False,
+        "format_prices": format_prices,
     }
     data.update(overrides)
     return InstructorService(**data)
@@ -167,6 +183,22 @@ class TestPricingService:
                 pricing_service.compute_quote_pricing(payload, student_id="student_1")
 
             assert exc.value.code == "INVALID_START_TIME"
+
+        def test_compute_quote_pricing_raises_business_rule_when_requested_format_missing(
+            self, pricing_service, conflict_repo, instructor_profile_repo
+        ):
+            profile = SimpleNamespace(user_id="instructor_1")
+            conflict_repo.get_active_service.return_value = _make_service(
+                format_prices=[{"format": "online", "hourly_rate": Decimal("80.00")}]
+            )
+            instructor_profile_repo.get_by_user_id.return_value = profile
+            payload = _make_payload(location_type="student_location")
+
+            with pytest.raises(BusinessRuleException) as exc:
+                pricing_service.compute_quote_pricing(payload, student_id="student_1")
+
+            assert exc.value.code == "PRICING_FORMAT_NOT_FOUND"
+            assert exc.value.details["requested_format"] == "student_location"
 
         def test_compute_quote_pricing_reraises_domain_exception(
             self, pricing_service, conflict_repo, instructor_profile_repo

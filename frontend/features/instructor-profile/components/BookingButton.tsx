@@ -9,7 +9,7 @@ interface BookingButtonProps {
 
 export function BookingButton({ instructor, className, onBook }: BookingButtonProps) {
   const lowestPrice = instructor.services && instructor.services.length > 0
-    ? Math.min(...instructor.services.map(s => s.hourly_rate || 0))
+    ? Math.min(...instructor.services.map(s => s.min_hourly_rate ?? 0))
     : 0;
 
   if (!instructor.services || instructor.services.length === 0) {

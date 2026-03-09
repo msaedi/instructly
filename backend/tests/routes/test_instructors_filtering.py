@@ -129,7 +129,9 @@ class TestInstructorsFilteringAPI:
                 service = Service(
                     instructor_profile_id=profile.id,
                     service_catalog_id=catalog_service.id,
-                    hourly_rate=data["base_rate"] + (j * 10),  # Vary rates slightly
+                    format_prices=[
+                        {"format": "online", "hourly_rate": data["base_rate"] + (j * 10)},
+                    ],  # Vary rates slightly
                     is_active=True,
                     duration_options=[60],  # Default duration
                 )
@@ -266,7 +268,9 @@ class TestInstructorsFilteringAPI:
                     Service(
                         instructor_profile_id=profile.id,
                         service_catalog_id=service_catalog.id,
-                        hourly_rate=95.0,
+                        format_prices=[
+                            {"format": "online", "hourly_rate": 95.0},
+                        ],
                         is_active=True,
                         duration_options=[60],
                     )
@@ -530,14 +534,18 @@ class TestInstructorsFilteringAPI:
             Service(
                 instructor_profile_id=profile.id,
                 service_catalog_id=active_catalog.id,
-                hourly_rate=100.0,
+                format_prices=[
+                    {"format": "online", "hourly_rate": 100.0},
+                ],
                 is_active=True,
                 duration_options=[60],  # Add required field
             ),
             Service(
                 instructor_profile_id=profile.id,
                 service_catalog_id=inactive_catalog.id,
-                hourly_rate=80.0,
+                format_prices=[
+                    {"format": "online", "hourly_rate": 80.0},
+                ],
                 is_active=False,
                 duration_options=[60],  # Add required field
             ),

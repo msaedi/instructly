@@ -43,6 +43,14 @@ BROOKLYN_LOCATION = {
 }
 
 
+def _format_prices(hourly_rate: float) -> list[dict[str, float | str]]:
+    return [
+        {"format": "student_location", "hourly_rate": hourly_rate},
+        {"format": "instructor_location", "hourly_rate": hourly_rate},
+        {"format": "online", "hourly_rate": hourly_rate},
+    ]
+
+
 @pytest.fixture(autouse=True)
 def _no_price_floors(disable_price_floors):
     """Conflicts regression keeps legacy $60/$80 rates unchecked."""
@@ -137,12 +145,11 @@ class TestStudentConflictValidationIntegration:
         service = Service(
             instructor_profile_id=profile.id,
             service_catalog_id=math_catalog.id,
-            hourly_rate=60.0,
-            offers_travel=True,
-            offers_online=True,
+            format_prices=_format_prices(60.0),
             is_active=True,
         )
         db.add(service)
+        db.flush()
 
         # Add availability for tomorrow
         tomorrow = date.today() + timedelta(days=1)
@@ -215,12 +222,11 @@ class TestStudentConflictValidationIntegration:
         service = Service(
             instructor_profile_id=profile.id,
             service_catalog_id=piano_catalog.id,
-            hourly_rate=80.0,
-            offers_travel=True,
-            offers_online=True,
+            format_prices=_format_prices(80.0),
             is_active=True,
         )
         db.add(service)
+        db.flush()
 
         # Add availability for tomorrow
         tomorrow = date.today() + timedelta(days=1)

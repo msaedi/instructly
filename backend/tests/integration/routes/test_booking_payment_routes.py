@@ -129,10 +129,12 @@ class TestBookingPaymentRoutes:
             id=str(ulid.ULID()),
             instructor_profile_id=profile.id,
             service_catalog_id=catalog.id,
-            hourly_rate=100.00,
+            format_prices=[
+                {"format": "instructor_location", "hourly_rate": 100.00},
+                {"format": "online", "hourly_rate": 100.00},
+            ],
             duration_options=[30, 60, 90],
-            offers_at_location=True,
-            is_active=True,
+                        is_active=True,
         )
         db.add(service)
         db.flush()
@@ -271,7 +273,11 @@ class TestBookingPaymentRoutes:
         """Ensure booking creation is blocked when rate falls below the configured floor."""
 
         instructor, profile, service = instructor_setup
-        service.hourly_rate = 75.00
+        if service.format_prices:
+            for price_row in service.format_prices:
+                price_row.hourly_rate = 75.00
+        else:
+            service.format_prices = [{"format": "online", "hourly_rate": 75.00}]
         db.add(service)
         db.commit()
 

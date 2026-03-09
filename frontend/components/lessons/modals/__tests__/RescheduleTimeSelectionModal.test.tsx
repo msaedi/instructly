@@ -169,7 +169,7 @@ const mockInstructor = {
     {
       id: 'svc-1',
       duration_options: [30, 60, 90],
-      hourly_rate: 60,
+      min_hourly_rate: 60,
       skill: 'Piano',
     },
   ],
@@ -433,7 +433,7 @@ describe('RescheduleTimeSelectionModal', () => {
           {
             id: 'svc-1',
             duration_options: [60],
-            hourly_rate: 60,
+            min_hourly_rate: 60,
             skill: 'Piano',
           },
         ],
@@ -1153,13 +1153,13 @@ describe('RescheduleTimeSelectionModal', () => {
   });
 
   describe('price calculation with fallback hourly rate', () => {
-    it('uses fallback rate of 100 when service has no hourly_rate', async () => {
+    it('uses fallback rate of 100 when service has no min_hourly_rate', async () => {
       const noRateInstructor = {
         ...mockInstructor,
         services: [{
           id: 'svc-1',
           duration_options: [30, 60],
-          hourly_rate: 0,
+          min_hourly_rate: 0,
           skill: 'Piano',
         }],
       };
@@ -1384,7 +1384,7 @@ describe('RescheduleTimeSelectionModal', () => {
           {
             id: 'svc-1',
             duration_options: [],
-            hourly_rate: 80,
+            min_hourly_rate: 80,
             skill: 'Piano',
           },
         ],
@@ -1403,7 +1403,7 @@ describe('RescheduleTimeSelectionModal', () => {
 
       // With empty duration_options, getDurationOptions returns [],
       // so durationOptions.length > 0 is false, selectedDuration defaults to 60
-      // The price should reflect hourly_rate * 60 / 60 = 80
+      // The price should reflect min_hourly_rate * 60 / 60 = 80
       const summaries = screen.getAllByTestId('summary-section');
       expect(summaries[0]).toHaveTextContent('Duration: 60min');
     });

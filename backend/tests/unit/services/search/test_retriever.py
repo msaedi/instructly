@@ -38,7 +38,7 @@ def mock_repository() -> Mock:
             "catalog_id": "cat_001",
             "name": "Piano Lessons",
             "description": "Learn piano",
-            "price_per_hour": 50,
+            "min_hourly_rate": 50,
             "instructor_id": "inst_001",
             "vector_score": 0.95,
         },
@@ -47,7 +47,7 @@ def mock_repository() -> Mock:
             "catalog_id": "cat_002",
             "name": "Guitar Lessons",
             "description": "Learn guitar",
-            "price_per_hour": 45,
+            "min_hourly_rate": 45,
             "instructor_id": "inst_002",
             "vector_score": 0.80,
         },
@@ -59,7 +59,7 @@ def mock_repository() -> Mock:
             "catalog_id": "cat_001",
             "name": "Piano Lessons",
             "description": "Learn piano",
-            "price_per_hour": 50,
+            "min_hourly_rate": 50,
             "instructor_id": "inst_001",
             "text_score": 0.90,
         },
@@ -68,7 +68,7 @@ def mock_repository() -> Mock:
             "catalog_id": "cat_003",
             "name": "Keyboard Lessons",
             "description": "Learn keyboard",
-            "price_per_hour": 55,
+            "min_hourly_rate": 55,
             "instructor_id": "inst_003",
             "text_score": 0.70,
         },
@@ -152,7 +152,7 @@ class TestHybridSearch:
                 "catalog_id": "cat_001",
                 "name": "Algebra",
                 "description": "Math support",
-                "price_per_hour": 50,
+                "min_hourly_rate": 50,
                 "instructor_id": "inst_001",
                 "subcategory_id": "sub_math",
                 "vector_score": 0.95,
@@ -164,7 +164,7 @@ class TestHybridSearch:
                 "catalog_id": "cat_001",
                 "name": "Algebra",
                 "description": "Math support",
-                "price_per_hour": 50,
+                "min_hourly_rate": 50,
                 "instructor_id": "inst_001",
                 "subcategory_id": "sub_math",
                 "text_score": 0.90,
@@ -371,7 +371,7 @@ class TestScoreFusion:
                     "service_catalog_id": "cat_001",
                     "name": "Test",
                     "description": None,
-                    "price_per_hour": 50,
+                    "min_hourly_rate": 50,
                     "instructor_id": "i1",
                 },
             )
@@ -393,7 +393,7 @@ class TestScoreFusion:
                     "service_catalog_id": "cat_001",
                     "name": "Test",
                     "description": None,
-                    "price_per_hour": 50,
+                    "min_hourly_rate": 50,
                     "instructor_id": "i1",
                 },
             )
@@ -412,7 +412,7 @@ class TestScoreFusion:
             "service_catalog_id": "cat_001",
             "name": "Test",
             "description": "A test",
-            "price_per_hour": 60,
+            "min_hourly_rate": 60,
             "instructor_id": "i1",
         }
         vector_results = {"svc_001": (0.9, service_data)}
@@ -435,7 +435,7 @@ class TestScoreFusion:
                     "service_catalog_id": f"cat_{i}",
                     "name": f"Test {i}",
                     "description": None,
-                    "price_per_hour": 50,
+                    "min_hourly_rate": 50,
                     "instructor_id": f"i{i}",
                 },
             )
@@ -463,7 +463,7 @@ class TestServiceCandidate:
             text_score=0.8,
             name="Piano Lessons",
             description="Learn piano",
-            price_per_hour=50,
+            min_hourly_rate=50,
             instructor_id="inst_001",
         )
 
@@ -473,7 +473,7 @@ class TestServiceCandidate:
         assert candidate.text_score == 0.8
         assert candidate.name == "Piano Lessons"
         assert candidate.description == "Learn piano"
-        assert candidate.price_per_hour == 50
+        assert candidate.min_hourly_rate == 50
         assert candidate.instructor_id == "inst_001"
 
     def test_candidate_with_none_scores(self) -> None:
@@ -486,7 +486,7 @@ class TestServiceCandidate:
             text_score=0.9,
             name="Piano Lessons",
             description=None,
-            price_per_hour=50,
+            min_hourly_rate=50,
             instructor_id="inst_001",
         )
 
@@ -509,7 +509,7 @@ class TestRetrievalResult:
                 text_score=0.8,
                 name="Test",
                 description=None,
-                price_per_hour=50,
+                min_hourly_rate=50,
                 instructor_id="i1",
             )
         ]

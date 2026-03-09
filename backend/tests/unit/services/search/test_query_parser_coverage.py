@@ -329,6 +329,20 @@ class TestLessonTypeExtraction:
             result = parser.parse(f"{phrase} piano lessons")
             assert result.lesson_type == "in_person", f"Failed for '{phrase}'"
 
+    def test_at_location_phrases_extracted(self, parser: QueryParser) -> None:
+        """'at their studio' and similar phrases should set lesson_type to in_person."""
+        for phrase in [
+            "piano lessons at their studio",
+            "guitar lessons at the studio",
+            "yoga at my place",
+            "dance lessons at their location",
+            "singing at their place",
+            "violin lessons at my home",
+            "drums at the location",
+        ]:
+            result = parser.parse(phrase)
+            assert result.lesson_type == "in_person", f"Failed for '{phrase}'"
+
     def test_default_is_any(self, parser: QueryParser) -> None:
         """No lesson type keywords should default to any."""
         result = parser.parse("piano lessons")

@@ -123,7 +123,7 @@ def test_booking_existing_restricts_to_current_user(student_client_and_db):
     isvc = InstructorServiceModel(
         instructor_profile_id=instr.id,
         service_catalog_id=catalog.id,
-        hourly_rate=50.0,
+        format_prices=[{"format": "online", "hourly_rate": 50.0}],
         description="",
         is_active=True,
         duration_options=[60],

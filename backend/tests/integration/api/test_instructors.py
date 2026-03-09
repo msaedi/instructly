@@ -28,6 +28,10 @@ from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 
 
+def _online_format_prices(hourly_rate: float) -> list[dict[str, float]]:
+    return [{"format": "online", "hourly_rate": hourly_rate}]
+
+
 class TestInstructorRoutes:
     """Test suite for instructor endpoints."""
 
@@ -118,7 +122,9 @@ class TestInstructorRoutes:
             inactive_service = Service(
                 instructor_profile_id=inactive_profile.id,
                 service_catalog_id=catalog_service.id,
-                hourly_rate=40.0,
+                format_prices=[
+                    {"format": "online", "hourly_rate": 40.0},
+                ],
                 is_active=False,  # Inactive service
             )
             db.add(inactive_service)
@@ -215,7 +221,9 @@ class TestInstructorRoutes:
                 service = Service(
                     instructor_profile_id=profile.id,
                     service_catalog_id=catalog_service.id,
-                    hourly_rate=50.0 + i,
+                    format_prices=[
+                        {"format": "online", "hourly_rate": 50.0 + i},
+                    ],
                     is_active=True,
                 )
                 db.add(service)
@@ -294,14 +302,19 @@ class TestInstructorRoutes:
     ):
         """Test creating profile when one already exists."""
         # Get any catalog service
-        catalog_service = db.query(ServiceCatalog).first()
+        catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.online_capable.is_(True)).first()
         if not catalog_service:
             pytest.skip("No catalog services found")
 
         profile_data = {
             "bio": "Another bio",
             "years_experience": 5,
-            "services": [{"service_catalog_id": catalog_service.id, "hourly_rate": 50.0}],
+            "services": [
+                {
+                    "service_catalog_id": catalog_service.id,
+                    "format_prices": _online_format_prices(60.0),
+                }
+            ],
         }
 
         response = client.post("/api/v1/instructors/me", json=profile_data, headers=auth_headers_instructor)
@@ -429,12 +442,12 @@ class TestInstructorRoutes:
             "services": [
                 {
                     "service_catalog_id": piano_catalog.id,
-                    "hourly_rate": 80.0,
+                    "format_prices": _online_format_prices(80.0),
                     "description": "Advanced piano techniques",
                 },
                 {
                     "service_catalog_id": violin_catalog.id,
-                    "hourly_rate": 70.0,
+                    "format_prices": _online_format_prices(70.0),
                     "description": "Beginner to intermediate violin",
                 },
             ],
@@ -533,7 +546,7 @@ class TestInstructorRoutes:
     def test_create_profile_with_duplicate_services(self, client: TestClient, auth_headers_student: dict, db: Session):
         """Test that duplicate services are rejected."""
         # Get any catalog service
-        catalog_service = db.query(ServiceCatalog).first()
+        catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.online_capable.is_(True)).first()
         if not catalog_service:
             pytest.skip("No catalog services found")
 
@@ -541,8 +554,14 @@ class TestInstructorRoutes:
             "bio": "Test bio",
             "years_experience": 5,
             "services": [
-                {"service_catalog_id": catalog_service.id, "hourly_rate": 50.0},
-                {"service_catalog_id": catalog_service.id, "hourly_rate": 60.0},  # Duplicate catalog ID
+                {
+                    "service_catalog_id": catalog_service.id,
+                    "format_prices": _online_format_prices(60.0),
+                },
+                {
+                    "service_catalog_id": catalog_service.id,
+                    "format_prices": _online_format_prices(70.0),
+                },  # Duplicate catalog ID
             ],
         }
 
@@ -602,7 +621,7 @@ class TestInstructorRoutes:
     def test_profile_validation_constraints(self, client: TestClient, auth_headers_student: dict, db: Session):
         """Test various validation constraints."""
         # Get any catalog service
-        catalog_service = db.query(ServiceCatalog).first()
+        catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.online_capable.is_(True)).first()
         if not catalog_service:
             pytest.skip("No catalog services found")
 
@@ -610,7 +629,12 @@ class TestInstructorRoutes:
         profile_data = {
             "bio": "Hi",  # Too short
             "years_experience": 5,
-            "services": [{"service_catalog_id": catalog_service.id, "hourly_rate": 50.0}],
+            "services": [
+                {
+                    "service_catalog_id": catalog_service.id,
+                    "format_prices": _online_format_prices(60.0),
+                }
+            ],
         }
         response = client.post("/api/v1/instructors/me", json=profile_data, headers=auth_headers_student)
         assert response.status_code == 422
@@ -623,7 +647,7 @@ class TestInstructorRoutes:
 
         # Test hourly rate too high
         profile_data["years_experience"] = 5
-        profile_data["services"][0]["hourly_rate"] = 1500.0  # Over max
+        profile_data["services"][0]["format_prices"] = _online_format_prices(1500.0)  # Over max
         response = client.post("/api/v1/instructors/me", json=profile_data, headers=auth_headers_student)
         assert response.status_code == 422
 

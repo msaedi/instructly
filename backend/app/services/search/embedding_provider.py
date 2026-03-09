@@ -186,5 +186,5 @@ def create_embedding_provider(model: Optional[str] = None) -> EmbeddingProvider:
         if model is None:
             config = get_search_config()
             model = config.embedding_model
-        logger.info(f"Using OpenAI embedding provider: {model}")
+        logger.info("Using OpenAI embedding provider: %s", model)
         return OpenAIEmbeddingProvider(model=model, dimensions=dimensions)

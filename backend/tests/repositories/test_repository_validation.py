@@ -586,7 +586,9 @@ class TestInstructorProfileRepositoryValidation:
             service = Service(
                 instructor_profile_id=profile.id,
                 service_catalog_id=catalog_service.id,
-                hourly_rate=50.0,
+                format_prices=[
+                    {"format": "online", "hourly_rate": 50.0},
+                ],
                 is_active=(i % 2 == 0),  # Even indices are active
             )
             db.add(service)

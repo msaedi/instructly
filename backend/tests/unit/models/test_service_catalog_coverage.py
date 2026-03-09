@@ -69,7 +69,9 @@ def test_service_category_counts_and_dict() -> None:
         id="is1",
         instructor_profile_id="ip1",
         service_catalog_id="svc1",
-        hourly_rate=100.0,
+        format_prices=[
+            {"format": "online", "hourly_rate": 100.0},
+        ],
         is_active=True,
     )
     instructor_active.instructor_profile = _make_instructor_profile("ip1")
@@ -79,7 +81,9 @@ def test_service_category_counts_and_dict() -> None:
         id="is2",
         instructor_profile_id="ip1",
         service_catalog_id="svc1",
-        hourly_rate=80.0,
+        format_prices=[
+            {"format": "online", "hourly_rate": 80.0},
+        ],
         is_active=False,
     )
     instructor_inactive.catalog_entry = active_catalog
@@ -122,14 +126,18 @@ def test_service_catalog_properties_and_match() -> None:
         id="is1",
         instructor_profile_id="ip1",
         service_catalog_id="svc1",
-        hourly_rate=120.0,
+        format_prices=[
+            {"format": "online", "hourly_rate": 120.0},
+        ],
         is_active=True,
     )
     inactive_service = InstructorService(
         id="is2",
         instructor_profile_id="ip2",
         service_catalog_id="svc1",
-        hourly_rate=80.0,
+        format_prices=[
+            {"format": "online", "hourly_rate": 80.0},
+        ],
         is_active=False,
     )
     active_service.catalog_entry = catalog
@@ -169,7 +177,9 @@ def test_service_catalog_to_dict_includes_instructors() -> None:
         id="is1",
         instructor_profile_id="ip1",
         service_catalog_id="svc1",
-        hourly_rate=100.0,
+        format_prices=[
+            {"format": "online", "hourly_rate": 100.0},
+        ],
         is_active=True,
     )
     active_service.catalog_entry = catalog
@@ -201,7 +211,7 @@ def test_instructor_service_helpers() -> None:
         id="is1",
         instructor_profile_id="ip1",
         service_catalog_id="svc1",
-        hourly_rate=120.0,
+        format_prices=[{"format": "online", "hourly_rate": 120.0}],
         is_active=True,
     )
     service.catalog_entry = catalog
@@ -209,7 +219,7 @@ def test_instructor_service_helpers() -> None:
     assert service.name == "Piano Lessons"
     assert service.category == "Music"
     assert service.category_slug == "music"
-    assert service.session_price(90) == 180.0
+    assert service.session_price(90, "online") == 180.0
 
     service.deactivate()
     assert service.is_active is False
@@ -226,7 +236,9 @@ def test_instructor_service_fallbacks() -> None:
         id="is2",
         instructor_profile_id="ip2",
         service_catalog_id="svc2",
-        hourly_rate=100.0,
+        format_prices=[
+            {"format": "online", "hourly_rate": 100.0},
+        ],
         is_active=True,
     )
     assert service.name == "Unknown Service"

@@ -88,7 +88,9 @@ def test_service_coverage_endpoint(client: TestClient, db, test_instructor_2, mc
         Service(
             instructor_profile_id=profile_2.id,
             service_catalog_id=yoga.id,
-            hourly_rate=60.0,
+            format_prices=[
+                {"format": "online", "hourly_rate": 60.0},
+            ],
             is_active=True,
         )
     )

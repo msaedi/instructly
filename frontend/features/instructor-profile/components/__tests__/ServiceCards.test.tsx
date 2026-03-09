@@ -7,7 +7,8 @@ import type { InstructorService } from '@/types/instructor';
 const baseService: InstructorService = {
   id: 'svc-1',
   skill: 'Piano',
-  hourly_rate: 120,
+  min_hourly_rate: 120,
+  format_prices: [{ format: 'online', hourly_rate: 120 }],
   duration_options: [30, 60],
   age_groups: ['adults'],
   levels_taught: ['beginner', 'intermediate'],
@@ -32,7 +33,8 @@ describe('ServiceCards', () => {
     await user.click(screen.getByTestId('book-service-piano'));
 
     expect(onBookService).toHaveBeenCalledWith(expect.objectContaining({ id: 'svc-1' }), 60);
-    expect(screen.getByText('$120')).toBeInTheDocument();
+    // Per-format pricing: "$120 · Online"
+    expect(screen.getByText((content) => content.includes('$120') && content.includes('Online'))).toBeInTheDocument();
   });
 
   it('renders badges and labels for kids, levels, and formats', () => {
@@ -43,8 +45,11 @@ describe('ServiceCards', () => {
       age_groups: ['kids'],
       levels_taught: ['advanced', 'beginner'],
       location_types: ['online', 'in_person'],
-      offers_travel: true,
-      offers_online: true,
+      format_prices: [
+        { format: 'student_location', hourly_rate: 120 },
+        { format: 'online', hourly_rate: 100 },
+      ],
+      min_hourly_rate: 100,
       description: '',
     };
 
@@ -94,8 +99,8 @@ describe('ServiceCards', () => {
 
     render(<ServiceCards services={[service]} />);
 
-    // With empty duration_options, defaults to [60], single option shows /hr price
-    expect(screen.getByText('$120/hr')).toBeInTheDocument();
+    // With empty duration_options, defaults to [60], single option shows /hr price per format
+    expect(screen.getByText((content) => content.includes('$120/hr') && content.includes('Online'))).toBeInTheDocument();
     // Should NOT show radio buttons for duration selection
     expect(screen.queryByRole('radio')).not.toBeInTheDocument();
   });
@@ -108,7 +113,7 @@ describe('ServiceCards', () => {
 
     render(<ServiceCards services={[service]} />);
 
-    expect(screen.getByText('$120/hr')).toBeInTheDocument();
+    expect(screen.getByText((content) => content.includes('$120/hr') && content.includes('Online'))).toBeInTheDocument();
   });
 
   it('filters out non-numeric and zero duration options in the card UI', () => {
@@ -119,10 +124,9 @@ describe('ServiceCards', () => {
 
     render(<ServiceCards services={[service]} />);
 
-    // BUG HUNTER: defaultDuration picks service.duration_options[0] = 0 (unfiltered),
-    // but ServiceCardItem filters to valid options [60]. The selectedDuration starts at 0,
-    // so price is $0. This is an actual mismatch between parent and child component logic.
-    expect(screen.getByText('$0/hr')).toBeInTheDocument();
+    // With per-format pricing, showHourlyPrice=true (single valid option [60]),
+    // so the format rate is displayed directly: $120/hr · Online
+    expect(screen.getByText((content) => content.includes('$120/hr') && content.includes('Online'))).toBeInTheDocument();
     // Duration radio buttons should not show (only 1 valid option after filter)
     expect(screen.queryByRole('radio')).not.toBeInTheDocument();
   });
@@ -229,51 +233,51 @@ describe('ServiceCards', () => {
     });
   });
 
-  it('coerces string hourly_rate to number for price calculation', () => {
-    const service = {
+  it('uses min_hourly_rate for price calculation', () => {
+    const service: InstructorService = {
       ...baseService,
+      min_hourly_rate: 80,
+      format_prices: [{ format: 'online', hourly_rate: 80 }],
       duration_options: [60],
-    } as InstructorService;
-
-    (service as unknown as Record<string, unknown>)['hourly_rate'] = '80';
+    };
 
     render(<ServiceCards services={[service]} />);
 
-    expect(screen.getByText('$80/hr')).toBeInTheDocument();
+    expect(screen.getByText((content) => content.includes('$80/hr') && content.includes('Online'))).toBeInTheDocument();
   });
 
-  it('handles NaN hourly_rate by falling back to 0', () => {
-    const service = {
+  it('shows "Contact instructor" when format_prices is empty', () => {
+    const service: InstructorService = {
       ...baseService,
+      min_hourly_rate: 0,
+      format_prices: [],
       duration_options: [60],
-    } as InstructorService;
-
-    (service as unknown as Record<string, unknown>)['hourly_rate'] = 'not-a-number';
+    };
 
     render(<ServiceCards services={[service]} />);
 
-    expect(screen.getByText('$0/hr')).toBeInTheDocument();
+    expect(screen.getByText('Contact instructor')).toBeInTheDocument();
   });
 
-  it('handles null hourly_rate by falling back to 0', () => {
+  it('handles undefined min_hourly_rate — format_prices still displays rates', () => {
     const service = {
       ...baseService,
       duration_options: [60],
     } as InstructorService;
 
-    (service as unknown as Record<string, unknown>)['hourly_rate'] = null;
+    (service as unknown as Record<string, unknown>)['min_hourly_rate'] = undefined;
 
     render(<ServiceCards services={[service]} />);
 
-    expect(screen.getByText('$0/hr')).toBeInTheDocument();
+    // format_prices from baseService still shows the per-format rate
+    expect(screen.getByText((content) => content.includes('$120/hr') && content.includes('Online'))).toBeInTheDocument();
   });
 
   it('shows at-location format only when hasTeachingLocations is true', () => {
     const service: InstructorService = {
       ...baseService,
-      offers_at_location: true,
-      offers_travel: false,
-      offers_online: false,
+      format_prices: [{ format: 'instructor_location', hourly_rate: 80 }],
+      min_hourly_rate: 80,
     };
 
     const { rerender } = render(<ServiceCards services={[service]} hasTeachingLocations={true} />);
@@ -283,12 +287,11 @@ describe('ServiceCards', () => {
     expect(screen.queryByRole('img', { name: /at their studio/i })).not.toBeInTheDocument();
   });
 
-  it('hides format section when no format flags are set', () => {
+  it('hides format section when no format_prices are set', () => {
     const service: InstructorService = {
       ...baseService,
-      offers_travel: false,
-      offers_at_location: false,
-      offers_online: false,
+      format_prices: [],
+      min_hourly_rate: 0,
     };
 
     render(<ServiceCards services={[service]} />);
@@ -300,7 +303,8 @@ describe('ServiceCards', () => {
     const service: InstructorService = {
       ...baseService,
       levels_taught: ['beginner'],
-      offers_online: true,
+      format_prices: [{ format: 'online', hourly_rate: 120 }],
+      min_hourly_rate: 120,
     };
 
     const { container } = render(<ServiceCards services={[service]} />);
@@ -313,7 +317,8 @@ describe('ServiceCards', () => {
     const service: InstructorService = {
       ...baseService,
       levels_taught: [],
-      offers_online: true,
+      format_prices: [{ format: 'online', hourly_rate: 120 }],
+      min_hourly_rate: 120,
     };
 
     const { container } = render(<ServiceCards services={[service]} />);
@@ -407,19 +412,20 @@ describe('ServiceCards', () => {
     const user = userEvent.setup();
     const service: InstructorService = {
       ...baseService,
-      hourly_rate: 120,
+      min_hourly_rate: 120,
+      format_prices: [{ format: 'online', hourly_rate: 120 }],
       duration_options: [30, 60],
     };
 
     render(<ServiceCards services={[service]} />);
 
     // Default duration is 30 min (first option)
-    // Price = (120 * 30) / 60 = $60, shown as "$60" (not "$60/hr")
-    expect(screen.getByText('$60')).toBeInTheDocument();
+    // Price = (120 * 30) / 60 = $60, shown as "$60 · Online"
+    expect(screen.getByText((content) => content.includes('$60') && content.includes('Online'))).toBeInTheDocument();
 
     // Select 60 min
     await user.click(screen.getByLabelText(/60min/i));
-    expect(screen.getByText('$120')).toBeInTheDocument();
+    expect(screen.getByText((content) => content.includes('$120') && content.includes('Online'))).toBeInTheDocument();
   });
 
   it('defaults selectedSlot availableDuration to 120 when not provided', () => {
@@ -629,12 +635,11 @@ describe('ServiceCards', () => {
     expect(button).toBeInTheDocument();
   });
 
-  it('handles service with offers_at_location=true but hasTeachingLocations defaults to true', () => {
+  it('handles service with instructor_location format and hasTeachingLocations defaults to true', () => {
     const service: InstructorService = {
       ...baseService,
-      offers_at_location: true,
-      offers_travel: false,
-      offers_online: false,
+      format_prices: [{ format: 'instructor_location', hourly_rate: 80 }],
+      min_hourly_rate: 80,
       levels_taught: [],
     };
 
@@ -647,12 +652,11 @@ describe('ServiceCards', () => {
     expect(screen.queryByText(/levels:/i)).not.toBeInTheDocument();
   });
 
-  it('shows only travel icon when only offers_travel is true', () => {
+  it('shows only travel icon when only student_location format is set', () => {
     const service: InstructorService = {
       ...baseService,
-      offers_travel: true,
-      offers_at_location: false,
-      offers_online: false,
+      format_prices: [{ format: 'student_location', hourly_rate: 120 }],
+      min_hourly_rate: 120,
     };
 
     render(<ServiceCards services={[service]} />);

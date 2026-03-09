@@ -5,7 +5,8 @@ import type { ServiceAreaNeighborhood } from '@/types/instructor';
 export interface Service {
   id: string;
   skill: string;
-  hourly_rate: number;
+  min_hourly_rate: number;
+  format_prices: Array<{ format: string; hourly_rate: number }>;
   description?: string;
   duration_options: number[];
   duration: number;

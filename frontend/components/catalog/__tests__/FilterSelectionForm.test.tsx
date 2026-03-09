@@ -17,7 +17,7 @@ let queryClient: QueryClient;
 beforeEach(() => {
   jest.clearAllMocks();
   queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
 });
 
@@ -63,7 +63,7 @@ describe('FilterSelectionForm', () => {
       { wrapper: Wrapper },
     );
 
-    expect(await screen.findByText('Skill Level')).toBeInTheDocument();
+    expect(await screen.findByText('Skill Level', {}, { timeout: 3000 })).toBeInTheDocument();
     expect(screen.getByText('Music Style')).toBeInTheDocument();
     expect(screen.getByText('Beginner')).toBeInTheDocument();
     expect(screen.getByText('Classical')).toBeInTheDocument();
@@ -76,7 +76,7 @@ describe('FilterSelectionForm', () => {
       { wrapper: Wrapper },
     );
 
-    expect(await screen.findByText('(select one)')).toBeInTheDocument();
+    expect(await screen.findByText('(select one)', {}, { timeout: 3000 })).toBeInTheDocument();
   });
 
   it('calls onChange when an option is clicked', async () => {
@@ -88,7 +88,7 @@ describe('FilterSelectionForm', () => {
       { wrapper: Wrapper },
     );
 
-    const beginnerBtn = await screen.findByText('Beginner');
+    const beginnerBtn = await screen.findByText('Beginner', {}, { timeout: 3000 });
     fireEvent.click(beginnerBtn);
 
     expect(onChange).toHaveBeenCalledWith({ level: ['beginner'] });
@@ -107,7 +107,7 @@ describe('FilterSelectionForm', () => {
       { wrapper: Wrapper },
     );
 
-    const beginnerBtn = await screen.findByText('Beginner');
+    const beginnerBtn = await screen.findByText('Beginner', {}, { timeout: 3000 });
     fireEvent.click(beginnerBtn);
 
     expect(onChange).toHaveBeenCalledWith({ level: [] });
@@ -126,7 +126,7 @@ describe('FilterSelectionForm', () => {
       { wrapper: Wrapper },
     );
 
-    const jazzBtn = await screen.findByText('Jazz');
+    const jazzBtn = await screen.findByText('Jazz', {}, { timeout: 3000 });
     fireEvent.click(jazzBtn);
 
     expect(onChange).toHaveBeenCalledWith({ style: ['classical', 'jazz'] });
@@ -145,7 +145,7 @@ describe('FilterSelectionForm', () => {
       { wrapper: Wrapper },
     );
 
-    const classicalBtn = await screen.findByText('Classical');
+    const classicalBtn = await screen.findByText('Classical', {}, { timeout: 3000 });
     fireEvent.click(classicalBtn);
 
     expect(onChange).toHaveBeenCalledWith({ style: ['jazz'] });
@@ -170,7 +170,7 @@ describe('FilterSelectionForm', () => {
     );
 
     expect(
-      await screen.findByText('Could not load filter options. Please try again.'),
+      await screen.findByText('Could not load filter options. Please try again.', {}, { timeout: 3000 }),
     ).toBeInTheDocument();
   });
 

@@ -125,7 +125,9 @@ LESSON_TYPE_ONLINE: Pattern[str] = re.compile(
 
 # In-person lesson patterns
 LESSON_TYPE_IN_PERSON: Pattern[str] = re.compile(
-    r"\b(?:in[-\s]?person|face[-\s]?to[-\s]?face|in[-\s]?home|at[-\s]?home)\b", re.IGNORECASE
+    r"\b(?:in[-\s]?person|face[-\s]?to[-\s]?face|in[-\s]?home|at[-\s]?home)\b"
+    r"|at\s+(?:their|the|my)\s+(?:studio|location|place|home)\b",
+    re.IGNORECASE,
 )
 
 

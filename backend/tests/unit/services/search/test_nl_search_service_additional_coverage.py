@@ -106,6 +106,30 @@ def sample_pre_data(sample_parsed_query):
     )
 
 
+def _format_price_map(service_rates: dict[str, float]) -> dict[str, list[dict[str, float | str]]]:
+    return {
+        service_id: [{"format": "online", "hourly_rate": rate}]
+        for service_id, rate in service_rates.items()
+    }
+
+
+def _hydrate_to_thread_side_effect(
+    *,
+    format_prices: dict[str, list[dict[str, float | str]]],
+    instructor_rows: list[dict[str, object]] | None = None,
+    distance_meters: dict[str, float] | None = None,
+):
+    async def _to_thread(func, *_args, **_kwargs):
+        name = getattr(func, "__name__", "")
+        if name == "_load_service_format_prices":
+            return format_prices
+        if name == "_load_hydration_data":
+            return instructor_rows, (distance_meters or {})
+        raise AssertionError(f"Unexpected to_thread call: {name}")
+
+    return _to_thread
+
+
 class TestBudgetSkipping:
     """Tests for budget skipping logic (lines 490-497)."""
 
@@ -661,7 +685,7 @@ class TestNlSearchHelpers:
                 instructor_id=instructor_id,
                 name="Service",
                 description=None,
-                price_per_hour=50,
+                min_hourly_rate=50,
                 final_score=1.0 - (rank * 0.1),
                 rank=rank,
                 relevance_score=0.9,
@@ -847,7 +871,7 @@ class TestNlSearchServiceCore:
             text_score=0.6,
             name="Service",
             description=None,
-            price_per_hour=50,
+            min_hourly_rate=50,
             instructor_id="inst_1",
         )
         retrieval = RetrievalResult(
@@ -876,7 +900,7 @@ class TestNlSearchServiceCore:
             hybrid_score=0.8,
             name="Service",
             description=None,
-            price_per_hour=50,
+            min_hourly_rate=50,
         )
         filter_result = FilterResult(
             candidates=[candidate],
@@ -912,7 +936,7 @@ class TestNlSearchServiceCore:
                         "service_catalog_id": "cat_1",
                         "name": "Premium",
                         "description": None,
-                        "price_per_hour": 120,
+                        "min_hourly_rate": 120,
                         "relevance_score": 0.9,
                     }
                 ],
@@ -929,7 +953,7 @@ class TestNlSearchServiceCore:
                         "service_catalog_id": "cat_2",
                         "name": "Standard",
                         "description": None,
-                        "price_per_hour": 40,
+                        "min_hourly_rate": 40,
                         "relevance_score": 0.8,
                     },
                     {
@@ -937,7 +961,7 @@ class TestNlSearchServiceCore:
                         "service_catalog_id": "cat_3",
                         "name": "Extra",
                         "description": None,
-                        "price_per_hour": 45,
+                        "min_hourly_rate": 45,
                         "relevance_score": 0.7,
                     },
                 ],
@@ -991,7 +1015,7 @@ class TestNlSearchServiceCore:
                     service_catalog_id="cat_1",
                     name="Service",
                     description=None,
-                    price_per_hour=40,
+                    min_hourly_rate=40,
                     relevance_score=0.5,
                 ),
                 other_matches=[],
@@ -2082,7 +2106,7 @@ async def test_hydrate_instructor_results_dedupes_and_distances(nl_service):
             instructor_id="inst_1",
             name="Service",
             description=None,
-            price_per_hour=50,
+            min_hourly_rate=50,
             final_score=0.9,
             rank=1,
             relevance_score=0.9,
@@ -2098,7 +2122,7 @@ async def test_hydrate_instructor_results_dedupes_and_distances(nl_service):
             instructor_id="inst_1",
             name="Service",
             description=None,
-            price_per_hour=60,
+            min_hourly_rate=60,
             final_score=0.8,
             rank=2,
             relevance_score=0.8,
@@ -2114,7 +2138,7 @@ async def test_hydrate_instructor_results_dedupes_and_distances(nl_service):
             instructor_id="inst_2",
             name="Service",
             description=None,
-            price_per_hour=70,
+            min_hourly_rate=70,
             final_score=0.7,
             rank=3,
             relevance_score=0.7,
@@ -2162,11 +2186,7 @@ async def test_hydrate_instructor_results_dedupes_and_distances(nl_service):
     with patch(
         "app.services.search.nl_search_service.asyncio.to_thread",
         new=AsyncMock(
-            return_value={
-                "svc_1": {"id": "svc_1"},
-                "svc_2": {"id": "svc_2"},
-                "svc_3": {"id": "svc_3"},
-            }
+            return_value=_format_price_map({"svc_1": 50.0, "svc_2": 60.0, "svc_3": 70.0})
         ),
     ):
         results = await nl_service._hydrate_instructor_results(
@@ -2190,7 +2210,7 @@ async def test_hydrate_instructor_results_raises_when_hydration_rows_missing(nl_
             instructor_id="inst_1",
             name="Service 1",
             description=None,
-            price_per_hour=50,
+            min_hourly_rate=50,
             final_score=0.9,
             rank=1,
             relevance_score=0.9,
@@ -2204,7 +2224,7 @@ async def test_hydrate_instructor_results_raises_when_hydration_rows_missing(nl_
 
     thread_results = iter(
         [
-            {"svc_1": {"id": "svc_1"}},
+            _format_price_map({"svc_1": 50.0}),
             (None, {}),
         ]
     )
@@ -2233,7 +2253,7 @@ async def test_hydrate_instructor_results_clarification_candidates_and_optional_
             instructor_id="inst_1",
             name="Service 1",
             description=None,
-            price_per_hour=50,
+            min_hourly_rate=50,
             final_score=0.9,
             rank=1,
             relevance_score=0.9,
@@ -2249,7 +2269,7 @@ async def test_hydrate_instructor_results_clarification_candidates_and_optional_
             instructor_id="inst_2",
             name="Service 2",
             description=None,
-            price_per_hour=60,
+            min_hourly_rate=60,
             final_score=0.8,
             rank=2,
             relevance_score=0.8,
@@ -2271,8 +2291,8 @@ async def test_hydrate_instructor_results_clarification_candidates_and_optional_
     )
 
     async def _to_thread(func, *_args, **_kwargs):
-        if getattr(func, "__name__", "") == "_load_service_data":
-            return {"svc_2": {"id": "svc_2", "offers_online": True}}
+        if getattr(func, "__name__", "") == "_load_service_format_prices":
+            return _format_price_map({"svc_2": 60.0})
         return (
             [
                 {
@@ -2647,7 +2667,7 @@ async def test_hydrate_results_skips_duplicate_and_missing_profile(nl_service):
             instructor_id="inst_1",
             name="Service 1",
             description=None,
-            price_per_hour=50,
+            min_hourly_rate=50,
             final_score=0.9,
             rank=1,
             relevance_score=0.9,
@@ -2663,7 +2683,7 @@ async def test_hydrate_results_skips_duplicate_and_missing_profile(nl_service):
             instructor_id="inst_1",
             name="Service 2",
             description=None,
-            price_per_hour=60,
+            min_hourly_rate=60,
             final_score=0.8,
             rank=2,
             relevance_score=0.8,
@@ -2679,7 +2699,7 @@ async def test_hydrate_results_skips_duplicate_and_missing_profile(nl_service):
             instructor_id="inst_2",
             name="Service 3",
             description=None,
-            price_per_hour=70,
+            min_hourly_rate=70,
             final_score=0.7,
             rank=3,
             relevance_score=0.7,
@@ -2710,11 +2730,7 @@ async def test_hydrate_results_skips_duplicate_and_missing_profile(nl_service):
     with patch(
         "app.services.search.nl_search_service.asyncio.to_thread",
         new=AsyncMock(
-            return_value={
-                "svc_1": {"id": "svc_1"},
-                "svc_2": {"id": "svc_2"},
-                "svc_3": {"id": "svc_3"},
-            }
+            return_value=_format_price_map({"svc_1": 50.0, "svc_2": 60.0, "svc_3": 70.0})
         ),
     ):
         results = await nl_service._hydrate_instructor_results(
@@ -2737,7 +2753,7 @@ async def test_hydrate_results_loads_distance_map_for_clarification_candidates(n
             instructor_id="inst_1",
             name="Service 1",
             description=None,
-            price_per_hour=50,
+            min_hourly_rate=50,
             final_score=0.9,
             rank=1,
             relevance_score=0.9,
@@ -2754,31 +2770,29 @@ async def test_hydrate_results_loads_distance_map_for_clarification_candidates(n
         candidates=[{"region_id": "r1"}, {"region_id": "r1"}, {"region_id": "r2"}],
     )
 
-    async def _to_thread(func, *_args, **_kwargs):
-        if getattr(func, "__name__", "") == "_load_service_data":
-            return {"svc_1": {"id": "svc_1"}}
-        return (
-            [
-                {
-                    "instructor_id": "inst_1",
-                    "first_name": "Ada",
-                    "last_initial": "L",
-                    "avg_rating": 5.0,
-                    "review_count": 12,
-                    "profile_picture_key": None,
-                    "bio_snippet": None,
-                    "verified": True,
-                    "is_founding_instructor": False,
-                    "years_experience": 5,
-                    "coverage_areas": [],
-                }
-            ],
-            {"inst_1": 500.0},
-        )
-
     with patch(
         "app.services.search.nl_search_service.asyncio.to_thread",
-        new=AsyncMock(side_effect=_to_thread),
+        new=AsyncMock(
+            side_effect=_hydrate_to_thread_side_effect(
+                format_prices=_format_price_map({"svc_1": 50.0}),
+                instructor_rows=[
+                    {
+                        "instructor_id": "inst_1",
+                        "first_name": "Ada",
+                        "last_initial": "L",
+                        "avg_rating": 5.0,
+                        "review_count": 12,
+                        "profile_picture_key": None,
+                        "bio_snippet": None,
+                        "verified": True,
+                        "is_founding_instructor": False,
+                        "years_experience": 5,
+                        "coverage_areas": [],
+                    }
+                ],
+                distance_meters={"inst_1": 500.0},
+            )
+        ),
     ):
         results = await nl_service._hydrate_instructor_results(
             ranked,
@@ -2879,7 +2893,7 @@ def test_run_post_openai_burst_handles_taxonomy_metadata_failure(monkeypatch):
         text_score=0.8,
         name="Piano",
         description="desc",
-        price_per_hour=100,
+        min_hourly_rate=100,
         instructor_id="inst_1",
         subcategory_id="sub_1",
     )
@@ -2979,7 +2993,7 @@ def test_run_post_openai_burst_handles_empty_and_failing_taxonomy_matches(monkey
         text_score=0.7,
         name="Voice",
         description="desc",
-        price_per_hour=90,
+        min_hourly_rate=90,
         instructor_id="inst_voice",
         subcategory_id="sub_voice",
     )
@@ -3085,7 +3099,7 @@ async def test_hydrate_results_loads_distance_map_via_filter_repository(monkeypa
             instructor_id="inst_distance",
             name="Distance Service",
             description=None,
-            price_per_hour=80,
+            min_hourly_rate=80,
             final_score=0.8,
             rank=1,
             relevance_score=0.8,

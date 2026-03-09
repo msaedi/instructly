@@ -133,9 +133,12 @@ export async function normalizeInstructorServices(services: unknown): Promise<UI
       const durationOptions = Array.isArray(record['duration_options']) && record['duration_options'].length > 0
         ? (record['duration_options'] as number[])
         : [60];
-      const hourlyRate = typeof record['hourly_rate'] === 'number'
-        ? record['hourly_rate']
-        : Number.parseFloat(String(record['hourly_rate'] ?? '0'));
+      const minHourlyRateRaw = typeof record['min_hourly_rate'] === 'number'
+        ? record['min_hourly_rate']
+        : Number.parseFloat(String(record['min_hourly_rate'] ?? '0'));
+      const formatPrices = Array.isArray(record['format_prices'])
+        ? (record['format_prices'] as Array<{ format: string; hourly_rate: number }>)
+        : [];
 
       const locationTypes =
         Array.isArray(record['location_types']) && record['location_types'].length
@@ -149,7 +152,8 @@ export async function normalizeInstructorServices(services: unknown): Promise<UI
         name: displayName,
         skill: typeof record['skill'] === 'string' && record['skill'].trim().length > 0 ? record['skill'].trim() : displayName,
         duration_options: durationOptions,
-        hourly_rate: Number.isFinite(hourlyRate) ? hourlyRate : 0,
+        min_hourly_rate: Number.isFinite(minHourlyRateRaw) ? minHourlyRateRaw : 0,
+        format_prices: formatPrices,
         ...(Array.isArray(record['levels_taught']) && record['levels_taught'].length
           ? { levels_taught: (record['levels_taught'] as unknown[]).map((lvl) => String(lvl)) }
           : {}),

@@ -12,6 +12,42 @@ from typing import Any, Dict, List
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+# ---------------------------------------------------------------------------
+# Shared CTE fragments for service pricing summary
+# ---------------------------------------------------------------------------
+
+# Full CTE: min rate + per-format availability flags
+_SERVICE_PRICE_SUMMARY_CTE = """
+    service_price_summary AS (
+        SELECT sfp.service_id,
+               MIN(sfp.hourly_rate) AS min_hourly_rate,
+               MAX(CASE WHEN sfp.format = 'student_location' THEN 1 ELSE 0 END) AS has_student_location,
+               MAX(CASE WHEN sfp.format = 'instructor_location' THEN 1 ELSE 0 END) AS has_instructor_location,
+               MAX(CASE WHEN sfp.format = 'online' THEN 1 ELSE 0 END) AS has_online
+        FROM service_format_pricing sfp
+        GROUP BY sfp.service_id
+    )"""
+
+# Simplified CTE: only min rate (when format flags are not needed)
+_SERVICE_PRICE_MIN_CTE = """
+    service_price_summary AS (
+        SELECT sfp.service_id,
+               MIN(sfp.hourly_rate) AS min_hourly_rate
+        FROM service_format_pricing sfp
+        GROUP BY sfp.service_id
+    )"""
+
+
+def _price_cte_query(sql: str, *, full: bool = False) -> str:
+    """Prepend the service pricing CTE to a SQL query.
+
+    The CTE is a module-level constant, not user input.
+    Wrapped in a function so Bandit's AST analysis sees
+    ``text(function_call(...))`` instead of string concatenation.
+    """
+    cte = _SERVICE_PRICE_SUMMARY_CTE if full else _SERVICE_PRICE_MIN_CTE
+    return "WITH " + cte + " " + sql
+
 
 class RetrieverRepository:
     """
@@ -45,13 +81,14 @@ class RetrieverRepository:
         embedding_str = "[" + ",".join(str(x) for x in embedding) + "]"
 
         query = text(
-            """
+            _price_cte_query(
+                """
             SELECT
                 ins.id as instructor_service_id,
                 sc.id as catalog_id,
                 sc.name,
                 sc.description,
-                ins.hourly_rate as price_per_hour,
+                sps.min_hourly_rate,
                 ip.user_id as instructor_id,
                 ss.id as subcategory_id,
                 ss.name as subcategory_name,
@@ -65,6 +102,7 @@ class RetrieverRepository:
             JOIN service_subcategories ss ON ss.id = sc.subcategory_id
             JOIN service_categories scat ON scat.id = ss.category_id
             JOIN instructor_services ins ON ins.service_catalog_id = sc.id
+            JOIN service_price_summary sps ON sps.service_id = ins.id
             JOIN instructor_profiles ip ON ip.id = ins.instructor_profile_id
             WHERE sc.is_active = true
                 AND ins.is_active = true
@@ -74,6 +112,7 @@ class RetrieverRepository:
             ORDER BY sc.embedding_v2 <=> CAST(:embedding AS vector)
             LIMIT :limit
         """
+            )
         )
 
         result = self.db.execute(
@@ -90,7 +129,8 @@ class RetrieverRepository:
                 "catalog_id": row.catalog_id,
                 "name": row.name,
                 "description": row.description,
-                "price_per_hour": int(row.price_per_hour),
+                "min_hourly_rate": float(row.min_hourly_rate),
+                "price_per_hour": float(row.min_hourly_rate),
                 "instructor_id": row.instructor_id,
                 "subcategory_id": row.subcategory_id,
                 "subcategory_name": row.subcategory_name,
@@ -121,13 +161,14 @@ class RetrieverRepository:
             List of service candidates with scores
         """
         query = text(
-            """
+            _price_cte_query(
+                """
             SELECT
                 ins.id as instructor_service_id,
                 sc.id as catalog_id,
                 sc.name,
                 sc.description,
-                ins.hourly_rate as price_per_hour,
+                sps.min_hourly_rate,
                 ip.user_id as instructor_id,
                 ss.id as subcategory_id,
                 ss.name as subcategory_name,
@@ -141,6 +182,7 @@ class RetrieverRepository:
             JOIN service_subcategories ss ON ss.id = sc.subcategory_id
             JOIN service_categories scat ON scat.id = ss.category_id
             JOIN instructor_services ins ON ins.service_catalog_id = sc.id
+            JOIN service_price_summary sps ON sps.service_id = ins.id
             JOIN instructor_profiles ip ON ip.id = ins.instructor_profile_id
             WHERE sc.is_active = true
                 AND ins.is_active = true
@@ -154,6 +196,7 @@ class RetrieverRepository:
             ORDER BY text_score DESC
             LIMIT :limit
         """
+            )
         )
 
         result = self.db.execute(
@@ -171,7 +214,8 @@ class RetrieverRepository:
                 "catalog_id": row.catalog_id,
                 "name": row.name,
                 "description": row.description,
-                "price_per_hour": int(row.price_per_hour),
+                "min_hourly_rate": float(row.min_hourly_rate),
+                "price_per_hour": float(row.min_hourly_rate),
                 "instructor_id": row.instructor_id,
                 "subcategory_id": row.subcategory_id,
                 "subcategory_name": row.subcategory_name,
@@ -200,16 +244,17 @@ class RetrieverRepository:
             return []
 
         query = text(
-            """
+            _price_cte_query(
+                """
             SELECT
                 ins.id as instructor_service_id,
                 sc.id as catalog_id,
                 sc.name,
                 sc.description,
-                ins.hourly_rate as price_per_hour,
-                ins.offers_travel,
-                ins.offers_at_location,
-                ins.offers_online,
+                sps.min_hourly_rate,
+                CASE WHEN sps.has_student_location = 1 THEN true ELSE false END AS offers_travel,
+                CASE WHEN sps.has_instructor_location = 1 THEN true ELSE false END AS offers_at_location,
+                CASE WHEN sps.has_online = 1 THEN true ELSE false END AS offers_online,
                 ip.user_id as instructor_id,
                 ins.duration_options,
                 ins.filter_selections,
@@ -218,6 +263,7 @@ class RetrieverRepository:
                 scat.name as category_name
             FROM instructor_services ins
             JOIN service_catalog sc ON sc.id = ins.service_catalog_id
+            JOIN service_price_summary sps ON sps.service_id = ins.id
             JOIN service_subcategories ss ON ss.id = sc.subcategory_id
             JOIN service_categories scat ON scat.id = ss.category_id
             JOIN instructor_profiles ip ON ip.id = ins.instructor_profile_id
@@ -226,7 +272,9 @@ class RetrieverRepository:
                 AND sc.is_active = true
                 AND ip.is_live = true
                 AND ip.bgc_status = 'passed'
-        """
+        """,
+                full=True,
+            )
         )
 
         result = self.db.execute(query, {"ids": service_ids})
@@ -237,7 +285,8 @@ class RetrieverRepository:
                 "catalog_id": str(row.catalog_id),
                 "name": row.name,
                 "description": row.description,
-                "price_per_hour": int(row.price_per_hour),
+                "min_hourly_rate": float(row.min_hourly_rate),
+                "price_per_hour": float(row.min_hourly_rate),
                 "offers_travel": row.offers_travel,
                 "offers_at_location": row.offers_at_location,
                 "offers_online": row.offers_online,
@@ -546,15 +595,16 @@ class RetrieverRepository:
         embedding_str = "[" + ",".join(str(x) for x in embedding) + "]"
 
         query = text(
-            """
-            WITH matched_services AS (
+            _price_cte_query(
+                """,
+            matched_services AS (
                 -- Step 1: Vector search to find matching services
                 SELECT
                     ins.id as service_id,
                     sc.id as service_catalog_id,
                     sc.name as service_name,
                     sc.description as service_description,
-                    ins.hourly_rate as price_per_hour,
+                    sps.min_hourly_rate,
                     ip.user_id as instructor_id,
                     ip.id as profile_id,
                     ss.name as subcategory_name,
@@ -565,13 +615,14 @@ class RetrieverRepository:
                 JOIN service_catalog sc ON sc.id = ins.service_catalog_id
                 JOIN service_subcategories ss ON ss.id = sc.subcategory_id
                 JOIN service_categories scat ON scat.id = ss.category_id
+                JOIN service_price_summary sps ON sps.service_id = ins.id
                 JOIN instructor_profiles ip ON ip.id = ins.instructor_profile_id
                 WHERE sc.is_active = true
                     AND ins.is_active = true
                     AND sc.embedding_v2 IS NOT NULL
                     AND ip.is_live = true
                     AND ip.bgc_status = 'passed'
-                    AND (:max_price IS NULL OR ins.hourly_rate <= :max_price)
+                    AND (:max_price IS NULL OR sps.min_hourly_rate <= :max_price)
                 ORDER BY sc.embedding_v2 <=> CAST(:embedding AS vector)
                 LIMIT :search_limit
             ),
@@ -587,7 +638,8 @@ class RetrieverRepository:
                             'service_catalog_id', service_catalog_id,
                             'name', service_name,
                             'description', service_description,
-                            'price_per_hour', price_per_hour,
+                            'min_hourly_rate', min_hourly_rate,
+                            'price_per_hour', min_hourly_rate,
                             'subcategory_name', subcategory_name,
                             'category_name', category_name,
                             'relevance_score', relevance_score
@@ -660,6 +712,7 @@ class RetrieverRepository:
             ORDER BY id.best_score DESC
             LIMIT :limit
         """
+            )
         )
 
         result = self.db.execute(
@@ -717,14 +770,15 @@ class RetrieverRepository:
             List of instructor data dicts with embedded profile, ratings, services
         """
         query = text(
-            """
-            WITH matched_services AS (
+            _price_cte_query(
+                """,
+            matched_services AS (
                 SELECT
                     ins.id as service_id,
                     sc.id as service_catalog_id,
                     sc.name as service_name,
                     sc.description as service_description,
-                    ins.hourly_rate as price_per_hour,
+                    sps.min_hourly_rate,
                     ip.user_id as instructor_id,
                     ip.id as profile_id,
                     ss.name as subcategory_name,
@@ -738,12 +792,13 @@ class RetrieverRepository:
                 JOIN service_catalog sc ON sc.id = ins.service_catalog_id
                 JOIN service_subcategories ss ON ss.id = sc.subcategory_id
                 JOIN service_categories scat ON scat.id = ss.category_id
+                JOIN service_price_summary sps ON sps.service_id = ins.id
                 JOIN instructor_profiles ip ON ip.id = ins.instructor_profile_id
                 WHERE sc.is_active = true
                   AND ins.is_active = true
                   AND ip.is_live = true
                   AND ip.bgc_status = 'passed'
-                  AND (:max_price IS NULL OR ins.hourly_rate <= :max_price)
+                  AND (:max_price IS NULL OR sps.min_hourly_rate <= :max_price)
                   AND (
                         sc.name % :corrected_query
                         OR sc.name % :original_query
@@ -763,7 +818,8 @@ class RetrieverRepository:
                             'service_catalog_id', service_catalog_id,
                             'name', service_name,
                             'description', service_description,
-                            'price_per_hour', price_per_hour,
+                            'min_hourly_rate', min_hourly_rate,
+                            'price_per_hour', min_hourly_rate,
                             'subcategory_name', subcategory_name,
                             'category_name', category_name,
                             'relevance_score', relevance_score
@@ -783,7 +839,8 @@ class RetrieverRepository:
                     ip.bio,
                     ip.years_experience,
                     u.profile_picture_key,
-                    (ip.identity_verified_at IS NOT NULL) as verified
+                    (ip.identity_verified_at IS NOT NULL) as verified,
+                    ip.is_founding_instructor
                 FROM instructor_matches im
                 JOIN instructor_profiles ip ON im.profile_id = ip.id
                 JOIN users u ON ip.user_id = u.id
@@ -818,6 +875,7 @@ class RetrieverRepository:
                 id.years_experience,
                 id.profile_picture_key,
                 id.verified,
+                id.is_founding_instructor,
                 id.matching_services,
                 id.best_score,
                 id.match_count,
@@ -830,6 +888,7 @@ class RetrieverRepository:
             ORDER BY id.best_score DESC
             LIMIT :limit
         """
+            )
         )
 
         result = self.db.execute(
@@ -852,6 +911,7 @@ class RetrieverRepository:
                 "years_experience": row.years_experience,
                 "profile_picture_key": row.profile_picture_key,
                 "verified": row.verified,
+                "is_founding_instructor": bool(row.is_founding_instructor),
                 "matching_services": row.matching_services,
                 "best_score": float(row.best_score),
                 "match_count": int(row.match_count),

@@ -3,27 +3,19 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { X, Plus, Trash2, DollarSign, ChevronDown, MapPin, BookOpen } from 'lucide-react';
+import { X, ChevronDown, MapPin } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
-import type { CategoryServiceDetail, ServiceCategory } from '@/features/shared/api/types';
-import { useServiceCategories, useAllServicesWithInstructors } from '@/hooks/queries/useServices';
-import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import Modal from '@/components/Modal';
 import { fetchWithAuth, API_ENDPOINTS, getErrorMessage } from '@/lib/api';
 import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { logger } from '@/lib/logger';
 import { useInstructorServiceAreas } from '@/hooks/queries/useInstructorServiceAreas';
 import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteInput';
-import { normalizeInstructorServices, hydrateCatalogNameById, displayServiceName } from '@/lib/instructorServices';
 import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 import { buildProfileUpdateBody } from '@/lib/profileSchemaDebug';
-import type { InstructorProfile, ServiceAreaNeighborhood, ServiceLocationType } from '@/types/instructor';
+import type { InstructorProfile, ServiceAreaNeighborhood } from '@/types/instructor';
 import { SelectedNeighborhoodChips, type SelectedNeighborhood } from '@/features/shared/components/SelectedNeighborhoodChips';
-import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
-import { formatPlatformFeeLabel, resolvePlatformFeeRate, resolveTakeHomePct } from '@/lib/pricing/platformFees';
-import { evaluatePriceFloorViolations, FloorViolation, formatCents } from '@/lib/pricing/priceFloors';
-import { usePlatformFees } from '@/hooks/usePlatformConfig';
 import type { ApiErrorResponse, components } from '@/features/shared/api/types';
 import { extractApiErrorCode, extractApiErrorMessage } from '@/lib/apiErrors';
 import { toast } from 'sonner';
@@ -31,8 +23,6 @@ import { queryKeys } from '@/src/api/queryKeys';
 import {
   addPreferredPlace,
   getGlobalNeighborhoodMatchesWithIds,
-  removeServiceFromProfile,
-  updateServiceInProfile,
   updateOptionalPlaceLabel,
 } from './EditProfileModal.helpers';
 
@@ -41,64 +31,8 @@ type AuthUserResponse = components['schemas']['AuthUserWithPermissionsResponse']
 type AddressListResponse = components['schemas']['AddressListResponse'];
 type AddressResponse = components['schemas']['AddressResponse'];
 type NeighborhoodsListResponse = components['schemas']['NeighborhoodsListResponse'];
-type EditableService = {
-  service_catalog_id?: string;
-  service_catalog_name?: string | null;
-  name?: string | null;
-  skill?: string;
-  hourly_rate?: number;
-  description?: string | null;
-  requirements?: string | null;
-  age_groups?: string[] | null;
-  levels_taught?: string[] | null;
-  equipment_required?: string[] | null;
-  offers_travel?: boolean | null;
-  offers_at_location?: boolean | null;
-  offers_online?: boolean | null;
-  duration_options?: number[] | null;
-};
-
 // Simple address type for profile editing
 type AddressItem = AddressResponse;
-
-interface ServiceUpdateItem {
-  service_catalog_id: string;
-  hourly_rate: number;
-  age_groups: string[];
-  description?: string;
-  duration_options: number[];
-  levels_taught: string[];
-  equipment_required?: string[];
-  offers_travel: boolean;
-  offers_at_location: boolean;
-  offers_online: boolean;
-}
-
-interface ProfileServiceUpdatePayload {
-  services: ServiceUpdateItem[];
-}
-
-type ServiceCapabilities = {
-  offers_travel: boolean;
-  offers_at_location: boolean;
-  offers_online: boolean;
-};
-
-const hasAnyLocationOption = (service: ServiceCapabilities) =>
-  service.offers_travel || service.offers_at_location || service.offers_online;
-
-const locationTypesFromCapabilities = (
-  service: ServiceCapabilities
-): ServiceLocationType[] => {
-  const types: ServiceLocationType[] = [];
-  if (service.offers_travel || service.offers_at_location) {
-    types.push('in_person');
-  }
-  if (service.offers_online) {
-    types.push('online');
-  }
-  return types;
-};
 
 type PreferredTeachingLocationInput = {
   address: string;
@@ -126,7 +60,7 @@ interface EditProfileModalProps {
   /** Callback when profile is successfully updated */
   onSuccess: () => void;
   /** Which variant of the modal to show */
-  variant?: 'full' | 'about' | 'areas' | 'services';
+  variant?: 'full' | 'about' | 'areas';
   /** Prefilled neighborhoods provided by parent */
   selectedServiceAreas?: SelectedNeighborhood[];
   /** Prefilled preferred teaching locations */
@@ -153,8 +87,6 @@ interface ProfileFormData {
   service_area_boroughs: string[];
   /** Years of teaching experience */
   years_experience: number;
-  /** Services offered by the instructor */
-  services: EditableService[];
   /** First name (from account) */
   first_name: string;
   /** Last name (from account) */
@@ -183,15 +115,9 @@ export default function EditProfileModal({
     bio: '',
     service_area_boroughs: [] as string[],
     years_experience: 1,
-    services: [] as EditableService[],
     first_name: '',
     last_name: '',
     postal_code: '',
-  });
-  const [newService, setNewService] = useState<EditableService>({
-    skill: '',
-    hourly_rate: 50,
-    description: '',
   });
   const queryClient = useQueryClient();
 
@@ -219,30 +145,6 @@ export default function EditProfileModal({
 
     throw new Error(message);
   }, [profileData.first_name, profileData.last_name]);
-
-  // Skills options (same as in become-instructor)
-  const SKILLS_OPTIONS = [
-    'Yoga',
-    'Meditation',
-    'Piano',
-    'Music Theory',
-    'Spanish',
-    'ESL',
-    'Personal Training',
-    'Nutrition',
-    'Photography',
-    'Photo Editing',
-    'Programming',
-    'Web Development',
-    'Data Science',
-    'Language Tutoring',
-    'Art',
-    'Drawing',
-    'Painting',
-    'Dance',
-    'Fitness',
-    'Cooking',
-  ];
 
   // NYC areas for dropdown
   const nycAreas = [
@@ -303,129 +205,17 @@ export default function EditProfileModal({
 
   // Use React Query hook for service areas (deduplicates API calls)
   const { data: serviceAreasData } = useInstructorServiceAreas(isOpen);
-  // Skills and pricing (onboarding-like)
-  type AgeGroup = 'kids' | 'adults' | 'both';
-  type SelectedService = {
-    catalog_service_id: string;
-    service_catalog_name?: string | null;
-    name: string;
-    hourly_rate: string;
-    ageGroup: AgeGroup;
-    description?: string;
-    equipment?: string;
-    levels_taught: Array<'beginner' | 'intermediate' | 'advanced'>;
-    duration_options: number[];
-    offers_travel: boolean;
-    offers_at_location: boolean;
-    offers_online: boolean;
-  };
-  const [categories, setCategories] = useState<ServiceCategory[]>([]);
-  const [servicesByCategory, setServicesByCategory] = useState<Record<string, CategoryServiceDetail[]>>({});
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
-  const [svcLoading, setSvcLoading] = useState(false);
-  const [svcSaving, setSvcSaving] = useState(false);
-  const [skillsFilter, setSkillsFilter] = useState('');
-
-  // Use React Query hooks for service data (prevents duplicate API calls)
-  const { data: categoriesData, isLoading: categoriesLoading } = useServiceCategories();
-  const { data: allServicesData, isLoading: allServicesLoading } = useAllServicesWithInstructors();
-  // Use React Query hook for instructor profile (prevents duplicate API calls when variant is 'services')
-  const { data: instructorProfileFromHook } = useInstructorProfileMe(isOpen && variant === 'services');
-
-  const profileRecord = useMemo(
-    () => (instructorProfile ?? instructorProfileFromHook) as Record<string, unknown> | null,
-    [instructorProfile, instructorProfileFromHook]
-  );
-  const hasServiceAreas = useMemo(() => {
-    if (!profileRecord) return false;
-    const neighborhoods = Array.isArray(profileRecord['service_area_neighborhoods'])
-      ? (profileRecord['service_area_neighborhoods'] as unknown[])
-      : [];
-    const boroughs = Array.isArray(profileRecord['service_area_boroughs'])
-      ? (profileRecord['service_area_boroughs'] as unknown[])
-      : [];
-    const summary =
-      typeof profileRecord['service_area_summary'] === 'string'
-        ? (profileRecord['service_area_summary'] as string)
-        : '';
-    return neighborhoods.length > 0 || boroughs.length > 0 || summary.trim().length > 0;
-  }, [profileRecord]);
-  const hasTeachingLocations = useMemo(() => {
-    if (!profileRecord) return false;
-    const teaching = Array.isArray(profileRecord['preferred_teaching_locations'])
-      ? (profileRecord['preferred_teaching_locations'] as unknown[])
-      : [];
-    return teaching.length > 0;
-  }, [profileRecord]);
-
-  const { config: pricingConfig } = usePricingConfig();
-  const { fees } = usePlatformFees();
-  const pricingFloors = pricingConfig?.price_floor_cents ?? null;
-  const profileFeeContext = useMemo(() => {
-    const record = profileRecord;
-    const currentTierRaw = record?.['current_tier_pct'];
-    const currentTierPct =
-      typeof currentTierRaw === 'number' && Number.isFinite(currentTierRaw) ? currentTierRaw : null;
-    return {
-      isFoundingInstructor: Boolean(record?.['is_founding_instructor']),
-      currentTierPct,
-    };
-  }, [profileRecord]);
-  const platformFeeRate = useMemo(
-    () =>
-      resolvePlatformFeeRate({
-        fees,
-        isFoundingInstructor: profileFeeContext.isFoundingInstructor,
-        currentTierPct: profileFeeContext.currentTierPct,
-      }),
-    [fees, profileFeeContext]
-  );
-  const instructorTakeHomePct = useMemo(() => resolveTakeHomePct(platformFeeRate), [platformFeeRate]);
-  const platformFeeLabel = useMemo(() => formatPlatformFeeLabel(platformFeeRate), [platformFeeRate]);
-  const defaultCapabilities = useCallback((): ServiceCapabilities => {
-    const defaultTravel = hasServiceAreas;
-    const defaultAtLocation = hasTeachingLocations;
-    return {
-      offers_travel: defaultTravel,
-      offers_at_location: defaultAtLocation,
-      offers_online: !defaultTravel && !defaultAtLocation,
-    };
-  }, [hasServiceAreas, hasTeachingLocations]);
-  const serviceFloorViolations = useMemo(() => {
-    const map = new Map<string, FloorViolation[]>();
-    if (!pricingFloors) return map;
-    selectedServices.forEach((service) => {
-      const locationTypes = locationTypesFromCapabilities(service);
-      if (!locationTypes.length) return;
-      const violations = evaluatePriceFloorViolations({
-        hourlyRate: Number(service.hourly_rate),
-        durationOptions: service.duration_options ?? [60],
-        locationTypes,
-        floors: pricingFloors,
-      });
-      if (violations.length > 0) {
-        map.set(service.catalog_service_id, violations);
-      }
-    });
-    return map;
-  }, [pricingFloors, selectedServices]);
-  const hasServiceFloorViolations = serviceFloorViolations.size > 0;
-
   const fetchProfile = useCallback(async () => {
     try {
       let data: InstructorProfileResponse;
 
-      // Use pre-fetched profile or hook data if available (avoids duplicate API call)
+      // Use pre-fetched profile if available (avoids duplicate API call)
       const profileOverride = instructorProfile
         ? (instructorProfile as unknown as InstructorProfileResponse)
         : null;
       if (profileOverride) {
         logger.info('Using pre-fetched instructor profile for editing');
         data = profileOverride;
-      } else if (instructorProfileFromHook) {
-        logger.info('Using React Query hook data for editing');
-        data = instructorProfileFromHook as unknown as InstructorProfileResponse;
       } else {
         logger.info('Fetching instructor profile for editing');
         const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
@@ -489,27 +279,23 @@ export default function EditProfileModal({
         logger.warn('Failed to fetch default address', err);
       }
 
-      const normalizedServices = await normalizeInstructorServices(data.services ?? []);
-
       setProfileData({
         bio: data.bio || '',
         service_area_boroughs: boroughSelection,
         years_experience: data.years_experience || 1,
-        services: normalizedServices,
         first_name: firstName,
         last_name: lastName,
         postal_code: postalCode,
       });
 
       logger.debug('Profile data loaded', {
-        servicesCount: Array.isArray(data['services']) ? data['services'].length : 0,
         boroughCount: boroughSelection.length,
       });
     } catch (err) {
       logger.error('Failed to load instructor profile', err);
       setError('Failed to load profile');
     }
-  }, [instructorProfile, instructorProfileFromHook]);
+  }, [instructorProfile]);
 
   useEffect(() => {
     if (isOpen) {
@@ -611,79 +397,7 @@ export default function EditProfileModal({
     setPublicPlaces(normalizePublic(preferredPublic));
   }, [isAreasVariant, isOpen, preferredPublic, preferredTeaching, selectedServiceAreas, areasPrefillAppliedRef]);
 
-  // Sync loading state with React Query hooks
-  useEffect(() => {
-    if (isOpen && variant === 'services') {
-      setSvcLoading(categoriesLoading || allServicesLoading);
-    }
-  }, [isOpen, variant, categoriesLoading, allServicesLoading]);
 
-  // Process service categories from hook data
-  useEffect(() => {
-    if (!(isOpen && variant === 'services')) return;
-    if (categoriesData) {
-      setCategories(categoriesData);
-      const initialCollapsed: Record<string, boolean> = {};
-      for (const c of categoriesData) initialCollapsed[c.id] = true;
-      setCollapsed(initialCollapsed);
-    }
-  }, [isOpen, variant, categoriesData]);
-
-  // Process all services from hook data
-  useEffect(() => {
-    if (!(isOpen && variant === 'services')) return;
-    if (allServicesData) {
-      const map: Record<string, CategoryServiceDetail[]> = {};
-      const categories = allServicesData.categories ?? [];
-      for (const c of categories) {
-        map[c.id] = c.services ?? [];
-      }
-      setServicesByCategory(map);
-    }
-  }, [isOpen, variant, allServicesData]);
-
-  // Load instructor profile for prefilling services (uses React Query hook - prevents duplicate API calls)
-  useEffect(() => {
-    if (!(isOpen && variant === 'services')) return;
-    if (!instructorProfileFromHook) return;
-
-    // Transform hook data to match SelectedService format
-    const me = instructorProfileFromHook as unknown as Record<string, unknown>;
-    const mapped: SelectedService[] = ((me['services'] as unknown[]) || []).map((svc: unknown) => {
-      const s = svc as Record<string, unknown>;
-      const catalogId = String(s['service_catalog_id'] || '');
-      const serviceName = displayServiceName(
-        {
-          service_catalog_id: catalogId,
-          service_catalog_name: typeof s['service_catalog_name'] === 'string' ? s['service_catalog_name'] : (s['name'] as string | undefined) ?? null,
-        },
-        hydrateCatalogNameById
-      );
-      return {
-        catalog_service_id: catalogId,
-        service_catalog_name: typeof s['service_catalog_name'] === 'string' ? s['service_catalog_name'] : null,
-        name: serviceName,
-        hourly_rate: String(s['hourly_rate'] ?? ''),
-        ageGroup:
-          Array.isArray(s['age_groups']) && s['age_groups'].length === 2
-            ? 'both'
-            : ((s['age_groups'] as string[]) || []).includes('kids')
-            ? 'kids'
-            : 'adults',
-        description: (s['description'] as string) || '',
-        equipment: Array.isArray(s['equipment_required']) ? (s['equipment_required'] as string[]).join(', ') : '',
-        levels_taught:
-          Array.isArray(s['levels_taught']) && s['levels_taught'].length
-            ? s['levels_taught'] as Array<'beginner' | 'intermediate' | 'advanced'>
-            : ['beginner', 'intermediate', 'advanced'],
-        duration_options: Array.isArray(s['duration_options']) && s['duration_options'].length ? s['duration_options'] as number[] : [60],
-        offers_travel: s['offers_travel'] === true,
-        offers_at_location: s['offers_at_location'] === true,
-        offers_online: s['offers_online'] === true,
-      };
-    });
-    if (mapped.length) setSelectedServices(mapped);
-  }, [isOpen, variant, instructorProfileFromHook]);
 
   const loadBoroughNeighborhoods = useCallback(async (borough: string): Promise<ServiceAreaItem[]> => {
     if (boroughNeighborhoods[borough]) return boroughNeighborhoods[borough] || [];
@@ -856,81 +570,6 @@ export default function EditProfileModal({
     }
   }, [onClose, onSave, onSuccess, publicPlaces, queryClient, selectedNeighborhoodList, teachingPlaces]);
 
-  const handleServicesSave = useCallback(async () => {
-    try {
-      setSvcSaving(true);
-      if (pricingFloors && hasServiceFloorViolations) {
-        const iterator = serviceFloorViolations.entries().next();
-        if (!iterator.done) {
-          const [serviceId, violations] = iterator.value;
-          const violation = violations[0]!;
-          const serviceName = selectedServices.find((svc) => svc.catalog_service_id === serviceId)?.name || 'this service';
-          setError(
-            `Minimum price for a ${violation.modalityLabel} ${violation.duration}-minute private session is $${formatCents(violation.floorCents)} (current $${formatCents(violation.baseCents)}). Please adjust the rate for ${serviceName}.`
-          );
-          setSvcSaving(false);
-          return;
-        }
-      }
-      if (selectedServices.some((service) => !hasAnyLocationOption(service))) {
-        setError('Select at least one location option for each skill.');
-        setSvcSaving(false);
-        return;
-      }
-      const payload: ProfileServiceUpdatePayload = {
-        services: selectedServices
-          .filter((service) => service.hourly_rate.trim() !== '')
-          .map((service) => ({
-            service_catalog_id: service.catalog_service_id,
-            hourly_rate: Number(service.hourly_rate),
-            age_groups: service.ageGroup === 'both' ? ['kids', 'adults'] : [service.ageGroup],
-            ...(service.description?.trim() ? { description: service.description.trim() } : {}),
-            duration_options: (service.duration_options?.length ? service.duration_options : [60]).sort((a, b) => a - b),
-            levels_taught: service.levels_taught,
-            ...(service.equipment
-              ?.split(',')
-              .map((value) => value.trim())
-              .filter(Boolean)?.length
-              ? {
-                  equipment_required: service.equipment
-                    .split(',')
-                    .map((value) => value.trim())
-                    .filter(Boolean),
-                }
-              : {}),
-            offers_travel: service.offers_travel,
-            offers_at_location: service.offers_at_location,
-            offers_online: service.offers_online,
-          })),
-      };
-
-      const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const msg = await res.json().catch((): ApiErrorResponse => ({}));
-        throw new Error(extractApiErrorMessage(msg, 'Failed to save'));
-      }
-
-      onSuccess();
-      onClose();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to save');
-    } finally {
-      setSvcSaving(false);
-    }
-  }, [
-    selectedServices,
-    onClose,
-    onSuccess,
-    pricingFloors,
-    hasServiceFloorViolations,
-    serviceFloorViolations,
-  ]);
-
   const toggleBoroughAll = (borough: string, value: boolean, itemsOverride?: ServiceAreaItem[]) => {
     const items = itemsOverride || boroughNeighborhoods[borough] || [];
     const ids = items.map((i) => i.neighborhood_id || i.id).filter((id): id is string => typeof id === 'string');
@@ -962,7 +601,6 @@ export default function EditProfileModal({
     setLastNameError('');
 
     logger.info('Submitting profile updates', {
-      servicesCount: profileData.services.length,
       boroughCount: profileData.service_area_boroughs.length,
     });
 
@@ -1017,7 +655,6 @@ export default function EditProfileModal({
       const payload = buildProfileUpdateBody(profileData, {
         bio: profileData.bio,
         years_experience: profileData.years_experience,
-        services: profileData.services,
       });
 
       const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, {
@@ -1045,60 +682,6 @@ export default function EditProfileModal({
   };
 
   /**
-   * Add a new service to the profile
-   */
-  const addService = () => {
-    // Check if any field is empty
-    if (!newService.skill || !newService.hourly_rate || newService.hourly_rate <= 0) {
-      logger.warn('Attempted to add service with invalid data', newService);
-      setError('Please select a skill and set a valid hourly rate');
-      return;
-    }
-
-    // Check for duplicate skills
-    if (profileData.services.some((s) => s.skill === newService.skill)) {
-      logger.warn('Attempted to add duplicate skill', { skill: newService.skill });
-      setError(
-        `You already offer ${newService.skill}. Please choose a different skill or update the existing one.`
-      );
-      return;
-    }
-
-    logger.info('Adding new service', newService);
-    setError(''); // Clear any previous errors
-    setProfileData({
-      ...profileData,
-      services: [...profileData.services, newService as EditableService],
-    });
-
-    // Reset the form
-    setNewService({ skill: '', hourly_rate: 50, description: '' });
-  };
-
-  /**
-   * Remove a service from the profile
-   */
-  const removeService = (index: number) => {
-    setProfileData((prev) => {
-      const { nextProfileData, removedService } = removeServiceFromProfile(prev, index);
-      if (nextProfileData !== prev && removedService) {
-        logger.info('Removing service', { index, skill: removedService.skill });
-      }
-      return nextProfileData;
-    });
-  };
-
-  /**
-   * Update a specific field of a service
-   */
-  const updateService = (index: number, field: keyof EditableService, value: string | number) => {
-    logger.debug('Updating service', { index, field, value });
-    setProfileData((prev: ProfileFormData) =>
-      updateServiceInProfile<ProfileFormData, EditableService>(prev, index, field, value)
-    );
-  };
-
-  /**
    * Toggle area of service selection
    */
   const toggleArea = (area: string) => {
@@ -1114,12 +697,11 @@ export default function EditProfileModal({
 
   if (!isOpen) return null;
 
-  const canSubmit = profileData.services.length > 0 && profileData.service_area_boroughs.length > 0;
+  const canSubmit = profileData.service_area_boroughs.length > 0;
 
   const isAboutOnly = variant === 'about';
   const isAreasOnly = isAreasVariant;
-  const isServicesOnly = variant === 'services';
-  const isStickyVariant = isAreasVariant || isServicesOnly;
+  const isStickyVariant = isAreasVariant;
 
   const handleSaveBioExperience = async () => {
     try {
@@ -1168,7 +750,6 @@ export default function EditProfileModal({
       const payload = buildProfileUpdateBody(profileData, {
         bio: profileData.bio,
         years_experience: profileData.years_experience,
-        services: profileData.services,
       });
 
       const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, {
@@ -1199,7 +780,7 @@ export default function EditProfileModal({
       size="lg"
       noPadding
       footer={
-        isAboutOnly || isAreasOnly || isServicesOnly ? null : (
+        isAboutOnly || isAreasOnly ? null : (
           <div className="flex gap-3 justify-end px-6 py-4">
             <button
               type="button"
@@ -1240,13 +821,11 @@ export default function EditProfileModal({
             <div className="flex items-center justify-between">
               <div>
                 <Dialog.Title className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                  {isAreasVariant ? 'Service Areas' : 'Skills & Pricing'}
+                  Service Areas
                 </Dialog.Title>
                 <VisuallyHidden>
                   <Dialog.Description>
-                    {isAreasVariant
-                      ? 'Manage your selected neighborhoods along with preferred teaching and public locations.'
-                      : 'Manage your skills, services, and pricing details.'}
+                    Manage your selected neighborhoods along with preferred teaching and public locations.
                   </Dialog.Description>
                 </VisuallyHidden>
               </div>
@@ -1264,7 +843,7 @@ export default function EditProfileModal({
         )}
         <div className={isStickyVariant ? 'flex-1 overflow-y-auto' : ''}>
         {/* Personal Information Section */}
-        {!isAreasOnly && !isServicesOnly && (
+        {!isAreasOnly && (
         <div className="px-6 py-6">
           <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Personal Information</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1327,7 +906,7 @@ export default function EditProfileModal({
         )}
 
         {/* Bio Section */}
-        {!isAreasOnly && !isServicesOnly && (
+        {!isAreasOnly && (
         <div className="px-6 py-6">
           <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">About You</h3>
           <div className="space-y-4">
@@ -1399,7 +978,7 @@ export default function EditProfileModal({
         )}
 
         {/* Areas of Service Section */}
-        {!isAboutOnly && !isServicesOnly && (
+        {!isAboutOnly && (
           <div className={isAreasOnly ? 'px-6 py-6 pb-24' : 'px-6 py-6'}>
             {isAreasOnly ? (
               <>
@@ -1684,634 +1263,6 @@ export default function EditProfileModal({
           </div>
         )}
 
-        {/* Services Section */}
-        {!isAboutOnly && !isAreasOnly && variant !== 'services' && (
-          <div className="px-6 py-6">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-              Services & Rates {profileData.services.length > 0 && (
-                <span className="text-sm text-gray-500 dark:text-gray-400 font-normal">
-                  ({profileData.services.length} service{profileData.services.length !== 1 ? 's' : ''})
-                </span>
-              )}
-            </h3>
-
-            {/* Add new service form */}
-            <div className="mb-6 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900">
-              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Add New Service</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-                <div>
-                  <label htmlFor="new-skill" className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                    Select Skill
-                  </label>
-                  <select
-                    id="new-skill"
-                    value={newService.skill || ''}
-                    onChange={(e) => setNewService({ ...newService, skill: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none
-                             focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
-                  >
-                    <option value="">Choose a skill...</option>
-                    {SKILLS_OPTIONS.filter(
-                      (skill) => !profileData.services.some((s) => s.skill === skill)
-                    ).map((skill) => (
-                      <option key={skill} value={skill}>
-                        {skill}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="new-rate" className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                    Hourly Rate
-                  </label>
-                  <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-300" />
-                    <input
-                      id="new-rate"
-                      type="number"
-                      value={newService.hourly_rate || 0}
-                      onChange={(e) =>
-                        setNewService({ ...newService, hourly_rate: parseFloat(e.target.value) || 0 })
-                      }
-                      className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none
-                               focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
-                      min="0"
-                      step="0.01"
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="mb-3">
-                <label htmlFor="new-description" className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                  Description (optional)
-                </label>
-                <textarea
-                  id="new-description"
-                  value={newService.description || ''}
-                  onChange={(e) => setNewService({ ...newService, description: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none
-                           focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
-                  rows={2}
-                  placeholder="Brief description of this service..."
-                />
-              </div>
-              <button
-                type="button"
-                onClick={addService}
-                className="w-full px-3 py-2 bg-[#7E22CE] text-white text-sm rounded-lg
-                         hover:bg-[#5c0a9a] transition-colors focus:outline-none focus:ring-2
-                         focus:ring-offset-2 focus:ring-[#7E22CE] flex items-center justify-center gap-2 font-semibold"
-              >
-                <Plus className="w-4 h-4" />
-                Add Service
-              </button>
-            </div>
-
-            {/* Existing services list */}
-            <div className="space-y-3">
-              {profileData.services.map((service, index) => {
-                const hydrated = hydrateCatalogNameById(service.service_catalog_id || '');
-                const displayName =
-                  [
-                    service.service_catalog_name,
-                    hydrated,
-                    service.skill,
-                    service.name,
-                  ].find((value): value is string => typeof value === 'string' && value.trim().length > 0) ??
-                  (service.service_catalog_id ? `Service ${service.service_catalog_id}` : 'Service');
-
-                if (!service.service_catalog_name && !hydrated && process.env.NODE_ENV !== 'production') {
-                  logger.warn('Service chip missing catalog name (modal)', {
-                    serviceCatalogId: service.service_catalog_id,
-                  });
-                }
-
-                return (
-                <div key={index} className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-                    <div>
-                      <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{displayName}</span>
-                    </div>
-                    <div>
-                      <div className="relative">
-                        <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-300" />
-                        <input
-                          type="number"
-                          placeholder="Hourly rate"
-                          value={service.hourly_rate}
-                          onChange={(e) =>
-                            updateService(index, 'hourly_rate', parseFloat(e.target.value))
-                          }
-                          className="w-full pl-9 pr-12 py-2 border border-gray-300 dark:border-gray-700 rounded-lg
-                                   focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500
-                                   focus:border-transparent"
-                          min="0"
-                          step="0.01"
-                          required
-                        />
-                        <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400">
-                          /hour
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <textarea
-                    placeholder="Description (optional)"
-                    value={service.description || ''}
-                    onChange={(e) => updateService(index, 'description', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none
-                             focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500 mb-3"
-                    rows={2}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeService(index)}
-                    className="text-sm text-red-600 hover:text-red-700 dark:hover:text-red-300 transition-colors
-                             flex items-center gap-1"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Remove
-                  </button>
-                </div>
-              );
-              })}
-            </div>
-
-            {profileData.services.length === 0 && (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                <p>No services added yet. Add your first service above!</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {variant === 'services' && (
-        <div className="px-6 py-6">
-          <div className="flex items-center gap-3 text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-            <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-              <BookOpen className="w-6 h-6 text-[#7E22CE]" />
-            </div>
-            <span>Service categories</span>
-          </div>
-            {svcLoading ? (
-              <div className="p-3 text-sm text-gray-600 dark:text-gray-400">Loading…</div>
-            ) : (
-              <>
-              <div className="mt-2 space-y-4">
-                <p className="text-gray-600 dark:text-gray-400 mt-1 mb-2">Select the service categories you teach</p>
-                {/* Global skills search */}
-                <div className="mb-3">
-                  <input
-                    type="text"
-                    value={skillsFilter}
-                    onChange={(e) => setSkillsFilter(e.target.value)}
-                    placeholder="Search skills..."
-                    className="w-full rounded-md border border-gray-200 dark:border-gray-700 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
-                  />
-                </div>
-                {selectedServices.length > 0 && (
-                  <div className="mb-3 flex flex-wrap gap-2">
-                    {selectedServices.map((s) => {
-                      const label = displayServiceName(
-                        {
-                          service_catalog_id: s.catalog_service_id,
-                          service_catalog_name: s.service_catalog_name ?? s.name,
-                        },
-                        hydrateCatalogNameById,
-                      );
-
-                      if (
-                        process.env.NODE_ENV !== 'production' &&
-                        !s.service_catalog_name &&
-                        !hydrateCatalogNameById(s.catalog_service_id)
-                      ) {
-                        logger.warn('[service-name] missing catalog name (edit modal chip)', {
-                          serviceCatalogId: s.catalog_service_id,
-                        });
-                      }
-
-                      return (
-                        <span
-                          key={`sel-${s.catalog_service_id}`}
-                          className="inline-flex items-center gap-2 rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 h-8 text-xs min-w-0"
-                        >
-                          <span className="truncate max-w-[14rem]" title={label}>{label}</span>
-                          <button
-                            type="button"
-                            aria-label={`Remove ${label}`}
-                            className="ml-auto text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 dark:hover:bg-purple-900/30 no-hover-shadow shrink-0"
-                            onClick={() => setSelectedServices((prev) => prev.filter((x) => x.catalog_service_id !== s.catalog_service_id))}
-                          >
-                            &times;
-                          </button>
-                        </span>
-                      );
-                    })}
-                  </div>
-                )}
-                {skillsFilter.trim().length > 0 && (
-                  <div className="mb-3">
-                    <div className="text-sm text-gray-700 dark:text-gray-300 mb-2">Results</div>
-                    <div className="flex flex-wrap gap-2">
-                      {Object.values(servicesByCategory)
-                        .flat()
-                        .filter((svc) => (svc.name || '').toLowerCase().includes(skillsFilter.toLowerCase()))
-                        .map((svc) => {
-                          const isSel = selectedServices.some((s) => s.catalog_service_id === svc.id);
-                          return (
-                            <button
-                              key={`global-${svc.id}`}
-                              onClick={() => {
-                                const exists = selectedServices.some((s) => s.catalog_service_id === svc.id);
-                                if (exists) {
-                                  setSelectedServices((prev) => prev.filter((s) => s.catalog_service_id !== svc.id));
-                                } else {
-                                  setSelectedServices((prev) => {
-                                    const label = displayServiceName(
-                                      { service_catalog_id: svc.id, service_catalog_name: svc.name },
-                                      hydrateCatalogNameById,
-                                    );
-                                    return [
-                                      ...prev,
-                                      {
-                                        catalog_service_id: svc.id,
-                                        service_catalog_name: svc.name,
-                                        name: label,
-                                        hourly_rate: '',
-                                        ageGroup: 'adults',
-                                        description: '',
-                                        equipment: '',
-                                        levels_taught: ['beginner', 'intermediate', 'advanced'],
-                                        duration_options: [60],
-                                        ...defaultCapabilities(),
-                                      },
-                                    ];
-                                  });
-                                }
-                              }}
-                              className={`px-3 py-1.5 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 whitespace-nowrap ${
-                                isSel ? 'bg-[#7E22CE] text-white border border-[#7E22CE] hover:bg-purple-800 dark:hover:bg-purple-700' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                              }`}
-                              type="button"
-                            >
-                              {svc.name} {isSel ? '✓' : '+'}
-                            </button>
-                          );
-                        })
-                        .slice(0, 200)}
-                      {Object.values(servicesByCategory)
-                        .flat()
-                        .filter((svc) => (svc.name || '').toLowerCase().includes(skillsFilter.toLowerCase())).length === 0 && (
-                          <div className="text-sm text-gray-500 dark:text-gray-400">No matches found</div>
-                      )}
-                    </div>
-                  </div>
-                )}
-                  {categories.map((cat) => {
-                    const isCollapsed = collapsed[cat.id] === true;
-                    return (
-                      <div key={cat.id} className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                        <button
-                          className="w-full px-4 py-3 flex items-center justify-between text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                          onClick={() => setCollapsed((prev) => ({ ...prev, [cat.id]: !isCollapsed }))}
-                          type="button"
-                        >
-                          <span className="font-bold">{cat.name}</span>
-                          <svg className={`h-4 w-4 text-gray-600 dark:text-gray-400 transition-transform ${isCollapsed ? '' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </button>
-                        {!isCollapsed && (
-                        <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                            {(servicesByCategory[cat.id] || []).map((svc) => {
-                              const isSel = selectedServices.some((s) => s.catalog_service_id === svc.id);
-                              return (
-                                <button
-                                  key={svc.id}
-                                  onClick={() => {
-                                    const exists = selectedServices.some((s) => s.catalog_service_id === svc.id);
-                                    if (exists) {
-                                      setSelectedServices((prev) => prev.filter((s) => s.catalog_service_id !== svc.id));
-                                    } else {
-                                      setSelectedServices((prev) => {
-                                        const label = displayServiceName(
-                                          { service_catalog_id: svc.id, service_catalog_name: svc.name },
-                                          hydrateCatalogNameById,
-                                        );
-                                        return [
-                                          ...prev,
-                                          {
-                                            catalog_service_id: svc.id,
-                                            service_catalog_name: svc.name,
-                                            name: label,
-                                            hourly_rate: '',
-                                            ageGroup: 'adults',
-                                            description: '',
-                                            equipment: '',
-                                            levels_taught: ['beginner', 'intermediate', 'advanced'],
-                                            duration_options: [60],
-                                            ...defaultCapabilities(),
-                                          },
-                                        ];
-                                      });
-                                    }
-                                  }}
-                                  className={`px-3 py-2 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 whitespace-nowrap ${
-                                    isSel ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                  }`}
-                                  type="button"
-                                >
-                                  {svc.name} {isSel ? '✓' : '+'}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                  <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">Your selected skills</h4>
-                  {selectedServices.length === 0 ? (
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">You can add skills now or later.</p>
-                  ) : (
-                    <div className="grid gap-4">
-                      {selectedServices.map((s) => {
-                        const violations = serviceFloorViolations.get(s.catalog_service_id) ?? [];
-                        const label = displayServiceName(
-                          {
-                            service_catalog_id: s.catalog_service_id,
-                            service_catalog_name: s.service_catalog_name ?? s.name,
-                          },
-                          hydrateCatalogNameById,
-                        );
-
-                        if (
-                          process.env.NODE_ENV !== 'production' &&
-                          !s.service_catalog_name &&
-                          !hydrateCatalogNameById(s.catalog_service_id)
-                        ) {
-                          logger.warn('[service-name] missing catalog name (edit modal summary)', {
-                            serviceCatalogId: s.catalog_service_id,
-                          });
-                        }
-
-                        return (
-                          <div key={s.catalog_service_id} className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4">
-                          <div className="flex items-start justify-between mb-3">
-                            <div>
-                              <div className="text-base font-medium text-gray-900 dark:text-gray-100">{label}</div>
-                              <div className="flex items-center gap-3 mt-1">
-                                <div className="flex items-center gap-1">
-                                  <span className="text-xl font-bold text-[#7E22CE]">${s.hourly_rate || '0'}</span>
-                                  <span className="text-xs text-gray-600 dark:text-gray-400">/hour</span>
-                                </div>
-                              </div>
-                            </div>
-                            <button
-                              aria-label="Remove skill"
-                              title="Remove skill"
-                              className="w-8 h-8 flex items-center justify-center rounded-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 hover:border-red-300 dark:hover:border-red-500 transition-colors"
-                              onClick={() => setSelectedServices((prev) => prev.filter((x) => x.catalog_service_id !== s.catalog_service_id))}
-                              type="button"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
-                          </div>
-                          <div className="mb-3 bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Hourly Rate:</span>
-                              <div className="flex items-center gap-1">
-                                <span className="text-gray-500 dark:text-gray-400">$</span>
-                                <input
-                                  type="number"
-                                  min={1}
-                                  step="1"
-                                  inputMode="decimal"
-                                  className="w-24 rounded-md border border-gray-300 dark:border-gray-700 px-2 py-1.5 text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500"
-                                  placeholder="75"
-                                  value={s.hourly_rate}
-                                  onChange={(e) => setSelectedServices((prev) => prev.map((x) => x.catalog_service_id === s.catalog_service_id ? { ...x, hourly_rate: e.target.value } : x))}
-                                />
-                                <span className="text-gray-500 dark:text-gray-400">/hr</span>
-                              </div>
-                            </div>
-                            {s.hourly_rate && Number(s.hourly_rate) > 0 && (
-                              <div className="mt-2 text-xs text-gray-600 dark:text-gray-400">
-                                You&apos;ll earn{' '}
-                                <span className="font-semibold text-[#7E22CE]">
-                                  ${(Number(s.hourly_rate) * instructorTakeHomePct).toFixed(2)}
-                                </span>{' '}
-                                after the {platformFeeLabel} platform fee
-                              </div>
-                            )}
-                            {violations.length > 0 && (
-                              <div className="mt-2 space-y-1 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                                {violations.map((violation, index) => (
-                                  <div key={`${violation.modalityLabel}-${violation.duration}-${index}`}>
-                                    Minimum for {violation.modalityLabel} {violation.duration}-minute private session is ${formatCents(violation.floorCents)} (current ${formatCents(violation.baseCents)}).
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                              <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">Age Group</label>
-                              <div className="flex gap-1">
-                                {(['kids', 'adults'] as const).map((ageType) => {
-                                  const isSel = s.ageGroup === 'both' ? true : s.ageGroup === ageType;
-                                  return (
-                                    <button
-                                      key={ageType}
-                                      onClick={() => setSelectedServices((prev) => prev.map((x) => {
-                                        if (x.catalog_service_id !== s.catalog_service_id) return x;
-                                        const cur = x.ageGroup;
-                                        let next: AgeGroup;
-                                        if (cur === 'both') next = ageType === 'kids' ? 'adults' : 'kids';
-                                        else if (cur === ageType) next = ageType === 'kids' ? 'adults' : 'kids';
-                                        else next = 'both';
-                                        return { ...x, ageGroup: next };
-                                      }))}
-                                      className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
-                                        isSel ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                      }`}
-                                      type="button"
-                                    >
-                                      {ageType === 'kids' ? 'Kids' : 'Adults'}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                              <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">
-                                How do you offer this skill?
-                              </label>
-                              <div className="space-y-3">
-                                <label className="flex items-start gap-2">
-                                  <input
-                                    type="checkbox"
-                                    checked={s.offers_travel}
-                                    onChange={(e) =>
-                                      setSelectedServices((prev) =>
-                                        prev.map((x) =>
-                                          x.catalog_service_id === s.catalog_service_id
-                                            ? { ...x, offers_travel: e.target.checked }
-                                            : x
-                                        )
-                                      )
-                                    }
-                                    className="mt-0.5 h-4 w-4 rounded border-gray-300 dark:border-gray-700 text-[#7E22CE]"
-                                  />
-                                  <div>
-                                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">I travel to students</p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">(Within your service areas)</p>
-                                    {s.offers_travel && !hasServiceAreas && (
-                                      <p className="text-xs text-red-600">
-                                        Add service areas in your profile to enable this option
-                                      </p>
-                                    )}
-                                  </div>
-                                </label>
-                                <label className="flex items-start gap-2">
-                                  <input
-                                    type="checkbox"
-                                    checked={s.offers_at_location}
-                                    onChange={(e) =>
-                                      setSelectedServices((prev) =>
-                                        prev.map((x) =>
-                                          x.catalog_service_id === s.catalog_service_id
-                                            ? { ...x, offers_at_location: e.target.checked }
-                                            : x
-                                        )
-                                      )
-                                    }
-                                    className="mt-0.5 h-4 w-4 rounded border-gray-300 dark:border-gray-700 text-[#7E22CE]"
-                                  />
-                                  <div>
-                                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Students come to me</p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">(At your teaching location)</p>
-                                    {s.offers_at_location && !hasTeachingLocations && (
-                                      <p className="text-xs text-red-600">
-                                        Add a teaching location in your profile to enable this option
-                                      </p>
-                                    )}
-                                  </div>
-                                </label>
-                                <label className="flex items-start gap-2">
-                                  <input
-                                    type="checkbox"
-                                    checked={s.offers_online}
-                                    onChange={(e) =>
-                                      setSelectedServices((prev) =>
-                                        prev.map((x) =>
-                                          x.catalog_service_id === s.catalog_service_id
-                                            ? { ...x, offers_online: e.target.checked }
-                                            : x
-                                        )
-                                      )
-                                    }
-                                    className="mt-0.5 h-4 w-4 rounded border-gray-300 dark:border-gray-700 text-[#7E22CE]"
-                                  />
-                                  <div>
-                                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Online lessons</p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">(Video call)</p>
-                                  </div>
-                                </label>
-                              </div>
-                              {!hasAnyLocationOption(s) && (
-                                <p className="text-xs text-red-600 mt-2">
-                                  Select at least one location option for this skill.
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                              <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">Skill Levels</label>
-                              <div className="flex gap-1">
-                                {(['beginner', 'intermediate', 'advanced'] as const).map((lvl) => (
-                                  <button
-                                    key={lvl}
-                                    onClick={() => setSelectedServices((prev) => prev.map((x) => x.catalog_service_id === s.catalog_service_id ? { ...x, levels_taught: x.levels_taught.includes(lvl) ? x.levels_taught.filter((v) => v !== lvl) : [...x.levels_taught, lvl] } : x))}
-                                    className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
-                                      s.levels_taught.includes(lvl)
-                                        ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
-                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                    }`}
-                                    type="button"
-                                  >
-                                    {lvl === 'beginner' ? 'Beginner' : lvl === 'intermediate' ? 'Intermediate' : 'Advanced'}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                              <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 block">Session Duration</label>
-                              <div className="flex gap-1">
-                                {[30, 45, 60, 90].map((d) => (
-                                  <button
-                                    key={d}
-                                    onClick={() => setSelectedServices((prev) => prev.map((x) => {
-                                      if (x.catalog_service_id !== s.catalog_service_id) return x;
-                                      const has = x.duration_options.includes(d);
-                                      if (has && x.duration_options.length === 1) return x;
-                                      return { ...x, duration_options: has ? x.duration_options.filter((v) => v !== d) : [...x.duration_options, d] };
-                                    }))}
-                                    className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
-                                      s.duration_options.includes(d)
-                                        ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
-                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                    }`}
-                                    type="button"
-                                  >
-                                    {d}m
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div>
-                              <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1 block">Description (Optional)</label>
-                              <textarea
-                                rows={2}
-                                className="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 bg-white dark:bg-gray-800"
-                                placeholder="Brief description of your teaching style..."
-                                value={s.description || ''}
-                                onChange={(e) => setSelectedServices((prev) => prev.map((x) => x.catalog_service_id === s.catalog_service_id ? { ...x, description: e.target.value } : x))}
-                              />
-                            </div>
-                            <div>
-                              <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1 block">Equipment (Optional)</label>
-                              <textarea
-                                rows={2}
-                                className="w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 bg-white dark:bg-gray-800"
-                                placeholder="Yoga mat, tennis racket..."
-                                value={s.equipment || ''}
-                                onChange={(e) => setSelectedServices((prev) => prev.map((x) => x.catalog_service_id === s.catalog_service_id ? { ...x, equipment: e.target.value } : x))}
-                              />
-                            </div>
-                          </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-              </>
-            )}
-          </div>
-        )}
         </div>
         {isStickyVariant && (
           <div className="sticky bottom-0 z-30 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 py-4">
@@ -2328,11 +1279,11 @@ export default function EditProfileModal({
               </button>
               <button
                 type="button"
-                onClick={isAreasVariant ? () => { void handleAreasSave(); } : () => { void handleServicesSave(); }}
-                disabled={isAreasVariant ? savingAreas : (svcSaving || hasServiceFloorViolations)}
+                onClick={() => { void handleAreasSave(); }}
+                disabled={savingAreas}
                 className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg hover:bg-purple-800 dark:hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE]"
               >
-                {(isAreasVariant ? savingAreas : svcSaving) ? 'Saving…' : 'Save'}
+                {savingAreas ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>

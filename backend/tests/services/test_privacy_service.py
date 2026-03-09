@@ -64,7 +64,9 @@ def sample_booking(db, sample_user_for_privacy, sample_instructor_for_privacy):
     instructor_service = InstructorService(
         instructor_profile_id=sample_instructor_for_privacy.instructor_profile.id,
         service_catalog_id=catalog_service.id,
-        hourly_rate=50.00,
+        format_prices=[
+            {"format": "online", "hourly_rate": 50.00},
+        ],
     )
     db.add(instructor_service)
     db.flush()
@@ -277,7 +279,9 @@ class TestPrivacyService:
         instructor_service = InstructorService(
             instructor_profile_id=sample_instructor_for_privacy.instructor_profile.id,
             service_catalog_id=catalog_service.id,
-            hourly_rate=40.00,
+            format_prices=[
+                {"format": "online", "hourly_rate": 40.00},
+            ],
         )
         db.add(instructor_service)
         db.flush()

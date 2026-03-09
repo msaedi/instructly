@@ -5391,22 +5391,6 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
- "/api/v1/services/{service_id}/capabilities": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch: operations["update_service_capabilities_api_v1_services__service_id__capabilities_patch"];
- trace?: never;
- };
  "/api/v1/sse/token": {
  parameters: {
  query?: never;
@@ -7806,26 +7790,25 @@ export type components = {
  catalog_service_id: string;
  custom_description?: string | null;
  duration_options?: number[];
- hourly_rate: number;
+ format_prices?: components["schemas"]["ServiceFormatPriceOut"][];
  id: string;
  is_active: boolean;
+ min_hourly_rate?: number | null;
  name: string;
+ offers_at_location: boolean;
+ offers_online: boolean;
+ offers_travel: boolean;
  };
  InstructorServiceAreaCheckResponse: {
  coordinates: components["schemas"]["ServiceAreaCheckCoordinates"];
  instructor_id: string;
  is_covered: boolean;
  };
- InstructorServiceCapabilitiesUpdate: {
- offers_at_location?: boolean | null;
- offers_online?: boolean | null;
- offers_travel?: boolean | null;
- };
  InstructorServiceCreate: {
  catalog_service_id: string;
  custom_description?: string | null;
  duration_options?: number[] | null;
- hourly_rate: number;
+ format_prices: components["schemas"]["ServiceFormatPriceIn"][];
  };
  InstructorServiceResponse: {
  catalog_service_id: string;
@@ -7836,9 +7819,10 @@ export type components = {
  filter_selections?: {
  [key: string]: string[];
  };
- hourly_rate: number;
+ format_prices?: components["schemas"]["ServiceFormatPriceOut"][];
  id: string;
  is_active: boolean;
+ min_hourly_rate?: number | null;
  name: string;
  offers_at_location: boolean;
  offers_online: boolean;
@@ -8191,9 +8175,13 @@ export type components = {
  };
  MCPInstructorService: {
  category: string;
- hourly_rate: string;
+ format_prices?: components["schemas"]["ServiceFormatPriceOut"][];
  is_active: boolean;
+ min_hourly_rate?: string | null;
  name: string;
+ offers_at_location: boolean;
+ offers_online: boolean;
+ offers_travel: boolean;
  slug?: string | null;
  };
  MCPInstructorStats: {
@@ -9905,20 +9893,26 @@ export type components = {
  filter_selections?: {
  [key: string]: string[];
  };
- hourly_rate: number | string;
- offers_at_location?: boolean | null;
- offers_online?: boolean | null;
- offers_travel?: boolean | null;
+ format_prices: components["schemas"]["ServiceFormatPriceIn"][];
  requirements?: string | null;
  service_catalog_id: string;
  };
+ ServiceFormatPriceIn: {
+ format: "student_location" | "instructor_location" | "online";
+ hourly_rate: number | string;
+ };
+ ServiceFormatPriceOut: {
+ format: "student_location" | "instructor_location" | "online";
+ hourly_rate: number;
+ };
  ServiceMatch: {
  description?: string | null;
+ format_prices?: components["schemas"]["ServiceFormatPriceOut"][];
+ min_hourly_rate: number;
  name: string;
  offers_at_location?: boolean | null;
  offers_online?: boolean | null;
  offers_travel?: boolean | null;
- price_per_hour: number;
  relevance_score: number;
  service_catalog_id: string;
  service_id: string;
@@ -9946,9 +9940,10 @@ export type components = {
  filter_selections?: {
  [key: string]: string[];
  };
- hourly_rate: number;
+ format_prices?: components["schemas"]["ServiceFormatPriceOut"][];
  id: string;
  is_active?: boolean | null;
+ min_hourly_rate?: number | null;
  name?: string | null;
  offers_at_location: boolean;
  offers_online: boolean;
@@ -21244,39 +21239,6 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["SubcategoryFilterResponse"][];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- update_service_capabilities_api_v1_services__service_id__capabilities_patch: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- service_id: string;
- };
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["InstructorServiceCapabilitiesUpdate"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["InstructorServiceResponse"];
  };
  };
  422: {

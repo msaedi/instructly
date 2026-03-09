@@ -24,7 +24,7 @@ def _candidate(idx: int, price: int = 50) -> ServiceCandidate:
         text_score=0.5,
         name=f"Service {idx}",
         description=None,
-        price_per_hour=price,
+        min_hourly_rate=price,
         instructor_id=f"inst_{idx}",
     )
 
@@ -56,7 +56,7 @@ def repository() -> Mock:
         "inst_1": [today],
         "inst_2": [today],
     }
-    repo.filter_by_lesson_type.return_value = ["svc_1"]
+    repo.get_lesson_type_rates.return_value = {"svc_1": 50.0}
     return repo
 
 
@@ -181,7 +181,7 @@ def test_filter_location_marks_failed(repository: Mock) -> None:
             hybrid_score=0.5,
             name="Service",
             description=None,
-            price_per_hour=50,
+            min_hourly_rate=50,
         )
     ]
 
@@ -205,7 +205,7 @@ def test_filter_location_regions_no_ids_returns_candidates(repository: Mock) -> 
             hybrid_score=0.5,
             name="Service",
             description=None,
-            price_per_hour=50,
+            min_hourly_rate=50,
         )
     ]
 
@@ -230,7 +230,7 @@ def test_filter_availability_weekend_without_range_uses_next_week(repository: Mo
             hybrid_score=0.5,
             name="Service",
             description=None,
-            price_per_hour=50,
+            min_hourly_rate=50,
         )
     ]
 

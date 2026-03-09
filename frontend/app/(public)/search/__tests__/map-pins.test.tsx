@@ -150,8 +150,10 @@ describe('Search results map pins', () => {
               service_catalog_id: 'cat-1',
               name: 'Piano Lessons',
               description: '',
-              price_per_hour: 60,
-              offers_at_location: true,
+              min_hourly_rate: 60,
+              format_prices: [
+                { format: 'instructor_location', hourly_rate: 60 },
+              ],
             },
             other_matches: [],
           },

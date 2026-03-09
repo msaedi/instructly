@@ -15,6 +15,8 @@ from app.models.service_catalog import InstructorService, ServiceCatalog
 from app.models.user import User
 from app.services.permission_service import PermissionService
 
+from .service_seed import ensure_instructor_service_for_tests
+
 TZ = "America/New_York"
 FIXED_STUDENT_EMAIL = "test.student@example.com"
 FIXED_INSTRUCTOR_EMAIL = "test.instructor@example.com"
@@ -92,52 +94,26 @@ def ensure_instructor_profile_and_service(
         db.add(prof)
         db.flush()
 
-    # Find or create catalog service
-    svc = db.execute(
-        select(ServiceCatalog).where(ServiceCatalog.name == svc_name)
-    ).scalar_one_or_none()
-
-    if not svc:
-        # Try by slug
-        slug = svc_name.lower()
-        svc = db.execute(
-            select(ServiceCatalog).where(ServiceCatalog.slug == slug)
-        ).scalar_one_or_none()
-
-    if not svc:
-        # Create catalog service if it doesn't exist
-        svc = ServiceCatalog(
-            name=svc_name,
-            slug=svc_name.lower(),
-            description=f"Test {svc_name} service",
-            is_active=True,
-        )
-        db.add(svc)
-        db.flush()
-
-    # Find or create instructor service link
-    link = db.execute(
-        select(InstructorService).where(
-            InstructorService.instructor_profile_id == prof.id,
-            InstructorService.service_catalog_id == svc.id,
-        )
-    ).scalar_one_or_none()
-
-    if not link:
-        link = InstructorService(
-            instructor_profile_id=prof.id,
-            service_catalog_id=svc.id,
-            hourly_rate=price,
-            duration_options=[60],
-            offers_online=True,
-            offers_travel=False,
-            offers_at_location=False,
-            is_active=True,
-        )
-        db.add(link)
-        db.flush()
+    catalog_id, service_id = ensure_instructor_service_for_tests(
+        db,
+        instructor_profile_id=prof.id,
+        service_name=svc_name,
+        duration_minutes=60,
+        format_prices=[
+            {"format": "student_location", "hourly_rate": price},
+            {"format": "instructor_location", "hourly_rate": price},
+            {"format": "online", "hourly_rate": price},
+        ],
+        is_active=True,
+        extra_catalog_fields={
+            "description": f"Test {svc_name} service",
+            "online_capable": True,
+        },
+    )
 
     db.commit()
+    svc = db.get(ServiceCatalog, catalog_id)
+    link = db.get(InstructorService, service_id)
     return prof, svc, link
 
 

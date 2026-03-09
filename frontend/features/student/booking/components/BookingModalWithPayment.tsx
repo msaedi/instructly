@@ -49,7 +49,7 @@ export default function BookingModalWithPayment({
   const [duration, setDuration] = useState(() => defaultDuration); // Default to 60 minutes
   const totalPrice = useMemo(() => {
     if (!selectedService) return 0;
-    const rateRaw = selectedService.hourly_rate as unknown;
+    const rateRaw = selectedService.min_hourly_rate as unknown;
     const rateNum = typeof rateRaw === 'number' ? rateRaw : parseFloat(String(rateRaw ?? '0'));
     const safeRate = Number.isNaN(rateNum) ? 0 : rateNum;
     const hours = duration / 60;
@@ -182,7 +182,7 @@ export default function BookingModalWithPayment({
       start_time: selectedTime,
       end_time: calculateEndTime(selectedTime, duration),
       duration_minutes: duration,
-      hourly_rate: selectedService.hourly_rate,
+      hourly_rate: selectedService.min_hourly_rate,
       total_price: basePrice,
     };
 
@@ -266,7 +266,7 @@ export default function BookingModalWithPayment({
                   >
                     {instructor.services.map((service) => (
                       <option key={service.id} value={service.id}>
-                        {service.skill} - ${(() => { const r = service.hourly_rate as unknown; const n = typeof r === 'number' ? r : parseFloat(String(r ?? '0')); return Number.isNaN(n) ? 0 : n; })()}/hr
+                        {service.skill} - ${(() => { const r = service.min_hourly_rate as unknown; const n = typeof r === 'number' ? r : parseFloat(String(r ?? '0')); return Number.isNaN(n) ? 0 : n; })()}/hr
                       </option>
                     ))}
                   </select>

@@ -124,7 +124,8 @@ const createInstructor = (overrides: Partial<Instructor> = {}): Instructor => ({
     {
       id: 'svc-1',
       service_catalog_id: 'cat-1',
-      hourly_rate: 75,
+      min_hourly_rate: 75,
+      format_prices: [{ format: 'online', hourly_rate: 75 }],
       duration_options: [30, 60, 90],
     },
   ],
@@ -187,23 +188,23 @@ describe('InstructorCard', () => {
     it('renders hourly rate correctly', async () => {
       const instructor = createInstructor();
       renderWithProviders(<InstructorCard instructor={instructor} />);
-      expect(screen.getByTestId('instructor-price')).toHaveTextContent('$75/hr');
+      expect(screen.getByTestId('instructor-price')).toHaveTextContent('from $75/hr');
     });
 
     it('handles string hourly rate', async () => {
       const instructor = createInstructor({
-        services: [{ id: 'svc-1', service_catalog_id: 'cat-1', hourly_rate: '60.00' as unknown as number, duration_options: [60] }],
+        services: [{ id: 'svc-1', service_catalog_id: 'cat-1', min_hourly_rate: 60, format_prices: [{ format: 'online', hourly_rate: 60 }], duration_options: [60] }],
       });
       renderWithProviders(<InstructorCard instructor={instructor} />);
-      expect(screen.getByTestId('instructor-price')).toHaveTextContent('$60/hr');
+      expect(screen.getByTestId('instructor-price')).toHaveTextContent('from $60/hr');
     });
 
     it('handles NaN hourly rate gracefully', async () => {
       const instructor = createInstructor({
-        services: [{ id: 'svc-1', service_catalog_id: 'cat-1', hourly_rate: 'invalid' as unknown as number, duration_options: [60] }],
+        services: [{ id: 'svc-1', service_catalog_id: 'cat-1', min_hourly_rate: 0, format_prices: [], duration_options: [60] }],
       });
       renderWithProviders(<InstructorCard instructor={instructor} />);
-      expect(screen.getByTestId('instructor-price')).toHaveTextContent('$0/hr');
+      expect(screen.getByTestId('instructor-price')).toHaveTextContent('Contact');
     });
 
     it('renders founding badge when is_founding_instructor is true', async () => {
@@ -262,11 +263,9 @@ describe('InstructorCard', () => {
           {
             id: 'svc-1',
             service_catalog_id: 'cat-1',
-            hourly_rate: 75,
+            min_hourly_rate: 75,
+            format_prices: [],
             duration_options: [60],
-            offers_travel: false,
-            offers_at_location: false,
-            offers_online: false,
             levels_taught: [],
             age_groups: [],
           } as Instructor['services'][number],
@@ -290,11 +289,9 @@ describe('InstructorCard', () => {
           {
             id: 'svc-1',
             service_catalog_id: 'cat-1',
-            hourly_rate: 75,
+            min_hourly_rate: 75,
+            format_prices: [],
             duration_options: [60],
-            offers_travel: false,
-            offers_at_location: false,
-            offers_online: false,
             levels_taught: [],
             age_groups: [],
           } as Instructor['services'][number],
@@ -377,7 +374,7 @@ describe('InstructorCard', () => {
   describe('duration selection', () => {
     it('renders duration options when multiple available', async () => {
       const instructor = createInstructor({
-        services: [{ id: 'svc-1', service_catalog_id: 'cat-1', hourly_rate: 60, duration_options: [30, 60, 90] }],
+        services: [{ id: 'svc-1', service_catalog_id: 'cat-1', min_hourly_rate: 60, format_prices: [{ format: 'online', hourly_rate: 60 }], duration_options: [30, 60, 90] }],
       });
       renderWithProviders(<InstructorCard instructor={instructor} />);
       expect(screen.getByLabelText(/30 min/)).toBeInTheDocument();
@@ -387,7 +384,7 @@ describe('InstructorCard', () => {
 
     it('calculates correct price for each duration', async () => {
       const instructor = createInstructor({
-        services: [{ id: 'svc-1', service_catalog_id: 'cat-1', hourly_rate: 60, duration_options: [30, 60, 90] }],
+        services: [{ id: 'svc-1', service_catalog_id: 'cat-1', min_hourly_rate: 60, format_prices: [{ format: 'online', hourly_rate: 60 }], duration_options: [30, 60, 90] }],
       });
       renderWithProviders(<InstructorCard instructor={instructor} />);
       expect(screen.getByText(/30 min \(\$30\)/)).toBeInTheDocument();
@@ -397,7 +394,7 @@ describe('InstructorCard', () => {
 
     it('changes selected duration when radio clicked', async () => {
       const instructor = createInstructor({
-        services: [{ id: 'svc-1', service_catalog_id: 'cat-1', hourly_rate: 60, duration_options: [30, 60, 90] }],
+        services: [{ id: 'svc-1', service_catalog_id: 'cat-1', min_hourly_rate: 60, format_prices: [{ format: 'online', hourly_rate: 60 }], duration_options: [30, 60, 90] }],
       });
       renderWithProviders(<InstructorCard instructor={instructor} />);
 
@@ -409,7 +406,7 @@ describe('InstructorCard', () => {
 
     it('hides duration selector when only one option', async () => {
       const instructor = createInstructor({
-        services: [{ id: 'svc-1', service_catalog_id: 'cat-1', hourly_rate: 60, duration_options: [60] }],
+        services: [{ id: 'svc-1', service_catalog_id: 'cat-1', min_hourly_rate: 60, format_prices: [{ format: 'online', hourly_rate: 60 }], duration_options: [60] }],
       });
       renderWithProviders(<InstructorCard instructor={instructor} />);
       expect(screen.queryByText(/duration:/i)).not.toBeInTheDocument();
@@ -622,7 +619,7 @@ describe('InstructorCard', () => {
 
     it('skips slots that are too short for selected duration', () => {
       const instructor = createInstructor({
-        services: [{ id: 'svc-1', service_catalog_id: 'cat-1', hourly_rate: 60, duration_options: [90] }],
+        services: [{ id: 'svc-1', service_catalog_id: 'cat-1', min_hourly_rate: 60, format_prices: [{ format: 'online', hourly_rate: 60 }], duration_options: [90] }],
       });
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
@@ -743,7 +740,7 @@ describe('InstructorCard', () => {
     it('renders service pills with correct names', async () => {
       const instructor = createInstructor({
         services: [
-          { id: 'svc-1', service_catalog_id: 'cat-1', hourly_rate: 60, duration_options: [60] },
+          { id: 'svc-1', service_catalog_id: 'cat-1', min_hourly_rate: 60, format_prices: [{ format: 'online', hourly_rate: 60 }], duration_options: [60] },
         ],
       });
       renderWithProviders(<InstructorCard instructor={instructor} />);
@@ -756,7 +753,7 @@ describe('InstructorCard', () => {
     it('highlights matching service when highlightServiceCatalogId provided', async () => {
       const instructor = createInstructor({
         services: [
-          { id: 'svc-1', service_catalog_id: 'cat-1', hourly_rate: 60, duration_options: [60] },
+          { id: 'svc-1', service_catalog_id: 'cat-1', min_hourly_rate: 60, format_prices: [{ format: 'online', hourly_rate: 60 }], duration_options: [60] },
         ],
       });
       renderWithProviders(
@@ -776,7 +773,8 @@ describe('InstructorCard', () => {
             id: 'svc-fallback',
             service_catalog_id: '',
             service_catalog_name: 'Voice',
-            hourly_rate: 60,
+            min_hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             duration_options: [60],
           } as Instructor['services'][number],
         ],
@@ -793,7 +791,8 @@ describe('InstructorCard', () => {
           {
             service_catalog_id: '',
             service_catalog_name: 'Composition',
-            hourly_rate: 60,
+            min_hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             duration_options: [60],
           } as Instructor['services'][number],
         ],
@@ -852,7 +851,8 @@ describe('InstructorCard', () => {
           {
             id: 'svc-1',
             service_catalog_id: 'cat-1',
-            hourly_rate: 60,
+            min_hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             duration_options: [60],
             age_groups: ['kids', 'adults'],
           },
@@ -885,11 +885,10 @@ describe('InstructorCard', () => {
           {
             id: 'svc-1',
             service_catalog_id: 'cat-1',
-            hourly_rate: 60,
+            min_hourly_rate: 60,
+            format_prices: [{ format: 'student_location', hourly_rate: 60 }, { format: 'online', hourly_rate: 60 }],
             duration_options: [60],
             location_types: ['in_person', 'online'],
-            offers_travel: true,
-            offers_online: true,
           },
         ],
       });
@@ -922,7 +921,7 @@ describe('InstructorCard', () => {
 
     it('handles empty duration_options array', () => {
       const instructor = createInstructor({
-        services: [{ id: 'svc-1', service_catalog_id: 'cat-1', hourly_rate: 60, duration_options: [] }],
+        services: [{ id: 'svc-1', service_catalog_id: 'cat-1', min_hourly_rate: 60, format_prices: [{ format: 'online', hourly_rate: 60 }], duration_options: [] }],
       });
       renderWithProviders(<InstructorCard instructor={instructor} />);
       // Should default to 60 minutes
@@ -1011,7 +1010,7 @@ describe('InstructorCard', () => {
       });
 
       const instructor = createInstructor({
-        services: [{ id: 'svc-123', service_catalog_id: 'cat-1', hourly_rate: 60, duration_options: [60] }],
+        services: [{ id: 'svc-123', service_catalog_id: 'cat-1', min_hourly_rate: 60, format_prices: [{ format: 'online', hourly_rate: 60 }], duration_options: [60] }],
       });
 
       renderWithProviders(
@@ -1050,7 +1049,7 @@ describe('InstructorCard', () => {
       });
 
       const instructor = createInstructor({
-        services: [{ id: 'svc-123', service_catalog_id: 'cat-1', hourly_rate: 60, duration_options: [90] }],
+        services: [{ id: 'svc-123', service_catalog_id: 'cat-1', min_hourly_rate: 60, format_prices: [{ format: 'online', hourly_rate: 60 }], duration_options: [90] }],
       });
 
       renderWithProviders(
@@ -1158,7 +1157,8 @@ describe('InstructorCard', () => {
             id: 'svc-1',
             service_catalog_id: 'cat-unknown',
             service_catalog_name: 'Voice Lessons',
-            hourly_rate: 60,
+            min_hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             duration_options: [60],
           },
         ],
@@ -1174,7 +1174,8 @@ describe('InstructorCard', () => {
             id: 'svc-1',
             service_catalog_id: 'cat-unknown',
             skill: 'Drums',
-            hourly_rate: 60,
+            min_hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             duration_options: [60],
           },
         ],
@@ -1190,7 +1191,8 @@ describe('InstructorCard', () => {
           {
             id: 'svc-1',
             service_catalog_id: 'cat-missing',
-            hourly_rate: 60,
+            min_hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             duration_options: [60],
           },
         ],
@@ -1268,16 +1270,16 @@ describe('InstructorCard', () => {
   });
 
   describe('location format display', () => {
-    it('shows at-location icon when offers_at_location and has teaching_locations', async () => {
+    it('shows at-location icon when format_prices includes instructor_location', async () => {
       const instructor = {
         ...createInstructor({
           services: [
             {
               id: 'svc-1',
               service_catalog_id: 'cat-1',
-              hourly_rate: 60,
+              min_hourly_rate: 60,
+              format_prices: [{ format: 'instructor_location', hourly_rate: 60 }],
               duration_options: [60],
-              offers_at_location: true,
             },
           ],
         }),
@@ -1337,7 +1339,8 @@ describe('InstructorCard', () => {
         services: [{
           id: 'svc-1',
           service_catalog_id: 'cat-1',
-          hourly_rate: 60,
+          min_hourly_rate: 60,
+          format_prices: [{ format: 'online', hourly_rate: 60 }],
           duration_options: [60],
           levels_taught: ['beginner', '', '  ', 'advanced'],
         }],
@@ -1359,7 +1362,8 @@ describe('InstructorCard', () => {
         services: [{
           id: 'svc-1',
           service_catalog_id: 'cat-1',
-          hourly_rate: 60,
+          min_hourly_rate: 60,
+          format_prices: [{ format: 'online', hourly_rate: 60 }],
           duration_options: [60],
           location_types: ['online', '', 'in-home'] as unknown as ServiceLocationType[],
         }],
@@ -1425,7 +1429,7 @@ describe('InstructorCard', () => {
   describe('blackout day filtering', () => {
     it('skips blackout days and finds slot on non-blackout day', () => {
       const instructor = createInstructor({
-        services: [{ id: 'svc-1', service_catalog_id: 'cat-1', hourly_rate: 60, duration_options: [60] }],
+        services: [{ id: 'svc-1', service_catalog_id: 'cat-1', min_hourly_rate: 60, format_prices: [{ format: 'online', hourly_rate: 60 }], duration_options: [60] }],
       });
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
@@ -1497,7 +1501,8 @@ describe('InstructorCard', () => {
           {
             id: 'svc-1',
             service_catalog_id: 'cat-guitar',
-            hourly_rate: 50,
+            min_hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             duration_options: [60],
             // no service_catalog_name, no skill
           },
@@ -1515,7 +1520,8 @@ describe('InstructorCard', () => {
           {
             id: 'svc-1',
             service_catalog_id: 'cat-nonexistent',
-            hourly_rate: 50,
+            min_hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             duration_options: [60],
             // no service_catalog_name, no skill, no catalog match
           },
@@ -1542,7 +1548,8 @@ describe('InstructorCard', () => {
             service_catalog_id: 'cat-1',
             service_catalog_name: 'Inline Piano',
             skill: 'Skill Piano',
-            hourly_rate: 50,
+            min_hourly_rate: 50,
+            format_prices: [{ format: 'online', hourly_rate: 50 }],
             duration_options: [60],
           },
         ],
@@ -1716,7 +1723,7 @@ describe('InstructorCard', () => {
   describe('slot sorting within a day', () => {
     it('selects the earliest available slot when slots are not in order', () => {
       const instructor = createInstructor({
-        services: [{ id: 'svc-1', service_catalog_id: 'cat-1', hourly_rate: 60, duration_options: [60] }],
+        services: [{ id: 'svc-1', service_catalog_id: 'cat-1', min_hourly_rate: 60, format_prices: [{ format: 'online', hourly_rate: 60 }], duration_options: [60] }],
       });
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
@@ -1813,9 +1820,9 @@ describe('InstructorCard', () => {
             {
               id: 'svc-1',
               service_catalog_id: 'cat-1',
-              hourly_rate: 60,
+              min_hourly_rate: 60,
+              format_prices: [{ format: 'instructor_location', hourly_rate: 60 }],
               duration_options: [60],
-              offers_at_location: true,
             },
           ],
         }),
@@ -1840,7 +1847,8 @@ describe('InstructorCard', () => {
           {
             id: 'svc-1',
             service_catalog_id: 'cat-1',
-            hourly_rate: 60,
+            min_hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             duration_options: [60],
             age_groups: ['kids', 'teens'],
           },
@@ -1863,7 +1871,8 @@ describe('InstructorCard', () => {
             {
               id: 'svc-1',
               service_catalog_id: 'cat-1',
-              hourly_rate: 60,
+              min_hourly_rate: 60,
+              format_prices: [{ format: 'online', hourly_rate: 60 }],
               duration_options: [60],
               age_groups: ['kids'],
             },
@@ -1891,10 +1900,10 @@ describe('InstructorCard', () => {
             {
               id: 'svc-1',
               service_catalog_id: 'cat-1',
-              hourly_rate: 60,
+              min_hourly_rate: 60,
+              format_prices: [{ format: 'student_location', hourly_rate: 60 }],
               duration_options: [60],
               levels_taught: ['beginner'],
-              offers_travel: true,
               age_groups: ['kids'],
             },
           ],
@@ -1922,7 +1931,8 @@ describe('InstructorCard', () => {
           {
             id: 'svc-1',
             service_catalog_id: 'cat-1',
-            hourly_rate: 60,
+            min_hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             duration_options: [60],
           },
         ],
@@ -1946,7 +1956,8 @@ describe('InstructorCard', () => {
           {
             id: 'svc-1',
             service_catalog_id: 'cat-1',
-            hourly_rate: 60,
+            min_hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             duration_options: [60],
           },
         ],
@@ -1996,13 +2007,14 @@ describe('InstructorCard', () => {
     });
   });
 
-  describe('duration price calculation with NaN rate', () => {
-    it('renders duration options with $0 when hourly_rate is NaN', () => {
+  describe('duration price calculation with zero rate', () => {
+    it('renders duration options with $0 when min_hourly_rate is 0', () => {
       const instructor = createInstructor({
         services: [{
           id: 'svc-1',
           service_catalog_id: 'cat-1',
-          hourly_rate: 'not-a-number' as unknown as number,
+          min_hourly_rate: 0,
+          format_prices: [],
           duration_options: [30, 60],
         }],
       });
@@ -2011,12 +2023,13 @@ describe('InstructorCard', () => {
       expect(screen.getByText(/60 min \(\$0\)/)).toBeInTheDocument();
     });
 
-    it('renders duration options with string hourly_rate coerced', () => {
+    it('renders duration options with correct pricing from format_prices', () => {
       const instructor = createInstructor({
         services: [{
           id: 'svc-1',
           service_catalog_id: 'cat-1',
-          hourly_rate: '120' as unknown as number,
+          min_hourly_rate: 120,
+          format_prices: [{ format: 'online', hourly_rate: 120 }],
           duration_options: [30, 60],
         }],
       });
@@ -2073,7 +2086,7 @@ describe('InstructorCard', () => {
     it('highlights service with case-insensitive matching', async () => {
       const instructor = createInstructor({
         services: [
-          { id: 'svc-1', service_catalog_id: 'CAT-1', service_catalog_name: 'Piano', hourly_rate: 60, duration_options: [60] },
+          { id: 'svc-1', service_catalog_id: 'CAT-1', service_catalog_name: 'Piano', min_hourly_rate: 60, format_prices: [{ format: 'online', hourly_rate: 60 }], duration_options: [60] },
         ],
       });
       renderWithProviders(
@@ -2089,7 +2102,7 @@ describe('InstructorCard', () => {
     it('does not highlight when highlightServiceCatalogId does not match', async () => {
       const instructor = createInstructor({
         services: [
-          { id: 'svc-1', service_catalog_id: 'cat-1', hourly_rate: 60, duration_options: [60] },
+          { id: 'svc-1', service_catalog_id: 'cat-1', min_hourly_rate: 60, format_prices: [{ format: 'online', hourly_rate: 60 }], duration_options: [60] },
         ],
       });
       renderWithProviders(
@@ -2124,9 +2137,9 @@ describe('InstructorCard', () => {
           {
             id: 'svc-1',
             service_catalog_id: 'cat-1',
-            hourly_rate: 60,
+            min_hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             duration_options: [60],
-            offers_online: true,
           },
         ],
       });
@@ -2197,7 +2210,7 @@ describe('InstructorCard', () => {
       });
 
       const instructor = createInstructor({
-        services: [{ id: 'svc-book', service_catalog_id: 'cat-piano', hourly_rate: 80, duration_options: [60] }],
+        services: [{ id: 'svc-book', service_catalog_id: 'cat-piano', min_hourly_rate: 80, format_prices: [{ format: 'online', hourly_rate: 80 }], duration_options: [60] }],
       });
 
       renderWithProviders(
@@ -2241,7 +2254,7 @@ describe('InstructorCard', () => {
       mockUseServicesCatalog.mockReturnValue({ data: [] });
 
       const instructor = createInstructor({
-        services: [{ id: 'svc-none', service_catalog_id: 'cat-missing', hourly_rate: 50, duration_options: [60] }],
+        services: [{ id: 'svc-none', service_catalog_id: 'cat-missing', min_hourly_rate: 50, format_prices: [{ format: 'online', hourly_rate: 50 }], duration_options: [60] }],
       });
 
       renderWithProviders(
@@ -2277,7 +2290,7 @@ describe('InstructorCard', () => {
       });
 
       const instructor = createInstructor({
-        services: [{ service_catalog_id: 'cat-1', hourly_rate: 60, duration_options: [60] } as Instructor['services'][0]],
+        services: [{ service_catalog_id: 'cat-1', min_hourly_rate: 60, format_prices: [{ format: 'online', hourly_rate: 60 }], duration_options: [60] } as Instructor['services'][0]],
       });
 
       renderWithProviders(
@@ -2385,8 +2398,8 @@ describe('InstructorCard', () => {
     it('handles instructor with no services array (empty services, line 143 primaryService undefined)', () => {
       const instructor = createInstructor({ services: [] });
       renderWithProviders(<InstructorCard instructor={instructor} />);
-      // hourly rate defaults to 0
-      expect(screen.getByTestId('instructor-price')).toHaveTextContent('$0/hr');
+      // rate defaults to 0, shows "Contact"
+      expect(screen.getByTestId('instructor-price')).toHaveTextContent('Contact');
     });
 
     it('handles rating being non-number (line 164-165)', () => {
@@ -2443,7 +2456,8 @@ describe('InstructorCard', () => {
           {
             id: 'svc-no-name',
             service_catalog_id: 'cat-missing',
-            hourly_rate: 60,
+            min_hourly_rate: 60,
+            format_prices: [{ format: 'online', hourly_rate: 60 }],
             duration_options: [60],
           },
         ],
@@ -2468,10 +2482,9 @@ describe('InstructorCard', () => {
         services: [{
           id: 'svc-1',
           service_catalog_id: 'cat-1',
-          hourly_rate: 60,
+          min_hourly_rate: 60,
+          format_prices: [{ format: 'student_location', hourly_rate: 60 }, { format: 'online', hourly_rate: 60 }],
           duration_options: [60],
-          offers_travel: true,
-          offers_online: true,
         }],
       });
       renderWithProviders(<InstructorCard instructor={instructor} />);
@@ -2526,9 +2539,9 @@ describe('InstructorCard', () => {
           services: [{
             id: 'svc-1',
             service_catalog_id: 'cat-1',
-            hourly_rate: 60,
+            min_hourly_rate: 60,
+            format_prices: [{ format: 'instructor_location', hourly_rate: 60 }],
             duration_options: [60],
-            offers_at_location: true,
           }],
         }),
         preferred_teaching_locations: [{ id: 'loc-1', address: '123 St' }],

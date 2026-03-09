@@ -61,7 +61,6 @@ class FavoritedInstructor(BaseModel):
                 "profile": {
                     "bio": "Experienced piano teacher",
                     "years_experience": 10,
-                    "hourly_rate": 75.0,
                     "rating": 4.8,
                     "total_reviews": 25,
                 },
@@ -90,7 +89,7 @@ class FavoritesList(BaseModel):
                         "profile": {
                             "bio": "Experienced piano teacher",
                             "years_experience": 10,
-                            "hourly_rate": 75.0,
+                            "min_hourly_rate": 75.0,
                             "rating": 4.8,
                             "total_reviews": 25,
                         },

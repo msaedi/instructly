@@ -47,7 +47,9 @@ def test_list_instructors_filters_and_cursor(db, test_instructor, test_instructo
         Service(
             instructor_profile_id=profile_2.id,
             service_catalog_id=piano.id,
-            hourly_rate=55.0,
+            format_prices=[
+                {"format": "online", "hourly_rate": 55.0},
+            ],
             is_active=True,
         )
     )
@@ -101,7 +103,9 @@ def test_get_service_coverage(db, test_instructor, test_instructor_2):
         Service(
             instructor_profile_id=profile_2.id,
             service_catalog_id=yoga.id,
-            hourly_rate=60.0,
+            format_prices=[
+                {"format": "online", "hourly_rate": 60.0},
+            ],
             is_active=True,
         )
     )

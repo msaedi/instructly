@@ -4,6 +4,7 @@ from datetime import datetime, time, timedelta, timezone
 from unittest.mock import MagicMock
 
 import pytest
+from sqlalchemy import inspect as sa_inspect
 
 from app.core.exceptions import RepositoryException
 from app.models.availability import BlackoutDate
@@ -107,6 +108,7 @@ class TestConflictCheckerRepositoryCoverage:
         assert service is not None
         active = repo.get_active_service(service.id)
         assert active is not None
+        assert "format_prices" not in sa_inspect(active).unloaded
 
     def test_error_paths_raise_repository_exception(self):
         mock_db = MagicMock()

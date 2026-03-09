@@ -115,7 +115,7 @@ describe('Location options based on capabilities', () => {
 
   it('shows only online when offers_online=true only', async () => {
     await renderConfirmation([
-      { id: 'svc-1', offers_online: true, offers_travel: false, offers_at_location: false },
+      { id: 'svc-1', min_hourly_rate: 100, offers_online: true, offers_travel: false, offers_at_location: false, format_prices: [{ format: 'online', hourly_rate: 100 }] },
     ]);
 
     expect(screen.getByRole('button', { name: /online/i })).toBeInTheDocument();
@@ -125,7 +125,7 @@ describe('Location options based on capabilities', () => {
 
   it('shows all options when all capabilities true', async () => {
     await renderConfirmation([
-      { id: 'svc-1', offers_online: true, offers_travel: true, offers_at_location: true },
+      { id: 'svc-1', min_hourly_rate: 100, offers_online: true, offers_travel: true, offers_at_location: true, format_prices: [{ format: 'online', hourly_rate: 100 }, { format: 'student_location', hourly_rate: 100 }, { format: 'instructor_location', hourly_rate: 100 }] },
     ]);
 
     expect(screen.getByRole('button', { name: /online/i })).toBeInTheDocument();
@@ -135,7 +135,7 @@ describe('Location options based on capabilities', () => {
 
   it('hides student_location when offers_travel=false', async () => {
     await renderConfirmation([
-      { id: 'svc-1', offers_online: true, offers_travel: false, offers_at_location: true },
+      { id: 'svc-1', min_hourly_rate: 100, offers_online: true, offers_travel: false, offers_at_location: true, format_prices: [{ format: 'online', hourly_rate: 100 }, { format: 'instructor_location', hourly_rate: 100 }] },
     ]);
 
     expect(screen.getByRole('button', { name: /online/i })).toBeInTheDocument();
@@ -145,7 +145,7 @@ describe('Location options based on capabilities', () => {
 
   it('hides instructor_location when offers_at_location=false', async () => {
     await renderConfirmation([
-      { id: 'svc-1', offers_online: true, offers_travel: true, offers_at_location: false },
+      { id: 'svc-1', min_hourly_rate: 100, offers_online: true, offers_travel: true, offers_at_location: false, format_prices: [{ format: 'online', hourly_rate: 100 }, { format: 'student_location', hourly_rate: 100 }] },
     ]);
 
     expect(screen.getByRole('button', { name: /online/i })).toBeInTheDocument();

@@ -3,6 +3,8 @@ import { useId, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Layers, MapPin, MonitorSmartphone } from 'lucide-react';
 import type { InstructorService } from '@/types/instructor';
+import { availableFormatsFromPrices, formatLabel } from '@/lib/pricing/formatPricing';
+import type { ServiceFormat } from '@/lib/pricing/formatPricing';
 
 interface ServiceCardsProps {
   services: InstructorService[];
@@ -60,9 +62,12 @@ function ServiceCardItem({
     return capitalized.join(' · ');
   })();
 
-  const offersTravel = Boolean(service.offers_travel);
-  const offersAtLocation = Boolean(service.offers_at_location) && hasTeachingLocations;
-  const offersOnline = Boolean(service.offers_online);
+  const formats: ServiceFormat[] = availableFormatsFromPrices(
+    (service.format_prices ?? []) as Parameters<typeof availableFormatsFromPrices>[0]
+  );
+  const offersTravel = formats.includes('student_location');
+  const offersAtLocation = formats.includes('instructor_location') && hasTeachingLocations;
+  const offersOnline = formats.includes('online');
   const hasFormat = offersTravel || offersAtLocation || offersOnline;
 
   const rawAgeGroups = (service as unknown as Record<string, unknown>)?.['age_groups'];
@@ -78,12 +83,17 @@ function ServiceCardItem({
 
   const showsKidsBadge = ageGroups.includes('kids');
 
-  // Calculate price based on selected duration with safety/coercion
-  // API may return hourly_rate as a string; coerce to number
-  const hourlyRateRaw = (service as unknown as Record<string, unknown>)?.['hourly_rate'] as unknown;
-  const hourlyRate = typeof hourlyRateRaw === 'number' ? hourlyRateRaw : parseFloat(String(hourlyRateRaw ?? '0'));
-  const price = Math.round(((isNaN(hourlyRate) ? 0 : hourlyRate) * selectedDuration) / 60);
   const showHourlyPrice = durationOptions.length <= 1;
+
+  // Build per-format price display
+  const formatPriceLines: Array<{ label: string; rate: number }> = (service.format_prices ?? [])
+    .filter((fp): fp is { format: string; hourly_rate: number } =>
+      typeof fp.format === 'string' && typeof fp.hourly_rate === 'number'
+    )
+    .map(fp => ({
+      label: formatLabel(fp.format as ServiceFormat),
+      rate: fp.hourly_rate,
+    }));
 
   // Generate helpful message for unavailable services
   const getUnavailableMessage = () => {
@@ -191,8 +201,18 @@ function ServiceCardItem({
                 </div>
               ) : null}
             </div>
-            <div className="text-lg font-semibold text-gray-900 dark:text-white">
-              {showHourlyPrice ? `$${price}/hr` : `$${price}`}
+            <div className="text-center">
+              {formatPriceLines.length > 0 ? (
+                <div className="flex flex-col items-center gap-0.5">
+                  {formatPriceLines.map(fp => (
+                    <span key={fp.label} className="text-sm font-semibold text-gray-900 dark:text-white">
+                      ${showHourlyPrice ? fp.rate : Math.round((fp.rate * selectedDuration) / 60)}{showHourlyPrice ? '/hr' : ''} &middot; {fp.label}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-sm text-gray-500 dark:text-gray-400">Contact instructor</span>
+              )}
             </div>
           </div>
           <div className="mt-auto flex justify-center">

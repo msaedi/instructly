@@ -32,7 +32,7 @@ class FilterRepository:
     Handles:
     - PostGIS location containment checks via region_boundaries
     - Availability bitmap validation via check_availability function
-    - Price filtering (done in-memory, not here)
+    - Lesson-type-aware pricing intersections for NL search
     """
 
     def __init__(self, db: Session) -> None:
@@ -541,6 +541,75 @@ class FilterRepository:
     # Lesson Type Filtering (Online/In-Person)
     # =========================================================================
 
+    def get_lesson_type_rates(
+        self,
+        service_ids: List[str],
+        lesson_type: str,
+        *,
+        max_price: Optional[int] = None,
+    ) -> Dict[str, float]:
+        """
+        Return the minimum rate per service for formats matching the requested lesson type.
+
+        When ``max_price`` is provided, the price predicate is intersected with the
+        lesson-type predicate so only qualifying format rows are considered.
+        """
+        if not service_ids or lesson_type == "any":
+            return {}
+        if lesson_type not in {"online", "in_person"}:
+            return {}
+
+        query = text(
+            """
+            SELECT
+                ins.id AS service_id,
+                (
+                    SELECT MIN(sfp.hourly_rate)
+                    FROM service_format_pricing sfp
+                    WHERE sfp.service_id = ins.id
+                      AND (
+                          (:lesson_type = 'online' AND sfp.format = 'online')
+                          OR (
+                              :lesson_type = 'in_person'
+                              AND sfp.format IN ('student_location', 'instructor_location')
+                          )
+                      )
+                      AND (:max_price IS NULL OR sfp.hourly_rate <= :max_price)
+                ) AS lesson_type_hourly_rate
+            FROM instructor_services ins
+            WHERE ins.id = ANY(:service_ids)
+              AND ins.is_active = true
+              AND EXISTS (
+                  SELECT 1
+                  FROM service_format_pricing sfp
+                  WHERE sfp.service_id = ins.id
+                    AND (
+                        (:lesson_type = 'online' AND sfp.format = 'online')
+                        OR (
+                            :lesson_type = 'in_person'
+                            AND sfp.format IN ('student_location', 'instructor_location')
+                        )
+                    )
+                    AND (:max_price IS NULL OR sfp.hourly_rate <= :max_price)
+              )
+            """
+        )
+
+        result = self.db.execute(
+            query,
+            {
+                "service_ids": service_ids,
+                "lesson_type": lesson_type,
+                "max_price": max_price,
+            },
+        )
+
+        return {
+            str(row.service_id): float(row.lesson_type_hourly_rate)
+            for row in result
+            if row.lesson_type_hourly_rate is not None
+        }
+
     def filter_by_lesson_type(
         self,
         service_ids: List[str],
@@ -549,9 +618,9 @@ class FilterRepository:
         """
         Filter services by lesson type (online or in-person).
 
-        The filter works by checking capability flags in instructor_services.
-        - "online" lesson_type -> services with offers_online
-        - "in_person" lesson_type -> services with offers_travel or offers_at_location
+        The filter works by checking enabled per-format pricing rows.
+        - "online" lesson_type -> services with an `online` format price
+        - "in_person" lesson_type -> services with `student_location` or `instructor_location`
 
         Args:
             service_ids: List of instructor_service IDs to filter
@@ -565,28 +634,4 @@ class FilterRepository:
         if lesson_type not in {"online", "in_person"}:
             return service_ids
 
-        query = text(
-            """
-            SELECT ins.id
-            FROM instructor_services ins
-            WHERE ins.id = ANY(:service_ids)
-              AND ins.is_active = true
-              AND (
-                  (:lesson_type = 'online' AND ins.offers_online = true)
-                  OR (
-                      :lesson_type = 'in_person'
-                      AND (ins.offers_travel = true OR ins.offers_at_location = true)
-                  )
-              )
-            """
-        )
-
-        result = self.db.execute(
-            query,
-            {
-                "service_ids": service_ids,
-                "lesson_type": lesson_type,
-            },
-        )
-
-        return [row[0] for row in result]
+        return list(self.get_lesson_type_rates(service_ids, lesson_type).keys())

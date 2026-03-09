@@ -64,7 +64,11 @@ def create_test_booking():
             service = Service(
                 instructor_profile_id=instructor.instructor_profile.id,
                 skill="Test Piano Lessons",
-                hourly_rate=90.00,
+                format_prices=[
+                    {"format": "student_location", "hourly_rate": 90.00},
+                    {"format": "instructor_location", "hourly_rate": 90.00},
+                    {"format": "online", "hourly_rate": 90.00},
+                ],
                 areas_served="Manhattan, Brooklyn",
                 min_lesson_duration=60,
                 max_lesson_duration=120,
@@ -105,8 +109,8 @@ def create_test_booking():
             start_time=time(14, 0),  # 2:00 PM
             end_time=time(15, 0),  # 3:00 PM
             service_name=service.skill,
-            hourly_rate=service.hourly_rate,
-            total_price=service.hourly_rate,
+            hourly_rate=service.hourly_rate_for_location_type("instructor_location"),
+            total_price=service.hourly_rate_for_location_type("instructor_location"),
             duration_minutes=60,
             status=BookingStatus.CONFIRMED,
             location_type="instructor_location",

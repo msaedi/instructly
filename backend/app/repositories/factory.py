@@ -55,6 +55,7 @@ if TYPE_CHECKING:
     from .search_event_repository import SearchEventRepository
     from .search_history_repository import SearchHistoryRepository
     from .service_catalog_repository import ServiceAnalyticsRepository, ServiceCatalogRepository
+    from .service_format_pricing_repository import ServiceFormatPricingRepository
     from .subcategory_repository import SubcategoryRepository
     from .taxonomy_filter_repository import TaxonomyFilterRepository
     from .user_repository import UserRepository
@@ -226,6 +227,13 @@ class RepositoryFactory:
         from .service_catalog_repository import ServiceCatalogRepository
 
         return ServiceCatalogRepository(db)
+
+    @staticmethod
+    def create_service_format_pricing_repository(db: Session) -> "ServiceFormatPricingRepository":
+        """Create repository for per-format instructor service pricing."""
+        from .service_format_pricing_repository import ServiceFormatPricingRepository
+
+        return ServiceFormatPricingRepository(db)
 
     @staticmethod
     def create_service_analytics_repository(db: Session) -> "ServiceAnalyticsRepository":

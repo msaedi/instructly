@@ -49,7 +49,14 @@ from app.models.instructor import BGCConsent, InstructorProfile
 from app.models.payment import PlatformCredit, StripeConnectedAccount
 from app.models.rbac import Role, UserRole as UserRoleJunction
 from app.models.review import Review, ReviewStatus
-from app.models.service_catalog import InstructorService, ServiceCatalog
+from app.models.service_catalog import (
+    SERVICE_FORMAT_INSTRUCTOR_LOCATION,
+    SERVICE_FORMAT_ONLINE,
+    SERVICE_FORMAT_STUDENT_LOCATION,
+    InstructorService,
+    ServiceCatalog,
+    ServiceFormatPrice,
+)
 from app.models.user import User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.repositories.conversation_repository import ConversationRepository
@@ -83,15 +90,11 @@ class DatabaseSeeder:
         "service_slug",
         "service_catalog_id",
         "description",
-        "price",
-        "hourly_rate",
+        "format_prices",
         "duration_options",
         "requirements",
         "equipment_required",
         "age_groups",
-        "offers_travel",
-        "offers_at_location",
-        "offers_online",
         "filter_selections",
     }
     _SERVICE_TOKEN_STOPWORDS = {
@@ -359,10 +362,11 @@ class DatabaseSeeder:
         *,
         instructor_user: Optional[User],
         student_user: Optional[User],
+        is_online: bool = False,
     ) -> Dict[str, Any]:
         instructor_tz = self._resolve_user_timezone(instructor_user)
         student_tz = self._resolve_user_timezone(student_user)
-        lesson_tz = TimezoneService.get_lesson_timezone(instructor_tz, is_online=False)
+        lesson_tz = TimezoneService.get_lesson_timezone(instructor_tz, is_online=is_online)
         end_date = booking_date
         if end_time == time(0, 0) and start_time != time(0, 0):
             end_date = booking_date + timedelta(days=1)
@@ -375,6 +379,89 @@ class DatabaseSeeder:
             "instructor_tz_at_booking": instructor_tz,
             "student_tz_at_booking": student_tz,
         }
+
+    @staticmethod
+    def _normalize_seed_format_prices(service_data: Dict[str, Any]) -> list[dict[str, Decimal | str]]:
+        """Normalize YAML format price rows into Decimal-backed dicts."""
+        raw_rows = service_data.get("format_prices")
+        if not isinstance(raw_rows, list) or not raw_rows:
+            service_name = str(service_data.get("name") or service_data.get("service_slug") or "").strip()
+            raise ValueError(
+                f"Service '{service_name or 'unknown'}' must define non-empty format_prices"
+            )
+
+        normalized: list[dict[str, Decimal | str]] = []
+        seen_formats: set[str] = set()
+        for row in raw_rows:
+            if not isinstance(row, dict):
+                raise ValueError("Each format_prices entry must be an object")
+
+            format_name = str(row.get("format") or "").strip()
+            if format_name not in {
+                SERVICE_FORMAT_STUDENT_LOCATION,
+                SERVICE_FORMAT_INSTRUCTOR_LOCATION,
+                SERVICE_FORMAT_ONLINE,
+            }:
+                raise ValueError(f"Unsupported service pricing format '{format_name}'")
+            if format_name in seen_formats:
+                raise ValueError(f"Duplicate format '{format_name}' in format_prices")
+            seen_formats.add(format_name)
+
+            hourly_rate = row.get("hourly_rate")
+            if hourly_rate is None:
+                raise ValueError(f"Format '{format_name}' is missing hourly_rate")
+
+            normalized.append(
+                {
+                    "format": format_name,
+                    "hourly_rate": Decimal(str(hourly_rate)).quantize(Decimal("0.01")),
+                }
+            )
+
+        return normalized
+
+    @staticmethod
+    def _choose_seed_booking_location(
+        service: InstructorService,
+        *,
+        prefer_in_person: bool,
+    ) -> tuple[str, str, Optional[str]]:
+        """Pick a supported booking location for seeded bookings."""
+        if prefer_in_person:
+            if bool(getattr(service, "offers_at_location", False)):
+                return ("instructor_location", "In-person", "Manhattan")
+            if bool(getattr(service, "offers_travel", False)):
+                return ("student_location", "Student location", "Manhattan")
+            if bool(getattr(service, "offers_online", False)):
+                return ("online", "Zoom", None)
+        else:
+            if bool(getattr(service, "offers_online", False)):
+                return ("online", "Online", None)
+            if bool(getattr(service, "offers_at_location", False)):
+                return ("instructor_location", "In-person", "Manhattan")
+            if bool(getattr(service, "offers_travel", False)):
+                return ("student_location", "Student location", "Manhattan")
+
+        raise ValueError(f"Service {service.id} has no seedable format prices")
+
+    @staticmethod
+    def _seed_service_hourly_rate(
+        service: InstructorService,
+        location_type: str,
+    ) -> Decimal:
+        return Decimal(str(service.hourly_rate_for_location_type(location_type))).quantize(
+            Decimal("0.01")
+        )
+
+    def _seed_service_total_price(
+        self,
+        service: InstructorService,
+        duration_minutes: int,
+        location_type: str,
+    ) -> Decimal:
+        return Decimal(str(service.price_for_booking(duration_minutes, location_type))).quantize(
+            Decimal("0.01")
+        )
 
     def reset_database(self):
         """Clean test data from database"""
@@ -830,33 +917,30 @@ class DatabaseSeeder:
                     filter_selections = dict(service_data.get("filter_selections") or {})
 
                     # Create instructor service linked to catalog (pre-generate ULID)
-                    hourly_rate = service_data.get("hourly_rate", service_data.get("price"))
-                    if hourly_rate is None:
-                        print(f"  ⚠️  Service '{service_name}' missing price/hourly_rate, skipping")
-                        continue
+                    format_prices = self._normalize_seed_format_prices(service_data)
                     service_id = str(ulid.ULID())
-                    offers_travel = bool(service_data.get("offers_travel", False))
-                    offers_at_location = bool(service_data.get("offers_at_location", False))
-                    offers_online = bool(service_data.get("offers_online", True))
-                    if not (offers_travel or offers_at_location or offers_online):
-                        offers_online = True
                     service = InstructorService(
                         id=service_id,
                         instructor_profile_id=profile_id,
                         service_catalog_id=catalog_service.id,
-                        hourly_rate=hourly_rate,
                         description=service_data.get("description"),
                         duration_options=service_data.get("duration_options", [60]),
                         requirements=service_data.get("requirements"),
                         equipment_required=service_data.get("equipment_required"),
                         age_groups=normalized_groups or None,
                         filter_selections=filter_selections or {},
-                        offers_travel=offers_travel,
-                        offers_at_location=offers_at_location,
-                        offers_online=offers_online,
                         is_active=True,
                     )
                     session.add(service)
+                    for price_row in format_prices:
+                        session.add(
+                            ServiceFormatPrice(
+                                id=str(ulid.ULID()),
+                                service_id=service_id,
+                                format=str(price_row["format"]),
+                                hourly_rate=price_row["hourly_rate"],
+                            )
+                        )
                     self.created_services[f"{user.email}:{service_name}"] = service_id
                     service_count += 1
                     plan_entry["service_ids"].append(service_id)
@@ -1087,9 +1171,10 @@ class DatabaseSeeder:
                     start_dt = start_dt_naive.replace(tzinfo=timezone.utc)
                     end_dt = end_dt_naive.replace(tzinfo=timezone.utc)
 
-                    is_remote = bool(getattr(service, "offers_online", False))
-                    location_type = "online" if is_remote else "student_location"
-                    meeting_location = "Online" if is_remote else "Student location"
+                    location_type, meeting_location, service_area = self._choose_seed_booking_location(
+                        service,
+                        prefer_in_person=False,
+                    )
 
                     student = rng.choice(students)
 
@@ -1117,9 +1202,6 @@ class DatabaseSeeder:
                     ):
                         continue
 
-                    hourly_rate = Decimal(str(service.hourly_rate)).quantize(Decimal("0.01"))
-                    total_price = (hourly_rate * Decimal(duration) / Decimal(60)).quantize(Decimal("0.01"))
-
                     service_name = (
                         service.catalog_entry.name
                         if service.catalog_entry
@@ -1132,7 +1214,10 @@ class DatabaseSeeder:
                         end_time,
                         instructor_user=instructor_user,
                         student_user=student,
+                        is_online=location_type == "online",
                     )
+                    hourly_rate = self._seed_service_hourly_rate(service, location_type)
+                    total_price = self._seed_service_total_price(service, duration, location_type)
                     booking = Booking(
                         student_id=student.id,
                         instructor_id=user_id,
@@ -1149,7 +1234,7 @@ class DatabaseSeeder:
                         location_type=location_type,
                         meeting_location=meeting_location,
                         location_address=meeting_location,
-                        service_area=None,
+                        service_area=service_area,
                         student_note="Seeded maintenance session",
                         created_at=start_dt - timedelta(days=1),
                         confirmed_at=start_dt - timedelta(hours=2),
@@ -1543,6 +1628,10 @@ class DatabaseSeeder:
 
                     booking_date, start_time, end_time = slot
                     service_name = catalog_services.get(service.service_catalog_id, "Service")
+                    location_type, meeting_location, service_area = self._choose_seed_booking_location(
+                        service,
+                        prefer_in_person=True,
+                    )
 
                     tz_fields = self._build_booking_timezone_fields(
                         booking_date,
@@ -1550,7 +1639,10 @@ class DatabaseSeeder:
                         end_time,
                         instructor_user=instructor_user,
                         student_user=student,
+                        is_online=location_type == "online",
                     )
+                    hourly_rate = self._seed_service_hourly_rate(service, location_type)
+                    total_price = self._seed_service_total_price(service, duration, location_type)
                     booking = Booking(
                         student_id=student.id,
                         instructor_id=instructor_id,
@@ -1561,13 +1653,13 @@ class DatabaseSeeder:
                         **tz_fields,
                         duration_minutes=duration,
                         service_name=service_name,
-                        hourly_rate=service.hourly_rate,
-                        total_price=float(service.hourly_rate) * (duration / 60),
+                        hourly_rate=hourly_rate,
+                        total_price=total_price,
                         status=BookingStatus.CONFIRMED,
-                        service_area=None,
-                        meeting_location="Online",
-                        location_address="Online",
-                        location_type="neutral_location",
+                        service_area=service_area,
+                        meeting_location=meeting_location,
+                        location_address=meeting_location,
+                        location_type=location_type,
                     )
                     session.add(booking)
 
@@ -1714,13 +1806,20 @@ class DatabaseSeeder:
                 if instructor_overlap:
                     continue
 
+                location_type, meeting_location, service_area = self._choose_seed_booking_location(
+                    service,
+                    prefer_in_person=True,
+                )
                 tz_fields = self._build_booking_timezone_fields(
                     booking_date,
                     start_time,
                     end_time,
                     instructor_user=instructor,
                     student_user=student,
+                    is_online=location_type == "online",
                 )
+                hourly_rate = self._seed_service_hourly_rate(service, location_type)
+                total_price = self._seed_service_total_price(service, duration, location_type)
                 booking = Booking(
                     student_id=student.id,
                     instructor_id=instructor.id,
@@ -1730,13 +1829,13 @@ class DatabaseSeeder:
                     end_time=end_time,
                     **tz_fields,
                     status=BookingStatus.COMPLETED,
-                    location_type="neutral_location",
-                    meeting_location="Zoom",
-                    location_address="Zoom",
+                    location_type=location_type,
+                    meeting_location=meeting_location,
+                    location_address=meeting_location,
                     service_name=service.catalog_entry.name if service.catalog_entry else "Service",
-                    service_area=None,
-                    hourly_rate=service.hourly_rate,
-                    total_price=service.session_price(duration),
+                    service_area=service_area,
+                    hourly_rate=hourly_rate,
+                    total_price=total_price,
                     duration_minutes=duration,
                     student_note=f"Historical booking for testing - {instructor.account_status} instructor",
                 )
@@ -1864,13 +1963,20 @@ class DatabaseSeeder:
                 if instructor_overlap:
                     continue
 
+                location_type, meeting_location, service_area = self._choose_seed_booking_location(
+                    service,
+                    prefer_in_person=True,
+                )
                 tz_fields = self._build_booking_timezone_fields(
                     booking_date,
                     start_time,
                     end_time,
                     instructor_user=instructor,
                     student_user=student,
+                    is_online=location_type == "online",
                 )
+                hourly_rate = self._seed_service_hourly_rate(service, location_type)
+                total_price = self._seed_service_total_price(service, duration, location_type)
                 booking = Booking(
                     student_id=student.id,
                     instructor_id=instructor.id,
@@ -1880,13 +1986,13 @@ class DatabaseSeeder:
                     end_time=end_time,
                     **tz_fields,
                     status=BookingStatus.COMPLETED,
-                    location_type="neutral_location",
-                    meeting_location="In-person",
-                    location_address="In-person",
+                    location_type=location_type,
+                    meeting_location=meeting_location,
+                    location_address=meeting_location,
                     service_name=catalog_service.name if catalog_service else "Service",
-                    service_area="Manhattan",
-                    hourly_rate=service.hourly_rate,
-                    total_price=float(service.hourly_rate) * (duration / 60),
+                    service_area=service_area,
+                    hourly_rate=hourly_rate,
+                    total_price=total_price,
                     duration_minutes=duration,
                     student_note="Completed lesson for testing Book Again feature",
                     completed_at=datetime.now() - timedelta(days=days_ago - 1),  # Mark as completed day after booking
@@ -1984,13 +2090,20 @@ class DatabaseSeeder:
                 if has_conflict:
                     continue
 
+                location_type, meeting_location, service_area = self._choose_seed_booking_location(
+                    service,
+                    prefer_in_person=True,
+                )
                 tz_fields = self._build_booking_timezone_fields(
                     booking_date,
                     start_time,
                     end_time,
                     instructor_user=instructor,
                     student_user=student,
+                    is_online=location_type == "online",
                 )
+                hourly_rate = self._seed_service_hourly_rate(service, location_type)
+                total_price = self._seed_service_total_price(service, duration, location_type)
                 booking = Booking(
                     student_id=student.id,
                     instructor_id=instructor.id,
@@ -2000,13 +2113,13 @@ class DatabaseSeeder:
                     end_time=end_time,
                     **tz_fields,
                     status=BookingStatus.COMPLETED,
-                    location_type="neutral_location",
-                    meeting_location="Zoom",
-                    location_address="Zoom",
+                    location_type=location_type,
+                    meeting_location=meeting_location,
+                    location_address=meeting_location,
                     service_name=service.catalog_entry.name if service.catalog_entry else "Service",
-                    service_area=None,
-                    hourly_rate=service.hourly_rate,
-                    total_price=service.session_price(duration),
+                    service_area=service_area,
+                    hourly_rate=hourly_rate,
+                    total_price=total_price,
                     duration_minutes=duration,
                     student_note=f"Historical booking for testing - {instructor.account_status} instructor",
                 )
@@ -2114,13 +2227,20 @@ class DatabaseSeeder:
 
                 service_name = catalog_services.get(service.service_catalog_id, "Service")
 
+                location_type, meeting_location, service_area = self._choose_seed_booking_location(
+                    service,
+                    prefer_in_person=True,
+                )
                 tz_fields = self._build_booking_timezone_fields(
                     booking_date,
                     start_time,
                     end_time,
                     instructor_user=instructor,
                     student_user=student,
+                    is_online=location_type == "online",
                 )
+                hourly_rate = self._seed_service_hourly_rate(service, location_type)
+                total_price = self._seed_service_total_price(service, duration, location_type)
                 booking = Booking(
                     student_id=student.id,
                     instructor_id=instructor.id,
@@ -2130,13 +2250,13 @@ class DatabaseSeeder:
                     end_time=end_time,
                     **tz_fields,
                     status=BookingStatus.COMPLETED,
-                    location_type="neutral_location",
-                    meeting_location="In-person",
-                    location_address="In-person",
+                    location_type=location_type,
+                    meeting_location=meeting_location,
+                    location_address=meeting_location,
                     service_name=service_name,
-                    service_area="Manhattan",
-                    hourly_rate=service.hourly_rate,
-                    total_price=float(service.hourly_rate) * (duration / 60),
+                    service_area=service_area,
+                    hourly_rate=hourly_rate,
+                    total_price=total_price,
                     duration_minutes=duration,
                     student_note="Completed lesson for testing Book Again feature",
                     completed_at=datetime.now() - timedelta(days=days_ago - 1),
@@ -2379,7 +2499,14 @@ class DatabaseSeeder:
                         # Pre-generate ULID for bulk insert
                         booking_id = str(ulid.ULID())
                         service_name = service.catalog_entry.name if service.catalog_entry else "Service"
-                        total_price = float(service.hourly_rate) * (duration / 60)
+                        location_type, meeting_location, _ = self._choose_seed_booking_location(
+                            service,
+                            prefer_in_person=True,
+                        )
+                        hourly_rate = self._seed_service_hourly_rate(service, location_type)
+                        total_price = self._seed_service_total_price(
+                            service, duration, location_type
+                        )
 
                         tz_fields = self._build_booking_timezone_fields(
                             booking_date_val,
@@ -2387,6 +2514,7 @@ class DatabaseSeeder:
                             end_time_val,
                             instructor_user=instructor,
                             student_user=student,
+                            is_online=location_type == "online",
                         )
 
                         # Collect booking data for bulk INSERT
@@ -2404,12 +2532,12 @@ class DatabaseSeeder:
                             "instructor_tz_at_booking": tz_fields["instructor_tz_at_booking"],
                             "student_tz_at_booking": tz_fields["student_tz_at_booking"],
                             "service_name": service_name,
-                            "hourly_rate": float(service.hourly_rate),
+                            "hourly_rate": float(hourly_rate),
                             "total_price": total_price,
                             "duration_minutes": duration,
                             "status": BookingStatus.COMPLETED.value,
-                            "location_type": "neutral_location",
-                            "meeting_location": "In-person",
+                            "location_type": location_type,
+                            "meeting_location": meeting_location,
                             "student_note": "Seeded completed booking for reviews",
                             "completed_at": helper_completed_at,
                         })

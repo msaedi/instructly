@@ -550,7 +550,7 @@ class NLSearchService:
                     query, region_code=self._region_code
                 )
             except Exception as e:
-                logger.warning(f"Parsed query cache lookup failed: {e}")
+                logger.warning("Parsed query cache lookup failed: %s", e)
 
             loop = asyncio.get_running_loop()
             parsed_query_future: asyncio.Future[ParsedQuery] = loop.create_future()
@@ -684,7 +684,7 @@ class NLSearchService:
                         query, parsed_query, region_code=self._region_code
                     )
                 except Exception as e:
-                    logger.warning(f"Failed to cache parsed query: {e}")
+                    logger.warning("Failed to cache parsed query: %s", e)
 
             if parsed_query.needs_llm:
                 if embedding_task:
@@ -712,7 +712,7 @@ class NLSearchService:
                         query, parsed_query, region_code=self._region_code
                     )
                 except Exception as e:
-                    logger.warning(f"Failed to cache parsed query: {e}")
+                    logger.warning("Failed to cache parsed query: %s", e)
 
             if timer:
                 timer.record_stage(
@@ -988,7 +988,7 @@ class NLSearchService:
                     distance_meters=post_data.distance_meters,
                 )
             except Exception as e:
-                logger.error(f"Hydration failed: {e}")
+                logger.error("Hydration failed: %s", e)
                 results = []
                 hydrate_failed = True
                 metrics.degraded = True
@@ -2287,7 +2287,7 @@ class NLSearchService:
                     location_resolution=location_resolution,
                 )
             except Exception as exc:
-                logger.error(f"Filtering failed: {exc}")
+                logger.error("Filtering failed: %s", exc)
                 filter_failed = True
                 filter_result = FilterResult(
                     candidates=[
@@ -2298,7 +2298,7 @@ class NLSearchService:
                             hybrid_score=c.hybrid_score,
                             name=c.name,
                             description=c.description,
-                            price_per_hour=c.price_per_hour,
+                            min_hourly_rate=c.min_hourly_rate,
                         )
                         for c in candidates
                     ],
@@ -2328,7 +2328,7 @@ class NLSearchService:
                     user_location=user_location,
                 )
             except Exception as exc:
-                logger.error(f"Ranking failed: {exc}")
+                logger.error("Ranking failed: %s", exc)
                 ranking_failed = True
                 ranking_result = RankingResult(results=[], total_results=0)
             rank_latency_ms = int((time.perf_counter() - rank_start) * 1000)
@@ -2387,6 +2387,32 @@ class NLSearchService:
                 effective_subcategory_name=effective_subcategory_name,
                 available_content_filters=available_content_filters,
             )
+
+    @staticmethod
+    def _serialize_format_prices(price_rows: List[Any]) -> List[Dict[str, Any]]:
+        """Serialize pricing rows for NL search responses."""
+        return [
+            {
+                "format": str(getattr(row, "format", "")),
+                "hourly_rate": float(getattr(row, "hourly_rate", 0)),
+            }
+            for row in price_rows
+            if getattr(row, "format", None) is not None
+        ]
+
+    @staticmethod
+    def _derive_service_offers(format_prices: List[Dict[str, Any]]) -> Dict[str, bool]:
+        """Derive lesson-format booleans from serialized format prices."""
+        enabled_formats = {
+            str(price_row.get("format"))
+            for price_row in format_prices
+            if isinstance(price_row, dict) and price_row.get("format")
+        }
+        return {
+            "offers_travel": "student_location" in enabled_formats,
+            "offers_at_location": "instructor_location" in enabled_formats,
+            "offers_online": "online" in enabled_formats,
+        }
 
     async def _hydrate_instructor_results(
         self,
@@ -2447,18 +2473,26 @@ class NLSearchService:
         if service_ids:
             service_ids = list(dict.fromkeys(service_ids))
 
-        service_data_by_id: Dict[str, Dict[str, Any]] = {}
+        format_prices_by_service: Dict[str, List[Dict[str, Any]]] = {}
         if service_ids:
 
-            def _load_service_data() -> Dict[str, Dict[str, Any]]:
-                from app.repositories.retriever_repository import RetrieverRepository
+            def _load_service_format_prices() -> Dict[str, List[Dict[str, Any]]]:
+                from app.repositories.service_format_pricing_repository import (
+                    ServiceFormatPricingRepository,
+                )
 
-                with get_db_session() as db:
-                    retriever_repo = RetrieverRepository(db)
-                    rows = retriever_repo.get_services_by_ids(service_ids)
-                return {row["id"]: row for row in rows}
+                try:
+                    with get_db_session() as db:
+                        pricing_repo = ServiceFormatPricingRepository(db)
+                        grouped = pricing_repo.get_prices_for_services(service_ids)
+                        return {
+                            service_id: self._serialize_format_prices(price_rows)
+                            for service_id, price_rows in grouped.items()
+                        }
+                except Exception:
+                    return {}
 
-            service_data_by_id = await asyncio.to_thread(_load_service_data)
+            format_prices_by_service = await asyncio.to_thread(_load_service_format_prices)
 
         # Optional distance map (meters) for admin debugging when we have a location reference.
         distance_region_ids: Optional[List[str]] = None
@@ -2535,33 +2569,49 @@ class NLSearchService:
                 count=int(profile.get("review_count", 0) or 0),
             )
 
-            best_meta = service_data_by_id.get(best_ranked.service_id, {})
+            best_format_prices = format_prices_by_service.get(best_ranked.service_id, [])
+            best_offers = self._derive_service_offers(best_format_prices)
+            _best_eff = best_ranked.effective_hourly_rate
             best_match = ServiceMatch(
                 service_id=best_ranked.service_id,
                 service_catalog_id=best_ranked.service_catalog_id,
                 name=best_ranked.name,
                 description=best_ranked.description,
-                price_per_hour=int(best_ranked.price_per_hour),
+                min_hourly_rate=best_ranked.min_hourly_rate,
+                **(
+                    {"effective_hourly_rate": _best_eff}
+                    if _best_eff != best_ranked.min_hourly_rate
+                    else {}
+                ),
+                format_prices=best_format_prices,
                 relevance_score=round(float(best_ranked.relevance_score), 3),
-                offers_travel=best_meta.get("offers_travel"),
-                offers_at_location=best_meta.get("offers_at_location"),
-                offers_online=best_meta.get("offers_online"),
+                offers_travel=best_offers["offers_travel"],
+                offers_at_location=best_offers["offers_at_location"],
+                offers_online=best_offers["offers_online"],
             )
 
             other_matches: List[ServiceMatch] = []
             for other_ranked in chosen_for_instructor[1:]:
-                other_meta = service_data_by_id.get(other_ranked.service_id, {})
+                other_format_prices = format_prices_by_service.get(other_ranked.service_id, [])
+                other_offers = self._derive_service_offers(other_format_prices)
+                _other_eff = other_ranked.effective_hourly_rate
                 other_matches.append(
                     ServiceMatch(
                         service_id=other_ranked.service_id,
                         service_catalog_id=other_ranked.service_catalog_id,
                         name=other_ranked.name,
                         description=other_ranked.description,
-                        price_per_hour=int(other_ranked.price_per_hour),
+                        min_hourly_rate=other_ranked.min_hourly_rate,
+                        **(
+                            {"effective_hourly_rate": _other_eff}
+                            if _other_eff != other_ranked.min_hourly_rate
+                            else {}
+                        ),
+                        format_prices=other_format_prices,
                         relevance_score=round(float(other_ranked.relevance_score), 3),
-                        offers_travel=other_meta.get("offers_travel"),
-                        offers_at_location=other_meta.get("offers_at_location"),
-                        offers_online=other_meta.get("offers_online"),
+                        offers_travel=other_offers["offers_travel"],
+                        offers_at_location=other_offers["offers_at_location"],
+                        offers_online=other_offers["offers_online"],
                     )
                 )
 
@@ -2605,7 +2655,7 @@ class NLSearchService:
             )
             return result
         except Exception as e:
-            logger.warning(f"Cache check failed: {e}")
+            logger.warning("Cache check failed: %s", e)
             return None
 
     async def _parse_query(
@@ -2633,7 +2683,7 @@ class NLSearchService:
             await self.search_cache.cache_parsed_query(query, parsed, region_code=self._region_code)
 
         except Exception as e:
-            logger.error(f"Parsing failed, using basic extraction: {e}")
+            logger.error("Parsing failed, using basic extraction: %s", e)
 
             def _parse_regex_fallback() -> ParsedQuery:
                 with get_db_session() as db:
@@ -2664,7 +2714,7 @@ class NLSearchService:
                     metrics.degradation_reasons.append(result.degradation_reason)
 
         except Exception as e:
-            logger.error(f"Retrieval failed: {e}")
+            logger.error("Retrieval failed: %s", e)
             result = RetrievalResult(
                 candidates=[],
                 total_candidates=0,
@@ -2699,7 +2749,7 @@ class NLSearchService:
                 user_location=user_location,
             )
         except Exception as e:
-            logger.error(f"Filtering failed: {e}")
+            logger.error("Filtering failed: %s", e)
             # Pass through unfiltered on failure
             result = FilterResult(
                 candidates=[
@@ -2710,7 +2760,7 @@ class NLSearchService:
                         hybrid_score=c.hybrid_score,
                         name=c.name,
                         description=c.description,
-                        price_per_hour=c.price_per_hour,
+                        min_hourly_rate=c.min_hourly_rate,
                     )
                     for c in retrieval_result.candidates
                 ],
@@ -2742,7 +2792,7 @@ class NLSearchService:
                 user_location=user_location,
             )
         except Exception as e:
-            logger.error(f"Ranking failed: {e}")
+            logger.error("Ranking failed: %s", e)
             # Return unranked results on failure
             result = RankingResult(
                 results=[
@@ -2752,7 +2802,8 @@ class NLSearchService:
                         instructor_id=c.instructor_id,
                         name=c.name,
                         description=c.description,
-                        price_per_hour=c.price_per_hour,
+                        min_hourly_rate=c.min_hourly_rate,
+                        effective_hourly_rate=c.effective_hourly_rate,
                         final_score=c.hybrid_score,
                         rank=i + 1,
                         relevance_score=c.hybrid_score,
@@ -2796,7 +2847,7 @@ class NLSearchService:
                 region_code=self._region_code,
             )
         except Exception as e:
-            logger.warning(f"Failed to cache response: {e}")
+            logger.warning("Failed to cache response: %s", e)
 
     def _transform_instructor_results(
         self,
@@ -2814,6 +2865,29 @@ class NLSearchService:
             List of NLSearchResultItem objects
         """
         results: List[NLSearchResultItem] = []
+        service_ids = [
+            str(service["service_id"])
+            for row in raw_results
+            for service in (row.get("matching_services") or [])
+            if isinstance(service, dict) and service.get("service_id")
+        ]
+        service_ids = list(dict.fromkeys(service_ids))
+        format_prices_by_service: Dict[str, List[Dict[str, Any]]] = {}
+        if service_ids:
+            from app.repositories.service_format_pricing_repository import (
+                ServiceFormatPricingRepository,
+            )
+
+            try:
+                with get_db_session() as db:
+                    pricing_repo = ServiceFormatPricingRepository(db)
+                    grouped = pricing_repo.get_prices_for_services(service_ids)
+                    format_prices_by_service = {
+                        service_id: self._serialize_format_prices(price_rows)
+                        for service_id, price_rows in grouped.items()
+                    }
+            except Exception:
+                format_prices_by_service = {}
 
         for row in raw_results:
             # Parse matching services from JSON
@@ -2823,20 +2897,30 @@ class NLSearchService:
 
             # Apply price filter if specified
             if parsed_query.max_price:
-                services = [s for s in services if s["price_per_hour"] <= parsed_query.max_price]
+                services = [
+                    s
+                    for s in services
+                    if float(s.get("min_hourly_rate", 0)) <= parsed_query.max_price
+                ]
                 if not services:
                     continue
             match_count = len(services)
 
             # Build best match
             best = services[0]
+            best_format_prices = format_prices_by_service.get(str(best["service_id"]), [])
+            best_offers = self._derive_service_offers(best_format_prices)
             best_match = ServiceMatch(
                 service_id=best["service_id"],
                 service_catalog_id=best["service_catalog_id"],
                 name=best["name"],
                 description=best.get("description"),
-                price_per_hour=int(best["price_per_hour"]),
+                min_hourly_rate=float(best.get("min_hourly_rate", 0)),
+                format_prices=best_format_prices,
                 relevance_score=round(float(best["relevance_score"]), 3),
+                offers_travel=best_offers["offers_travel"],
+                offers_at_location=best_offers["offers_at_location"],
+                offers_online=best_offers["offers_online"],
             )
 
             # Build other matches (max 3)
@@ -2846,8 +2930,12 @@ class NLSearchService:
                     service_catalog_id=s["service_catalog_id"],
                     name=s["name"],
                     description=s.get("description"),
-                    price_per_hour=int(s["price_per_hour"]),
+                    min_hourly_rate=float(s.get("min_hourly_rate", 0)),
+                    format_prices=format_prices_by_service.get(str(s["service_id"]), []),
                     relevance_score=round(float(s["relevance_score"]), 3),
+                    **self._derive_service_offers(
+                        format_prices_by_service.get(str(s["service_id"]), [])
+                    ),
                 )
                 for s in services[1:4]
             ]

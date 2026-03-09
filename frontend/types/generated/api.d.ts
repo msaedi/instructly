@@ -7408,26 +7408,6 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/services/{service_id}/capabilities": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Update Service Capabilities
-         * @description Update location capabilities for an instructor service.
-         */
-        patch: operations["update_service_capabilities_api_v1_services__service_id__capabilities_patch"];
-        trace?: never;
-    };
     "/api/v1/sse/token": {
         parameters: {
             query?: never;
@@ -13546,8 +13526,8 @@ export type components = {
             custom_description?: string | null;
             /** Duration Options */
             duration_options?: number[];
-            /** Hourly Rate */
-            hourly_rate: number;
+            /** Format Prices */
+            format_prices?: components["schemas"]["ServiceFormatPriceOut"][];
             /** Id */
             id: string;
             /**
@@ -13555,8 +13535,25 @@ export type components = {
              * @default true
              */
             is_active: boolean;
+            /** Min Hourly Rate */
+            min_hourly_rate?: number | null;
             /** Name */
             name: string;
+            /**
+             * Offers At Location
+             * @default false
+             */
+            offers_at_location: boolean;
+            /**
+             * Offers Online
+             * @default false
+             */
+            offers_online: boolean;
+            /**
+             * Offers Travel
+             * @default false
+             */
+            offers_travel: boolean;
         };
         /**
          * InstructorServiceAreaCheckResponse
@@ -13574,18 +13571,6 @@ export type components = {
              * @description True when the coordinates fall inside an instructor's active service areas
              */
             is_covered: boolean;
-        };
-        /**
-         * InstructorServiceCapabilitiesUpdate
-         * @description Partial update for instructor service location capabilities.
-         */
-        InstructorServiceCapabilitiesUpdate: {
-            /** Offers At Location */
-            offers_at_location?: boolean | null;
-            /** Offers Online */
-            offers_online?: boolean | null;
-            /** Offers Travel */
-            offers_travel?: boolean | null;
         };
         /**
          * InstructorServiceCreate
@@ -13608,10 +13593,10 @@ export type components = {
              */
             duration_options?: number[] | null;
             /**
-             * Hourly Rate
-             * @description Hourly rate for this service
+             * Format Prices
+             * @description Per-format hourly pricing for this service
              */
-            hourly_rate: number;
+            format_prices: components["schemas"]["ServiceFormatPriceIn"][];
         };
         /**
          * InstructorServiceResponse
@@ -13632,8 +13617,8 @@ export type components = {
             filter_selections?: {
                 [key: string]: string[];
             };
-            /** Hourly Rate */
-            hourly_rate: number;
+            /** Format Prices */
+            format_prices?: components["schemas"]["ServiceFormatPriceOut"][];
             /** Id */
             id: string;
             /**
@@ -13641,6 +13626,8 @@ export type components = {
              * @default true
              */
             is_active: boolean;
+            /** Min Hourly Rate */
+            min_hourly_rate?: number | null;
             /** Name */
             name: string;
             /**
@@ -13650,7 +13637,7 @@ export type components = {
             offers_at_location: boolean;
             /**
              * Offers Online
-             * @default true
+             * @default false
              */
             offers_online: boolean;
             /**
@@ -14575,12 +14562,29 @@ export type components = {
         MCPInstructorService: {
             /** Category */
             category: string;
-            /** Hourly Rate */
-            hourly_rate: string;
+            /** Format Prices */
+            format_prices?: components["schemas"]["ServiceFormatPriceOut"][];
             /** Is Active */
             is_active: boolean;
+            /** Min Hourly Rate */
+            min_hourly_rate?: string | null;
             /** Name */
             name: string;
+            /**
+             * Offers At Location
+             * @default false
+             */
+            offers_at_location: boolean;
+            /**
+             * Offers Online
+             * @default false
+             */
+            offers_online: boolean;
+            /**
+             * Offers Travel
+             * @default false
+             */
+            offers_travel: boolean;
             /** Slug */
             slug?: string | null;
         };
@@ -19398,25 +19402,10 @@ export type components = {
                 [key: string]: string[];
             };
             /**
-             * Hourly Rate
-             * @description Hourly rate in USD
+             * Format Prices
+             * @description Per-format hourly pricing for this service
              */
-            hourly_rate: number | string;
-            /**
-             * Offers At Location
-             * @description Whether the instructor offers lessons at their location for this service
-             */
-            offers_at_location?: boolean | null;
-            /**
-             * Offers Online
-             * @description Whether the instructor offers online lessons for this service
-             */
-            offers_online?: boolean | null;
-            /**
-             * Offers Travel
-             * @description Whether the instructor travels to student locations for this service
-             */
-            offers_travel?: boolean | null;
+            format_prices: components["schemas"]["ServiceFormatPriceIn"][];
             /** Requirements */
             requirements?: string | null;
             /**
@@ -19424,6 +19413,32 @@ export type components = {
              * @description ID of the service from catalog
              */
             service_catalog_id: string;
+        };
+        /**
+         * ServiceFormatPriceIn
+         * @description Writable per-format hourly rate for a service.
+         */
+        ServiceFormatPriceIn: {
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "student_location" | "instructor_location" | "online";
+            /** Hourly Rate */
+            hourly_rate: number | string;
+        };
+        /**
+         * ServiceFormatPriceOut
+         * @description Read-only per-format hourly rate for a service.
+         */
+        ServiceFormatPriceOut: {
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "student_location" | "instructor_location" | "online";
+            /** Hourly Rate */
+            hourly_rate: number;
         };
         /**
          * ServiceMatch
@@ -19435,6 +19450,16 @@ export type components = {
              * @description Service description
              */
             description?: string | null;
+            /**
+             * Format Prices
+             * @description Enabled per-format hourly pricing rows for this service
+             */
+            format_prices?: components["schemas"]["ServiceFormatPriceOut"][];
+            /**
+             * Min Hourly Rate
+             * @description Lowest enabled hourly rate
+             */
+            min_hourly_rate: number;
             /**
              * Name
              * @description Service name
@@ -19455,11 +19480,6 @@ export type components = {
              * @description Instructor travels to student for this service
              */
             offers_travel?: boolean | null;
-            /**
-             * Price Per Hour
-             * @description Hourly rate in dollars
-             */
-            price_per_hour: number;
             /**
              * Relevance Score
              * @description Semantic match score
@@ -19570,10 +19590,10 @@ export type components = {
                 [key: string]: string[];
             };
             /**
-             * Hourly Rate
-             * @description Hourly rate in USD
+             * Format Prices
+             * @description Enabled per-format hourly pricing rows
              */
-            hourly_rate: number;
+            format_prices?: components["schemas"]["ServiceFormatPriceOut"][];
             /** Id */
             id: string;
             /**
@@ -19581,6 +19601,11 @@ export type components = {
              * @description Whether this service is currently active for the instructor
              */
             is_active?: boolean | null;
+            /**
+             * Min Hourly Rate
+             * @description Lowest enabled hourly rate for this service
+             */
+            min_hourly_rate?: number | null;
             /**
              * Name
              * @description Resolved name of the service from the catalog
@@ -32771,41 +32796,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SubcategoryFilterResponse"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_service_capabilities_api_v1_services__service_id__capabilities_patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                service_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InstructorServiceCapabilitiesUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InstructorServiceResponse"];
                 };
             };
             /** @description Validation Error */

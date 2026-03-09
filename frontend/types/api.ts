@@ -336,8 +336,10 @@ export interface Instructor {
     service_catalog_name?: string;
     /** Optional human-readable skill */
     skill?: string;
-    /** Hourly rate */
-    hourly_rate: number;
+    /** Lowest hourly rate across all enabled formats */
+    min_hourly_rate: number;
+    /** Per-format pricing rows */
+    format_prices: Array<{ format: string; hourly_rate: number }>;
     /** Service description */
     description?: string;
     /** Duration options in minutes */
@@ -481,8 +483,11 @@ export interface Service {
   /** Reference to service catalog item (ULID string) */
   service_catalog_id: string;
 
-  /** Hourly rate for this service */
-  hourly_rate: number;
+  /** Lowest hourly rate across all enabled formats */
+  min_hourly_rate: number;
+
+  /** Per-format pricing rows */
+  format_prices: Array<{ format: string; hourly_rate: number }>;
 
   /** Optional description of the service */
   description?: string;

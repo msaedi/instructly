@@ -54,6 +54,21 @@ except ModuleNotFoundError:  # pragma: no cover
     from tests.conftest import seed_service_areas_from_legacy
 
 
+def _orm_service_format_prices(service: Service) -> list[dict[str, float]]:
+    headline_rate = float(service.min_hourly_rate or service.hourly_rate or 0)
+    return [{"format": "online", "hourly_rate": max(headline_rate, 60.0)}]
+
+
+def _orm_service_create(service: Service):
+    from app.schemas.instructor import ServiceCreate
+
+    return ServiceCreate(
+        service_catalog_id=service.service_catalog_id,
+        description=service.description,
+        format_prices=_orm_service_format_prices(service),
+    )
+
+
 @pytest.fixture(autouse=True)
 def _clear_service_cache_namespace(db: Session) -> None:
     from app.services.cache_service import CacheServiceSyncAdapter
@@ -118,7 +133,9 @@ class TestCircularDependencyEdgeCases:
             service = Service(
                 instructor_profile_id=profile.id,
                 service_catalog_id=catalog_service.id,
-                hourly_rate=50.0,
+                format_prices=[
+                    {"format": "online", "hourly_rate": 50.0},
+                ],
                 description="Test",
                 is_active=True,
             )
@@ -331,7 +348,7 @@ class TestSoftDeleteEdgeCases:
         self, db: Session, instructor_user: User, student_user: User, instructor_service: InstructorService
     ):
         """Test soft deleting a service that has active bookings."""
-        from app.schemas.instructor import InstructorProfileUpdate, ServiceCreate
+        from app.schemas.instructor import InstructorProfileUpdate
 
         # Use the fixture users instead of looking for specific emails
         instructor = instructor_user
@@ -363,15 +380,7 @@ class TestSoftDeleteEdgeCases:
         updated_services = [s for s in instructor.instructor_profile.instructor_services if s.id != service.id]
         update_data = InstructorProfileUpdate(
             bio="Updated bio",
-            services=[
-                ServiceCreate(
-                    offers_travel=False,
-                    offers_at_location=False,
-                    offers_online=True,
-                    service_catalog_id=s.service_catalog_id, hourly_rate=s.hourly_rate, description=s.description
-                )
-                for s in updated_services
-            ],
+            services=[_orm_service_create(s) for s in updated_services],
         )
         instructor_service.update_instructor_profile(instructor.id, update_data)
 
@@ -391,7 +400,7 @@ class TestSoftDeleteEdgeCases:
         self, db: Session, instructor_user: User, student_user: User, instructor_service: InstructorService
     ):
         """Test soft deleting a service that only has completed bookings."""
-        from app.schemas.instructor import InstructorProfileUpdate, ServiceCreate
+        from app.schemas.instructor import InstructorProfileUpdate
 
         # Use fixture users
         instructor = instructor_user
@@ -426,15 +435,7 @@ class TestSoftDeleteEdgeCases:
         updated_services = [s for s in instructor.instructor_profile.instructor_services if s.id != service.id]
         update_data = InstructorProfileUpdate(
             bio="Updated bio",
-            services=[
-                ServiceCreate(
-                    offers_travel=False,
-                    offers_at_location=False,
-                    offers_online=True,
-                    service_catalog_id=s.service_catalog_id, hourly_rate=s.hourly_rate, description=s.description
-                )
-                for s in updated_services
-            ],
+            services=[_orm_service_create(s) for s in updated_services],
         )
         instructor_service.update_instructor_profile(instructor.id, update_data)
 
@@ -448,7 +449,7 @@ class TestSoftDeleteEdgeCases:
         self, db: Session, instructor_user: User, instructor_service: InstructorService
     ):
         """Test that services without bookings are hard deleted."""
-        from app.schemas.instructor import InstructorProfileUpdate, ServiceCreate
+        from app.schemas.instructor import InstructorProfileUpdate
 
         # Use fixture user
         instructor = instructor_user
@@ -466,7 +467,10 @@ class TestSoftDeleteEdgeCases:
             db.flush()
             service_ulid = generate_ulid()
             catalog_service = ServiceCatalog(
-                name="Temporary Service", slug=f"temporary-service-{service_ulid.lower()}", subcategory_id=subcategory.id
+                name="Temporary Service",
+                slug=f"temporary-service-{service_ulid.lower()}",
+                subcategory_id=subcategory.id,
+                online_capable=True,
             )
             db.add(catalog_service)
             db.flush()
@@ -474,7 +478,9 @@ class TestSoftDeleteEdgeCases:
         new_service = Service(
             instructor_profile_id=instructor.instructor_profile.id,
             service_catalog_id=catalog_service.id,
-            hourly_rate=100.0,
+            format_prices=[
+                {"format": "online", "hourly_rate": 100.0},
+            ],
             description="Will be deleted",
             is_active=True,
         )
@@ -491,15 +497,7 @@ class TestSoftDeleteEdgeCases:
         ]
         update_data = InstructorProfileUpdate(
             bio="Updated bio",
-            services=[
-                ServiceCreate(
-                    offers_travel=False,
-                    offers_at_location=False,
-                    offers_online=True,
-                    service_catalog_id=s.service_catalog_id, hourly_rate=s.hourly_rate, description=s.description
-                )
-                for s in existing_services
-            ],
+            services=[_orm_service_create(s) for s in existing_services],
         )
         instructor_service.update_instructor_profile(instructor.id, update_data)
 
@@ -580,7 +578,9 @@ class TestSoftDeleteEdgeCases:
         new_service = Service(
             instructor_profile_id=instructor.instructor_profile.id,
             service_catalog_id=catalog_service.id,
-            hourly_rate=75.0,
+            format_prices=[
+                {"format": "online", "hourly_rate": 75.0},
+            ],
             is_active=True,
         )
         db.add(new_service)
@@ -618,11 +618,8 @@ class TestSoftDeleteEdgeCases:
             bio="Updated bio",
             services=[
                 ServiceCreate(
-                    offers_travel=False,
-                    offers_at_location=False,
-                    offers_online=True,
                     service_catalog_id=original_catalog_id,  # Same catalog service
-                    hourly_rate=80.0,  # Updated rate
+                    format_prices=[{"format": "online", "hourly_rate": 80.0}],
                     description="Reactivated service",
                 )
             ],
@@ -754,7 +751,9 @@ def instructor_user(db: Session) -> User:
     service = Service(
         instructor_profile_id=profile.id,
         service_catalog_id=catalog_service.id,
-        hourly_rate=50.0,
+        format_prices=[
+            {"format": "online", "hourly_rate": 50.0},
+        ],
         description="Piano lessons",
         is_active=True,
     )

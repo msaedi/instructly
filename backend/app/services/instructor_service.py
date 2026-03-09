@@ -10,6 +10,7 @@ Now tracks timing for all instructor operations to earn those MEGAWATTS! ⚡
 """
 
 from datetime import datetime, timezone
+from decimal import Decimal
 import logging
 import os
 from typing import Any, Dict, List, Optional, Sequence, Set, cast
@@ -20,12 +21,17 @@ from sqlalchemy.orm import Session
 from ..core.enums import RoleName
 from ..core.exceptions import (
     BusinessRuleException,
-    ForbiddenException,
     NotFoundException,
     ServiceException,
 )
 from ..models.instructor import InstructorPreferredPlace, InstructorProfile
-from ..models.service_catalog import InstructorService as Service, ServiceCatalog
+from ..models.service_catalog import (
+    SERVICE_FORMAT_INSTRUCTOR_LOCATION,
+    SERVICE_FORMAT_ONLINE,
+    SERVICE_FORMAT_STUDENT_LOCATION,
+    InstructorService as Service,
+    ServiceCatalog,
+)
 from ..models.user import User
 from ..repositories.factory import RepositoryFactory
 from ..repositories.instructor_preferred_place_repository import (
@@ -57,6 +63,11 @@ logger = logging.getLogger(__name__)
 
 JsonDict = Dict[str, Any]
 JsonList = List[JsonDict]
+PRICE_FLOOR_CONFIG_KEYS = {
+    SERVICE_FORMAT_STUDENT_LOCATION: "private_in_person",
+    SERVICE_FORMAT_INSTRUCTOR_LOCATION: "private_in_person",
+    SERVICE_FORMAT_ONLINE: "private_remote",
+}
 
 
 class InstructorService(BaseService):
@@ -76,9 +87,11 @@ class InstructorService(BaseService):
         cache_service: Optional[CacheServiceSyncAdapter] = None,
         profile_repository: Optional[Any] = None,
         service_repository: Optional[Any] = None,
+        service_format_pricing_repository: Optional[Any] = None,
         user_repository: Optional[Any] = None,
         booking_repository: Optional[Any] = None,
         preferred_place_repository: Optional[InstructorPreferredPlaceRepository] = None,
+        config_service: Optional[ConfigService] = None,
     ):
         """Initialize instructor service with database, cache, and repositories."""
         super().__init__(db)
@@ -90,6 +103,10 @@ class InstructorService(BaseService):
         )
         self.service_repository = service_repository or RepositoryFactory.create_base_repository(
             db, Service
+        )
+        self.service_format_pricing_repository = (
+            service_format_pricing_repository
+            or RepositoryFactory.create_service_format_pricing_repository(db)
         )
         self.user_repository = user_repository or RepositoryFactory.create_base_repository(db, User)
         self.booking_repository = booking_repository or RepositoryFactory.create_booking_repository(
@@ -107,6 +124,7 @@ class InstructorService(BaseService):
             db
         )
         self.taxonomy_filter_repository = RepositoryFactory.create_taxonomy_filter_repository(db)
+        self.config_service = config_service or ConfigService(db)
 
     @BaseService.measure_operation("get_instructor_profile")
     def get_instructor_profile(
@@ -384,7 +402,7 @@ class InstructorService(BaseService):
 
         if min_price is not None or max_price is not None:
             price_range = f"${min_price or 0}-${max_price or 'unlimited'}"
-            logger.info(f"Price range {price_range} returned {len(instructors)} instructors")
+            logger.info("Price range %s returned %d instructors", price_range, len(instructors))
 
         return {"instructors": instructors, "metadata": metadata}
 
@@ -422,20 +440,24 @@ class InstructorService(BaseService):
             profile_dict["user_id"] = user.id
             profile = self.profile_repository.create(**profile_dict)
 
-            # Create services using bulk create
-            services_data = []
+            # Create services and pricing rows together
             for service_data in profile_data.services:
                 service_dict = service_data.model_dump()
-                self._normalize_capability_flags(service_dict, apply_defaults=True)
                 catalog_service = self.catalog_repository.get_by_id(service_data.service_catalog_id)
                 if not catalog_service:
                     raise NotFoundException("Catalog service not found")
                 self._validate_age_groups_subset(catalog_service, service_dict.get("age_groups"))
+                normalized_prices = self._normalize_format_prices(service_dict.pop("format_prices"))
+                self.validate_service_format_prices(
+                    instructor_id=user.id,
+                    catalog_service=catalog_service,
+                    format_prices=normalized_prices,
+                )
                 service_dict["instructor_profile_id"] = profile.id
-                services_data.append(service_dict)
-
-            if services_data:
-                self.service_repository.bulk_create(services_data)
+                service = self.service_repository.create(**service_dict)
+                service.format_prices = self.service_format_pricing_repository.sync_format_prices(
+                    service.id, normalized_prices
+                )
 
             # Update user role
             from app.services.permission_service import PermissionService
@@ -448,7 +470,7 @@ class InstructorService(BaseService):
             profile.user = refreshed_user or user
             self.db.expire(profile, ["instructor_services"])
 
-        logger.info(f"Created instructor profile for user {user.id}")
+        logger.info("Created instructor profile for user %s", user.id)
 
         return self._profile_to_dict(profile)
 
@@ -460,7 +482,7 @@ class InstructorService(BaseService):
         if self.cache_service:
             cached = self.cache_service.get(cache_key)
             if cached:
-                logger.debug(f"Cache hit for instructor profile: {instructor_id}")
+                logger.debug("Cache hit for instructor profile: %s", instructor_id)
                 return cast(JsonDict, cached)
 
         profile = self.profile_repository.get_public_by_id(instructor_id)
@@ -472,7 +494,7 @@ class InstructorService(BaseService):
         # Cache for 5 minutes (300 seconds)
         if self.cache_service:
             self.cache_service.set(cache_key, result, ttl=300)
-            logger.debug(f"Cached instructor profile: {instructor_id}")
+            logger.debug("Cached instructor profile: %s", instructor_id)
 
         return result
 
@@ -566,14 +588,8 @@ class InstructorService(BaseService):
             resolved_bio = basic_updates.get("bio", profile.bio)
             resolved_years = basic_updates.get("years_experience", profile.years_experience)
 
-            services_configured_now = False
-            # Handle service updates if provided
-            if update_data.services is not None:
-                services_configured_now = self._update_services(
-                    profile.id, user_id, update_data.services
-                )
-
-            # Replace preferred teaching locations if provided
+            # Replace preferred teaching locations BEFORE services
+            # (service validation checks teaching locations exist in DB)
             if update_data.preferred_teaching_locations is not None:
                 self._replace_preferred_places(
                     instructor_id=user_id,
@@ -587,6 +603,13 @@ class InstructorService(BaseService):
                     instructor_id=user_id,
                     kind="public_space",
                     items=update_data.preferred_public_spaces,
+                )
+
+            services_configured_now = False
+            # Handle service updates if provided
+            if update_data.services is not None:
+                services_configured_now = self._update_services(
+                    profile.id, user_id, update_data.services
                 )
 
             bio_value = str(resolved_bio or "").strip()
@@ -655,7 +678,7 @@ class InstructorService(BaseService):
         # Invalidate search cache (fire-and-forget via asyncio.create_task)
         invalidate_on_instructor_profile_change(user_id)
 
-        logger.info(f"Deleted instructor profile for user {user_id}")
+        logger.info("Deleted instructor profile for user %s", user_id)
 
         try:
             from .availability_service import AvailabilityService
@@ -726,6 +749,34 @@ class InstructorService(BaseService):
                 details={"missing": missing},
             )
 
+        # Validate format prerequisites: locations must exist for location-based formats
+        active_services = self.service_repository.find_by(
+            instructor_profile_id=profile.id, is_active=True
+        )
+        active_formats: set[str] = set()
+        for svc in active_services:
+            for fp in getattr(svc, "format_prices", []):
+                active_formats.add(fp.format)
+
+        if SERVICE_FORMAT_STUDENT_LOCATION in active_formats:
+            service_areas = self.service_area_repository.list_for_instructor(
+                profile.user_id, active_only=True
+            )
+            if not service_areas:
+                raise BusinessRuleException(
+                    "Cannot go live with travel format — add at least one service area first",
+                    code="NO_SERVICE_AREAS",
+                )
+
+        if SERVICE_FORMAT_INSTRUCTOR_LOCATION in active_formats:
+            teaching_locations = self.get_instructor_teaching_locations(profile.user_id)
+            if not teaching_locations:
+                raise BusinessRuleException(
+                    "Cannot go live with 'at my location' format"
+                    " — add at least one teaching location first",
+                    code="NO_TEACHING_LOCATIONS",
+                )
+
         with self.transaction():
             if not getattr(profile, "onboarding_completed_at", None):
                 updated_profile = self.profile_repository.update(
@@ -787,18 +838,49 @@ class InstructorService(BaseService):
                 f"Invalid service catalog IDs: {', '.join(map(str, invalid_ids))}"
             )
 
-    def _normalize_capability_flags(
-        self, updates: Dict[str, Any], apply_defaults: bool = False
-    ) -> None:
-        """Normalize capability flags from service payloads."""
-        for key in ("offers_travel", "offers_at_location", "offers_online"):
-            if key in updates and updates[key] is None:
-                updates.pop(key, None)
+    @staticmethod
+    def _normalize_format_prices(format_prices: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Normalize pricing rows into Decimal-backed dicts."""
+        normalized: List[Dict[str, Any]] = []
+        for row in format_prices:
+            if isinstance(row, dict):
+                format_value = row.get("format")
+                hourly_rate_value = row.get("hourly_rate")
+            else:
+                format_value = getattr(row, "format", None)
+                hourly_rate_value = getattr(row, "hourly_rate", None)
 
-        if apply_defaults:
-            updates.setdefault("offers_travel", False)
-            updates.setdefault("offers_at_location", False)
-            updates.setdefault("offers_online", True)
+            format_name = str(format_value).strip()
+            if format_name not in PRICE_FLOOR_CONFIG_KEYS:
+                raise BusinessRuleException(
+                    f"Unsupported service pricing format: {format_name}",
+                    code="INVALID_SERVICE_FORMAT",
+                )
+            if hourly_rate_value is None:
+                raise BusinessRuleException(
+                    "Hourly rate is required for each format price",
+                    code="MISSING_HOURLY_RATE",
+                )
+            normalized.append(
+                {
+                    "format": format_name,
+                    "hourly_rate": Decimal(str(hourly_rate_value)),
+                }
+            )
+        return normalized
+
+    def _floor_for_format(self, format_name: str) -> Decimal:
+        """Resolve the configured price floor for a service format."""
+        if format_name not in PRICE_FLOOR_CONFIG_KEYS:
+            raise BusinessRuleException(
+                f"Unknown pricing format: {format_name}",
+                code="UNKNOWN_PRICING_FORMAT",
+            )
+        pricing_config, _ = self.config_service.get_pricing_config()
+        floors = pricing_config.get("price_floor_cents", {})
+        floor_key = PRICE_FLOOR_CONFIG_KEYS[format_name]
+        cents_value = floors.get(floor_key, 0)
+        return (Decimal(str(cents_value)) / Decimal("100")).quantize(Decimal("0.01"))
 
     @staticmethod
     def _validate_age_groups_subset(
@@ -826,73 +908,49 @@ class InstructorService(BaseService):
             instructor_id, "teaching_location"
         )
 
-    @BaseService.measure_operation("validate_service_capabilities")
-    def validate_service_capabilities(self, service: Service, instructor_id: str) -> None:
-        """
-        Validate that capability requirements are met.
-
-        Raises BusinessRuleException when requirements are not satisfied.
-        """
-        if getattr(service, "offers_travel", False):
-            service_areas = self.service_area_repository.list_for_instructor(
-                instructor_id, active_only=True
-            )
-            if not service_areas:
-                raise BusinessRuleException(
-                    "Cannot enable travel - add at least one service area first",
-                    code="NO_SERVICE_AREAS",
-                )
-
-        if getattr(service, "offers_at_location", False):
-            teaching_locations = self.get_instructor_teaching_locations(instructor_id)
-            if not teaching_locations:
-                raise BusinessRuleException(
-                    "Cannot enable 'at my location' - add at least one teaching location first",
-                    code="NO_TEACHING_LOCATIONS",
-                )
-
-        if not any(
-            [
-                getattr(service, "offers_travel", False),
-                getattr(service, "offers_at_location", False),
-                getattr(service, "offers_online", False),
-            ]
-        ):
+    @BaseService.measure_operation("validate_service_format_prices")
+    def validate_service_format_prices(
+        self,
+        *,
+        instructor_id: str,
+        catalog_service: ServiceCatalog,
+        format_prices: Sequence[Dict[str, Any]],
+    ) -> None:
+        """Validate format pricing and capability prerequisites."""
+        if not format_prices:
             raise BusinessRuleException(
                 "Service must offer at least one location option",
                 code="NO_LOCATION_OPTIONS",
             )
 
-    @BaseService.measure_operation("update_service_capabilities")
-    def update_service_capabilities(
-        self,
-        service_id: str,
-        instructor_id: str,
-        updates: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        """Update location capability flags for an instructor service."""
-        service = self.service_repository.get_by_id(service_id)
-        if not service:
-            raise NotFoundException("Service not found")
+        seen_formats: set[str] = set()
+        for row in format_prices:
+            format_name = str(row["format"]).strip()
+            if format_name in seen_formats:
+                raise BusinessRuleException(
+                    f"Duplicate format '{format_name}' is not allowed",
+                    code="DUPLICATE_FORMAT_PRICE",
+                )
+            seen_formats.add(format_name)
 
-        if not service.instructor_profile or service.instructor_profile.user_id != instructor_id:
-            raise ForbiddenException("Not your service")
+            hourly_rate = Decimal(str(row["hourly_rate"]))
+            if hourly_rate <= 0:
+                raise BusinessRuleException("Hourly rate must be greater than 0")
+            if hourly_rate > Decimal("1000"):
+                raise BusinessRuleException("Hourly rate must be $1000 or less")
 
-        if "offers_travel" in updates:
-            service.offers_travel = updates["offers_travel"]
-        if "offers_at_location" in updates:
-            service.offers_at_location = updates["offers_at_location"]
-        if "offers_online" in updates:
-            service.offers_online = updates["offers_online"]
+            floor_value = self._floor_for_format(format_name)
+            if hourly_rate < floor_value:
+                raise BusinessRuleException(
+                    f"Minimum price for {format_name} is ${floor_value}",
+                    code="PRICE_BELOW_FLOOR",
+                )
 
-        with self.transaction():
-            self.validate_service_capabilities(service, instructor_id)
-
-        if self.cache_service:
-            self._invalidate_instructor_caches(instructor_id)
-        invalidate_on_service_change(service.id, "update")
-
-        return self._instructor_service_to_dict(service)
+        if SERVICE_FORMAT_ONLINE in seen_formats and not bool(catalog_service.online_capable):
+            raise BusinessRuleException(
+                f"{catalog_service.name} cannot be offered online",
+                code="ONLINE_NOT_SUPPORTED",
+            )
 
     def _update_services(
         self, profile_id: str, instructor_id: str, services_data: List[ServiceCreate]
@@ -940,34 +998,48 @@ class InstructorService(BaseService):
                 if not is_valid:
                     raise BusinessRuleException(f"Invalid filter selections: {'; '.join(errors)}")
 
+            normalized_prices = self._normalize_format_prices(
+                normalized_payload.pop("format_prices", [])
+            )
+            self.validate_service_format_prices(
+                instructor_id=instructor_id,
+                catalog_service=catalog_svc,
+                format_prices=normalized_prices,
+            )
+
             if catalog_id in services_by_catalog_id:
                 # Update existing service
                 existing_service = services_by_catalog_id[catalog_id]
 
                 # Prepare updates
-                updates = service_data.model_dump()
-                self._normalize_capability_flags(updates)
+                updates = service_data.model_dump(exclude={"format_prices"})
 
                 # Reactivate if needed
                 if not existing_service.is_active:
                     updates["is_active"] = True
-                    logger.info(f"Reactivated service: catalog_id {catalog_id}")
+                    logger.info("Reactivated service: catalog_id %s", catalog_id)
 
                 for key, value in updates.items():
                     setattr(existing_service, key, value)
-                self.validate_service_capabilities(existing_service, instructor_id)
 
                 # Update service
                 self.service_repository.update(existing_service.id, **updates)
+                existing_service.format_prices = (
+                    self.service_format_pricing_repository.sync_format_prices(
+                        existing_service.id, normalized_prices
+                    )
+                )
             else:
                 # Create new service
-                service_dict = service_data.model_dump()
-                self._normalize_capability_flags(service_dict, apply_defaults=True)
+                service_dict = service_data.model_dump(exclude={"format_prices"})
                 service_dict["instructor_profile_id"] = profile_id
-                service_candidate = Service(**service_dict)
-                self.validate_service_capabilities(service_candidate, instructor_id)
-                self.service_repository.create(**service_dict)
-                logger.info(f"Created new service: catalog_id {catalog_id}")
+                created_service = self.service_repository.create(**service_dict)
+                created_service.format_prices = (
+                    self.service_format_pricing_repository.sync_format_prices(
+                        created_service.id, normalized_prices
+                    )
+                )
+                logger.info("Created new service: catalog_id %s", catalog_id)
 
         # Handle removed services (only process active ones)
         for catalog_id, service in services_by_catalog_id.items():
@@ -1182,6 +1254,13 @@ class InstructorService(BaseService):
 
         if not include_inactive_services:
             services = [s for s in services if getattr(s, "is_active", True)]
+        if services:
+            service_ids = [service.id for service in services if getattr(service, "id", None)]
+            prices_by_service = self.service_format_pricing_repository.get_prices_for_services(
+                service_ids
+            )
+            for service in services:
+                service.format_prices = prices_by_service.get(service.id, [])
         user = getattr(profile, "user", None)
         preferred_places: Sequence[InstructorPreferredPlace]
         if user is not None and hasattr(user, "preferred_places"):
@@ -1319,7 +1398,8 @@ class InstructorService(BaseService):
                     "name": service.catalog_entry.name
                     if service.catalog_entry
                     else "Unknown Service",
-                    "hourly_rate": service.hourly_rate,
+                    "min_hourly_rate": service.min_hourly_rate,
+                    "format_prices": service.serialized_format_prices,
                     "description": service.description,
                     "age_groups": service.age_groups,
                     "filter_selections": service.filter_selections or {},
@@ -1360,7 +1440,7 @@ class InstructorService(BaseService):
         self.cache_service.clear_prefix("service_catalog:search")
         self.cache_service.clear_prefix("service_catalog:trending")
 
-        logger.debug(f"Invalidated caches for instructor {user_id}")
+        logger.debug("Invalidated caches for instructor %s", user_id)
 
     # Catalog-aware methods
     @BaseService.measure_operation("get_available_catalog_services")
@@ -1444,7 +1524,7 @@ class InstructorService(BaseService):
         self,
         instructor_id: str,
         catalog_service_id: str,
-        hourly_rate: float,
+        format_prices: List[Dict[str, Any]],
         custom_description: Optional[str] = None,
         duration_options: Optional[List[int]] = None,
         filter_selections: Optional[Dict[str, List[str]]] = None,
@@ -1456,7 +1536,7 @@ class InstructorService(BaseService):
         Args:
             instructor_id: Instructor's user ID
             catalog_service_id: ID of the catalog service
-            hourly_rate: Instructor's rate for this service
+            format_prices: Per-format hourly pricing rows
             custom_description: Optional custom description
             duration_options: Optional custom durations (uses catalog defaults if not provided)
             filter_selections: Optional filter selections for this subcategory
@@ -1491,6 +1571,12 @@ class InstructorService(BaseService):
                 raise BusinessRuleException(f"Invalid filter selections: {'; '.join(errors)}")
 
         self._validate_age_groups_subset(catalog_service, age_groups)
+        normalized_prices = self._normalize_format_prices(format_prices)
+        self.validate_service_format_prices(
+            instructor_id=instructor_id,
+            catalog_service=catalog_service,
+            format_prices=normalized_prices,
+        )
 
         # Check if already exists
         existing = self.service_repository.find_one_by(
@@ -1504,7 +1590,6 @@ class InstructorService(BaseService):
             create_kwargs: Dict[str, Any] = {
                 "instructor_profile_id": profile.id,
                 "service_catalog_id": catalog_service_id,
-                "hourly_rate": hourly_rate,
                 "description": custom_description,
                 "duration_options": duration_options or [60],
                 "is_active": True,
@@ -1514,6 +1599,9 @@ class InstructorService(BaseService):
             if age_groups:
                 create_kwargs["age_groups"] = age_groups
             service = self.service_repository.create(**create_kwargs)
+            service.format_prices = self.service_format_pricing_repository.sync_format_prices(
+                service.id, normalized_prices
+            )
 
         # Invalidate caches
         if self.cache_service:
@@ -1522,7 +1610,7 @@ class InstructorService(BaseService):
         # Invalidate search cache (fire-and-forget via asyncio.create_task)
         invalidate_on_service_change(service.id, "create")
 
-        logger.info(f"Created service {catalog_service.name} for instructor {instructor_id}")
+        logger.info("Created service %s for instructor %s", catalog_service.name, instructor_id)
 
         # Return with catalog details
         service.catalog_entry = catalog_service
@@ -1553,7 +1641,8 @@ class InstructorService(BaseService):
             "service_catalog_name": catalog_name,
             "name": catalog_name,
             "category": service.category,  # From catalog
-            "hourly_rate": service.hourly_rate,
+            "min_hourly_rate": service.min_hourly_rate,
+            "format_prices": service.serialized_format_prices,
             "description": service.description or service.catalog_entry.description,
             "filter_selections": service.filter_selections or {},
             "duration_options": service.duration_options,
@@ -1842,9 +1931,12 @@ class InstructorService(BaseService):
         # Filter by price
         filtered = []
         for service in all_services:
-            if min_price and service.hourly_rate < min_price:
+            service_min_rate = service.min_hourly_rate
+            if service_min_rate is None:
                 continue
-            if max_price and service.hourly_rate > max_price:
+            if min_price and service_min_rate < Decimal(str(min_price)):
+                continue
+            if max_price and service_min_rate > Decimal(str(max_price)):
                 continue
             filtered.append(service)
 
@@ -1855,7 +1947,9 @@ class InstructorService(BaseService):
         if not instructor_services:
             return {"min": None, "max": None}
 
-        prices = [s.hourly_rate for s in instructor_services]
+        prices = [s.min_hourly_rate for s in instructor_services if s.min_hourly_rate is not None]
+        if not prices:
+            return {"min": None, "max": None}
         return {"min": min(prices), "max": max(prices), "avg": sum(prices) / len(prices)}
 
     @BaseService.measure_operation("get_top_services_per_category")
@@ -1936,7 +2030,7 @@ class InstructorService(BaseService):
         # Cache for 1 hour
         if self.cache_service:
             self.cache_service.set(cache_key, result, ttl=3600)
-            logger.debug(f"Cached top {limit} services per category for 1 hour")
+            logger.debug("Cached top %d services per category for 1 hour", limit)
 
         return result
 
@@ -2057,7 +2151,9 @@ class InstructorService(BaseService):
         # Cache for 5 minutes
         if self.cache_service:
             self.cache_service.set(cache_key, result, ttl=300)
-            logger.debug(f"Cached all {total_services} services with instructor data for 5 minutes")
+            logger.debug(
+                "Cached all %d services with instructor data for 5 minutes", total_services
+            )
 
         return result
 

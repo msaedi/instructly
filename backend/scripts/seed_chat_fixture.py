@@ -130,7 +130,9 @@ def _ensure_service(
         instructor_profile_id=profile.id,
         service_name=service_name,
         duration_minutes=duration_minutes,
-        hourly_rate=float(service.hourly_rate if service else 80.0),
+        format_prices=[
+            {"format": "online", "hourly_rate": float(service.hourly_rate if service else 80.0)},
+        ],
         is_active=True,
     )
     service = session.get(InstructorService, service_id)

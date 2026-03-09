@@ -68,7 +68,9 @@ class TestInstructorProfileRepositoryAccountStatus:
                 service = Service(
                     instructor_profile_id=profile.id,
                     service_catalog_id=catalog_service.id,
-                    hourly_rate=75.0,
+                    format_prices=[
+                        {"format": "online", "hourly_rate": 75.0},
+                    ],
                     duration_options=[60],
                     is_active=True,
                     description=f"{service_name} by {account_status} instructor",

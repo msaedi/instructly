@@ -88,7 +88,8 @@ const buildInstructor = (): Instructor => ({
     {
       id: 'service-1',
       service_catalog_id: 'catalog-1',
-      hourly_rate: 60,
+      min_hourly_rate: 60,
+      format_prices: [{ format: 'online', hourly_rate: 60 }],
       description: 'Lesson',
       duration_options: [30, 45, 60],
       is_active: true,
@@ -208,7 +209,7 @@ describe('InstructorCard rendering', () => {
       <InstructorCard instructor={buildInstructor()} />
     );
 
-    expect(screen.getByTestId('instructor-price')).toHaveTextContent('$60/hr');
+    expect(screen.getByTestId('instructor-price')).toHaveTextContent('from $60/hr');
   });
 
   it('renders view profile link', () => {
@@ -734,7 +735,8 @@ describe('InstructorCard pricing display', () => {
     if (baseService) {
       instructor.services = [{
         ...baseService,
-        hourly_rate: 'invalid' as unknown as number,
+        min_hourly_rate: 0,
+        format_prices: [],
       }];
     }
 
@@ -742,7 +744,7 @@ describe('InstructorCard pricing display', () => {
       <InstructorCard instructor={instructor} />
     );
 
-    expect(screen.getByTestId('instructor-price')).toHaveTextContent('$0/hr');
+    expect(screen.getByTestId('instructor-price')).toHaveTextContent('Contact');
   });
 
   it('handles missing services gracefully', () => {

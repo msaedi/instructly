@@ -32,7 +32,7 @@ SOFT_PRICE_MULTIPLIER = 1.25  # Allow 25% over budget
 SOFT_DISTANCE_METERS = 10000  # 10km for soft location filter
 
 
-@dataclass
+@dataclass(init=False)
 class FilteredCandidate:
     """A candidate that passed filtering."""
 
@@ -43,7 +43,8 @@ class FilteredCandidate:
 
     name: str
     description: Optional[str]
-    price_per_hour: int
+    min_hourly_rate: float
+    lesson_type_hourly_rate: Optional[float]
 
     passed_price: bool = True
     passed_location: bool = True
@@ -54,6 +55,60 @@ class FilteredCandidate:
 
     available_dates: List[date] = field(default_factory=list)
     earliest_available: Optional[date] = None
+
+    def __init__(
+        self,
+        *,
+        service_id: str,
+        service_catalog_id: str,
+        instructor_id: str,
+        hybrid_score: float,
+        name: str,
+        description: Optional[str],
+        min_hourly_rate: Optional[float] = None,
+        price_per_hour: Optional[float] = None,
+        lesson_type_hourly_rate: Optional[float] = None,
+        passed_price: bool = True,
+        passed_location: bool = True,
+        passed_availability: bool = True,
+        soft_filtered: bool = False,
+        soft_filter_reasons: Optional[List[str]] = None,
+        available_dates: Optional[List[date]] = None,
+        earliest_available: Optional[date] = None,
+    ) -> None:
+        rate = min_hourly_rate if min_hourly_rate is not None else price_per_hour
+        if rate is None:
+            raise ValueError("min_hourly_rate is required")
+
+        self.service_id = service_id
+        self.service_catalog_id = service_catalog_id
+        self.instructor_id = instructor_id
+        self.hybrid_score = hybrid_score
+        self.name = name
+        self.description = description
+        self.min_hourly_rate = float(rate)
+        self.lesson_type_hourly_rate = (
+            float(lesson_type_hourly_rate) if lesson_type_hourly_rate is not None else None
+        )
+        self.passed_price = passed_price
+        self.passed_location = passed_location
+        self.passed_availability = passed_availability
+        self.soft_filtered = soft_filtered
+        self.soft_filter_reasons = list(soft_filter_reasons or [])
+        self.available_dates = list(available_dates or [])
+        self.earliest_available = earliest_available
+
+    @property
+    def price_per_hour(self) -> float:
+        """Legacy alias for tests and callers still reading price_per_hour."""
+        return float(self.min_hourly_rate)
+
+    @property
+    def effective_hourly_rate(self) -> float:
+        """Return the lesson-type-specific rate when available, else the global minimum."""
+        if self.lesson_type_hourly_rate is not None:
+            return float(self.lesson_type_hourly_rate)
+        return float(self.min_hourly_rate)
 
 
 @dataclass
@@ -143,6 +198,8 @@ class FilterService:
                 location_resolution=location_resolution,
             )
 
+        import asyncio
+
         with get_db_session() as db:
             self.repository = self._repository_override or FilterRepository(db)
             self.location_resolver = self._location_resolver_override or LocationResolver(
@@ -161,7 +218,8 @@ class FilterService:
                     enable_semantic=True,
                 )
 
-            return self._filter_candidates_core(
+            return await asyncio.to_thread(
+                self._filter_candidates_core,
                 candidates,
                 parsed_query,
                 user_location,
@@ -224,6 +282,11 @@ class FilterService:
         total_before = len(candidates)
         filters_applied: List[str] = []
         filter_stats: Dict[str, int] = {"initial_candidates": total_before}
+        lesson_type = (
+            parsed_query.lesson_type
+            if parsed_query.lesson_type and parsed_query.lesson_type != "any"
+            else None
+        )
 
         # Convert candidates to working list
         working = [
@@ -234,7 +297,7 @@ class FilterService:
                 hybrid_score=c.hybrid_score,
                 name=c.name,
                 description=c.description,
-                price_per_hour=c.price_per_hour,
+                min_hourly_rate=c.min_hourly_rate,
             )
             for c in candidates
         ]
@@ -242,15 +305,20 @@ class FilterService:
         # Step 1: Price filter
         price_start = time_module.perf_counter()
         if parsed_query.max_price:
-            working = self._filter_price(working, parsed_query.max_price)
+            working = self._filter_price(
+                working,
+                parsed_query.max_price,
+                lesson_type=lesson_type,
+            )
             filters_applied.append("price")
             filter_stats["after_price"] = len(working)
         perf["price_ms"] = int((time_module.perf_counter() - price_start) * 1000)
 
         # Step 1.5: Lesson type filter (online/in-person)
         lesson_type_start = time_module.perf_counter()
-        if parsed_query.lesson_type and parsed_query.lesson_type != "any":
-            working = self._filter_lesson_type(working, parsed_query.lesson_type)
+        if lesson_type:
+            if parsed_query.max_price is None:
+                working = self._filter_lesson_type(working, lesson_type)
             filters_applied.append("lesson_type")
             filter_stats["after_lesson_type"] = len(working)
         perf["lesson_type_ms"] = int((time_module.perf_counter() - lesson_type_start) * 1000)
@@ -349,7 +417,7 @@ class FilterService:
             and len(working) < MIN_RESULTS_BEFORE_SOFT_FILTER
             and total_before > 0
         ):
-            logger.info(f"Only {len(working)} results, applying soft filtering")
+            logger.info("Only %d results, applying soft filtering", len(working))
             working, relaxed_constraints = self._apply_soft_filtering(
                 original_candidates=candidates,
                 parsed_query=parsed_query,
@@ -395,11 +463,20 @@ class FilterService:
         self,
         candidates: List[FilteredCandidate],
         max_price: int,
+        *,
+        lesson_type: Optional[str] = None,
     ) -> List[FilteredCandidate]:
-        """Apply price filter."""
+        """Apply price filter, intersecting with lesson type when requested."""
+        if lesson_type and lesson_type != "any":
+            return self._filter_lesson_type_rates(
+                candidates,
+                lesson_type,
+                max_price=max_price,
+            )
+
         filtered = []
         for c in candidates:
-            if c.price_per_hour <= max_price:
+            if c.min_hourly_rate <= max_price:
                 c.passed_price = True
                 filtered.append(c)
             else:
@@ -414,7 +491,7 @@ class FilterService:
         """
         Apply lesson type filter (online vs in-person).
 
-        Uses the FilterRepository to check instructor_services capability flags.
+        Uses the FilterRepository to check whether matching per-format price rows exist.
 
         Args:
             candidates: Current candidate list
@@ -423,16 +500,44 @@ class FilterService:
         Returns:
             Filtered list of candidates matching the lesson type
         """
+        return self._filter_lesson_type_rates(candidates, lesson_type)
+
+    def _filter_lesson_type_rates(
+        self,
+        candidates: List[FilteredCandidate],
+        lesson_type: str,
+        *,
+        max_price: Optional[int] = None,
+    ) -> List[FilteredCandidate]:
+        """Filter candidates to services with qualifying lesson-type pricing rows."""
         if not candidates or lesson_type == "any":
             return candidates
 
+        _KNOWN_LESSON_TYPES = {"online", "in_person"}
+        if lesson_type not in _KNOWN_LESSON_TYPES:
+            logger.warning("Unknown lesson_type %r — skipping format filter", lesson_type)
+            return candidates
+
         service_ids = [c.service_id for c in candidates]
-        passing_ids = set(self.repository.filter_by_lesson_type(service_ids, lesson_type))
+        rate_map = self.repository.get_lesson_type_rates(
+            service_ids,
+            lesson_type,
+            max_price=max_price,
+        )
 
         filtered: List[FilteredCandidate] = []
         for c in candidates:
-            if c.service_id in passing_ids:
+            lesson_rate = rate_map.get(c.service_id)
+            c.lesson_type_hourly_rate = lesson_rate
+            if lesson_rate is not None:
+                # max_price filtering already applied by the repository query
+                # (get_lesson_type_rates), so presence in rate_map means the
+                # candidate passed both lesson-type and price constraints.
+                if max_price is not None:
+                    c.passed_price = True
                 filtered.append(c)
+            elif max_price is not None:
+                c.passed_price = False
         return filtered
 
     def _filter_location(
@@ -632,6 +737,9 @@ class FilterService:
         """
 
         def _build_base_candidates() -> List[FilteredCandidate]:
+            # Note: lesson_type_hourly_rate is intentionally omitted here.
+            # Soft filtering rebuilds from the original retrieval set, and
+            # lesson-type rates are recomputed during _filter_lesson_type_rates.
             return [
                 FilteredCandidate(
                     service_id=c.service_id,
@@ -640,7 +748,7 @@ class FilterService:
                     hybrid_score=c.hybrid_score,
                     name=c.name,
                     description=c.description,
-                    price_per_hour=c.price_per_hour,
+                    min_hourly_rate=c.min_hourly_rate,
                 )
                 for c in original_candidates
             ]
@@ -738,9 +846,19 @@ class FilterService:
             enforce_availability: bool,
         ) -> List[FilteredCandidate]:
             working = _build_base_candidates()
+            lesson_type = (
+                query.lesson_type if query.lesson_type and query.lesson_type != "any" else None
+            )
 
             if query.max_price:
-                working = self._filter_price(working, query.max_price)
+                working = self._filter_price(
+                    working,
+                    query.max_price,
+                    lesson_type=lesson_type,
+                )
+
+            if lesson_type and query.max_price is None:
+                working = self._filter_lesson_type(working, lesson_type)
 
             working = (
                 _apply_location_soft(working) if relax_location else _apply_location_hard(working)

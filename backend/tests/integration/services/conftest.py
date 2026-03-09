@@ -137,7 +137,9 @@ def _seed_week_for_weekop(request):
                     service = InstructorService(
                         instructor_profile_id=profile.id,
                         service_catalog_id=catalog.id,
-                        hourly_rate=120.00,
+                        format_prices=[
+                            {"format": "online", "hourly_rate": 120.00},
+                        ],
                         duration_options=[60],
                         is_active=True,
                     )

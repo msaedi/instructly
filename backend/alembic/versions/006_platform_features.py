@@ -1135,11 +1135,6 @@ def upgrade() -> None:
         [sa.text("LOWER(name)")],
     )
     op.create_index(
-        "idx_instructor_services_active_price",
-        "instructor_services",
-        ["is_active", "hourly_rate"],
-    )
-    op.create_index(
         "idx_service_catalog_subcategory_active",
         "service_catalog",
         ["subcategory_id", "is_active"],
@@ -1197,18 +1192,6 @@ def upgrade() -> None:
             sa.DateTime(timezone=True),
             nullable=True,
         ),
-    )
-    op.add_column(
-        "instructor_services",
-        sa.Column("offers_travel", sa.Boolean(), nullable=False, server_default=sa.text("false")),
-    )
-    op.add_column(
-        "instructor_services",
-        sa.Column("offers_at_location", sa.Boolean(), nullable=False, server_default=sa.text("false")),
-    )
-    op.add_column(
-        "instructor_services",
-        sa.Column("offers_online", sa.Boolean(), nullable=False, server_default=sa.text("true")),
     )
     op.create_index("ix_reviews_booking_id", "reviews", ["booking_id"])
     op.create_index(
@@ -1476,10 +1459,6 @@ def downgrade() -> None:
     op.drop_column("instructor_profiles", "payout_hold")
     op.drop_column("instructor_profiles", "commission_override_until")
     op.drop_column("instructor_profiles", "commission_override_pct")
-    op.drop_column("instructor_services", "offers_online")
-    op.drop_column("instructor_services", "offers_at_location")
-    op.drop_column("instructor_services", "offers_travel")
-
     op.drop_index("ix_search_clicks_instructor_id", table_name="search_clicks")
     op.drop_index("ix_message_reactions_message_id", table_name="message_reactions")
     op.drop_index("ix_reviews_student_id", table_name="reviews")
@@ -1488,7 +1467,6 @@ def downgrade() -> None:
     op.drop_index("ix_reviews_booking_id", table_name="reviews")
     op.drop_index("idx_instructor_services_catalog_active", table_name="instructor_services")
     op.drop_index("idx_service_catalog_subcategory_active", table_name="service_catalog")
-    op.drop_index("idx_instructor_services_active_price", table_name="instructor_services")
     op.drop_index("idx_service_catalog_name_lower", table_name="service_catalog")
 
     try:

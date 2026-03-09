@@ -216,7 +216,9 @@ class TestFindInstructorsByFilters:
         svc = InstructorService(
             instructor_profile_id=profile.id,
             service_catalog_id=taxonomy_data["service"].id,
-            hourly_rate=50.0,
+            format_prices=[
+                {"format": "online", "hourly_rate": 50.0},
+            ],
             duration_options=[60],
             is_active=True,
             filter_selections={taxonomy_data["filter_key"]: ["elementary", "middle"]},
@@ -244,7 +246,9 @@ class TestFindInstructorsByFilters:
         svc = InstructorService(
             instructor_profile_id=profile.id,
             service_catalog_id=taxonomy_data["service"].id,
-            hourly_rate=55.0,
+            format_prices=[
+                {"format": "online", "hourly_rate": 55.0},
+            ],
             duration_options=[60],
             is_active=True,
             filter_selections={taxonomy_data["filter_key"]: ["elementary"]},
@@ -303,7 +307,9 @@ class TestFindMatchingServiceIds:
         beginner_row = InstructorService(
             instructor_profile_id=profile.id,
             service_catalog_id=taxonomy_data["service"].id,
-            hourly_rate=55.0,
+            format_prices=[
+                {"format": "online", "hourly_rate": 55.0},
+            ],
             duration_options=[60],
             is_active=True,
             filter_selections={taxonomy_data["filter_key"]: ["elementary"]},
@@ -311,7 +317,9 @@ class TestFindMatchingServiceIds:
         middle_row = InstructorService(
             instructor_profile_id=profile.id,
             service_catalog_id=second_catalog.id,
-            hourly_rate=65.0,
+            format_prices=[
+                {"format": "online", "hourly_rate": 65.0},
+            ],
             duration_options=[60],
             is_active=True,
             filter_selections={taxonomy_data["filter_key"]: ["middle"]},
@@ -406,7 +414,9 @@ class TestFindMatchingServiceIds:
         matching_all = InstructorService(
             instructor_profile_id=profile.id,
             service_catalog_id=taxonomy_data["service"].id,
-            hourly_rate=70.0,
+            format_prices=[
+                {"format": "online", "hourly_rate": 70.0},
+            ],
             duration_options=[60],
             is_active=True,
             filter_selections={
@@ -417,7 +427,9 @@ class TestFindMatchingServiceIds:
         wrong_goal = InstructorService(
             instructor_profile_id=profile.id,
             service_catalog_id=second_catalog.id,
-            hourly_rate=75.0,
+            format_prices=[
+                {"format": "online", "hourly_rate": 75.0},
+            ],
             duration_options=[60],
             is_active=True,
             filter_selections={
@@ -428,7 +440,9 @@ class TestFindMatchingServiceIds:
         wrong_subcategory = InstructorService(
             instructor_profile_id=profile.id,
             service_catalog_id=other_sub_catalog.id,
-            hourly_rate=80.0,
+            format_prices=[
+                {"format": "online", "hourly_rate": 80.0},
+            ],
             duration_options=[60],
             is_active=True,
             filter_selections={
@@ -465,7 +479,9 @@ class TestFindMatchingServiceIds:
         inactive_svc = InstructorService(
             instructor_profile_id=profile.id,
             service_catalog_id=taxonomy_data["service"].id,
-            hourly_rate=50.0,
+            format_prices=[
+                {"format": "online", "hourly_rate": 50.0},
+            ],
             duration_options=[60],
             is_active=False,
             filter_selections={taxonomy_data["filter_key"]: ["elementary"]},
@@ -556,7 +572,9 @@ def test_find_matching_service_ids_python_fallback_and_inactive_toggle(
     active = InstructorService(
         instructor_profile_id=profile.id,
         service_catalog_id=taxonomy_data["service"].id,
-        hourly_rate=45.0,
+        format_prices=[
+            {"format": "online", "hourly_rate": 45.0},
+        ],
         duration_options=[60],
         is_active=True,
         filter_selections={taxonomy_data["filter_key"]: ["elementary"]},
@@ -564,7 +582,9 @@ def test_find_matching_service_ids_python_fallback_and_inactive_toggle(
     inactive = InstructorService(
         instructor_profile_id=profile.id,
         service_catalog_id=taxonomy_data["service"].id,
-        hourly_rate=55.0,
+        format_prices=[
+            {"format": "online", "hourly_rate": 55.0},
+        ],
         duration_options=[60],
         is_active=False,
         filter_selections={taxonomy_data["filter_key"]: ["elementary"]},
@@ -606,7 +626,9 @@ def test_find_instructors_by_filters_allows_inactive_when_requested(
     svc = InstructorService(
         instructor_profile_id=profile.id,
         service_catalog_id=taxonomy_data["service"].id,
-        hourly_rate=50.0,
+        format_prices=[
+            {"format": "online", "hourly_rate": 50.0},
+        ],
         duration_options=[60],
         is_active=False,
         filter_selections={taxonomy_data["filter_key"]: ["middle"]},

@@ -38,12 +38,11 @@ def _service_for(db: Session, instructor: User) -> InstructorService:
             id=str(ULID()),
             instructor_profile_id=profile.id,
             service_catalog_id=catalog_id,
-            hourly_rate=50.0,
+            format_prices=[
+                {"format": "student_location", "hourly_rate": 50.0},
+            ],
             duration_options=[60],
-            offers_travel=True,
-            offers_at_location=False,
-            offers_online=False,
-            age_groups=['adults'],
+                                                age_groups=['adults'],
             filter_selections={"skill_level": ["beginner"]},
             is_active=True,
         )

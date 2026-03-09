@@ -84,7 +84,9 @@ def milestone_setup(db):
         id=str(ulid.ULID()),
         instructor_profile_id=profile.id,
         service_catalog_id=catalog.id,
-        hourly_rate=55.0,
+        format_prices=[
+            {"format": "online", "hourly_rate": 55.0},
+        ],
         is_active=True,
     )
     db.add(instructor_service)

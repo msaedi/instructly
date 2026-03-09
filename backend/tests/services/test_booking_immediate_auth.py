@@ -57,7 +57,9 @@ def _bootstrap_instructor_and_service(db: Session) -> tuple[User, InstructorProf
         id=str(ulid.ULID()),
         instructor_profile_id=profile.id,
         service_catalog_id=catalog.id,
-        hourly_rate=100.00,
+        format_prices=[
+            {"format": "online", "hourly_rate": 100.00},
+        ],
         is_active=True,
         duration_options=[60],
     )

@@ -16,6 +16,11 @@ from app.schemas.instructor import (
 from app.services.instructor_service import InstructorService
 
 
+def _format_prices(rate: float = 60.0, *formats: str) -> list[dict[str, float | str]]:
+    selected_formats = formats or ("online",)
+    return [{"format": format_name, "hourly_rate": rate} for format_name in selected_formats]
+
+
 def test_instructor_service_filters_and_public_profile(
     db, test_instructor, mock_cache_service
 ):
@@ -65,10 +70,14 @@ def test_instructor_service_filters_and_public_profile(
 def test_create_and_update_instructor_profile(db, test_student, monkeypatch):
     service = InstructorService(db)
     catalog_services = (
-        db.query(ServiceCatalog).order_by(ServiceCatalog.slug).limit(2).all()
+        db.query(ServiceCatalog)
+        .filter(ServiceCatalog.online_capable.is_(True))
+        .order_by(ServiceCatalog.slug)
+        .limit(2)
+        .all()
     )
     if not catalog_services:
-        pytest.skip("No catalog services available for profile creation")
+        pytest.skip("No online-capable catalog services available for profile creation")
 
     profile_data = InstructorProfileCreate(
         bio="New instructor bio",
@@ -77,11 +86,8 @@ def test_create_and_update_instructor_profile(db, test_student, monkeypatch):
         buffer_time_minutes=0,
         services=[
             ServiceCreate(
-                offers_travel=False,
-                offers_at_location=False,
-                offers_online=True,
                 service_catalog_id=catalog_services[0].id,
-                hourly_rate=50.0,
+                format_prices=_format_prices(60.0),
                 description="Lessons",
                 duration_options=[60],
             )
@@ -110,11 +116,8 @@ def test_create_and_update_instructor_profile(db, test_student, monkeypatch):
 
     update_services = [
         ServiceCreate(
-            offers_travel=False,
-            offers_at_location=False,
-            offers_online=True,
             service_catalog_id=catalog_services[0].id,
-            hourly_rate=55.0,
+            format_prices=_format_prices(65.0),
             description="Updated",
             duration_options=[60],
         )
@@ -122,11 +125,8 @@ def test_create_and_update_instructor_profile(db, test_student, monkeypatch):
     if len(catalog_services) > 1:
         update_services.append(
             ServiceCreate(
-                offers_travel=False,
-                offers_at_location=False,
-                offers_online=True,
                 service_catalog_id=catalog_services[1].id,
-                hourly_rate=60.0,
+                format_prices=_format_prices(70.0),
                 description="Second",
                 duration_options=[60],
             )
@@ -153,17 +153,17 @@ def test_create_instructor_service_from_catalog(db, test_instructor):
     existing_ids = {svc.service_catalog_id for svc in profile.instructor_services}
     catalog = (
         db.query(ServiceCatalog)
-        .filter(~ServiceCatalog.id.in_(existing_ids))
+        .filter(~ServiceCatalog.id.in_(existing_ids), ServiceCatalog.online_capable.is_(True))
         .order_by(ServiceCatalog.slug)
         .first()
     )
     if not catalog:
-        pytest.skip("No unused catalog service found to create")
+        pytest.skip("No unused online-capable catalog service found to create")
 
     created = service.create_instructor_service_from_catalog(
         test_instructor.id,
         catalog_service_id=catalog.id,
-        hourly_rate=70.0,
+        format_prices=_format_prices(70.0),
         custom_description="Custom",
         duration_options=[60, 90],
     )

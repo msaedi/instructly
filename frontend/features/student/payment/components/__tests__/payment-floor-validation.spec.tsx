@@ -23,11 +23,15 @@ jest.mock('@/src/api/services/instructors', () => ({
       {
         id: 'svc-1',
         skill: 'Piano',
-        hourly_rate: 90,
+        min_hourly_rate: 90,
         duration_options: [60],
         offers_online: true,
         offers_travel: true,
         offers_at_location: false,
+        format_prices: [
+          { format: 'online', hourly_rate: 90 },
+          { format: 'student_location', hourly_rate: 90 },
+        ],
       },
     ],
     preferred_teaching_locations: [],

@@ -54,10 +54,12 @@ def _get_service_with_duration(db: Session, instructor: User, duration_minutes: 
         new_service = Service(
             instructor_profile_id=profile.id,
             service_catalog_id=catalog.id,
-            hourly_rate=120.0,
+            format_prices=[
+                {"format": "instructor_location", "hourly_rate": 120.0},
+                {"format": "online", "hourly_rate": 120.0},
+            ],
             duration_options=[60],
-            offers_at_location=True,
-            is_active=True,
+                        is_active=True,
         )
         db.add(new_service)
         db.flush()
@@ -71,6 +73,15 @@ def _get_service_with_duration(db: Session, instructor: User, duration_minutes: 
     services[0].offers_at_location = True
     db.flush()
     return services[0]
+
+
+def _set_uniform_rate(service: Service, rate: float) -> None:
+    if service.format_prices:
+        for price_row in service.format_prices:
+            price_row.hourly_rate = rate
+        return
+
+    service.format_prices = [{"format": "online", "hourly_rate": rate}]
 
 
 async def _seed_single_day_availability(
@@ -130,7 +141,7 @@ class TestBookingRaceProtection:
         availability_service = AvailabilityService(db)
 
         service = _get_service_with_duration(db, test_instructor, duration_minutes=60)
-        service.hourly_rate = 120.0
+        _set_uniform_rate(service, 120.0)
         db.flush()
         target_date = date.today() + timedelta(days=10)
         start_slot = time(15, 0)
@@ -201,8 +212,8 @@ class TestBookingRaceProtection:
 
         instructor_one_service = _get_service_with_duration(db, test_instructor, duration_minutes=60)
         instructor_two_service = _get_service_with_duration(db, test_instructor_2, duration_minutes=60)
-        instructor_one_service.hourly_rate = 120.0
-        instructor_two_service.hourly_rate = 120.0
+        _set_uniform_rate(instructor_one_service, 120.0)
+        _set_uniform_rate(instructor_two_service, 120.0)
         db.flush()
 
         await _seed_single_day_availability(
@@ -272,7 +283,7 @@ class TestBookingRaceProtection:
         availability_service = AvailabilityService(db)
 
         service = _get_service_with_duration(db, test_instructor, duration_minutes=60)
-        service.hourly_rate = 120.0
+        _set_uniform_rate(service, 120.0)
         db.flush()
         target_date = date.today() + timedelta(days=14)
         start_slot = time(17, 0)

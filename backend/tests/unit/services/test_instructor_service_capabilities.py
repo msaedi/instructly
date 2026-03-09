@@ -12,6 +12,11 @@ from app.services.booking_service import BookingService
 from app.services.instructor_service import InstructorService
 
 
+def _format_prices(rate: float = 90.0, *formats: str) -> list[dict[str, float | str]]:
+    selected_formats = formats or ("online",)
+    return [{"format": format_name, "hourly_rate": rate} for format_name in selected_formats]
+
+
 def _get_service(db, instructor_id: str) -> Service:
     profile = (
         db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor_id).first()
@@ -30,53 +35,54 @@ def _get_service(db, instructor_id: str) -> Service:
 
 
 class TestServiceCapabilityValidation:
-    def test_offers_travel_requires_service_areas(self, db, test_instructor) -> None:
+    def test_student_location_allowed_without_service_areas(self, db, test_instructor) -> None:
+        """Location formats are allowed on save — prerequisites checked at go-live."""
         service = _get_service(db, test_instructor.id)
         db.query(InstructorServiceArea).filter(
             InstructorServiceArea.instructor_id == test_instructor.id
         ).update({"is_active": False})
         db.flush()
 
-        service.offers_travel = True
-        service.offers_online = True
-        service.offers_at_location = False
-
         instructor_service = InstructorService(db)
-        with pytest.raises(BusinessRuleException) as exc:
-            instructor_service.validate_service_capabilities(service, test_instructor.id)
+        # Should NOT raise — location prerequisite checks moved to go-live
+        instructor_service.validate_service_format_prices(
+            instructor_id=test_instructor.id,
+            catalog_service=service.catalog_entry,
+            format_prices=_format_prices(90.0, "student_location"),
+        )
 
-        assert exc.value.code == "NO_SERVICE_AREAS"
-
-    def test_offers_at_location_requires_teaching_locations(self, db, test_instructor) -> None:
+    def test_instructor_location_allowed_without_teaching_locations(
+        self, db, test_instructor
+    ) -> None:
+        """Location formats are allowed on save — prerequisites checked at go-live."""
         service = _get_service(db, test_instructor.id)
         db.query(InstructorPreferredPlace).filter(
             InstructorPreferredPlace.instructor_id == test_instructor.id
         ).delete()
         db.flush()
 
-        service.offers_at_location = True
-        service.offers_online = True
-        service.offers_travel = False
-
         instructor_service = InstructorService(db)
-        with pytest.raises(BusinessRuleException) as exc:
-            instructor_service.validate_service_capabilities(service, test_instructor.id)
+        # Should NOT raise — location prerequisite checks moved to go-live
+        instructor_service.validate_service_format_prices(
+            instructor_id=test_instructor.id,
+            catalog_service=service.catalog_entry,
+            format_prices=_format_prices(90.0, "instructor_location"),
+        )
 
-        assert exc.value.code == "NO_TEACHING_LOCATIONS"
-
-    def test_at_least_one_capability_required(self, db, test_instructor) -> None:
+    def test_at_least_one_format_required(self, db, test_instructor) -> None:
         service = _get_service(db, test_instructor.id)
-        service.offers_travel = False
-        service.offers_at_location = False
-        service.offers_online = False
 
         instructor_service = InstructorService(db)
         with pytest.raises(BusinessRuleException) as exc:
-            instructor_service.validate_service_capabilities(service, test_instructor.id)
+            instructor_service.validate_service_format_prices(
+                instructor_id=test_instructor.id,
+                catalog_service=service.catalog_entry,
+                format_prices=[],
+            )
 
         assert exc.value.code == "NO_LOCATION_OPTIONS"
 
-    def test_valid_capabilities_with_requirements_met(self, db, test_instructor) -> None:
+    def test_valid_format_prices_with_requirements_met(self, db, test_instructor) -> None:
         service = _get_service(db, test_instructor.id)
         place = InstructorPreferredPlace(
             instructor_id=test_instructor.id,
@@ -88,12 +94,15 @@ class TestServiceCapabilityValidation:
         db.add(place)
         db.flush()
 
-        service.offers_travel = True
-        service.offers_at_location = True
-        service.offers_online = True
-
         instructor_service = InstructorService(db)
-        instructor_service.validate_service_capabilities(service, test_instructor.id)
+        format_names = ["student_location", "instructor_location"]
+        if bool(getattr(service.catalog_entry, "online_capable", False)):
+            format_names.append("online")
+        instructor_service.validate_service_format_prices(
+            instructor_id=test_instructor.id,
+            catalog_service=service.catalog_entry,
+            format_prices=_format_prices(90.0, *format_names),
+        )
 
 
 class TestBookingCapabilityValidation:
@@ -124,11 +133,17 @@ class TestBookingCapabilityValidation:
 
         assert exc.value.code == "ONLINE_NOT_OFFERED"
 
-    def test_neutral_location_requires_offers_travel(self, db) -> None:
+    def test_neutral_location_allows_at_location_only(self, db) -> None:
         booking_service = BookingService(db)
         service = SimpleNamespace(offers_travel=False, offers_at_location=True, offers_online=True)
+
+        booking_service._validate_location_capability(service, "neutral_location")
+
+    def test_neutral_location_requires_any_in_person_capability(self, db) -> None:
+        booking_service = BookingService(db)
+        service = SimpleNamespace(offers_travel=False, offers_at_location=False, offers_online=True)
 
         with pytest.raises(ValidationException) as exc:
             booking_service._validate_location_capability(service, "neutral_location")
 
-        assert exc.value.code == "TRAVEL_NOT_OFFERED"
+        assert exc.value.code == "IN_PERSON_NOT_OFFERED"

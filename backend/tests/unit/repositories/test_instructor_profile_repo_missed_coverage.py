@@ -594,8 +594,12 @@ class TestFindByServiceIds:
         """1406->1408: min_price is not None."""
         repo = _make_repo()
         mock_chain = MagicMock()
+        service_min_price_sq = MagicMock()
+        service_min_price_sq.c.min_hourly_rate = 75.0
+        service_min_price_sq.c.service_id = "service-1"
         repo.db.query.return_value = mock_chain
         mock_chain.join.return_value = mock_chain
+        mock_chain.outerjoin.return_value = mock_chain
         mock_chain.options.return_value = mock_chain
         mock_chain.filter.return_value = mock_chain
         mock_chain.order_by.return_value = mock_chain
@@ -603,15 +607,20 @@ class TestFindByServiceIds:
         mock_chain.all.return_value = []
 
         with patch.object(repo, "_apply_public_visibility", return_value=mock_chain):
-            result = repo.find_by_service_ids(["s-1"], min_price=50.0)
+            with patch.object(repo, "_service_min_price_subquery", return_value=service_min_price_sq):
+                result = repo.find_by_service_ids(["s-1"], min_price=50.0)
         assert result == {"s-1": []}
 
     def test_max_price_filter(self):
         """1408->1412: max_price is not None."""
         repo = _make_repo()
         mock_chain = MagicMock()
+        service_min_price_sq = MagicMock()
+        service_min_price_sq.c.min_hourly_rate = 75.0
+        service_min_price_sq.c.service_id = "service-1"
         repo.db.query.return_value = mock_chain
         mock_chain.join.return_value = mock_chain
+        mock_chain.outerjoin.return_value = mock_chain
         mock_chain.options.return_value = mock_chain
         mock_chain.filter.return_value = mock_chain
         mock_chain.order_by.return_value = mock_chain
@@ -619,7 +628,8 @@ class TestFindByServiceIds:
         mock_chain.all.return_value = []
 
         with patch.object(repo, "_apply_public_visibility", return_value=mock_chain):
-            result = repo.find_by_service_ids(["s-1"], max_price=100.0)
+            with patch.object(repo, "_service_min_price_subquery", return_value=service_min_price_sq):
+                result = repo.find_by_service_ids(["s-1"], max_price=100.0)
         assert result == {"s-1": []}
 
     def test_empty_service_ids_returns_empty(self):

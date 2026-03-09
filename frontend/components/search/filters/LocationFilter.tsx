@@ -7,9 +7,10 @@ import type { FilterState } from '../filterTypes';
 
 const LOCATION_OPTIONS = [
   { value: 'any', label: 'Any location' },
-  { value: 'online', label: 'Online only' },
+  { value: 'in_person', label: 'In-person' },
   { value: 'travels', label: 'Travels to me' },
   { value: 'studio', label: 'At their studio' },
+  { value: 'online', label: 'Online only' },
 ] as const;
 
 interface LocationFilterProps {
