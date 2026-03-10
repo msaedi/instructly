@@ -46,8 +46,8 @@ function ServiceCardItem({
 
   const rawLevels = (service as unknown as Record<string, unknown>)?.['levels_taught'];
   const levelsTaught = Array.isArray(rawLevels)
-    ? rawLevels
-        .map((level) => (typeof level === 'string' ? level.trim().toLowerCase() : ''))
+    ? (rawLevels as unknown[])
+        .map((level: unknown) => (typeof level === 'string' ? level.trim().toLowerCase() : ''))
         .filter((level) => level.length > 0)
     : Array.isArray(service.levels_taught)
       ? service.levels_taught
@@ -72,8 +72,8 @@ function ServiceCardItem({
 
   const rawAgeGroups = (service as unknown as Record<string, unknown>)?.['age_groups'];
   const ageGroups = Array.isArray(rawAgeGroups)
-    ? rawAgeGroups
-        .map((group) => (typeof group === 'string' ? group.trim().toLowerCase() : ''))
+    ? (rawAgeGroups as unknown[])
+        .map((group: unknown) => (typeof group === 'string' ? group.trim().toLowerCase() : ''))
         .filter((group) => group.length > 0)
     : Array.isArray(service.age_groups)
       ? service.age_groups

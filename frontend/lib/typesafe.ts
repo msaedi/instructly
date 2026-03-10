@@ -142,17 +142,27 @@ export function getNestedNumber(
 }
 
 /**
+ * Narrowing guard: Array.isArray(x) where x is unknown gives any[].
+ * This guard narrows to unknown[], keeping element accesses type-safe.
+ */
+export function isUnknownArray(value: unknown): value is unknown[] {
+  return Array.isArray(value);
+}
+
+/**
  * Type guard for checking if a value is a string array
  */
 export function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every(item => typeof item === 'string');
+  if (!isUnknownArray(value)) return false;
+  return value.every((item): item is string => typeof item === 'string');
 }
 
 /**
  * Type guard for checking if a value is a number array
  */
 export function isNumberArray(value: unknown): value is number[] {
-  return Array.isArray(value) && value.every(item => typeof item === 'number');
+  if (!isUnknownArray(value)) return false;
+  return value.every((item): item is number => typeof item === 'number');
 }
 
 /**

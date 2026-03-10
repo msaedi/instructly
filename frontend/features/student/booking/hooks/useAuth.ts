@@ -142,9 +142,16 @@ export function getBookingIntent(): {
   try {
     const stored = sessionStorage.getItem('bookingIntent');
     if (stored) {
-      const intent = JSON.parse(stored);
+      const intent: unknown = JSON.parse(stored);
       logger.info('Retrieved booking intent', intent);
-      return intent;
+      return intent as {
+        instructorId: string;
+        serviceId: string;
+        date: string;
+        time: string;
+        duration: number;
+        skipModal?: boolean;
+      };
     }
   } catch (err) {
     logger.error('Failed to retrieve booking intent', err);

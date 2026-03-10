@@ -96,7 +96,7 @@ export default function ReferralsAdminClient() {
           throw new Error(`summary request failed (${summaryRes.status})`);
         }
 
-        const [healthJson, summaryJson] = await Promise.all([healthRes.json(), summaryRes.json()]);
+        const [healthJson, summaryJson] = await Promise.all([healthRes.json() as Promise<unknown>, summaryRes.json() as Promise<unknown>]);
 
         if (signal?.aborted) {
           return;

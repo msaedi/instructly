@@ -788,6 +788,29 @@ describe('useWeekSchedule', () => {
     });
   });
 
+  describe('extractDetailFromResponse — non-record payload (line 46)', () => {
+    it('returns undefined when payload is a number (not a record)', async () => {
+      mockFetchWithAuth.mockImplementationOnce(async () => ({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+        json: async () => 42,
+        headers: { get: () => null },
+      }));
+
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      // extractDetailFromResponse gets 42 (a number), isRecord returns false → undefined
+      // Falls back to statusText
+      expect(result.current.message?.type).toBe('error');
+      expect(result.current.message?.text).toContain('Internal Server Error');
+    });
+  });
+
   describe('extractDetailFromResponse — uncovered branches', () => {
     it('handles detail array with entries that have no string/msg (returns undefined)', async () => {
       mockFetchWithAuth.mockImplementationOnce(async () => ({

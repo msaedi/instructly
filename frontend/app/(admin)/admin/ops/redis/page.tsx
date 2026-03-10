@@ -71,7 +71,7 @@ export default function RedisOpsPage() {
 
             {loading ? (
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                {[...Array(4)].map((_, i) => (
+                {[...Array(4)].map((_: unknown, i: number) => (
                   <div key={i} className="bg-white/60 dark:bg-gray-900/40 backdrop-blur rounded-2xl shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 p-6">
                     <div className="animate-pulse">
                       <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-24 mb-2" />

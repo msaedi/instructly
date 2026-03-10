@@ -134,7 +134,7 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
           try {
             await checkAuth();
             await queryClient.invalidateQueries({ queryKey: queryKeys.user });
-            queryClient.setQueryData(queryKeys.user, (current) => {
+            queryClient.setQueryData(queryKeys.user, (current: unknown) => {
               if (!current || typeof current !== 'object') return current;
               const typedCurrent = current as {
                 profile_picture_version?: number;

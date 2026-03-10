@@ -10,6 +10,7 @@
  */
 
 import { RoleName } from './enums';
+import { isStringArray } from '@/lib/typesafe';
 
 /**
  * User role enumeration
@@ -143,8 +144,11 @@ export function isInstructorUser(user: User | UserData): boolean {
     return user.role === UserRole.INSTRUCTOR || user.role === 'instructor';
   }
   // New RBAC check
-  if ('roles' in user && Array.isArray(user.roles)) {
-    return user.roles.includes(RoleName.INSTRUCTOR);
+  if ('roles' in user) {
+    const roles: unknown = (user as Record<string, unknown>)['roles'];
+    if (isStringArray(roles)) {
+      return roles.includes(RoleName.INSTRUCTOR);
+    }
   }
   return false;
 }
@@ -161,8 +165,11 @@ export function isStudentUser(user: User | UserData): boolean {
     return user.role === UserRole.STUDENT || user.role === 'student';
   }
   // New RBAC check
-  if ('roles' in user && Array.isArray(user.roles)) {
-    return user.roles.includes(RoleName.STUDENT);
+  if ('roles' in user) {
+    const roles: unknown = (user as Record<string, unknown>)['roles'];
+    if (isStringArray(roles)) {
+      return roles.includes(RoleName.STUDENT);
+    }
   }
   return false;
 }

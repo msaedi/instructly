@@ -21,6 +21,7 @@ import { logger } from '@/lib/logger';
 import { ApiError, http, httpGet, httpPost } from '@/lib/http';
 import { getGuestSessionId } from '@/lib/searchTracking';
 import { useBetaConfig } from '@/lib/beta-config';
+import { isRecord, isUnknownArray } from '@/lib/typesafe';
 // Background handled globally via GlobalBackground
 
 // Import centralized types
@@ -389,9 +390,9 @@ function SignUpForm() {
             } else {
               errorMessage = 'Too many attempts. Please try again later.';
             }
-          } else if (Array.isArray(errorData.detail)) {
-            errorMessage = (errorData.detail as Array<{ msg?: string }>)
-              .map((e) => e.msg)
+          } else if (isUnknownArray(errorData.detail)) {
+            errorMessage = errorData.detail
+              .map((e) => (isRecord(e) && typeof e['msg'] === 'string' ? e['msg'] : ''))
               .filter(Boolean)
               .join(', ');
           } else if (typeof errorData.detail === 'string') {

@@ -118,6 +118,10 @@ jobs:
         working-directory: frontend
         run: npm run typecheck:strict-all
 
+      - name: Type coverage (100% — no implicit any)
+        working-directory: frontend
+        run: npm run audit:typecov:ci
+
       - name: Ad-hoc type audit (Phase 3 guardrail)
         run: ./frontend/scripts/audit-adhoc-types.sh --ci
 

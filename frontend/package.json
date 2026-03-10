@@ -60,8 +60,8 @@
     "verify:public-env": "node scripts/verify-public-env.mjs",
     "audit:deadcode": "node scripts/run-knip.mjs",
     "audit:deadcode:ci": "npm run audit:deadcode",
-    "audit:typecov": "NODE_OPTIONS=--max-old-space-size=6144 type-coverage -p tsconfig.type-coverage.json --detail --strict --at-least 99 --ignore-as-assertion --ignore-type-assertion --ignore-non-null-assertion --ignore-files \".*/app/\\(auth\\)/student/dashboard/page\\.tsx\" --ignore-files \".*/lib/api/bookings\\.ts\"",
-    "audit:typecov:ci": "NODE_OPTIONS=--max-old-space-size=6144 type-coverage -p tsconfig.type-coverage.json --detail --strict --at-least 99 --ignore-as-assertion --ignore-type-assertion --ignore-non-null-assertion --ignore-files \".*/app/\\(auth\\)/student/dashboard/page\\.tsx\" --ignore-files \".*/lib/api/bookings\\.ts\"",
+    "audit:typecov": "NODE_OPTIONS=--max-old-space-size=6144 type-coverage -p tsconfig.type-coverage.json --detail --strict --at-least 100 --ignore-as-assertion --ignore-type-assertion --ignore-non-null-assertion",
+    "audit:typecov:ci": "NODE_OPTIONS=--max-old-space-size=6144 type-coverage -p tsconfig.type-coverage.json --strict --at-least 100 --ignore-as-assertion --ignore-type-assertion --ignore-non-null-assertion",
     "type:smoke": "tsd --files \"type-tests/**/*.test-d.ts\"",
     "type:smoke:ci": "npm run type:smoke",
     "audit:lhci": "cross-env NEXT_PUBLIC_API_BASE=https://example.invalid next build && lhci autorun || true",
@@ -120,6 +120,7 @@
     "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
+    "@types/geojson": "^7946.0.16",
     "@types/jest": "^30.0.0",
     "@types/leaflet": "^1.9.21",
     "@types/node": "^25.3.3",
@@ -172,7 +173,7 @@
     }
   ],
   "typeCoverage": {
-    "atLeast": 95,
+    "atLeast": 100,
     "ignoreFiles": [
       "^types/generated/.*$",
       "^e2e/.*$",

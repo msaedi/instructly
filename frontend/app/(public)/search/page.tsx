@@ -10,7 +10,7 @@ import dynamic from 'next/dynamic';
 const InstructorCoverageMap = dynamic(() => import('@/components/maps/InstructorCoverageMap'), { ssr: false });
 import { Instructor } from '@/types/api';
 import { useBackgroundConfig } from '@/lib/config/backgroundProvider';
-import { getString, getNumber, getArray, getBoolean, isRecord, isFeatureCollection } from '@/lib/typesafe';
+import { getString, getNumber, getArray, getBoolean, isRecord, isFeatureCollection, isUnknownArray } from '@/lib/typesafe';
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { recordSearch } from '@/lib/searchTracking';
@@ -197,7 +197,7 @@ const normalizeTeachingLocations = (
 
 function extractFormatPrices(match: Record<string, unknown>): Array<{ format: string; hourly_rate: number }> {
   const raw = match['format_prices'];
-  if (!Array.isArray(raw)) return [];
+  if (!isUnknownArray(raw)) return [];
   return raw.filter(isRecord).map(fp => ({
     format: getString(fp, 'format', ''),
     hourly_rate: getNumber(fp, 'hourly_rate', 0),
@@ -206,7 +206,7 @@ function extractFormatPrices(match: Record<string, unknown>): Array<{ format: st
 
 const normalizeStringSelections = (value: unknown): string[] =>
   Array.isArray(value)
-    ? value
+    ? (value as unknown[])
         .filter((item): item is string => typeof item === 'string')
         .map((item) => item.trim().toLowerCase())
         .filter(Boolean)
@@ -641,14 +641,14 @@ function SearchPageInner() {
     (feature: GeoJSONFeature, bounds: unknown): boolean => {
       if (!feature.geometry || feature.geometry.type !== 'MultiPolygon') return false;
       const coordinates = feature.geometry.coordinates;
-      if (!Array.isArray(coordinates)) return false;
+      if (!isUnknownArray(coordinates)) return false;
 
       for (const polygon of coordinates) {
-        if (!Array.isArray(polygon)) continue;
+        if (!isUnknownArray(polygon)) continue;
         for (const ring of polygon) {
-          if (!Array.isArray(ring)) continue;
+          if (!isUnknownArray(ring)) continue;
           for (const coord of ring) {
-            if (!Array.isArray(coord) || coord.length < 2) continue;
+            if (!isUnknownArray(coord) || coord.length < 2) continue;
             const lng = coord[0];
             const lat = coord[1];
             if (typeof lat !== 'number' || typeof lng !== 'number') continue;
@@ -1280,7 +1280,7 @@ function SearchPageInner() {
       const key = rawKey.trim().toLowerCase();
       if (!key || key === 'skill_level' || !Array.isArray(rawValues)) continue;
 
-      const values = rawValues
+      const values = (rawValues as unknown[])
         .filter((value): value is string => typeof value === 'string')
         .map((value) => value.trim().toLowerCase())
         .filter(Boolean);

@@ -534,7 +534,7 @@ export default function HomePage() {
                 </p>
                 <p className="text-gray-600 dark:text-gray-400">- {testimonial.author}</p>
                 <div className="flex mt-2">
-                  {[...Array(testimonial.rating)].map((_, i) => (
+                  {[...Array(testimonial.rating)].map((_: unknown, i: number) => (
                     <Star key={i} className="h-5 w-5 text-[#FFD700] fill-current" />
                   ))}
                 </div>

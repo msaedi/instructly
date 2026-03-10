@@ -240,8 +240,8 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       try {
         const storedBooking = readSessionStorageItem('bookingData');
         if (storedBooking) {
-          const parsed = JSON.parse(storedBooking);
-          bookingDateValue = parsed.date;
+          const parsed: unknown = JSON.parse(storedBooking);
+          bookingDateValue = (parsed as Record<string, unknown>)['date'] as typeof bookingDateValue;
         }
       } catch {
         // Ignore parse errors

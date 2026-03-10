@@ -93,7 +93,7 @@ export const mapMessageFromResponse = (
 
     if (Array.isArray(raw)) {
       const counts: Record<string, number> = {};
-      for (const item of raw) {
+      for (const item of raw as unknown[]) {
         if (!item || typeof item !== 'object') continue;
         const emoji = (item as { emoji?: unknown }).emoji;
         if (typeof emoji !== 'string') continue;
@@ -119,7 +119,7 @@ export const mapMessageFromResponse = (
     if (!Array.isArray(raw)) return undefined;
 
     const mine: string[] = [];
-    for (const item of raw) {
+    for (const item of raw as unknown[]) {
       if (!item || typeof item !== 'object') continue;
       const userId = (item as { user_id?: unknown }).user_id;
       const emoji = (item as { emoji?: unknown }).emoji;

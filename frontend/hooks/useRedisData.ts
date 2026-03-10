@@ -55,9 +55,9 @@ export function useRedisData(token: string | null): UseRedisDataReturn {
       };
 
       // Fetch authenticated data if token is available
-      let stats = null;
-      let queues = null;
-      let connectionAudit = null;
+      let stats: Awaited<ReturnType<typeof redisApi.getStats>> | null = null;
+      let queues: Awaited<ReturnType<typeof redisApi.getCeleryQueues>> | null = null;
+      let connectionAudit: Awaited<ReturnType<typeof redisApi.getConnectionAudit>> | null = null;
 
       if (token) {
         [stats, queues, connectionAudit] = await Promise.all([

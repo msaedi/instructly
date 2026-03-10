@@ -1,6 +1,9 @@
-jest.mock('@/src/api/services/instructors', () => ({
-  useInstructor: jest.fn(),
-}));
+jest.mock('@/src/api/services/instructors', () => {
+  // type-coverage:ignore-next-line -- jest.Mock inherits Function which contains any
+  const useInstructor = jest.fn<unknown, [string]>();
+  // type-coverage:ignore-next-line
+  return { useInstructor };
+});
 
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';

@@ -1,5 +1,6 @@
 import { publicApi } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
+import { isRecord, isUnknownArray } from '@/lib/typesafe';
 import type { InstructorService, ServiceLocationType } from '@/types/instructor';
 
 type CatalogSummary = { id: string; name: string };
@@ -101,13 +102,13 @@ function resolveDisplayName(record: Record<string, unknown>, lookup: Map<string,
 }
 
 export async function normalizeInstructorServices(services: unknown): Promise<UIInstructorService[]> {
-  if (!Array.isArray(services) || services.length === 0) {
+  if (!isUnknownArray(services) || services.length === 0) {
     return [];
   }
 
   const needsCatalogLookup = services.some((svc) => {
-    if (!svc || typeof svc !== 'object') return false;
-    const record = svc as Record<string, unknown>;
+    if (!isRecord(svc)) return false;
+    const record = svc;
     const catalogId = typeof record['service_catalog_id'] === 'string' ? record['service_catalog_id'] : undefined;
     if (!catalogId) return false;
     const rawServer = typeof record['service_catalog_name'] === 'string' ? record['service_catalog_name'] : undefined;
@@ -124,9 +125,9 @@ export async function normalizeInstructorServices(services: unknown): Promise<UI
   const lookup = new Map<string, string>(catalogList.map((svc) => [svc.id, svc.name]));
 
   return services
-    .map((svc, index) => {
-      if (!svc || typeof svc !== 'object') return null;
-      const record = svc as Record<string, unknown>;
+    .map((svc, index: number) => {
+      if (!isRecord(svc)) return null;
+      const record = svc;
       const catalogIdRaw = typeof record['service_catalog_id'] === 'string' ? record['service_catalog_id'] : undefined;
       const catalogId = catalogIdRaw && catalogIdRaw.trim().length > 0 ? catalogIdRaw : `service-${index}`;
       const displayName = resolveDisplayName(record, lookup, catalogIdRaw);

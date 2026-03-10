@@ -139,7 +139,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   });
   const [instructorMeta, setInstructorMeta] = useState<InstructorProfileResponse | null>(null);
   const handleProfileChange = useCallback((updates: Partial<ProfileFormState>) => {
-    if (Object.prototype.hasOwnProperty.call(updates, 'last_name')) {
+    if ('last_name' in updates) {
       setLastNameError(null);
     }
     setProfile((prev) => ({ ...prev, ...updates }));

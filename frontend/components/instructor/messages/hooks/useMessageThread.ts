@@ -372,7 +372,7 @@ export function useMessageThread({
     // If we're viewing this thread and received a message from the other user, mark as read server-side
     if (!isOwnMessage) {
       markedReadThreadsRef.current.set(activeConversation.id, 0);
-      void markMessagesAsReadImperative({ message_ids: [mappedMessage.id] }).catch((err) => {
+      void markMessagesAsReadImperative({ message_ids: [mappedMessage.id] }).catch((err: unknown) => {
         logger.warn('[MSG-DEBUG] Failed to mark messages as read from SSE handler', {
           conversationId: activeConversation.id,
           error: err instanceof Error ? err.message : err,

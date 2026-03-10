@@ -42,7 +42,7 @@ export default function BookingConfirmationPage() {
     const storedReschedule = sessionStorage.getItem('rescheduleData');
     if (storedReschedule) {
       try {
-        const rd = JSON.parse(storedReschedule);
+        const rd: Record<string, unknown> = JSON.parse(storedReschedule) as Record<string, unknown>;
 
         const toStartTime = (display: string): string => {
           const lower = String(display).toLowerCase();
@@ -57,31 +57,31 @@ export default function BookingConfirmationPage() {
           return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`;
         };
 
-        const startTime = toStartTime(rd.time);
+        const startTime = toStartTime(String(rd['time'] ?? ''));
         const parts = startTime.split(':');
         const sh = parseInt(at(parts, 0) || '0', 10);
         const sm = parseInt(at(parts, 1) || '0', 10);
-        const duration = parseInt(String(rd.duration || 0), 10) || 0;
+        const duration = parseInt(String(rd['duration'] ?? 0), 10) || 0;
         const endTotal = sh * 60 + (sm || 0) + duration;
         const endHour = Math.floor(endTotal / 60);
         const endMinute = endTotal % 60;
         const endTime = `${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}:00`;
 
-        const basePrice = Math.round(((rd.hourlyRate || 0) * duration) / 60);
+        const basePrice = Math.round(((Number(rd['hourlyRate']) || 0) * duration) / 60);
         const totalAmount = basePrice;
 
-        const freeCancel = new Date(`${rd.date}T${startTime}`);
+        const freeCancel = new Date(`${String(rd['date'] ?? '')}T${startTime}`);
         if (!isNaN(freeCancel.getTime())) {
           freeCancel.setHours(freeCancel.getHours() - 24);
         }
 
         const paymentBooking: BookingPayment = {
           bookingId: '',
-          instructorId: rd.instructorId,
-          instructorName: rd.instructorName || 'Instructor',
-          serviceId: rd.serviceId,
-          lessonType: rd.serviceName || 'Lesson',
-          date: new Date(rd.date),
+          instructorId: String(rd['instructorId'] ?? ''),
+          instructorName: String(rd['instructorName'] ?? 'Instructor'),
+          serviceId: String(rd['serviceId'] ?? ''),
+          lessonType: String(rd['serviceName'] ?? 'Lesson'),
+          date: new Date(String(rd['date'] ?? '')),
           startTime,
           endTime,
           duration,
@@ -95,7 +95,7 @@ export default function BookingConfirmationPage() {
 
         return {
           bookingData: paymentBooking,
-          serviceId: rd.serviceId || null,
+          serviceId: (rd['serviceId'] as string | undefined) ?? null,
           needsRedirect: false,
         };
       } catch (error) {
@@ -158,7 +158,7 @@ export default function BookingConfirmationPage() {
         setReferralShare({ code: summary.code, shareUrl: summary.share_url });
         setShareModalOpen(true);
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         logger.warn('[BOOKING CONFIRM] Failed to load referral summary', error as Error);
       });
   };

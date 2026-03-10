@@ -21,6 +21,7 @@ import {
 } from '@/lib/availability/dateHelpers';
 import { fromWindows, newEmptyBits, toWindows } from '@/lib/calendar/bitset';
 import { logger } from '@/lib/logger';
+import { isRecord, isUnknownArray } from '@/lib/typesafe';
 import type { ApiErrorResponse, WeekAvailabilityResponse } from '@/features/shared/api/types';
 
 type WeekBitsSetter = WeekBits | ((prev: WeekBits) => WeekBits);
@@ -42,28 +43,27 @@ function cloneWeekBits(source: WeekBits): WeekBits {
 function extractDetailFromResponse(payload: unknown): string | undefined {
   if (!payload) return undefined;
   if (typeof payload === 'string') return payload;
-  const record = payload as Record<string, unknown>;
-  if (typeof record?.['detail'] === 'string') {
-    return record['detail'] as string;
+  if (!isRecord(payload)) return undefined;
+  if (typeof payload['detail'] === 'string') {
+    return payload['detail'];
   }
-  const detailField = record?.['detail'];
-  if (Array.isArray(detailField)) {
+  const detailField = payload['detail'];
+  if (isUnknownArray(detailField)) {
     const collected = detailField
       .map((entry) => {
         if (typeof entry === 'string') return entry;
-        const entryRecord = entry as Record<string, unknown> | undefined;
-        if (entryRecord && typeof entryRecord['msg'] === 'string') {
-          return entryRecord['msg'] as string;
+        if (isRecord(entry) && typeof entry['msg'] === 'string') {
+          return entry['msg'];
         }
         return undefined;
       })
-      .filter(Boolean) as string[];
+      .filter((s): s is string => typeof s === 'string');
     if (collected.length) {
       return collected.join('; ');
     }
   }
-  if (typeof record?.['message'] === 'string') {
-    return record['message'] as string;
+  if (typeof payload['message'] === 'string') {
+    return payload['message'];
   }
   try {
     return JSON.stringify(payload);

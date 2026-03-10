@@ -27,6 +27,11 @@ import type {
   SSENotificationUpdateEvent,
 } from '@/types/messaging';
 
+/** Extract event.data as string — typed via MessageEvent<string> generic. */
+function sseData(event: MessageEvent<string>): string {
+  return String(event.data);
+}
+
 const SSE_ENDPOINT = '/api/v1/messages/stream';
 const SSE_TOKEN_ENDPOINT = '/api/v1/sse/token';
 const RECONNECT_DELAY = 3000;
@@ -417,16 +422,16 @@ export function useUserMessageStream() {
       });
 
       // Handle all event types
-      eventSource.addEventListener('new_message', (event) => {
+      eventSource.addEventListener('new_message', (event: MessageEvent<string>) => {
         resetHeartbeat();
         try {
-          const rawData = (event as MessageEvent).data;
+          const rawData = sseData(event);
           logger.debug('[MSG-DEBUG] SSE: new_message event received', {
-            rawDataPreview: typeof rawData === 'string' ? rawData.substring(0, 200) : rawData,
+            rawDataPreview: rawData.substring(0, 200),
             timestamp: debugTimestamp()
           });
-          const parsed = JSON.parse(rawData);
-          const data: SSEMessageEvent = { ...parsed, type: 'new_message' };
+          const parsed: unknown = JSON.parse(rawData);
+          const data = { ...(parsed as Omit<SSEMessageEvent, 'type'>), type: 'new_message' as const };
           logger.debug('[MSG-DEBUG] SSE: new_message parsed', {
             type: data.type,
             conversationId: data.conversation_id,
@@ -440,10 +445,10 @@ export function useUserMessageStream() {
         }
       });
 
-      eventSource.addEventListener('typing_status', (event) => {
+      eventSource.addEventListener('typing_status', (event: MessageEvent<string>) => {
         try {
-          const parsed = JSON.parse((event as MessageEvent).data);
-          const data: SSETypingEvent = { ...parsed, type: 'typing_status' };
+          const parsed: unknown = JSON.parse(sseData(event));
+          const data = { ...(parsed as Omit<SSETypingEvent, 'type'>), type: 'typing_status' as const };
           logger.debug('[MSG-DEBUG] SSE: typing_status event', {
             conversationId: data.conversation_id,
             userId: (data as { user_id?: string }).user_id,
@@ -455,10 +460,10 @@ export function useUserMessageStream() {
         }
       });
 
-      eventSource.addEventListener('read_receipt', (event) => {
+      eventSource.addEventListener('read_receipt', (event: MessageEvent<string>) => {
         try {
-          const parsed = JSON.parse((event as MessageEvent).data);
-          const data: SSEReadReceiptEvent = { ...parsed, type: 'read_receipt' };
+          const parsed: unknown = JSON.parse(sseData(event));
+          const data = { ...(parsed as Omit<SSEReadReceiptEvent, 'type'>), type: 'read_receipt' as const };
           logger.debug('[MSG-DEBUG] SSE: read_receipt event', {
             conversationId: data.conversation_id,
             messageIds: (data as { message_ids?: string[] }).message_ids,
@@ -470,10 +475,10 @@ export function useUserMessageStream() {
         }
       });
 
-      eventSource.addEventListener('reaction_update', (event) => {
+      eventSource.addEventListener('reaction_update', (event: MessageEvent<string>) => {
         try {
-          const parsed = JSON.parse((event as MessageEvent).data);
-          const data: SSEReactionEvent = { ...parsed, type: 'reaction_update' };
+          const parsed: unknown = JSON.parse(sseData(event));
+          const data = { ...(parsed as Omit<SSEReactionEvent, 'type'>), type: 'reaction_update' as const };
           logger.debug('[MSG-DEBUG] SSE: reaction_update event', {
             conversationId: data.conversation_id,
             messageId: (data as { message_id?: string }).message_id,
@@ -487,11 +492,11 @@ export function useUserMessageStream() {
         }
       });
 
-      eventSource.addEventListener('message_edited', (event) => {
+      eventSource.addEventListener('message_edited', (event: MessageEvent<string>) => {
         resetHeartbeat();
         try {
-          const parsed = JSON.parse((event as MessageEvent).data);
-          const data: SSEMessageEditedEvent = { ...parsed, type: 'message_edited' };
+          const parsed: unknown = JSON.parse(sseData(event));
+          const data = { ...(parsed as Omit<SSEMessageEditedEvent, 'type'>), type: 'message_edited' as const };
           const editData = data as SSEMessageEditedEvent;
           logger.debug('[MSG-DEBUG] SSE: message_edited event', {
             conversationId: data.conversation_id,
@@ -506,11 +511,11 @@ export function useUserMessageStream() {
         }
       });
 
-      eventSource.addEventListener('message_deleted', (event) => {
+      eventSource.addEventListener('message_deleted', (event: MessageEvent<string>) => {
         resetHeartbeat();
         try {
-          const parsed = JSON.parse((event as MessageEvent).data);
-          const data: SSEMessageDeletedEvent = { ...parsed, type: 'message_deleted' };
+          const parsed: unknown = JSON.parse(sseData(event));
+          const data = { ...(parsed as Omit<SSEMessageDeletedEvent, 'type'>), type: 'message_deleted' as const };
           logger.debug('[MSG-DEBUG] SSE: message_deleted event', {
             conversationId: data.conversation_id,
             messageId: data.message_id,
@@ -522,11 +527,11 @@ export function useUserMessageStream() {
         }
       });
 
-      eventSource.addEventListener('notification_update', (event) => {
+      eventSource.addEventListener('notification_update', (event: MessageEvent<string>) => {
         resetHeartbeat();
         try {
-          const parsed = JSON.parse((event as MessageEvent).data);
-          const data: SSENotificationUpdateEvent = { ...parsed, type: 'notification_update' };
+          const parsed: unknown = JSON.parse(sseData(event));
+          const data = { ...(parsed as Omit<SSENotificationUpdateEvent, 'type'>), type: 'notification_update' as const };
           logger.debug('[MSG-DEBUG] SSE: notification_update event', {
             unreadCount: data.unread_count,
             timestamp: debugTimestamp(),

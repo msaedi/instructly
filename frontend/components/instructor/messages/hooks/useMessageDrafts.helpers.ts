@@ -10,9 +10,9 @@ export const readDraftCookie = (doc?: Pick<Document, 'cookie'> | null): Record<s
     if (!target) return {};
     const raw = decodeURIComponent(target.split('=')[1] ?? '');
     if (!raw) return {};
-    const parsed = JSON.parse(raw);
+    const parsed: unknown = JSON.parse(raw);
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      const entries = Object.entries(parsed).filter(([, value]) => typeof value === 'string') as [
+      const entries = Object.entries(parsed as Record<string, unknown>).filter(([, value]) => typeof value === 'string') as [
         string,
         string,
       ][];

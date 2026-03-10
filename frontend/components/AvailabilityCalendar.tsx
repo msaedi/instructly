@@ -99,7 +99,7 @@ export default function AvailabilityCalendar({
 
   // Generate next 14 days starting from today - memoize to avoid regeneration
   const [next14Days] = useState(() => {
-    const days = [];
+    const days: Array<{ date: string; dayName: string; dayNumber: number; isToday: boolean }> = [];
     const today = new Date();
 
     for (let i = 0; i < 14; i++) {

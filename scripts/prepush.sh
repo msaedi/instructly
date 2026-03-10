@@ -156,8 +156,8 @@ if [[ "${FAST_HOOKS:-0}" != "1" ]]; then
 
   # Removed audit:lhci from pre-push (still runs in CI)
 
-  echo "[pre-push] Frontend warn-mode: audit:typecov"
-  (cd frontend && npm run --silent audit:typecov) || true
+  echo "[pre-push] Frontend hard gate: type-coverage (100%)"
+  (cd frontend && npm run --silent audit:typecov)
 else
   echo "[pre-push] FAST_HOOKS=1 set -> skipping warn-mode audits"
 fi

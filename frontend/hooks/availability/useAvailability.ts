@@ -5,6 +5,7 @@ import { useWeekSchedule } from '@/hooks/availability/useWeekSchedule';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { formatDateForAPI } from '@/lib/availability/dateHelpers';
 import { logger } from '@/lib/logger';
+import { isRecord, isUnknownArray } from '@/lib/typesafe';
 import { WeekSchedule, TimeSlot, WeekBits } from '@/types/availability';
 import { fromWindows, toWindows } from '@/lib/calendar/bitset';
 import type {
@@ -66,15 +67,20 @@ export interface UseAvailabilityReturn {
 
 function extractErrorMessage(err: unknown, fallback: string): string {
   if (!err) return fallback;
-  const detail = (err as { detail?: unknown }).detail;
+  if (!isRecord(err)) return fallback;
+  const detail: unknown = err['detail'];
   if (typeof detail === 'string') return detail;
-  if (Array.isArray(detail)) {
+  if (isUnknownArray(detail)) {
     const msgs = detail
-      .map((d: unknown) => (typeof d === 'string' ? d : (d as { msg?: string })?.['msg']))
-      .filter(Boolean);
+      .map((d) => {
+        if (typeof d === 'string') return d;
+        if (isRecord(d) && typeof d['msg'] === 'string') return d['msg'];
+        return undefined;
+      })
+      .filter((s): s is string => typeof s === 'string');
     if (msgs.length) return msgs.join('; ');
   }
-  if (typeof (err as Record<string, unknown>)?.['message'] === 'string') return (err as Record<string, unknown>)['message'] as string;
+  if (typeof err['message'] === 'string') return err['message'];
   try {
     return JSON.stringify(err);
   } catch {

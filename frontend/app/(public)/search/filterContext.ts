@@ -7,6 +7,7 @@ import {
 } from '@/components/search/filterTypes';
 import type { SubcategoryFilterResponse } from '@/features/shared/api/types';
 import { formatFilterLabel } from '@/lib/taxonomy/formatFilterLabel';
+import { isUnknownArray } from '@/lib/typesafe';
 
 export type SubcategoryResolutionLookup = {
   subcategoryIds: Set<string>;
@@ -373,7 +374,7 @@ const buildDynamicContentFilters = (filters: DynamicFilterSource[]): TaxonomyCon
 
     const options: TaxonomyContentFilterDefinition['options'] = [];
     const seen = new Set<string>();
-    const rawOptions = Array.isArray(filter.options) ? filter.options : [];
+    const rawOptions: unknown[] = isUnknownArray(filter.options) ? filter.options : [];
     for (const option of rawOptions) {
       if (!isRecord(option)) continue;
       const dynamicOption = option as DynamicFilterSourceOption;
@@ -421,7 +422,7 @@ export const getDynamicContentFiltersFromSearchMeta = (
     return [];
   }
 
-  const normalizedFilters = filters.filter((filter): filter is DynamicFilterSource =>
+  const normalizedFilters = (filters as unknown[]).filter((filter): filter is DynamicFilterSource =>
     isRecord(filter)
   );
   return buildDynamicContentFilters(normalizedFilters);

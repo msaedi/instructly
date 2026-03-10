@@ -197,10 +197,10 @@ export const loadStoredTemplates = (): TemplateItem[] => {
     if (!target) return getDefaultTemplates();
     const raw = decodeURIComponent(target.split('=')[1] ?? '');
     if (!raw) return getDefaultTemplates();
-    const parsed = JSON.parse(raw);
+    const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return getDefaultTemplates();
-    const cleaned = parsed
-      .map((item) => {
+    const cleaned = (parsed as unknown[])
+      .map((item: unknown) => {
         if (!item || typeof item !== 'object') return null;
         const id = typeof (item as { id?: unknown }).id === 'string' && (item as { id?: string }).id
           ? (item as { id: string }).id

@@ -6,6 +6,7 @@ import { getString, getArray } from '@/lib/typesafe';
 import { MapContainer, TileLayer, GeoJSON, AttributionControl, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L, { type LatLngExpression, type LeafletEventHandlerFnMap } from 'leaflet';
+import type { Feature, Geometry } from 'geojson';
 
 interface GeoJSONProperties {
   [key: string]: unknown;
@@ -15,6 +16,11 @@ interface GeoJSONProperties {
   instructors?: string[];
   name?: string;
   region_id?: string;
+}
+
+/** Extract properties from GeoJSON Feature — uses typed GeoJSONProperties. */
+function featureProps(f: Feature<Geometry, GeoJSONProperties> | undefined): GeoJSONProperties | null {
+  return f?.properties ?? null;
 }
 
 interface GeoJSONFeature {
@@ -154,15 +160,15 @@ export default function InstructorCoverageMap({
           <GeoJSON
             key={fc.features.length}
             data={fc}
-            style={(feature) => {
-              const serving = getArray(feature?.properties, 'instructors');
-              const highlighted = highlightInstructorId && Array.isArray(serving) && serving.includes(highlightInstructorId);
+            style={(feature: Feature<Geometry, GeoJSONProperties> | undefined) => {
+              const serving: readonly unknown[] = getArray(featureProps(feature), 'instructors');
+              const highlighted = highlightInstructorId && serving.includes(highlightInstructorId);
               return highlighted
                 ? { color: '#7E22CE', weight: 2, fillOpacity: 0.35 }
                 : { color: '#7E22CE', weight: 1, fillOpacity: 0.12 };
             }}
-            onEachFeature={(feature, layer) => {
-              const props = feature.properties;
+            onEachFeature={(feature: Feature<Geometry, GeoJSONProperties>, layer: L.Layer) => {
+              const props = featureProps(feature);
               const name = getString(props, 'name') || getString(props, 'region_id') || 'Coverage Area';
               layer.bindPopup(`<div>${name}</div>`);
             }}
@@ -257,7 +263,7 @@ function FitToCoverage({
 
         let bounds: L.LatLngBounds | null = null;
         if (hasCoverage && featureCollection) {
-          const layer = L.geoJSON(featureCollection);
+          const layer: L.GeoJSON<GeoJSONProperties> = L.geoJSON<GeoJSONProperties>(featureCollection);
           const coverageBounds = layer.getBounds();
           if (coverageBounds.isValid()) {
             bounds = coverageBounds;
@@ -304,7 +310,7 @@ function FitToCoverage({
               type: 'FeatureCollection',
               features: instructorFeatures,
             };
-            const layer = L.geoJSON(instructorFC);
+            const layer: L.GeoJSON<GeoJSONProperties> = L.geoJSON<GeoJSONProperties>(instructorFC);
             const coverageBounds = layer.getBounds();
             if (coverageBounds.isValid()) {
               bounds = coverageBounds;
@@ -357,10 +363,10 @@ function MapPins({ locations }: { locations: LocationPin[] }) {
       popupAnchor: [0, -22],
     });
 
-    const markers: L.Marker[] = [];
+    const markers: L.Marker<GeoJSONProperties>[] = [];
     locations.forEach((loc) => {
       if (!Number.isFinite(loc.lat) || !Number.isFinite(loc.lng)) return;
-      const marker = L.marker([loc.lat, loc.lng], { icon });
+      const marker: L.Marker<GeoJSONProperties> = L.marker<GeoJSONProperties>([loc.lat, loc.lng], { icon });
       if (loc.label) {
         marker.bindPopup(`<div>${loc.label}</div>`);
       }
@@ -369,7 +375,7 @@ function MapPins({ locations }: { locations: LocationPin[] }) {
     });
 
     return () => {
-      markers.forEach((marker) => marker.remove());
+      markers.forEach((m) => m.remove());
     };
   }, [map, locations]);
 
@@ -508,7 +514,7 @@ function CustomControls() {
       Object.assign(locate.style, btnBase);
       locate.title = 'Show your location';
       locate.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/></svg>`;
-      let locationMarker: L.CircleMarker | null = null;
+      let locationMarker: L.CircleMarker<GeoJSONProperties> | null = null;
       let isMoving = false;
       locate.onclick = (e) => {
         e.preventDefault();
@@ -543,7 +549,7 @@ function CustomControls() {
             if (locationMarker) {
               locationMarker.remove();
             }
-            locationMarker = L.circleMarker(latlng, { radius: 4, color: '#7E22CE', fillOpacity: 0.9 });
+            locationMarker = L.circleMarker<GeoJSONProperties>(latlng, { radius: 4, color: '#7E22CE', fillOpacity: 0.9 });
             locationMarker.addTo(map);
           },
           () => {},

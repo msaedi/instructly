@@ -152,7 +152,7 @@ export default function Step4Verification() {
         errorReason?: string | null;
       } = {}
     ) => {
-      if (Object.prototype.hasOwnProperty.call(options, 'sessionId')) {
+      if ('sessionId' in options) {
         setIdentitySessionId(options.sessionId ?? null);
       }
 

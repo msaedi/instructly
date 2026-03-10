@@ -1,5 +1,6 @@
 import { ApiProblemError } from '@/lib/api/fetch';
 import { logger } from '@/lib/logger';
+import { isUnknownArray } from '@/lib/typesafe';
 import {
   fetchPricingPreview,
   fetchPricingPreviewQuote,
@@ -43,12 +44,13 @@ export const stableSerialize = (value: unknown): string => {
   if (value === null || typeof value !== 'object') {
     return JSON.stringify(value);
   }
-  if (Array.isArray(value)) {
+  if (isUnknownArray(value)) {
     return `[${value.map(stableSerialize).join(',')}]`;
   }
-  const entries = Object.keys(value as Record<string, unknown>)
+  const obj = value as Record<string, unknown>;
+  const entries = Object.keys(obj)
     .sort()
-    .map((key) => `${JSON.stringify(key)}:${stableSerialize((value as Record<string, unknown>)[key])}`);
+    .map((key) => `${JSON.stringify(key)}:${stableSerialize(obj[key])}`);
   return `{${entries.join(',')}}`;
 };
 

@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import { favoritesApi } from '@/services/api/favorites';
 import type { ApiErrorResponse, FavoritesListResponse, components } from '@/features/shared/api/types';
 import { extractApiErrorMessage } from '@/lib/apiErrors';
+import { isRecord, isUnknownArray } from '@/lib/typesafe';
 import { getServiceAreaDisplay } from '@/lib/profileServiceAreas';
 import { StudentBadgesSection } from '@/features/student/badges/StudentBadgesSection';
 import RewardsPanel from '@/features/referrals/RewardsPanel';
@@ -1547,27 +1548,25 @@ export function AddressModal({ mode, address, onClose, onSaved }: { mode: 'creat
       if (!res.ok) {
         const errorData = (await res.json().catch(() => null)) as unknown;
         const errorMessage = (() => {
-          if (!errorData || typeof errorData !== 'object') return 'Failed to save address';
-          const detail = (errorData as { detail?: unknown }).detail;
+          if (!isRecord(errorData)) return 'Failed to save address';
+          const detail: unknown = errorData['detail'];
           if (typeof detail === 'string') return detail;
-          if (Array.isArray(detail) && detail.length > 0) {
+          if (isUnknownArray(detail) && detail.length > 0) {
             const first = detail[0];
             if (typeof first === 'string') return first;
-            if (first && typeof first === 'object') {
-              const msg = (first as { msg?: unknown }).msg;
-              if (typeof msg === 'string') return msg;
+            if (isRecord(first) && typeof first['msg'] === 'string') {
+              return first['msg'];
             }
           }
-          const errors = (errorData as { errors?: unknown }).errors;
-          if (Array.isArray(errors) && errors.length > 0) {
+          const errors: unknown = errorData['errors'];
+          if (isUnknownArray(errors) && errors.length > 0) {
             const first = errors[0];
             if (typeof first === 'string') return first;
-            if (first && typeof first === 'object') {
-              const msg = (first as { msg?: unknown }).msg;
-              if (typeof msg === 'string') return msg;
+            if (isRecord(first) && typeof first['msg'] === 'string') {
+              return first['msg'];
             }
           }
-          const message = (errorData as { message?: unknown }).message;
+          const message: unknown = errorData['message'];
           if (typeof message === 'string') return message;
           return 'Failed to save address';
         })();

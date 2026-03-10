@@ -151,7 +151,7 @@ function ResetPasswordForm() {
             </div>
             {error && (<div className="rounded-md bg-red-50 dark:bg-red-900/20 p-4" role="alert"><p className="text-sm text-red-800 dark:text-red-400">{error}</p></div>)}
             <div>
-              <button type="submit" disabled={isLoading || !Object.values(passwordValidations).every((v) => v)} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed dark:ring-offset-gray-800">{isLoading ? 'Resetting...' : 'Reset Password'}</button>
+              <button type="submit" disabled={isLoading || !Object.values(passwordValidations).every((v: boolean) => v)} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed dark:ring-offset-gray-800">{isLoading ? 'Resetting...' : 'Reset Password'}</button>
             </div>
           </form>
         </div>

@@ -5,6 +5,8 @@
  * dashboard SkillsPricingInline component.
  */
 
+import { isUnknownArray } from '@/lib/typesafe';
+
 export const ALL_AUDIENCE_GROUPS = ['toddler', 'kids', 'teens', 'adults'] as const;
 export type AudienceGroup = (typeof ALL_AUDIENCE_GROUPS)[number];
 
@@ -41,7 +43,7 @@ export const normalizeAudienceGroups = (
   fallback: AudienceGroup[] = []
 ): AudienceGroup[] => {
   const fallbackGroups = dedupeAudienceGroups(fallback);
-  if (!Array.isArray(value)) {
+  if (!isUnknownArray(value)) {
     return fallbackGroups;
   }
 
@@ -58,7 +60,7 @@ export const normalizeSkillLevels = (
   value: unknown,
   fallback: SkillLevel[] = [...DEFAULT_SKILL_LEVELS]
 ): SkillLevel[] => {
-  if (!Array.isArray(value)) {
+  if (!isUnknownArray(value)) {
     return [...fallback];
   }
 
@@ -73,12 +75,12 @@ export const normalizeSkillLevels = (
 };
 
 export const normalizeSelectionValues = (value: unknown): string[] => {
-  if (!Array.isArray(value)) {
+  if (!isUnknownArray(value)) {
     return [];
   }
   const normalized = value
     .map((entry) => (typeof entry === 'string' ? entry.trim() : String(entry).trim()))
-    .filter((entry) => entry.length > 0);
+    .filter((entry: string) => entry.length > 0);
   return Array.from(new Set(normalized));
 };
 

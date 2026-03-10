@@ -35,7 +35,7 @@ const BookingQuickPreview: React.FC<BookingQuickPreviewProps> = ({
         setBooking(data);
         setLoading(false);
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         logger.error('Failed to load booking preview', err, { bookingId });
         setError('Failed to load booking details');
         setLoading(false);

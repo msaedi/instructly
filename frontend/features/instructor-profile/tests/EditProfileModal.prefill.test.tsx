@@ -15,15 +15,23 @@ jest.mock('@/components/forms/PlacesAutocompleteInput', () => ({
   ),
 }));
 
-jest.mock('@/lib/instructorServices', () => ({
-  normalizeInstructorServices: jest.fn(async () => []),
-  hydrateCatalogNameById: jest.fn(),
-  displayServiceName: jest.fn(),
-}));
+jest.mock('@/lib/instructorServices', () => {
+  // type-coverage:ignore-next-line -- jest.Mock inherits Function which contains any
+  const normalizeInstructorServices = jest.fn<Promise<never[]>, [unknown]>(async () => []);
+  // type-coverage:ignore-next-line -- jest.Mock inherits Function which contains any
+  const hydrateCatalogNameById = jest.fn<string | undefined, [string]>();
+  // type-coverage:ignore-next-line -- jest.Mock inherits Function which contains any
+  const displayServiceName = jest.fn<string, [Record<string, unknown>, (id: string) => string | undefined]>();
+  // type-coverage:ignore-next-line -- jest.Mock inherits Function which contains any
+  return { normalizeInstructorServices, hydrateCatalogNameById, displayServiceName };
+});
 
-jest.mock('@/lib/profileServiceAreas', () => ({
-  getServiceAreaBoroughs: jest.fn(() => []),
-}));
+jest.mock('@/lib/profileServiceAreas', () => {
+  // type-coverage:ignore-next-line -- jest.Mock inherits Function which contains any
+  const getServiceAreaBoroughs = jest.fn<never[], []>(() => []);
+  // type-coverage:ignore-next-line -- jest.Mock inherits Function which contains any
+  return { getServiceAreaBoroughs };
+});
 
 jest.mock('@/lib/pricing/usePricingFloors', () => ({
   usePricingConfig: () => ({
@@ -34,8 +42,9 @@ jest.mock('@/lib/pricing/usePricingFloors', () => ({
   PRICING_CONFIG_QUERY_KEY: ['config', 'pricing'],
 }));
 
-jest.mock('@/lib/api', () => ({
-  fetchWithAuth: jest.fn(async (url: string) => {
+jest.mock('@/lib/api', () => {
+  // type-coverage:ignore-next-line -- jest.Mock inherits Function which contains any
+  const fetchWithAuth = jest.fn<Promise<Response>, [string]>(async (url: string) => {
     if (url === '/api/v1/addresses/service-areas/me') {
       return {
         ok: true,
@@ -53,16 +62,29 @@ jest.mock('@/lib/api', () => ({
         service_area_neighborhoods: [],
       }),
     } as unknown as Response;
-  }),
-  API_ENDPOINTS: {
-    INSTRUCTOR_PROFILE: '/instructors/me',
-    ME: '/me',
-    NYC_ZIP_CHECK: '/zip-check',
-  },
-  getConnectStatus: jest.fn(),
-  createStripeIdentitySession: jest.fn(),
-  createSignedUpload: jest.fn(),
-}));
+  });
+  // type-coverage:ignore-next-line -- jest.Mock inherits Function which contains any
+  const getConnectStatus = jest.fn<void, []>();
+  // type-coverage:ignore-next-line -- jest.Mock inherits Function which contains any
+  const createStripeIdentitySession = jest.fn<void, []>();
+  // type-coverage:ignore-next-line -- jest.Mock inherits Function which contains any
+  const createSignedUpload = jest.fn<void, []>();
+  return {
+    // type-coverage:ignore-next-line
+    fetchWithAuth,
+    API_ENDPOINTS: {
+      INSTRUCTOR_PROFILE: '/instructors/me',
+      ME: '/me',
+      NYC_ZIP_CHECK: '/zip-check',
+    },
+    // type-coverage:ignore-next-line
+    getConnectStatus,
+    // type-coverage:ignore-next-line
+    createStripeIdentitySession,
+    // type-coverage:ignore-next-line
+    createSignedUpload,
+  };
+});
 
 import { render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
