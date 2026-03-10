@@ -132,8 +132,8 @@ def override_background_check_service(db, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def force_local_site_mode(monkeypatch):
-    monkeypatch.setenv("SITE_MODE", "local")
+def force_test_site_mode(monkeypatch):
+    monkeypatch.setenv("SITE_MODE", "int")
 
 
 @pytest.fixture(autouse=True)
