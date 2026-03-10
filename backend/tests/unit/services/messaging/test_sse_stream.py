@@ -8,6 +8,7 @@ Tests:
 - Heartbeat injection
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import json
@@ -445,6 +446,92 @@ class TestSseStreamFailures:
         with pytest.raises(ValueError):
             async for _event in create_sse_stream("01USER", missed_messages=None):
                 pass
+
+    @pytest.mark.asyncio
+    async def test_stream_client_disconnects_cleanly_during_live_event(self, monkeypatch) -> None:
+        class FakeEvent:
+            def __init__(self, message: str) -> None:
+                self.message = message
+
+        class OneMessageSubscriber:
+            def __init__(self) -> None:
+                self._sent = False
+
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                if self._sent:
+                    await asyncio.sleep(3600)
+                self._sent = True
+                return FakeEvent(
+                    json.dumps(
+                        {
+                            "type": "new_message",
+                            "payload": {
+                                "message": {
+                                    "id": "MSG_01",
+                                    "sender_id": "OTHER_USER",
+                                    "content": "hello",
+                                }
+                            },
+                        }
+                    )
+                )
+
+        cleanup = {"exited": False}
+
+        @asynccontextmanager
+        async def fake_subscribe(channel: str):
+            try:
+                yield OneMessageSubscriber()
+            finally:
+                cleanup["exited"] = True
+
+        mock_broadcast = MagicMock()
+        mock_broadcast.subscribe = fake_subscribe
+        monkeypatch.setattr("app.services.messaging.sse_stream.get_broadcast", lambda: mock_broadcast)
+
+        stream = create_sse_stream("01USER", missed_messages=None)
+        connected = await anext(stream)
+        live_event = await anext(stream)
+        await stream.aclose()
+
+        assert connected["event"] == "connected"
+        assert live_event["event"] == "new_message"
+        assert cleanup["exited"] is True
+
+    @pytest.mark.asyncio
+    async def test_stream_client_disconnects_cleanly_during_heartbeat(self, monkeypatch) -> None:
+        class HangingSubscriber:
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                await asyncio.sleep(3600)
+
+        cleanup = {"exited": False}
+
+        @asynccontextmanager
+        async def fake_subscribe(channel: str):
+            try:
+                yield HangingSubscriber()
+            finally:
+                cleanup["exited"] = True
+
+        mock_broadcast = MagicMock()
+        mock_broadcast.subscribe = fake_subscribe
+        monkeypatch.setattr("app.services.messaging.sse_stream.get_broadcast", lambda: mock_broadcast)
+        monkeypatch.setattr("app.services.messaging.sse_stream.HEARTBEAT_INTERVAL", 0.01)
+
+        stream = create_sse_stream("01USER", missed_messages=None)
+        connected = await anext(stream)
+        heartbeat = await anext(stream)
+        await stream.aclose()
+
+        assert connected["event"] == "connected"
+        assert heartbeat["event"] == "heartbeat"
+        assert cleanup["exited"] is True
 
 
 class TestPublishToUser:

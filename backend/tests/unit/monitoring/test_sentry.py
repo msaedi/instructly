@@ -66,7 +66,7 @@ def test_init_sentry_enabled_when_dsn_set(monkeypatch):
     assert kwargs["release"] == "gitsha"
     assert kwargs["send_default_pii"] is True
     assert kwargs["traces_sample_rate"] == 0.0
-    assert kwargs["traces_sampler"] is None
+    assert kwargs["traces_sampler"] is sentry_module._traces_sampler
     assert kwargs["profiles_sample_rate"] == sentry_module.DEFAULT_PROFILES_SAMPLE_RATE
     assert kwargs["enable_logs"] is True
     assert kwargs["integrations"] == [mock_logging_instance, mock_instance, mock_celery_instance]
@@ -226,6 +226,12 @@ def test_extract_otel_trace_id_returns_value_when_enabled():
             assert sentry_module._extract_otel_trace_id() == "trace-live"
 
 
+def test_extract_otel_trace_id_handles_runtime_failure():
+    with patch("app.monitoring.otel.is_otel_enabled", return_value=True):
+        with patch("app.monitoring.otel.get_current_trace_id", side_effect=RuntimeError("boom")):
+            assert sentry_module._extract_otel_trace_id() is None
+
+
 def test_init_sentry_disabled_when_sdk_missing(monkeypatch):
     monkeypatch.setenv("SENTRY_DSN", "https://example@o0.ingest.sentry.io/0")
     original_sdk = sentry_module.sentry_sdk
@@ -372,4 +378,38 @@ async def test_sentry_context_middleware_passthrough_for_non_http(monkeypatch):
     )
 
     await middleware({"type": "lifespan"}, lambda: None, lambda: None)
+    assert called["app"] is True
+
+
+@pytest.mark.asyncio
+async def test_sentry_context_middleware_tolerates_otel_runtime_failure(monkeypatch):
+    called = {"app": False}
+
+    async def app(scope, receive, send):
+        called["app"] = True
+
+    class DummyScopeWithProcessor(DummyScope):
+        def add_event_processor(self, processor):
+            self.processor = processor
+
+    @contextmanager
+    def configure_scope():
+        yield DummyScopeWithProcessor()
+
+    middleware = sentry_module.SentryContextMiddleware(app)
+    monkeypatch.setattr(sentry_module, "is_sentry_configured", lambda: True)
+    monkeypatch.setattr(
+        sentry_module,
+        "sentry_sdk",
+        SimpleNamespace(configure_scope=configure_scope),
+    )
+
+    with patch("app.monitoring.otel.is_otel_enabled", return_value=True):
+        with patch("app.monitoring.otel.get_current_trace_id", side_effect=RuntimeError("trace boom")):
+            await middleware(
+                {"type": "http", "method": "GET", "path": "/api/v1/bookings", "headers": []},
+                lambda: None,
+                lambda: None,
+            )
+
     assert called["app"] is True

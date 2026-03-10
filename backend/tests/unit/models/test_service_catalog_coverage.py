@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import (
@@ -246,6 +247,30 @@ def test_instructor_service_fallbacks() -> None:
     assert service.category_slug == "unknown"
 
 
+def test_instructor_service_partial_hierarchy_falls_back_cleanly() -> None:
+    subcategory = _make_subcategory()
+    catalog = ServiceCatalog(
+        id="svc-partial",
+        subcategory_id="sub",
+        name="Voice Lessons",
+        slug="voice-lessons",
+        is_active=True,
+    )
+    catalog.subcategory = subcategory
+
+    service = InstructorService(
+        id="is-partial",
+        instructor_profile_id="ip-partial",
+        service_catalog_id="svc-partial",
+        format_prices=[{"format": "online", "hourly_rate": 90.0}],
+        is_active=True,
+    )
+    service.catalog_entry = catalog
+
+    assert service.category == "Unknown"
+    assert service.category_slug == "unknown"
+
+
 def test_service_catalog_default_eligible_age_groups() -> None:
     """ORM insert-default for eligible_age_groups is kids/teens/adults."""
     col = ServiceCatalog.__table__.c.eligible_age_groups
@@ -271,3 +296,33 @@ def test_service_analytics_scores() -> None:
 
     analytics.search_count_30d = 0
     assert analytics.demand_score == 0.0
+
+
+def test_service_analytics_price_rounding_and_none_setters() -> None:
+    analytics = ServiceAnalytics(service_catalog_id="svc")
+
+    analytics.avg_price_booked = 12.346
+    analytics.price_percentile_25 = 9.994
+    analytics.price_percentile_50 = None
+    analytics.price_percentile_75 = 15.556
+
+    assert analytics.avg_price_booked_cents == 1235
+    assert analytics.price_percentile_25_cents == 999
+    assert analytics.price_percentile_50_cents == 0
+    assert analytics.price_percentile_75_cents == 1556
+    assert analytics.avg_price_booked == 12.35
+    assert analytics.price_percentile_25 == 9.99
+    assert analytics.price_percentile_50 == 0.0
+    assert analytics.price_percentile_75 == 15.56
+
+
+def test_instructor_service_session_price_returns_decimal() -> None:
+    service = InstructorService(
+        id="is-decimal",
+        instructor_profile_id="ip-decimal",
+        service_catalog_id="svc-decimal",
+        format_prices=[{"format": "online", "hourly_rate": 125.0}],
+        is_active=True,
+    )
+
+    assert service.session_price(45, "online") == Decimal("93.75")

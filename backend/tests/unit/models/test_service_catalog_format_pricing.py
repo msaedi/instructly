@@ -238,3 +238,61 @@ def test_coerce_format_price_row_rejects_empty_format(unit_db):
         service._coerce_format_price_row(
             "format_prices", {"format": "", "hourly_rate": 100}
         )
+
+
+@pytest.mark.unit
+def test_coerce_format_price_row_dict_coerces_decimal_rate(unit_db):
+    """Dict input should become a canonical child model with normalized cents."""
+    db = unit_db
+    service = _setup_instructor_service(db)
+
+    row = service._coerce_format_price_row(
+        "format_prices", {"format": "instructor_location", "hourly_rate": "100.129"}
+    )
+
+    assert isinstance(row, ServiceFormatPrice)
+    assert row.format == "instructor_location"
+    assert row.hourly_rate == Decimal("100.13")
+
+
+@pytest.mark.unit
+def test_coerce_format_price_row_model_normalizes_existing_child(unit_db):
+    """Existing child objects should be normalized in place rather than copied."""
+    db = unit_db
+    service = _setup_instructor_service(db)
+    row = ServiceFormatPrice(format="online", hourly_rate=Decimal("95.556"))
+
+    coerced = service._coerce_format_price_row("format_prices", row)
+
+    assert coerced is row
+    assert coerced.hourly_rate == Decimal("95.56")
+
+
+@pytest.mark.unit
+def test_neutral_location_requires_physical_pricing() -> None:
+    """Neutral physical meetups must not silently fall back to online pricing."""
+    service = InstructorService(
+        id="is-online-only",
+        instructor_profile_id="ip-online-only",
+        service_catalog_id="svc-online-only",
+        format_prices=[{"format": "online", "hourly_rate": 75.0}],
+        is_active=True,
+    )
+
+    with pytest.raises(BusinessRuleException, match="neutral_location"):
+        service.hourly_rate_for_location_type("neutral_location")
+
+
+@pytest.mark.unit
+def test_session_price_unknown_format_raises_early() -> None:
+    """Unknown format requests should fail clearly instead of inventing pricing."""
+    service = InstructorService(
+        id="is-online-only",
+        instructor_profile_id="ip-online-only",
+        service_catalog_id="svc-online-only",
+        format_prices=[{"format": "online", "hourly_rate": 75.0}],
+        is_active=True,
+    )
+
+    with pytest.raises(ValueError, match="instructor_location"):
+        service.session_price(60, "instructor_location")

@@ -19,6 +19,7 @@ from app.services.search.filter_service import (
 )
 from app.services.search.location_resolver import ResolutionTier, ResolvedLocation
 from app.services.search.query_parser import ParsedQuery
+from app.services.search.retriever import ServiceCandidate
 
 
 def _make_candidate(
@@ -255,6 +256,74 @@ class TestLocationResolutionInFilterCandidates:
         # Resolve should not be called for near_me with user_location
         mock_location_resolver.resolve.assert_not_called()
 
+    @pytest.mark.asyncio
+    async def test_filter_candidates_uses_db_session_and_to_thread_without_overrides(self) -> None:
+        """The non-injected async path should initialize dependencies once and execute in to_thread."""
+        service = FilterService(region_code="nyc")
+        mock_repo = Mock()
+        mock_repo.get_lesson_type_rates.return_value = {}
+        mock_repo.filter_by_region_coverage.return_value = ["inst_001"]
+        mock_resolver = Mock()
+        mock_resolver.region_code = "nyc"
+        mock_resolver.resolve = AsyncMock(
+            return_value=ResolvedLocation(
+                region_id="reg_brooklyn",
+                region_name="Brooklyn",
+                resolved=True,
+                tier=ResolutionTier.EXACT,
+            )
+        )
+        parsed_query = ParsedQuery(
+            original_query="piano lessons in brooklyn",
+            service_query="piano lessons",
+            location_text="brooklyn",
+            location_type="neighborhood",
+            parsing_mode="regex",
+        )
+        candidates = [
+            ServiceCandidate(
+                service_id="svc_001",
+                service_catalog_id="cat_001",
+                hybrid_score=0.9,
+                vector_score=0.9,
+                text_score=0.8,
+                name="Piano Lessons",
+                description="Learn piano",
+                min_hourly_rate=60,
+                instructor_id="inst_001",
+            )
+        ]
+        captured: dict[str, object] = {}
+
+        async def _fake_to_thread(func, *args, **kwargs):
+            captured["func"] = func
+            captured["args"] = args
+            captured["kwargs"] = kwargs
+            return func(*args, **kwargs)
+
+        with patch("app.services.search.filter_service.get_db_session") as mock_get_db:
+            mock_db = Mock()
+            mock_get_db.return_value.__enter__ = Mock(return_value=mock_db)
+            mock_get_db.return_value.__exit__ = Mock(return_value=False)
+            with patch("app.services.search.filter_service.FilterRepository", return_value=mock_repo) as repo_cls:
+                with patch("app.services.search.filter_service.LocationResolver", return_value=mock_resolver) as resolver_cls:
+                    with patch("asyncio.to_thread", new=AsyncMock(side_effect=_fake_to_thread)) as to_thread:
+                        result = await service.filter_candidates(
+                            candidates=candidates,
+                            parsed_query=parsed_query,
+                            user_location=None,
+                            default_duration=60,
+                        )
+
+        repo_cls.assert_called_once_with(mock_db)
+        resolver_cls.assert_called_once_with(mock_db, region_code="nyc")
+        mock_resolver.resolve.assert_awaited_once()
+        to_thread.assert_awaited_once()
+        assert captured["func"] == service._filter_candidates_core
+        assert result.location_resolution is not None
+        assert result.location_resolution.region_id == "reg_brooklyn"
+        assert result.filter_stats["after_location"] == 1
+
 
 class TestApplyLocationHardFunction:
     """Tests for _apply_location_hard inner function (lines 671-690)."""
@@ -387,6 +456,152 @@ class TestApplyLocationSoftFunction:
 
         # Should include the instructor within soft distance
         assert len(result.candidates) >= 0
+
+    def test_unresolved_location_skips_filtering_and_logs_once(
+        self, filter_service: FilterService, mock_repository: Mock, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        candidates = [
+            _make_candidate("svc_001", "inst_001"),
+            _make_candidate("svc_002", "inst_002"),
+        ]
+        parsed_query = ParsedQuery(
+            original_query="yoga in atlantis",
+            service_query="yoga",
+            location_text="atlantis",
+            location_type="neighborhood",
+            parsing_mode="regex",
+        )
+        location_resolution = ResolvedLocation.from_not_found()
+
+        with caplog.at_level("INFO"):
+            result = filter_service._filter_candidates_core(
+                candidates=candidates,
+                parsed_query=parsed_query,
+                user_location=None,
+                default_duration=60,
+                location_resolution=location_resolution,
+            )
+
+        assert [candidate.service_id for candidate in result.candidates] == ["svc_001", "svc_002"]
+        assert result.location_resolution is location_resolution
+        mock_repository.filter_by_region_coverage.assert_not_called()
+        mock_repository.filter_by_any_region_coverage.assert_not_called()
+        mock_repository.filter_by_parent_region.assert_not_called()
+        assert "skipping location filter" in caplog.text
+
+
+class TestAdditionalSoftFilteringBehavior:
+    def test_unknown_lesson_type_warns_and_preserves_candidates(
+        self,
+        filter_service: FilterService,
+        mock_repository: Mock,
+        sample_candidates: list[FilteredCandidate],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        with caplog.at_level("WARNING"):
+            result = filter_service._filter_lesson_type(sample_candidates, "hybrid")
+
+        assert result == sample_candidates
+        mock_repository.get_lesson_type_rates.assert_not_called()
+        assert "Unknown lesson_type" in caplog.text
+
+    def test_soft_filtering_dedupes_ambiguous_region_ids_before_distance_lookup(
+        self, filter_service: FilterService, mock_repository: Mock
+    ) -> None:
+        candidates = [
+            ServiceCandidate(
+                service_id=f"svc_{index}",
+                service_catalog_id=f"cat_{index}",
+                hybrid_score=1.0,
+                vector_score=1.0,
+                text_score=0.9,
+                name=f"Lesson {index}",
+                description=None,
+                min_hourly_rate=50,
+                instructor_id=f"inst_{index}",
+            )
+            for index in range(5)
+        ]
+        parsed_query = ParsedQuery(
+            original_query="math tutor in ues",
+            service_query="math tutor",
+            location_text="ues",
+            location_type="neighborhood",
+            parsing_mode="regex",
+        )
+        location_resolution = ResolvedLocation.from_ambiguous(
+            candidates=[
+                {"region_id": "reg_1"},
+                {"region_id": "reg_1"},
+                {"region_id": "reg_2"},
+            ],
+            tier=ResolutionTier.FUZZY,
+            confidence=0.7,
+        )
+        mock_repository.filter_by_any_region_coverage.return_value = []
+        mock_repository.get_instructor_min_distance_to_regions.return_value = {
+            f"inst_{index}": 800 for index in range(5)
+        }
+
+        filtered, relaxed = filter_service._apply_soft_filtering(
+            original_candidates=candidates,
+            parsed_query=parsed_query,
+            user_location=None,
+            location_resolution=location_resolution,
+            duration_minutes=60,
+            strict_service_ids=set(),
+            filter_stats={"after_location": 0},
+        )
+
+        assert len(filtered) == 5
+        assert relaxed == ["location"]
+        hard_call = mock_repository.filter_by_any_region_coverage.call_args
+        soft_call = mock_repository.get_instructor_min_distance_to_regions.call_args
+        assert set(hard_call.args[0]) == {f"inst_{index}" for index in range(5)}
+        assert hard_call.args[1] == ["reg_1", "reg_2"]
+        assert set(soft_call.args[0]) == {f"inst_{index}" for index in range(5)}
+        assert soft_call.args[1] == ["reg_1", "reg_2"]
+
+    def test_soft_filtering_without_location_constraint_never_calls_location_relaxation(
+        self, filter_service: FilterService, mock_repository: Mock
+    ) -> None:
+        candidates = [
+            ServiceCandidate(
+                service_id=f"svc_{index}",
+                service_catalog_id=f"cat_{index}",
+                hybrid_score=1.0,
+                vector_score=1.0,
+                text_score=0.8,
+                name=f"Lesson {index}",
+                description=None,
+                min_hourly_rate=price,
+                instructor_id=f"inst_{index}",
+            )
+            for index, price in enumerate([50, 55, 60, 65, 70, 80], start=1)
+        ]
+        parsed_query = ParsedQuery(
+            original_query="budget piano tutor",
+            service_query="piano tutor",
+            max_price=60,
+            parsing_mode="regex",
+        )
+
+        filtered, relaxed = filter_service._apply_soft_filtering(
+            original_candidates=candidates,
+            parsed_query=parsed_query,
+            user_location=None,
+            location_resolution=None,
+            duration_minutes=60,
+            strict_service_ids={"svc_1", "svc_2", "svc_3"},
+            filter_stats={},
+        )
+
+        assert len(filtered) == 5
+        assert relaxed == ["price"]
+        mock_repository.filter_by_location.assert_not_called()
+        mock_repository.filter_by_location_soft.assert_not_called()
+        mock_repository.filter_by_region_coverage.assert_not_called()
+        mock_repository.get_instructor_min_distance_to_regions.assert_not_called()
 
 
 class TestAvailabilityFilter:

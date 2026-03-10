@@ -256,3 +256,38 @@ def test_normalized_values_empty_after_cleanup_are_dropped(monkeypatch) -> None:
         filter_definitions=[_definition(key="course_level", options=[("ap", "AP")])],
     )
     assert inferred == {}
+
+
+def test_normalize_filter_values_drops_blanks_and_case_duplicates() -> None:
+    normalized = extractor._normalize_filter_values([" AP ", "", "ap", "Honors", "honors", "   "])
+
+    assert normalized == ["ap", "honors"]
+
+
+def test_build_phrase_index_uses_display_name_synonyms_and_skips_empty_normalized_phrases() -> None:
+    phrase_index = extractor._build_phrase_index(
+        [
+            _definition(key="goal", options=[("test_prep", "Test Prep")]),
+            {
+                "filter_key": "goal",
+                "options": [
+                    {"value": "!!!", "display_name": "   "},
+                ],
+            },
+        ]
+    )
+
+    assert phrase_index["test prep"] == {("goal", "test_prep")}
+    assert phrase_index["test prep"] == phrase_index[extractor._normalize_phrase("Test Prep")]
+    assert "" not in phrase_index
+
+
+def test_extract_inferred_filters_dedupes_repeated_phrase_matches() -> None:
+    inferred = extract_inferred_filters(
+        original_query="test prep test prep tutor",
+        filter_definitions=[
+            _definition(key="goal", options=[("test_prep", "Test Prep")]),
+        ],
+    )
+
+    assert inferred == {"goal": ["test_prep"]}

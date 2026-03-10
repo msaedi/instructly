@@ -498,3 +498,81 @@ class TestDispatchPending:
                 result = dispatch_pending()
 
                 assert result == 0
+
+
+class TestDeliverEvent:
+    """Target terminal failure bookkeeping in deliver_event."""
+
+    def test_deliver_event_generic_error_terminal_marks_failed_without_retry(self):
+        from app.tasks.notification_tasks import deliver_event
+
+        event = MagicMock(
+            id="event-terminal",
+            event_type="booking.created",
+            payload={"booking_id": "booking-1"},
+            idempotency_key="booking:booking-1:created",
+            attempt_count=MAX_DELIVERY_ATTEMPTS - 1,
+        )
+        session = MagicMock()
+        repo = MagicMock()
+        repo.get_by_id.return_value = event
+
+        with patch("app.tasks.notification_tasks.SessionLocal", return_value=session):
+            with patch("app.tasks.notification_tasks.EventOutboxRepository", return_value=repo):
+                with patch("app.tasks.notification_tasks.NotificationProvider") as provider_cls:
+                    provider_cls.return_value.send.side_effect = RuntimeError("provider exploded")
+                    with patch("app.tasks.notification_tasks.PrometheusMetrics") as metrics:
+                        with patch("app.tasks.notification_tasks.logger") as mock_logger:
+                            with patch.object(
+                                deliver_event,
+                                "retry",
+                                side_effect=AssertionError("retry should not be called"),
+                            ) as retry_mock:
+                                with pytest.raises(RuntimeError, match="provider exploded"):
+                                    deliver_event.run(event.id)
+
+        repo.mark_failed.assert_called_once_with(
+            event.id,
+            attempt_count=MAX_DELIVERY_ATTEMPTS,
+            backoff_seconds=BACKOFF_SECONDS[-1],
+            error="provider exploded",
+            terminal=True,
+        )
+        metrics.record_notification_attempt.assert_called_once_with(event.event_type)
+        metrics.record_notification_outcome.assert_called_once_with(event.event_type, "failed")
+        retry_mock.assert_not_called()
+        mock_logger.exception.assert_called_once()
+        session.commit.assert_called_once()
+        session.close.assert_called_once()
+
+
+class TestReminderFalseReturn:
+    """False reminder sends should not mark delivery flags."""
+
+    @patch("app.tasks.notification_tasks._send_reminder_notifications")
+    @patch("app.tasks.notification_tasks._session_scope")
+    def test_send_booking_reminders_false_1h_result_does_not_mark_sent(
+        self, mock_scope, mock_send
+    ):
+        from app.tasks.notification_tasks import send_booking_reminders
+
+        mock_session = MagicMock()
+        mock_scope.return_value.__enter__ = MagicMock(return_value=mock_session)
+        mock_scope.return_value.__exit__ = MagicMock(return_value=False)
+
+        booking = MagicMock()
+        booking.id = "01REMINDER"
+        booking.reminder_1h_sent = False
+
+        mock_session.query.return_value.options.return_value.filter.return_value.all.side_effect = [
+            [],
+            [booking],
+        ]
+        mock_send.return_value = False
+
+        result = send_booking_reminders()
+
+        assert result["reminders_24h_sent"] == 0
+        assert result["reminders_1h_sent"] == 0
+        assert booking.reminder_1h_sent is False
+        mock_session.rollback.assert_not_called()

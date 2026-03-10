@@ -238,6 +238,43 @@ def test_query_monitoring_slow_queries(monkeypatch):
     assert sent.get("alert") == 1
 
 
+def test_query_monitoring_truncates_long_query_and_preserves_full_query_thresholds(monkeypatch):
+    listeners = {}
+
+    def _listen(_engine, event_name, fn):
+        listeners[event_name] = fn
+
+    monkeypatch.setattr(monitor_module.event, "listen", _listen)
+    monitor = monitor_module.PerformanceMonitor(slow_query_threshold_ms=1)
+    long_query = "SELECT * FROM giant_table WHERE " + " OR ".join(
+        f"col_{idx} = {idx}" for idx in range(40)
+    )
+
+    captured = {}
+    monkeypatch.setattr(
+        monitor,
+        "_send_alert",
+        lambda alert_type, message, details=None: captured.update(
+            {"alert_type": alert_type, "message": message, "details": details}
+        ),
+    )
+
+    context = SimpleNamespace(_query_start_time=0.0)
+
+    monkeypatch.setattr(monitor_module.time, "time", lambda: 1.5)
+    listeners["after_cursor_execute"](None, None, long_query, None, context, False)
+    slow_query = monitor.slow_queries[-1]
+    assert slow_query["query"].endswith("...")
+    assert len(slow_query["query"]) == 203
+    assert slow_query["full_query"] == long_query
+    assert captured["details"]["full_query"] is None
+
+    monkeypatch.setattr(monitor_module.time, "time", lambda: 2.5)
+    listeners["after_cursor_execute"](None, None, long_query, None, context, False)
+    assert captured["alert_type"] == "extremely_slow_query"
+    assert captured["details"]["full_query"] == long_query
+
+
 def test_get_performance_summary(monkeypatch):
     monitor = monitor_module.PerformanceMonitor()
     monitor.db_pool_history.append({"usage_percent": 10})

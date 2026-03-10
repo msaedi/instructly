@@ -357,6 +357,39 @@ class TestDetectVideoNoShows:
     @patch("app.tasks.video_tasks.BookingService")
     @patch("app.tasks.video_tasks.RepositoryFactory")
     @patch("app.tasks.video_tasks.get_db")
+    def test_booking_deleted_under_lock_skipped(
+        self, mock_get_db, mock_factory, mock_svc_cls, mock_lock
+    ) -> None:
+        from app.tasks.video_tasks import detect_video_no_shows
+
+        mock_db = MagicMock()
+        mock_get_db.return_value = iter([mock_db])
+
+        booking = self._make_booking(start_minutes_ago=30, duration_minutes=60)
+        vs = self._make_video_session(instructor_joined=False, student_joined=True)
+
+        mock_repo = MagicMock()
+        mock_repo.get_video_no_show_candidates.return_value = [(booking, vs)]
+        mock_factory.create_booking_repository.return_value = mock_repo
+
+        mock_lock.return_value.__enter__ = MagicMock(return_value=True)
+        mock_lock.return_value.__exit__ = MagicMock(return_value=False)
+
+        # Candidate query found the booking, but it disappears before the
+        # locked re-read. The task should skip it rather than reporting a
+        # stale no-show against a deleted row.
+        mock_repo.get_by_id.return_value = None
+
+        result = detect_video_no_shows()
+
+        assert result["skipped"] >= 1
+        mock_repo.refresh.assert_not_called()
+        mock_svc_cls.return_value.report_automated_no_show.assert_not_called()
+
+    @patch("app.tasks.video_tasks.booking_lock_sync")
+    @patch("app.tasks.video_tasks.BookingService")
+    @patch("app.tasks.video_tasks.RepositoryFactory")
+    @patch("app.tasks.video_tasks.get_db")
     def test_status_changed_skipped(
         self, mock_get_db, mock_factory, mock_svc_cls, mock_lock
     ) -> None:

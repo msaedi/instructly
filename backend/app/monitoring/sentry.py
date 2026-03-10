@@ -146,7 +146,7 @@ def init_sentry() -> bool:
         integrations=integrations or None,
         send_default_pii=True,
         traces_sample_rate=0.0,
-        traces_sampler=None,
+        traces_sampler=_traces_sampler,
         profiles_sample_rate=DEFAULT_PROFILES_SAMPLE_RATE,
         enable_logs=True,
     )
@@ -169,7 +169,10 @@ def _extract_otel_trace_id() -> str | None:
         return None
     if not is_otel_enabled():
         return None
-    return get_current_trace_id()
+    try:
+        return get_current_trace_id()
+    except Exception:
+        return None
 
 
 def _extract_user_context(request: Request) -> tuple[str | None, str | None]:

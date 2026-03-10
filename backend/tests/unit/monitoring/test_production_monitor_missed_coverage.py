@@ -149,32 +149,25 @@ class TestPerformanceMonitorMissedLines:
 @pytest.mark.asyncio
 async def test_periodic_health_check_stale_count(monkeypatch) -> None:
     """Lines 440-445: periodic_health_check when stale_count > 0."""
+    from app.monitoring import production_monitor as monitor_module
 
-    with patch("app.monitoring.production_monitor.event"):
-        from app.monitoring.production_monitor import PerformanceMonitor
+    fake_monitor = MagicMock()
+    fake_monitor.cleanup_stale_requests.return_value = 3
+    monkeypatch.setattr(monitor_module, "monitor", fake_monitor)
 
-        mon = PerformanceMonitor()
+    async def _stop_after_one_iteration(_seconds: int) -> None:
+        raise RuntimeError("stop-loop")
 
+    monkeypatch.setattr(monitor_module.asyncio, "sleep", _stop_after_one_iteration)
 
-    def mock_check_db_pool_health():
-        return {"usage_percent": 5.0}
+    with patch.object(monitor_module.logger, "warning") as warning_log:
+        with pytest.raises(RuntimeError, match="stop-loop"):
+            await monitor_module.periodic_health_check()
 
-    def mock_check_memory_usage():
-        return {"percent": 10.0}
-
-    def mock_cleanup():
-        return 3  # 3 stale requests
-
-    monkeypatch.setattr(mon, "check_db_pool_health", mock_check_db_pool_health)
-    monkeypatch.setattr(mon, "check_memory_usage", mock_check_memory_usage)
-    monkeypatch.setattr(mon, "cleanup_stale_requests", mock_cleanup)
-
-    # We can't easily test the infinite loop, but we can test the function body
-    # by running one iteration manually
-    mon.check_db_pool_health()
-    mon.check_memory_usage()
-    stale_count = mon.cleanup_stale_requests()
-    assert stale_count == 3
+    fake_monitor.check_db_pool_health.assert_called_once()
+    fake_monitor.check_memory_usage.assert_called_once()
+    fake_monitor.cleanup_stale_requests.assert_called_once()
+    warning_log.assert_called_once_with("Cleaned up 3 stale requests")
 
 
 # ──────────────────────────────────────────────────────────────
