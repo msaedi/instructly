@@ -243,7 +243,7 @@ export function useAvailability(): UseAvailabilityReturn {
             );
           }
           const conflictVersion =
-            responseJson && 'current_version' in responseJson
+            responseJson && typeof responseJson === 'object' && 'current_version' in responseJson
               ? responseJson.current_version
               : undefined;
           const serverVersion = typeof conflictVersion === 'string' ? conflictVersion : responseEtag;
@@ -256,7 +256,7 @@ export function useAvailability(): UseAvailabilityReturn {
           let message: string;
           const isVersionConflict =
             status === 409 ||
-            (responseJson && 'error' in responseJson && responseJson.error === 'version_conflict');
+            (responseJson && typeof responseJson === 'object' && 'error' in responseJson && responseJson.error === 'version_conflict');
           if (isVersionConflict) {
             message = 'Week availability changed in another session.';
           } else {

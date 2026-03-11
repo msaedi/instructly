@@ -2107,4 +2107,54 @@ describe('useAvailability', () => {
       expect(mockWeekScheduleState.refreshSchedule).toHaveBeenCalled();
     });
   });
+
+  describe('extractErrorMessage — non-Record truthy error', () => {
+    it('returns fallback when error response JSON is a bare string', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        headers: { get: () => null },
+        clone() { return { json: () => Promise.resolve('plain string error') }; },
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: OperationResult;
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      expect(saveResult?.success).toBe(false);
+      expect(saveResult?.message).toContain('Failed to save availability');
+    });
+  });
+
+  describe('computeBitsDelta — sparse byte arrays', () => {
+    it('handles byte arrays shorter than 6 elements', async () => {
+      // Create a Uint8Array with only 3 elements (shorter than the 6-element loop)
+      const shortBits = new Uint8Array([0b11111111, 0b11111111, 0b11111111]);
+      const fullBits = new Uint8Array([0b11111111, 0b11111111, 0b11111111, 0, 0, 0]);
+
+      mockWeekScheduleState.savedWeekBits = { '2025-01-13': shortBits } as unknown as WeekBits;
+      mockWeekScheduleState.weekBits = { '2025-01-13': fullBits } as unknown as WeekBits;
+
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: { success: boolean; message: string };
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      expect(saveResult!.success).toBe(true);
+    });
+  });
 });
