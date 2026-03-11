@@ -76,6 +76,7 @@ def upgrade() -> None:
             server_default=sa.func.now(),
         ),
         sa.PrimaryKeyConstraint("instructor_id", "day_date"),
+        sa.CheckConstraint("length(bits) = 36", name="ck_bits_length"),
     )
     op.create_index(
         "ix_avail_days_instructor_date",
@@ -695,19 +696,19 @@ def upgrade() -> None:
               END IF;
 
               v_start_slot := COALESCE(
-                (EXTRACT(HOUR FROM p_time_after)::INT * 2) + (EXTRACT(MINUTE FROM p_time_after)::INT / 30),
+                (EXTRACT(HOUR FROM p_time_after)::INT * 12) + (EXTRACT(MINUTE FROM p_time_after)::INT / 5),
                 0
               );
               v_end_slot := COALESCE(
-                (EXTRACT(HOUR FROM p_time_before)::INT * 2) + (EXTRACT(MINUTE FROM p_time_before)::INT / 30) - 1,
-                47
+                (EXTRACT(HOUR FROM p_time_before)::INT * 12) + (EXTRACT(MINUTE FROM p_time_before)::INT / 5) - 1,
+                287
               );
 
-              v_duration_slots := CEIL(p_duration_minutes::FLOAT / 30);
+              v_duration_slots := CEIL(p_duration_minutes::FLOAT / 5);
 
               FOR i IN v_start_slot..v_end_slot LOOP
                 v_byte_idx := i / 8;
-                v_bit_idx := 7 - (i % 8);
+                v_bit_idx := i % 8;
                 v_bit_value := (get_byte(v_bits, v_byte_idx) >> v_bit_idx) & 1;
 
                 IF v_bit_value = 1 THEN
@@ -751,7 +752,7 @@ def upgrade() -> None:
 
               FOR i IN p_start_slot..(p_end_slot - 1) LOOP
                 v_byte_idx := i / 8;
-                v_bit_idx := 7 - (i % 8);
+                v_bit_idx := i % 8;
                 v_mask := 255 - (1 << v_bit_idx);
                 v_bits := set_byte(v_bits, v_byte_idx, get_byte(v_bits, v_byte_idx) & v_mask);
               END LOOP;

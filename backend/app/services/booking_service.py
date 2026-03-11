@@ -29,7 +29,12 @@ import stripe
 from ..constants.pricing_defaults import PRICING_DEFAULTS
 from ..core.bgc_policy import is_verified, must_be_verified_for_public
 from ..core.config import settings
-from ..core.constants import MIN_SESSION_DURATION
+from ..core.constants import (
+    BOOKING_START_STEP_MINUTES,
+    MIN_SESSION_DURATION,
+    MINUTES_PER_SLOT,
+    SLOTS_PER_DAY,
+)
 from ..core.enums import RoleName
 from ..core.exceptions import (
     BookingConflictException,
@@ -404,11 +409,6 @@ class BookingService(BaseService):
 
         raise ValidationException("Bookings must start and end on the same calendar day")
 
-    @staticmethod
-    def _half_hour_index(hh: int, mm: int) -> int:
-        """Map HH:MM to the half-hour slot index used by bitmap availability."""
-        return hh * 2 + (1 if mm >= 30 else 0)
-
     def _resolve_local_booking_day(
         self,
         booking_data: BookingCreate,
@@ -493,6 +493,26 @@ class BookingService(BaseService):
             raise ValueError(f"Booking {booking.id} missing booking_end_utc")
         return cast(datetime, booking.booking_end_utc)
 
+    def _check_bits_coverage(
+        self,
+        instructor_id: str,
+        day: date,
+        start_index: int,
+        end_index: int,
+    ) -> bool:
+        """Return True if every bit in [start_index, end_index) is set."""
+        repo = getattr(self, "availability_repository", None)
+        if repo is None or not hasattr(repo, "get_day_bits"):
+            repo = AvailabilityDayRepository(self.db)
+        bits = repo.get_day_bits(instructor_id, day) or b""
+
+        for idx in range(start_index, end_index):
+            byte_i = idx // 8
+            bit_mask = 1 << (idx % 8)
+            if byte_i >= len(bits) or (bits[byte_i] & bit_mask) == 0:
+                return False
+        return True
+
     def _validate_against_availability_bits(
         self,
         booking_data: BookingCreate,
@@ -505,27 +525,30 @@ class BookingService(BaseService):
                 "Start and end time must be specified for availability checks"
             )
 
-        start_index = self._half_hour_index(start_time_value.hour, start_time_value.minute)
-        midnight = time(0, 0)
-        if end_time_value == midnight and start_time_value != midnight:
-            end_index = 48
-        else:
-            end_index = self._half_hour_index(end_time_value.hour, end_time_value.minute)
+        # Enforce 15-minute booking boundary
+        start_minutes = time_to_minutes(start_time_value)
+        if start_minutes % BOOKING_START_STEP_MINUTES != 0:
+            raise BusinessRuleException(
+                f"Booking start time must be on a {BOOKING_START_STEP_MINUTES}-minute boundary",
+                code="INVALID_START_TIME",
+            )
 
-        if not (0 <= start_index < 48) or not (0 < end_index <= 48) or start_index >= end_index:
+        start_index = start_minutes // MINUTES_PER_SLOT
+        end_minutes = time_to_minutes(end_time_value, is_end_time=True)
+        end_index = end_minutes // MINUTES_PER_SLOT
+
+        if (
+            not (0 <= start_index < SLOTS_PER_DAY)
+            or not (0 < end_index <= SLOTS_PER_DAY)
+            or start_index >= end_index
+        ):
             raise BusinessRuleException("Requested time is not available")
 
         local_day = self._resolve_local_booking_day(booking_data, instructor_profile)
-        repo = getattr(self, "availability_repository", None)
-        if repo is None or not hasattr(repo, "get_day_bits"):
-            repo = AvailabilityDayRepository(self.db)
-        bits = repo.get_day_bits(booking_data.instructor_id, local_day) or b""
-
-        for idx in range(start_index, end_index):
-            byte_i = idx // 8
-            bit_mask = 1 << (idx % 8)
-            if byte_i >= len(bits) or (bits[byte_i] & bit_mask) == 0:
-                raise BusinessRuleException("Requested time is not available")
+        if not self._check_bits_coverage(
+            booking_data.instructor_id, local_day, start_index, end_index
+        ):
+            raise BusinessRuleException("Requested time is not available")
 
     def _build_conflict_details(
         self, booking_data: BookingCreate, student_id: Optional[str]
@@ -4823,6 +4846,14 @@ class BookingService(BaseService):
         Returns:
             Dictionary with availability status and details
         """
+        # Enforce 15-minute booking boundary
+        start_minutes = time_to_minutes(start_time)
+        if start_minutes % BOOKING_START_STEP_MINUTES != 0:
+            return {
+                "available": False,
+                "reason": f"Start time must be on a {BOOKING_START_STEP_MINUTES}-minute boundary",
+            }
+
         # Check for conflicts
         has_conflict = self.repository.check_time_conflict(
             instructor_id=instructor_id,
@@ -4892,6 +4923,24 @@ class BookingService(BaseService):
                     "reason": f"Must book at least {min_advance_hours} hours in advance",
                     "min_advance_hours": min_advance_hours,
                 }
+
+        # Verify bitmap availability covers the requested range
+        start_index = start_minutes // MINUTES_PER_SLOT
+        end_minutes = time_to_minutes(end_time, is_end_time=True)
+        end_index = end_minutes // MINUTES_PER_SLOT
+
+        if (
+            not (0 <= start_index < SLOTS_PER_DAY)
+            or not (0 < end_index <= SLOTS_PER_DAY)
+            or start_index >= end_index
+        ):
+            return {"available": False, "reason": "Requested time is not available"}
+
+        if not self._check_bits_coverage(instructor_id, booking_date, start_index, end_index):
+            return {
+                "available": False,
+                "reason": "Requested time is not available",
+            }
 
         return {
             "available": True,

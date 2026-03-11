@@ -271,7 +271,7 @@ def test_save_week_bits_logs_audit_enqueue_and_cache_failures(monkeypatch):
     bitmap_repo.upsert_week.return_value = 1
     service._bitmap_repo = MagicMock(return_value=bitmap_repo)
     service.transaction = MagicMock(return_value=cm)
-    service.get_week_bits = MagicMock(return_value={monday: b"\x00" * 6})
+    service.get_week_bits = MagicMock(return_value={monday: b"\x00" * 36})
     service.compute_week_version_bits = MagicMock(return_value="server-v1")
     service._week_map_from_bits = MagicMock(return_value=({}, []))
     service._persist_week_cache = MagicMock(side_effect=RuntimeError("cache write failed"))

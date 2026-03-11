@@ -30,11 +30,8 @@ from app.auth import get_password_hash  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.core.enums import RoleName
 from app.models.address import InstructorServiceArea  # noqa: E402
-from app.models.availability import (  # noqa: E402
-    AvailabilitySlot,
-    BlackoutDate,
-    InstructorAvailability,
-)
+from app.models.availability import BlackoutDate  # noqa: E402
+from app.models.availability_day import AvailabilityDay  # noqa: E402
 from app.models.booking import Booking, BookingStatus  # noqa: E402
 from app.models.instructor import InstructorPreferredPlace, InstructorProfile  # noqa: E402
 from app.models.password_reset import PasswordResetToken  # noqa: E402
@@ -46,6 +43,8 @@ from app.models.service_catalog import (  # noqa: E402
 )
 from app.models.subcategory import ServiceSubcategory  # noqa: E402
 from app.models.user import User
+from app.repositories.availability_day_repository import AvailabilityDayRepository  # noqa: E402
+from app.utils.bitset import bits_from_windows, windows_from_bits  # noqa: E402
 from app.utils.location_privacy import jitter_coordinates  # noqa: E402
 
 # Set up logging
@@ -493,15 +492,7 @@ def cleanup_database(session: Session):
     if users_to_delete_ids:
         # Delete in order to respect foreign key constraints
 
-        # 1. First clear booking_id references in availability_slots
-        slot_update_count = (
-            session.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.booking_id.isnot(None))
-            .update({"booking_id": None}, synchronize_session=False)
-        )
-        logger.info(f"Cleared {slot_update_count} booking references from availability slots")
-
-        # 2. Now we can safely delete bookings
+        # 1. Delete bookings
         booking_count = (
             session.query(Booking)
             .filter(
@@ -513,32 +504,14 @@ def cleanup_database(session: Session):
             .delete(synchronize_session=False)
         )
 
-        # 3. Get all instructor availability IDs for users to delete
-        availability_ids = (
-            session.query(InstructorAvailability.id)
-            .filter(InstructorAvailability.instructor_id.in_(users_to_delete_ids))
-            .all()
-        )
-        availability_ids = [a[0] for a in availability_ids]
-
-        # 4. Delete availability slots
-        if availability_ids:
-            slot_count = (
-                session.query(AvailabilitySlot)
-                .filter(AvailabilitySlot.availability_id.in_(availability_ids))
-                .delete(synchronize_session=False)
-            )
-        else:
-            slot_count = 0
-
-        # 5. Delete instructor availability
+        # 2. Delete bitmap availability days
         avail_count = (
-            session.query(InstructorAvailability)
-            .filter(InstructorAvailability.instructor_id.in_(users_to_delete_ids))
+            session.query(AvailabilityDay)
+            .filter(AvailabilityDay.instructor_id.in_(users_to_delete_ids))
             .delete(synchronize_session=False)
         )
 
-        # 6. Delete blackout dates
+        # 3. Delete blackout dates
         blackout_count = (
             session.query(BlackoutDate)
             .filter(BlackoutDate.instructor_id.in_(users_to_delete_ids))
@@ -584,8 +557,7 @@ def cleanup_database(session: Session):
         logger.info(f"  - Deleted {user_count} users")
         logger.info(f"  - Deleted {profile_count} instructor profiles")
         logger.info(f"  - Deleted {service_count} services")
-        logger.info(f"  - Deleted {avail_count} availability entries")
-        logger.info(f"  - Deleted {slot_count} availability slots")
+        logger.info(f"  - Deleted {avail_count} availability day entries")
         logger.info(f"  - Deleted {blackout_count} blackout dates")
         logger.info(f"  - Deleted {booking_count} bookings")
         logger.info(f"  - Deleted {token_count} password reset tokens")
@@ -595,47 +567,50 @@ def cleanup_database(session: Session):
     return excluded_ids
 
 
-def create_availability_pattern(session: Session, instructor_id: int, pattern: str, weeks_ahead: int = 12):
-    """Create availability based on pattern type."""
-    today = date.today()
+def _time_to_hhmmss(t: time) -> str:
+    """Convert a time object to 'HH:MM:00' string for bits_from_windows."""
+    return f"{t.hour:02d}:{t.minute:02d}:00"
+
+
+def create_availability_pattern(session: Session, instructor_id: str, pattern: str, weeks_ahead: int = 12):
+    """Create bitmap availability based on pattern type."""
+    today = date.today()  # tz-pattern-ok: seed script generates test data
     current_monday = today - timedelta(days=today.weekday())
+    repo = AvailabilityDayRepository(session)
 
     patterns = {
         "mornings": {
-            "days": [0, 1, 2, 3, 4, 5, 6],  # All days
-            "slots": [(time(8, 0), time(12, 0))],
+            "days": [0, 1, 2, 3, 4, 5, 6],
+            "windows": [("08:00:00", "12:00:00")],
         },
         "evenings": {
-            "days": [0, 1, 2, 3, 4],  # Weekdays
-            "slots": [(time(17, 0), time(21, 0))],
+            "days": [0, 1, 2, 3, 4],
+            "windows": [("17:00:00", "21:00:00")],
         },
         "early_bird": {
-            "days": [0, 1, 2, 3, 4],  # Weekdays
-            "slots": [
-                (time(6, 0), time(9, 0)),
-                (time(12, 0), time(13, 0)),
-            ],  # Early morning + lunch
+            "days": [0, 1, 2, 3, 4],
+            "windows": [("06:00:00", "09:00:00"), ("12:00:00", "13:00:00")],
         },
         "weekends": {
-            "days": [5, 6],  # Saturday, Sunday
-            "slots": [(time(9, 0), time(17, 0))],
+            "days": [5, 6],
+            "windows": [("09:00:00", "17:00:00")],
         },
         "business_hours": {
-            "days": [0, 1, 2, 3, 4],  # Weekdays
-            "slots": [(time(9, 0), time(17, 0))],
+            "days": [0, 1, 2, 3, 4],
+            "windows": [("09:00:00", "17:00:00")],
         },
         "afternoons": {
-            "days": [0, 1, 2, 3, 4, 5],  # Mon-Sat
-            "slots": [(time(13, 0), time(18, 0))],
+            "days": [0, 1, 2, 3, 4, 5],
+            "windows": [("13:00:00", "18:00:00")],
         },
         "evenings_weekends": {
-            "days": [0, 1, 2, 3, 4],  # Weekday evenings
-            "slots": [(time(18, 0), time(21, 0))],
-            "weekend_slots": [(time(10, 0), time(16, 0))],  # Weekend days
+            "days": [0, 1, 2, 3, 4],
+            "windows": [("18:00:00", "21:00:00")],
+            "weekend_windows": [("10:00:00", "16:00:00")],
         },
-        "flexible": {"random": True},  # Will generate random availability
-        "variable": {"random": True, "sparse": True},  # Less dense random availability
-        "mixed": {"random": True, "mixed": True},  # Mix of patterns
+        "flexible": {"random": True},
+        "variable": {"random": True, "sparse": True},
+        "mixed": {"random": True, "mixed": True},
     }
 
     pattern_config = patterns.get(pattern, patterns["flexible"])
@@ -643,9 +618,7 @@ def create_availability_pattern(session: Session, instructor_id: int, pattern: s
     for week_offset in range(weeks_ahead):
         week_start = current_monday + timedelta(weeks=week_offset)
 
-        # Add some randomness - occasionally skip weeks or modify pattern
-        if random.random() < 0.1:  # 10% chance to skip a week (vacation, etc.)
-            # Create a blackout for one random day
+        if random.random() < 0.1:
             blackout_day = week_start + timedelta(days=random.randint(0, 6))
             if blackout_day > today:
                 blackout = BlackoutDate(
@@ -656,100 +629,57 @@ def create_availability_pattern(session: Session, instructor_id: int, pattern: s
                 session.add(blackout)
             continue
 
+        items = []
+
         if pattern_config.get("random"):
-            # Generate random availability
             for day_offset in range(7):
                 current_date = week_start + timedelta(days=day_offset)
-
                 if current_date <= today:
                     continue
-
-                # Random chance of being available
                 if pattern_config.get("sparse") and random.random() < 0.6:
                     continue
                 elif not pattern_config.get("sparse") and random.random() < 0.3:
                     continue
 
-                # Create availability entry
-                availability = InstructorAvailability(instructor_id=instructor_id, date=current_date, is_cleared=False)
-                session.add(availability)
-                session.flush()
-
-                # Add random time slots
                 if pattern_config.get("mixed"):
-                    # Mix of different slot types
                     slot_type = random.choice(["morning", "afternoon", "evening"])
                     if slot_type == "morning":
-                        slots = [
-                            (
-                                time(random.randint(7, 9), 0),
-                                time(random.randint(10, 12), 0),
-                            )
-                        ]
+                        windows = [(_time_to_hhmmss(time(random.randint(7, 9), 0)), _time_to_hhmmss(time(random.randint(10, 12), 0)))]
                     elif slot_type == "afternoon":
-                        slots = [
-                            (
-                                time(random.randint(12, 14), 0),
-                                time(random.randint(15, 17), 0),
-                            )
-                        ]
+                        windows = [(_time_to_hhmmss(time(random.randint(12, 14), 0)), _time_to_hhmmss(time(random.randint(15, 17), 0)))]
                     else:
-                        slots = [
-                            (
-                                time(random.randint(17, 19), 0),
-                                time(random.randint(20, 21), 0),
-                            )
-                        ]
+                        windows = [(_time_to_hhmmss(time(random.randint(17, 19), 0)), _time_to_hhmmss(time(random.randint(20, 21), 0)))]
                 else:
-                    # Random slots throughout the day
-                    num_slots = random.randint(1, 3)
-                    slots = []
+                    num_windows = random.randint(1, 3)
+                    windows = []
                     start_hour = 8
-                    for _ in range(num_slots):
+                    for _ in range(num_windows):
                         duration = random.choice([1, 2, 3])
                         if start_hour + duration <= 20:
-                            slots.append((time(start_hour, 0), time(start_hour + duration, 0)))
+                            windows.append((_time_to_hhmmss(time(start_hour, 0)), _time_to_hhmmss(time(start_hour + duration, 0))))
                             start_hour += duration + random.randint(1, 2)
 
-                for start_time, end_time in slots:
-                    slot = AvailabilitySlot(
-                        availability_id=availability.id,
-                        start_time=start_time,
-                        end_time=end_time,
-                    )
-                    session.add(slot)
+                items.append((current_date, bits_from_windows(windows)))
         else:
-            # Use defined pattern
             days = pattern_config["days"]
-            slots = pattern_config["slots"]
+            windows = pattern_config["windows"]
 
             for day_offset in days:
                 current_date = week_start + timedelta(days=day_offset)
-
                 if current_date <= today:
                     continue
-
-                # Add slight randomness - 5% chance to skip
                 if random.random() < 0.05:
                     continue
 
-                availability = InstructorAvailability(instructor_id=instructor_id, date=current_date, is_cleared=False)
-                session.add(availability)
-                session.flush()
-
-                # Handle weekend slots for evenings_weekends pattern
                 if pattern == "evenings_weekends" and day_offset in [5, 6]:
-                    slot_list = pattern_config.get("weekend_slots", slots)
+                    day_windows = pattern_config.get("weekend_windows", windows)
                 else:
-                    slot_list = slots
+                    day_windows = windows
 
-                for start_time, end_time in slot_list:
-                    slot = AvailabilitySlot(
-                        availability_id=availability.id,
-                        start_time=start_time,
-                        end_time=end_time,
-                    )
-                    session.add(slot)
+                items.append((current_date, bits_from_windows(day_windows)))
+
+        if items:
+            repo.upsert_week(instructor_id, items)
 
     session.commit()
 
@@ -946,66 +876,42 @@ def create_booking_for_date(session, student, interests, target_date, booking_ty
     service = random.choice(matching_services)
     instructor_id = service.instructor_profile.user_id
 
-    # First, ensure availability exists for this date
-    availability = (
-        session.query(InstructorAvailability)
-        .filter(
-            InstructorAvailability.instructor_id == instructor_id,
-            InstructorAvailability.date == target_date,
-        )
-        .first()
-    )
-
-    # If no availability exists, create it
-    if not availability:
-        availability = InstructorAvailability(instructor_id=instructor_id, date=target_date, is_cleared=False)
-        session.add(availability)
-        session.flush()
-
-        # Add some time slots
-        time_slots = [
-            (time(9, 0), time(10, 0)),
-            (time(10, 30), time(11, 30)),
-            (time(14, 0), time(15, 0)),
-            (time(16, 0), time(17, 0)),
-            (time(18, 0), time(19, 0)),
+    # Ensure bitmap availability exists for this date
+    repo = AvailabilityDayRepository(session)
+    existing_bits = repo.get_day_bits(instructor_id, target_date)
+    if not existing_bits or not any(existing_bits):
+        time_windows = [
+            ("09:00:00", "10:00:00"),
+            ("10:30:00", "11:30:00"),
+            ("14:00:00", "15:00:00"),
+            ("16:00:00", "17:00:00"),
+            ("18:00:00", "19:00:00"),
         ]
-
-        for start_time, end_time in random.sample(time_slots, random.randint(2, 4)):
-            slot = AvailabilitySlot(
-                availability_id=availability.id,
-                start_time=start_time,
-                end_time=end_time,
-            )
-            session.add(slot)
+        selected = random.sample(time_windows, random.randint(2, 4))
+        repo.upsert_week(instructor_id, [(target_date, bits_from_windows(selected))])
         session.flush()
 
-    # Get available slots
-    available_slots = (
-        session.query(AvailabilitySlot)
-        .filter(
-            AvailabilitySlot.availability_id == availability.id,
-            AvailabilitySlot.booking_id.is_(None),  # Not booked
-        )
-        .all()
-    )
-
-    if not available_slots:
+    # Read back actual availability and pick a booking window from it
+    stored_bits = repo.get_day_bits(instructor_id, target_date)
+    if not stored_bits or not any(stored_bits):
         return None
-
-    # Pick a random slot
-    slot = random.choice(available_slots)
+    actual_windows = windows_from_bits(bytes(stored_bits))
+    if not actual_windows:
+        return None
+    chosen_win = random.choice(actual_windows)
+    # Parse "HH:MM:SS" strings back to time objects
+    s_parts = chosen_win[0].split(":")
+    e_parts = chosen_win[1].split(":")
+    booking_start = time(int(s_parts[0]), int(s_parts[1]))
+    booking_end = time(int(e_parts[0]), int(e_parts[1]))
 
     # Calculate booking details
     duration_minutes = _service_duration_minutes(service)
     hours = duration_minutes / 60
 
-    # Determine booking status based on type
-    date.today()
-
     if booking_type == "past":
         status = BookingStatus.COMPLETED
-        completed_at = datetime.combine(target_date, slot.end_time)  # tz-pattern-ok: seed script generates test data
+        completed_at = datetime.combine(target_date, booking_end)  # tz-pattern-ok: seed script generates test data
         cancelled_at = None
         cancelled_by = None
         cancellation_reason = None
@@ -1062,14 +968,14 @@ def create_booking_for_date(session, student, interests, target_date, booking_ty
     total_price = float(booking_rate) * hours
 
     # Create booking
-    booking_time_fields = _build_booking_time_fields(target_date, slot.start_time, slot.end_time)
+    booking_time_fields = _build_booking_time_fields(target_date, booking_start, booking_end)
     booking = Booking(
         student_id=student.id,
         instructor_id=instructor_id,
         instructor_service_id=service.id,
         booking_date=target_date,
-        start_time=slot.start_time,
-        end_time=slot.end_time,
+        start_time=booking_start,
+        end_time=booking_end,
         service_name=_service_name(service),
         hourly_rate=booking_rate,
         total_price=Decimal(str(total_price)),
@@ -1099,9 +1005,6 @@ def create_booking_for_date(session, student, interests, target_date, booking_ty
 
     session.add(booking)
     session.flush()
-
-    # Update slot to mark as booked
-    slot.booking_id = booking.id
 
     logger.info(
         f"Created {booking_type} booking: {student.full_name} -> {_service_name(service)} on {target_date} ({status}) at {location_type}"

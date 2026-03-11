@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from typing import List, Tuple
 
-# 30-min resolution → 48 slots/day
-SLOTS_PER_DAY = 48
-BYTES_PER_DAY = 6
+from app.core.constants import (
+    BYTES_PER_DAY as BYTES_PER_DAY,
+    MINUTES_PER_SLOT as MINUTES_PER_SLOT,
+    SLOTS_PER_DAY as SLOTS_PER_DAY,
+)
 
 
 def new_empty_bits() -> bytes:
@@ -24,7 +26,7 @@ def pack_indexes(indexes: List[int]) -> bytes:
 
 def unpack_indexes(bits: bytes) -> List[int]:
     if len(bits) != BYTES_PER_DAY:
-        raise ValueError("bits length must be 6 for 30-min resolution")
+        raise ValueError(f"bits length must be {BYTES_PER_DAY}")
     out: List[int] = []
     for byte_i, val in enumerate(bits):
         for bit_i in range(8):
@@ -38,7 +40,7 @@ def unpack_indexes(bits: bytes) -> List[int]:
 
 def toggle_index(bits: bytes, idx: int, value: bool) -> bytes:
     if len(bits) != BYTES_PER_DAY:
-        raise ValueError("bits length must be 6")
+        raise ValueError(f"bits length must be {BYTES_PER_DAY}")
     if not (0 <= idx < SLOTS_PER_DAY):
         raise ValueError("index out of range")
     b = bytearray(bits)
@@ -52,11 +54,10 @@ def toggle_index(bits: bytes, idx: int, value: bool) -> bytes:
 
 
 def windows_from_bits(bits: bytes) -> List[Tuple[str, str]]:
-    """Return merged half-hour windows as ('HH:MM:SS','HH:MM:SS') tuples."""
+    """Return merged windows as ('HH:MM:SS','HH:MM:SS') tuples."""
     idxs = unpack_indexes(bits)
     if not idxs:
         return []
-    # Merge consecutive indexes
     windows: List[Tuple[int, int]] = []
     start = prev = idxs[0]
     for idx in idxs[1:]:
@@ -68,7 +69,7 @@ def windows_from_bits(bits: bytes) -> List[Tuple[str, str]]:
     windows.append((start, prev + 1))
 
     def idx_to_time(i: int) -> str:
-        minutes = i * 30
+        minutes = i * MINUTES_PER_SLOT
         hh = minutes // 60
         mm = minutes % 60
         return f"{hh:02d}:{mm:02d}:00"
@@ -79,17 +80,19 @@ def windows_from_bits(bits: bytes) -> List[Tuple[str, str]]:
 def bits_from_windows(windows: List[Tuple[str, str]]) -> bytes:
     """Inverse of windows_from_bits for 'HH:MM[:SS]' strings."""
 
-    def time_to_index(t: str) -> int:
+    def time_to_index(t: str, *, is_end: bool = False) -> int:
         parts = t.split(":")
         if len(parts) < 2:
             raise ValueError(f"invalid time format: {t}")
-        hh, mm = parts[0], parts[1]
-        return int(hh) * 2 + (1 if int(mm) >= 30 else 0)
+        hh, mm = int(parts[0]), int(parts[1])
+        if is_end and hh == 0 and mm == 0:
+            return SLOTS_PER_DAY
+        return (hh * 60 + mm) // MINUTES_PER_SLOT
 
     idxs: List[int] = []
     for start, end in windows:
         s = time_to_index(start)
-        e = time_to_index(end)
+        e = time_to_index(end, is_end=True)
         if not (0 <= s <= e <= SLOTS_PER_DAY):
             raise ValueError(f"window out of bounds: {start}-{end}")
         idxs.extend(range(s, e))

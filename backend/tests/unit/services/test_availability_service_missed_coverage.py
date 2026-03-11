@@ -179,7 +179,7 @@ class TestComputeWeekVersionBits:
         monday = date(2026, 3, 16)
         bits1 = {monday + timedelta(days=i): new_empty_bits() for i in range(7)}
         bits2 = dict(bits1)
-        bits2[monday] = b"\xff" * 6  # Different data
+        bits2[monday] = b"\xff" * 36  # Different data
         v1 = svc.compute_week_version_bits(bits1)
         v2 = svc.compute_week_version_bits(bits2)
         assert v1 != v2
@@ -249,7 +249,7 @@ class TestSaveWeekBitsConflict:
         mock_today.return_value = date(2026, 3, 10)
         svc = _make_service()
         svc.get_week_bits = MagicMock(return_value={
-            date(2026, 3, 16) + timedelta(days=i): b"\x00" * 6
+            date(2026, 3, 16) + timedelta(days=i): b"\x00" * 36
             for i in range(7)
         })
         svc.compute_week_version_bits = MagicMock(return_value="current_version_hash")

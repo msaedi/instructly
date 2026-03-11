@@ -208,40 +208,6 @@ class TestCalculateAndValidateEndTime:
             )
 
 
-class TestHalfHourIndex:
-    """Test _half_hour_index helper method."""
-
-    def test_midnight(self, booking_service):
-        """Test midnight returns index 0."""
-        result = booking_service._half_hour_index(0, 0)
-        assert result == 0
-
-    def test_half_past_midnight(self, booking_service):
-        """Test 00:30 returns index 1."""
-        result = booking_service._half_hour_index(0, 30)
-        assert result == 1
-
-    def test_noon(self, booking_service):
-        """Test 12:00 returns index 24."""
-        result = booking_service._half_hour_index(12, 0)
-        assert result == 24
-
-    def test_half_past_noon(self, booking_service):
-        """Test 12:30 returns index 25."""
-        result = booking_service._half_hour_index(12, 30)
-        assert result == 25
-
-    def test_end_of_day(self, booking_service):
-        """Test 23:30 returns index 47."""
-        result = booking_service._half_hour_index(23, 30)
-        assert result == 47
-
-    def test_minutes_less_than_30(self, booking_service):
-        """Test minutes < 30 don't increment index."""
-        result = booking_service._half_hour_index(10, 15)
-        assert result == 20  # 10 * 2 + 0
-
-
 class TestResolveLocalBookingDay:
     """Test _resolve_local_booking_day helper method."""
 
@@ -1095,7 +1061,7 @@ class TestValidateAgainstAvailabilityBitsExtended:
             )
 
     def test_midnight_end_time_handling(self, booking_service, mock_repository, mock_db):
-        """Test midnight end time converts to index 48."""
+        """Test midnight end time converts to index 288."""
         booking_data = MagicMock(spec=BookingCreate)
         booking_data.instructor_id = generate_ulid()
         booking_data.booking_date = date(2026, 12, 25)
@@ -1107,7 +1073,7 @@ class TestValidateAgainstAvailabilityBitsExtended:
 
         # Create an availability repository mock
         availability_repo = MagicMock()
-        availability_repo.get_day_bits.return_value = b"\xff" * 6  # All slots available
+        availability_repo.get_day_bits.return_value = b"\xff" * 36  # All slots available
         booking_service.availability_repository = availability_repo
 
         # Should not raise

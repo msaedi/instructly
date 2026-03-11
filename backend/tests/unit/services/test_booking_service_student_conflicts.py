@@ -121,7 +121,7 @@ class TestStudentConflictValidation:
     def mock_availability_repository(self):
         """Create a mock availability repository."""
         repo = Mock()
-        repo.get_day_bits = Mock(return_value=b"\xff\xff\xff\xff\xff\xff")
+        repo.get_day_bits = Mock(return_value=b"\xff" * 36)
         return repo
 
     @pytest.fixture
@@ -458,12 +458,12 @@ class TestStudentConflictValidation:
         profile = Mock()
         booking_service._validate_booking_prerequisites = Mock(return_value=(service, profile))
 
-        # Try to book 3:59-5:00 PM (1 minute overlap)
+        # Try to book 3:45-4:45 PM (overlaps with existing 3:00-4:00)
         booking_data = BookingCreate(
             instructor_id=instructor.id,
             booking_date=date.today() + timedelta(days=1),
-            start_time=time(15, 59),  # 1 minute before existing ends
-            end_time=time(17, 0),
+            start_time=time(15, 45),  # 15 minutes before existing ends
+            end_time=time(16, 45),
             selected_duration=60,
             instructor_service_id=generate_ulid(),
             location_type="online",

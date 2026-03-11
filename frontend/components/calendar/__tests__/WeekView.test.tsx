@@ -17,7 +17,7 @@ jest.mock('@/components/availability/InteractiveGrid', () => {
 
 // Mock bitset
 jest.mock('@/lib/calendar/bitset', () => ({
-  newEmptyBits: jest.fn(() => new Uint8Array(6)),
+  newEmptyBits: jest.fn(() => new Uint8Array(36)),
 }));
 
 describe('WeekView', () => {
@@ -39,13 +39,13 @@ describe('WeekView', () => {
   ];
 
   const mockWeekBits: WeekBits = {
-    monday: new Uint8Array(6),
-    tuesday: new Uint8Array(6),
-    wednesday: new Uint8Array(6),
-    thursday: new Uint8Array(6),
-    friday: new Uint8Array(6),
-    saturday: new Uint8Array(6),
-    sunday: new Uint8Array(6),
+    monday: new Uint8Array(36),
+    tuesday: new Uint8Array(36),
+    wednesday: new Uint8Array(36),
+    thursday: new Uint8Array(36),
+    friday: new Uint8Array(36),
+    saturday: new Uint8Array(36),
+    sunday: new Uint8Array(36),
   };
 
   const defaultProps = {

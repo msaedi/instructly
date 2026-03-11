@@ -8,6 +8,14 @@ import os
 MIN_SESSION_DURATION = 30  # minutes
 MAX_SESSION_DURATION = 240  # minutes (4 hours)
 
+# Time granularity — single source of truth
+MINUTES_PER_SLOT = 5  # Bitmap storage resolution
+SLOTS_PER_DAY = 288  # 24 * 60 / 5
+BYTES_PER_DAY = 36  # ceil(288 / 8)
+BOOKING_START_STEP_MINUTES = 15  # Student booking increment
+AVAILABILITY_CELL_MINUTES = 30  # Instructor editor cell size
+BITS_PER_CELL = 6  # AVAILABILITY_CELL_MINUTES / MINUTES_PER_SLOT
+
 # SSE (Server-Sent Events) configuration
 SSE_PATH_PREFIX = "/api/v1/messages/stream"  # Centralized SSE path for middleware (v1)
 

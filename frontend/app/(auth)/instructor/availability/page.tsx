@@ -13,6 +13,7 @@ import type { WeekBits } from '@/types/availability';
 import { UserData } from '@/types/user';
 import { getWeekDates } from '@/lib/availability/dateHelpers';
 import { Calendar, ArrowLeft } from 'lucide-react';
+import { SLOTS_PER_DAY, MINUTES_PER_SLOT } from '@/lib/calendar/bitset';
 import { useEmbedded } from '../_embedded/EmbeddedContext';
 import { logger } from '@/lib/logger';
 import {
@@ -238,12 +239,12 @@ function AvailabilityPageImpl() {
 
     for (const dayBits of Object.values(weekBits)) {
       if (!dayBits) continue;
-      for (let slotIdx = 0; slotIdx < 48; slotIdx++) {
+      for (let slotIdx = 0; slotIdx < SLOTS_PER_DAY; slotIdx++) {
         const byteIdx = Math.floor(slotIdx / 8);
         const bitIdx = slotIdx % 8;
         const byteVal = dayBits[byteIdx] ?? 0;
         if ((byteVal >> bitIdx) & 1) {
-          const hour = Math.floor(slotIdx / 2);
+          const hour = Math.floor((slotIdx * MINUTES_PER_SLOT) / 60);
           minHourWithData = Math.min(minHourWithData, hour);
           maxHourWithData = Math.max(maxHourWithData, hour + 1); // +1 because slot spans the hour
         }

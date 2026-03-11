@@ -5,7 +5,7 @@ import { flushSync } from 'react-dom';
 import { X, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { logger } from '@/lib/logger';
-import { timeToMinutes } from '@/lib/time';
+import { expandDiscreteStarts } from '@/lib/time/expandDiscreteStarts';
 import { at } from '@/lib/ts/safe';
 import { publicApi } from '@/features/shared/api/client';
 import { useAuth } from '@/features/shared/hooks/useAuth';
@@ -21,7 +21,7 @@ interface AvailabilitySlot {
   end_time: string;
 }
 
-const SLOT_STEP_MINUTES = 30;
+const SLOT_STEP_MINUTES = 15;
 
 type AvailabilityByDate = Record<string, { date: string; available_slots: AvailabilitySlot[]; is_blackout: boolean }>;
 
@@ -318,25 +318,6 @@ export default function RescheduleTimeSelectionModal({
             return;
           }
           const slots = firstDateData.available_slots || [];
-          const expandDiscreteStarts = (
-            start: string,
-            end: string,
-            stepMinutes: number,
-            requiredMinutes: number
-          ): string[] => {
-            const startTotal = timeToMinutes(start);
-            const endTotal = timeToMinutes(end, { isEndTime: true });
-
-            const times: string[] = [];
-            for (let t = startTotal; t + requiredMinutes <= endTotal; t += stepMinutes) {
-              const h = Math.floor(t / 60);
-              const m = t % 60;
-              const ampm = h >= 12 ? 'pm' : 'am';
-              const displayHour = (h % 12) || 12;
-              times.push(`${displayHour}:${String(m).padStart(2, '0')}${ampm}`);
-            }
-            return times;
-          };
 
           const requiredMinutes = selectedDurationRef.current ?? 60;
           const formattedSlots = [...new Set(slots.flatMap((slot: AvailabilitySlot) =>
@@ -396,26 +377,6 @@ export default function RescheduleTimeSelectionModal({
       const dateData = availabilityData?.[date];
       if (availabilityData && dateData) {
         const slots = dateData.available_slots || [];
-
-        const expandDiscreteStarts = (
-          start: string,
-          end: string,
-          stepMinutes: number,
-          requiredMinutes: number
-        ): string[] => {
-          const startTotal = timeToMinutes(start);
-          const endTotal = timeToMinutes(end, { isEndTime: true });
-
-          const times: string[] = [];
-          for (let t = startTotal; t + requiredMinutes <= endTotal; t += stepMinutes) {
-            const h = Math.floor(t / 60);
-            const m = t % 60;
-            const ampm = h >= 12 ? 'pm' : 'am';
-            const displayHour = (h % 12) || 12;
-            times.push(`${displayHour}:${String(m).padStart(2, '0')}${ampm}`);
-          }
-          return times;
-        };
 
         const formattedSlots = [...new Set(slots.flatMap((slot: AvailabilitySlot) =>
           expandDiscreteStarts(slot.start_time, slot.end_time, SLOT_STEP_MINUTES, selectedDuration)

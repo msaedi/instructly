@@ -12,8 +12,10 @@ from app.models.booking_payment import BookingPayment
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService
 from app.models.user import User
+from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.services.booking_service import BookingService
 from app.services.timezone_service import TimezoneService
+from app.utils.bitset import bits_from_windows
 
 try:  # pragma: no cover - allow execution from backend/ or repo root
     from backend.tests.factories.booking_builders import create_booking_pg_safe
@@ -182,6 +184,12 @@ def test_immediate_auth_failure_does_not_reserve_slot(
         )
 
     db.refresh(booking)
+    # Seed full-day bitmap availability so check_availability sees bits
+    day_repo = AvailabilityDayRepository(db)
+    full_day_bits = bits_from_windows([("00:00", "24:00")])
+    day_repo.upsert_week(booking.instructor_id, [(booking.booking_date, full_day_bits)])
+    db.commit()
+
     service = _get_service(db, test_instructor)
     availability = booking_service.check_availability(
         instructor_id=booking.instructor_id,

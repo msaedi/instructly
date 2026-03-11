@@ -11,7 +11,9 @@ import pytest
 from app.core.exceptions import BusinessRuleException, ValidationException
 from app.core.ulid_helper import generate_ulid
 from app.models.booking import BookingStatus, PaymentStatus
+from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.services.booking_service import BookingService
+from app.utils.bitset import bits_from_windows
 
 REAL_DATETIME = datetime
 
@@ -263,6 +265,7 @@ def test_check_availability_available_true(booking_service: BookingService) -> N
     booking_service._resolve_booking_times_utc = Mock(
         return_value=(datetime(2030, 1, 1, 10, 0, tzinfo=timezone.utc), datetime(2030, 1, 1, 11, 0, tzinfo=timezone.utc))
     )
+    booking_service._check_bits_coverage = Mock(return_value=True)
 
     result = booking_service.check_availability(
         instructor_id=generate_ulid(),
@@ -1001,3 +1004,39 @@ def test_instructor_mark_complete_sets_notes_and_category_name(
     assert result.instructor_note == "Great job"
     _, kwargs = badge_service.return_value.check_and_award_on_lesson_completed.call_args
     assert kwargs["category_name"] == "Piano"
+
+
+# --- _check_bits_coverage fallback path ---
+
+
+def test_check_bits_coverage_fallback_creates_repo(
+    mock_db: MagicMock,
+    mock_repository: MagicMock,
+) -> None:
+    """When availability_repository is absent, _check_bits_coverage creates one."""
+    service = BookingService(
+        mock_db,
+        notification_service=MagicMock(),
+        event_publisher=MagicMock(),
+        repository=mock_repository,
+        conflict_checker_repository=MagicMock(),
+        system_message_service=MagicMock(),
+    )
+    # Ensure no availability_repository attribute
+    if hasattr(service, "availability_repository"):
+        delattr(service, "availability_repository")
+
+    full_bits = bits_from_windows([("09:00:00", "10:00:00")])
+
+    with patch.object(
+        AvailabilityDayRepository, "get_day_bits", return_value=full_bits
+    ) as mock_get:
+        result = service._check_bits_coverage(
+            instructor_id=generate_ulid(),
+            day=date(2030, 1, 1),
+            start_index=108,  # 9:00 AM
+            end_index=120,    # 10:00 AM
+        )
+
+    assert result is True
+    mock_get.assert_called_once()

@@ -4,12 +4,27 @@ import userEvent from '@testing-library/user-event';
 import InteractiveGrid from '../InteractiveGrid';
 import type { WeekBits, WeekDateInfo, DayOfWeek } from '@/types/availability';
 import type { BookedSlotPreview } from '@/types/booking';
+import { BYTES_PER_DAY, BITS_PER_CELL } from '@/lib/calendar/bitset';
 
 // Mock clsx to pass through classnames
 jest.mock('clsx', () => ({
   __esModule: true,
   default: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
+
+/** Create a Uint8Array(36) with a full 30-min cell set (6 consecutive bits starting at bitmapStart). */
+function makeCellBits(bitmapStart: number): Uint8Array {
+  const bits = new Uint8Array(BYTES_PER_DAY);
+  for (let i = 0; i < BITS_PER_CELL; i++) {
+    const slot = bitmapStart + i;
+    const byteIdx = Math.floor(slot / 8);
+    const bitIdx = slot % 8;
+    if (byteIdx < bits.length) {
+      bits[byteIdx] = (bits[byteIdx] ?? 0) | (1 << bitIdx);
+    }
+  }
+  return bits;
+}
 
 describe('InteractiveGrid', () => {
   const DAY_NAMES: DayOfWeek[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -109,13 +124,9 @@ describe('InteractiveGrid', () => {
 
     it('marks selected cells with aria-selected', () => {
       const selectedDate = mockWeekDates[0]!.fullDate;
-      const slotIndex = 18; // 9:00 AM
-      const byteIndex = Math.floor(slotIndex / 8);
-      const bitIndex = slotIndex % 8;
+      // 9:00 AM = bitmap slot 108 (9 * 12). A 30-min cell sets 6 consecutive bits.
       const weekBits: WeekBits = {
-        [selectedDate]: new Uint8Array(Array.from({ length: 180 }, (_, i) =>
-          i === byteIndex ? (1 << bitIndex) : 0
-        )),
+        [selectedDate]: makeCellBits(108),
       };
 
       render(
@@ -135,15 +146,11 @@ describe('InteractiveGrid', () => {
     });
 
     it('does not call onBitsChange when clicking already selected cell during drag', () => {
-      // Create weekBits with the first slot (slot 18 = 9:00 AM) already selected
-      // 9 AM = slot 18 (9 hours * 2)
-      const slotIndex = 18;
-      const byteIndex = Math.floor(slotIndex / 8);
-      const bitIndex = slotIndex % 8;
+      // Create weekBits with the 9:00 AM cell already selected
+      // 9 AM = bitmap slot 108 (9 * 12), 6 consecutive bits per cell
+      // 9:00 AM = bitmap slot 108. A 30-min cell sets 6 consecutive bits.
       const weekBits: WeekBits = {
-        '2030-01-07': new Uint8Array(Array.from({ length: 180 }, (_, i) =>
-          i === byteIndex ? (1 << bitIndex) : 0
-        )),
+        '2030-01-07': makeCellBits(108),
       };
 
       const onBitsChange = jest.fn();
@@ -175,13 +182,9 @@ describe('InteractiveGrid', () => {
 
     it('handles toggling off a selected cell', () => {
       // Set up with a pre-selected slot
-      const slotIndex = 18;
-      const byteIndex = Math.floor(slotIndex / 8);
-      const bitIndex = slotIndex % 8;
+      // 9:00 AM = bitmap slot 108. A 30-min cell sets 6 consecutive bits.
       const weekBits: WeekBits = {
-        '2030-01-07': new Uint8Array(Array.from({ length: 180 }, (_, i) =>
-          i === byteIndex ? (1 << bitIndex) : 0
-        )),
+        '2030-01-07': makeCellBits(108),
       };
 
       const onBitsChange = jest.fn();
@@ -988,13 +991,9 @@ describe('InteractiveGrid', () => {
 
     it('handles early return when slot already in desired state during drag', async () => {
       // Pre-select a slot
-      const slotIndex = 18; // 9:00 AM
-      const byteIndex = Math.floor(slotIndex / 8);
-      const bitIndex = slotIndex % 8;
+      // 9:00 AM = bitmap slot 108. A 30-min cell sets 6 consecutive bits.
       const weekBits: WeekBits = {
-        '2030-01-07': new Uint8Array(Array.from({ length: 180 }, (_, i) =>
-          i === byteIndex ? (1 << bitIndex) : 0
-        )),
+        '2030-01-07': makeCellBits(108),
       };
 
       const onBitsChange = jest.fn();
@@ -1106,14 +1105,9 @@ describe('InteractiveGrid', () => {
     });
 
     it('executes applyImmediate callback and returns prev when slot is already in desired state', () => {
-      // Create state with slot already selected
-      const slotIndex = 18; // 9:00 AM
-      const byteIndex = Math.floor(slotIndex / 8);
-      const bitIndex = slotIndex % 8;
+      // Create state with 9:00 AM cell already selected (bitmap slot 108, 6 bits)
       const existingState: WeekBits = {
-        '2030-01-07': new Uint8Array(Array.from({ length: 180 }, (_, i) =>
-          i === byteIndex ? (1 << bitIndex) : 0
-        )),
+        '2030-01-07': makeCellBits(108),
       };
 
       const onBitsChange = jest.fn((next: WeekBits | ((prev: WeekBits) => WeekBits)) => {
@@ -1197,7 +1191,7 @@ describe('InteractiveGrid', () => {
 
       // State with some slots already selected
       const existingState: WeekBits = {
-        '2030-01-07': new Uint8Array(180),
+        '2030-01-07': new Uint8Array(BYTES_PER_DAY),
       };
 
       let changed = false;
@@ -1339,14 +1333,9 @@ describe('InteractiveGrid', () => {
     };
 
     it('executes applyImmediate early return when clicking already selected slot', () => {
-      // Pre-select slot 18 (9:00 AM)
-      const slotIndex = 18;
-      const byteIndex = Math.floor(slotIndex / 8);
-      const bitIndex = slotIndex % 8;
+      // Pre-select 9:00 AM cell (bitmap slot 108, 6 bits)
       const initialBits: WeekBits = {
-        '2030-01-07': new Uint8Array(Array.from({ length: 180 }, (_, i) =>
-          i === byteIndex ? (1 << bitIndex) : 0
-        )),
+        '2030-01-07': makeCellBits(108),
       };
 
       render(<TestWrapper initialBits={initialBits} />);
@@ -1400,13 +1389,18 @@ describe('InteractiveGrid', () => {
     it('executes flushPending with no changes when slots already in desired state', async () => {
       jest.useRealTimers();
 
-      // Pre-select slots that we'll drag over
+      // Pre-select the first two 30-min cells (9:00 and 9:30) so drag finds them already set
+      const base = makeCellBits(108); // 9:00 AM cell (bits 108-113)
+      // Also set 9:30 AM cell (bits 114-119)
+      for (let i = 0; i < BITS_PER_CELL; i++) {
+        const slot = 114 + i;
+        const byteIdx = Math.floor(slot / 8);
+        const bitIdx = slot % 8;
+        base[byteIdx]! |= 1 << bitIdx;
+      }
       const initialBits: WeekBits = {
-        '2030-01-07': new Uint8Array(180),
+        '2030-01-07': base,
       };
-      // Set bits 18, 19, 20 (9:00, 9:30, 10:00)
-      initialBits['2030-01-07']![2] = 0b00000100; // bit 18
-      initialBits['2030-01-07']![2]! |= 0b00001000; // bit 19
 
       render(<TestWrapper initialBits={initialBits} />);
 
@@ -1537,15 +1531,11 @@ describe('InteractiveGrid', () => {
       // This can happen if there's a race condition or state mismatch.
 
       // Start with an empty weekBits prop
-      const slotIndex = 18; // 9:00 AM slot
-      const byteIndex = Math.floor(slotIndex / 8);
-      const bitIndex = slotIndex % 8;
+      // 9:00 AM cell = bitmap slot 108, 6 consecutive bits
 
-      // Create a state that already has the slot selected
+      // Create a state that already has the 9:00 AM cell selected
       const stateWithSlotSelected: WeekBits = {
-        '2030-01-07': new Uint8Array(Array.from({ length: 180 }, (_, i) =>
-          i === byteIndex ? (1 << bitIndex) : 0
-        )),
+        '2030-01-07': makeCellBits(108),
       };
 
       let earlyReturnTriggered = false;
@@ -1576,7 +1566,7 @@ describe('InteractiveGrid', () => {
       if (firstCell) {
         // Click unselected cell -> desired=true
         // But when callback runs, we pass stateWithSlotSelected where slot is already selected
-        // So isSlotSelected(current, slotIndex) === desired => true === true => early return!
+        // So isCellSelected(current, slotIndex) === desired => true === true => early return!
         fireEvent.mouseDown(firstCell);
         fireEvent.mouseUp(firstCell);
       }
@@ -1586,14 +1576,9 @@ describe('InteractiveGrid', () => {
     });
 
     it('returns prev unchanged when clicking to select an already selected slot', () => {
-      // Pre-select a slot at 9:00 AM (slotIndex 18)
-      const slotIndex = 18;
-      const byteIndex = Math.floor(slotIndex / 8);
-      const bitIndex = slotIndex % 8;
+      // Pre-select 9:00 AM cell (bitmap slot 108, 6 bits)
       const existingState: WeekBits = {
-        '2030-01-07': new Uint8Array(Array.from({ length: 180 }, (_, i) =>
-          i === byteIndex ? (1 << bitIndex) : 0
-        )),
+        '2030-01-07': makeCellBits(108),
       };
 
       const onBitsChange = jest.fn((next: WeekBits | ((prev: WeekBits) => WeekBits)) => {
@@ -1779,14 +1764,9 @@ describe('InteractiveGrid', () => {
     });
 
     it('handles changed flag correctly when some slots already match desired state', async () => {
-      // Pre-select one slot, then drag over it and adjacent slots
-      const slotIndex = 18; // 9:00 AM
-      const byteIndex = Math.floor(slotIndex / 8);
-      const bitIndex = slotIndex % 8;
+      // Pre-select 9:00 AM cell (bitmap slot 108, 6 bits), then drag over it and adjacent slots
       const initialBits: WeekBits = {
-        '2030-01-07': new Uint8Array(Array.from({ length: 180 }, (_, i) =>
-          i === byteIndex ? (1 << bitIndex) : 0
-        )),
+        '2030-01-07': makeCellBits(108),
       };
 
       const StateWrapper = ({ initial }: { initial: WeekBits }) => {
@@ -1823,12 +1803,16 @@ describe('InteractiveGrid', () => {
     });
 
     it('correctly returns prev when no actual changes occur (line 164)', async () => {
-      // All slots we'll drag over are already in the desired state
+      // All cells we'll drag over are already in the desired state
+      // Set 8:00 and 8:30 cells (bitmap slots 96-107)
+      const bits = new Uint8Array(BYTES_PER_DAY);
+      // Set all 12 bits (slots 96-107) for two full 30-min cells
+      for (let s = 96; s < 108; s++) {
+        bits[Math.floor(s / 8)] = (bits[Math.floor(s / 8)] ?? 0) | (1 << (s % 8));
+      }
       const initialBits: WeekBits = {
-        '2030-01-07': new Uint8Array(180),
+        '2030-01-07': bits,
       };
-      // Set multiple consecutive bits as selected
-      initialBits['2030-01-07']![2] = 0xFF; // Set all 8 bits in byte 2 (slots 16-23)
 
       const onBitsChange = jest.fn((next: WeekBits | ((prev: WeekBits) => WeekBits)) => {
         if (typeof next === 'function') {

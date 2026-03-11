@@ -3596,10 +3596,10 @@ describe('TimeSelectionModal', () => {
   });
 
   describe('expandDiscreteStarts — window size coverage', () => {
-    it('generates correct slots for a narrow 60-minute window with 30-min step and 60-min duration', async () => {
+    it('generates correct slots for a narrow 60-minute window with 15-min step and 30-min duration', async () => {
       const dates = [getDateString(1)];
-      // Window from 10:00-11:00 with 30-min step and 30-min required:
-      // Should yield starts at 10:00am, 10:30am
+      // Window from 10:00-11:00 with 15-min step and 30-min required:
+      // Should yield starts at 10:00am, 10:15am, 10:30am
       const narrowAvailability = {
         status: 200 as const,
         data: {
@@ -3625,8 +3625,8 @@ describe('TimeSelectionModal', () => {
       await waitFor(() => {
         const timeSlotsCount = screen.queryAllByTestId('time-slots-count');
         expect(timeSlotsCount.length).toBeGreaterThan(0);
-        // With default 30-min duration: 10:00am + 30 <= 11:00 and 10:30am + 30 <= 11:00
-        expect(Number(timeSlotsCount[0]?.textContent)).toBe(2);
+        // With default 30-min duration and 15-min step: 10:00, 10:15, 10:30 (all fit within 11:00)
+        expect(Number(timeSlotsCount[0]?.textContent)).toBe(3);
       });
     });
 
@@ -9374,7 +9374,7 @@ describe('TimeSelectionModal', () => {
 
       await waitFor(() => {
         expect(screen.getAllByTestId('selected-date')[0]).toHaveTextContent(initialDate);
-        expect(screen.getAllByTestId('time-slots-count')[0]).toHaveTextContent('6');
+        expect(screen.getAllByTestId('time-slots-count')[0]).toHaveTextContent('11');
       });
       expect(screen.getAllByTestId('selected-time')[0]).toHaveTextContent('2:00pm');
     });

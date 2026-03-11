@@ -74,7 +74,7 @@ jest.mock('@/lib/availability/dateHelpers', () => ({
 
 // Mock bitset helpers
 jest.mock('@/lib/calendar/bitset', () => ({
-  fromWindows: jest.fn(() => new Uint8Array(6)),
+  fromWindows: jest.fn(() => new Uint8Array(36)),
   toWindows: jest.fn(() => []),
 }));
 
@@ -1392,7 +1392,8 @@ describe('useAvailability', () => {
 
   describe('computeBitsDelta edge cases', () => {
     it('handles dates present only in previous (all removed)', async () => {
-      const prevBits = new Uint8Array([0b11111111, 0, 0, 0, 0, 0]);
+      const prevBits = new Uint8Array(36);
+      prevBits[0] = 0b11111111;
       mockWeekScheduleState.savedWeekBits = { '2025-01-13': prevBits } as unknown as WeekBits;
       // Next has no bits at all - everything was removed
       mockWeekScheduleState.weekBits = {} as WeekBits;
@@ -1423,7 +1424,8 @@ describe('useAvailability', () => {
 
     it('handles dates present only in next (all added)', async () => {
       mockWeekScheduleState.savedWeekBits = {} as WeekBits;
-      const nextBits = new Uint8Array([0b00001111, 0, 0, 0, 0, 0]);
+      const nextBits = new Uint8Array(36);
+      nextBits[0] = 0b00001111;
       mockWeekScheduleState.weekBits = { '2025-01-13': nextBits } as unknown as WeekBits;
 
       fetchWithAuth.mockResolvedValueOnce({
@@ -1448,8 +1450,10 @@ describe('useAvailability', () => {
 
   describe('saveWeek with non-empty weekBits', () => {
     it('computes bits delta and logs it', async () => {
-      const bits = new Uint8Array([0b11110000, 0, 0, 0, 0, 0]);
-      const savedBits = new Uint8Array([0b00001111, 0, 0, 0, 0, 0]);
+      const bits = new Uint8Array(36);
+      bits[0] = 0b11110000;
+      const savedBits = new Uint8Array(36);
+      savedBits[0] = 0b00001111;
       mockWeekScheduleState.weekBits = { '2025-01-13': bits } as unknown as WeekBits;
       mockWeekScheduleState.savedWeekBits = { '2025-01-13': savedBits } as unknown as WeekBits;
 
