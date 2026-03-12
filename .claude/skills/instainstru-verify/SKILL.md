@@ -67,6 +67,20 @@ If a check fails, fix the root cause. NEVER suppress. See `references/convention
 
 **Frontend — never add:** `// @ts-ignore`, `// @ts-expect-error`, `// eslint-disable`, `as any`, `: any`, `@ts-nocheck`
 
+### Config-Level Suppressions — Also Forbidden
+
+Do NOT disable checks by modifying tool configuration files. This includes:
+
+- Adding `[[tool.mypy.overrides]]` with `disallow_untyped_decorators = false` or similar relaxations in `pyproject.toml`
+- Adding `skipLibCheck`, loosening `strict` flags, or adding path exclusions in `tsconfig.json`
+- Adding rule overrides or file ignores in `.eslintrc` / `eslint.config.js`
+- Adding ignore patterns in `ruff.toml` or `pyproject.toml [tool.ruff]`
+- Widening `exclude` patterns in any linting/type checking config
+
+Moving a suppression from inline code to a config file is still a suppression. If a check fails, fix the code — do not reconfigure the tool to stop reporting the error.
+
+If a third-party library causes an unfixable type error (e.g., untyped decorator in SQLAlchemy stubs), find a typed workaround (cast, event listener, explicit annotation). If no workaround exists, flag it to the orchestrator — do not silently disable the check category.
+
 ---
 
 ## 4. Reporting Format

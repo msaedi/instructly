@@ -39,6 +39,12 @@ Non-negotiable rules for all code changes. These are enforced by CI, pre-commit 
 | `// eslint-disable` | Masks lint findings |
 | `as any` / `: any` | Breaks 100% type coverage |
 | `@ts-nocheck` | Disables type checking entirely |
+| `[[tool.mypy.overrides]]` relaxations | Disables mypy checks for entire modules |
+| `tsconfig.json` strict flag loosening | Disables TypeScript checks globally |
+| `.eslintrc` rule disabling | Disables lint rules globally |
+| `ruff.toml` ignore additions | Disables linting rules globally |
+
+**Config-level suppressions are equivalent to inline suppressions.** Adding `disallow_untyped_decorators = false` for `app.models.*` in pyproject.toml has the same effect as adding `# type: ignore[untyped-decorator]` on every line in every model file. The only acceptable response to a failing check is to fix the code. If a third-party library makes this impossible, escalate — do not reconfigure the tooling.
 
 ## Testing
 
