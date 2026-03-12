@@ -25,7 +25,7 @@ from app.models.user import User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.schemas.booking import BookingCreate
 from app.services.booking_service import BookingService
-from app.utils.bitset import bits_from_windows
+from app.utils.bitset import bits_from_windows, new_empty_bits
 
 
 def _next_monday(reference: date) -> date:
@@ -202,7 +202,7 @@ class TestEarlyMorningBookingTimezone:
 
         # NO availability set for this day
         repo = AvailabilityDayRepository(db)
-        repo.upsert_week(instructor_with_timezone.id, [(target_day, bytes(6))])  # Empty bits
+        repo.upsert_week(instructor_with_timezone.id, [(target_day, new_empty_bits())])  # Empty bits
         db.commit()
 
         booking_data = _create_booking_data(

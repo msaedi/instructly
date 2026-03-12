@@ -5,9 +5,10 @@ from typing import Dict, Iterable, List, Literal, Tuple
 
 from sqlalchemy.orm import Session
 
+from app.core.constants import BOOKING_START_STEP_MINUTES
 from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.repositories.availability_repository import AvailabilityRepository
-import app.utils.bitset as bitset
+from app.utils import bitset
 
 
 def _resolve_windows_to_bits():
@@ -29,13 +30,13 @@ def _parse_time(value: str) -> time:
     return time(int(hours), int(minutes), int(seconds))
 
 
-def _assert_half_hour_aligned(start: str, end: str) -> None:
-    """Raise if the provided window is not aligned to half-hour boundaries."""
+def _assert_booking_step_aligned(start: str, end: str) -> None:
+    """Raise if the provided window is not aligned to booking step boundaries."""
     start_time = _parse_time(start)
     end_time = _parse_time(end)
-    msg = f"Window {start}-{end} is not half-hour aligned"
-    assert start_time.minute in (0, 30), msg
-    assert end_time.minute in (0, 30), msg
+    msg = f"Window {start}-{end} is not {BOOKING_START_STEP_MINUTES}-minute aligned"
+    assert start_time.minute % BOOKING_START_STEP_MINUTES == 0, msg
+    assert end_time.minute % BOOKING_START_STEP_MINUTES == 0, msg
 
 
 def _build_windows_by_date(
@@ -71,7 +72,7 @@ def seed_slots_legacy(
     created = 0
     for day_date, windows in windows_by_date.items():
         for start, end in list(windows):
-            _assert_half_hour_aligned(start, end)
+            _assert_booking_step_aligned(start, end)
             repo.create_slot(
                 instructor_id, day_date, _parse_time(start), _parse_time(end)
             )
@@ -98,7 +99,7 @@ def seed_bits_bitmap(
     for day_date, windows in windows_by_date.items():
         win_list = list(windows)
         for start, end in win_list:
-            _assert_half_hour_aligned(start, end)
+            _assert_booking_step_aligned(start, end)
         bits = _WINDOWS_TO_BITS(win_list)
         if clear_existing or win_list:
             items.append((day_date, bits))

@@ -1,19 +1,24 @@
-export const SLOTS_PER_DAY = 48;
+export const SLOTS_PER_DAY = 288;
+export const MINUTES_PER_SLOT = 5;
+export const BYTES_PER_DAY = 36;
+export const BOOKING_START_STEP_MINUTES = 15;
+export const AVAILABILITY_CELL_MINUTES = 30;
+export const BITS_PER_CELL = 6; // AVAILABILITY_CELL_MINUTES / MINUTES_PER_SLOT
 export type DayBits = Uint8Array;
 
 export function newEmptyBits(): DayBits {
-  return new Uint8Array(6);
+  return new Uint8Array(BYTES_PER_DAY);
 }
 
 export function idx(hh: number, mm: number): number {
-  return hh * 2 + (mm >= 30 ? 1 : 0);
+  return Math.floor((hh * 60 + mm) / MINUTES_PER_SLOT);
 }
 
 export function toWindows(
   bits: DayBits,
 ): { start_time: string; end_time: string }[] {
   const on: number[] = [];
-  for (let b = 0; b < 6; b += 1) {
+  for (let b = 0; b < BYTES_PER_DAY; b += 1) {
     const byteValue = bits[b] ?? 0;
     for (let bit = 0; bit < 8; bit += 1) {
       const i = b * 8 + bit;
@@ -24,7 +29,7 @@ export function toWindows(
   if (on.length === 0) return [];
 
   const toTime = (slotIdx: number) => {
-    const totalMinutes = slotIdx * 30;
+    const totalMinutes = slotIdx * MINUTES_PER_SLOT;
     const H = Math.floor(totalMinutes / 60);
     const M = totalMinutes % 60;
     return `${String(H).padStart(2, "0")}:${String(M).padStart(
@@ -57,7 +62,7 @@ export function fromWindows(
   const bits = newEmptyBits();
   const toIdx = (timeStr: string, isEndTime: boolean = false): number => {
     const [H, M] = timeStr.split(":").map(Number);
-    // Midnight (00:00) as end time means end-of-day (slot 48)
+    // Midnight (00:00) as end time means end-of-day (slot 288)
     if (isEndTime && H === 0 && M === 0) {
       return SLOTS_PER_DAY;
     }
@@ -88,4 +93,30 @@ export function toggle(bits: DayBits, slotIndex: number, on: boolean): DayBits {
   const current: number = next[byte] ?? 0;
   next[byte] = on ? current | (1 << bit) : current & ~(1 << bit);
   return next;
+}
+
+/** Toggle a range of consecutive slots (used by 30-min grid cells -> 6 bits). */
+export function toggleRange(bits: DayBits, startSlot: number, count: number, on: boolean): DayBits {
+  const next = bits.slice();
+  for (let i = 0; i < count; i += 1) {
+    const slot = startSlot + i;
+    const byte = Math.floor(slot / 8);
+    if (byte >= next.length || slot < 0 || slot >= SLOTS_PER_DAY) continue;
+    const bit = slot % 8;
+    const current: number = next[byte] ?? 0;
+    next[byte] = on ? current | (1 << bit) : current & ~(1 << bit);
+  }
+  return next;
+}
+
+/** Check if ALL bits in a range are set (for 30-min cell display). */
+export function isRangeSet(bits: DayBits | undefined, startSlot: number, count: number): boolean {
+  if (!bits) return false;
+  for (let i = 0; i < count; i += 1) {
+    const slotIndex = startSlot + i;
+    const byte = Math.floor(slotIndex / 8);
+    const bit = slotIndex % 8;
+    if ((((bits[byte] ?? 0) >> bit) & 1) === 0) return false;
+  }
+  return true;
 }

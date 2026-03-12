@@ -21,6 +21,7 @@ try:
     from app.database import SessionLocal
     from app.repositories.availability_day_repository import AvailabilityDayRepository
     from app.repositories.factory import RepositoryFactory
+    from app.utils.bitset import new_empty_bits
 except ModuleNotFoundError:  # pragma: no cover
     raise
 
@@ -114,7 +115,7 @@ def backfill_bitmaps_range(session: Session, days: int) -> Dict[str, int]:
             for day_offset in range(7):
                 src_day = current_monday + timedelta(days=day_offset)
                 dst_day = target_monday + timedelta(days=day_offset)
-                bits = source_week.get(src_day) or bytes(6)
+                bits = source_week.get(src_day) or new_empty_bits()
                 all_items.append((instructor_id, dst_day, bits))
                 backfilled_days += 1
 

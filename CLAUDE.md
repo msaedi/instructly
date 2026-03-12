@@ -126,7 +126,7 @@ interface User {
 
 ### Key Architectural Decisions
 - **Time-Based Booking**: Time ranges, not slot entities (instructor_id, date, start_time, end_time)
-- **Bitmap Availability**: 1440-bit per day (70% storage reduction vs slots)
+- **Bitmap Availability**: 288-bit per day at 5-min resolution (36 bytes BYTEA). Instructor editor displays 30-min cells, students book in 15-min increments.
 - **24hr Pre-Authorization**: Authorized T-24hr, captured T+24hr (chargeback protection)
 - **Per-User Conversation State**: Independent archive/trash for each participant
 - **Repository Pattern**: 100% enforced via pre-commit hooks

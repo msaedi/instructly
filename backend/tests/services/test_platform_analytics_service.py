@@ -54,6 +54,7 @@ from app.services.platform_analytics_service import (
     _sort_category_metrics,
     _week_label,
 )
+from app.utils.bitset import new_empty_bits
 
 try:  # pragma: no cover - fallback for direct backend pytest runs
     from backend.tests.factories.booking_builders import create_booking_pg_safe
@@ -596,7 +597,7 @@ def test_availability_hours_empty_bits(db, test_instructor):
         AvailabilityDay(
             instructor_id=test_instructor.id,
             day_date=today,
-            bits=b"",
+            bits=new_empty_bits(),
         )
     )
     db.flush()

@@ -3,13 +3,22 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from app.repositories.availability_day_repository import AvailabilityDayRepository
+from app.utils.bitset import new_empty_bits
+
+
+def _make_bits(*prefix_bytes: int) -> bytes:
+    """Build a 36-byte bitmap with the given prefix, zero-padded."""
+    b = bytearray(new_empty_bits())
+    for i, val in enumerate(prefix_bytes):
+        b[i] = val
+    return bytes(b)
 
 
 def test_upsert_week_and_getters(db):
     repo = AvailabilityDayRepository(db)
     instructor_id = "inst-availability"
     week_start = date.today()
-    bits = b"\x00\x01\x02\x03\x04\x05"
+    bits = _make_bits(0x00, 0x01, 0x02, 0x03, 0x04, 0x05)
 
     count = repo.upsert_week(
         instructor_id,
@@ -31,7 +40,7 @@ def test_bulk_upsert_all_and_delete(db):
     repo = AvailabilityDayRepository(db)
     instructor_id = "inst-bulk"
     day = date.today()
-    bits = b"\x01\x02\x03\x04\x05\x06"
+    bits = _make_bits(0x01, 0x02, 0x03, 0x04, 0x05, 0x06)
 
     count = repo.bulk_upsert_all(
         [
@@ -51,7 +60,7 @@ def test_bulk_upsert_native(db):
     repo = AvailabilityDayRepository(db)
     instructor_id = "inst-native"
     day = date.today()
-    bits = b"\x07\x08\x09\x0a\x0b\x0c"
+    bits = _make_bits(0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C)
 
     count = repo.bulk_upsert_native(
         [
@@ -75,8 +84,8 @@ def test_upsert_week_updates_existing(db):
     repo = AvailabilityDayRepository(db)
     instructor_id = "inst-upsert-update"
     day = date.today()
-    bits_v1 = b"\x01\x01\x01"
-    bits_v2 = b"\x02\x02\x02"
+    bits_v1 = _make_bits(0x01, 0x01, 0x01)
+    bits_v2 = _make_bits(0x02, 0x02, 0x02)
 
     repo.upsert_week(instructor_id, [(day, bits_v1)])
     repo.upsert_week(instructor_id, [(day, bits_v2)])
@@ -101,7 +110,7 @@ def test_delete_days_for_instructor_no_exclusions(db):
     repo = AvailabilityDayRepository(db)
     instructor_id = "inst-delete-all"
     day = date.today()
-    bits = b"\x01\x02\x03"
+    bits = _make_bits(0x01, 0x02, 0x03)
 
     repo.upsert_week(instructor_id, [(day, bits), (day + timedelta(days=1), bits)])
     deleted = repo.delete_days_for_instructor(instructor_id)

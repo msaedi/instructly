@@ -55,13 +55,16 @@ def _run_check_availability(
                     mock_ccr.get_active_service.return_value = MagicMock()
                     mock_ccr.get_instructor_profile.return_value = instructor_profile
 
-                    return booking_service.check_availability(
-                        instructor_id=instructor_profile.user.id,
-                        booking_date=booking_date,
-                        start_time=start_time,
-                        end_time=end_time,
-                        service_id="test_service",
-                    )
+                    with patch.object(
+                        booking_service, "_check_bits_coverage", return_value=True
+                    ):
+                        return booking_service.check_availability(
+                            instructor_id=instructor_profile.user.id,
+                            booking_date=booking_date,
+                            start_time=start_time,
+                            end_time=end_time,
+                            service_id="test_service",
+                        )
 
 
 def _make_booking(booking_date: date, end_time: time, tz_name: str) -> MagicMock:

@@ -30,6 +30,7 @@ from typing import (
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
+from ..core.constants import BOOKING_START_STEP_MINUTES, MINUTES_PER_SLOT
 from ..core.exceptions import (
     AvailabilityOverlapException,
     ConflictException,
@@ -56,7 +57,6 @@ from ..schemas.availability_window import (
     WeekSpecificScheduleCreate,
 )
 from ..utils.bitset import (
-    SLOTS_PER_DAY,
     bits_from_windows,
     new_empty_bits,
     pack_indexes,
@@ -344,7 +344,7 @@ class AvailabilityService(BaseService):
             if now_minutes is None:
                 now_dt = get_user_now_by_id(instructor_id, self.db)
                 now_minutes = max(0, time_to_minutes(now_dt.time(), is_end_time=False))
-            cutoff_index = now_minutes // 30
+            cutoff_index = now_minutes // MINUTES_PER_SLOT
             if cutoff_index <= 0:
                 return bits
             original_indexes = unpack_indexes(bits)
@@ -1715,7 +1715,7 @@ class AvailabilityService(BaseService):
 
         Returns dict: { 'YYYY-MM-DD': [(start_time, end_time), ...] }
         """
-        slot_minutes = (24 * 60) // SLOTS_PER_DAY
+        slot_minutes = MINUTES_PER_SLOT
         profile = self.instructor_repository.get_by_user_id(instructor_id)
         min_advance_hours = (
             int(getattr(profile, "min_advance_booking_hours", 0) or 0) if apply_min_advance else 0
@@ -1733,8 +1733,9 @@ class AvailabilityService(BaseService):
                 earliest_allowed_local.time(), is_end_time=False
             )
             aligned_minutes = (
-                (minutes_since_midnight + slot_minutes - 1) // slot_minutes
-            ) * slot_minutes
+                (minutes_since_midnight + BOOKING_START_STEP_MINUTES - 1)
+                // BOOKING_START_STEP_MINUTES
+            ) * BOOKING_START_STEP_MINUTES
             base_midnight = earliest_allowed_local.replace(
                 hour=0, minute=0, second=0, microsecond=0
             )

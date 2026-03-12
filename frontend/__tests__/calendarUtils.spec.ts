@@ -1,5 +1,5 @@
 import { buildDaySegments, normalizeSchedule } from '@/lib/calendar/normalize';
-import { fromWindows, newEmptyBits, toWindows, toggle, idx } from '@/lib/calendar/bitset';
+import { fromWindows, newEmptyBits, toWindows, toggleRange, idx, BITS_PER_CELL } from '@/lib/calendar/bitset';
 import type { WeekSchedule } from '@/types/availability';
 import type { DayBits } from '@/lib/calendar/bitset';
 
@@ -112,13 +112,14 @@ describe('bitset helpers', () => {
 
   it('merges adjacent toggled cells into a single window', () => {
     let bits: DayBits = newEmptyBits();
-    const nineAmIndex = idx(9, 0);
-    const nineThirtyIndex = idx(9, 30);
-    const tenAmIndex = idx(10, 0);
+    const nineAmIndex = idx(9, 0);       // 108
+    const nineThirtyIndex = idx(9, 30);  // 114
+    const tenAmIndex = idx(10, 0);       // 120
 
-    bits = toggle(bits, nineAmIndex, true);
-    bits = toggle(bits, nineThirtyIndex, true);
-    bits = toggle(bits, tenAmIndex, true);
+    // Each 30-min cell toggles 6 consecutive bits
+    bits = toggleRange(bits, nineAmIndex, BITS_PER_CELL, true);
+    bits = toggleRange(bits, nineThirtyIndex, BITS_PER_CELL, true);
+    bits = toggleRange(bits, tenAmIndex, BITS_PER_CELL, true);
 
     const windows = toWindows(bits);
     expect(windows).toHaveLength(1);
@@ -134,7 +135,7 @@ describe('bitset helpers', () => {
     };
 
     const applyRow = (bits: DayBits, row: number, value: boolean) =>
-      toggle(bits, indexForRow(row), value);
+      toggleRange(bits, indexForRow(row), BITS_PER_CELL, value);
 
     let bits: DayBits = newEmptyBits();
     const startRow = 4;

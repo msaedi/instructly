@@ -27,6 +27,7 @@ import ulid
 
 from ...auth import decode_access_token
 from ...core.config import settings
+from ...core.constants import BOOKING_START_STEP_MINUTES
 from ...core.timezone_utils import get_user_today
 from ...database import get_db
 from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
@@ -46,7 +47,6 @@ from ...services.conflict_checker import ConflictChecker
 from ...services.email import EmailService
 from ...services.instructor_service import InstructorService
 from ...services.token_blacklist_service import TokenBlacklistService
-from ...utils.bitset import SLOTS_PER_DAY
 from ...utils.cookies import (
     delete_refresh_cookie,
     effective_cookie_domain,
@@ -113,13 +113,14 @@ def _apply_min_advance_filter(
     if min_advance_hours <= 0:
         return _recompute_public_totals(availability_by_date)
 
-    slot_minutes = (24 * 60) // SLOTS_PER_DAY
     earliest_allowed_local = _get_user_now_by_id(
         instructor_id, availability_service.db
     ) + timedelta(hours=min_advance_hours)
     earliest_allowed_local = earliest_allowed_local.replace(second=0, microsecond=0)
     minutes_since_midnight = time_to_minutes(earliest_allowed_local.time(), is_end_time=False)
-    aligned_minutes = ((minutes_since_midnight + slot_minutes - 1) // slot_minutes) * slot_minutes
+    aligned_minutes = (
+        (minutes_since_midnight + BOOKING_START_STEP_MINUTES - 1) // BOOKING_START_STEP_MINUTES
+    ) * BOOKING_START_STEP_MINUTES
     base_midnight = earliest_allowed_local.replace(hour=0, minute=0, second=0, microsecond=0)
     earliest_allowed_local = base_midnight + timedelta(minutes=aligned_minutes)
     earliest_allowed_date = earliest_allowed_local.date()

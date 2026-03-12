@@ -6,7 +6,7 @@ import clsx from 'clsx';
 
 import type { WeekBits, WeekDateInfo } from '@/types/availability';
 import type { DayBits } from '@/lib/calendar/bitset';
-import { idx, newEmptyBits, toggle } from '@/lib/calendar/bitset';
+import { idx, newEmptyBits, toggleRange, isRangeSet, BITS_PER_CELL, AVAILABILITY_CELL_MINUTES } from '@/lib/calendar/bitset';
 import type { BookedSlotPreview } from '@/types/booking';
 
 interface InteractiveGridProps {
@@ -32,11 +32,9 @@ const HOURS_LABEL = (hour: number) => {
   return `${display}:00 ${period}`;
 };
 
-const isSlotSelected = (bits: DayBits | undefined, slotIndex: number): boolean => {
-  if (!bits) return false;
-  const byte = Math.floor(slotIndex / 8);
-  const bit = slotIndex % 8;
-  return ((bits[byte] ?? 0) & (1 << bit)) > 0;
+/** Check if all 6 bits of a 30-min cell are set (slotIndex = bitmap start of cell). */
+const isCellSelected = (bits: DayBits | undefined, slotIndex: number): boolean => {
+  return isRangeSet(bits, slotIndex, BITS_PER_CELL);
 };
 
 const isSlotBooked = (
@@ -47,8 +45,8 @@ const isSlotBooked = (
 ): boolean => {
   if (!booked?.length) return false;
   const hour = startHour + Math.floor(slotIndex / HALF_HOURS_PER_HOUR);
-  const minute = slotIndex % 2 === 1 ? 30 : 0;
-  const nextMinutes = minute === 0 ? 30 : 0;
+  const minute = (slotIndex % HALF_HOURS_PER_HOUR) * AVAILABILITY_CELL_MINUTES;
+  const nextMinutes = minute === 0 ? AVAILABILITY_CELL_MINUTES : 0;
   const nextHour = minute === 0 ? hour : hour + 1;
   const start = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`;
   const end = `${String(nextHour).padStart(2, '0')}:${String(nextMinutes).padStart(2, '0')}:00`;
@@ -81,7 +79,8 @@ const getNowInTimezone = (tz?: string) => {
   return { isoDate, minutes };
 };
 
-const getSlotIndex = (startHour: number, row: number) => {
+/** Return the bitmap start index for a 30-min grid cell (row). */
+const getCellBitmapStart = (startHour: number, row: number) => {
   const hour = startHour + Math.floor(row / HALF_HOURS_PER_HOUR);
   const minute = row % 2 === 1 ? 30 : 0;
   return idx(hour, minute);
@@ -116,12 +115,12 @@ export default function InteractiveGrid({
     (date: string, slotIndex: number, desired: boolean) => {
       onBitsChange((prev) => {
         const current = prev[date] ?? newEmptyBits();
-        if (isSlotSelected(current, slotIndex) === desired) {
+        if (isCellSelected(current, slotIndex) === desired) {
           return prev;
         }
         return {
           ...prev,
-          [date]: toggle(current, slotIndex, desired),
+          [date]: toggleRange(current, slotIndex, BITS_PER_CELL, desired),
         };
       });
     },
@@ -152,9 +151,9 @@ export default function InteractiveGrid({
         const current = next[date] ?? newEmptyBits();
         let updated = current;
         indices.forEach((slotIndex) => {
-          const selected = isSlotSelected(updated, slotIndex);
+          const selected = isCellSelected(updated, slotIndex);
           if (selected !== desired) {
-            updated = toggle(updated, slotIndex, desired);
+            updated = toggleRange(updated, slotIndex, BITS_PER_CELL, desired);
           }
         });
         if (updated !== current) {
@@ -184,7 +183,7 @@ export default function InteractiveGrid({
   const enqueueUpdate = useCallback(
     (date: string, slotIndex: number, desired: boolean) => {
       const currentBits = weekBits[date];
-      if (isSlotSelected(currentBits, slotIndex) === desired) {
+      if (isCellSelected(currentBits, slotIndex) === desired) {
         return;
       }
       let setForDate = pendingRef.current[date];
@@ -261,26 +260,27 @@ export default function InteractiveGrid({
   const { isoDate: todayIso, minutes: nowMinutes } = nowInfo;
 
   const isPastSlot = useCallback(
-    (date: string, slotIndex: number) => {
+    (date: string, row: number) => {
       if (allowPastEditing) return false;
       if (date < todayIso) return true;
       if (date > todayIso) return false;
-      const slotEndMinutes =
-        (startHour + Math.floor((slotIndex + 1) / HALF_HOURS_PER_HOUR)) * 60 +
-        ((slotIndex + 1) % 2 === 1 ? 30 : 0);
-      return slotEndMinutes <= nowMinutes;
+      const cellEndMinutes =
+        (startHour + Math.floor((row + 1) / HALF_HOURS_PER_HOUR)) * 60 +
+        ((row + 1) % 2 === 1 ? 30 : 0);
+      return cellEndMinutes <= nowMinutes;
     },
     [allowPastEditing, nowMinutes, startHour, todayIso]
   );
 
   const isPastForStyle = useCallback(
-    (date: string, slotIndex: number) => {
+    (date: string, row: number) => {
       if (date < todayIso) return true;
       if (date > todayIso) return false;
-      const slotEndMinutes = (slotIndex + 1) * 30;
-      return slotEndMinutes <= nowMinutes;
+      const cellEndMinutes = (startHour + Math.floor((row + 1) / HALF_HOURS_PER_HOUR)) * 60 +
+        ((row + 1) % 2 === 1 ? 30 : 0);
+      return cellEndMinutes <= nowMinutes;
     },
-    [nowMinutes, todayIso]
+    [nowMinutes, startHour, todayIso]
   );
 
   const handleMouseDown = useCallback(
@@ -292,9 +292,9 @@ export default function InteractiveGrid({
       slotIndex: number
     ) => {
       event.preventDefault();
-      if (isPastSlot(date, slotIndex)) return;
+      if (isPastSlot(date, row)) return;
       setActiveCell({ row, col: columnIndex });
-      const desired = !isSlotSelected(weekBits[date], slotIndex);
+      const desired = !isCellSelected(weekBits[date], slotIndex);
       pendingRef.current = {};
       setIsDragging(true);
       setDragValue(desired);
@@ -323,7 +323,7 @@ export default function InteractiveGrid({
       } else {
         const step = delta > 0 ? 1 : -1;
         for (let r = previous.row + step; step > 0 ? r <= row : r >= row; r += step) {
-          const interpolatedIndex = getSlotIndex(startHour, r);
+          const interpolatedIndex = getCellBitmapStart(startHour, r);
           enqueueUpdate(date, interpolatedIndex, desired);
         }
       }
@@ -363,8 +363,8 @@ export default function InteractiveGrid({
     ) => {
       if (event.key === ' ' || event.key === 'Enter') {
         event.preventDefault();
-        if (isPastSlot(date, slotIndex)) return;
-        const desired = !isSlotSelected(weekBits[date], slotIndex);
+        if (isPastSlot(date, rowIndex)) return;
+        const desired = !isCellSelected(weekBits[date], slotIndex);
         applyImmediate(date, slotIndex, desired);
         return;
       }
@@ -481,12 +481,12 @@ export default function InteractiveGrid({
               const date = info.fullDate;
               const dayBits = weekBits[date] ?? newEmptyBits();
               const pendingForDate = pendingByDate[date];
-              const slotIndex = getSlotIndex(startHour, row);
+              const slotIndex = getCellBitmapStart(startHour, row);
               const booked = isSlotBooked(bookedSlots, date, row, startHour);
-              const behaviourPast = isPastSlot(date, slotIndex);
-              const selected = isSlotSelected(dayBits, slotIndex);
+              const behaviourPast = isPastSlot(date, row);
+              const selected = isCellSelected(dayBits, slotIndex);
               const isPreview = !!pendingForDate?.has(slotIndex);
-              const visualPast = isPastForStyle(date, slotIndex);
+              const visualPast = isPastForStyle(date, row);
               const fillClass = selected
                 ? 'bg-[#EDE3FA] dark:bg-purple-500/25'
                 : visualPast
@@ -503,8 +503,8 @@ export default function InteractiveGrid({
               const windowEndMinutes = endHour * 60;
               const withinWindow = nowMinutes >= windowStartMinutes && nowMinutes <= windowEndMinutes;
               const relativeMinutes = nowMinutes - windowStartMinutes;
-              const nowRow = Math.floor(relativeMinutes / 30);
-              const nowOffsetPercent = ((relativeMinutes % 30) / 30) * 100;
+              const nowRow = Math.floor(relativeMinutes / AVAILABILITY_CELL_MINUTES);
+              const nowOffsetPercent = ((relativeMinutes % AVAILABILITY_CELL_MINUTES) / AVAILABILITY_CELL_MINUTES) * 100;
               const showNowMarker = isToday && withinWindow && row === Math.max(0, Math.min(rows - 1, nowRow));
 
               return (

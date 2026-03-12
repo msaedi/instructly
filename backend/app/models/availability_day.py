@@ -12,7 +12,7 @@ class AvailabilityDay(Base):
 
     instructor_id = Column(String(26), primary_key=True)
     day_date = Column(Date, primary_key=True)
-    # 6 bytes for 30-min resolution. On PG we store BYTEA; on SQLite use LargeBinary
+    # 36 bytes for 5-min resolution (288 slots/day). On PG we store BYTEA; on SQLite use LargeBinary
     bits = Column(BYTEA().with_variant(LargeBinary(), "sqlite"), nullable=False)
     updated_at = Column(
         DateTime(timezone=True),

@@ -128,7 +128,7 @@ export interface ExistingSlot {
 
 /**
  * Bitmap representation of a week's availability.
- * Keys are ISO dates, values are 6-byte (48 half-hour) bitmaps.
+ * Keys are ISO dates, values are 36-byte (288 five-minute slot) bitmaps.
  */
 export type WeekBits = Record<string, DayBits>;
 

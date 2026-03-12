@@ -15,18 +15,18 @@ def test_pack_indexes_invalid_index_raises() -> None:
 
 
 def test_unpack_indexes_invalid_length_raises() -> None:
-    with pytest.raises(ValueError, match="bits length must be 6"):
-        unpack_indexes(b"\x00" * 5)
+    with pytest.raises(ValueError, match="bits length must be 36"):
+        unpack_indexes(b"\x00" * 35)
 
 
 def test_toggle_index_invalid_length_raises() -> None:
-    with pytest.raises(ValueError, match="bits length must be 6"):
-        toggle_index(b"\x00" * 5, idx=0, value=True)
+    with pytest.raises(ValueError, match="bits length must be 36"):
+        toggle_index(b"\x00" * 35, idx=0, value=True)
 
 
 def test_toggle_index_invalid_index_raises() -> None:
     with pytest.raises(ValueError, match="index out of range"):
-        toggle_index(new_empty_bits(), idx=48, value=True)
+        toggle_index(new_empty_bits(), idx=288, value=True)
 
 
 def test_toggle_index_clears_bit() -> None:

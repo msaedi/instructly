@@ -915,7 +915,7 @@ describe('useWeekSchedule', () => {
       // weekBits has a key with all-zero bits, savedWeekBits doesn't have the key
       await act(async () => {
         result.current.setWeekBits({
-          '2030-01-07': new Uint8Array(180).fill(0),
+          '2030-01-07': new Uint8Array(36).fill(0),
         });
       });
 

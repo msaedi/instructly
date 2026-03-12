@@ -6,6 +6,7 @@ import { X, ArrowLeft } from 'lucide-react';
 import { UserAvatar } from '@/components/user/UserAvatar';
 import { logger } from '@/lib/logger';
 import { timeToMinutes } from '@/lib/time';
+import { expandDiscreteStarts } from '@/lib/time/expandDiscreteStarts';
 import { at } from '@/lib/ts/safe';
 import { publicApi } from '@/features/shared/api/client';
 import { ApiProblemError } from '@/lib/api/fetch';
@@ -42,28 +43,7 @@ interface AvailabilitySlot {
   end_time: string;
 }
 
-const SLOT_STEP_MINUTES = 30;
-
-// Helper function to expand discrete time slots
-const expandDiscreteStarts = (
-  start: string,
-  end: string,
-  stepMinutes: number,
-  requiredMinutes: number
-): string[] => {
-  const startTotal = timeToMinutes(start);
-  const endTotal = timeToMinutes(end, { isEndTime: true });
-
-  const times: string[] = [];
-  for (let t = startTotal; t + requiredMinutes <= endTotal; t += stepMinutes) {
-    const h = Math.floor(t / 60);
-    const m = t % 60;
-    const ampm = h >= 12 ? 'pm' : 'am';
-    const displayHour = (h % 12) || 12;
-    times.push(`${displayHour}:${String(m).padStart(2, '0')}${ampm}`);
-  }
-  return times;
-};
+const SLOT_STEP_MINUTES = 15;
 
 const normalizeDateInput = (value?: string | Date | null): string | null => {
   if (!value) {

@@ -84,7 +84,7 @@ class TestBookingServiceUnit:
         """Create a mock availability repository."""
         repository = Mock()
         repository.get_slots_by_date.return_value = []
-        repository.get_day_bits.return_value = b"\xff" * 6  # 48 half-hour slots
+        repository.get_day_bits.return_value = b"\xff" * 36  # 288 five-minute slots
         return repository
 
     @pytest.fixture

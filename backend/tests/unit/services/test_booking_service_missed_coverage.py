@@ -171,29 +171,6 @@ class TestMinutesToTime:
 
 
 @pytest.mark.unit
-class TestHalfHourIndex:
-    def test_start_of_day(self):
-        from app.services.booking_service import BookingService
-
-        assert BookingService._half_hour_index(0, 0) == 0
-
-    def test_half_hour(self):
-        from app.services.booking_service import BookingService
-
-        assert BookingService._half_hour_index(0, 30) == 1
-
-    def test_mid_day(self):
-        from app.services.booking_service import BookingService
-
-        assert BookingService._half_hour_index(14, 45) == 29
-
-    def test_end_of_day(self):
-        from app.services.booking_service import BookingService
-
-        assert BookingService._half_hour_index(23, 30) == 47
-
-
-@pytest.mark.unit
 class TestBookingWindowToMinutes:
     def test_normal_window(self):
         from app.services.booking_service import BookingService
