@@ -330,9 +330,16 @@ async def request_instant_payout(
     except HTTPException:
         prometheus_metrics.inc_instant_payout_request("error")
         raise
-    except Exception:
+    except ServiceException as e:
         prometheus_metrics.inc_instant_payout_request("error")
-        raise
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        prometheus_metrics.inc_instant_payout_request("error")
+        logger.error(f"Unexpected error requesting instant payout: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred",
+        )
 
 
 # ========== Student Routes ==========

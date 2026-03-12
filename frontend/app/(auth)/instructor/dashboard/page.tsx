@@ -1315,13 +1315,14 @@ export default function InstructorDashboardNew() {
                         const res = await fetchWithAuth('/api/v1/payments/connect/instant-payout', { method: 'POST' });
                         if (!res.ok) {
                           const err = (await res.json().catch(() => ({}))) as ApiErrorResponse;
-                          alert(`Instant payout failed: ${extractApiErrorMessage(err, res.statusText)}`);
+                          const msg = extractApiErrorMessage(err, res.statusText);
+                          try { (await import('sonner')).toast?.error?.(msg); } catch {}
                           return;
                         }
                         const data = (await res.json()) as InstantPayoutResponse;
-                        alert(`Instant payout requested: ${data.payout_id || 'OK'}`);
+                        try { (await import('sonner')).toast?.success?.(data.payout_id ? `Payout initiated (${data.payout_id})` : 'Instant payout initiated successfully'); } catch {}
                       } catch {
-                        alert('Instant payout request error');
+                        try { (await import('sonner')).toast?.error?.('Something went wrong. Please try again.'); } catch {}
                       }
                     }}
                     className="insta-primary-btn inline-flex items-center justify-center h-10 px-4 text-base rounded-lg text-white whitespace-nowrap w-full sm:w-auto sm:min-w-[13rem]"
