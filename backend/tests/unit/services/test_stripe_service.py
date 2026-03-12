@@ -408,13 +408,20 @@ class TestPayoutScheduleAndHistory:
             SimpleNamespace(stripe_account_id="acct_2")
         )
 
-        with patch.object(
-            stripe_service.stripe.Payout,
-            "create",
-            return_value={"id": "po_1", "status": "paid"},
+        with (
+            patch.object(
+                stripe_service.StripeBalance,
+                "retrieve",
+                return_value=MagicMock(available=[MagicMock(amount=2500)]),
+            ),
+            patch.object(
+                stripe_service.stripe.Payout,
+                "create",
+                return_value={"id": "po_1", "status": "paid"},
+            ),
         ):
             result = StripeService.request_instructor_instant_payout(
-                service, user=user, amount_cents=2500
+                service, user=user
             )
 
         assert result.ok is True

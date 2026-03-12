@@ -148,31 +148,53 @@ def test_booking(db: Session, test_user: User, test_instructor: tuple) -> Bookin
 
 
 @patch("stripe.Payout.create")
+@patch("app.services.stripe_service.StripeBalance.retrieve")
 def test_request_instructor_instant_payout_success(
-    mock_create, stripe_service: StripeService, test_instructor: tuple
+    mock_balance, mock_create, stripe_service: StripeService, test_instructor: tuple
 ) -> None:
     user, profile, _ = test_instructor
     stripe_service.payment_repository.create_connected_account_record(
         profile.id, "acct_payout", onboarding_completed=True
     )
 
+    mock_balance.return_value = MagicMock(available=[MagicMock(amount=5000)])
     mock_payout = MagicMock()
     mock_payout.id = "po_instant"
     mock_payout.status = "paid"
     mock_create.return_value = mock_payout
 
-    result = stripe_service.request_instructor_instant_payout(user=user, amount_cents=5000)
+    result = stripe_service.request_instructor_instant_payout(user=user)
 
     assert result.ok is True
     assert result.payout_id == "po_instant"
     assert result.status == "paid"
+    mock_create.assert_called_once_with(
+        amount=5000,
+        currency="usd",
+        stripe_account="acct_payout",
+        method="instant",
+    )
+
+
+@patch("app.services.stripe_service.StripeBalance.retrieve")
+def test_request_instructor_instant_payout_zero_balance(
+    mock_balance, stripe_service: StripeService, test_instructor: tuple
+) -> None:
+    user, profile, _ = test_instructor
+    stripe_service.payment_repository.create_connected_account_record(
+        profile.id, "acct_zero", onboarding_completed=True
+    )
+
+    mock_balance.return_value = MagicMock(available=[MagicMock(amount=0)])
+    with pytest.raises(ServiceException, match="No funds available"):
+        stripe_service.request_instructor_instant_payout(user=user)
 
 
 def test_request_instructor_instant_payout_missing_profile(
     stripe_service: StripeService, test_user: User
 ) -> None:
     with pytest.raises(ServiceException, match="Instructor profile not found"):
-        stripe_service.request_instructor_instant_payout(user=test_user, amount_cents=5000)
+        stripe_service.request_instructor_instant_payout(user=test_user)
 
 
 def test_request_instructor_instant_payout_not_onboarded(
@@ -180,7 +202,7 @@ def test_request_instructor_instant_payout_not_onboarded(
 ) -> None:
     user, _, _ = test_instructor
     with pytest.raises(ServiceException, match="not onboarded"):
-        stripe_service.request_instructor_instant_payout(user=user, amount_cents=5000)
+        stripe_service.request_instructor_instant_payout(user=user)
 
 
 @patch("stripe.Account.modify")

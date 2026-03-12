@@ -254,7 +254,7 @@ class TestRequestInstantPayout:
         svc.instructor_repository.get_by_user_id.return_value = None
         user = _fake_user()
         with pytest.raises(ServiceException):
-            svc.request_instructor_instant_payout(user=user, amount_cents=5000)
+            svc.request_instructor_instant_payout(user=user)
 
     def test_not_onboarded(self):
         svc = _make_stripe_service()
@@ -262,18 +262,22 @@ class TestRequestInstantPayout:
         svc.payment_repository.get_connected_account_by_instructor_id.return_value = None
         user = _fake_user()
         with pytest.raises(ServiceException, match="not onboarded"):
-            svc.request_instructor_instant_payout(user=user, amount_cents=5000)
+            svc.request_instructor_instant_payout(user=user)
 
     @patch("app.services.stripe_service.stripe")
-    def test_success(self, mock_stripe):
+    @patch("app.services.stripe_service.StripeBalance.retrieve")
+    def test_success(self, mock_balance, mock_stripe):
         svc = _make_stripe_service()
         svc.instructor_repository.get_by_user_id.return_value = _fake_profile()
         connected = MagicMock()
         connected.stripe_account_id = "acct_test"
         svc.payment_repository.get_connected_account_by_instructor_id.return_value = connected
+        mock_balance.return_value = MagicMock(
+            available=[MagicMock(amount=5000)]
+        )
         mock_stripe.Payout.create.return_value = SimpleNamespace(id="po_test", status="paid")
         user = _fake_user()
-        result = svc.request_instructor_instant_payout(user=user, amount_cents=5000)
+        result = svc.request_instructor_instant_payout(user=user)
         assert result.ok is True
         assert result.payout_id == "po_test"
 

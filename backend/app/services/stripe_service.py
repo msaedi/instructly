@@ -31,6 +31,7 @@ from urllib.parse import ParseResult, urljoin, urlparse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 import stripe
+from stripe._balance import Balance as StripeBalance
 from stripe._refund import Refund as StripeRefund
 from stripe._transfer import Transfer as StripeTransfer
 
@@ -641,10 +642,8 @@ class StripeService(BaseService):
         )
 
     @BaseService.measure_operation("stripe_request_instant_payout")
-    def request_instructor_instant_payout(
-        self, *, user: User, amount_cents: int
-    ) -> InstantPayoutResponse:
-        """Request an instant payout for an instructor."""
+    def request_instructor_instant_payout(self, *, user: User) -> InstantPayoutResponse:
+        """Request an instant payout for an instructor's full available balance."""
         profile = self.instructor_repository.get_by_user_id(user.id)
         if not profile:
             raise ServiceException("Instructor profile not found", code="not_found")
@@ -653,8 +652,13 @@ class StripeService(BaseService):
         if not connected or not connected.stripe_account_id:
             raise ServiceException("Instructor is not onboarded to Stripe", code="not_onboarded")
 
+        balance = StripeBalance.retrieve(stripe_account=connected.stripe_account_id)
+        available_amount = balance.available[0].amount if balance.available else 0
+        if available_amount <= 0:
+            raise ServiceException("No funds available for instant payout", code="no_funds")
+
         payout = stripe.Payout.create(
-            amount=amount_cents,
+            amount=available_amount,
             currency="usd",
             stripe_account=connected.stripe_account_id,
             method="instant",

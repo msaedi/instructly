@@ -326,7 +326,6 @@ async def request_instant_payout(
         return await asyncio.to_thread(
             stripe_service.request_instructor_instant_payout,
             user=current_user,
-            amount_cents=0,
         )
     except HTTPException:
         prometheus_metrics.inc_instant_payout_request("error")
