@@ -209,11 +209,3 @@ class PaymentService {
 
 // Export singleton instance
 export const paymentService = new PaymentService();
-
-// Export test card numbers for development
-export const TEST_CARDS = {
-  SUCCESS: '4242424242424242',
-  DECLINE: '4000000000000002',
-  REQUIRES_3D_SECURE: '4000002500003155',
-  INSUFFICIENT_FUNDS: '4000000000009995',
-} as const;

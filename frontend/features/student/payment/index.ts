@@ -14,4 +14,4 @@ export type { BookingType, BookingPayment } from '@/features/shared/types/bookin
 
 // Export utilities
 export * from './utils/paymentCalculations';
-export * from './utils/stripe';
+export * from '@/features/shared/payment/utils/stripe';

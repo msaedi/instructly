@@ -645,6 +645,78 @@ def test_handle_charge_refunded_handles_credit_error(
     mock_get.assert_called_once_with("pi_refund_err")
 
 
+def test_handle_charge_refunded_logs_critical_when_payment_missing(
+    stripe_service: StripeService,
+) -> None:
+    event = {
+        "type": "charge.refunded",
+        "data": {"object": {"id": "ch_orphan", "payment_intent": "pi_orphan"}},
+    }
+
+    with (
+        patch.object(stripe_service.payment_repository, "update_payment_status") as mock_update,
+        patch.object(
+            stripe_service.payment_repository,
+            "get_payment_by_intent_id",
+            return_value=None,
+        ) as mock_get,
+        patch.object(stripe_service.logger, "critical") as mock_critical,
+    ):
+        assert stripe_service._handle_charge_webhook(event) is True
+
+    mock_update.assert_called_once_with("pi_orphan", "refunded")
+    mock_get.assert_called_once_with("pi_orphan")
+    mock_critical.assert_called_once_with(
+        "Stripe refund reconciliation gap: no local payment record for payment_intent %s "
+        "(charge %s)",
+        "pi_orphan",
+        "ch_orphan",
+    )
+
+
+def test_handle_charge_refunded_logs_critical_when_booking_missing(
+    stripe_service: StripeService, test_booking: Booking
+) -> None:
+    payment_record = stripe_service.payment_repository.create_payment_record(
+        test_booking.id, "pi_refund_missing_booking", 5000, 500, "succeeded"
+    )
+
+    event = {
+        "type": "charge.refunded",
+        "data": {
+            "object": {
+                "id": "ch_refund_missing_booking",
+                "payment_intent": "pi_refund_missing_booking",
+            }
+        },
+    }
+
+    with (
+        patch.object(stripe_service.payment_repository, "update_payment_status") as mock_update,
+        patch.object(
+            stripe_service.payment_repository,
+            "get_payment_by_intent_id",
+            return_value=payment_record,
+        ) as mock_get,
+        patch.object(stripe_service.booking_repository, "get_by_id", return_value=None) as mock_booking,
+        patch("app.services.stripe_service.StudentCreditService") as mock_credit_service,
+        patch.object(stripe_service.logger, "critical") as mock_critical,
+    ):
+        assert stripe_service._handle_charge_webhook(event) is True
+
+    mock_update.assert_called_once_with("pi_refund_missing_booking", "refunded")
+    mock_get.assert_called_once_with("pi_refund_missing_booking")
+    mock_booking.assert_called_once_with(test_booking.id)
+    mock_credit_service.assert_not_called()
+    mock_critical.assert_called_once_with(
+        "Stripe refund reconciliation gap: no booking %s for payment_intent %s "
+        "(charge %s)",
+        test_booking.id,
+        "pi_refund_missing_booking",
+        "ch_refund_missing_booking",
+    )
+
+
 def test_handle_charge_webhook_succeeded(stripe_service: StripeService) -> None:
     event = {"type": "charge.succeeded", "data": {"object": {"id": "ch_success"}}}
     assert stripe_service._handle_charge_webhook(event) is True

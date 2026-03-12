@@ -9,8 +9,11 @@ Pattern:
   Phase 2: Stripe calls (NO transaction - network latency 100-500ms)
   Phase 3: Write results (quick transaction ~5ms)
 """
+import ast
 from datetime import date, time, timedelta
 from decimal import Decimal
+import inspect
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -22,6 +25,49 @@ from app.models.instructor import InstructorProfile
 from app.models.user import User
 from app.services.booking_service import BookingService
 from app.tasks.payment_tasks import create_new_authorization_and_capture
+
+
+def _get_current_source(obj: object) -> str:
+    """Read the current on-disk source for an object by qualname.
+
+    `inspect.getsource()` can return the wrong block for decorated methods when a
+    long-lived test process has an older imported function object whose
+    `co_firstlineno` no longer matches the edited file on disk.
+    """
+    target = inspect.unwrap(obj)
+    source_file = inspect.getsourcefile(target)
+    if source_file is None:
+        return inspect.getsource(target)
+
+    module_source = Path(source_file).read_text(encoding="utf-8")
+    module_ast = ast.parse(module_source)
+    qualname = getattr(target, "__qualname__", getattr(target, "__name__", ""))
+    parts = [part for part in qualname.split(".") if part != "<locals>"]
+
+    node: ast.AST = module_ast
+    for part in parts:
+        body = getattr(node, "body", None)
+        if body is None:
+            raise AssertionError(f"Could not locate source for {qualname}")
+        next_node = next(
+            (
+                child
+                for child in body
+                if isinstance(child, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+                and child.name == part
+            ),
+            None,
+        )
+        if next_node is None:
+            raise AssertionError(f"Could not locate source for {qualname}")
+        node = next_node
+
+    end_lineno = getattr(node, "end_lineno", None)
+    if end_lineno is None:
+        raise AssertionError(f"Missing end line information for {qualname}")
+
+    lines = module_source.splitlines(keepends=True)
+    return "".join(lines[node.lineno - 1 : end_lineno])
 
 # =============================================================================
 # FIXTURES
@@ -500,11 +546,10 @@ class TestSourceCodePatterns:
         The main cancel_booking method should delegate Stripe calls to
         _execute_cancellation_stripe_calls which runs outside any transaction.
         """
-        import inspect
 
         from app.services.booking_service import BookingService
 
-        source = inspect.getsource(BookingService.cancel_booking)
+        source = _get_current_source(BookingService.cancel_booking)
         lines = source.split("\n")
 
         # Find transaction blocks
@@ -554,11 +599,10 @@ class TestSourceCodePatterns:
         """
         Verify process_booking_payment follows 3-phase pattern.
         """
-        import inspect
 
         from app.services.stripe_service import StripeService
 
-        source = inspect.getsource(StripeService.process_booking_payment)
+        source = _get_current_source(StripeService.process_booking_payment)
 
         # The refactored method should have:
         # - Multiple "with self.transaction()" blocks (Phase 1 and Phase 3)
@@ -594,7 +638,6 @@ class TestSourceCodePatterns:
         """
         Verify critical StripeService methods use transactions appropriately.
         """
-        import inspect
 
         from app.services.stripe_service import StripeService
 
@@ -610,7 +653,7 @@ class TestSourceCodePatterns:
             if hasattr(StripeService, method_name):
                 method = getattr(StripeService, method_name)
                 try:
-                    source = inspect.getsource(method)
+                    source = _get_current_source(method)
                     # Verify method has transaction blocks - this is informational
                     # Methods that need DB should use transactions
                     assert "self.transaction()" in source, (
@@ -637,11 +680,10 @@ class TestStripeServiceTransactionIsolation:
         - stripe.PaymentMethod.attach() outside transaction
         - DB writes in separate transaction
         """
-        import inspect
 
         from app.services.stripe_service import StripeService
 
-        source = inspect.getsource(StripeService.save_payment_method)
+        source = _get_current_source(StripeService.save_payment_method)
 
         # Check for multiple transaction blocks (3-phase pattern)
         transaction_count = source.count("with self.transaction()")
@@ -661,11 +703,10 @@ class TestStripeServiceTransactionIsolation:
         - stripe.PaymentIntent.create() outside transaction
         - DB writes in separate transaction
         """
-        import inspect
 
         from app.services.stripe_service import StripeService
 
-        source = inspect.getsource(StripeService.create_payment_intent)
+        source = _get_current_source(StripeService.create_payment_intent)
 
         # Check for transaction blocks (at least 1)
         transaction_count = source.count("with self.transaction()")
@@ -688,11 +729,10 @@ class TestStripeServiceTransactionIsolation:
         - stripe.PaymentIntent.confirm() outside transaction
         - DB writes in separate transaction
         """
-        import inspect
 
         from app.services.stripe_service import StripeService
 
-        source = inspect.getsource(StripeService.confirm_payment_intent)
+        source = _get_current_source(StripeService.confirm_payment_intent)
 
         # Check for transaction blocks (at least 1)
         transaction_count = source.count("with self.transaction()")
@@ -712,11 +752,10 @@ class TestStripeServiceTransactionIsolation:
         - stripe.Customer.create() outside transaction
         - DB writes in separate transaction
         """
-        import inspect
 
         from app.services.stripe_service import StripeService
 
-        source = inspect.getsource(StripeService.create_customer)
+        source = _get_current_source(StripeService.create_customer)
 
         # Check for transaction blocks
         transaction_count = source.count("with self.transaction()")
@@ -736,11 +775,10 @@ class TestStripeServiceTransactionIsolation:
         - stripe.PaymentMethod.detach() outside transaction
         - DB deletes in separate transaction
         """
-        import inspect
 
         from app.services.stripe_service import StripeService
 
-        source = inspect.getsource(StripeService.delete_payment_method)
+        source = _get_current_source(StripeService.delete_payment_method)
 
         # Check for transaction blocks (at least 1)
         transaction_count = source.count("with self.transaction()")
@@ -773,11 +811,10 @@ class TestCeleryTaskTransactionIsolation:
         - Phase 2: Stripe authorization (no lock)
         - Phase 3: Updates booking status (new session)
         """
-        import inspect
 
         from app.tasks.payment_tasks import _process_authorization_for_booking
 
-        source = inspect.getsource(_process_authorization_for_booking)
+        source = _get_current_source(_process_authorization_for_booking)
 
         # Check for SessionLocal usage (Celery uses SessionLocal, not self.transaction)
         session_count = source.count("SessionLocal()")
@@ -807,11 +844,10 @@ class TestCeleryTaskTransactionIsolation:
         - Phase 2: Stripe retry (no lock)
         - Phase 3: Updates status
         """
-        import inspect
 
         from app.tasks.payment_tasks import _process_retry_authorization
 
-        source = inspect.getsource(_process_retry_authorization)
+        source = _get_current_source(_process_retry_authorization)
 
         # Check for SessionLocal usage
         session_count = source.count("SessionLocal()")
@@ -836,11 +872,10 @@ class TestCeleryTaskTransactionIsolation:
         - Phase 2: Stripe capture (no lock)
         - Phase 3: Updates payment status
         """
-        import inspect
 
         from app.tasks.payment_tasks import _process_capture_for_booking
 
-        source = inspect.getsource(_process_capture_for_booking)
+        source = _get_current_source(_process_capture_for_booking)
 
         # Check for SessionLocal usage
         session_count = source.count("SessionLocal()")
@@ -923,56 +958,50 @@ class TestStaticAnalysisAllMethods:
 
     def test_no_stripe_in_save_payment_method_transaction(self):
         """Static check: save_payment_method has no Stripe in transaction blocks."""
-        import inspect
 
         from app.services.stripe_service import StripeService
 
-        source = inspect.getsource(StripeService.save_payment_method)
+        source = _get_current_source(StripeService.save_payment_method)
         self._check_no_stripe_in_transaction(source, "save_payment_method")
 
     def test_no_stripe_in_create_payment_intent_transaction(self):
         """Static check: create_payment_intent has no Stripe in transaction blocks."""
-        import inspect
 
         from app.services.stripe_service import StripeService
 
-        source = inspect.getsource(StripeService.create_payment_intent)
+        source = _get_current_source(StripeService.create_payment_intent)
         self._check_no_stripe_in_transaction(source, "create_payment_intent")
 
     def test_no_stripe_in_confirm_payment_intent_transaction(self):
         """Static check: confirm_payment_intent has no Stripe in transaction blocks."""
-        import inspect
 
         from app.services.stripe_service import StripeService
 
-        source = inspect.getsource(StripeService.confirm_payment_intent)
+        source = _get_current_source(StripeService.confirm_payment_intent)
         self._check_no_stripe_in_transaction(source, "confirm_payment_intent")
 
     def test_no_stripe_in_create_customer_transaction(self):
         """Static check: create_customer has no Stripe in transaction blocks."""
-        import inspect
 
         from app.services.stripe_service import StripeService
 
-        source = inspect.getsource(StripeService.create_customer)
+        source = _get_current_source(StripeService.create_customer)
         self._check_no_stripe_in_transaction(source, "create_customer")
 
     def test_no_stripe_in_delete_payment_method_transaction(self):
         """Static check: delete_payment_method has no Stripe in transaction blocks."""
-        import inspect
 
         from app.services.stripe_service import StripeService
 
-        source = inspect.getsource(StripeService.delete_payment_method)
+        source = _get_current_source(StripeService.delete_payment_method)
         self._check_no_stripe_in_transaction(source, "delete_payment_method")
 
     def test_no_stripe_in_celery_authorization_helper(self):
         """Static check: _process_authorization_for_booking has no Stripe in open session."""
-        import inspect
 
         from app.tasks.payment_tasks import _process_authorization_for_booking
 
-        source = inspect.getsource(_process_authorization_for_booking)
+        source = _get_current_source(_process_authorization_for_booking)
 
         # For Celery tasks, check that Stripe service calls happen AFTER db.close()
         # Pattern: db.close() should appear before stripe_service.* calls in the code flow
@@ -1002,11 +1031,10 @@ class TestStaticAnalysisAllMethods:
 
     def test_no_stripe_in_celery_retry_helper(self):
         """Static check: _process_retry_authorization has no Stripe in open session."""
-        import inspect
 
         from app.tasks.payment_tasks import _process_retry_authorization
 
-        source = inspect.getsource(_process_retry_authorization)
+        source = _get_current_source(_process_retry_authorization)
 
         # Verify 3-phase structure
         assert "PHASE 1" in source or "Phase 1" in source, "Missing Phase 1 marker"
@@ -1015,11 +1043,10 @@ class TestStaticAnalysisAllMethods:
 
     def test_no_stripe_in_celery_capture_helper(self):
         """Static check: _process_capture_for_booking has no Stripe in open session."""
-        import inspect
 
         from app.tasks.payment_tasks import _process_capture_for_booking
 
-        source = inspect.getsource(_process_capture_for_booking)
+        source = _get_current_source(_process_capture_for_booking)
 
         # Verify 3-phase structure
         assert "PHASE 1" in source or "Phase 1" in source, "Missing Phase 1 marker"

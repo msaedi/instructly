@@ -16,10 +16,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/react-query/queryClient';
 import { useTransactionHistory } from '@/hooks/queries/useTransactionHistory';
 
-interface BillingTabProps {
-  userId: string;
-}
-
 interface Transaction {
   id: string;
   service_name: string;
@@ -38,7 +34,7 @@ interface Transaction {
   created_at: string;
 }
 
-const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
+const BillingTab: React.FC = () => {
   const queryClient = useQueryClient();
   const [promoCode, setPromoCode] = useState('');
   const [isApplyingPromo, setIsApplyingPromo] = useState(false);
@@ -67,9 +63,6 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
   // Use React Query hook for transaction history (prevents duplicate API calls)
   const { data: transactionsData, isLoading: isLoadingTransactions } = useTransactionHistory();
   const transactions = (transactionsData ?? []) as Transaction[];
-
-  // Suppress unused userId warning - it was used for dependency tracking
-  void userId;
 
   // Apply promo code
   const handleApplyPromoCode = async () => {
@@ -211,7 +204,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
       {/* Payment Methods Section */}
       <div>
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Payment Methods</h3>
-        <PaymentMethods userId={userId} />
+        <PaymentMethods />
       </div>
 
       <div className="border-b border-gray-200 dark:border-gray-700" />

@@ -7,8 +7,8 @@ import { paymentService } from '@/services/api/payments';
 const createPaymentMethodMock = jest.fn();
 const getElementMock = jest.fn();
 
-jest.mock('@stripe/stripe-js', () => ({
-  loadStripe: jest.fn(() => Promise.resolve({})),
+jest.mock('@/features/shared/payment/utils/stripe', () => ({
+  getStripe: jest.fn(() => Promise.resolve({})),
 }));
 
 jest.mock('@stripe/react-stripe-js', () => ({

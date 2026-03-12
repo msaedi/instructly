@@ -575,7 +575,7 @@ function StudentDashboardContent() {
               )}
 
               {activeTab === 'billing' && (
-                <BillingTab userId={userData?.id || ''} />
+                <BillingTab />
               )}
               {activeTab === 'notifications' && (
                 <NotificationsTab />

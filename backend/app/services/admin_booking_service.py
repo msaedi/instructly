@@ -299,118 +299,128 @@ class AdminBookingService(BaseService):
             )
             refund_id = stripe_result.get("refund_id")
 
-        with self.transaction():
-            booking = self.booking_repo.get_booking_with_details(booking_id)
-            if not booking:
-                return None, refund_id
+        try:
+            with self.transaction():
+                booking = self.booking_repo.get_booking_with_details(booking_id)
+                if not booking:
+                    return None, refund_id
 
-            bp = self.booking_repo.ensure_payment(booking.id)
-            audit_before = redact(booking.to_dict()) or {}
-            audit_before["payment_status"] = bp.payment_status
+                bp = self.booking_repo.ensure_payment(booking.id)
+                audit_before = redact(booking.to_dict()) or {}
+                audit_before["payment_status"] = bp.payment_status
 
-            booking.status = BookingStatus.CANCELLED
-            booking.cancelled_at = datetime.now(timezone.utc)
-            booking.cancelled_by_id = actor.id
-            booking.cancellation_reason = reason
+                booking.status = BookingStatus.CANCELLED
+                booking.cancelled_at = datetime.now(timezone.utc)
+                booking.cancelled_by_id = actor.id
+                booking.cancellation_reason = reason
 
-            try:
-                from app.services.credit_service import CreditService
+                try:
+                    from app.services.credit_service import CreditService
 
-                credit_service = CreditService(self.db)
-                credit_service.release_credits_for_booking(
-                    booking_id=booking.id, use_transaction=False
-                )
-                bp.credits_reserved_cents = 0
-            except Exception as exc:
-                logger.warning(
-                    "Failed to release reserved credits for booking %s: %s",
-                    booking.id,
-                    exc,
-                )
+                    credit_service = CreditService(self.db)
+                    credit_service.release_credits_for_booking(
+                        booking_id=booking.id, use_transaction=False
+                    )
+                    bp.credits_reserved_cents = 0
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to release reserved credits for booking %s: %s",
+                        booking.id,
+                        exc,
+                    )
 
-            if refund:
-                bp.payment_status = PaymentStatus.SETTLED.value
-                bp.settlement_outcome = "admin_refund"
-                if amount_cents is not None:
-                    booking.refunded_to_card_amount = amount_cents
+                if refund:
+                    bp.payment_status = PaymentStatus.SETTLED.value
+                    bp.settlement_outcome = "admin_refund"
+                    if amount_cents is not None:
+                        booking.refunded_to_card_amount = amount_cents
 
-            audit_after = redact(booking.to_dict()) or {}
-            audit_after["payment_status"] = bp.payment_status
-            audit_after["admin_cancel"] = {
-                "reason": reason,
-                "note": note,
-                "refund": refund,
-                "refund_id": refund_id,
-                "amount_cents": amount_cents,
-            }
-
-            if refund and amount_cents is not None:
-                audit_after["refund"] = {
+                audit_after = redact(booking.to_dict()) or {}
+                audit_after["payment_status"] = bp.payment_status
+                audit_after["admin_cancel"] = {
                     "reason": reason,
                     "note": note,
-                    "amount_cents": amount_cents,
+                    "refund": refund,
                     "refund_id": refund_id,
-                    "stripe_reason": self._stripe_reason_for_cancel(reason),
+                    "amount_cents": amount_cents,
                 }
 
-            if AUDIT_ENABLED:
-                cancel_entry = AuditLog.from_change(
-                    entity_type="booking",
-                    entity_id=booking.id,
-                    action="admin_cancel",
-                    actor={"id": actor.id, "role": "admin"},
-                    before=audit_before,
-                    after=audit_after,
-                )
-                self.audit_repo.write(cancel_entry)
-
                 if refund and amount_cents is not None:
-                    refund_entry = AuditLog.from_change(
+                    audit_after["refund"] = {
+                        "reason": reason,
+                        "note": note,
+                        "amount_cents": amount_cents,
+                        "refund_id": refund_id,
+                        "stripe_reason": self._stripe_reason_for_cancel(reason),
+                    }
+
+                if AUDIT_ENABLED:
+                    cancel_entry = AuditLog.from_change(
                         entity_type="booking",
                         entity_id=booking.id,
-                        action="admin_refund",
+                        action="admin_cancel",
                         actor={"id": actor.id, "role": "admin"},
                         before=audit_before,
                         after=audit_after,
                     )
-                    self.audit_repo.write(refund_entry)
-                try:
-                    AuditService(self.db).log_changes(
-                        action="booking.cancel",
-                        resource_type="booking",
-                        resource_id=booking.id,
-                        old_values=audit_before,
-                        new_values=audit_after,
-                        actor=actor,
-                        actor_type="user",
-                        description="Admin cancelled booking",
-                        metadata={
-                            "initiated_by": "admin",
-                            "refund": bool(refund),
-                            "refund_amount_cents": amount_cents,
-                            "reason": reason,
-                        },
-                    )
+                    self.audit_repo.write(cancel_entry)
+
                     if refund and amount_cents is not None:
+                        refund_entry = AuditLog.from_change(
+                            entity_type="booking",
+                            entity_id=booking.id,
+                            action="admin_refund",
+                            actor={"id": actor.id, "role": "admin"},
+                            before=audit_before,
+                            after=audit_after,
+                        )
+                        self.audit_repo.write(refund_entry)
+                    try:
                         AuditService(self.db).log_changes(
-                            action="payment.refund",
-                            resource_type="payment",
+                            action="booking.cancel",
+                            resource_type="booking",
                             resource_id=booking.id,
                             old_values=audit_before,
                             new_values=audit_after,
                             actor=actor,
                             actor_type="user",
-                            description="Admin refund issued",
+                            description="Admin cancelled booking",
                             metadata={
                                 "initiated_by": "admin",
+                                "refund": bool(refund),
                                 "refund_amount_cents": amount_cents,
-                                "stripe_reason": self._stripe_reason_for_cancel(reason),
+                                "reason": reason,
                             },
                         )
-                except Exception:
-                    logger.debug("Non-fatal error ignored", exc_info=True)
+                        if refund and amount_cents is not None:
+                            AuditService(self.db).log_changes(
+                                action="payment.refund",
+                                resource_type="payment",
+                                resource_id=booking.id,
+                                old_values=audit_before,
+                                new_values=audit_after,
+                                actor=actor,
+                                actor_type="user",
+                                description="Admin refund issued",
+                                metadata={
+                                    "initiated_by": "admin",
+                                    "refund_amount_cents": amount_cents,
+                                    "stripe_reason": self._stripe_reason_for_cancel(reason),
+                                },
+                            )
+                    except Exception:
+                        logger.warning("Audit log write failed", exc_info=True)
+        except Exception:
+            if refund and refund_id:
+                logger.critical(
+                    "DB write failed AFTER Stripe refund succeeded. "
+                    "Refund ID %s for booking %s needs manual reconciliation.",
+                    refund_id,
+                    booking_id,
+                )
+            raise
 
-            return booking, refund_id
+        return booking, refund_id
 
     @BaseService.measure_operation("admin_bookings.status_update")
     def update_booking_status(
@@ -482,7 +492,7 @@ class AdminBookingService(BaseService):
                         metadata={"initiated_by": "admin", "status_note": note},
                     )
                 except Exception:
-                    logger.debug("Non-fatal error ignored", exc_info=True)
+                    logger.warning("Audit log write failed", exc_info=True)
 
             return booking
 

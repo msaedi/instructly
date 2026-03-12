@@ -1138,8 +1138,8 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
           id: method.id,
           last4: method.last4,
           brand: method.brand.charAt(0).toUpperCase() + method.brand.slice(1), // Capitalize brand
-          expiryMonth: 12, // These fields aren't returned by backend yet
-          expiryYear: 2025,
+          expiryMonth: null, // Not returned by backend yet
+          expiryYear: null,
           isDefault: method.is_default,
         }));
         setUserCards(mappedCards);
@@ -1154,18 +1154,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
           message: (error as Error).message,
           stack: (error as Error).stack
         });
-        // Fall back to mock data for testing
-        logger.warn('Using mock payment data as fallback');
-        setUserCards([
-          {
-            id: '1',
-            last4: '4242',
-            brand: 'Visa',
-            expiryMonth: 12,
-            expiryYear: 2025,
-            isDefault: true,
-          },
-        ]);
+        setUserCards([]);
       } finally {
         setIsLoadingPaymentMethods(false);
       }

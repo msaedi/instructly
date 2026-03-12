@@ -113,6 +113,11 @@ logger = logging.getLogger(__name__)
 stripe.api_key = (
     settings.stripe_secret_key.get_secret_value() if settings.stripe_secret_key else None
 )
+logger.info(
+    "Stripe SDK %s, API version %s",
+    getattr(stripe, "VERSION", "unknown"),
+    getattr(stripe, "api_version", "unknown"),
+)
 STRIPE_CURRENCY = settings.stripe_currency if hasattr(settings, "stripe_currency") else "usd"
 
 

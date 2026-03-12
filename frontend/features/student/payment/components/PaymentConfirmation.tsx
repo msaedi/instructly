@@ -1778,17 +1778,6 @@ function PaymentConfirmationInner({
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  CVV
-                </label>
-                <input
-                  type="text"
-                  placeholder="123"
-                  className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
-                  style={{ outline: 'none' }}
-                />
-              </div>
             </div>
 
             <div>

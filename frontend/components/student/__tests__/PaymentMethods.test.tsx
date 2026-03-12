@@ -10,6 +10,10 @@ jest.mock('@stripe/stripe-js', () => ({
   loadStripe: jest.fn(() => Promise.resolve({})),
 }));
 
+jest.mock('@/features/shared/payment/utils/stripe', () => ({
+  getStripe: jest.fn(() => Promise.resolve({})),
+}));
+
 jest.mock('@stripe/react-stripe-js', () => ({
   Elements: ({ children }: { children: React.ReactNode }) => <div data-testid="stripe-elements">{children}</div>,
   CardElement: () => <div data-testid="card-element" />,
@@ -73,7 +77,7 @@ describe('PaymentMethods', () => {
   it('shows a loading state while payment methods are fetched', () => {
     mockUsePaymentMethods.mockReturnValue({ data: [], isLoading: true, error: null });
 
-    const { container } = render(<PaymentMethods userId="user-1" />);
+    const { container } = render(<PaymentMethods />);
 
     expect(screen.queryByRole('button', { name: /add payment method/i })).not.toBeInTheDocument();
     expect(container.querySelector('.animate-spin')).toBeInTheDocument();
@@ -82,7 +86,7 @@ describe('PaymentMethods', () => {
   it('renders an empty state when no payment methods exist', () => {
     mockUsePaymentMethods.mockReturnValue({ data: [], isLoading: false, error: null });
 
-    render(<PaymentMethods userId="user-1" />);
+    render(<PaymentMethods />);
 
     expect(screen.getByText(/no payment methods saved/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /add your first card/i })).toBeInTheDocument();
@@ -95,7 +99,7 @@ describe('PaymentMethods', () => {
     mockUseInvalidatePaymentMethods.mockReturnValue(invalidate);
     (paymentService.savePaymentMethod as jest.Mock).mockResolvedValue({});
 
-    render(<PaymentMethods userId="user-1" />);
+    render(<PaymentMethods />);
 
     await user.click(screen.getByRole('button', { name: /add your first card/i }));
     await user.click(screen.getByLabelText(/set as default payment method/i));
@@ -118,7 +122,7 @@ describe('PaymentMethods', () => {
       createPaymentMethod: jest.fn().mockResolvedValue({ error: { message: 'Bad card' } }),
     });
 
-    render(<PaymentMethods userId="user-1" />);
+    render(<PaymentMethods />);
 
     await user.click(screen.getByRole('button', { name: /add your first card/i }));
     await user.click(screen.getByRole('button', { name: /add card/i }));
@@ -139,7 +143,7 @@ describe('PaymentMethods', () => {
     mockUseInvalidatePaymentMethods.mockReturnValue(invalidate);
     (paymentService.setDefaultPaymentMethod as jest.Mock).mockResolvedValue({});
 
-    render(<PaymentMethods userId="user-1" />);
+    render(<PaymentMethods />);
 
     await user.click(screen.getByRole('button', { name: /set default/i }));
 
@@ -162,7 +166,7 @@ describe('PaymentMethods', () => {
     mockUseInvalidatePaymentMethods.mockReturnValue(invalidate);
     (paymentService.deletePaymentMethod as jest.Mock).mockResolvedValue({});
 
-    render(<PaymentMethods userId="user-1" />);
+    render(<PaymentMethods />);
 
     const deleteButton = screen.getByRole('button', { name: /delete payment method ending in 1111/i });
     await user.click(deleteButton);
@@ -184,7 +188,7 @@ describe('PaymentMethods', () => {
       error: null,
     });
 
-    render(<PaymentMethods userId="user-1" />);
+    render(<PaymentMethods />);
 
     expect(latestDeleteModalProps?.isOpen).toBe(false);
 
@@ -204,7 +208,7 @@ describe('PaymentMethods', () => {
     });
     (paymentService.deletePaymentMethod as jest.Mock).mockRejectedValue(new Error('fail'));
 
-    render(<PaymentMethods userId="user-1" />);
+    render(<PaymentMethods />);
 
     const deleteButton = screen.getByRole('button', { name: /delete payment method ending in 2222/i });
     await user.click(deleteButton);
@@ -220,7 +224,7 @@ describe('PaymentMethods', () => {
     mockUsePaymentMethods.mockReturnValue({ data: [], isLoading: false, error: null });
     mockUseStripe.mockReturnValue(null); // Stripe not loaded
 
-    render(<PaymentMethods userId="user-1" />);
+    render(<PaymentMethods />);
 
     await user.click(screen.getByRole('button', { name: /add your first card/i }));
 
@@ -240,7 +244,7 @@ describe('PaymentMethods', () => {
     mockUsePaymentMethods.mockReturnValue({ data: [], isLoading: false, error: null });
     mockUseElements.mockReturnValue(null); // Elements not loaded
 
-    render(<PaymentMethods userId="user-1" />);
+    render(<PaymentMethods />);
 
     await user.click(screen.getByRole('button', { name: /add your first card/i }));
 
@@ -262,7 +266,7 @@ describe('PaymentMethods', () => {
       getElement: jest.fn().mockReturnValue(null), // CardElement not found
     });
 
-    render(<PaymentMethods userId="user-1" />);
+    render(<PaymentMethods />);
 
     await user.click(screen.getByRole('button', { name: /add your first card/i }));
 
@@ -280,7 +284,7 @@ describe('PaymentMethods', () => {
     mockUsePaymentMethods.mockReturnValue({ data: [], isLoading: false, error: null });
     (paymentService.savePaymentMethod as jest.Mock).mockRejectedValue(new Error('Network error'));
 
-    render(<PaymentMethods userId="user-1" />);
+    render(<PaymentMethods />);
 
     await user.click(screen.getByRole('button', { name: /add your first card/i }));
     await user.click(screen.getByRole('button', { name: /add card/i }));
@@ -302,7 +306,7 @@ describe('PaymentMethods', () => {
     });
     (paymentService.setDefaultPaymentMethod as jest.Mock).mockRejectedValue(new Error('Server error'));
 
-    render(<PaymentMethods userId="user-1" />);
+    render(<PaymentMethods />);
 
     await user.click(screen.getByRole('button', { name: /set default/i }));
 
@@ -316,7 +320,7 @@ describe('PaymentMethods', () => {
     const user = userEvent.setup();
     mockUsePaymentMethods.mockReturnValue({ data: [], isLoading: false, error: null });
 
-    render(<PaymentMethods userId="user-1" />);
+    render(<PaymentMethods />);
 
     // Open add card form
     await user.click(screen.getByRole('button', { name: /add your first card/i }));
@@ -342,7 +346,7 @@ describe('PaymentMethods', () => {
       error: null,
     });
 
-    const { container } = render(<PaymentMethods userId="user-1" />);
+    const { container } = render(<PaymentMethods />);
 
     const deleteButton = container.querySelector('button.text-red-600') as HTMLButtonElement | null;
     expect(deleteButton).toBeInTheDocument();
@@ -363,7 +367,7 @@ describe('PaymentMethods', () => {
     const user = userEvent.setup();
     mockUsePaymentMethods.mockReturnValue({ data: [], isLoading: false, error: null });
 
-    render(<PaymentMethods userId="user-1" />);
+    render(<PaymentMethods />);
 
     await user.click(screen.getByRole('button', { name: /add your first card/i }));
 
@@ -397,7 +401,7 @@ describe('PaymentMethods', () => {
       error: null,
     });
 
-    render(<PaymentMethods userId="user-1" />);
+    render(<PaymentMethods />);
 
     // Top-level add button should be visible
     const addButton = screen.getByRole('button', { name: /add payment method/i });
@@ -416,7 +420,7 @@ describe('PaymentMethods', () => {
       error: new Error('Query failed'),
     });
 
-    render(<PaymentMethods userId="user-1" />);
+    render(<PaymentMethods />);
 
     expect(screen.getByText(/failed to load payment methods/i)).toBeInTheDocument();
   });
@@ -428,7 +432,7 @@ describe('PaymentMethods', () => {
       createPaymentMethod: jest.fn().mockResolvedValue({ error: {} }),
     });
 
-    render(<PaymentMethods userId="user-1" />);
+    render(<PaymentMethods />);
 
     await user.click(screen.getByRole('button', { name: /add your first card/i }));
     await user.click(screen.getByRole('button', { name: /add card/i }));
@@ -446,7 +450,7 @@ describe('PaymentMethods', () => {
       error: null,
     });
 
-    render(<PaymentMethods userId="user-1" />);
+    render(<PaymentMethods />);
 
     expect(screen.getByText('American Express')).toBeInTheDocument();
     expect(screen.getByText('Discover')).toBeInTheDocument();
@@ -461,7 +465,7 @@ describe('PaymentMethods', () => {
       error: null,
     });
 
-    render(<PaymentMethods userId="user-1" />);
+    render(<PaymentMethods />);
 
     // The getCardBrandDisplay fallback returns 'Card'
     expect(screen.getByText('Card')).toBeInTheDocument();
@@ -471,7 +475,7 @@ describe('PaymentMethods', () => {
     const user = userEvent.setup();
     mockUsePaymentMethods.mockReturnValue({ data: [], isLoading: false, error: null });
 
-    render(<PaymentMethods userId="user-1" />);
+    render(<PaymentMethods />);
 
     // Click "Add Your First Card" to open form
     await user.click(screen.getByRole('button', { name: /add your first card/i }));
@@ -492,7 +496,7 @@ describe('PaymentMethods', () => {
       error: null,
     });
 
-    render(<PaymentMethods userId="user-1" />);
+    render(<PaymentMethods />);
 
     // Default badge should appear for the default card
     expect(screen.getByText('Default')).toBeInTheDocument();
@@ -510,7 +514,7 @@ describe('PaymentMethods', () => {
       error: null,
     });
 
-    render(<PaymentMethods userId="user-1" />);
+    render(<PaymentMethods />);
 
     // Check that the "Added" date is formatted
     expect(screen.getByText(/added/i)).toBeInTheDocument();

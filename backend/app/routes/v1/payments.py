@@ -37,6 +37,7 @@ from urllib.parse import urljoin
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 import stripe
@@ -830,6 +831,22 @@ async def handle_stripe_webhook(
             event_id=event_payload.get("id"),
         )
 
+        claimed = await asyncio.to_thread(ledger_service.mark_processing, ledger_event)
+        if not claimed:
+            current_event = await asyncio.to_thread(ledger_service.get_event, ledger_event.id)
+            current_status = current_event.status if current_event else ledger_event.status
+            if current_status in {"processed", "processing"}:
+                return WebhookResponse(
+                    **model_filter(
+                        WebhookResponse,
+                        {
+                            "status": "success",
+                            "event_type": event_payload.get("type", "unknown"),
+                            "message": "Duplicate event ignored",
+                        },
+                    )
+                )
+
         start_time = time.monotonic()
         try:
             _result = await asyncio.to_thread(
@@ -864,8 +881,11 @@ async def handle_stripe_webhook(
     except HTTPException:
         # Re-raise HTTP exceptions (like missing signature)
         raise
+    except (OperationalError, ConnectionError) as e:
+        logger.error("Transient webhook error (Stripe will retry): %s", e)
+        raise HTTPException(status_code=503, detail="Temporary failure, please retry")
     except Exception as e:
-        logger.error(f"Unexpected webhook error: {str(e)}")
+        logger.error("Unexpected webhook error: %s", e)
         # Return 200 to prevent Stripe retries for non-recoverable errors
         response_payload = {
             "status": "error",

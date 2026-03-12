@@ -499,7 +499,7 @@ def upgrade() -> None:
     op.create_check_constraint(
         "ck_payment_intents_status",
         "payment_intents",
-        "status IN ('requires_payment_method', 'requires_confirmation', 'requires_action', 'requires_capture', 'processing', 'succeeded', 'canceled')",
+        "status IN ('requires_payment_method', 'requires_confirmation', 'requires_action', 'requires_capture', 'processing', 'succeeded', 'refunded', 'canceled', 'refund_pending', 'refund_failed')",
     )
 
     op.create_table(

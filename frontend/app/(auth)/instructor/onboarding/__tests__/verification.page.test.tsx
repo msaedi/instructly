@@ -72,6 +72,10 @@ jest.mock('@stripe/stripe-js', () => ({
   loadStripe: (...args: [string]) => mockLoadStripe(...args),
 }));
 
+jest.mock('@/features/shared/payment/utils/stripe', () => ({
+  getStripe: () => mockLoadStripe('pk_test_mock'),
+}));
+
 jest.mock('@/lib/api', () => ({
   API_ENDPOINTS: {
     INSTRUCTOR_PROFILE: '/api/v1/instructors/me',

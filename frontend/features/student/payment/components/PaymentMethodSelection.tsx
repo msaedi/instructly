@@ -5,10 +5,8 @@ import { CreditCard, Plus, Check } from 'lucide-react';
 import { PaymentCard, CreditBalance, BookingPayment, PaymentMethod } from '../types';
 import { paymentService } from '@/services/api/payments';
 import { logger } from '@/lib/logger';
-import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
-
-const stripePromise = loadStripe(process.env['NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY'] || '');
+import { getStripe } from '@/features/shared/payment/utils/stripe';
 
 // Add Card Form Component - EXACTLY like the billing page
 const AddCardFormInner: React.FC<{
@@ -64,8 +62,8 @@ const AddCardFormInner: React.FC<{
         id: savedCard.id,
         last4: savedCard.last4,
         brand: savedCard.brand.charAt(0).toUpperCase() + savedCard.brand.slice(1),
-        expiryMonth: 12, // Not returned by backend yet
-        expiryYear: 2025,
+        expiryMonth: null,
+        expiryYear: null,
         isDefault: savedCard.is_default,
       };
 
@@ -229,7 +227,7 @@ export default function PaymentMethodSelection({
                   </div>
 
                   {/* Use Stripe Elements - EXACTLY like billing page */}
-                  <Elements stripe={stripePromise}>
+                  <Elements stripe={getStripe()}>
                     <AddCardFormInner
                       onSuccess={(newCard) => {
                         // Update UI with new card

@@ -231,7 +231,7 @@ export default function InstructorDashboard() {
             <ChecklistRow
               label="Stripe Connect onboarding"
               ok={!!connectStatus?.onboarding_completed}
-              action={<StripeOnboarding instructorId={profile.user_id} />}
+              action={<StripeOnboarding />}
             />
             <ChecklistRow
               label="ID verification (Stripe Identity)"

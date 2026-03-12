@@ -20,6 +20,8 @@ STRIPE_TO_DISPLAY_STATUS = {
     "succeeded": PaymentDisplayStatus.PAID,
     "failed": PaymentDisplayStatus.FAILED,
     "refunded": PaymentDisplayStatus.REFUNDED,
+    "refund_pending": PaymentDisplayStatus.PENDING,
+    "refund_failed": PaymentDisplayStatus.FAILED,
     "canceled": PaymentDisplayStatus.CANCELLED,
     "cancelled": PaymentDisplayStatus.CANCELLED,
     "requires_payment_method": PaymentDisplayStatus.PENDING,

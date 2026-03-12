@@ -23,6 +23,7 @@ import { getCurrentWeekRange } from '@/types/common';
 import { useInstructorBookings } from '@/hooks/queries/useInstructorBookings';
 import EditProfileModal from '@/components/modals/EditProfileModal';
 import { createStripeIdentitySession, createSignedUpload, fetchWithAuth } from '@/lib/api';
+import { getStripe } from '@/features/shared/payment/utils/stripe';
 import { paymentService } from '@/services/api/payments';
 import { logger } from '@/lib/logger';
 import { InstructorProfile } from '@/types/instructor';
@@ -1471,13 +1472,10 @@ export default function InstructorDashboardNew() {
                   setShowVerifyModal(false);
                   const session = await createStripeIdentitySession();
                   try {
-                    const pk = process.env['NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY'];
-                    if (pk) {
-                      const stripe = await (await import('@stripe/stripe-js')).loadStripe(pk);
-                      if (stripe) {
-                        const result = await stripe.verifyIdentity(session.client_secret);
-                        if (result && typeof (result as { error?: unknown }).error === 'undefined') return;
-                      }
+                    const stripe = await getStripe();
+                    if (stripe) {
+                      const result = await stripe.verifyIdentity(session.client_secret);
+                      if (result && typeof (result as { error?: unknown }).error === 'undefined') return;
                     }
                   } catch {}
                   window.location.href = `https://verify.stripe.com/start/${session.client_secret}`;
