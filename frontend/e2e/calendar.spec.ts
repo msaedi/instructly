@@ -127,7 +127,24 @@ const stubAuthMe = async (page: Page) => {
   });
 };
 
-const stubInstructorProfile = async (page: Page) => {
+type StubInstructorProfileOverrides = Partial<{
+  calendar_settings_acknowledged_at: string | null;
+  non_travel_buffer_minutes: number;
+  travel_buffer_minutes: number;
+  overnight_protection_enabled: boolean;
+  services: Array<{
+    id?: string;
+    service_catalog_id?: string;
+    service_catalog_name?: string;
+    min_hourly_rate?: number;
+    format_prices?: Array<{ format: 'student_location' | 'instructor_location' | 'online'; hourly_rate: number }>;
+  }>;
+}>;
+
+const stubInstructorProfile = async (
+  page: Page,
+  overrides: StubInstructorProfileOverrides = {}
+) => {
   const profilePayload = {
     id: 'instructor-profile',
     bio: 'Experienced instructor ready to teach.',
@@ -145,6 +162,7 @@ const stubInstructorProfile = async (page: Page) => {
     non_travel_buffer_minutes: 15,
     travel_buffer_minutes: 60,
     overnight_protection_enabled: true,
+    calendar_settings_acknowledged_at: null,
     preferred_teaching_locations: [],
     preferred_public_spaces: [],
     services: [],
@@ -155,6 +173,7 @@ const stubInstructorProfile = async (page: Page) => {
       roles: ['instructor'],
     },
     is_live: true,
+    ...overrides,
   };
 
   await page.route('**/instructors/me', async (route, request) => {
@@ -176,6 +195,53 @@ const stubInstructorProfile = async (page: Page) => {
     }
     await route.continue();
   });
+
+  await page.route('**/instructors/me/calendar-settings', async (route, request) => {
+    if (request.method() === 'PATCH') {
+      const payload = (await request.postDataJSON()) as Partial<{
+        non_travel_buffer_minutes: number;
+        travel_buffer_minutes: number;
+        overnight_protection_enabled: boolean;
+      }>;
+      if (typeof payload.non_travel_buffer_minutes === 'number') {
+        profilePayload.non_travel_buffer_minutes = payload.non_travel_buffer_minutes;
+      }
+      if (typeof payload.travel_buffer_minutes === 'number') {
+        profilePayload.travel_buffer_minutes = payload.travel_buffer_minutes;
+      }
+      if (typeof payload.overnight_protection_enabled === 'boolean') {
+        profilePayload.overnight_protection_enabled = payload.overnight_protection_enabled;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          non_travel_buffer_minutes: profilePayload.non_travel_buffer_minutes,
+          travel_buffer_minutes: profilePayload.travel_buffer_minutes,
+          overnight_protection_enabled: profilePayload.overnight_protection_enabled,
+        }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.route('**/instructors/me/calendar-settings/acknowledge', async (route, request) => {
+    if (request.method() === 'POST') {
+      profilePayload.calendar_settings_acknowledged_at = '2026-03-14T02:00:00Z';
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          calendar_settings_acknowledged_at: profilePayload.calendar_settings_acknowledged_at,
+        }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+
+  return profilePayload;
 };
 
 const setupInstructorSession = async (page: Page) => {
@@ -626,5 +692,132 @@ test.describe('Instructor availability calendar', () => {
     const morningCell = availabilityCell(page, week.iso.base, '08:00:00');
     await morningCell.scrollIntoViewIfNeeded();
     await expect(morningCell).toBeVisible();
+  });
+
+  test('embedded availability panel shows calendar settings and only acknowledges after the first successful save', async ({
+    page,
+  }) => {
+    const week = createWeekContext();
+    let currentSchedule = structuredClone(createInitialSchedule(week.iso));
+    let currentEtag = '"v1"';
+    let acknowledgeRequests = 0;
+
+    page.on('request', (request) => {
+      if (
+        request.method() === 'POST' &&
+        request.url().includes('/api/v1/instructors/me/calendar-settings/acknowledge')
+      ) {
+        acknowledgeRequests += 1;
+      }
+    });
+
+    await page.route(/.*\/instructors\/availability(\?.*)?$/, (route) =>
+      fulfillJson(route, buildAvailabilityRows(currentSchedule))
+    );
+
+    await page.route(/.*\/instructors\/availability\/week\/booked-slots(\?.*)?$/, (route, request) =>
+      request.method() === 'GET' ? fulfillJson(route, { booked_slots: [] }) : route.fallback()
+    );
+
+    await page.route(/.*\/instructors\/availability\/week(\?.*)?$/, async (route, request) => {
+      if (request.method() === 'GET') {
+        await fulfillJson(route, currentSchedule, 200, { ETag: currentEtag });
+        await page.evaluate(
+          (version) => {
+            (window as Window & { __week_version?: string }).__week_version = version;
+          },
+          currentEtag
+        );
+        return;
+      }
+
+      if (request.method() === 'POST') {
+        const payload = (await request.postDataJSON()) as {
+          schedule?: ScheduleEntry[];
+          override?: boolean;
+        };
+        const schedulePayload = payload.schedule ?? [];
+        const grouped: typeof currentSchedule = {};
+        for (const entry of schedulePayload) {
+          grouped[entry.date] = grouped[entry.date] || [];
+          grouped[entry.date]!.push({ start_time: entry.start_time, end_time: entry.end_time });
+        }
+        currentSchedule = grouped;
+        currentEtag = currentEtag === '"v1"' ? '"v2"' : '"v3"';
+        await fulfillJson(
+          route,
+          {
+            message: 'Saved weekly availability',
+            week_start: week.iso.base,
+            week_end: week.iso.weekEnd,
+            windows_created: schedulePayload.length,
+            windows_updated: 0,
+            windows_deleted: 0,
+            version: currentEtag,
+          },
+          200,
+          { ETag: currentEtag }
+        );
+        await page.evaluate(
+          (version) => {
+            (window as Window & { __week_version?: string }).__week_version = version;
+          },
+          currentEtag
+        );
+        return;
+      }
+
+      await route.fallback();
+    });
+
+    const initialWeekResponse = waitForWeekResponse(page, 'GET', week.iso.base);
+    await page.goto('/instructor/dashboard?panel=availability');
+    await initialWeekResponse;
+    await alignCalendarToWeek(page, week.iso.base);
+
+    await expect(page.getByRole('heading', { name: 'Buffer between lessons' })).toBeVisible();
+    await expect(
+      page.getByRole('switch', { name: 'Overnight Booking Protection' })
+    ).toHaveAttribute('aria-checked', 'true');
+
+    const firstStart = availabilityCell(page, week.iso.base, '13:00:00');
+    const firstEnd = availabilityCell(page, week.iso.base, '14:00:00');
+    await firstStart.scrollIntoViewIfNeeded();
+    await firstStart.click();
+    await firstEnd.click();
+    await expect(firstEnd).toHaveAttribute('aria-selected', 'true');
+
+    const firstSave = waitForWeekResponse(page, 'POST', week.iso.base);
+    await page.getByRole('button', { name: 'Save Week' }).click();
+    await firstSave;
+
+    const acknowledgementModal = page.getByTestId('calendar-settings-acknowledgement-modal');
+    await expect(acknowledgementModal).toBeVisible();
+    await expect(acknowledgementModal).toContainText(
+      'We automatically add 15 minutes of buffer time between your lessons'
+    );
+
+    await page.getByRole('button', { name: 'OK' }).click();
+    await expect.poll(() => acknowledgeRequests).toBe(1);
+    await expect(acknowledgementModal).toBeHidden();
+
+    const reloadWeekResponse = waitForWeekResponse(page, 'GET', week.iso.base);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await reloadWeekResponse;
+    await alignCalendarToWeek(page, week.iso.base);
+
+    const secondEditStart = availabilityCell(page, week.iso.base, '15:00:00');
+    const secondEditEnd = availabilityCell(page, week.iso.base, '16:00:00');
+    await secondEditStart.scrollIntoViewIfNeeded();
+    await secondEditStart.click();
+    await secondEditEnd.click();
+    await expect(secondEditEnd).toHaveAttribute('aria-selected', 'true');
+
+    const secondSave = waitForWeekResponse(page, 'POST', week.iso.base);
+    await page.getByRole('button', { name: 'Save Week' }).click();
+    await secondSave;
+
+    await expect(acknowledgementModal).toBeHidden();
+    expect(acknowledgeRequests).toBe(1);
   });
 });

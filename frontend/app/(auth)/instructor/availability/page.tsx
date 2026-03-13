@@ -1,15 +1,20 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { useQueryClient } from '@tanstack/react-query';
+import CalendarSettingsAcknowledgementModal from '@/components/availability/CalendarSettingsAcknowledgementModal';
+import CalendarSettingsSection from '@/components/availability/CalendarSettingsSection';
 import WeekNavigator from '@/components/availability/WeekNavigator';
 import Link from 'next/link';
 import { useAvailability } from '@/hooks/availability/useAvailability';
 import { useBookedSlots } from '@/hooks/availability/useBookedSlots';
+import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/queries/useAuth';
 import { AVAILABILITY_CONSTANTS } from '@/types/availability';
 import type { WeekBits } from '@/types/availability';
+import type { InstructorProfile } from '@/types/instructor';
 import { UserData } from '@/types/user';
 import { getWeekDates } from '@/lib/availability/dateHelpers';
 import { Calendar, ArrowLeft } from 'lucide-react';
@@ -26,6 +31,17 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import { useAvailabilityWeekInvalidation } from '@/features/instructor-profile/hooks/useAvailabilityWeekInvalidation';
+import { queryKeys } from '@/src/api/queryKeys';
+import {
+  useAcknowledgeCalendarSettingsApiV1InstructorsMeCalendarSettingsAcknowledgePost,
+  useUpdateCalendarSettingsApiV1InstructorsMeCalendarSettingsPatch,
+} from '@/src/api/generated/instructors-v1/instructors-v1';
+import {
+  areCalendarSettingsEqual,
+  deriveCalendarAcknowledgementVariant,
+  getCalendarSettingsDraft,
+  type CalendarSettingsDraft,
+} from '@/components/availability/calendarSettings';
 
 const CalendarSkeleton = () => (
   <div className="space-y-2" aria-hidden="true">
@@ -53,13 +69,31 @@ const LHCI = process.env['NEXT_PUBLIC_LH_CI'] === '1';
 const autosaveEnv = process.env['NEXT_PUBLIC_AVAIL_AUTOSAVE']?.toLowerCase();
 const AVAIL_AUTOSAVE_ENABLED = autosaveEnv === '1' || autosaveEnv === 'true';
 const AUTOSAVE_DELAY_MS = 1200;
+const SAVE_STATE_RESET_MS = 1500;
 const refetchAfterSaveEnv = process.env['NEXT_PUBLIC_AVAILABILITY_REFETCH_AFTER_SAVE']?.toLowerCase();
 const REFETCH_AFTER_SAVE = refetchAfterSaveEnv === '1' || refetchAfterSaveEnv === 'true';
 
+type PersistWeekSource = 'manual' | 'apply' | 'autosave';
+
+function mergeCalendarSettingsIntoProfile(
+  current: InstructorProfile | undefined,
+  updates: Partial<InstructorProfile>
+): InstructorProfile | undefined {
+  if (!current) {
+    return current;
+  }
+
+  return {
+    ...current,
+    ...updates,
+  };
+}
 
 function AvailabilityPageImpl() {
   const embedded = useEmbedded();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { data: instructorProfile, isLoading: isInstructorProfileLoading } = useInstructorProfileMe(true);
   const userData = user as unknown as UserData;
   const {
     currentWeekStart,
@@ -80,6 +114,10 @@ function AvailabilityPageImpl() {
   } = useAvailability();
   const currentWeekStartIso = currentWeekStart ? currentWeekStart.toISOString().split('T')[0] : undefined;
   const invalidateWeekSnapshot = useAvailabilityWeekInvalidation(userData?.id, currentWeekStartIso);
+  const updateCalendarSettingsMutation =
+    useUpdateCalendarSettingsApiV1InstructorsMeCalendarSettingsPatch();
+  const acknowledgeCalendarSettingsMutation =
+    useAcknowledgeCalendarSettingsApiV1InstructorsMeCalendarSettingsAcknowledgePost();
 
   const serializeBits = useCallback((bits: WeekBits) => {
     return Object.fromEntries(
@@ -109,10 +147,20 @@ function AvailabilityPageImpl() {
   const [lastUpdatedLocal, setLastUpdatedLocal] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [cookiesInitialized, setCookiesInitialized] = useState(false);
+  const [calendarSettings, setCalendarSettings] = useState<CalendarSettingsDraft | null>(null);
+  const [lastCommittedCalendarSettings, setLastCommittedCalendarSettings] =
+    useState<CalendarSettingsDraft | null>(null);
+  const [calendarSettingsSaveState, setCalendarSettingsSaveState] = useState<
+    'idle' | 'saving' | 'saved'
+  >('idle');
+  const [isCalendarAcknowledgementOpen, setIsCalendarAcknowledgementOpen] = useState(false);
+  const [shouldCheckAcknowledgement, setShouldCheckAcknowledgement] = useState(false);
 
   // Refs to track current hour range for auto-expand logic (avoids dependency array issues)
   const startHourRef = useRef(startHour);
   const endHourRef = useRef(endHour);
+  const calendarSettingsAutosaveTimer = useRef<number | null>(null);
+  const calendarSettingsSaveStateTimer = useRef<number | null>(null);
 
   // Cookie helper functions for hour range persistence
   const getCookie = useCallback((name: string): string | null => {
@@ -131,6 +179,26 @@ function AvailabilityPageImpl() {
   const [isConflictOverwriting, setIsConflictOverwriting] = useState(false);
   const autosaveTimer = useRef<number | null>(null);
   const autosaveEnabled = AVAIL_AUTOSAVE_ENABLED;
+  const profileCalendarSettings = useMemo(
+    () => getCalendarSettingsDraft(instructorProfile),
+    [instructorProfile]
+  );
+  const effectiveCalendarSettings = calendarSettings ?? profileCalendarSettings;
+  const calendarAcknowledgementVariant = useMemo(
+    () => deriveCalendarAcknowledgementVariant(instructorProfile?.services ?? []),
+    [instructorProfile?.services]
+  );
+  const calendarSettingsAcknowledgedAt =
+    instructorProfile?.calendar_settings_acknowledged_at ?? null;
+
+  const patchInstructorProfileCache = useCallback(
+    (updates: Partial<InstructorProfile>) => {
+      queryClient.setQueryData<InstructorProfile | undefined>(queryKeys.instructors.me, (current) =>
+        mergeCalendarSettingsIntoProfile(current, updates)
+      );
+    },
+    [queryClient]
+  );
 
   useEffect(() => {
     if (process.env.NODE_ENV === 'production') return;
@@ -178,6 +246,31 @@ function AvailabilityPageImpl() {
     }
   }, [currentWeekStart, isLoading, fetchBookedSlots]);
 
+  useEffect(() => {
+    if (!instructorProfile) {
+      return;
+    }
+
+    if (!calendarSettings || !lastCommittedCalendarSettings) {
+      setCalendarSettings(profileCalendarSettings);
+      setLastCommittedCalendarSettings(profileCalendarSettings);
+      return;
+    }
+
+    if (
+      areCalendarSettingsEqual(calendarSettings, lastCommittedCalendarSettings) &&
+      !areCalendarSettingsEqual(profileCalendarSettings, lastCommittedCalendarSettings)
+    ) {
+      setCalendarSettings(profileCalendarSettings);
+      setLastCommittedCalendarSettings(profileCalendarSettings);
+    }
+  }, [
+    instructorProfile,
+    calendarSettings,
+    lastCommittedCalendarSettings,
+    profileCalendarSettings,
+  ]);
+
   // Saving indicator not used in the new autosave flow, keep for future use
 
   // Convert Date[] from hook to WeekDateInfo[] for components
@@ -200,6 +293,28 @@ function AvailabilityPageImpl() {
     startHourRef.current = startHour;
     endHourRef.current = endHour;
   }, [startHour, endHour]);
+
+  useEffect(() => {
+    if (calendarSettingsSaveState !== 'saved' || typeof window === 'undefined') {
+      return;
+    }
+
+    if (calendarSettingsSaveStateTimer.current) {
+      window.clearTimeout(calendarSettingsSaveStateTimer.current);
+    }
+
+    calendarSettingsSaveStateTimer.current = window.setTimeout(() => {
+      calendarSettingsSaveStateTimer.current = null;
+      setCalendarSettingsSaveState('idle');
+    }, SAVE_STATE_RESET_MS);
+
+    return () => {
+      if (calendarSettingsSaveStateTimer.current) {
+        window.clearTimeout(calendarSettingsSaveStateTimer.current);
+        calendarSettingsSaveStateTimer.current = null;
+      }
+    };
+  }, [calendarSettingsSaveState]);
 
   // Initialize hour range from cookies on mount
   useEffect(() => {
@@ -302,6 +417,122 @@ function AvailabilityPageImpl() {
     setMessage(null);
   }, [setWeekBits, setMessage]);
 
+  const handleCalendarSettingsChange = useCallback(
+    (updates: Partial<CalendarSettingsDraft>) => {
+      setCalendarSettings((current) => ({
+        ...(current ?? profileCalendarSettings),
+        ...updates,
+      }));
+    },
+    [profileCalendarSettings]
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (!calendarSettings || !lastCommittedCalendarSettings) {
+      return;
+    }
+
+    if (updateCalendarSettingsMutation.isPending) {
+      if (calendarSettingsAutosaveTimer.current) {
+        window.clearTimeout(calendarSettingsAutosaveTimer.current);
+        calendarSettingsAutosaveTimer.current = null;
+      }
+      return;
+    }
+
+    if (areCalendarSettingsEqual(calendarSettings, lastCommittedCalendarSettings)) {
+      if (calendarSettingsAutosaveTimer.current) {
+        window.clearTimeout(calendarSettingsAutosaveTimer.current);
+        calendarSettingsAutosaveTimer.current = null;
+      }
+      return;
+    }
+
+    if (calendarSettingsAutosaveTimer.current) {
+      window.clearTimeout(calendarSettingsAutosaveTimer.current);
+    }
+
+    calendarSettingsAutosaveTimer.current = window.setTimeout(() => {
+      const draftToSave = calendarSettings;
+      calendarSettingsAutosaveTimer.current = null;
+      setCalendarSettingsSaveState('saving');
+
+      void updateCalendarSettingsMutation
+        .mutateAsync({
+          data: {
+            non_travel_buffer_minutes: draftToSave.nonTravelBufferMinutes,
+            travel_buffer_minutes: draftToSave.travelBufferMinutes,
+            overnight_protection_enabled: draftToSave.overnightProtectionEnabled,
+          },
+        })
+        .then((response) => {
+          const savedSettings: CalendarSettingsDraft = {
+            nonTravelBufferMinutes:
+              response.non_travel_buffer_minutes ?? draftToSave.nonTravelBufferMinutes,
+            travelBufferMinutes:
+              response.travel_buffer_minutes ?? draftToSave.travelBufferMinutes,
+            overnightProtectionEnabled:
+              response.overnight_protection_enabled ?? draftToSave.overnightProtectionEnabled,
+          };
+
+          setLastCommittedCalendarSettings(savedSettings);
+          setCalendarSettings((current) =>
+            areCalendarSettingsEqual(current, draftToSave) ? savedSettings : current
+          );
+          patchInstructorProfileCache({
+            non_travel_buffer_minutes: savedSettings.nonTravelBufferMinutes,
+            travel_buffer_minutes: savedSettings.travelBufferMinutes,
+            overnight_protection_enabled: savedSettings.overnightProtectionEnabled,
+          });
+          setCalendarSettingsSaveState('saved');
+          void queryClient.invalidateQueries({ queryKey: queryKeys.instructors.me });
+        })
+        .catch((error: unknown) => {
+          logger.error('Failed to save calendar settings', error as Error);
+          setCalendarSettingsSaveState('idle');
+          toast.error('Failed to save calendar settings');
+        });
+    }, AUTOSAVE_DELAY_MS);
+
+    return () => {
+      if (calendarSettingsAutosaveTimer.current) {
+        window.clearTimeout(calendarSettingsAutosaveTimer.current);
+        calendarSettingsAutosaveTimer.current = null;
+      }
+    };
+  }, [
+    calendarSettings,
+    lastCommittedCalendarSettings,
+    patchInstructorProfileCache,
+    queryClient,
+    updateCalendarSettingsMutation,
+  ]);
+
+  useEffect(() => {
+    if (!shouldCheckAcknowledgement) {
+      return;
+    }
+
+    if (isInstructorProfileLoading && !instructorProfile) {
+      return;
+    }
+
+    if (calendarSettingsAcknowledgedAt == null) {
+      setIsCalendarAcknowledgementOpen(true);
+    }
+
+    setShouldCheckAcknowledgement(false);
+  }, [
+    calendarSettingsAcknowledgedAt,
+    instructorProfile,
+    isInstructorProfileLoading,
+    shouldCheckAcknowledgement,
+  ]);
+
   const handleDiscardChanges = useCallback(() => {
     setWeekBits(savedWeekBits);
     setMessage(null);
@@ -310,7 +541,10 @@ function AvailabilityPageImpl() {
   }, [savedWeekBits, setWeekBits, setMessage]);
 
   const persistWeek = useCallback(
-    async ({ override = false }: { override?: boolean } = {}) => {
+    async ({
+      override = false,
+      source = 'manual',
+    }: { override?: boolean; source?: PersistWeekSource } = {}) => {
       setIsSaving(true);
       try {
         const result = await saveWeek({
@@ -349,6 +583,9 @@ function AvailabilityPageImpl() {
         } catch (error) {
           logger.warn('Failed to invalidate availability snapshot after save', error as Error);
         }
+        if (source !== 'autosave') {
+          setShouldCheckAcknowledgement(true);
+        }
         return true;
       } finally {
         setIsSaving(false);
@@ -358,7 +595,7 @@ function AvailabilityPageImpl() {
   );
 
   const handleSaveWeek = useCallback(() => {
-    void persistWeek();
+    void persistWeek({ source: 'manual' });
   }, [persistWeek]);
 
   const handleConflictRefresh = useCallback(async () => {
@@ -377,7 +614,7 @@ function AvailabilityPageImpl() {
 
   const handleConflictOverwrite = useCallback(async () => {
     setIsConflictOverwriting(true);
-    const success = await persistWeek({ override: true });
+    const success = await persistWeek({ override: true, source: 'manual' });
     if (success) {
       setConflictState(null);
     }
@@ -402,7 +639,7 @@ function AvailabilityPageImpl() {
 
     autosaveTimer.current = window.setTimeout(() => {
       autosaveTimer.current = null;
-      void persistWeek();
+      void persistWeek({ source: 'autosave' });
     }, AUTOSAVE_DELAY_MS);
 
     return () => {
@@ -412,6 +649,22 @@ function AvailabilityPageImpl() {
       }
     };
   }, [autosaveEnabled, conflictState, hasPendingChanges, isLoading, isSaving, persistWeek]);
+
+  const handleCalendarSettingsAcknowledge = useCallback(async () => {
+    try {
+      const response = await acknowledgeCalendarSettingsMutation.mutateAsync();
+      const acknowledgedAt =
+        response.calendar_settings_acknowledged_at ?? new Date().toISOString();
+      patchInstructorProfileCache({
+        calendar_settings_acknowledged_at: acknowledgedAt,
+      });
+      setIsCalendarAcknowledgementOpen(false);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.instructors.me });
+    } catch (error) {
+      logger.error('Failed to acknowledge calendar settings', error as Error);
+      toast.error('Failed to record calendar settings acknowledgement');
+    }
+  }, [acknowledgeCalendarSettingsMutation, patchInstructorProfileCache, queryClient]);
 
   const header = useMemo(() => (
     <WeekNavigator
@@ -514,7 +767,7 @@ function AvailabilityPageImpl() {
               return;
             }
             toast.success(`Applied through ${endISO}`);
-            const persisted = await persistWeek();
+            const persisted = await persistWeek({ source: 'apply' });
             if (!persisted) return;
           }}
           className="inline-flex items-center justify-center px-3 py-1 rounded-md text-white text-sm whitespace-nowrap insta-primary-btn"
@@ -620,9 +873,32 @@ function AvailabilityPageImpl() {
           />
         )}
       </div>
+      <CalendarSettingsSection
+        value={effectiveCalendarSettings}
+        saveState={
+          updateCalendarSettingsMutation.isPending ? 'saving' : calendarSettingsSaveState
+        }
+        disabled={Boolean(updateCalendarSettingsMutation.isPending) || isInstructorProfileLoading}
+        onNonTravelChange={(minutes) =>
+          handleCalendarSettingsChange({ nonTravelBufferMinutes: minutes })
+        }
+        onTravelChange={(minutes) =>
+          handleCalendarSettingsChange({ travelBufferMinutes: minutes })
+        }
+        onOvernightProtectionChange={(enabled) =>
+          handleCalendarSettingsChange({ overnightProtectionEnabled: enabled })
+        }
+      />
       <div className="pb-16" />
-    </div>
-  </div>
+     </div>
+   </div>
+
+  <CalendarSettingsAcknowledgementModal
+    isOpen={isCalendarAcknowledgementOpen}
+    variant={calendarAcknowledgementVariant}
+    isSubmitting={acknowledgeCalendarSettingsMutation.isPending}
+    onAcknowledge={handleCalendarSettingsAcknowledge}
+  />
 
   {hasPendingChanges && (
       <div className="fixed bottom-4 left-1/2 z-40 w-full max-w-3xl -translate-x-1/2 px-4">

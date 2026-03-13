@@ -89,7 +89,7 @@ run_frontend() {
 
     # 1. Tests
     echo "→ Running jest..."
-    if TEST_OUTPUT=$(npm test -- --no-coverage 2>&1); then
+    if TEST_OUTPUT=$(npm test -- --coverage 2>&1); then
         SUMMARY=$(echo "$TEST_OUTPUT" | grep -E "Tests:|Test Suites:" | tail -2)
         record "Frontend tests" "PASS" "$SUMMARY"
     else
