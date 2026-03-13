@@ -67,7 +67,7 @@ from ..utils.time_helpers import string_to_time, time_to_string
 from ..utils.time_utils import time_to_minutes
 from .audit_redaction import redact
 from .base import BaseService
-from .config_service import ConfigService
+from .config_service import ConfigService, is_instructor_travel_format, normalize_location_type
 from .search.cache_invalidation import invalidate_on_availability_change
 
 # TYPE_CHECKING import to avoid circular dependencies
@@ -1702,6 +1702,196 @@ class AvailabilityService(BaseService):
             current_date += timedelta(days=1)
         return windows
 
+    @staticmethod
+    def _coerce_buffer_minutes(value: object, default: int) -> int:
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, int):
+            return max(0, value)
+        if isinstance(value, float):
+            return max(0, int(value))
+        if isinstance(value, str):
+            try:
+                return max(0, int(value))
+            except ValueError:
+                return default
+        return default
+
+    @staticmethod
+    def _minutes_to_time(minute_value: int) -> time:
+        if minute_value >= 24 * 60:
+            return time(0, 0)
+        clamped = max(0, minute_value)
+        return time(clamped // 60, clamped % 60)
+
+    @classmethod
+    def _merge_time_intervals(cls, intervals: list[tuple[time, time]]) -> list[tuple[time, time]]:
+        if not intervals:
+            return []
+        minute_ranges = sorted(
+            [
+                (
+                    time_to_minutes(start, is_end_time=False),
+                    time_to_minutes(end, is_end_time=True),
+                )
+                for start, end in intervals
+            ],
+            key=lambda interval: interval[0],
+        )
+        merged: list[tuple[int, int]] = []
+        current_start, current_end = minute_ranges[0]
+        for start_minute, end_minute in minute_ranges[1:]:
+            if start_minute <= current_end:
+                current_end = max(current_end, end_minute)
+            else:
+                merged.append((current_start, current_end))
+                current_start, current_end = start_minute, end_minute
+        merged.append((current_start, current_end))
+        return [
+            (cls._minutes_to_time(start_minute), cls._minutes_to_time(end_minute))
+            for start_minute, end_minute in merged
+        ]
+
+    @classmethod
+    def _subtract_time_intervals(
+        cls, bases: list[tuple[time, time]], cuts: list[tuple[time, time]]
+    ) -> list[tuple[time, time]]:
+        if not bases:
+            return []
+        if not cuts:
+            return cls._merge_time_intervals(bases)
+        cut_ranges = [
+            (
+                time_to_minutes(start, is_end_time=False),
+                time_to_minutes(end, is_end_time=True),
+            )
+            for start, end in cls._merge_time_intervals(cuts)
+        ]
+        out: list[tuple[time, time]] = []
+        for base_start, base_end in bases:
+            segments = [
+                (
+                    time_to_minutes(base_start, is_end_time=False),
+                    time_to_minutes(base_end, is_end_time=True),
+                )
+            ]
+            for cut_start, cut_end in cut_ranges:
+                next_segments: list[tuple[int, int]] = []
+                for segment_start, segment_end in segments:
+                    if segment_end <= cut_start or segment_start >= cut_end:
+                        next_segments.append((segment_start, segment_end))
+                    else:
+                        if segment_start < cut_start:
+                            next_segments.append((segment_start, max(segment_start, cut_start)))
+                        if segment_end > cut_end:
+                            next_segments.append((min(segment_end, cut_end), segment_end))
+                segments = [segment for segment in next_segments if segment[1] > segment[0]]
+                if not segments:
+                    break
+            for segment_start, segment_end in segments:
+                out.append(
+                    (
+                        cls._minutes_to_time(segment_start),
+                        cls._minutes_to_time(segment_end),
+                    )
+                )
+        return cls._merge_time_intervals(out)
+
+    @classmethod
+    def _resolve_buffer_profile_values(
+        cls,
+        instructor_profile: object | None,
+        *,
+        default_non_travel_buffer_minutes: int,
+        default_travel_buffer_minutes: int,
+    ) -> tuple[int, int]:
+        if instructor_profile is None:
+            return (
+                cls._coerce_buffer_minutes(
+                    default_non_travel_buffer_minutes, default_non_travel_buffer_minutes
+                ),
+                cls._coerce_buffer_minutes(
+                    default_travel_buffer_minutes, default_travel_buffer_minutes
+                ),
+            )
+        return (
+            cls._coerce_buffer_minutes(
+                getattr(instructor_profile, "non_travel_buffer_minutes", None),
+                default_non_travel_buffer_minutes,
+            ),
+            cls._coerce_buffer_minutes(
+                getattr(instructor_profile, "travel_buffer_minutes", None),
+                default_travel_buffer_minutes,
+            ),
+        )
+
+    @classmethod
+    def _subtract_buffered_bookings_from_windows(
+        cls,
+        bases: list[tuple[time, time]],
+        bookings: Iterable[object],
+        *,
+        requested_location_type: str | None,
+        non_travel_buffer_minutes: int,
+        travel_buffer_minutes: int,
+    ) -> list[tuple[time, time]]:
+        if not bases:
+            return []
+        normalized_requested_location = normalize_location_type(requested_location_type)
+        cuts: list[tuple[time, time]] = []
+        for booking in bookings:
+            start_time = getattr(booking, "start_time", None)
+            end_time = getattr(booking, "end_time", None)
+            if not isinstance(start_time, time) or not isinstance(end_time, time):
+                continue
+            existing_location_type = getattr(booking, "location_type", None)
+            buffer_minutes = (
+                travel_buffer_minutes
+                if (
+                    is_instructor_travel_format(existing_location_type)
+                    or is_instructor_travel_format(normalized_requested_location)
+                )
+                else non_travel_buffer_minutes
+            )
+            start_minute = time_to_minutes(start_time, is_end_time=False)
+            end_minute = min(
+                24 * 60,
+                time_to_minutes(end_time, is_end_time=True) + max(0, buffer_minutes),
+            )
+            if end_minute <= start_minute:
+                continue
+            cuts.append(
+                (
+                    cls._minutes_to_time(start_minute),
+                    cls._minutes_to_time(end_minute),
+                )
+            )
+        return cls._subtract_time_intervals(bases, cuts)
+
+    @staticmethod
+    def _windows_support_booking_request(
+        windows: Iterable[tuple[time, time]],
+        *,
+        time_after: time | None = None,
+        time_before: time | None = None,
+        duration_minutes: int = 60,
+    ) -> bool:
+        earliest_start_minute = (
+            time_to_minutes(time_after, is_end_time=False) if time_after is not None else 0
+        )
+        latest_end_minute = (
+            time_to_minutes(time_before, is_end_time=True) if time_before is not None else 24 * 60
+        )
+        required_minutes = max(0, int(duration_minutes))
+        for start_time, end_time in windows:
+            start_minute = max(
+                time_to_minutes(start_time, is_end_time=False), earliest_start_minute
+            )
+            end_minute = min(time_to_minutes(end_time, is_end_time=True), latest_end_minute)
+            if end_minute - start_minute >= required_minutes:
+                return True
+        return False
+
     @BaseService.measure_operation("compute_public_availability")
     def compute_public_availability(
         self,
@@ -1709,6 +1899,7 @@ class AvailabilityService(BaseService):
         start_date: date,
         end_date: date,
         *,
+        requested_location_type: str | None = None,
         apply_min_advance: bool = True,
     ) -> dict[str, list[tuple[time, time]]]:
         """
@@ -1716,17 +1907,23 @@ class AvailabilityService(BaseService):
 
         Returns dict: { 'YYYY-MM-DD': [(start_time, end_time), ...] }
         """
-        slot_minutes = MINUTES_PER_SLOT
+        effective_requested_location_type = requested_location_type or "student_location"
         profile = self.instructor_repository.get_by_user_id(instructor_id)
         config_service = ConfigService(self.db)
         min_advance_minutes = (
-            config_service.get_advance_notice_minutes() if apply_min_advance else 0
+            config_service.get_advance_notice_minutes(effective_requested_location_type)
+            if apply_min_advance
+            else 0
         )
-        buffer_minutes = config_service.get_default_buffer_minutes()
-        if profile is not None:
-            buffer_minutes = int(
-                getattr(profile, "non_travel_buffer_minutes", buffer_minutes) or buffer_minutes
-            )
+        default_non_travel_buffer_minutes = config_service.get_default_buffer_minutes("online")
+        default_travel_buffer_minutes = config_service.get_default_buffer_minutes(
+            "student_location"
+        )
+        non_travel_buffer_minutes, travel_buffer_minutes = self._resolve_buffer_profile_values(
+            profile,
+            default_non_travel_buffer_minutes=default_non_travel_buffer_minutes,
+            default_travel_buffer_minutes=default_travel_buffer_minutes,
+        )
         earliest_allowed_local: Optional[datetime] = None
         earliest_allowed_date: Optional[date] = None
         earliest_allowed_minutes: Optional[int] = None
@@ -1770,81 +1967,6 @@ class AvailabilityService(BaseService):
                 by_date[current_date] = windows_time
             current_date += timedelta(days=1)
 
-        # Helpers
-        from datetime import time as dtime
-
-        def merge_intervals(intervals: list[tuple[time, time]]) -> list[tuple[time, time]]:
-            if not intervals:
-                return []
-            mins = sorted(
-                [
-                    (
-                        time_to_minutes(a, is_end_time=False),
-                        time_to_minutes(b, is_end_time=True),
-                    )
-                    for a, b in intervals
-                ],
-                key=lambda x: x[0],
-            )
-            merged = []
-            cs, ce = mins[0]
-            for s, e in mins[1:]:
-                if s <= ce:
-                    ce = max(ce, e)
-                else:
-                    merged.append((cs, ce))
-                    cs, ce = s, e
-            merged.append((cs, ce))
-            return [(minutes_to_time(m), minutes_to_time(n)) for m, n in merged]
-
-        def subtract(
-            bases: list[tuple[time, time]], cuts: list[tuple[time, time]]
-        ) -> list[tuple[time, time]]:
-            if not bases:
-                return []
-            if not cuts:
-                return merge_intervals(bases)
-            cutm = [
-                (time_to_minutes(a, is_end_time=False), time_to_minutes(b, is_end_time=True))
-                for a, b in merge_intervals(cuts)
-            ]
-            out = []
-            for bs, be in bases:
-                segs = [
-                    (time_to_minutes(bs, is_end_time=False), time_to_minutes(be, is_end_time=True))
-                ]
-                for cs, ce in cutm:
-                    new = []
-                    for s, e in segs:
-                        if e <= cs or s >= ce:
-                            new.append((s, e))
-                        else:
-                            if s < cs:
-                                new.append((s, max(s, cs)))
-                            if e > ce:
-                                new.append((min(e, ce), e))
-                    segs = [p for p in new if p[1] > p[0]]
-                    if not segs:
-                        break
-                for s, e in segs:
-                    out.append((minutes_to_time(s), minutes_to_time(e)))
-            return merge_intervals(out)
-
-        def minutes_to_time(minute_value: int) -> time:
-            if minute_value >= 24 * 60:
-                return dtime(0, 0)
-            clamped = max(0, minute_value)
-            return dtime(clamped // 60, clamped % 60)
-
-        def expand_booking_interval(start: time, end: time) -> tuple[time, time]:
-            if buffer_minutes <= 0:
-                return start, end
-            start_min = max(0, time_to_minutes(start, is_end_time=False) - buffer_minutes)
-            end_min = min(24 * 60, time_to_minutes(end, is_end_time=True) + buffer_minutes)
-            if end_min <= start_min:
-                end_min = min(24 * 60, start_min + slot_minutes)
-            return minutes_to_time(start_min), minutes_to_time(end_min)
-
         def trim_intervals_for_min_start(
             intervals: list[tuple[time, time]], min_start_minutes: int
         ) -> list[tuple[time, time]]:
@@ -1856,11 +1978,11 @@ class AvailabilityService(BaseService):
                 if start_min < min_start_minutes:
                     start_min = min_start_minutes
 
-                new_start = minutes_to_time(start_min)
+                new_start = self._minutes_to_time(start_min)
                 if end_min >= 24 * 60:
-                    new_end = dtime(0, 0)
+                    new_end = time(0, 0)
                 else:
-                    new_end = minutes_to_time(end_min)
+                    new_end = self._minutes_to_time(end_min)
                 trimmed.append((new_start, new_end))
             return trimmed
 
@@ -1868,15 +1990,15 @@ class AvailabilityService(BaseService):
         result: dict[str, list[tuple[time, time]]] = {}
         cur = start_date
         while cur <= end_date:
-            bases = merge_intervals(by_date.get(cur, []))
+            bases = self._merge_time_intervals(by_date.get(cur, []))
             booked_rows = self.conflict_repository.get_bookings_for_date(instructor_id, cur)
-            booked = [
-                expand_booking_interval(b.start_time, b.end_time)
-                for b in booked_rows
-                if b.start_time and b.end_time
-            ]
-
-            remaining = subtract(bases, booked)
+            remaining = self._subtract_buffered_bookings_from_windows(
+                bases,
+                booked_rows,
+                requested_location_type=effective_requested_location_type,
+                non_travel_buffer_minutes=non_travel_buffer_minutes,
+                travel_buffer_minutes=travel_buffer_minutes,
+            )
 
             if earliest_allowed_date:
                 if cur < earliest_allowed_date:

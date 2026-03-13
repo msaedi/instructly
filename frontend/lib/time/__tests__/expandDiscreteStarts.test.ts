@@ -42,4 +42,14 @@ describe('expandDiscreteStarts', () => {
     const result = expandDiscreteStarts('13:05:00', '14:00:00', 15, 30);
     expect(result).toEqual(['1:15pm', '1:30pm']);
   });
+
+  it('should preserve a 3:15pm start from a buffer-adjusted window', () => {
+    const result = expandDiscreteStarts('15:15:00', '17:00:00', 15, 45);
+    expect(result).toEqual(['3:15pm', '3:30pm', '3:45pm', '4:00pm', '4:15pm']);
+  });
+
+  it('should preserve a 4:00pm start from a travel-buffered window', () => {
+    const result = expandDiscreteStarts('16:00:00', '17:00:00', 15, 45);
+    expect(result).toEqual(['4:00pm', '4:15pm']);
+  });
 });

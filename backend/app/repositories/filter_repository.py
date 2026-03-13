@@ -16,6 +16,10 @@ import pytz
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.models.availability_day import AvailabilityDay
+from app.models.booking import Booking, BookingStatus
+from app.models.instructor import InstructorProfile
+
 # NYC timezone for availability calculations (platform default)
 NYC_TZ = pytz.timezone("America/New_York")
 
@@ -536,6 +540,71 @@ class FilterRepository:
             results[instructor_id].append(day_date)
 
         return results
+
+    def get_buffered_availability_context(
+        self, instructor_ids: List[str], dates: List[date]
+    ) -> Dict[str, object]:
+        """Load bitmap windows, bookings, and instructor buffers for Python-side refinement."""
+        if not instructor_ids or not dates:
+            return {
+                "bits_by_key": {},
+                "bookings_by_key": {},
+                "profiles_by_instructor": {},
+            }
+
+        availability_rows = (
+            self.db.query(
+                AvailabilityDay.instructor_id,
+                AvailabilityDay.day_date,
+                AvailabilityDay.bits,
+            )
+            .filter(
+                AvailabilityDay.instructor_id.in_(instructor_ids),
+                AvailabilityDay.day_date.in_(dates),
+                AvailabilityDay.bits.isnot(None),
+            )
+            .all()
+        )
+        bits_by_key = {
+            (row.instructor_id, row.day_date): row.bits
+            for row in availability_rows
+            if row.bits is not None
+        }
+
+        booking_rows = (
+            self.db.query(Booking)
+            .filter(
+                Booking.instructor_id.in_(instructor_ids),
+                Booking.booking_date.in_(dates),
+                Booking.status.in_(
+                    [
+                        BookingStatus.PENDING,
+                        BookingStatus.CONFIRMED,
+                        BookingStatus.COMPLETED,
+                    ]
+                ),
+            )
+            .order_by(Booking.instructor_id, Booking.booking_date, Booking.start_time)
+            .all()
+        )
+        bookings_by_key: Dict[tuple[str, date], List[Booking]] = {}
+        for booking in booking_rows:
+            bookings_by_key.setdefault((booking.instructor_id, booking.booking_date), []).append(
+                booking
+            )
+
+        profiles = (
+            self.db.query(InstructorProfile)
+            .filter(InstructorProfile.user_id.in_(instructor_ids))
+            .all()
+        )
+        profiles_by_instructor = {profile.user_id: profile for profile in profiles}
+
+        return {
+            "bits_by_key": bits_by_key,
+            "bookings_by_key": bookings_by_key,
+            "profiles_by_instructor": profiles_by_instructor,
+        }
 
     # =========================================================================
     # Lesson Type Filtering (Online/In-Person)

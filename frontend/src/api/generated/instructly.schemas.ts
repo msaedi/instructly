@@ -9872,7 +9872,7 @@ export type GetInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAva
      */
     end_date?: string | null;
     /**
-     * Optional booking format used for advance-notice trimming
+     * Optional booking format used for advance-notice and overnight trimming
      */
     location_type?:
       | 'student_location'

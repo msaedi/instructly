@@ -264,9 +264,16 @@ async def test_public_availability_cache_key_varies_by_location_type(monkeypatch
             return []
 
         def compute_public_availability(
-            self, _instructor_id: str, start_date: date, _end_date: date, apply_min_advance: bool = False
+            self,
+            _instructor_id: str,
+            start_date: date,
+            _end_date: date,
+            *,
+            apply_min_advance: bool = False,
+            requested_location_type: str | None = None,
         ):
             assert apply_min_advance is False
+            assert requested_location_type in {"online", "student_location"}
             return {start_date.isoformat(): [(time(9, 0), time(10, 0))]}
 
     class DummyConflictChecker:
@@ -511,25 +518,26 @@ async def test_public_availability_summary_branch(monkeypatch):
             return user
 
     class DummyAvailabilityService:
-        def get_week_windows_as_slot_like(self, *_args, **_kwargs):
-            return [
-                {
-                    "specific_date": date.today() + timedelta(days=1),
-                    "start_time": time(9, 0),
-                    "end_time": time(10, 0),
-                },
-                {
-                    "specific_date": date.today() + timedelta(days=1),
-                    "start_time": time(18, 0),
-                    "end_time": time(19, 0),
-                },
-            ]
+        def __init__(self) -> None:
+            self.db = None
+
+        def get_blackout_dates(self, *_args, **_kwargs):
+            return []
+
+        def compute_public_availability(self, *_args, **_kwargs):
+            day = date.today() + timedelta(days=1)
+            return {day.isoformat(): [(time(9, 0), time(10, 0)), (time(18, 0), time(19, 0))]}
 
     class DummyConflictChecker:
         pass
 
     monkeypatch.setattr(public_routes.settings, "public_availability_detail_level", "summary")
     monkeypatch.setattr(public_routes.settings, "public_availability_show_instructor_name", True)
+    monkeypatch.setattr(
+        public_routes.ConfigService,
+        "get_advance_notice_minutes",
+        lambda self, location_type=None: 0,
+    )
     start_date = date.today() + timedelta(days=1)
     response = Response()
 
@@ -816,13 +824,25 @@ async def test_public_availability_etag_on_cache_miss(monkeypatch):
             return user
 
     class DummyAvailabilityService:
-        def get_week_windows_as_slot_like(self, *_args, **_kwargs):
-            return [{"specific_date": date.today() + timedelta(days=1)}]
+        def __init__(self) -> None:
+            self.db = None
+
+        def get_blackout_dates(self, *_args, **_kwargs):
+            return []
+
+        def compute_public_availability(self, *_args, **_kwargs):
+            day = date.today() + timedelta(days=1)
+            return {day.isoformat(): [(time(9, 0), time(10, 0))]}
 
     class DummyConflictChecker:
         pass
 
     monkeypatch.setattr(public_routes.settings, "public_availability_detail_level", "minimal")
+    monkeypatch.setattr(
+        public_routes.ConfigService,
+        "get_advance_notice_minutes",
+        lambda self, location_type=None: 0,
+    )
     start_date = date.today() + timedelta(days=1)
     request = _make_request()
     response = Response()

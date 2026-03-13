@@ -31293,7 +31293,7 @@ export interface operations {
                 start_date: string;
                 /** @description End date (defaults to configured days from start) */
                 end_date?: string | null;
-                /** @description Optional booking format used for advance-notice trimming */
+                /** @description Optional booking format used for advance-notice and overnight trimming */
                 location_type?: ("student_location" | "instructor_location" | "online" | "neutral_location") | null;
             };
             header?: never;

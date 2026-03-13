@@ -25,6 +25,7 @@ def _configure_profile(db: Session, instructor_id: str) -> InstructorProfile:
     """Set non-travel buffer to 0 for predictable subtraction tests."""
     profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor_id).one()
     profile.non_travel_buffer_minutes = 0
+    profile.travel_buffer_minutes = 0
     db.flush()
     return profile
 
@@ -54,6 +55,7 @@ def _create_booking(
     start_time: time,
     end_time: time,
     lesson_timezone: str,
+    location_type: str = "online",
 ) -> Booking:
     """Create a CONFIRMED booking."""
     duration_minutes = time_to_minutes(end_time, is_end_time=True) - time_to_minutes(
@@ -73,6 +75,7 @@ def _create_booking(
         end_time=end_time,
         duration_minutes=duration_minutes,
         status=BookingStatus.CONFIRMED,
+        location_type=location_type,
         service_name=service.catalog_entry.name if service.catalog_entry else "Service",
         hourly_rate=service.hourly_rate,
         total_price=service.hourly_rate,
@@ -428,3 +431,104 @@ class TestSubtractAlgorithm:
             (time(23, 0), time(0, 0)),
         ]
         assert slots == expected, f"Expected {expected}, got {slots}"
+
+    def test_requested_online_keeps_non_travel_buffer_after_online_booking(
+        self, db: Session, test_instructor, test_student
+    ):
+        profile = _configure_profile(db, test_instructor.id)
+        profile.non_travel_buffer_minutes = 15
+        profile.travel_buffer_minutes = 60
+        service = _get_active_service(db, profile.id)
+        lesson_timezone = test_instructor.timezone or "America/New_York"
+        target_date = date.today() + timedelta(days=8)
+
+        _clear_test_bookings(db, test_instructor.id, target_date)
+        seed_day(db, test_instructor.id, target_date, [("14:00", "17:00")])
+        _create_booking(
+            db,
+            instructor_id=test_instructor.id,
+            student_id=test_student.id,
+            service=service,
+            booking_date=target_date,
+            start_time=time(14, 0),
+            end_time=time(15, 0),
+            lesson_timezone=lesson_timezone,
+            location_type="online",
+        )
+
+        availability_service = AvailabilityService(db)
+        result = availability_service.compute_public_availability(
+            test_instructor.id,
+            target_date,
+            target_date,
+            requested_location_type="online",
+        )
+
+        assert result[target_date.isoformat()] == [(time(15, 15), time(17, 0))]
+
+    def test_requested_travel_uses_travel_buffer_after_online_booking(
+        self, db: Session, test_instructor, test_student
+    ):
+        profile = _configure_profile(db, test_instructor.id)
+        profile.non_travel_buffer_minutes = 15
+        profile.travel_buffer_minutes = 60
+        service = _get_active_service(db, profile.id)
+        lesson_timezone = test_instructor.timezone or "America/New_York"
+        target_date = date.today() + timedelta(days=8)
+
+        _clear_test_bookings(db, test_instructor.id, target_date)
+        seed_day(db, test_instructor.id, target_date, [("14:00", "17:00")])
+        _create_booking(
+            db,
+            instructor_id=test_instructor.id,
+            student_id=test_student.id,
+            service=service,
+            booking_date=target_date,
+            start_time=time(14, 0),
+            end_time=time(15, 0),
+            lesson_timezone=lesson_timezone,
+            location_type="online",
+        )
+
+        availability_service = AvailabilityService(db)
+        result = availability_service.compute_public_availability(
+            test_instructor.id,
+            target_date,
+            target_date,
+            requested_location_type="student_location",
+        )
+
+        assert result[target_date.isoformat()] == [(time(16, 0), time(17, 0))]
+
+    def test_missing_requested_location_type_defaults_to_conservative_travel_buffer(
+        self, db: Session, test_instructor, test_student
+    ):
+        profile = _configure_profile(db, test_instructor.id)
+        profile.non_travel_buffer_minutes = 15
+        profile.travel_buffer_minutes = 60
+        service = _get_active_service(db, profile.id)
+        lesson_timezone = test_instructor.timezone or "America/New_York"
+        target_date = date.today() + timedelta(days=8)
+
+        _clear_test_bookings(db, test_instructor.id, target_date)
+        seed_day(db, test_instructor.id, target_date, [("14:00", "17:00")])
+        _create_booking(
+            db,
+            instructor_id=test_instructor.id,
+            student_id=test_student.id,
+            service=service,
+            booking_date=target_date,
+            start_time=time(14, 0),
+            end_time=time(15, 0),
+            lesson_timezone=lesson_timezone,
+            location_type="online",
+        )
+
+        availability_service = AvailabilityService(db)
+        result = availability_service.compute_public_availability(
+            test_instructor.id,
+            target_date,
+            target_date,
+        )
+
+        assert result[target_date.isoformat()] == [(time(16, 0), time(17, 0))]
