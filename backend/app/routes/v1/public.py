@@ -31,6 +31,7 @@ from ...core.constants import BOOKING_START_STEP_MINUTES
 from ...core.timezone_utils import get_user_today
 from ...database import get_db
 from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
+from ...schemas.common import LocationTypeLiteral
 from ...schemas.public_availability import (
     NextAvailableSlotResponse,
     PublicDayAvailability,
@@ -105,11 +106,15 @@ def _apply_min_advance_filter(
     availability_service: AvailabilityService,
     instructor_id: str,
     availability_by_date: Dict[str, PublicDayAvailability],
+    location_type: str | None = None,
 ) -> tuple[int, Optional[str]]:
     if not availability_by_date:
         return 0, None
 
-    min_advance_minutes = ConfigService(availability_service.db).get_advance_notice_minutes()
+    resolved_location_type = location_type or "student_location"
+    min_advance_minutes = ConfigService(availability_service.db).get_advance_notice_minutes(
+        resolved_location_type
+    )
     if min_advance_minutes <= 0:
         return _recompute_public_totals(availability_by_date)
 
@@ -329,6 +334,10 @@ async def get_instructor_public_availability(
     end_date: Optional[date] = Query(
         None, description="End date (defaults to configured days from start)"
     ),
+    location_type: Optional[LocationTypeLiteral] = Query(
+        None,
+        description="Optional booking format used for advance-notice trimming",
+    ),
     availability_service: AvailabilityService = Depends(get_availability_service),
     conflict_checker: ConflictChecker = Depends(get_conflict_checker),
     instructor_service: InstructorService = Depends(get_instructor_service),
@@ -404,7 +413,12 @@ async def get_instructor_public_availability(
     response_data_raw: Optional[PublicInstructorAvailability] = None
 
     # Check cache first - include detail level in cache key
-    cache_key = f"public_availability:{instructor_id}:{start_date}:{end_date}:{settings.public_availability_detail_level}"
+    cache_location_type = location_type or "travel_default"
+    cache_key = (
+        "public_availability:"
+        f"{instructor_id}:{start_date}:{end_date}:{settings.public_availability_detail_level}:"
+        f"{cache_location_type}"
+    )
     if cache_service:
         try:
             cached_data = await cache_service.get(cache_key)
@@ -417,6 +431,7 @@ async def get_instructor_public_availability(
                         availability_service,
                         instructor_id,
                         response_data.availability_by_date,
+                        location_type,
                     )
                     response_data.total_available_slots = total_slots
                     response_data.earliest_available_date = earliest_date
@@ -614,6 +629,7 @@ async def get_instructor_public_availability(
                 availability_service,
                 instructor_id,
                 response_data.availability_by_date,
+                location_type,
             )
             response_data.total_available_slots = total_slots
             response_data.earliest_available_date = earliest_date

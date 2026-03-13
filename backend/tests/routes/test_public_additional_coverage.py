@@ -149,6 +149,120 @@ def test_apply_min_advance_filter_min_hours_zero(monkeypatch):
     assert earliest == "2025-01-10"
 
 
+def test_apply_min_advance_filter_defaults_to_travel_notice(monkeypatch):
+    calls: list[str | None] = []
+    monkeypatch.setattr(
+        public_routes,
+        "_get_user_now_by_id",
+        lambda *_args, **_kwargs: datetime(2025, 1, 10, 9, 0, tzinfo=timezone.utc),
+    )
+    monkeypatch.setattr(
+        "app.services.config_service.ConfigService.get_advance_notice_minutes",
+        lambda self, location_type=None: calls.append(location_type) or 0,
+    )
+
+    availability_by_date = {
+        "2025-01-10": PublicDayAvailability(
+            date="2025-01-10",
+            available_slots=[PublicTimeSlot(start_time="09:00", end_time="10:00")],
+        )
+    }
+
+    public_routes._apply_min_advance_filter(
+        SimpleNamespace(instructor_repository=None, db=None),
+        "instr-1",
+        availability_by_date,
+    )
+
+    assert calls == ["student_location"]
+
+
+@pytest.mark.asyncio
+async def test_public_availability_cache_key_varies_by_location_type(monkeypatch):
+    user = SimpleNamespace(
+        id="instructor-1",
+        first_name="Test",
+        last_name="Teacher",
+        timezone="America/New_York",
+    )
+
+    class DummyInstructorService:
+        def get_instructor_user(self, _instructor_id: str):
+            return user
+
+    class DummyAvailabilityService:
+        def __init__(self) -> None:
+            self.db = None
+
+        def get_blackout_dates(self, _instructor_id: str):
+            return []
+
+        def compute_public_availability(
+            self, _instructor_id: str, start_date: date, _end_date: date, apply_min_advance: bool = False
+        ):
+            assert apply_min_advance is False
+            return {start_date.isoformat(): [(time(9, 0), time(10, 0))]}
+
+    class DummyConflictChecker:
+        pass
+
+    seen_keys: list[str] = []
+
+    class DummyCache:
+        async def get(self, key: str):
+            seen_keys.append(key)
+            return None
+
+        async def set(self, key: str, _value, ttl: int):
+            seen_keys.append(f"set:{key}:{ttl}")
+
+    monkeypatch.setattr(
+        public_routes,
+        "_get_user_now_by_id",
+        lambda *_args, **_kwargs: datetime(2025, 1, 10, 9, 0, tzinfo=timezone.utc),
+    )
+    monkeypatch.setattr(
+        "app.services.config_service.ConfigService.get_advance_notice_minutes",
+        lambda self, location_type=None: 0,
+    )
+
+    target_day = date.today() + timedelta(days=1)
+    cache = DummyCache()
+
+    await public_routes.get_instructor_public_availability(
+        instructor_id=user.id,
+        request=_make_request(),
+        response_obj=Response(),
+        start_date=target_day,
+        end_date=target_day,
+        location_type="online",
+        availability_service=DummyAvailabilityService(),
+        conflict_checker=DummyConflictChecker(),
+        instructor_service=DummyInstructorService(),
+        cache_service=cache,
+        db=None,
+    )
+    await public_routes.get_instructor_public_availability(
+        instructor_id=user.id,
+        request=_make_request(),
+        response_obj=Response(),
+        start_date=target_day,
+        end_date=target_day,
+        location_type="student_location",
+        availability_service=DummyAvailabilityService(),
+        conflict_checker=DummyConflictChecker(),
+        instructor_service=DummyInstructorService(),
+        cache_service=cache,
+        db=None,
+    )
+
+    cache_get_keys = [key for key in seen_keys if not key.startswith("set:")]
+    assert len(cache_get_keys) == 2
+    assert cache_get_keys[0] != cache_get_keys[1]
+    assert cache_get_keys[0].endswith(":online")
+    assert cache_get_keys[1].endswith(":student_location")
+
+
 def test_create_guest_session_sets_cookie_and_idempotent(monkeypatch):
     monkeypatch.setenv("SITE_MODE", "preview")
     response = Response()

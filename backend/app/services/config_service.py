@@ -15,8 +15,32 @@ from app.schemas.booking_rules_config import BookingRulesConfig
 from app.schemas.pricing_config import PricingConfig
 from app.services.base import BaseService
 
-TRAVEL_LOCATION_TYPES = {"student_location", "neutral_location"}
-STUDIO_LOCATION_TYPES = {"instructor_location"}
+DEFAULT_LOCATION_TYPE = "online"
+INSTRUCTOR_TRAVEL_LOCATION_TYPES = frozenset({"student_location", "neutral_location"})
+STUDENT_TRAVEL_LOCATION_TYPES = frozenset({"instructor_location", "neutral_location"})
+STUDIO_LOCATION_TYPES = frozenset({"instructor_location"})
+VALID_LOCATION_TYPES = frozenset(
+    INSTRUCTOR_TRAVEL_LOCATION_TYPES | STUDENT_TRAVEL_LOCATION_TYPES | {DEFAULT_LOCATION_TYPE}
+)
+
+
+def normalize_location_type(location_type: str | None) -> str:
+    """Normalize booking location types and fall back to online."""
+    normalized = (location_type or DEFAULT_LOCATION_TYPE).strip().lower()
+    if normalized in VALID_LOCATION_TYPES:
+        return normalized
+    return DEFAULT_LOCATION_TYPE
+
+
+def is_instructor_travel_format(location_type: str | None) -> bool:
+    """Return whether the instructor must travel for this booking format."""
+    return normalize_location_type(location_type) in INSTRUCTOR_TRAVEL_LOCATION_TYPES
+
+
+def is_student_travel_format(location_type: str | None) -> bool:
+    """Return whether the student must travel for this booking format."""
+    return normalize_location_type(location_type) in STUDENT_TRAVEL_LOCATION_TYPES
+
 
 DEFAULT_PRICING_CONFIG: Dict[str, Any] = PricingConfig(
     **PRICING_DEFAULTS,
@@ -59,8 +83,8 @@ class ConfigService(BaseService):
     @BaseService.measure_operation("get_advance_notice_minutes")
     def get_advance_notice_minutes(self, location_type: str | None = None) -> int:
         config, _updated_at = self.get_booking_rules_config()
-        normalized_location = (location_type or "").strip().lower()
-        if normalized_location in TRAVEL_LOCATION_TYPES:
+        normalized_location = normalize_location_type(location_type)
+        if normalized_location in INSTRUCTOR_TRAVEL_LOCATION_TYPES:
             key = "advance_notice_travel_minutes"
         elif normalized_location in STUDIO_LOCATION_TYPES:
             key = "advance_notice_studio_minutes"
@@ -71,8 +95,8 @@ class ConfigService(BaseService):
     @BaseService.measure_operation("get_default_buffer_minutes")
     def get_default_buffer_minutes(self, location_type: str | None = None) -> int:
         config, _updated_at = self.get_booking_rules_config()
-        normalized_location = (location_type or "").strip().lower()
-        if normalized_location in TRAVEL_LOCATION_TYPES:
+        normalized_location = normalize_location_type(location_type)
+        if normalized_location in INSTRUCTOR_TRAVEL_LOCATION_TYPES:
             key = "default_travel_buffer_minutes"
         else:
             key = "default_non_travel_buffer_minutes"

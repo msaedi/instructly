@@ -958,6 +958,7 @@ class AvailabilityCheckRequest(StrictRequestModel):
     booking_date: date = Field(..., description="Date to check")
     start_time: time = Field(..., description="Start time to check")
     end_time: time = Field(..., description="End time to check")
+    location_type: LocationTypeLiteral = Field(..., description="Requested booking format")
 
     @field_validator("start_time", "end_time", mode="before")
     @classmethod

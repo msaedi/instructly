@@ -6393,6 +6393,7 @@ export type components = {
  end_time: string;
  instructor_id: string;
  instructor_service_id: string;
+ location_type: "student_location" | "instructor_location" | "online" | "neutral_location";
  start_time: string;
  };
  AvailabilityCheckResponse: {
@@ -19819,6 +19820,7 @@ export interface operations {
  query: {
  start_date: string;
  end_date?: string | null;
+ location_type?: ("student_location" | "instructor_location" | "online" | "neutral_location") | null;
  };
  header?: never;
  path: {

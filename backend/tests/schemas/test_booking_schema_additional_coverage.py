@@ -270,6 +270,7 @@ def test_availability_check_request_time_validation() -> None:
             booking_date="2024-01-01",
             start_time="bad",
             end_time="10:00",
+            location_type="online",
         )
 
     with pytest.raises(ValueError, match="End time must be after start time"):
@@ -279,6 +280,7 @@ def test_availability_check_request_time_validation() -> None:
             booking_date="2024-01-01",
             start_time="10:00",
             end_time="09:00",
+            location_type="online",
         )
 
 

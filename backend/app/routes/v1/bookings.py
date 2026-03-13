@@ -291,6 +291,9 @@ async def check_availability(
             check_data.end_time,
             check_data.instructor_service_id,
             None,
+            None,
+            check_data.location_type,
+            current_user.id,
         )
 
         return AvailabilityCheckResponse(**result)
@@ -750,6 +753,19 @@ async def reschedule_booking(
             end_dt = start_dt + timedelta(minutes=payload.selected_duration)
             proposed_end_time = end_dt.time()
 
+            _location_type_raw = getattr(original, "location_type", None)
+            # Validate location_type is canonical (no legacy mapping - clean break)
+            if isinstance(_location_type_raw, str):
+                if _location_type_raw in VALID_LOCATION_TYPES:
+                    _location_type = _location_type_raw
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Invalid location_type: '{_location_type_raw}'. Must be one of: {', '.join(sorted(VALID_LOCATION_TYPES))}",
+                    )
+            else:
+                _location_type = "online"
+
             availability = await asyncio.to_thread(
                 booking_service.check_availability,
                 original.instructor_id,
@@ -757,7 +773,10 @@ async def reschedule_booking(
                 payload.start_time,
                 proposed_end_time,
                 payload.instructor_service_id or original.instructor_service_id,
+                None,
                 original.id,
+                _location_type,
+                current_user.id,
             )
 
             if isinstance(availability, dict):
@@ -775,22 +794,6 @@ async def reschedule_booking(
                 reason = reason or "Requested time is unavailable"
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=reason)
 
-            # Check student self-conflict (using service method, no direct repo access)
-            has_student_conflict = await asyncio.to_thread(
-                booking_service.check_student_time_conflict,
-                student_id=current_user.id,
-                booking_date=payload.booking_date,
-                start_time=payload.start_time,
-                end_time=proposed_end_time,
-                exclude_booking_id=original.id,
-            )
-
-            if has_student_conflict:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="You already have a booking scheduled at this time",
-                )
-
             _student_note = (
                 original.student_note
                 if isinstance(getattr(original, "student_note", None), str)
@@ -801,18 +804,6 @@ async def reschedule_booking(
                 if isinstance(getattr(original, "meeting_location", None), str)
                 else None
             )
-            _location_type_raw = getattr(original, "location_type", None)
-            # Validate location_type is canonical (no legacy mapping - clean break)
-            if isinstance(_location_type_raw, str):
-                if _location_type_raw in VALID_LOCATION_TYPES:
-                    _location_type = _location_type_raw
-                else:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Invalid location_type: '{_location_type_raw}'. Must be one of: {', '.join(sorted(VALID_LOCATION_TYPES))}",
-                    )
-            else:
-                _location_type = "online"
             _location_address = _safe_str(getattr(original, "location_address", None))
             _location_lat = _safe_float(getattr(original, "location_lat", None))
             _location_lng = _safe_float(getattr(original, "location_lng", None))

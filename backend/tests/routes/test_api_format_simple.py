@@ -191,6 +191,7 @@ class TestCleanArchitectureValidation:
                 "booking_date": future_date,
                 "start_time": "09:00",
                 "end_time": "10:00",
+                "location_type": "online",
             },
             headers=auth_headers_student,
         )

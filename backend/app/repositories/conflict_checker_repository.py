@@ -72,7 +72,11 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
                     Booking.instructor_id == instructor_id,
                     Booking.booking_date == check_date,
                     Booking.status.in_(
-                        [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
+                        [
+                            BookingStatus.CONFIRMED,
+                            BookingStatus.COMPLETED,
+                            BookingStatus.NO_SHOW,
+                        ]
                     ),
                 )
             )
@@ -80,11 +84,46 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
             if exclude_booking_id:
                 query = query.filter(Booking.id != exclude_booking_id)
 
-            return cast(List[Booking], query.all())
+            return cast(List[Booking], query.order_by(Booking.start_time).all())
 
         except Exception as e:
             self.logger.error(f"Error getting bookings for conflict check: {str(e)}")
             raise RepositoryException(f"Failed to get conflict bookings: {str(e)}")
+
+    def get_student_bookings_for_conflict_check(
+        self, student_id: str, check_date: date, exclude_booking_id: Optional[str] = None
+    ) -> List[Booking]:
+        """
+        Get a student's bookings that could conflict with a requested time on a specific date.
+        """
+        try:
+            query = (
+                self.db.query(Booking)
+                .options(
+                    joinedload(Booking.instructor),
+                    joinedload(Booking.student),
+                )
+                .filter(
+                    Booking.student_id == student_id,
+                    Booking.booking_date == check_date,
+                    Booking.status.in_(
+                        [
+                            BookingStatus.CONFIRMED,
+                            BookingStatus.COMPLETED,
+                            BookingStatus.NO_SHOW,
+                        ]
+                    ),
+                )
+            )
+
+            if exclude_booking_id:
+                query = query.filter(Booking.id != exclude_booking_id)
+
+            return cast(List[Booking], query.order_by(Booking.start_time).all())
+
+        except Exception as e:
+            self.logger.error(f"Error getting student bookings for conflict check: {str(e)}")
+            raise RepositoryException(f"Failed to get student conflict bookings: {str(e)}")
 
     def get_bookings_for_date(self, instructor_id: str, target_date: date) -> List[Booking]:
         """

@@ -1295,6 +1295,19 @@ export interface AvailabilityCacheMetricsResponse {
 }
 
 /**
+ * Requested booking format
+ */
+export type AvailabilityCheckRequestLocationType =
+  (typeof AvailabilityCheckRequestLocationType)[keyof typeof AvailabilityCheckRequestLocationType];
+
+export const AvailabilityCheckRequestLocationType = {
+  student_location: 'student_location',
+  instructor_location: 'instructor_location',
+  online: 'online',
+  neutral_location: 'neutral_location',
+} as const;
+
+/**
  * Check if a specific time is available for booking.
 
 Clean Architecture: Uses instructor, date, and time directly.
@@ -1309,6 +1322,8 @@ export interface AvailabilityCheckRequest {
   instructor_id: string;
   /** Service to book */
   instructor_service_id: string;
+  /** Requested booking format */
+  location_type: AvailabilityCheckRequestLocationType;
   /** Start time to check */
   start_time: string;
 }
@@ -9856,6 +9871,15 @@ export type GetInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAva
      * End date (defaults to configured days from start)
      */
     end_date?: string | null;
+    /**
+     * Optional booking format used for advance-notice trimming
+     */
+    location_type?:
+      | 'student_location'
+      | 'instructor_location'
+      | 'online'
+      | 'neutral_location'
+      | null;
   };
 
 export type GetNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGetParams = {

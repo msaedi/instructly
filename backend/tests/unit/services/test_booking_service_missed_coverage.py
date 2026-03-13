@@ -42,6 +42,11 @@ def _make_service(
     svc.repository = repository or MagicMock()
     svc.availability_repository = MagicMock()
     svc.conflict_checker_repository = conflict_checker or MagicMock()
+    svc.conflict_checker = MagicMock()
+    svc.conflict_checker.check_time_conflicts.return_value = False
+    svc.conflict_checker.check_student_time_conflicts.return_value = False
+    svc.conflict_checker.check_booking_conflicts.return_value = []
+    svc.conflict_checker.check_student_booking_conflicts.return_value = []
     svc.cache_service = cache_service
     svc.notification_service = MagicMock()
     svc.event_publisher = MagicMock()

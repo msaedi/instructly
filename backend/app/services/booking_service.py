@@ -63,7 +63,8 @@ from .audit_redaction import redact
 from .audit_service import AuditService
 from .base import BaseService
 from .cache_service import CacheService, CacheServiceSyncAdapter
-from .config_service import ConfigService
+from .config_service import ConfigService, normalize_location_type
+from .conflict_checker import ConflictChecker
 from .notification_service import NotificationService
 from .notification_templates import (
     INSTRUCTOR_BOOKING_CANCELLED,
@@ -182,6 +183,10 @@ class BookingService(BaseService):
         self.availability_repository = RepositoryFactory.create_availability_repository(db)
         self.conflict_checker_repository = (
             conflict_checker_repository or RepositoryFactory.create_conflict_checker_repository(db)
+        )
+        self.conflict_checker = ConflictChecker(
+            db,
+            repository=self.conflict_checker_repository,
         )
         self.cache_service = cache_adapter
         self.service_area_repository = RepositoryFactory.create_instructor_service_area_repository(
@@ -4832,6 +4837,8 @@ class BookingService(BaseService):
         service_id: Optional[str] = None,
         instructor_service_id: Optional[str] = None,
         exclude_booking_id: Optional[str] = None,
+        location_type: Optional[str] = None,
+        student_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Check if a time range is available for booking.
@@ -4854,21 +4861,11 @@ class BookingService(BaseService):
                 "reason": f"Start time must be on a {BOOKING_START_STEP_MINUTES}-minute boundary",
             }
 
-        # Check for conflicts
-        has_conflict = self.repository.check_time_conflict(
-            instructor_id=instructor_id,
-            booking_date=booking_date,
-            start_time=start_time,
-            end_time=end_time,
-            exclude_booking_id=exclude_booking_id,
-        )
-
-        if has_conflict:
-            return {"available": False, "reason": "Time slot has conflicts with existing bookings"}
-
         resolved_service_id = service_id or instructor_service_id
         if not resolved_service_id:
             return {"available": False, "reason": "Service not found or no longer available"}
+
+        normalized_location_type = normalize_location_type(location_type)
 
         # Get service and instructor profile using repositories
         service = self.conflict_checker_repository.get_active_service(resolved_service_id)
@@ -4884,11 +4881,11 @@ class BookingService(BaseService):
             }
 
         # Check minimum advance booking using UTC.
-        min_advance_minutes = self._get_advance_notice_minutes()
+        min_advance_minutes = self._get_advance_notice_minutes(normalized_location_type)
         now_utc = datetime.now(timezone.utc)
         lesson_tz = TimezoneService.get_lesson_timezone(
             self._resolve_instructor_timezone(instructor_profile),
-            is_online=False,
+            is_online=normalized_location_type == "online",
         )
         try:
             booking_start_utc, _ = self._resolve_booking_times_utc(
@@ -4928,6 +4925,34 @@ class BookingService(BaseService):
                         "in advance"
                     ),
                     "min_advance_minutes": min_advance_minutes,
+                }
+
+        has_conflict = self.conflict_checker.check_time_conflicts(
+            instructor_id=instructor_id,
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            new_location_type=normalized_location_type,
+            exclude_booking_id=exclude_booking_id,
+            instructor_profile=instructor_profile,
+        )
+        if has_conflict:
+            return {"available": False, "reason": "Time slot has conflicts with existing bookings"}
+
+        if student_id:
+            has_student_conflict = self.conflict_checker.check_student_time_conflicts(
+                student_id=student_id,
+                booking_date=booking_date,
+                start_time=start_time,
+                end_time=end_time,
+                new_location_type=normalized_location_type,
+                exclude_booking_id=exclude_booking_id,
+                instructor_profile=instructor_profile,
+            )
+            if has_student_conflict:
+                return {
+                    "available": False,
+                    "reason": "Time slot conflicts with one of your existing bookings",
                 }
 
         # Verify bitmap availability covers the requested range
@@ -5208,12 +5233,14 @@ class BookingService(BaseService):
             lesson_tz,
         )
 
-        existing_conflicts = self.repository.check_time_conflict(
+        existing_conflicts = self.conflict_checker.check_booking_conflicts(
             instructor_id=booking_data.instructor_id,
-            booking_date=booking_data.booking_date,
+            check_date=booking_data.booking_date,
             start_time=booking_data.start_time,
             end_time=booking_data.end_time,
+            new_location_type=booking_data.location_type,
             exclude_booking_id=exclude_booking_id,
+            instructor_profile=instructor_profile,
         )
 
         if existing_conflicts:
@@ -5228,12 +5255,14 @@ class BookingService(BaseService):
 
         # Check for student time conflicts
         if student:
-            student_conflicts = self.repository.check_student_time_conflict(
+            student_conflicts = self.conflict_checker.check_student_booking_conflicts(
                 student_id=student.id,
-                booking_date=booking_data.booking_date,
+                check_date=booking_data.booking_date,
                 start_time=booking_data.start_time,
                 end_time=booking_data.end_time,
+                new_location_type=booking_data.location_type,
                 exclude_booking_id=exclude_booking_id,
+                instructor_profile=instructor_profile,
             )
 
             if student_conflicts:
@@ -5918,6 +5947,7 @@ class BookingService(BaseService):
         booking_date: "date",
         start_time: "time",
         end_time: "time",
+        location_type: Optional[str] = None,
         exclude_booking_id: Optional[str] = None,
     ) -> bool:
         """
@@ -5934,12 +5964,21 @@ class BookingService(BaseService):
             True if there's a conflict, False otherwise
         """
         try:
-            conflicting = self.repository.check_student_time_conflict(
+            profile = None
+            if exclude_booking_id:
+                existing_booking = self.repository.get_by_id(exclude_booking_id)
+                if existing_booking is not None:
+                    profile = self.conflict_checker_repository.get_instructor_profile(
+                        existing_booking.instructor_id
+                    )
+            conflicting = self.conflict_checker.check_student_time_conflicts(
                 student_id=student_id,
                 booking_date=booking_date,
                 start_time=start_time,
                 end_time=end_time,
+                new_location_type=location_type,
                 exclude_booking_id=exclude_booking_id,
+                instructor_profile=profile,
             )
             return bool(conflicting)
         except Exception:

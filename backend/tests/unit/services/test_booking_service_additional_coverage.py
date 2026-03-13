@@ -220,6 +220,11 @@ def booking_service(mock_db: MagicMock, mock_repository: MagicMock) -> BookingSe
     service.audit_repository = MagicMock()
     service.cache_service = MagicMock()
     service.service_area_repository = MagicMock()
+    service.conflict_checker = MagicMock()
+    service.conflict_checker.check_time_conflicts.return_value = False
+    service.conflict_checker.check_student_time_conflicts.return_value = False
+    service.conflict_checker.check_booking_conflicts.return_value = []
+    service.conflict_checker.check_student_booking_conflicts.return_value = []
     return service
 
 
@@ -1531,8 +1536,8 @@ def test_check_conflicts_and_rules_student_conflict(booking_service: BookingServ
     instructor_profile = SimpleNamespace()
     student = make_user(RoleName.STUDENT.value)
 
-    booking_service.repository.check_time_conflict.return_value = False
-    booking_service.repository.check_student_time_conflict.return_value = ["conflict"]
+    booking_service.conflict_checker.check_booking_conflicts.return_value = []
+    booking_service.conflict_checker.check_student_booking_conflicts.return_value = ["conflict"]
     booking_service._resolve_lesson_timezone = Mock(return_value=timezone.utc)
     booking_service._resolve_booking_times_utc = Mock(
         return_value=(datetime(2030, 1, 1, 10, 0, 0, tzinfo=timezone.utc), None)

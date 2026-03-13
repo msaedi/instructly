@@ -9496,6 +9496,12 @@ export type components = {
              */
             instructor_service_id: string;
             /**
+             * Location Type
+             * @description Requested booking format
+             * @enum {string}
+             */
+            location_type: "student_location" | "instructor_location" | "online" | "neutral_location";
+            /**
              * Start Time
              * Format: time
              * @description Start time to check
@@ -31287,6 +31293,8 @@ export interface operations {
                 start_date: string;
                 /** @description End date (defaults to configured days from start) */
                 end_date?: string | null;
+                /** @description Optional booking format used for advance-notice trimming */
+                location_type?: ("student_location" | "instructor_location" | "online" | "neutral_location") | null;
             };
             header?: never;
             path: {

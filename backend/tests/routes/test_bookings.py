@@ -551,6 +551,7 @@ class TestBookingRoutes:
                 "booking_date": date.today().isoformat(),
                 "start_time": "14:00",
                 "end_time": "15:00",
+                "location_type": "online",
             },
         )
 
@@ -577,6 +578,7 @@ class TestBookingRoutes:
                 "booking_date": (date.today() + timedelta(days=1)).isoformat(),
                 "start_time": "14:00",
                 "end_time": "15:00",
+                "location_type": "online",
             },
             headers=auth_headers_student,
         )
@@ -953,6 +955,7 @@ class TestBookingRoutes:
                     "booking_date": tomorrow.isoformat(),
                     "start_time": "09:00",
                     "end_time": "10:00",
+                    "location_type": "online",
                 },
             ),
             ("PATCH", "/api/v1/bookings/01HWRZZZZZZZZZZZZZZZZZZZZ1", {"instructor_note": "Note"}),
@@ -1021,6 +1024,7 @@ class TestBookingRoutes:
                 "booking_date": tomorrow.isoformat(),
                 "start_time": "09:00",
                 "end_time": "10:00",
+                "location_type": "online",
             },
             headers=auth_headers_student,
         )
@@ -1231,6 +1235,7 @@ class TestBookingRoutes:
                 "booking_date": (date.today() + timedelta(days=7)).isoformat(),
                 "start_time": "10:00",
                 "end_time": "11:00",
+                "location_type": "online",
             },
             headers=auth_headers_student,
         )

@@ -147,6 +147,7 @@ class TestBookingRoutesNewFormat:
                 "booking_date": tomorrow.isoformat(),
                 "start_time": "09:00",
                 "end_time": "10:00",
+                "location_type": "online",
             },
             headers=auth_headers_student,
         )
@@ -377,6 +378,7 @@ def test_full_booking_flow_clean_architecture(
             "booking_date": future_date.isoformat(),
             "start_time": "10:00",
             "end_time": "11:00",
+            "location_type": "online",
         },
         headers=auth_headers_student,
     )

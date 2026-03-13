@@ -261,7 +261,55 @@ class TestPublicAvailability:
         monkeypatch.setattr(
             ConfigService,
             "get_advance_notice_minutes",
-            lambda self, location_type=None: 60,
+            lambda self, location_type=None: 60 if location_type == "online" else 180,
+        )
+
+        response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": "online",
+            },
+        )
+        if response.status_code == 404:
+            pytest.skip("Public routes not registered in main.py")
+
+        assert response.status_code == status.HTTP_200_OK
+        slots = response.json()["availability_by_date"][target_date.isoformat()]["available_slots"]
+        assert slots, "Expected filtered slots"
+        first_slot = slots[0]
+        assert first_slot["start_time"] == "11:30"
+        assert first_slot["end_time"] == "17:00"
+
+    def test_public_availability_defaults_to_travel_notice_when_location_type_omitted(
+        self,
+        public_client,
+        db,
+        test_instructor,
+        full_detail_settings,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        instructor = test_instructor
+        profile = (
+            db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
+        )
+        assert profile is not None
+        profile.non_travel_buffer_minutes = 0
+        db.commit()
+
+        target_date = date.today()
+        seed_day(db, instructor.id, target_date, [("09:00", "17:00")])
+
+        tz = pytz.timezone(getattr(instructor, "timezone", "America/New_York"))
+        monkeypatch.setattr(
+            "app.services.availability_service.get_user_now_by_id",
+            lambda *_: tz.localize(datetime.combine(target_date, time(10, 30))),
+        )
+        monkeypatch.setattr(
+            ConfigService,
+            "get_advance_notice_minutes",
+            lambda self, location_type=None: 60 if location_type == "online" else 180,
         )
 
         response = public_client.get(
@@ -275,7 +323,7 @@ class TestPublicAvailability:
         slots = response.json()["availability_by_date"][target_date.isoformat()]["available_slots"]
         assert slots, "Expected filtered slots"
         first_slot = slots[0]
-        assert first_slot["start_time"] == "11:30"
+        assert first_slot["start_time"] == "13:30"
         assert first_slot["end_time"] == "17:00"
 
     def test_public_availability_respects_buffer_time(

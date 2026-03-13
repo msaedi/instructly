@@ -82,6 +82,11 @@ def booking_service(mock_db, mock_repository, mock_notification_service):
         repository=mock_repository,
     )
     service.audit_repository = MagicMock()
+    service.conflict_checker = MagicMock()
+    service.conflict_checker.check_time_conflicts.return_value = False
+    service.conflict_checker.check_student_time_conflicts.return_value = False
+    service.conflict_checker.check_booking_conflicts.return_value = []
+    service.conflict_checker.check_student_booking_conflicts.return_value = []
     return service
 
 
@@ -859,7 +864,7 @@ class TestCheckConflictsAndRules:
 
     def test_instructor_conflict(self, booking_service, mock_repository):
         """Test error when instructor has conflict."""
-        mock_repository.check_time_conflict.return_value = True
+        booking_service.conflict_checker.check_booking_conflicts.return_value = ["conflict"]
 
         student = MagicMock(spec=User)
         student.id = generate_ulid()

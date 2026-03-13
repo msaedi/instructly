@@ -314,10 +314,10 @@ class TestStudentConflictValidationIntegration:
         assert str(exc_info.value) == "Student already has a booking that overlaps this time"
 
     @pytest.mark.asyncio
-    async def test_student_can_book_adjacent_sessions_integration(
+    async def test_student_cannot_book_adjacent_sessions_when_student_travel_is_required(
         self, db: Session, student_user: User, math_instructor: User, piano_instructor: User
     ):
-        """Integration test: Student can book back-to-back sessions."""
+        """Integration test: student-side travel buffers block back-to-back sessions."""
         # Store IDs immediately to avoid session issues
         math_instructor_id = math_instructor.id
         piano_instructor_id = piano_instructor.id
@@ -372,13 +372,13 @@ class TestStudentConflictValidationIntegration:
             **BROOKLYN_LOCATION,
         )
 
-        # Should succeed
-        booking2 = await asyncio.to_thread(booking_service.create_booking,
-            student_user, booking2_data, selected_duration=booking2_data.selected_duration
-        )
-        assert booking2.id is not None
-        assert booking2.status == BookingStatus.CONFIRMED
-        assert booking2.start_time == booking1.end_time  # Verify adjacency
+        with pytest.raises(ConflictException, match="Student already has a booking"):
+            await asyncio.to_thread(
+                booking_service.create_booking,
+                student_user,
+                booking2_data,
+                selected_duration=booking2_data.selected_duration,
+            )
 
     @pytest.mark.asyncio
     async def test_multiple_students_same_instructor_integration(self, db: Session, math_instructor: User):

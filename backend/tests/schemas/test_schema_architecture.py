@@ -97,6 +97,7 @@ class TestBookingCleanArchitecture:
             booking_date=date.today() + timedelta(days=1),
             start_time=time(14, 0),
             end_time=time(15, 30),
+            location_type="online",
         )
         assert check.instructor_id == instructor_id
         assert check.instructor_service_id == service_id

@@ -48,3 +48,10 @@ class TestPublicAvailabilityQueryCoverage:
         )
         # This returns -8 (negative) — potential bug in the schema
         assert query.date_range_days == -8
+
+    def test_location_type_optional(self) -> None:
+        query = PublicAvailabilityQuery(
+            start_date=date(2025, 7, 1),
+            location_type="neutral_location",
+        )
+        assert query.location_type == "neutral_location"
