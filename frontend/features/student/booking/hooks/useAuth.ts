@@ -5,6 +5,7 @@ import { API_ENDPOINTS } from '@/lib/api';
 import { withApiBase } from '@/lib/apiBase';
 import { httpGet, ApiError } from '@/lib/http';
 import { logger } from '@/lib/logger';
+import type { LocationType } from '@/types/booking';
 
 interface User {
   id: string;
@@ -113,6 +114,7 @@ export function useAuth(): UseAuthReturn {
 export function storeBookingIntent(bookingIntent: {
   instructorId: string;
   serviceId?: string;
+  locationType?: LocationType;
   date: string;
   time: string;
   duration: number;
@@ -134,6 +136,7 @@ export function storeBookingIntent(bookingIntent: {
 export function getBookingIntent(): {
   instructorId: string;
   serviceId?: string;
+  locationType?: LocationType;
   date: string;
   time: string;
   duration: number;
@@ -146,7 +149,8 @@ export function getBookingIntent(): {
       logger.info('Retrieved booking intent', intent);
       return intent as {
         instructorId: string;
-        serviceId: string;
+        serviceId?: string;
+        locationType?: LocationType;
         date: string;
         time: string;
         duration: number;

@@ -3,6 +3,7 @@ import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { publicApi, type ApiResponse } from '@/features/shared/api/client';
 import { format, addDays } from 'date-fns';
 import { logger } from '@/lib/logger';
+import type { PublicAvailabilityLocationType } from '@/lib/pricing/formatPricing';
 
 interface AvailabilityResponse {
   instructor_id: string;
@@ -32,7 +33,12 @@ interface AvailabilityResponse {
  * @param startDate - Optional start date (defaults to today)
  * @param daysAhead - Number of days to fetch (default: 7, max: 30)
  */
-export function useInstructorAvailability(instructorId: string, startDate?: string, daysAhead: number = 7) {
+export function useInstructorAvailability(
+  instructorId: string,
+  startDate?: string,
+  daysAhead: number = 7,
+  locationType?: PublicAvailabilityLocationType,
+) {
   const now = new Date();
   const todayIso = format(now, 'yyyy-MM-dd');
   const parsedStartDate = (() => {
@@ -61,18 +67,29 @@ export function useInstructorAvailability(instructorId: string, startDate?: stri
 
   return useQuery<AvailabilityResponse>({
     // Include daysAhead in queryKey so different durations are cached separately
-    queryKey: [...queryKeys.availability.week(instructorId, sanitizedStartDate), daysAhead],
+    queryKey: [
+      ...queryKeys.availability.week(instructorId, sanitizedStartDate),
+      daysAhead,
+      locationType ?? 'conservative',
+    ],
     queryFn: async () => {
       logger.debug('useInstructorAvailability queryFn executing', {
         instructorId,
         startDate: sanitizedStartDate,
         endDate,
+        locationType,
       });
-      logger.info('Fetching availability', { instructorId, start_date: sanitizedStartDate, end_date: endDate });
+      logger.info('Fetching availability', {
+        instructorId,
+        start_date: sanitizedStartDate,
+        end_date: endDate,
+        location_type: locationType,
+      });
 
       const response = await publicApi.getInstructorAvailability(instructorId, {
         start_date: sanitizedStartDate,
         end_date: endDate,
+        ...(locationType ? { location_type: locationType } : {}),
       });
 
       // Handle rate limit: wait Retry-After and retry once
@@ -82,6 +99,7 @@ export function useInstructorAvailability(instructorId: string, startDate?: stri
         const retry = await publicApi.getInstructorAvailability(instructorId, {
           start_date: sanitizedStartDate,
           end_date: endDate,
+          ...(locationType ? { location_type: locationType } : {}),
         });
         if (retry.error) {
           logger.error('Availability retry failed', { error: retry.error });

@@ -1,3 +1,5 @@
+import type { LocationType } from '@/types/booking';
+
 // Pure booking helpers shared across features (no side-effects beyond sessionStorage helpers)
 
 // Calculate end time given a start time (HH:MM or HH:MM:SS) and duration minutes
@@ -24,6 +26,7 @@ export function calculateEndTime(startTime: string, durationMinutes: number): st
 export function storeBookingIntent(bookingIntent: {
   instructorId: string;
   serviceId?: string;
+  locationType?: LocationType;
   date: string;
   time: string;
   duration: number;
@@ -37,6 +40,7 @@ export function storeBookingIntent(bookingIntent: {
 export function getBookingIntent(): {
   instructorId: string;
   serviceId?: string;
+  locationType?: LocationType;
   date: string;
   time: string;
   duration: number;
@@ -47,6 +51,7 @@ export function getBookingIntent(): {
     type StoredBookingIntent = {
       instructorId: string;
       serviceId?: string;
+      locationType?: LocationType;
       date: string;
       time: string;
       duration: number;

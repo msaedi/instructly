@@ -610,6 +610,9 @@ describe('TimeSelectionModal', () => {
           date: expect.any(String),
           time: expect.any(String),
           duration: expect.any(Number),
+          locationType: 'student_location',
+          serviceId: 'svc-1',
+          hourlyRate: 60,
         });
         expect(onClose).toHaveBeenCalled();
       }
@@ -1493,8 +1496,6 @@ describe('TimeSelectionModal', () => {
   describe('initial selection with initialDurationMinutes', () => {
     it('applies initialDurationMinutes when available in options', async () => {
       const dates = [getDateString(1)];
-      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
-
       render(
         <TimeSelectionModal
           {...defaultProps}
@@ -1533,15 +1534,23 @@ describe('TimeSelectionModal', () => {
   describe('service handling edge cases', () => {
     it('handles instructor with no services gracefully on continue', async () => {
       const onClose = jest.fn();
+      const dates = [getDateString(1)];
       const instructorNoServices = {
         ...mockInstructor,
         services: [],
       };
 
-      const dates = [getDateString(1)];
-      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
-
-      render(<TimeSelectionModal {...defaultProps} instructor={instructorNoServices} onClose={onClose} />);
+      render(
+        <TimeSelectionModal
+          {...defaultProps}
+          instructor={instructorNoServices}
+          onClose={onClose}
+          initialLocationType="student_location"
+          lockLocationType
+          initialDate={dates[0]!}
+          initialTimeHHMM24="09:00"
+        />
+      );
 
       await waitFor(() => {
         expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
@@ -1802,9 +1811,6 @@ describe('TimeSelectionModal', () => {
       const user = userEvent.setup();
       const onClose = jest.fn();
       const onTimeSelected = jest.fn();
-      const dates = [getDateString(1)];
-      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
-
       render(
         <TimeSelectionModal
           {...defaultProps}
@@ -1843,6 +1849,9 @@ describe('TimeSelectionModal', () => {
         date: expect.any(String),
         time: expect.any(String),
         duration: expect.any(Number),
+        locationType: 'student_location',
+        serviceId: 'svc-1',
+        hourlyRate: 60,
       }));
       expect(onClose).toHaveBeenCalled();
     });
@@ -1875,9 +1884,6 @@ describe('TimeSelectionModal', () => {
     });
 
     it('falls back to first service when serviceId not found', async () => {
-      const dates = [getDateString(1)];
-      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
-
       render(
         <TimeSelectionModal
           {...defaultProps}
@@ -2519,18 +2525,25 @@ describe('TimeSelectionModal', () => {
       const dates = [getDateString(1)];
       publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
 
-      render(<TimeSelectionModal {...defaultProps} instructor={instructorNoServices} onClose={onClose} />);
+      render(
+        <TimeSelectionModal
+          {...defaultProps}
+          instructor={instructorNoServices}
+          onClose={onClose}
+          initialLocationType="student_location"
+          lockLocationType
+          initialDate={dates[0]!}
+          initialTimeHHMM24="09:00"
+        />
+      );
 
       await waitFor(() => {
         expect(summaryOnContinue).not.toBeNull();
       });
 
-      // Force clicking continue even though isComplete might be false
-      // This exercises the no-service-found path inside handleContinue
       await runContinueWithoutNavigation(summaryOnContinue);
 
-      // Component should handle gracefully
-      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+      expect(onClose).toHaveBeenCalled();
     });
   });
 
@@ -3141,9 +3154,6 @@ describe('TimeSelectionModal', () => {
     it('calls onTimeSelected and closes modal when callback is provided', async () => {
       const onTimeSelected = jest.fn();
       const onClose = jest.fn();
-      const dates = [getDateString(1)];
-      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
-
       render(
         <TimeSelectionModal
           {...defaultProps}
@@ -3170,6 +3180,9 @@ describe('TimeSelectionModal', () => {
           date: expect.any(String),
           time: expect.any(String),
           duration: expect.any(Number),
+          locationType: 'student_location',
+          serviceId: 'svc-1',
+          hourlyRate: 60,
         })
       );
       // And should close the modal
@@ -4109,8 +4122,8 @@ describe('TimeSelectionModal', () => {
     });
   });
 
-  describe('authenticated user booking — in_person modality label', () => {
-    it('stores "In-person" location label in bookingData for in_person modality', async () => {
+  describe('authenticated user booking — exact location label', () => {
+    it('stores "Instructor\'s location" in bookingData for instructor_location format', async () => {
       const onClose = jest.fn();
       const dates = [getDateString(1)];
       publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
@@ -4138,7 +4151,11 @@ describe('TimeSelectionModal', () => {
       // In-person service
       const inPersonInstructor = {
         ...mockInstructor,
-        services: [{ ...mockService, location_types: ['in_person'] as string[] }],
+        services: [{
+          ...mockService,
+          format_prices: [{ format: 'instructor_location', hourly_rate: 60 }] as Array<{ format: string; hourly_rate: number }>,
+          location_types: ['in_person'] as string[],
+        }],
       };
 
       render(<TimeSelectionModal {...defaultProps} instructor={inPersonInstructor} onClose={onClose} />);
@@ -4155,7 +4172,7 @@ describe('TimeSelectionModal', () => {
       );
       if (storedCall) {
         const parsed = JSON.parse(storedCall[1] as string) as { location?: string };
-        expect(parsed.location).toContain('In-person');
+        expect(parsed.location).toContain("Instructor's location");
       }
     });
 
@@ -4383,7 +4400,7 @@ describe('TimeSelectionModal', () => {
 
       const zeroRateInstructor = {
         ...mockInstructor,
-        services: [{ ...mockService, min_hourly_rate: 0 }],
+        services: [{ ...mockService, min_hourly_rate: 0, format_prices: [{ format: 'student_location', hourly_rate: 0 }] as Array<{ format: string; hourly_rate: number }> }],
       };
 
       render(<TimeSelectionModal {...defaultProps} instructor={zeroRateInstructor} />);
@@ -4794,17 +4811,25 @@ describe('TimeSelectionModal', () => {
         services: [] as typeof mockInstructor.services,
       };
 
-      render(<TimeSelectionModal {...defaultProps} instructor={noServicesInstructor} onClose={onClose} />);
+      render(
+        <TimeSelectionModal
+          {...defaultProps}
+          instructor={noServicesInstructor}
+          onClose={onClose}
+          initialLocationType="student_location"
+          lockLocationType
+          initialDate={dates[0]!}
+          initialTimeHHMM24="09:00"
+        />
+      );
 
       await waitFor(() => {
         expect(summaryOnContinue).not.toBeNull();
       });
 
-      // The component will have selectedDate=null with empty services,
-      // so handleContinue returns early at the guard before checking service
       await runContinueWithoutNavigation(summaryOnContinue);
 
-      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+      expect(onClose).toHaveBeenCalled();
     });
   });
 
@@ -5503,6 +5528,10 @@ describe('TimeSelectionModal', () => {
           {...defaultProps}
           instructor={emptyServicesInstructor}
           onClose={onClose}
+          initialLocationType="student_location"
+          lockLocationType
+          initialDate={dates[0]!}
+          initialTimeHHMM24="09:00"
         />
       );
 
@@ -5510,12 +5539,9 @@ describe('TimeSelectionModal', () => {
         expect(summaryOnContinue).not.toBeNull();
       });
 
-      // With no services, selectedDate/selectedTime won't be set, so handleContinue
-      // returns early at the `if (selectedDate && selectedTime)` guard
       await runContinueWithoutNavigation(summaryOnContinue);
 
-      // The component shouldn't crash
-      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+      expect(onClose).toHaveBeenCalled();
     });
   });
 
@@ -7764,11 +7790,13 @@ describe('TimeSelectionModal', () => {
             ...mockInstructor,
             services: [],
           }}
+          initialLocationType="student_location"
+          lockLocationType
+          initialDate={dates[0]!}
+          initialTimeHHMM24="09:00"
         />
       );
 
-      // Even with empty services, the modal renders. The continue handler
-      // will hit the "no service found" early return.
       await waitFor(() => {
         expect(summaryOnContinue).not.toBeNull();
       });
@@ -8725,18 +8753,28 @@ describe('TimeSelectionModal', () => {
 
   describe('B1: uncovered branch — empty services array (lines 734-745)', () => {
     it('renders fallback when instructor has empty services array and selectedService is null', () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
       const instructorNoServices = {
         ...mockInstructor,
         services: [] as typeof mockInstructor.services,
       };
 
-      render(<TimeSelectionModal {...defaultProps} instructor={instructorNoServices} />);
+      render(
+        <TimeSelectionModal
+          {...defaultProps}
+          instructor={instructorNoServices}
+          initialLocationType="student_location"
+          lockLocationType
+          initialDate={dates[0]!}
+          initialTimeHHMM24="09:00"
+        />
+      );
 
       // With no services, selectedService useMemo returns null
-      // Duration options fall back to defaults [30,60,90,120] with hourlyRate=100
       // The component should still render without crashing
       expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
-      // The summary section should still render with isComplete=false because no time/date selected
       expect(screen.queryAllByTestId('summary-section').length).toBeGreaterThan(0);
     });
   });
@@ -8826,6 +8864,10 @@ describe('TimeSelectionModal', () => {
           {...defaultProps}
           instructor={instructorNoServices}
           onClose={onClose}
+          initialLocationType="student_location"
+          lockLocationType
+          initialDate={dates[0]!}
+          initialTimeHHMM24="09:00"
         />
       );
 
@@ -8833,11 +8875,8 @@ describe('TimeSelectionModal', () => {
         expect(summaryOnContinue).not.toBeNull();
       });
 
-      // Force continue — this path hits `if (!selectedService)` at line 800
-      // because instructor.services is empty and no onTimeSelected is provided
       await runContinueWithoutNavigation(summaryOnContinue);
 
-      // onClose should be called from the no-service fallback
       expect(onClose).toHaveBeenCalled();
     });
   });
@@ -8961,6 +9000,21 @@ describe('TimeSelectionModal', () => {
           hasSelectedService: true,
           selectedHourlyRate: 80,
           selectedDuration: Number.NaN,
+          selectedModality: 'in_person',
+        })
+      ).toBeNull();
+    });
+
+    it('ignores price-floor checks when no service is selected', () => {
+      expect(
+        getPriceFloorViolation({
+          pricingFloors: {
+            private_in_person: 5000,
+            private_remote: 4000,
+          },
+          hasSelectedService: false,
+          selectedHourlyRate: 80,
+          selectedDuration: 60,
           selectedModality: 'in_person',
         })
       ).toBeNull();

@@ -3,6 +3,7 @@ import {
   formatLabel,
   getFormatRate,
   lessonTypeToFormats,
+  lessonTypeToAvailabilityLocationType,
   getContextualPrice,
   availableFormatsFromPrices,
   FORMAT_DISPLAY_PRIORITY,
@@ -76,6 +77,30 @@ describe('lessonTypeToFormats', () => {
       'online',
       'instructor_location',
     ]);
+  });
+});
+
+describe('lessonTypeToAvailabilityLocationType', () => {
+  it('maps online to online', () => {
+    expect(lessonTypeToAvailabilityLocationType('online')).toBe('online');
+  });
+
+  it('maps studio to instructor_location', () => {
+    expect(lessonTypeToAvailabilityLocationType('studio')).toBe('instructor_location');
+  });
+
+  it('maps travels to student_location', () => {
+    expect(lessonTypeToAvailabilityLocationType('travels')).toBe('student_location');
+  });
+
+  it('uses conservative student_location for in_person', () => {
+    expect(lessonTypeToAvailabilityLocationType('in_person')).toBe('student_location');
+  });
+
+  it('uses conservative student_location for any or missing filters', () => {
+    expect(lessonTypeToAvailabilityLocationType('any')).toBe('student_location');
+    expect(lessonTypeToAvailabilityLocationType()).toBe('student_location');
+    expect(lessonTypeToAvailabilityLocationType(null)).toBe('student_location');
   });
 });
 

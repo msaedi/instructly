@@ -11,6 +11,7 @@ import { withApiBaseForRequest } from '@/lib/apiBase';
 import { NEXT_PUBLIC_APP_URL as APP_URL } from '@/lib/env';
 import { logger } from '@/lib/logger';
 import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
+import type { PublicAvailabilityLocationType } from '@/lib/pricing/formatPricing';
 import type {
   AgeGroup,
   ApiErrorResponse,
@@ -509,6 +510,7 @@ export const publicApi = {
     params: {
       start_date: string;
       end_date: string;
+      location_type?: PublicAvailabilityLocationType;
     }
   ) {
     return cleanFetch<{

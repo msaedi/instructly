@@ -18,7 +18,10 @@ import { withApiBase } from '@/lib/apiBase';
 import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import { SearchType } from '@/types/enums';
 import { useAuth } from '@/features/shared/hooks/useAuth';
-import { availableFormatsFromPrices } from '@/lib/pricing/formatPricing';
+import {
+  availableFormatsFromPrices,
+  lessonTypeToAvailabilityLocationType,
+} from '@/lib/pricing/formatPricing';
 import { useInstructorSearchInfinite } from '@/hooks/queries/useInstructorSearch';
 import { useInstructorCoverage } from '@/hooks/queries/useInstructorCoverage';
 import { usePublicAvailability, type InstructorAvailabilitySummary } from '@/hooks/queries/usePublicAvailability';
@@ -1509,7 +1512,10 @@ function SearchPageInner() {
         .filter((id): id is string => Boolean(id)),
     [instructors]
   );
-  const availabilityByInstructor = usePublicAvailability(availabilityIds);
+  const availabilityByInstructor = usePublicAvailability(
+    availabilityIds,
+    lessonTypeToAvailabilityLocationType(filters.location),
+  );
 
   const sidebarFilteredInstructors = useMemo(() => {
     if (instructors.length === 0) return [];

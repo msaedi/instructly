@@ -155,6 +155,7 @@ export function RescheduleModal({ isOpen, onClose, lesson }: RescheduleModalProp
           date: lesson.booking_date,
           time: lesson.start_time,
           service: lesson.service_name,
+          ...(lesson.location_type ? { location_type: lesson.location_type } : {}),
         }}
       />
 

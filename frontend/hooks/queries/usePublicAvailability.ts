@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
 
 import { publicApi } from '@/features/shared/api/client';
+import type { PublicAvailabilityLocationType } from '@/lib/pricing/formatPricing';
 
 export interface InstructorAvailabilitySummary {
   timezone?: string;
@@ -27,7 +28,10 @@ const normalizeTime = (value?: string | null) => {
   return `${String(parseInt(h, 10) || 0).padStart(2, '0')}:${String(parseInt(m, 10) || 0).padStart(2, '0')}`;
 };
 
-export function usePublicAvailability(instructorIds: string[]) {
+export function usePublicAvailability(
+  instructorIds: string[],
+  locationType?: PublicAvailabilityLocationType,
+) {
   const ids = useMemo(
     () => Array.from(new Set(instructorIds.filter((id) => typeof id === 'string' && id.length > 0))),
     [instructorIds]
@@ -45,13 +49,21 @@ export function usePublicAvailability(instructorIds: string[]) {
   // The combine function only runs when the underlying query data changes
   return useQueries({
     queries: ids.map((instructorId) => ({
-      queryKey: ['availability', 'public', instructorId, startDate, endDate],
+      queryKey: [
+        'availability',
+        'public',
+        instructorId,
+        startDate,
+        endDate,
+        locationType ?? 'conservative',
+      ],
       staleTime: AVAILABILITY_STALE_TIME_MS,
       enabled: Boolean(instructorId),
       queryFn: async (): Promise<InstructorAvailabilitySummary | null> => {
         const response = await publicApi.getInstructorAvailability(instructorId, {
           start_date: startDate,
           end_date: endDate,
+          ...(locationType ? { location_type: locationType } : {}),
         });
 
         if (response.error || response.status !== 200 || !response.data) {

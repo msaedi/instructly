@@ -102,7 +102,7 @@ run_frontend() {
     if LINT_OUTPUT=$(npm run lint 2>&1); then
         record "ESLint" "PASS" "clean"
     else
-        record "ESLint" "FAIL" "lint errors found"
+        record "ESLint" "FAIL" "lint errors or warnings found"
     fi
 
     # 3. TypeScript (all levels)
