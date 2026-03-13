@@ -11,7 +11,7 @@ import { isApiError } from '@/lib/react-query/api';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { ArrowLeft, Star, Heart, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
-import { getStripe } from '@/features/student/payment/utils/stripe';
+import { getStripe } from '@/features/shared/payment/utils/stripe';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/react-query/queryClient';
 import { logger } from '@/lib/logger';

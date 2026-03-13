@@ -16,7 +16,7 @@ Categories derive through subcategories (no direct category_id on services).
 
 from decimal import Decimal
 import logging
-from typing import Any, Dict, List, Optional, Set, TypedDict, cast
+from typing import Any, Callable, Dict, List, Optional, Set, TypedDict, cast
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
@@ -429,7 +429,7 @@ class InstructorService(Base):
         """Normalize arbitrary numeric input to a two-decimal hourly rate."""
         return Decimal(str(value)).quantize(PRICE_QUANTUM)
 
-    @validates("format_prices")
+    @cast(Callable[..., Callable[..., Any]], validates)("format_prices")
     def _coerce_format_price_row(self, _key: str, price_row: Any) -> "ServiceFormatPrice":
         """Accept dict-style relationship rows while keeping child models canonical."""
         if isinstance(price_row, ServiceFormatPrice):

@@ -18,6 +18,10 @@ jest.mock('@stripe/stripe-js', () => ({
   loadStripe: jest.fn(() => Promise.resolve({})),
 }));
 
+jest.mock('@/features/shared/payment/utils/stripe', () => ({
+  getStripe: jest.fn(() => Promise.resolve({})),
+}));
+
 jest.mock('@stripe/react-stripe-js', () => ({
   Elements: ({ children }: { children: React.ReactNode }) => <div data-testid="stripe-elements">{children}</div>,
   CardElement: () => <div data-testid="card-element" />,
@@ -675,72 +679,6 @@ describe('CheckoutFlow', () => {
       await waitFor(() => {
         expect(screen.getByText('3DS authentication failed')).toBeInTheDocument();
       }, { timeout: 3000 });
-    });
-  });
-
-  describe('CVV Input for Saved Cards', () => {
-    it('shows CVV input when saved card is selected', async () => {
-      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
-        wrapper: createWrapper(),
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText('Visa')).toBeInTheDocument();
-      });
-
-      // Default card is already selected, CVV should show
-      expect(screen.getByText('Security Code (CVV)')).toBeInTheDocument();
-    });
-
-    it('allows entering CVV for saved card', async () => {
-      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
-        wrapper: createWrapper(),
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText('Security Code (CVV)')).toBeInTheDocument();
-      });
-
-      const cvvInput = screen.getByPlaceholderText('123');
-      await userEvent.type(cvvInput, '456');
-
-      expect(cvvInput).toHaveValue('456');
-    });
-
-    it('only allows numeric input for CVV', async () => {
-      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
-        wrapper: createWrapper(),
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText('Security Code (CVV)')).toBeInTheDocument();
-      });
-
-      const cvvInput = screen.getByPlaceholderText('123');
-      await userEvent.type(cvvInput, 'abc123def');
-
-      // Should only contain digits
-      expect(cvvInput).toHaveValue('123');
-    });
-
-    it('hides CVV input when adding new card', async () => {
-      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
-        wrapper: createWrapper(),
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText('Add New Card')).toBeInTheDocument();
-      });
-
-      const labels = screen.getAllByText('Add New Card');
-      const newCardLabel = labels.find(el => el.closest('label'));
-      if (newCardLabel) {
-        fireEvent.click(newCardLabel);
-      }
-
-      await waitFor(() => {
-        expect(screen.queryByText('Security Code (CVV)')).not.toBeInTheDocument();
-      });
     });
   });
 

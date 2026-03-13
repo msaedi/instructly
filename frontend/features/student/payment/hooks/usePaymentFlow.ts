@@ -1,3 +1,5 @@
+// TODO: Consolidate with CheckoutFlow.tsx — this hook has mock data that should be replaced
+// with real Stripe integration matching the CheckoutFlow pattern.
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
@@ -153,11 +155,11 @@ export function usePaymentFlow({
   const selectedCard = selectedCardId
     ? {
         id: selectedCardId,
-        last4: '4242',
-        brand: 'Visa',
-        expiryMonth: 12,
-        expiryYear: 2025,
-        isDefault: true,
+        last4: '',
+        brand: '',
+        expiryMonth: null,
+        expiryYear: null,
+        isDefault: false,
       }
     : null;
 

@@ -95,7 +95,15 @@ class PaymentIntent(Base):
     """Stripe payment intents for booking payments."""
 
     __tablename__ = "payment_intents"
-    __table_args__ = (Index("ix_payment_intents_booking", "booking_id"),)
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('requires_payment_method', 'requires_confirmation', 'requires_action', "
+            "'requires_capture', 'processing', 'succeeded', 'refunded', 'canceled', "
+            "'refund_pending', 'refund_failed')",
+            name="ck_payment_intents_status",
+        ),
+        Index("ix_payment_intents_booking", "booking_id"),
+    )
 
     id: Mapped[str] = mapped_column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     booking_id: Mapped[str] = mapped_column(

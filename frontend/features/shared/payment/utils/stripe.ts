@@ -1,12 +1,18 @@
 import { loadStripe, Stripe } from '@stripe/stripe-js';
 import { STRIPE_PUBLISHABLE_KEY } from '@/lib/publicEnv';
 
-// Initialize Stripe - use test key for now
-const stripePromise = loadStripe(
-  STRIPE_PUBLISHABLE_KEY || 'pk_test_placeholder'
-);
+// Initialize Stripe lazily to avoid throwing at module load time in tests
+let stripePromise: Promise<Stripe | null> | null = null;
 
-export const getStripe = (): Promise<Stripe | null> => stripePromise;
+export const getStripe = (): Promise<Stripe | null> => {
+  if (!stripePromise) {
+    if (!STRIPE_PUBLISHABLE_KEY) {
+      throw new Error('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is not configured');
+    }
+    stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY);
+  }
+  return stripePromise;
+};
 
 // Payment intent request types removed - use generated types from @/features/shared/api/types
 // or @/src/api/generated/instructly.schemas if needed

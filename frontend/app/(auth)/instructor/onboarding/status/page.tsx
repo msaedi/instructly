@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { Stripe } from '@stripe/stripe-js';
 import { getConnectStatus, fetchWithAuth, API_ENDPOINTS, createStripeIdentitySession } from '@/lib/api';
 import { paymentService } from '@/services/api/payments';
-import { loadStripe } from '@stripe/stripe-js';
+import { getStripe } from '@/features/shared/payment/utils/stripe';
 import { toast } from 'sonner';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { BGCStep } from '@/components/instructor/BGCStep';
@@ -197,27 +198,31 @@ export default function OnboardingStatusPage() {
   const startIdentity = async () => {
     try {
       const session = await createStripeIdentitySession();
-      const pubkey = process.env['NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY'];
-      if (pubkey) {
-        const stripe = await loadStripe(pubkey);
-        if (stripe && session.client_secret) {
-          await stripe.verifyIdentity(session.client_secret);
-          // After return, force backend refresh of identity status and then refresh profile/connect status
-          try {
-            await fetchWithAuth(API_ENDPOINTS.STRIPE_IDENTITY_REFRESH, { method: 'POST' });
-          } catch {}
-          const [s, me] = await Promise.all([
-            getConnectStatus().catch(() => null),
-            fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE)
-              .then(async (r) => (r.ok ? ((await r.json()) as InstructorProfileResponse) : null))
-              .catch(() => null),
-          ]);
-          if (s) setConnectStatus(s);
-          if (me) setProfile(me);
-        }
+      let stripe: Stripe | null = null;
+      try {
+        stripe = await getStripe();
+      } catch {
+        stripe = null;
+      }
+      if (stripe && session.client_secret) {
+        await stripe.verifyIdentity(session.client_secret);
+        // After return, force backend refresh of identity status and then refresh profile/connect status
+        try {
+          await fetchWithAuth(API_ENDPOINTS.STRIPE_IDENTITY_REFRESH, { method: 'POST' });
+        } catch {}
+        const [s, me] = await Promise.all([
+          getConnectStatus().catch(() => null),
+          fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE)
+            .then(async (r) => (r.ok ? ((await r.json()) as InstructorProfileResponse) : null))
+            .catch(() => null),
+        ]);
+        if (s) setConnectStatus(s);
+        if (me) setProfile(me);
       } else {
         // Fallback: hosted link by opening in same tab
-        window.location.href = `${process.env['NEXT_PUBLIC_API_BASE'] || 'http://localhost:8000'}/api/v1/payments/identity/session`;
+        window.location.assign(
+          `${process.env['NEXT_PUBLIC_API_BASE'] || 'http://localhost:8000'}/api/v1/payments/identity/session`
+        );
       }
     } catch {
       // no-op

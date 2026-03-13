@@ -798,6 +798,22 @@ def _prepare_database() -> None:
             )
             conn.commit()
 
+    # Keep payment_intents schema aligned with ORM models (tests reuse an existing DB).
+    with test_engine.connect() as conn:
+        if conn.dialect.name != "sqlite":
+            conn.execute(
+                text("ALTER TABLE payment_intents DROP CONSTRAINT IF EXISTS ck_payment_intents_status")
+            )
+            conn.execute(
+                text(
+                    "ALTER TABLE payment_intents ADD CONSTRAINT ck_payment_intents_status "
+                    "CHECK (status IN ('requires_payment_method', 'requires_confirmation', "
+                    "'requires_action', 'requires_capture', 'processing', 'succeeded', "
+                    "'refunded', 'canceled', 'refund_pending', 'refund_failed'))"
+                )
+            )
+            conn.commit()
+
     # Keep instructor_profiles schema aligned with ORM models (tests reuse an existing DB).
     with test_engine.connect() as conn:
         if conn.dialect.name != "sqlite":

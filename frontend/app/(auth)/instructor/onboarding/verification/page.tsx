@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { loadStripe } from '@stripe/stripe-js';
+import { getStripe } from '@/features/shared/payment/utils/stripe';
 import { toast } from 'sonner';
 import { createStripeIdentitySession, fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -401,28 +401,25 @@ export default function Step4Verification() {
       };
 
       try {
-        const publishableKey = process.env['NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY'];
-        if (publishableKey) {
-          const stripe = await loadStripe(publishableKey);
-          if (!stripe) {
-            throw new Error('Failed to load Stripe.js');
-          }
+        const stripe = await getStripe();
+        if (!stripe) {
+          throw new Error('Failed to load Stripe.js');
+        }
 
-          markProcessing();
-          const result = await stripe.verifyIdentity(session.client_secret);
-          if (result?.error) {
-            updateIdentityState(previousIdentityState.status, {
-              sessionId: previousIdentityState.sessionId,
-              errorCode: previousIdentityState.errorCode,
-              errorReason: previousIdentityState.errorReason,
-            });
-            setError(result.error.message || 'Verification could not be started');
-            return;
-          }
-
-          router.replace('/instructor/onboarding/verification?identity_return=true');
+        markProcessing();
+        const result = await stripe.verifyIdentity(session.client_secret);
+        if (result?.error) {
+          updateIdentityState(previousIdentityState.status, {
+            sessionId: previousIdentityState.sessionId,
+            errorCode: previousIdentityState.errorCode,
+            errorReason: previousIdentityState.errorReason,
+          });
+          setError(result.error.message || 'Verification could not be started');
           return;
         }
+
+        router.replace('/instructor/onboarding/verification?identity_return=true');
+        return;
       } catch (sdkError) {
         logger.warn(
           'Falling back to hosted Stripe Identity flow',

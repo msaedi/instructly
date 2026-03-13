@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { loadStripe } from '@stripe/stripe-js';
 import {
   Elements,
   CardElement,
   useStripe,
   useElements,
 } from '@stripe/react-stripe-js';
+import { getStripe } from '@/features/shared/payment/utils/stripe';
 import {
   Calendar,
   Clock,
@@ -43,9 +43,6 @@ import { extractApiErrorMessage } from '@/lib/apiErrors';
 
 type CheckoutResponse = components['schemas']['CheckoutResponse'];
 
-const stripePromise = loadStripe(
-  process.env['NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY'] || ''
-);
 
 interface Booking {
   id: string;
@@ -89,8 +86,6 @@ const PaymentForm: React.FC<{
   const [selectedMethod, setSelectedMethod] = useState<string | 'new'>('new');
   const [processing, setProcessing] = useState(false);
   const [saveCard, setSaveCard] = useState(false);
-  const [cvv, setCvv] = useState('');
-  const [requiresCvv, setRequiresCvv] = useState(false);
 
   const payAmount = typeof studentPayAmount === 'number'
     ? Number(studentPayAmount.toFixed(2))
@@ -101,7 +96,6 @@ const PaymentForm: React.FC<{
     const defaultMethod = savedMethods.find(m => m.is_default);
     if (defaultMethod) {
       setSelectedMethod(defaultMethod.id);
-      setRequiresCvv(true);
     }
   }, [savedMethods]);
 
@@ -205,7 +199,6 @@ const PaymentForm: React.FC<{
               checked={selectedMethod === method.id}
               onChange={(e) => {
                 setSelectedMethod(e.target.value);
-                setRequiresCvv(true);
               }}
               className="mr-3"
             />
@@ -236,7 +229,6 @@ const PaymentForm: React.FC<{
             checked={selectedMethod === 'new'}
             onChange={() => {
               setSelectedMethod('new');
-              setRequiresCvv(false);
             }}
             className="mr-3"
           />
@@ -279,23 +271,6 @@ const PaymentForm: React.FC<{
             />
             <span className="text-sm text-gray-700 dark:text-gray-300">Save card for future use</span>
           </label>
-        </div>
-      )}
-
-      {/* CVV for saved cards */}
-      {requiresCvv && selectedMethod !== 'new' && (
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Security Code (CVV)
-          </label>
-          <input
-            type="text"
-            maxLength={4}
-            placeholder="123"
-            value={cvv}
-            onChange={(e) => setCvv(e.target.value.replace(/\D/g, ''))}
-            className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
         </div>
       )}
 
@@ -598,7 +573,7 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
           </div>
         )}
 
-        <Elements stripe={stripePromise}>
+        <Elements stripe={getStripe()}>
           <PaymentForm
             booking={booking}
             savedMethods={savedMethods}

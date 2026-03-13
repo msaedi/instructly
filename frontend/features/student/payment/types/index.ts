@@ -76,8 +76,8 @@ export interface PaymentCard {
   id: string;
   last4: string;
   brand: string;
-  expiryMonth: number;
-  expiryYear: number;
+  expiryMonth: number | null;
+  expiryYear: number | null;
   isDefault: boolean;
 }
 

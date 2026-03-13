@@ -4,7 +4,7 @@ Payout and earnings summary tests for StripeService.
 
 from datetime import datetime, time, timezone
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 from sqlalchemy.orm import Session
@@ -173,6 +173,7 @@ def test_request_instructor_instant_payout_success(
         currency="usd",
         stripe_account="acct_payout",
         method="instant",
+        idempotency_key=ANY,
     )
 
 

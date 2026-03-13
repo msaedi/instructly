@@ -8,6 +8,7 @@ import logging
 from uuid import uuid4
 
 from sqlalchemy.orm import Session
+import stripe
 
 from app.core.exceptions import (
     ConflictException,
@@ -79,6 +80,16 @@ def _redact_stripe_id(value: str | None) -> str | None:
     if prefix:
         return f"{prefix}_...{last4}"
     return f"...{last4}" if len(cleaned) > 4 else last4
+
+
+def _map_stripe_refund_status_to_payment_status(status: str | None) -> str | None:
+    if status == "succeeded":
+        return "refunded"
+    if status == "failed":
+        return "refund_failed"
+    if status:
+        return "refund_pending"
+    return None
 
 
 class RefundService(BaseService):
@@ -267,6 +278,7 @@ class RefundService(BaseService):
         error: str | None = None
         refund_status = "succeeded"
         stripe_refund_id: str | None = None
+        expected_payment_status: str | None = None
 
         if policy_result.method == "card":
             try:
@@ -277,12 +289,27 @@ class RefundService(BaseService):
                     reason=_STRIPE_REASON_MAP.get(reason_code, "requested_by_customer"),
                     idempotency_key=idempotency_key,
                 )
-                refund_status = (
-                    "succeeded" if stripe_result.get("status") == "succeeded" else "pending"
+                stripe_refund_status = str(stripe_result.get("status") or "")
+                expected_payment_status = _map_stripe_refund_status_to_payment_status(
+                    stripe_refund_status
                 )
+                if stripe_refund_status == "succeeded":
+                    refund_status = "succeeded"
+                elif stripe_refund_status == "failed":
+                    refund_status = "failed"
+                    result = "failed"
+                    error = "payment_provider_error"
+                else:
+                    refund_status = "pending"
                 stripe_refund_id = _redact_stripe_id(str(stripe_result.get("refund_id")))
+            except stripe.StripeError as exc:
+                error_code = getattr(exc, "code", None) or "unknown"
+                logger.error("Stripe refund failed: %s (code=%s)", exc, error_code)
+                result = "failed"
+                error = f"payment_provider_error:{error_code}"
+                refund_status = "failed"
             except Exception as exc:
-                logger.error("Stripe refund failed", exc_info=exc)
+                logger.error("Stripe refund failed (unexpected)", exc_info=exc)
                 result = "failed"
                 error = "payment_provider_error"
                 refund_status = "failed"
@@ -304,6 +331,19 @@ class RefundService(BaseService):
                 refund_status = "failed"
 
         if result == "success":
+            if policy_result.method == "card":
+                refreshed_payment = await asyncio.to_thread(
+                    self.payment_repo.get_payment_by_intent_id,
+                    payment.stripe_payment_intent_id,
+                )
+                if refreshed_payment is not None:
+                    payment = refreshed_payment
+                if expected_payment_status and getattr(payment, "status", None) not in {
+                    "refunded",
+                    "refund_pending",
+                    "refund_failed",
+                }:
+                    payment.status = expected_payment_status
             await asyncio.to_thread(
                 self._apply_booking_updates,
                 booking=booking,
@@ -357,7 +397,7 @@ class RefundService(BaseService):
             if result == "success"
             else None,
             updated_payment=UpdatedPayment(
-                status="refunded",
+                status=payment.status,
                 refunded_at=executed_at,
             )
             if result == "success"
@@ -451,8 +491,10 @@ class RefundService(BaseService):
         )
 
     def _apply_payment_updates(self, *, payment: PaymentIntent) -> None:
+        status = getattr(payment, "status", None)
+        if status not in {"refunded", "refund_pending", "refund_failed"}:
+            status = "succeeded"
         try:
-            # PaymentIntent status must remain a valid Stripe status (e.g., succeeded).
-            self.payment_repo.update_payment_status(payment.stripe_payment_intent_id, "succeeded")
+            self.payment_repo.update_payment_status(payment.stripe_payment_intent_id, status)
         except Exception:
-            logger.debug("Failed updating payment status", exc_info=True)
+            logger.warning("Failed updating payment status", exc_info=True)

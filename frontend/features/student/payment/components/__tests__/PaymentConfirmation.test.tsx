@@ -531,7 +531,6 @@ describe('PaymentConfirmation', () => {
       await waitFor(() => {
         expect(screen.getByPlaceholderText('1234 5678 9012 3456')).toBeInTheDocument();
         expect(screen.getByPlaceholderText('MM/YY')).toBeInTheDocument();
-        expect(screen.getByPlaceholderText('123')).toBeInTheDocument();
       });
     });
 

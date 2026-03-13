@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import { loadStripe } from '@stripe/stripe-js';
 import {
   Elements,
   CardElement,
   useStripe,
   useElements,
 } from '@stripe/react-stripe-js';
+import { getStripe } from '@/features/shared/payment/utils/stripe';
 import {
   CreditCard,
   Plus,
@@ -21,20 +21,12 @@ import { paymentService } from '@/services/api/payments';
 import DeletePaymentMethodModal from '@/components/modals/DeletePaymentMethodModal';
 import { usePaymentMethods, useInvalidatePaymentMethods } from '@/hooks/queries/usePaymentMethods';
 
-const stripePromise = loadStripe(
-  process.env['NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY'] || ''
-);
-
 interface PaymentMethod {
   id: string;
   last4: string;
   brand: string;
   is_default: boolean;
   created_at: string;
-}
-
-interface PaymentMethodsProps {
-  userId: string;
 }
 
 // Styled brand names
@@ -195,7 +187,7 @@ const AddCardForm: React.FC<{
 };
 
 // Main PaymentMethods Component
-const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId: _userId }) => {
+const PaymentMethods: React.FC = () => {
   // Use React Query hook for payment methods (prevents duplicate API calls)
   const { data: paymentMethods = [], isLoading: loading, error: queryError } = usePaymentMethods();
   const invalidatePaymentMethods = useInvalidatePaymentMethods();
@@ -268,7 +260,7 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId: _userId }) => {
       {addingCard && (
         <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-6">
           <h3 className="text-lg font-medium mb-4">Add New Card</h3>
-          <Elements stripe={stripePromise}>
+          <Elements stripe={getStripe()}>
             <AddCardForm
               onSuccess={() => {
                 setAddingCard(false);

@@ -14,10 +14,11 @@ describe('getStripe', () => {
     expect(loadStripe).toHaveBeenCalledWith('pk_live_123');
   });
 
-  it('falls back to the placeholder key when missing', async () => {
-    const { stripeModule, loadStripe } = setupModule(undefined);
-    await stripeModule.getStripe();
-    expect(loadStripe).toHaveBeenCalledWith('pk_test_placeholder');
+  it('throws when publishable key is missing', () => {
+    const { stripeModule } = setupModule(undefined);
+    expect(() => stripeModule.getStripe()).toThrow(
+      'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is not configured',
+    );
   });
 
   it('returns the same promise on repeated calls', () => {

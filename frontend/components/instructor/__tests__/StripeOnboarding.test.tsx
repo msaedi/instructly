@@ -28,8 +28,6 @@ jest.mock('@/lib/logger', () => ({
 const paymentServiceMock = paymentService as jest.Mocked<typeof paymentService>;
 
 describe('StripeOnboarding', () => {
-  const mockInstructorId = 'instructor-123';
-
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
@@ -45,7 +43,7 @@ describe('StripeOnboarding', () => {
         () => new Promise(() => {}) // Never resolves
       );
 
-      const { container } = render(<StripeOnboarding instructorId={mockInstructorId} />);
+      const { container } = render(<StripeOnboarding />);
 
       // Check for animate-spin class on loader
       expect(container.querySelector('.animate-spin')).toBeInTheDocument();
@@ -61,7 +59,7 @@ describe('StripeOnboarding', () => {
       } as unknown as OnboardingStatusResponse
     );
 
-    render(<StripeOnboarding instructorId={mockInstructorId} />);
+    render(<StripeOnboarding />);
 
     await waitFor(() => {
       expect(screen.getByText('Complete Your Setup')).toBeInTheDocument();
@@ -81,7 +79,7 @@ describe('StripeOnboarding', () => {
       } as unknown as OnboardingStatusResponse
     );
 
-    const { container } = render(<StripeOnboarding instructorId={mockInstructorId} />);
+    const { container } = render(<StripeOnboarding />);
 
     await waitFor(() => {
       expect(paymentServiceMock.getOnboardingStatus).toHaveBeenCalled();
@@ -105,7 +103,7 @@ describe('StripeOnboarding', () => {
     });
 
     it('shows connect account prompt', async () => {
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByText('Connect Your Stripe Account')).toBeInTheDocument();
@@ -113,7 +111,7 @@ describe('StripeOnboarding', () => {
     });
 
     it('shows what you need list', async () => {
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByText(/Bank account details/i)).toBeInTheDocument();
@@ -122,7 +120,7 @@ describe('StripeOnboarding', () => {
     });
 
     it('shows connect button', async () => {
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /connect stripe account/i })).toBeInTheDocument();
@@ -136,7 +134,7 @@ describe('StripeOnboarding', () => {
         onboarding_url: '',
       });
 
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /connect stripe account/i })).toBeInTheDocument();
@@ -163,7 +161,7 @@ describe('StripeOnboarding', () => {
     });
 
     it('shows complete setup prompt', async () => {
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByText('Complete Your Setup')).toBeInTheDocument();
@@ -171,7 +169,7 @@ describe('StripeOnboarding', () => {
     });
 
     it('displays remaining requirements', async () => {
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByText('Remaining Requirements:')).toBeInTheDocument();
@@ -181,7 +179,7 @@ describe('StripeOnboarding', () => {
     });
 
     it('shows status indicators', async () => {
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByText('Charges enabled:')).toBeInTheDocument();
@@ -191,7 +189,7 @@ describe('StripeOnboarding', () => {
     });
 
     it('shows continue setup button', async () => {
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /continue setup/i })).toBeInTheDocument();
@@ -212,7 +210,7 @@ describe('StripeOnboarding', () => {
     });
 
     it('shows success state', async () => {
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByText('Stripe Account Connected')).toBeInTheDocument();
@@ -220,7 +218,7 @@ describe('StripeOnboarding', () => {
     });
 
     it('shows all enabled indicators', async () => {
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByText('Charges enabled')).toBeInTheDocument();
@@ -230,7 +228,7 @@ describe('StripeOnboarding', () => {
     });
 
     it('shows dashboard button', async () => {
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /view payouts dashboard/i })).toBeInTheDocument();
@@ -238,7 +236,7 @@ describe('StripeOnboarding', () => {
     });
 
     it('shows refresh status button', async () => {
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /refresh status/i })).toBeInTheDocument();
@@ -254,7 +252,7 @@ describe('StripeOnboarding', () => {
         expires_in_minutes: 15,
       });
 
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /view payouts dashboard/i })).toBeInTheDocument();
@@ -292,7 +290,7 @@ describe('StripeOnboarding', () => {
         Promise.reject(new Error('Network error'))
       );
 
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByText('Connection Error')).toBeInTheDocument();
@@ -305,7 +303,7 @@ describe('StripeOnboarding', () => {
         Promise.reject(new Error('Network error'))
       );
 
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
@@ -317,7 +315,7 @@ describe('StripeOnboarding', () => {
         Promise.reject(new Error('Network error'))
       );
 
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
@@ -346,7 +344,7 @@ describe('StripeOnboarding', () => {
       });
       paymentServiceMock.startOnboarding.mockRejectedValue(new Error('Start failed'));
 
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /connect stripe account/i })).toBeInTheDocument();
@@ -375,7 +373,7 @@ describe('StripeOnboarding', () => {
       });
       paymentServiceMock.getDashboardLink.mockRejectedValue(new Error('Dashboard error'));
 
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /view payouts dashboard/i })).toBeInTheDocument();
@@ -405,7 +403,7 @@ describe('StripeOnboarding', () => {
         onboarding_url: '',
       });
 
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /connect stripe account/i })).toBeInTheDocument();
@@ -430,7 +428,7 @@ describe('StripeOnboarding', () => {
         requirements: [],
       });
 
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /refresh status/i })).toBeInTheDocument();
@@ -461,7 +459,7 @@ describe('StripeOnboarding', () => {
         requirements: ['Bank account'],
       });
 
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByText('Verifying Your Account')).toBeInTheDocument();
@@ -502,7 +500,7 @@ describe('StripeOnboarding', () => {
           requirements: [],
         });
 
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       // Wait for polling to start
       await waitFor(() => {
@@ -538,7 +536,7 @@ describe('StripeOnboarding', () => {
         requirements: ['Something'],
       });
 
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByText('Verifying Your Account')).toBeInTheDocument();
@@ -570,7 +568,7 @@ describe('StripeOnboarding', () => {
         requirements: [],
       });
 
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByText('Complete Your Setup')).toBeInTheDocument();
@@ -620,7 +618,7 @@ describe('StripeOnboarding', () => {
         onboarding_url: 'https://connect.stripe.com/setup/abc',
       });
 
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /connect stripe account/i })).toBeInTheDocument();
@@ -656,7 +654,7 @@ describe('StripeOnboarding', () => {
         expires_in_minutes: 15,
       });
 
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /view payouts dashboard/i })).toBeInTheDocument();
@@ -685,7 +683,7 @@ describe('StripeOnboarding', () => {
       });
       paymentServiceMock.getDashboardLink.mockRejectedValue(new Error('Dashboard fail'));
 
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByText('Stripe Account Connected')).toBeInTheDocument();
@@ -713,7 +711,7 @@ describe('StripeOnboarding', () => {
         requirements: [],
       });
 
-      render(<StripeOnboarding instructorId={mockInstructorId} />);
+      render(<StripeOnboarding />);
 
       await waitFor(() => {
         expect(screen.getByText('Complete Your Setup')).toBeInTheDocument();

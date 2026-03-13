@@ -13,22 +13,28 @@ jest.mock('next/navigation', () => ({
 }));
 
 /* ---------- Stripe mock ---------- */
-jest.mock('@stripe/stripe-js', () => ({
-  loadStripe: jest.fn(async () => ({ verifyIdentity: jest.fn(() => ({})) })),
+const mockGetStripe = jest.fn(async () => ({
+  verifyIdentity: jest.fn(async () => ({})),
+}));
+jest.mock('@/features/shared/payment/utils/stripe', () => ({
+  getStripe: () => mockGetStripe(),
 }));
 
 /* ---------- API mock ---------- */
+const mockFetchWithAuth = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+const mockGetConnectStatus = jest.fn().mockResolvedValue({ onboarding_completed: false });
+const mockCreateStripeIdentitySession = jest.fn().mockResolvedValue({
+  verification_session_id: 'vs_123',
+  client_secret: 'cs_123',
+});
 jest.mock('@/lib/api', () => ({
   API_ENDPOINTS: {
     INSTRUCTOR_PROFILE: '/api/v1/instructors/me',
     STRIPE_IDENTITY_REFRESH: '/api/v1/payments/identity/refresh',
   },
-  fetchWithAuth: jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) }),
-  getConnectStatus: jest.fn().mockResolvedValue({ onboarding_completed: false }),
-  createStripeIdentitySession: jest.fn().mockResolvedValue({
-    verification_session_id: 'vs_123',
-    client_secret: 'cs_123',
-  }),
+  fetchWithAuth: (...args: [string, RequestInit?]) => mockFetchWithAuth(...args),
+  getConnectStatus: (...args: []) => mockGetConnectStatus(...args),
+  createStripeIdentitySession: (...args: []) => mockCreateStripeIdentitySession(...args),
 }));
 
 /* ---------- Payment service mock ---------- */
@@ -180,6 +186,13 @@ const renderWithClient = (ui: ReactNode) => {
 
 describe('Onboarding status page – BGC consent regression', () => {
   beforeEach(() => {
+    mockGetStripe.mockReset();
+    mockGetStripe.mockResolvedValue({
+      verifyIdentity: jest.fn(async () => ({})),
+    });
+    mockFetchWithAuth.mockClear();
+    mockGetConnectStatus.mockClear();
+    mockCreateStripeIdentitySession.mockClear();
     capturedEnsureConsent = undefined;
     capturedIdentityVerified = undefined;
     mockProfile.identity_name_mismatch = false;

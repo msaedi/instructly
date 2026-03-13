@@ -18,11 +18,7 @@ import { logger } from '@/lib/logger';
 import { paymentService } from '@/services/api/payments';
 import type { OnboardingStatusResponse } from '@/services/api/payments';
 
-interface StripeOnboardingProps {
-  instructorId: string;
-}
-
-const StripeOnboarding: React.FC<StripeOnboardingProps> = ({ instructorId }) => {
+const StripeOnboarding: React.FC = () => {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatusResponse | null>(null);
@@ -38,7 +34,7 @@ const StripeOnboarding: React.FC<StripeOnboardingProps> = ({ instructorId }) => 
     try {
       const status = await paymentService.getOnboardingStatus();
       setOnboardingStatus(status);
-      logger.info('Onboarding status fetched', status);
+      logger.info('Onboarding status fetched', { completed: status?.onboarding_completed });
 
       // If completed, stop polling
       if (status.onboarding_completed && isPolling) {
@@ -64,7 +60,7 @@ const StripeOnboarding: React.FC<StripeOnboardingProps> = ({ instructorId }) => 
   // Initial status check
   useEffect(() => {
     void checkStatus();
-  }, [instructorId, checkStatus]);
+  }, [checkStatus]);
 
   // Polling logic for when returning from Stripe
   useEffect(() => {
@@ -100,7 +96,7 @@ const StripeOnboarding: React.FC<StripeOnboardingProps> = ({ instructorId }) => 
       setError(null);
 
       const response = await paymentService.startOnboarding();
-      logger.info('Onboarding initiated', response);
+      logger.info('Onboarding initiated', { alreadyOnboarded: response?.already_onboarded });
 
       if (response.already_onboarded) {
         // Already completed, just refresh status
@@ -123,7 +119,7 @@ const StripeOnboarding: React.FC<StripeOnboardingProps> = ({ instructorId }) => 
       setError(null);
 
       const response = await paymentService.getDashboardLink();
-      logger.info('Dashboard link fetched', response);
+      logger.info('Dashboard link fetched', { hasUrl: !!response?.dashboard_url });
 
       if (response.dashboard_url) {
         window.open(response.dashboard_url, '_blank');

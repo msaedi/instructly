@@ -197,7 +197,7 @@ describe('usePaymentFlow', () => {
       expect(result.current.selectedCard?.id).toBe('card-123');
     });
 
-    it('returns mock card data with correct structure', () => {
+    it('returns placeholder card data with unknown expiry', () => {
       const booking = createTestBooking();
       const { result } = renderHook(() => usePaymentFlow({ booking }));
 
@@ -207,11 +207,11 @@ describe('usePaymentFlow', () => {
 
       expect(result.current.selectedCard).toEqual({
         id: 'card-123',
-        last4: '4242',
-        brand: 'Visa',
-        expiryMonth: 12,
-        expiryYear: 2025,
-        isDefault: true,
+        last4: '',
+        brand: '',
+        expiryMonth: null,
+        expiryYear: null,
+        isDefault: false,
       });
     });
 

@@ -303,6 +303,61 @@ async def test_execute_refund_card_and_credit_failures_return_failed_response(mo
     assert response.refund is None
 
 
+@pytest.mark.asyncio
+async def test_execute_refund_uses_stripe_refund_status_when_refreshed_payment_is_stale(monkeypatch):
+    service = _service()
+
+    async def _to_thread(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr(refund_mod.asyncio, "to_thread", _to_thread)
+
+    booking = SimpleNamespace(id="booking-1", student_id="student-1", payment_detail=None)
+    payment = SimpleNamespace(
+        stripe_payment_intent_id="pi_12345678",
+        amount=10000,
+        application_fee=1000,
+        status="succeeded",
+    )
+    refreshed_payment = SimpleNamespace(
+        stripe_payment_intent_id="pi_12345678",
+        amount=10000,
+        application_fee=1000,
+        status="succeeded",
+    )
+    payload = _token_payload(
+        policy_result={
+            "eligible": True,
+            "method": "card",
+            "policy_basis": "full card",
+            "student_card_refund_cents": 2500,
+        }
+    )
+    service.confirm_service.decode_token.return_value = {"payload": payload}
+    service.confirm_service.validate_token.return_value = None
+    service.idempotency_service.check_and_store = AsyncMock(return_value=(False, None))
+    service.idempotency_service.store_result = AsyncMock()
+    service.booking_repo.get_booking_with_details.return_value = booking
+    service.payment_repo.get_payment_by_booking_id.return_value = payment
+    service.payment_repo.get_payment_by_intent_id.return_value = refreshed_payment
+    service.stripe_service.refund_payment.return_value = {
+        "status": "succeeded",
+        "refund_id": "re_12345678",
+    }
+    service._apply_booking_updates = MagicMock()
+
+    response = await service.execute_refund(
+        confirm_token="token",
+        idempotency_key="idem-1",
+        actor_id="actor-1",
+    )
+
+    assert response.result == "success"
+    assert response.updated_payment is not None
+    assert response.updated_payment.status == "refunded"
+    service.payment_repo.update_payment_status.assert_called_with("pi_12345678", "refunded")
+
+
 def test_resolve_requested_amount_validations():
     service = _service()
     payment = SimpleNamespace(amount=1000)

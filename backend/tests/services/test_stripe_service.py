@@ -300,6 +300,7 @@ class TestStripeService:
             email=test_user.email,
             name=f"{test_user.first_name} {test_user.last_name}",
             metadata={"user_id": test_user.id},
+            idempotency_key=f"cust_{test_user.id}",
         )
 
         # Verify database record
@@ -433,6 +434,7 @@ class TestStripeService:
             email=instructor_user.email,
             capabilities={"transfers": {"requested": True}},
             metadata={"instructor_profile_id": profile.id},
+            idempotency_key=f"acct_{profile.id}",
         )
 
         # Verify database record
@@ -493,9 +495,12 @@ class TestStripeService:
         mock_link_create.return_value = mock_link
 
         # Create account link
-        link_url = stripe_service.create_account_link(
-            instructor_profile_id=profile.id, refresh_url="https://app.com/refresh", return_url="https://app.com/return"
-        )
+        with patch("app.services.stripe_service.uuid.uuid4", return_value="link_uuid_123"):
+            link_url = stripe_service.create_account_link(
+                instructor_profile_id=profile.id,
+                refresh_url="https://app.com/refresh",
+                return_url="https://app.com/return",
+            )
 
         # Verify Stripe API call
         mock_link_create.assert_called_once_with(
@@ -503,6 +508,7 @@ class TestStripeService:
             refresh_url="https://app.com/refresh",
             return_url="https://app.com/return",
             type="account_onboarding",
+            idempotency_key=f"acct_link_{profile.id}_link_uuid_123",
         )
 
         # Verify result
@@ -1660,6 +1666,7 @@ class TestStripeService:
         assert call_args["amount"] == student_pay_cents
         assert call_args["currency"] == "usd"
         assert call_args["customer"] == "cus_test123"
+        assert call_args["idempotency_key"] == f"pi_checkout_{test_booking.id}_{student_pay_cents}"
         assert call_args["transfer_data"]["destination"] == "acct_instructor123"
         # With transfer_data[amount] architecture, we set transfer amount instead of application fee
         assert call_args["transfer_data"]["amount"] == target_payout_cents
@@ -1681,6 +1688,36 @@ class TestStripeService:
         assert payment.stripe_payment_intent_id == "pi_test123"
         assert payment.amount == student_pay_cents
         assert payment.application_fee == application_fee_cents
+
+    @patch("app.services.stripe_service._time.sleep")
+    @patch("stripe.PaymentIntent.create")
+    def test_create_payment_intent_retries_rate_limit_error(
+        self,
+        mock_create,
+        mock_sleep,
+        stripe_service: StripeService,
+        test_booking: Booking,
+    ) -> None:
+        """Rate limit errors should be retried for payment intent creation."""
+        mock_intent = MagicMock()
+        mock_intent.id = "pi_retry_123"
+        mock_intent.status = "requires_payment_method"
+        mock_create.side_effect = [
+            stripe.error.RateLimitError("rate limited"),
+            mock_intent,
+        ]
+
+        payment = stripe_service.create_payment_intent(
+            booking_id=test_booking.id,
+            customer_id="cus_retry",
+            destination_account_id="acct_retry",
+            amount_cents=2400,
+        )
+
+        assert mock_create.call_count == 2
+        mock_sleep.assert_called_once_with(1)
+        assert payment.stripe_payment_intent_id == "pi_retry_123"
+        assert payment.status == "requires_payment_method"
 
     @patch("stripe.PaymentIntent.create")
     def test_create_payment_intent_caps_transfer_amount_when_credits_reduce_charge(

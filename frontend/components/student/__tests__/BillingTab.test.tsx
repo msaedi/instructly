@@ -116,7 +116,7 @@ const renderComponent = (transactions: MockTransaction[] = []) => {
 
   const result = render(
     <QueryClientProvider client={queryClient}>
-      <BillingTab userId="student-1" />
+      <BillingTab />
     </QueryClientProvider>,
   );
 
@@ -133,7 +133,7 @@ const renderComponentWithLoadingTransactions = () => {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <BillingTab userId="student-1" />
+      <BillingTab />
     </QueryClientProvider>,
   );
 };

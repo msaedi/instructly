@@ -24,14 +24,18 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 import logging
 import math
+import os
+import time as _time
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, TypeVar, cast
 from urllib.parse import ParseResult, urljoin, urlparse
+import uuid
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 import stripe
 from stripe._balance import Balance as StripeBalance
+from stripe._error import RateLimitError as StripeRateLimitError
 from stripe._refund import Refund as StripeRefund
 from stripe._transfer import Transfer as StripeTransfer
 
@@ -97,6 +101,7 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 # Sentinel for absent secret values in payment responses (avoids B105 false positive)
 _ABSENT: None = None
+T = TypeVar("T")
 
 
 class StripeService(BaseService):
@@ -136,17 +141,21 @@ class StripeService(BaseService):
         try:
             if settings.stripe_secret_key:
                 stripe.api_key = settings.stripe_secret_key.get_secret_value()
+                self.logger.info(
+                    "Stripe SDK %s, API version %s",
+                    getattr(stripe, "VERSION", "unknown"),
+                    getattr(stripe, "api_version", "unknown"),
+                )
                 # Set sane network timeouts/retries to avoid blocking the server on Stripe calls
-                # IMPORTANT: Keep timeout low (3s) to avoid holding DB transactions open too long
-                # during cancel_booking and other flows that call Stripe inside transactions.
+                # The 3-phase pattern decouples Stripe calls from DB transactions.
                 try:
-                    # 3s overall timeout; 1 retry for transient failures
+                    # 30s timeout (Stripe recommended minimum); 1 retry for transient failures
                     # Note: Stripe 14.x moved http_client to _http_client (private API)
                     http_client_module = getattr(stripe, "_http_client", None) or getattr(
                         stripe, "http_client", None
                     )
                     if http_client_module:
-                        stripe.default_http_client = http_client_module.RequestsClient(timeout=3)
+                        stripe.default_http_client = http_client_module.RequestsClient(timeout=30)
                     stripe.max_network_retries = 1
                     stripe.verify_ssl_certs = True
                 except Exception:
@@ -160,7 +169,8 @@ class StripeService(BaseService):
                 )
         except Exception as e:
             self.logger.error(
-                f"Failed to configure Stripe service: {e} - service will operate in mock mode"
+                "Failed to configure Stripe service: %s - service will operate in mock mode",
+                e,
             )
 
         # Platform fee percentage (15 means 15%, not 0.15)
@@ -176,6 +186,30 @@ class StripeService(BaseService):
             raise ServiceException(
                 "Stripe service not configured. Please check STRIPE_SECRET_KEY environment variable."
             )
+
+    def _call_with_retry(
+        self,
+        func: Callable[..., T],
+        *args: Any,
+        max_retries: int = 3,
+        **kwargs: Any,
+    ) -> T:
+        """Call a Stripe API function with rate-limit-aware exponential backoff."""
+        for attempt in range(max_retries):
+            try:
+                return func(*args, **kwargs)
+            except StripeRateLimitError:
+                if attempt == max_retries - 1:
+                    raise
+                wait = 2**attempt
+                self.logger.warning(
+                    "Stripe rate limited, retrying in %ss (attempt %s/%s)",
+                    wait,
+                    attempt + 1,
+                    max_retries,
+                )
+                _time.sleep(wait)
+        raise RuntimeError("Unreachable")
 
     @staticmethod
     def _stripe_value(obj: Any, key: str, default: Any = None) -> Any:
@@ -657,11 +691,14 @@ class StripeService(BaseService):
         if available_amount <= 0:
             raise ServiceException("No funds available for instant payout", code="no_funds")
 
-        payout = stripe.Payout.create(
+        payout_key = f"payout_{connected.stripe_account_id}_{uuid.uuid4()}"
+        payout = self._call_with_retry(
+            stripe.Payout.create,
             amount=available_amount,
             currency="usd",
             stripe_account=connected.stripe_account_id,
             method="instant",
+            idempotency_key=payout_key,
         )
         payout_id = (
             getattr(payout, "id", None) if not isinstance(payout, dict) else payout.get("id")
@@ -1500,7 +1537,7 @@ class StripeService(BaseService):
                 ) == int(amount_cents):
                     return None
 
-            transfer = stripe.Transfer.create(  # type: ignore[attr-defined]
+            transfer = StripeTransfer.create(
                 amount=amount_cents,
                 currency="usd",
                 destination=destination_account_id,
@@ -1564,7 +1601,7 @@ class StripeService(BaseService):
             transfer_metadata.update(metadata)
 
         try:
-            transfer = stripe.Transfer.create(  # type: ignore[attr-defined]
+            transfer = StripeTransfer.create(
                 amount=amount_cents,
                 currency="usd",
                 destination=destination_account_id,
@@ -1627,7 +1664,7 @@ class StripeService(BaseService):
         }
 
         try:
-            transfer = stripe.Transfer.create(  # type: ignore[attr-defined]
+            transfer = StripeTransfer.create(
                 amount=amount_cents,
                 currency="usd",
                 destination=destination_account_id,
@@ -1731,6 +1768,7 @@ class StripeService(BaseService):
             "metadata": metadata,
             "transfer_group": f"booking:{booking_id}",
             "capture_method": "manual",
+            "idempotency_key": f"pi_booking_{booking_id}",
         }
 
         if payment_method_id:
@@ -1739,9 +1777,14 @@ class StripeService(BaseService):
             stripe_kwargs["off_session"] = True
 
         try:
-            stripe_intent = stripe.PaymentIntent.create(**stripe_kwargs)
+            stripe_intent = self._call_with_retry(stripe.PaymentIntent.create, **stripe_kwargs)
         except Exception as exc:
             if not self.stripe_configured:
+                if os.getenv("INSTAINSTRU_PRODUCTION_MODE", "").lower() == "true":
+                    raise ServiceException(
+                        "Stripe not configured in production mode",
+                        code="configuration_error",
+                    )
                 self.logger.warning(
                     "Stripe call failed (%s); storing local record for booking %s",
                     exc,
@@ -2117,12 +2160,12 @@ class StripeService(BaseService):
 
             return session_payload
         except stripe.StripeError as e:
-            self.logger.error(f"Stripe error creating identity session: {str(e)}")
-            raise ServiceException(f"Failed to start identity verification: {str(e)}")
+            self.logger.error("Stripe error creating identity session: %s", e)
+            raise ServiceException(f"Failed to start identity verification: {e}")
         except Exception as e:
             if isinstance(e, ServiceException):
                 raise
-            self.logger.error(f"Error creating identity session: {str(e)}")
+            self.logger.error("Error creating identity session: %s", e)
             raise ServiceException("Failed to start identity verification")
 
     @BaseService.measure_operation("stripe_get_latest_identity_status")
@@ -2157,12 +2200,12 @@ class StripeService(BaseService):
                 "created": getattr(latest, "created", None),
             }
         except stripe.StripeError as e:
-            self.logger.error(f"Stripe error getting identity status: {str(e)}")
-            raise ServiceException(f"Failed to get identity status: {str(e)}")
+            self.logger.error("Stripe error getting identity status: %s", e)
+            raise ServiceException(f"Failed to get identity status: {e}")
         except Exception as e:
             if isinstance(e, ServiceException):
                 raise
-            self.logger.error(f"Error getting identity status: {str(e)}")
+            self.logger.error("Error getting identity status: %s", e)
             raise ServiceException("Failed to get identity status")
 
     def _mock_payment_response(self, booking_id: str, amount_cents: int) -> Dict[str, Any]:
@@ -2204,18 +2247,27 @@ class StripeService(BaseService):
             with self.transaction():
                 existing_customer = self.payment_repository.get_customer_by_user_id(user_id)
                 if existing_customer:
-                    self.logger.info(f"Customer already exists for user {user_id}")
+                    self.logger.info("Customer already exists for user %s", user_id)
                     return existing_customer
 
             # ========== PHASE 2: Stripe Customer.create (NO transaction) ==========
             try:
-                stripe_customer = stripe.Customer.create(
-                    email=email, name=name, metadata={"user_id": user_id}
+                stripe_customer = self._call_with_retry(
+                    stripe.Customer.create,
+                    email=email,
+                    name=name,
+                    metadata={"user_id": user_id},
+                    idempotency_key=f"cust_{user_id}",
                 )
                 stripe_customer_id = stripe_customer.id
             except Exception as e:
                 # If Stripe isn't configured, decide between mock fallback and raising
                 if not self.stripe_configured:
+                    if os.getenv("INSTAINSTRU_PRODUCTION_MODE", "").lower() == "true":
+                        raise ServiceException(
+                            "Stripe not configured in production mode",
+                            code="configuration_error",
+                        )
                     msg = str(e)
                     auth_error = False
                     try:
@@ -2226,12 +2278,13 @@ class StripeService(BaseService):
 
                     if auth_error or "No API key" in msg or "api key" in msg.lower():
                         self.logger.warning(
-                            f"Stripe not configured (auth error); using mock customer for user {user_id}"
+                            "Stripe not configured (auth error); using mock customer for user %s",
+                            user_id,
                         )
                         stripe_customer_id = f"mock_cust_{user_id}"
                     else:
                         # For other errors (e.g., tests patching to raise API Error), surface as ServiceException
-                        self.logger.error(f"Stripe customer creation failed: {msg}")
+                        self.logger.error("Stripe customer creation failed: %s", msg)
                         raise ServiceException(f"Failed to create Stripe customer: {msg}")
                 else:
                     # If configured, bubble up as a service error
@@ -2243,14 +2296,14 @@ class StripeService(BaseService):
                     user_id=user_id, stripe_customer_id=stripe_customer_id
                 )
 
-            self.logger.info(f"Created Stripe customer {stripe_customer_id} for user {user_id}")
+            self.logger.info("Created Stripe customer %s for user %s", stripe_customer_id, user_id)
             return customer_record
 
         except stripe.StripeError as e:
-            self.logger.error(f"Stripe error creating customer: {str(e)}")
+            self.logger.error("Stripe error creating customer: %s", e)
             raise ServiceException(f"Failed to create Stripe customer: {str(e)}")
         except Exception as e:
-            self.logger.error(f"Error creating customer: {str(e)}")
+            self.logger.error("Error creating customer: %s", e)
             raise ServiceException(f"Failed to create customer: {str(e)}")
 
     @BaseService.measure_operation("stripe_get_or_create_customer")
@@ -2285,7 +2338,7 @@ class StripeService(BaseService):
         except Exception as e:
             if isinstance(e, ServiceException):
                 raise
-            self.logger.error(f"Error getting or creating customer: {str(e)}")
+            self.logger.error("Error getting or creating customer: %s", e)
             raise ServiceException(f"Failed to get or create customer: {str(e)}")
 
     # ========== Connected Account Management ==========
@@ -2332,11 +2385,13 @@ class StripeService(BaseService):
 
         try:
             # Try real Stripe path first (allows tests to @patch)
-            stripe_account = stripe.Account.create(
+            stripe_account = self._call_with_retry(
+                stripe.Account.create,
                 type="express",
                 email=email,
                 capabilities={"transfers": {"requested": True}},
                 metadata={"instructor_profile_id": instructor_profile_id},
+                idempotency_key=f"acct_{instructor_profile_id}",
             )
 
             account_record = _persist_connected_account(stripe_account.id)
@@ -2355,9 +2410,12 @@ class StripeService(BaseService):
                     },
                 )
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning("Non-fatal error ignored", exc_info=True)
             self.logger.info(
-                f"Created Stripe Express account {stripe_account.id} for instructor {instructor_profile_id}"
+                "Created Stripe Express account %s...%s for instructor %s",
+                stripe_account.id[:8],
+                stripe_account.id[-4:],
+                instructor_profile_id,
             )
             return account_record
         except IntegrityError as e:
@@ -2373,10 +2431,15 @@ class StripeService(BaseService):
                 return existing_record
             raise ServiceException("Failed to create connected account due to conflict") from e
         except stripe.StripeError as e:
-            self.logger.error(f"Stripe error creating connected account: {str(e)}")
-            raise ServiceException(f"Failed to create connected account: {str(e)}")
+            self.logger.error("Stripe error creating connected account: %s", e)
+            raise ServiceException(f"Failed to create connected account: {e}")
         except Exception as e:
             if not self.stripe_configured:
+                if os.getenv("INSTAINSTRU_PRODUCTION_MODE", "").lower() == "true":
+                    raise ServiceException(
+                        "Stripe not configured in production mode",
+                        code="configuration_error",
+                    )
                 self.logger.warning(
                     "Stripe not configured or call failed (%s); using mock connected account for instructor %s",
                     str(e),
@@ -2400,7 +2463,7 @@ class StripeService(BaseService):
                     raise ServiceException(
                         "Failed to create connected account due to conflict"
                     ) from conflict
-            self.logger.error(f"Error creating connected account: {str(e)}")
+            self.logger.error("Error creating connected account: %s", e)
             raise ServiceException(f"Failed to create connected account: {str(e)}")
 
     @BaseService.measure_operation("stripe_create_account_link")
@@ -2437,17 +2500,18 @@ class StripeService(BaseService):
                 refresh_url=refresh_url,
                 return_url=return_url,
                 type="account_onboarding",
+                idempotency_key=f"acct_link_{instructor_profile_id}_{uuid.uuid4()}",
             )
 
-            self.logger.info(f"Created account link for instructor {instructor_profile_id}")
+            self.logger.info("Created account link for instructor %s", instructor_profile_id)
             url_attr = getattr(account_link, "url", None)
             return str(url_attr) if url_attr is not None else ""
 
         except stripe.StripeError as e:
-            self.logger.error(f"Stripe error creating account link: {str(e)}")
+            self.logger.error("Stripe error creating account link: %s", e)
             raise ServiceException(f"Failed to create account link: {str(e)}")
         except Exception as e:
-            self.logger.error(f"Error creating account link: {str(e)}")
+            self.logger.error("Error creating account link: %s", e)
             raise ServiceException(f"Failed to create account link: {str(e)}")
 
     @BaseService.measure_operation("stripe_set_payout_schedule")
@@ -2482,7 +2546,10 @@ class StripeService(BaseService):
                 },
             )
             self.logger.info(
-                f"Updated payout schedule for {account.stripe_account_id}: interval={interval}, anchor={weekly_anchor}"
+                "Updated payout schedule for %s: interval=%s, anchor=%s",
+                account.stripe_account_id,
+                interval,
+                weekly_anchor,
             )
             # Return minimal details to caller
             try:
@@ -2491,10 +2558,10 @@ class StripeService(BaseService):
                 settings_obj = {}
             return {"account_id": account.stripe_account_id, "settings": settings_obj}
         except stripe.StripeError as e:
-            self.logger.error(f"Stripe error setting payout schedule: {str(e)}")
+            self.logger.error("Stripe error setting payout schedule: %s", e)
             raise ServiceException(f"Failed to set payout schedule: {str(e)}")
         except Exception as e:
-            self.logger.error(f"Error setting payout schedule: {str(e)}")
+            self.logger.error("Error setting payout schedule: %s", e)
             raise ServiceException(f"Failed to set payout schedule: {str(e)}")
 
     @BaseService.measure_operation("stripe_check_account_status")
@@ -2571,10 +2638,10 @@ class StripeService(BaseService):
             }
 
         except stripe.StripeError as e:
-            self.logger.error(f"Stripe error checking account status: {str(e)}")
+            self.logger.error("Stripe error checking account status: %s", e)
             raise ServiceException(f"Failed to check account status: {str(e)}")
         except Exception as e:
-            self.logger.error(f"Error checking account status: {str(e)}")
+            self.logger.error("Error checking account status: %s", e)
             raise ServiceException(f"Failed to check account status: {str(e)}")
 
     # ========== Payment Processing ==========
@@ -2694,7 +2761,7 @@ class StripeService(BaseService):
             try:
                 # Use transfer_data[amount] architecture: platform receives full charge,
                 # then transfers exactly transfer_amount_cents to instructor.
-                stripe_kwargs = {
+                stripe_kwargs: Dict[str, Any] = {
                     "amount": amount,
                     "currency": currency,
                     "customer": customer_id,
@@ -2704,18 +2771,26 @@ class StripeService(BaseService):
                     },
                     "metadata": metadata,
                     "capture_method": "manual",
+                    "idempotency_key": f"pi_checkout_{booking_id}_{amount}",
                 }
                 if ctx is not None:
                     stripe_kwargs["transfer_group"] = f"booking:{booking_id}"
 
-                stripe_intent = stripe.PaymentIntent.create(**stripe_kwargs)
+                stripe_intent = self._call_with_retry(stripe.PaymentIntent.create, **stripe_kwargs)
                 stripe_intent_id = stripe_intent.id
                 stripe_intent_status = stripe_intent.status
 
             except Exception as e:
                 if not self.stripe_configured:
+                    production_mode = os.getenv("INSTAINSTRU_PRODUCTION_MODE", "").strip().lower()
+                    if production_mode in {"1", "true", "yes", "on"}:
+                        raise ServiceException(
+                            "Stripe is not configured in production mode; refusing mock payment intent fallback"
+                        ) from e
                     self.logger.warning(
-                        f"Stripe not configured or call failed ({e}); using mock payment intent for booking {booking_id}"
+                        "Stripe not configured or call failed (%s); using mock payment intent for booking %s",
+                        e,
+                        booking_id,
                     )
                     stripe_intent_id = f"mock_pi_{booking_id}"
                     stripe_intent_status = "requires_payment_method"
@@ -2735,14 +2810,16 @@ class StripeService(BaseService):
                     instructor_payout_cents=ctx.target_instructor_payout_cents if ctx else None,
                 )
 
-            self.logger.info(f"Created payment intent {stripe_intent_id} for booking {booking_id}")
+            self.logger.info(
+                "Created payment intent %s for booking %s", stripe_intent_id, booking_id
+            )
             return payment_record
 
         except stripe.StripeError as e:
-            self.logger.error(f"Stripe error creating payment intent: {str(e)}")
+            self.logger.error("Stripe error creating payment intent: %s", e)
             raise ServiceException(f"Failed to create payment intent: {str(e)}")
         except Exception as e:
-            self.logger.error(f"Error creating payment intent: {str(e)}")
+            self.logger.error("Error creating payment intent: %s", e)
             raise ServiceException(f"Failed to create payment intent: {str(e)}")
 
     @BaseService.measure_operation("stripe_create_and_confirm_manual_authorization")
@@ -2770,7 +2847,8 @@ class StripeService(BaseService):
             platform_retained_cents = math.ceil(amount_cents * self.platform_fee_percentage)
             transfer_amount_cents = amount_cents - platform_retained_cents
 
-            pi = stripe.PaymentIntent.create(
+            pi = self._call_with_retry(
+                stripe.PaymentIntent.create,
                 amount=amount_cents,
                 currency=currency,
                 customer=customer_id,
@@ -2829,10 +2907,10 @@ class StripeService(BaseService):
                 logger.debug("Non-fatal error ignored", exc_info=True)
             return result
         except stripe.StripeError as e:
-            self.logger.error(f"Stripe error creating manual authorization: {str(e)}")
+            self.logger.error("Stripe error creating manual authorization: %s", e)
             raise ServiceException(f"Failed to authorize payment: {str(e)}")
         except Exception as e:
-            self.logger.error(f"Error creating manual authorization: {str(e)}")
+            self.logger.error("Error creating manual authorization: %s", e)
             raise ServiceException(f"Failed to authorize payment: {str(e)}")
 
     @BaseService.measure_operation("stripe_confirm_payment_intent")
@@ -2878,14 +2956,14 @@ class StripeService(BaseService):
                         f"Payment record not found for intent {payment_intent_id}"
                     )
 
-            self.logger.info(f"Confirmed payment intent {payment_intent_id}")
+            self.logger.info("Confirmed payment intent %s", payment_intent_id)
             return payment_record
 
         except stripe.StripeError as e:
-            self.logger.error(f"Stripe error confirming payment: {str(e)}")
+            self.logger.error("Stripe error confirming payment: %s", e)
             raise ServiceException(f"Failed to confirm payment: {str(e)}")
         except Exception as e:
-            self.logger.error(f"Error confirming payment: {str(e)}")
+            self.logger.error("Error confirming payment: %s", e)
             raise ServiceException(f"Failed to confirm payment: {str(e)}")
 
     @BaseService.measure_operation("stripe_capture_payment_intent")
@@ -2915,7 +2993,8 @@ class StripeService(BaseService):
             pi = stripe.PaymentIntent.capture(payment_intent_id, idempotency_key=idempotency_key)
             api_duration_ms = (time.time() - api_start) * 1000
             self.logger.info(
-                f"Stripe PaymentIntent.capture API call took {api_duration_ms:.0f}ms",
+                "Stripe PaymentIntent.capture API call took %sms",
+                f"{api_duration_ms:.0f}",
                 extra={
                     "stripe_api_duration_ms": api_duration_ms,
                     "payment_intent_id": payment_intent_id,
@@ -2987,10 +3066,10 @@ class StripeService(BaseService):
                 "transfer_amount": transfer_amount,
             }
         except stripe.StripeError as e:
-            self.logger.error(f"Stripe error capturing payment intent: {str(e)}")
+            self.logger.error("Stripe error capturing payment intent: %s", e)
             raise ServiceException(f"Failed to capture payment: {str(e)}")
         except Exception as e:
-            self.logger.error(f"Error capturing payment intent: {str(e)}")
+            self.logger.error("Error capturing payment intent: %s", e)
             raise ServiceException(f"Failed to capture payment: {str(e)}")
 
     @BaseService.measure_operation("stripe_get_payment_intent_details")
@@ -3001,10 +3080,10 @@ class StripeService(BaseService):
         try:
             pi = stripe.PaymentIntent.retrieve(payment_intent_id)
         except stripe.StripeError as e:
-            self.logger.error(f"Stripe error retrieving payment intent: {str(e)}")
+            self.logger.error("Stripe error retrieving payment intent: %s", e)
             raise ServiceException(f"Failed to retrieve payment intent: {str(e)}")
         except Exception as e:
-            self.logger.error(f"Error retrieving payment intent: {str(e)}")
+            self.logger.error("Error retrieving payment intent: %s", e)
             raise ServiceException(f"Failed to retrieve payment intent: {str(e)}")
 
         charge_id = None
@@ -3087,7 +3166,8 @@ class StripeService(BaseService):
             )
             api_duration_ms = (time.time() - api_start) * 1000
             self.logger.info(
-                f"Stripe Transfer.create_reversal API call took {api_duration_ms:.0f}ms",
+                "Stripe Transfer.create_reversal API call took %sms",
+                f"{api_duration_ms:.0f}",
                 extra={"stripe_api_duration_ms": api_duration_ms, "transfer_id": transfer_id},
             )
 
@@ -3103,7 +3183,10 @@ class StripeService(BaseService):
                     and reversed_amount < amount_cents
                 ):
                     self.logger.warning(
-                        f"Partial reversal for transfer {transfer_id}: requested={amount_cents} reversed={reversed_amount}"
+                        "Partial reversal for transfer %s: requested=%s reversed=%s",
+                        transfer_id,
+                        amount_cents,
+                        reversed_amount,
                     )
                 # If failure_code present in reversal (rare), log as error
                 failure_code = (
@@ -3113,17 +3196,19 @@ class StripeService(BaseService):
                 )
                 if failure_code:
                     self.logger.error(
-                        f"Transfer reversal reported failure_code={failure_code} for transfer {transfer_id}"
+                        "Transfer reversal reported failure_code=%s for transfer %s",
+                        failure_code,
+                        transfer_id,
                     )
             except Exception:
                 # Do not fail the main flow for metrics issues
                 logger.debug("Non-fatal error ignored", exc_info=True)
             return {"reversal": reversal}
         except stripe.StripeError as e:
-            self.logger.error(f"Stripe error reversing transfer: {str(e)}")
+            self.logger.error("Stripe error reversing transfer: %s", e)
             raise ServiceException(f"Failed to reverse transfer: {str(e)}")
         except Exception as e:
-            self.logger.error(f"Error reversing transfer: {str(e)}")
+            self.logger.error("Error reversing transfer: %s", e)
             raise ServiceException(f"Failed to reverse transfer: {str(e)}")
 
     @BaseService.measure_operation("stripe_cancel_payment_intent")
@@ -3141,10 +3226,10 @@ class StripeService(BaseService):
                 logger.debug("Non-fatal error ignored", exc_info=True)
             return {"payment_intent": pi}
         except stripe.StripeError as e:
-            self.logger.error(f"Stripe error canceling payment intent: {str(e)}")
+            self.logger.error("Stripe error canceling payment intent: %s", e)
             raise ServiceException(f"Failed to cancel payment intent: {str(e)}")
         except Exception as e:
-            self.logger.error(f"Error canceling payment intent: {str(e)}")
+            self.logger.error("Error canceling payment intent: %s", e)
             raise ServiceException(f"Failed to cancel payment intent: {str(e)}")
 
     @BaseService.measure_operation("stripe_void_or_refund_payment")
@@ -3249,14 +3334,21 @@ class StripeService(BaseService):
             refund = StripeRefund.create(**refund_kwargs)
 
             # Update payment status
+            payment_status = "refunded"
+            if refund.status == "failed":
+                payment_status = "refund_failed"
+            elif refund.status != "succeeded":
+                payment_status = "refund_pending"
             try:
-                self.payment_repository.update_payment_status(payment_intent_id, "refunded")
+                self.payment_repository.update_payment_status(payment_intent_id, payment_status)
             except Exception:
                 logger.debug("Non-fatal error ignored", exc_info=True)
             self.logger.info(
-                f"Refund created for PI {payment_intent_id}: "
-                f"refund_id={refund.id}, amount={refund.amount}, "
-                f"reverse_transfer={reverse_transfer}"
+                "Refund created for PI %s: refund_id=%s, amount=%s, reverse_transfer=%s",
+                payment_intent_id,
+                refund.id,
+                refund.amount,
+                reverse_transfer,
             )
 
             return {
@@ -3266,10 +3358,10 @@ class StripeService(BaseService):
                 "payment_intent_id": payment_intent_id,
             }
         except stripe.StripeError as e:
-            self.logger.error(f"Stripe error creating refund: {str(e)}")
+            self.logger.error("Stripe error creating refund: %s", e)
             raise ServiceException(f"Failed to create refund: {str(e)}")
         except Exception as e:
-            self.logger.error(f"Error creating refund: {str(e)}")
+            self.logger.error("Error creating refund: %s", e)
             raise ServiceException(f"Failed to create refund: {str(e)}")
 
     @BaseService.measure_operation("stripe_process_booking_payment")
@@ -3520,7 +3612,7 @@ class StripeService(BaseService):
         except Exception as e:
             if isinstance(e, ServiceException):
                 raise
-            self.logger.error(f"Error processing booking payment: {str(e)}")
+            self.logger.error("Error processing booking payment: %s", e)
             raise ServiceException(f"Failed to process payment: {str(e)}")
 
     # ========== Payment Method Management ==========
@@ -3557,7 +3649,9 @@ class StripeService(BaseService):
                 )
                 if existing:
                     self.logger.info(
-                        f"Payment method {payment_method_id} already exists for user {user_id}"
+                        "Payment method %s already exists for user %s",
+                        payment_method_id,
+                        user_id,
                     )
                     # If setting as default, update the existing one
                     if set_as_default:
@@ -3577,25 +3671,27 @@ class StripeService(BaseService):
                     if stripe_pm.customer != stripe_customer_id:
                         # Payment method is attached to a different customer
                         self.logger.error(
-                            f"Payment method {payment_method_id} is attached to a different customer"
+                            "Payment method %s is attached to a different customer",
+                            payment_method_id,
                         )
                         raise ServiceException(
                             "This payment method is already in use by another account"
                         )
                     # Already attached to this customer, just retrieve it
                     self.logger.info(
-                        f"Payment method {payment_method_id} already attached to customer"
+                        "Payment method %s already attached to customer",
+                        payment_method_id,
                     )
                 else:
                     # Not attached, so attach it
                     stripe_pm = stripe.PaymentMethod.attach(
                         payment_method_id, customer=stripe_customer_id
                     )
-                    self.logger.info(f"Attached payment method {payment_method_id} to customer")
+                    self.logger.info("Attached payment method %s to customer", payment_method_id)
 
             except stripe.error.CardError as e:
                 # Handle specific card errors
-                self.logger.error(f"Card error: {str(e)}")
+                self.logger.error("Card error: %s", e)
                 error_message = str(e.user_message) if hasattr(e, "user_message") else str(e)
                 raise ServiceException(error_message)
 
@@ -3614,19 +3710,19 @@ class StripeService(BaseService):
                     is_default=set_as_default,
                 )
 
-            self.logger.info(f"Saved payment method {payment_method_id} for user {user_id}")
+            self.logger.info("Saved payment method %s for user %s", payment_method_id, user_id)
             return payment_method
 
         except ServiceException:
             # Re-raise service exceptions
             raise
         except stripe.StripeError as e:
-            self.logger.error(f"Stripe error saving payment method: {str(e)}")
+            self.logger.error("Stripe error saving payment method: %s", e)
             # Extract user-friendly message from Stripe error
             error_message = str(e.user_message) if hasattr(e, "user_message") else str(e)
             raise ServiceException(f"Failed to save payment method: {error_message}")
         except Exception as e:
-            self.logger.error(f"Error saving payment method: {str(e)}")
+            self.logger.error("Error saving payment method: %s", e)
             raise ServiceException(f"Failed to save payment method: {str(e)}")
 
     @BaseService.measure_operation("stripe_get_user_payment_methods")
@@ -3646,7 +3742,7 @@ class StripeService(BaseService):
         try:
             return list(self.payment_repository.get_payment_methods_by_user(user_id))
         except Exception as e:
-            self.logger.error(f"Error getting payment methods: {str(e)}")
+            self.logger.error("Error getting payment methods: %s", e)
             raise ServiceException(f"Failed to get payment methods: {str(e)}")
 
     @BaseService.measure_operation("stripe_delete_payment_method")
@@ -3686,10 +3782,10 @@ class StripeService(BaseService):
             if payment_method_id.startswith("pm_"):
                 try:
                     stripe.PaymentMethod.detach(payment_method_id)
-                    self.logger.info(f"Detached payment method {payment_method_id} from Stripe")
+                    self.logger.info("Detached payment method %s from Stripe", payment_method_id)
                 except stripe.StripeError as e:
                     # Log but don't fail - payment method might already be detached
-                    self.logger.warning(f"Could not detach payment method from Stripe: {str(e)}")
+                    self.logger.warning("Could not detach payment method from Stripe: %s", e)
 
             # ========== PHASE 3: Delete from database (quick transaction) ==========
             with self.transaction():
@@ -3697,13 +3793,15 @@ class StripeService(BaseService):
 
             if success:
                 self.logger.info(
-                    f"Deleted payment method {payment_method_id} from database for user {user_id}"
+                    "Deleted payment method %s from database for user %s",
+                    payment_method_id,
+                    user_id,
                 )
 
             return bool(success)
 
         except Exception as e:
-            self.logger.error(f"Error deleting payment method: {str(e)}")
+            self.logger.error("Error deleting payment method: %s", e)
             raise ServiceException(f"Failed to delete payment method: {str(e)}")
 
     # ========== Webhook Handling ==========
@@ -3742,7 +3840,7 @@ class StripeService(BaseService):
                 return False
 
         except Exception as e:
-            self.logger.error(f"Error verifying webhook signature: {str(e)}")
+            self.logger.error("Error verifying webhook signature: %s", e)
             raise ServiceException(f"Failed to verify webhook signature: {str(e)}")
 
     @BaseService.measure_operation("stripe_handle_webhook")
@@ -3764,7 +3862,7 @@ class StripeService(BaseService):
         """
         try:
             event_type = event.get("type", "")
-            self.logger.info(f"Processing webhook event: {event_type}")
+            self.logger.info("Processing webhook event: %s", event_type)
 
             # Route to appropriate handler based on event type
             if event_type.startswith("payment_intent."):
@@ -3792,11 +3890,11 @@ class StripeService(BaseService):
                 return {"success": success, "event_type": event_type}
 
             else:
-                self.logger.info(f"Unhandled webhook event type: {event_type}")
+                self.logger.info("Unhandled webhook event type: %s", event_type)
                 return {"success": True, "event_type": event_type, "handled": False}
 
         except Exception as e:
-            self.logger.error(f"Error processing webhook event: {str(e)}")
+            self.logger.error("Error processing webhook event: %s", e)
             raise ServiceException(f"Failed to process webhook event: {str(e)}")
 
     @BaseService.measure_operation("stripe_handle_webhook_with_verification")
@@ -3834,10 +3932,10 @@ class StripeService(BaseService):
                     webhook_secret,
                 )
             except stripe.SignatureVerificationError as e:
-                self.logger.warning(f"Invalid webhook signature: {str(e)}")
+                self.logger.warning("Invalid webhook signature: %s", e)
                 raise ServiceException("Invalid webhook signature")
             except Exception as e:
-                self.logger.error(f"Error constructing webhook event: {str(e)}")
+                self.logger.error("Error constructing webhook event: %s", e)
                 raise ServiceException(f"Invalid webhook payload: {str(e)}")
 
             # Use the new method to process the event
@@ -3847,7 +3945,7 @@ class StripeService(BaseService):
         except ServiceException:
             raise
         except Exception as e:
-            self.logger.error(f"Unexpected error handling webhook: {str(e)}")
+            self.logger.error("Unexpected error handling webhook: %s", e)
             raise ServiceException(f"Failed to process webhook: {str(e)}")
 
     @BaseService.measure_operation("stripe_handle_payment_intent_webhook")
@@ -3876,7 +3974,9 @@ class StripeService(BaseService):
                 )
 
                 if payment_record:
-                    self.logger.info(f"Updated payment {payment_intent_id} status to {new_status}")
+                    self.logger.info(
+                        "Updated payment %s status to %s", payment_intent_id, new_status
+                    )
 
                     # Handle successful payments
                     if new_status == "succeeded":
@@ -3885,12 +3985,13 @@ class StripeService(BaseService):
                     return True
                 else:
                     self.logger.warning(
-                        f"Payment record not found for webhook event {payment_intent_id}"
+                        "Payment record not found for webhook event %s",
+                        payment_intent_id,
                     )
                     return False
 
         except Exception as e:
-            self.logger.error(f"Error handling payment intent webhook: {str(e)}")
+            self.logger.error("Error handling payment intent webhook: %s", e)
             raise ServiceException(f"Failed to handle payment webhook: {str(e)}")
 
     def _handle_successful_payment(self, payment_record: PaymentIntent) -> None:
@@ -3919,14 +4020,15 @@ class StripeService(BaseService):
             try:
                 booking_service.invalidate_booking_cache(booking)
             except Exception as cache_err:
-                self.logger.warning(f"Failed to invalidate booking caches: {str(cache_err)}")
+                self.logger.warning("Failed to invalidate booking caches: %s", cache_err)
 
             self.logger.info(
-                f"Processed successful payment for booking {payment_record.booking_id}"
+                "Processed successful payment for booking %s",
+                payment_record.booking_id,
             )
 
         except Exception as e:
-            self.logger.error(f"Error handling successful payment: {str(e)}")
+            self.logger.error("Error handling successful payment: %s", e)
             # Don't raise exception to avoid webhook retry loops
 
     def _handle_account_webhook(self, event: Dict[str, Any]) -> bool:
@@ -3943,19 +4045,19 @@ class StripeService(BaseService):
 
                 if charges_enabled and details_submitted:
                     self.payment_repository.update_onboarding_status(account_id, True)
-                    self.logger.info(f"Account {account_id} onboarding completed")
+                    self.logger.info("Account %s onboarding completed", account_id)
 
                 return True
 
             elif event_type == "account.application.deauthorized":
-                self.logger.warning(f"Account {account_id} was deauthorized")
+                self.logger.warning("Account %s was deauthorized", account_id)
                 # Could implement logic to notify instructor or disable their services
                 return True
 
             return False
 
         except Exception as e:
-            self.logger.error(f"Error handling account webhook: {str(e)}")
+            self.logger.error("Error handling account webhook: %s", e)
             return False
 
     def _handle_transfer_webhook(self, event: Dict[str, Any]) -> bool:
@@ -3966,15 +4068,15 @@ class StripeService(BaseService):
             transfer_id = transfer_data.get("id")
 
             if event_type == "transfer.created":
-                self.logger.info(f"Transfer {transfer_id} created")
+                self.logger.info("Transfer %s created", transfer_id)
                 return True
 
             elif event_type == "transfer.paid":
-                self.logger.info(f"Transfer {transfer_id} paid successfully")
+                self.logger.info("Transfer %s paid successfully", transfer_id)
                 return True
 
             elif event_type == "transfer.failed":
-                self.logger.error(f"Transfer {transfer_id} failed")
+                self.logger.error("Transfer %s failed", transfer_id)
                 # Could implement logic to notify instructor or retry
                 return True
 
@@ -3983,7 +4085,7 @@ class StripeService(BaseService):
                 try:
                     amount = transfer_data.get("amount")
                     # If we had stored mapping transfer->booking, we would look it up. Fallback: log only.
-                    self.logger.info(f"Transfer {transfer_id} reversed (amount={amount})")
+                    self.logger.info("Transfer %s reversed (amount=%s)", transfer_id, amount)
                 except Exception:
                     logger.debug("Non-fatal error ignored", exc_info=True)
                 return True
@@ -3991,7 +4093,7 @@ class StripeService(BaseService):
             return False
 
         except Exception as e:
-            self.logger.error(f"Error handling transfer webhook: {str(e)}")
+            self.logger.error("Error handling transfer webhook: %s", e)
             return False
 
     def _handle_charge_webhook(self, event: Dict[str, Any]) -> bool:
@@ -4007,16 +4109,16 @@ class StripeService(BaseService):
             charge_id = charge_data.get("id")
 
             if event_type == "charge.succeeded":
-                self.logger.info(f"Charge {charge_id} succeeded")
+                self.logger.info("Charge %s succeeded", charge_id)
                 return True
 
             elif event_type == "charge.failed":
-                self.logger.error(f"Charge {charge_id} failed")
+                self.logger.error("Charge %s failed", charge_id)
                 # Could implement logic to notify student
                 return True
 
             elif event_type == "charge.refunded":
-                self.logger.info(f"Charge {charge_id} refunded")
+                self.logger.info("Charge %s refunded", charge_id)
                 try:
                     # Update payment record if possible
                     payment_intent_id = charge_data.get("payment_intent")
@@ -4025,12 +4127,29 @@ class StripeService(BaseService):
                         booking_payment = self.payment_repository.get_payment_by_intent_id(
                             payment_intent_id
                         )
-                        if booking_payment:
+                        if not booking_payment:
+                            self.logger.critical(
+                                "Stripe refund reconciliation gap: no local payment record for "
+                                "payment_intent %s (charge %s)",
+                                payment_intent_id,
+                                charge_id,
+                            )
+                        else:
                             booking = self.booking_repository.get_by_id(booking_payment.booking_id)
-                            if booking:
+                            if not booking:
+                                self.logger.critical(
+                                    "Stripe refund reconciliation gap: no booking %s for "
+                                    "payment_intent %s (charge %s)",
+                                    booking_payment.booking_id,
+                                    payment_intent_id,
+                                    charge_id,
+                                )
+                            else:
                                 # Emit a domain-level log; event stream is handled by tasks/routes
                                 self.logger.info(
-                                    f"Marked booking {booking.id} payment as refunded for PI {payment_intent_id}"
+                                    "Marked booking %s payment as refunded for PI %s",
+                                    booking.id,
+                                    payment_intent_id,
                                 )
                                 try:
                                     credit_service = StudentCreditService(self.db)
@@ -4042,12 +4161,12 @@ class StripeService(BaseService):
                                         hook_exc,
                                     )
                 except Exception as e:
-                    self.logger.error(f"Failed to process charge.refunded: {e}")
+                    self.logger.error("Failed to process charge.refunded: %s", e)
                 return True
 
             return False
         except Exception as e:
-            self.logger.error(f"Error handling charge webhook: {str(e)}")
+            self.logger.error("Error handling charge webhook: %s", e)
             return False
 
     def _resolve_payment_intent_id_from_charge(self, charge_id: Optional[str]) -> Optional[str]:
@@ -4390,7 +4509,11 @@ class StripeService(BaseService):
 
             if event_type == "payout.created":
                 self.logger.info(
-                    f"Payout created: {payout_id} amount={amount} status={status} arrival={arrival_date}"
+                    "Payout created: %s amount=%s status=%s arrival=%s",
+                    payout_id,
+                    amount,
+                    status,
+                    arrival_date,
                 )
                 try:
                     # Resolve instructor_profile_id via connected account
@@ -4408,12 +4531,16 @@ class StripeService(BaseService):
                                 arrival_date=arrival_date,
                             )
                 except Exception as e:  # best-effort analytics only
-                    self.logger.warning(f"Failed to persist payout.created analytics: {e}")
+                    self.logger.warning("Failed to persist payout.created analytics: %s", e)
                 return True
 
             if event_type == "payout.paid":
                 self.logger.info(
-                    f"Payout paid: {payout_id} amount={amount} status={status} arrival={arrival_date}"
+                    "Payout paid: %s amount=%s status=%s arrival=%s",
+                    payout_id,
+                    amount,
+                    status,
+                    arrival_date,
                 )
                 try:
                     if account_id:
@@ -4451,14 +4578,18 @@ class StripeService(BaseService):
                                     exc,
                                 )
                 except Exception as e:
-                    self.logger.warning(f"Failed to persist payout.paid analytics: {e}")
+                    self.logger.warning("Failed to persist payout.paid analytics: %s", e)
                 return True
 
             if event_type == "payout.failed":
                 failure_code = payout.get("failure_code")
                 failure_message = payout.get("failure_message")
                 self.logger.error(
-                    f"Payout failed: {payout_id} amount={amount} code={failure_code} message={failure_message}"
+                    "Payout failed: %s amount=%s code=%s message=%s",
+                    payout_id,
+                    amount,
+                    failure_code,
+                    failure_message,
                 )
                 # TODO: optionally notify instructor and disable instant payout UI until resolved
                 try:
@@ -4478,13 +4609,13 @@ class StripeService(BaseService):
                                 failure_message=failure_message,
                             )
                 except Exception as e:
-                    self.logger.warning(f"Failed to persist payout.failed analytics: {e}")
+                    self.logger.warning("Failed to persist payout.failed analytics: %s", e)
                 return True
 
             # Unhandled payout event
             return False
         except Exception as e:
-            self.logger.error(f"Error handling payout webhook: {str(e)}")
+            self.logger.error("Error handling payout webhook: %s", e)
             return False
 
     def _handle_identity_webhook(self, event: Dict[str, Any]) -> bool:
@@ -4521,7 +4652,9 @@ class StripeService(BaseService):
                     )
                 except Exception as e:
                     self.logger.error(
-                        f"Failed updating identity verification on profile {profile.id}: {e}"
+                        "Failed updating identity verification on profile %s: %s",
+                        profile.id,
+                        e,
                     )
                     try:
                         self.instructor_repository.update(
@@ -4561,7 +4694,7 @@ class StripeService(BaseService):
 
             return True
         except Exception as e:
-            self.logger.error(f"Error handling identity webhook: {str(e)}")
+            self.logger.error("Error handling identity webhook: %s", e)
             return False
 
     # ========== Analytics and Reporting ==========
@@ -4583,7 +4716,7 @@ class StripeService(BaseService):
         try:
             return dict(self.payment_repository.get_platform_revenue_stats(start_date, end_date))
         except Exception as e:
-            self.logger.error(f"Error getting platform revenue stats: {str(e)}")
+            self.logger.error("Error getting platform revenue stats: %s", e)
             raise ServiceException(f"Failed to get revenue stats: {str(e)}")
 
     @BaseService.measure_operation("stripe_get_instructor_earnings")
@@ -4609,7 +4742,7 @@ class StripeService(BaseService):
                 self.payment_repository.get_instructor_earnings(instructor_id, start_date, end_date)
             )
         except Exception as e:
-            self.logger.error(f"Error getting instructor earnings: {str(e)}")
+            self.logger.error("Error getting instructor earnings: %s", e)
             raise ServiceException(f"Failed to get instructor earnings: {str(e)}")
 
     @staticmethod
