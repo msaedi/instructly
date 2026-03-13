@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import date, datetime, time, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
@@ -13,9 +14,12 @@ from app.core.ulid_helper import generate_ulid
 from app.models.booking import BookingStatus, PaymentStatus
 from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.services.booking_service import BookingService
+from app.services.config_service import DEFAULT_BOOKING_RULES_CONFIG, ConfigService
 from app.utils.bitset import bits_from_windows
 
 REAL_DATETIME = datetime
+ORIGINAL_GET_OVERNIGHT_EARLIEST_HOUR = ConfigService.get_overnight_earliest_hour
+ORIGINAL_IS_IN_OVERNIGHT_WINDOW = ConfigService.is_in_overnight_window
 
 
 def _transaction_cm() -> MagicMock:
@@ -40,6 +44,24 @@ def _freeze_time(monkeypatch: pytest.MonkeyPatch, target: datetime) -> None:
             return REAL_DATETIME.combine(*args, **kwargs)
 
     monkeypatch.setattr("app.services.booking_service.datetime", _FixedDateTime)
+
+
+def _enable_default_overnight_rules(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        ConfigService,
+        "get_booking_rules_config",
+        lambda self: (deepcopy(DEFAULT_BOOKING_RULES_CONFIG), None),
+    )
+    monkeypatch.setattr(
+        ConfigService,
+        "get_overnight_earliest_hour",
+        ORIGINAL_GET_OVERNIGHT_EARLIEST_HOUR,
+    )
+    monkeypatch.setattr(
+        ConfigService,
+        "is_in_overnight_window",
+        ORIGINAL_IS_IN_OVERNIGHT_WINDOW,
+    )
 
 
 def make_booking(**overrides: object) -> SimpleNamespace:
@@ -398,6 +420,86 @@ def test_check_availability_student_conflict_returns_unavailable(booking_service
     assert "existing bookings" in result["reason"].lower()
 
 
+@pytest.mark.parametrize(
+    ("location_type", "request_time", "lesson_start", "protection_enabled", "expected_available"),
+    [
+        ("online", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), True, False),
+        ("online", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 9, 0, tzinfo=timezone.utc), True, True),
+        ("student_location", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc), True, False),
+        ("student_location", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 11, 0, tzinfo=timezone.utc), True, True),
+        ("online", datetime(2030, 1, 1, 19, 59, tzinfo=timezone.utc), datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), True, True),
+        ("online", datetime(2030, 1, 1, 20, 1, tzinfo=timezone.utc), datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), True, False),
+        ("online", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), True, True),
+        ("online", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), False, True),
+    ],
+)
+def test_check_availability_uses_overnight_protection(
+    booking_service: BookingService,
+    monkeypatch: pytest.MonkeyPatch,
+    location_type: str,
+    request_time: datetime,
+    lesson_start: datetime,
+    protection_enabled: bool,
+    expected_available: bool,
+) -> None:
+    _enable_default_overnight_rules(monkeypatch)
+    _freeze_time(monkeypatch, request_time)
+    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
+        user=SimpleNamespace(timezone="UTC"),
+        overnight_protection_enabled=protection_enabled,
+    )
+    booking_service._get_advance_notice_minutes = Mock(return_value=0)
+    booking_service._resolve_booking_times_utc = Mock(
+        return_value=(lesson_start, lesson_start + timedelta(hours=1))
+    )
+    booking_service._check_bits_coverage = Mock(return_value=True)
+
+    result = booking_service.check_availability(
+        instructor_id=generate_ulid(),
+        booking_date=lesson_start.date(),
+        start_time=lesson_start.time().replace(second=0, microsecond=0),
+        end_time=(lesson_start + timedelta(hours=1)).time().replace(second=0, microsecond=0),
+        service_id=generate_ulid(),
+        location_type=location_type,
+    )
+
+    assert result["available"] is expected_available
+    if not expected_available:
+        assert "overnight" in result["reason"].lower()
+
+
+def test_check_availability_overnight_protection_uses_instructor_timezone(
+    booking_service: BookingService, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _enable_default_overnight_rules(monkeypatch)
+    fixed_now = datetime(2030, 1, 2, 3, 1, tzinfo=timezone.utc)
+    lesson_start = datetime(2030, 1, 2, 13, 0, tzinfo=timezone.utc)
+    _freeze_time(monkeypatch, fixed_now)
+    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
+        user=SimpleNamespace(timezone="America/New_York"),
+        overnight_protection_enabled=True,
+    )
+    booking_service._get_advance_notice_minutes = Mock(return_value=0)
+    booking_service._resolve_booking_times_utc = Mock(
+        return_value=(lesson_start, lesson_start + timedelta(hours=1))
+    )
+    booking_service._check_bits_coverage = Mock(return_value=True)
+
+    result = booking_service.check_availability(
+        instructor_id=generate_ulid(),
+        booking_date=date(2030, 1, 2),
+        start_time=time(8, 0),
+        end_time=time(9, 0),
+        service_id=generate_ulid(),
+        location_type="online",
+    )
+
+    assert result["available"] is False
+    assert "overnight" in result["reason"].lower()
+
+
 def test_check_availability_available_true(booking_service: BookingService) -> None:
     booking_service.repository.check_time_conflict.return_value = False
     booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
@@ -535,6 +637,66 @@ def test_check_conflicts_and_rules_matches_format_aware_advance_notice(
             booking_service._check_conflicts_and_rules(
                 booking_data, service, instructor_profile, student
             )
+        return
+
+    booking_service._check_conflicts_and_rules(
+        booking_data, service, instructor_profile, student
+    )
+
+
+@pytest.mark.parametrize(
+    ("location_type", "request_time", "lesson_start", "protection_enabled", "should_raise"),
+    [
+        ("online", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), True, True),
+        ("online", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 9, 0, tzinfo=timezone.utc), True, False),
+        ("student_location", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc), True, True),
+        ("student_location", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 11, 0, tzinfo=timezone.utc), True, False),
+        ("online", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), False, False),
+    ],
+)
+def test_check_conflicts_and_rules_matches_overnight_protection(
+    booking_service: BookingService,
+    monkeypatch: pytest.MonkeyPatch,
+    location_type: str,
+    request_time: datetime,
+    lesson_start: datetime,
+    protection_enabled: bool,
+    should_raise: bool,
+) -> None:
+    _enable_default_overnight_rules(monkeypatch)
+    _freeze_time(monkeypatch, request_time)
+    booking_service._get_advance_notice_minutes = Mock(return_value=0)
+    booking_service._resolve_booking_times_utc = Mock(
+        return_value=(lesson_start, lesson_start + timedelta(hours=1))
+    )
+    booking_data = SimpleNamespace(
+        instructor_id=generate_ulid(),
+        booking_date=lesson_start.date(),
+        start_time=lesson_start.time().replace(second=0, microsecond=0),
+        end_time=(lesson_start + timedelta(hours=1)).time().replace(second=0, microsecond=0),
+        location_type=location_type,
+        location_address=None,
+        location_lat=40.7128 if location_type == "student_location" else None,
+        location_lng=-74.0060 if location_type == "student_location" else None,
+        location_place_id=None,
+    )
+    service = SimpleNamespace(
+        offers_online=True,
+        offers_travel=True,
+        offers_at_location=True,
+    )
+    instructor_profile = SimpleNamespace(
+        user=SimpleNamespace(timezone="UTC"),
+        overnight_protection_enabled=protection_enabled,
+    )
+    student = SimpleNamespace(id=generate_ulid())
+
+    if should_raise:
+        with pytest.raises(BusinessRuleException) as exc_info:
+            booking_service._check_conflicts_and_rules(
+                booking_data, service, instructor_profile, student
+            )
+        assert exc_info.value.code == "OVERNIGHT_PROTECTION"
         return
 
     booking_service._check_conflicts_and_rules(

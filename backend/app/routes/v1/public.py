@@ -102,7 +102,7 @@ def _recompute_public_totals(
     return total_slots, earliest_available_date
 
 
-def _apply_min_advance_filter(
+def _apply_public_booking_filters(
     availability_service: AvailabilityService,
     instructor_id: str,
     availability_by_date: Dict[str, PublicDayAvailability],
@@ -112,52 +112,90 @@ def _apply_min_advance_filter(
         return 0, None
 
     resolved_location_type = location_type or "student_location"
-    min_advance_minutes = ConfigService(availability_service.db).get_advance_notice_minutes(
-        resolved_location_type
-    )
-    if min_advance_minutes <= 0:
+    config_service = ConfigService(availability_service.db)
+    min_advance_minutes = config_service.get_advance_notice_minutes(resolved_location_type)
+    now_local: Optional[datetime] = None
+
+    overnight_min_start_minutes: Optional[int] = None
+    instructor_repository = getattr(availability_service, "instructor_repository", None)
+    profile_getter = getattr(instructor_repository, "get_by_user_id", None)
+    if callable(profile_getter):
+        profile = profile_getter(instructor_id)
+        if bool(getattr(profile, "overnight_protection_enabled", False)):
+            now_local = _get_user_now_by_id(instructor_id, availability_service.db)
+            if config_service.is_in_overnight_window(now_local):
+                overnight_min_start_minutes = (
+                    config_service.get_overnight_earliest_hour(resolved_location_type) * 60
+                )
+
+    if min_advance_minutes <= 0 and overnight_min_start_minutes is None:
         return _recompute_public_totals(availability_by_date)
 
-    earliest_allowed_local = _get_user_now_by_id(
-        instructor_id, availability_service.db
-    ) + timedelta(minutes=min_advance_minutes)
-    earliest_allowed_local = earliest_allowed_local.replace(second=0, microsecond=0)
-    minutes_since_midnight = time_to_minutes(earliest_allowed_local.time(), is_end_time=False)
-    aligned_minutes = (
-        (minutes_since_midnight + BOOKING_START_STEP_MINUTES - 1) // BOOKING_START_STEP_MINUTES
-    ) * BOOKING_START_STEP_MINUTES
-    base_midnight = earliest_allowed_local.replace(hour=0, minute=0, second=0, microsecond=0)
-    earliest_allowed_local = base_midnight + timedelta(minutes=aligned_minutes)
-    earliest_allowed_date = earliest_allowed_local.date()
-    earliest_allowed_minutes = time_to_minutes(earliest_allowed_local.time(), is_end_time=False)
+    if now_local is None:
+        now_local = _get_user_now_by_id(instructor_id, availability_service.db)
+
+    earliest_allowed_date: Optional[date] = None
+    earliest_allowed_minutes: Optional[int] = None
+    if min_advance_minutes > 0:
+        earliest_allowed_local = now_local + timedelta(minutes=min_advance_minutes)
+        earliest_allowed_local = earliest_allowed_local.replace(second=0, microsecond=0)
+        minutes_since_midnight = time_to_minutes(earliest_allowed_local.time(), is_end_time=False)
+        aligned_minutes = (
+            (minutes_since_midnight + BOOKING_START_STEP_MINUTES - 1) // BOOKING_START_STEP_MINUTES
+        ) * BOOKING_START_STEP_MINUTES
+        base_midnight = earliest_allowed_local.replace(hour=0, minute=0, second=0, microsecond=0)
+        earliest_allowed_local = base_midnight + timedelta(minutes=aligned_minutes)
+        earliest_allowed_date = earliest_allowed_local.date()
+        earliest_allowed_minutes = time_to_minutes(earliest_allowed_local.time(), is_end_time=False)
 
     for date_str, day in availability_by_date.items():
         target_date = date.fromisoformat(date_str)
-        if target_date < earliest_allowed_date:
+        if earliest_allowed_date is not None and target_date < earliest_allowed_date:
             day.available_slots = []
-            continue
-        if target_date != earliest_allowed_date:
             continue
 
         filtered_slots: List[PublicTimeSlot] = []
         for slot in day.available_slots:
             start_min = time_to_minutes(string_to_time(slot.start_time), is_end_time=False)
             end_min = time_to_minutes(string_to_time(slot.end_time), is_end_time=True)
-            if end_min <= earliest_allowed_minutes:
-                continue
-            if start_min < earliest_allowed_minutes:
-                start_min = earliest_allowed_minutes
-            if end_min <= start_min:
+            minimum_start_minutes = start_min
+            if (
+                overnight_min_start_minutes is not None
+                and minimum_start_minutes < overnight_min_start_minutes
+            ):
+                minimum_start_minutes = overnight_min_start_minutes
+            if (
+                earliest_allowed_date is not None
+                and earliest_allowed_minutes is not None
+                and target_date == earliest_allowed_date
+                and minimum_start_minutes < earliest_allowed_minutes
+            ):
+                minimum_start_minutes = earliest_allowed_minutes
+            if end_min <= minimum_start_minutes:
                 continue
             filtered_slots.append(
                 PublicTimeSlot(
-                    start_time=_minutes_to_time_str(start_min),
+                    start_time=_minutes_to_time_str(minimum_start_minutes),
                     end_time=_minutes_to_time_str(end_min),
                 )
             )
         day.available_slots = filtered_slots
 
     return _recompute_public_totals(availability_by_date)
+
+
+def _apply_min_advance_filter(
+    availability_service: AvailabilityService,
+    instructor_id: str,
+    availability_by_date: Dict[str, PublicDayAvailability],
+    location_type: str | None = None,
+) -> tuple[int, Optional[str]]:
+    return _apply_public_booking_filters(
+        availability_service,
+        instructor_id,
+        availability_by_date,
+        location_type,
+    )
 
 
 def get_availability_service(db: Session = Depends(get_db)) -> AvailabilityService:
@@ -336,7 +374,7 @@ async def get_instructor_public_availability(
     ),
     location_type: Optional[LocationTypeLiteral] = Query(
         None,
-        description="Optional booking format used for advance-notice trimming",
+        description="Optional booking format used for advance-notice and overnight trimming",
     ),
     availability_service: AvailabilityService = Depends(get_availability_service),
     conflict_checker: ConflictChecker = Depends(get_conflict_checker),
@@ -408,6 +446,10 @@ async def get_instructor_public_availability(
     if end_date > max_end_date:
         end_date = max_end_date
 
+    # Direct test calls hit the function default Query object instead of FastAPI coercion.
+    if not isinstance(location_type, str):
+        location_type = None
+
     # Initialize response_data for type checking
     response_data: Optional[PublicInstructorAvailability] = None
     response_data_raw: Optional[PublicInstructorAvailability] = None
@@ -427,7 +469,7 @@ async def get_instructor_public_availability(
                 cached_result = cast(Dict[str, Any], cached_data)
                 response_data = PublicInstructorAvailability(**cached_result)
                 if response_data.detail_level == "full" and response_data.availability_by_date:
-                    total_slots, earliest_date = _apply_min_advance_filter(
+                    total_slots, earliest_date = _apply_public_booking_filters(
                         availability_service,
                         instructor_id,
                         response_data.availability_by_date,
@@ -625,7 +667,7 @@ async def get_instructor_public_availability(
         )
         response_data = response_data_raw.model_copy(deep=True)
         if response_data.availability_by_date:
-            total_slots, earliest_date = _apply_min_advance_filter(
+            total_slots, earliest_date = _apply_public_booking_filters(
                 availability_service,
                 instructor_id,
                 response_data.availability_by_date,

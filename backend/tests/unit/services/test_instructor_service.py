@@ -10,7 +10,12 @@ from app.core.exceptions import (
     BusinessRuleException,
     NotFoundException,
 )
-from app.schemas.instructor import InstructorProfileCreate, InstructorProfileUpdate, ServiceCreate
+from app.schemas.instructor import (
+    InstructorProfileCreate,
+    InstructorProfileUpdate,
+    ServiceCreate,
+    UpdateCalendarSettings,
+)
 from app.services.instructor_service import InstructorService, get_instructor_service
 
 
@@ -687,6 +692,35 @@ def test_get_popular_services_builds_results():
 
     assert results[0]["analytics"] == {"metric": 1}
     assert results[0]["popularity_score"] == 9.5
+
+
+def test_update_calendar_settings_invalidates_caches():
+    service = _build_service()
+    service.cache_service = MagicMock()
+    service._invalidate_instructor_caches = MagicMock()
+    profile = SimpleNamespace(
+        id="profile-1",
+        non_travel_buffer_minutes=15,
+        travel_buffer_minutes=60,
+        overnight_protection_enabled=True,
+    )
+    updated_profile = SimpleNamespace(
+        non_travel_buffer_minutes=15,
+        travel_buffer_minutes=60,
+        overnight_protection_enabled=False,
+    )
+    service.profile_repository.find_one_by.return_value = profile
+    service.profile_repository.update.return_value = updated_profile
+
+    with patch("app.services.instructor_service.invalidate_on_instructor_profile_change") as invalidate:
+        result = service.update_calendar_settings(
+            "user-1",
+            UpdateCalendarSettings(overnight_protection_enabled=False),
+        )
+
+    service._invalidate_instructor_caches.assert_called_once_with("user-1")
+    invalidate.assert_called_once_with("user-1")
+    assert result["overnight_protection_enabled"] is False
 
 
 def test_search_services_enhanced_tracks_analytics_and_price_range():

@@ -15,6 +15,9 @@ from app.services.config_service import (
 )
 
 ORIGINAL_GET_ADVANCE_NOTICE_MINUTES = ConfigService.get_advance_notice_minutes
+ORIGINAL_GET_OVERNIGHT_EARLIEST_HOUR = ConfigService.get_overnight_earliest_hour
+ORIGINAL_GET_OVERNIGHT_WINDOW_HOURS = ConfigService.get_overnight_window_hours
+ORIGINAL_IS_IN_OVERNIGHT_WINDOW = ConfigService.is_in_overnight_window
 ORIGINAL_GET_DEFAULT_BUFFER_MINUTES = ConfigService.get_default_buffer_minutes
 
 
@@ -278,3 +281,60 @@ class TestConfigServiceBookingRules:
         ):
             service = ConfigService(db)
             assert service.get_default_buffer_minutes(location_type) == expected_minutes
+
+    @pytest.mark.parametrize(
+        ("location_type", "expected_hour"),
+        [
+            ("online", 9),
+            ("instructor_location", 9),
+            ("student_location", 11),
+            ("neutral_location", 11),
+            (None, 9),
+        ],
+    )
+    def test_get_overnight_earliest_hour_uses_location_mapping(
+        self, location_type: str | None, expected_hour: int
+    ) -> None:
+        db = MagicMock()
+
+        with patch.object(
+            ConfigService,
+            "get_booking_rules_config",
+            return_value=(deepcopy(DEFAULT_BOOKING_RULES_CONFIG), None),
+        ), patch.object(
+            ConfigService,
+            "get_overnight_earliest_hour",
+            ORIGINAL_GET_OVERNIGHT_EARLIEST_HOUR,
+        ):
+            service = ConfigService(db)
+            assert service.get_overnight_earliest_hour(location_type) == expected_hour
+
+    @pytest.mark.parametrize(
+        ("target", "expected"),
+        [
+            (datetime(2030, 1, 1, 19, 59, tzinfo=timezone.utc), False),
+            (datetime(2030, 1, 1, 20, 0, tzinfo=timezone.utc), True),
+            (datetime(2030, 1, 2, 7, 59, tzinfo=timezone.utc), True),
+            (datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), False),
+        ],
+    )
+    def test_is_in_overnight_window_uses_wrapping_hours(
+        self, target: datetime, expected: bool
+    ) -> None:
+        db = MagicMock()
+
+        with patch.object(
+            ConfigService,
+            "get_overnight_window_hours",
+            ORIGINAL_GET_OVERNIGHT_WINDOW_HOURS,
+        ), patch.object(
+            ConfigService,
+            "get_booking_rules_config",
+            return_value=(deepcopy(DEFAULT_BOOKING_RULES_CONFIG), None),
+        ), patch.object(
+            ConfigService,
+            "is_in_overnight_window",
+            ORIGINAL_IS_IN_OVERNIGHT_WINDOW,
+        ):
+            service = ConfigService(db)
+            assert service.is_in_overnight_window(target) is expected

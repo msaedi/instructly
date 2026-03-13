@@ -1639,6 +1639,14 @@ def default_booking_rules_for_tests(monkeypatch):
         "app.services.config_service.ConfigService.get_default_buffer_minutes",
         lambda self, location_type=None: 0,
     )
+    monkeypatch.setattr(
+        "app.services.config_service.ConfigService.is_in_overnight_window",
+        lambda self, local_dt: False,
+    )
+    monkeypatch.setattr(
+        "app.services.config_service.ConfigService.get_overnight_earliest_hour",
+        lambda self, location_type=None: 0,
+    )
 
 
 @pytest.fixture

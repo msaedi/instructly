@@ -63,7 +63,7 @@ from .audit_redaction import redact
 from .audit_service import AuditService
 from .base import BaseService
 from .cache_service import CacheService, CacheServiceSyncAdapter
-from .config_service import ConfigService, normalize_location_type
+from .config_service import ConfigService, is_instructor_travel_format, normalize_location_type
 from .conflict_checker import ConflictChecker
 from .notification_service import NotificationService
 from .notification_templates import (
@@ -1434,11 +1434,11 @@ class BookingService(BaseService):
                 auth_result = _process_authorization_for_booking(
                     booking.id, immediate_auth_hours_until or 0.0
                 )
-                if not auth_result.get("success"):
+                if not auth_result or not auth_result.get("success"):
                     logger.warning(
                         "Immediate auth failed for gaming reschedule booking %s: %s",
                         booking.id,
-                        auth_result.get("error"),
+                        auth_result.get("error") if auth_result else "unknown error",
                     )
             except Exception as exc:
                 logger.error(
@@ -4883,8 +4883,9 @@ class BookingService(BaseService):
         # Check minimum advance booking using UTC.
         min_advance_minutes = self._get_advance_notice_minutes(normalized_location_type)
         now_utc = datetime.now(timezone.utc)
+        instructor_tz = self._resolve_instructor_timezone(instructor_profile)
         lesson_tz = TimezoneService.get_lesson_timezone(
-            self._resolve_instructor_timezone(instructor_profile),
+            instructor_tz,
             is_online=normalized_location_type == "online",
         )
         try:
@@ -4926,6 +4927,18 @@ class BookingService(BaseService):
                     ),
                     "min_advance_minutes": min_advance_minutes,
                 }
+
+        booking_time_local = TimezoneService.utc_to_local(now_utc, instructor_tz)
+        lesson_start_local = TimezoneService.utc_to_local(booking_start_utc, instructor_tz)
+        try:
+            self._check_overnight_protection(
+                booking_time_local,
+                lesson_start_local,
+                normalized_location_type,
+                instructor_profile,
+            )
+        except BusinessRuleException as exc:
+            return {"available": False, "reason": str(exc)}
 
         has_conflict = self.conflict_checker.check_time_conflicts(
             instructor_id=instructor_id,
@@ -5106,6 +5119,14 @@ class BookingService(BaseService):
         """Resolve advance-notice minutes from platform configuration."""
         return ConfigService(self.db).get_advance_notice_minutes(location_type)
 
+    def _get_overnight_earliest_hour(self, location_type: Optional[str] = None) -> int:
+        """Resolve the earliest locally-bookable hour during overnight protection."""
+        return ConfigService(self.db).get_overnight_earliest_hour(location_type)
+
+    def _is_in_overnight_window(self, booking_time_local: datetime) -> bool:
+        """Return whether the request is being made inside the overnight booking window."""
+        return ConfigService(self.db).is_in_overnight_window(booking_time_local)
+
     @staticmethod
     def _format_advance_notice(minutes: int) -> str:
         """Human-readable advance-notice text for validation messages."""
@@ -5115,6 +5136,33 @@ class BookingService(BaseService):
             return f"{hours} hour{suffix}"
         suffix = "" if minutes == 1 else "s"
         return f"{minutes} minute{suffix}"
+
+    def _check_overnight_protection(
+        self,
+        booking_time_local: datetime,
+        lesson_start_local: datetime,
+        location_type: str,
+        instructor_profile: InstructorProfile,
+    ) -> None:
+        """Block protected early-morning lessons when booked overnight."""
+        if not bool(getattr(instructor_profile, "overnight_protection_enabled", True)):
+            return
+
+        normalized_location_type = normalize_location_type(location_type)
+        if not self._is_in_overnight_window(booking_time_local):
+            return
+
+        earliest_hour = self._get_overnight_earliest_hour(normalized_location_type)
+        if 0 <= lesson_start_local.hour < earliest_hour:
+            lesson_descriptor = (
+                "travel lessons"
+                if is_instructor_travel_format(normalized_location_type)
+                else "lessons"
+            )
+            raise BusinessRuleException(
+                f"Early morning {lesson_descriptor} cannot be booked overnight",
+                code="OVERNIGHT_PROTECTION",
+            )
 
     def _validate_service_area(
         self,
@@ -5222,7 +5270,9 @@ class BookingService(BaseService):
         if booking_data.end_time is None:
             raise ValidationException("End time must be specified before conflict checks")
 
-        self._validate_location_capability(service, booking_data.location_type)
+        normalized_location_type = normalize_location_type(booking_data.location_type)
+
+        self._validate_location_capability(service, normalized_location_type)
         self._validate_service_area(booking_data, booking_data.instructor_id, service)
 
         lesson_tz = self._resolve_lesson_timezone(booking_data, instructor_profile)
@@ -5233,12 +5283,47 @@ class BookingService(BaseService):
             lesson_tz,
         )
 
+        # Check minimum advance booking time (UTC)
+        # For >=24 hour advance notice, enforce on date granularity to avoid HH:MM boundary flakiness
+        min_advance_minutes = self._get_advance_notice_minutes(normalized_location_type)
+        now_utc = datetime.now(timezone.utc)
+
+        if min_advance_minutes >= 24 * 60:
+            min_booking_dt = now_utc + timedelta(minutes=min_advance_minutes)
+            min_date_only = min_booking_dt.date()
+
+            if booking_start_utc.date() < min_date_only or (
+                booking_start_utc.date() == min_date_only
+                and booking_start_utc.time() < min_booking_dt.time()
+            ):
+                raise BusinessRuleException(
+                    "Bookings must be made at least "
+                    f"{self._format_advance_notice(min_advance_minutes)} in advance"
+                )
+        else:
+            minutes_until = (booking_start_utc - now_utc).total_seconds() / 60
+            if minutes_until < min_advance_minutes:
+                raise BusinessRuleException(
+                    "Bookings must be made at least "
+                    f"{self._format_advance_notice(min_advance_minutes)} in advance"
+                )
+
+        instructor_tz = self._resolve_instructor_timezone(instructor_profile)
+        booking_time_local = TimezoneService.utc_to_local(now_utc, instructor_tz)
+        lesson_start_local = TimezoneService.utc_to_local(booking_start_utc, instructor_tz)
+        self._check_overnight_protection(
+            booking_time_local,
+            lesson_start_local,
+            normalized_location_type,
+            instructor_profile,
+        )
+
         existing_conflicts = self.conflict_checker.check_booking_conflicts(
             instructor_id=booking_data.instructor_id,
             check_date=booking_data.booking_date,
             start_time=booking_data.start_time,
             end_time=booking_data.end_time,
-            new_location_type=booking_data.location_type,
+            new_location_type=normalized_location_type,
             exclude_booking_id=exclude_booking_id,
             instructor_profile=instructor_profile,
         )
@@ -5260,7 +5345,7 @@ class BookingService(BaseService):
                 check_date=booking_data.booking_date,
                 start_time=booking_data.start_time,
                 end_time=booking_data.end_time,
-                new_location_type=booking_data.location_type,
+                new_location_type=normalized_location_type,
                 exclude_booking_id=exclude_booking_id,
                 instructor_profile=instructor_profile,
             )
@@ -5271,31 +5356,6 @@ class BookingService(BaseService):
                 raise BookingConflictException(
                     message=STUDENT_CONFLICT_MESSAGE,
                     details=conflict_details,
-                )
-
-        # Check minimum advance booking time (UTC)
-        # For >=24 hour advance notice, enforce on date granularity to avoid HH:MM boundary flakiness
-        min_advance_minutes = self._get_advance_notice_minutes(booking_data.location_type)
-        now_utc = datetime.now(timezone.utc)
-
-        if min_advance_minutes >= 24 * 60:
-            min_booking_dt = now_utc + timedelta(minutes=min_advance_minutes)
-            min_date_only = min_booking_dt.date()
-
-            if booking_start_utc.date() < min_date_only or (
-                booking_start_utc.date() == min_date_only
-                and booking_start_utc.time() < min_booking_dt.time()
-            ):
-                raise BusinessRuleException(
-                    "Bookings must be made at least "
-                    f"{self._format_advance_notice(min_advance_minutes)} in advance"
-                )
-        else:
-            minutes_until = (booking_start_utc - now_utc).total_seconds() / 60
-            if minutes_until < min_advance_minutes:
-                raise BusinessRuleException(
-                    "Bookings must be made at least "
-                    f"{self._format_advance_notice(min_advance_minutes)} in advance"
                 )
 
     def _create_booking_record(

@@ -24,6 +24,15 @@ VALID_LOCATION_TYPES = frozenset(
 )
 
 
+def is_hour_in_window(hour: int, start_hour: int, end_hour: int) -> bool:
+    """Return whether an hour falls inside a possibly overnight window."""
+    if start_hour == end_hour:
+        return True
+    if start_hour < end_hour:
+        return start_hour <= hour < end_hour
+    return hour >= start_hour or hour < end_hour
+
+
 def normalize_location_type(location_type: str | None) -> str:
     """Normalize booking location types and fall back to online."""
     normalized = (location_type or DEFAULT_LOCATION_TYPE).strip().lower()
@@ -90,6 +99,40 @@ class ConfigService(BaseService):
             key = "advance_notice_studio_minutes"
         else:
             key = "advance_notice_online_minutes"
+        return int(config.get(key, DEFAULT_BOOKING_RULES_CONFIG[key]) or 0)
+
+    @BaseService.measure_operation("get_overnight_window_hours")
+    def get_overnight_window_hours(self) -> tuple[int, int]:
+        config, _updated_at = self.get_booking_rules_config()
+        start_hour = int(
+            config.get(
+                "overnight_protection_window_start_hour",
+                DEFAULT_BOOKING_RULES_CONFIG["overnight_protection_window_start_hour"],
+            )
+            or 0
+        )
+        end_hour = int(
+            config.get(
+                "overnight_protection_window_end_hour",
+                DEFAULT_BOOKING_RULES_CONFIG["overnight_protection_window_end_hour"],
+            )
+            or 0
+        )
+        return start_hour, end_hour
+
+    @BaseService.measure_operation("is_in_overnight_window")
+    def is_in_overnight_window(self, local_dt: datetime) -> bool:
+        start_hour, end_hour = self.get_overnight_window_hours()
+        return is_hour_in_window(local_dt.hour, start_hour, end_hour)
+
+    @BaseService.measure_operation("get_overnight_earliest_hour")
+    def get_overnight_earliest_hour(self, location_type: str | None = None) -> int:
+        config, _updated_at = self.get_booking_rules_config()
+        normalized_location = normalize_location_type(location_type)
+        if normalized_location in INSTRUCTOR_TRAVEL_LOCATION_TYPES:
+            key = "overnight_travel_earliest_hour"
+        else:
+            key = "overnight_online_earliest_hour"
         return int(config.get(key, DEFAULT_BOOKING_RULES_CONFIG[key]) or 0)
 
     @BaseService.measure_operation("get_default_buffer_minutes")
