@@ -8,7 +8,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.services.config_service import DEFAULT_PRICING_CONFIG, ConfigService
+from app.services.config_service import (
+    DEFAULT_BOOKING_RULES_CONFIG,
+    DEFAULT_PRICING_CONFIG,
+    ConfigService,
+)
+
+ORIGINAL_GET_ADVANCE_NOTICE_MINUTES = ConfigService.get_advance_notice_minutes
+ORIGINAL_GET_DEFAULT_BUFFER_MINUTES = ConfigService.get_default_buffer_minutes
 
 
 class TestConfigServiceInit:
@@ -68,7 +75,8 @@ class TestConfigServiceGetPricingConfig:
     def test_get_pricing_config_returns_stored_config(self) -> None:
         """Line 31: Returns stored config when record exists."""
         db = MagicMock()
-        stored_config = {"commission_rate": 0.15, "platform_fee": 2.50}
+        stored_config = deepcopy(DEFAULT_PRICING_CONFIG)
+        stored_config["student_fee_pct"] = 0.15
         record_time = datetime.now(timezone.utc)
 
         with patch("app.services.config_service.PlatformConfigRepository") as mock_repo_class:
@@ -95,7 +103,7 @@ class TestConfigServiceSetPricingConfig:
 
         # Create a valid pricing config payload
         payload = deepcopy(DEFAULT_PRICING_CONFIG)
-        payload["commission_rate"] = 0.12
+        payload["student_fee_pct"] = 0.12
 
         record_time = datetime.now(timezone.utc)
 
@@ -177,3 +185,96 @@ class TestConfigServiceTransactions:
                 service.set_pricing_config(payload)
 
             db.rollback.assert_called_once()
+
+
+class TestConfigServiceBookingRules:
+    """Tests for booking rules config support."""
+
+    def test_get_booking_rules_config_returns_default_when_no_record(self) -> None:
+        db = MagicMock()
+
+        with patch("app.services.config_service.PlatformConfigRepository") as mock_repo_class:
+            mock_repo = MagicMock()
+            mock_repo.get_by_key.return_value = None
+            mock_repo_class.return_value = mock_repo
+
+            service = ConfigService(db)
+            config, updated_at = service.get_booking_rules_config()
+
+            mock_repo.get_by_key.assert_called_once_with("booking_rules")
+            assert config == DEFAULT_BOOKING_RULES_CONFIG
+            assert updated_at is None
+
+    def test_get_booking_rules_config_returns_stored_config(self) -> None:
+        db = MagicMock()
+        stored_config = deepcopy(DEFAULT_BOOKING_RULES_CONFIG)
+        stored_config["advance_notice_travel_minutes"] = 240
+        record_time = datetime.now(timezone.utc)
+
+        with patch("app.services.config_service.PlatformConfigRepository") as mock_repo_class:
+            mock_repo = MagicMock()
+            mock_record = MagicMock()
+            mock_record.value_json = stored_config
+            mock_record.updated_at = record_time
+            mock_repo.get_by_key.return_value = mock_record
+            mock_repo_class.return_value = mock_repo
+
+            service = ConfigService(db)
+            config, updated_at = service.get_booking_rules_config()
+
+            assert config == stored_config
+            assert updated_at == record_time
+
+    @pytest.mark.parametrize(
+        ("location_type", "expected_minutes"),
+        [
+            ("online", 60),
+            ("instructor_location", 60),
+            ("student_location", 180),
+            ("neutral_location", 180),
+            (None, 60),
+        ],
+    )
+    def test_get_advance_notice_minutes_uses_location_mapping(
+        self, location_type: str | None, expected_minutes: int
+    ) -> None:
+        db = MagicMock()
+
+        with patch.object(
+            ConfigService,
+            "get_booking_rules_config",
+            return_value=(deepcopy(DEFAULT_BOOKING_RULES_CONFIG), None),
+        ), patch.object(
+            ConfigService,
+            "get_advance_notice_minutes",
+            ORIGINAL_GET_ADVANCE_NOTICE_MINUTES,
+        ):
+            service = ConfigService(db)
+            assert service.get_advance_notice_minutes(location_type) == expected_minutes
+
+    @pytest.mark.parametrize(
+        ("location_type", "expected_minutes"),
+        [
+            ("online", 15),
+            ("instructor_location", 15),
+            ("student_location", 60),
+            ("neutral_location", 60),
+            (None, 15),
+        ],
+    )
+    def test_get_default_buffer_minutes_uses_location_mapping(
+        self, location_type: str | None, expected_minutes: int
+    ) -> None:
+        db = MagicMock()
+
+        with patch.object(
+            ConfigService,
+            "get_booking_rules_config",
+            return_value=(deepcopy(DEFAULT_BOOKING_RULES_CONFIG), None),
+        ), patch.object(
+            ConfigService,
+            "get_default_buffer_minutes",
+            ORIGINAL_GET_DEFAULT_BUFFER_MINUTES,
+        ):
+            service = ConfigService(db)
+            assert service.get_default_buffer_minutes(location_type) == expected_minutes

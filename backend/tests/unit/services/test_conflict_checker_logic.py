@@ -19,6 +19,7 @@ from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.repositories.conflict_checker_repository import ConflictCheckerRepository
 from app.repositories.user_repository import UserRepository
+from app.services.config_service import ConfigService
 from app.services.conflict_checker import ConflictChecker
 
 
@@ -212,7 +213,6 @@ class TestConflictCheckerValidationRules:
 
         # Mock profile with 2 hour advance requirement
         mock_profile = Mock(spec=InstructorProfile)
-        mock_profile.min_advance_booking_hours = 2
         service.repository.get_instructor_profile.return_value = mock_profile
 
         # Set up user mock with timezone and deterministic "today"
@@ -273,7 +273,6 @@ class TestConflictCheckerValidationRules:
         mock_get_today.return_value = today
 
         mock_profile = Mock(spec=InstructorProfile)
-        mock_profile.min_advance_booking_hours = 2
         service.repository.get_instructor_profile.return_value = mock_profile
 
         # Test service duration mismatch - use a duration not in the options
@@ -304,7 +303,6 @@ class TestConflictCheckerValidationRules:
         # Mock other validations to pass
         service.repository.get_bookings_for_conflict_check.return_value = []
         mock_profile = Mock(spec=InstructorProfile)
-        mock_profile.min_advance_booking_hours = 2
         service.repository.get_instructor_profile.return_value = mock_profile
 
         # Set up user mock with timezone
@@ -433,7 +431,6 @@ class TestConflictCheckerValidationRules:
         """Test advance booking time calculation logic."""
         # Mock instructor profile
         mock_profile = Mock(spec=InstructorProfile)
-        mock_profile.min_advance_booking_hours = 24
         service.repository.get_instructor_profile.return_value = mock_profile
 
         # Set up user mock with timezone
@@ -454,7 +451,11 @@ class TestConflictCheckerValidationRules:
             mock_get_user_now.return_value = nyc_now
 
             # Also need to mock datetime.combine for the test
-            with patch("app.services.conflict_checker.datetime") as mock_datetime:
+            with patch.object(
+                ConfigService,
+                "get_advance_notice_minutes",
+                return_value=60,
+            ), patch("app.services.conflict_checker.datetime") as mock_datetime:
                 mock_datetime.combine = datetime.combine
 
                 # Test booking exactly 24 hours and 1 minute in advance
@@ -466,17 +467,17 @@ class TestConflictCheckerValidationRules:
                 )
 
                 assert result["valid"] == True
-                assert result["min_advance_hours"] == 24
+                assert result["min_advance_minutes"] == 60
 
-                # Test booking too soon (23 hours - tomorrow at 9 AM)
+                # Test booking too soon (30 minutes ahead in instructor time)
                 result = service.check_minimum_advance_booking(
                     instructor_id=generate_ulid(),
-                    booking_date=datetime(2024, 1, 16, 9, 0, 0).date(),
-                    booking_time=datetime(2024, 1, 16, 9, 0, 0).time(),
+                    booking_date=datetime(2024, 1, 15, 10, 30, 0).date(),
+                    booking_time=datetime(2024, 1, 15, 10, 30, 0).time(),
                 )
 
                 assert result["valid"] == False, f"Expected False but got {result}"
-                assert "at least 24 hours in advance" in result["reason"]
+                assert "at least 60 minutes in advance" in result["reason"]
 
     def test_find_next_available_time_logic(self, service):
         """Test finding next available time slot."""
@@ -609,7 +610,6 @@ class TestConflictCheckerEdgeCases:
         service.repository.get_blackout_date.return_value = None
 
         mock_profile = Mock(spec=InstructorProfile)
-        mock_profile.min_advance_booking_hours = 2
         service.repository.get_instructor_profile.return_value = mock_profile
 
         # Set up user mock with timezone

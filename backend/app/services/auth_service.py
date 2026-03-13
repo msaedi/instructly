@@ -176,8 +176,9 @@ class AuthService(BaseService):
                         # Provide defaults that satisfy response schema validation
                         bio=default_bio,
                         years_experience=1,
-                        min_advance_booking_hours=1,
-                        buffer_time_minutes=15,
+                        non_travel_buffer_minutes=15,
+                        travel_buffer_minutes=60,
+                        overnight_protection_enabled=True,
                     )
 
                     if region_boundary_id:

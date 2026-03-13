@@ -1528,7 +1528,7 @@ def test_check_conflicts_and_rules_missing_end_time(booking_service: BookingServ
 def test_check_conflicts_and_rules_student_conflict(booking_service: BookingService) -> None:
     booking_data = make_booking_data(end_time=time(11, 0))
     service = SimpleNamespace(offers_online=True)
-    instructor_profile = SimpleNamespace(min_advance_booking_hours=0)
+    instructor_profile = SimpleNamespace()
     student = make_user(RoleName.STUDENT.value)
 
     booking_service.repository.check_time_conflict.return_value = False

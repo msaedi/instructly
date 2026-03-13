@@ -25,7 +25,6 @@ def _no_min_advance_requirement(db, test_instructor):
 
     profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor.id).first()
     if profile:
-        profile.min_advance_booking_hours = 0
         db.add(profile)
         db.commit()
 

@@ -312,12 +312,6 @@ export interface Instructor {
   /** Years of teaching experience */
   years_experience: number;
 
-  /** Minimum advance booking hours required */
-  min_advance_booking_hours?: number;
-
-  /** Buffer time between sessions in minutes */
-  buffer_time_minutes?: number;
-
   /** User information */
   user: {
     /** First name */

@@ -296,7 +296,6 @@ class TestBookingPaymentService:
             bio="Test instructor",
             years_experience=5,
         )
-        profile.min_advance_booking_hours = 0
         db.add(profile)
         db.flush()
 

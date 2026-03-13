@@ -41,6 +41,7 @@ from app.schemas.availability_window import (
 )
 from app.services.availability_service import AvailabilityService
 from app.services.cache_service import CacheKeyBuilder
+from app.services.config_service import ConfigService
 from app.utils.bitset import bits_from_windows, new_empty_bits
 from tests._utils.bitmap_avail import seed_day
 
@@ -1441,8 +1442,7 @@ class TestComputePublicAvailabilityExpandedCoverage:
             .filter(InstructorProfile.user_id == test_booking.instructor_id)
             .first()
         )
-        profile.min_advance_booking_hours = 2
-        profile.buffer_time_minutes = 15
+        profile.non_travel_buffer_minutes = 15
         db.flush()
 
         target_date = date.today() + timedelta(days=1)
@@ -1460,6 +1460,11 @@ class TestComputePublicAvailabilityExpandedCoverage:
         monkeypatch.setattr(
             "app.services.availability_service.get_user_now_by_id",
             lambda instructor_id, db_session: fake_now,
+        )
+        monkeypatch.setattr(
+            ConfigService,
+            "get_advance_notice_minutes",
+            lambda self, location_type=None: 120,
         )
 
         result = service.compute_public_availability(
@@ -1969,8 +1974,7 @@ class TestComputePublicAvailabilityExtraCoverage:
             .filter(InstructorProfile.user_id == test_booking.instructor_id)
             .first()
         )
-        profile.min_advance_booking_hours = 36
-        profile.buffer_time_minutes = 0
+        profile.non_travel_buffer_minutes = 0
         db.flush()
 
         start_date = date.today()
@@ -1984,6 +1988,11 @@ class TestComputePublicAvailabilityExtraCoverage:
         monkeypatch.setattr(
             "app.services.availability_service.get_user_now_by_id",
             lambda instructor_id, db_session: fake_now,
+        )
+        monkeypatch.setattr(
+            ConfigService,
+            "get_advance_notice_minutes",
+            lambda self, location_type=None: 60,
         )
 
         result = service.compute_public_availability(

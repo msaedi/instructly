@@ -82,8 +82,6 @@ def test_create_and_update_instructor_profile(db, test_student, monkeypatch):
     profile_data = InstructorProfileCreate(
         bio="New instructor bio",
         years_experience=3,
-        min_advance_booking_hours=2,
-        buffer_time_minutes=0,
         services=[
             ServiceCreate(
                 service_catalog_id=catalog_services[0].id,

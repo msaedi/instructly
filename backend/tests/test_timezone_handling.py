@@ -14,6 +14,7 @@ from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.user import User
+from app.services.config_service import ConfigService
 
 
 def _make_instructor_profile(tz_name: str, min_advance_hours: int = 1) -> MagicMock:
@@ -23,7 +24,6 @@ def _make_instructor_profile(tz_name: str, min_advance_hours: int = 1) -> MagicM
 
     profile = MagicMock(spec=InstructorProfile)
     profile.user = user
-    profile.min_advance_booking_hours = min_advance_hours
     profile.hourly_rate = 100
 
     return profile
@@ -48,23 +48,28 @@ def _run_check_availability(
             mock_tz_dt.now.return_value = now_utc
             mock_tz_dt.combine = datetime.combine
 
-            with patch.object(booking_service, "repository") as mock_repo:
-                mock_repo.check_time_conflict.return_value = False
+            with patch.object(
+                ConfigService,
+                "get_advance_notice_minutes",
+                return_value=60,
+            ):
+                with patch.object(booking_service, "repository") as mock_repo:
+                    mock_repo.check_time_conflict.return_value = False
 
-                with patch.object(booking_service, "conflict_checker_repository") as mock_ccr:
-                    mock_ccr.get_active_service.return_value = MagicMock()
-                    mock_ccr.get_instructor_profile.return_value = instructor_profile
+                    with patch.object(booking_service, "conflict_checker_repository") as mock_ccr:
+                        mock_ccr.get_active_service.return_value = MagicMock()
+                        mock_ccr.get_instructor_profile.return_value = instructor_profile
 
-                    with patch.object(
-                        booking_service, "_check_bits_coverage", return_value=True
-                    ):
-                        return booking_service.check_availability(
-                            instructor_id=instructor_profile.user.id,
-                            booking_date=booking_date,
-                            start_time=start_time,
-                            end_time=end_time,
-                            service_id="test_service",
-                        )
+                        with patch.object(
+                            booking_service, "_check_bits_coverage", return_value=True
+                        ):
+                            return booking_service.check_availability(
+                                instructor_id=instructor_profile.user.id,
+                                booking_date=booking_date,
+                                start_time=start_time,
+                                end_time=end_time,
+                                service_id="test_service",
+                            )
 
 
 def _make_booking(booking_date: date, end_time: time, tz_name: str) -> MagicMock:
@@ -121,7 +126,7 @@ class TestCheckAvailabilityTimezone:
         )
 
         assert result["available"] is False
-        assert "hours in advance" in result["reason"]
+        assert "1 hour in advance" in result["reason"]
 
     def test_booking_cross_midnight_utc_boundary(self, db):
         instructor_profile = _make_instructor_profile("America/New_York")

@@ -65,10 +65,14 @@ def test_get_cache_service_dep_handles_error(monkeypatch, db):
 def test_apply_min_advance_filter_filters_slots(monkeypatch):
     now_local = datetime(2025, 1, 10, 11, 5, tzinfo=timezone.utc)
     monkeypatch.setattr(public_routes, "_get_user_now_by_id", lambda *_args, **_kwargs: now_local)
+    monkeypatch.setattr(
+        "app.services.config_service.ConfigService.get_advance_notice_minutes",
+        lambda self, location_type=None: 60,
+    )
 
     class DummyRepo:
         def __init__(self, min_hours: int) -> None:
-            self.profile = SimpleNamespace(min_advance_booking_hours=min_hours)
+            self.profile = SimpleNamespace()
 
         def get_by_user_id(self, _instructor_id: str):
             return self.profile
@@ -117,7 +121,7 @@ def test_apply_min_advance_filter_min_hours_zero(monkeypatch):
 
     class DummyRepo:
         def __init__(self):
-            self.profile = SimpleNamespace(min_advance_booking_hours=0)
+            self.profile = SimpleNamespace()
 
         def get_by_user_id(self, _instructor_id: str):
             return self.profile
@@ -479,9 +483,7 @@ async def test_public_availability_cache_hit_etag_304(monkeypatch):
 
     class DummyAvailabilityService:
         def __init__(self) -> None:
-            self.instructor_repository = SimpleNamespace(
-                get_by_user_id=lambda _id: SimpleNamespace(min_advance_booking_hours=0)
-            )
+            self.instructor_repository = SimpleNamespace(get_by_user_id=lambda _id: SimpleNamespace())
             self.db = None
 
     class DummyConflictChecker:

@@ -169,8 +169,7 @@ class TestModelInstantiation:
             user_id=instructor_user.id,
             bio="Expert instructor",
             years_experience=10,
-            min_advance_booking_hours=24,
-            buffer_time_minutes=15,
+            non_travel_buffer_minutes=15,
         )
         db.add(profile)
         db.flush()
@@ -178,7 +177,9 @@ class TestModelInstantiation:
 
         assert profile.id is not None
         assert profile.user_id == instructor_user.id
-        assert profile.min_advance_booking_hours == 24
+        assert profile.non_travel_buffer_minutes == 15
+        assert profile.travel_buffer_minutes == 60
+        assert profile.overnight_protection_enabled is True
 
     def test_service_creation(self, db, test_instructor, catalog_data):
         """Test Service model instantiation."""

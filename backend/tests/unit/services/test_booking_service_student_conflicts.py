@@ -145,7 +145,6 @@ class TestStudentConflictValidation:
         # Mock instructor profile
         profile = Mock(spec=InstructorProfile)
         profile.id = generate_ulid()
-        profile.min_advance_booking_hours = 1
         neighborhood = Mock()
         neighborhood.parent_region = "Manhattan"
         area = Mock()
@@ -311,7 +310,6 @@ class TestStudentConflictValidation:
         service.catalog_entry = Mock(name="Test Service")
         service.session_price = Mock(return_value=50.0)
         profile = Mock()
-        profile.min_advance_booking_hours = 0
         neighborhood = Mock()
         neighborhood.parent_region = "Manhattan"
         area = Mock()
@@ -361,7 +359,6 @@ class TestStudentConflictValidation:
         service.catalog_entry = Mock(name="Test Service")
         service.session_price = Mock(return_value=50.0)
         profile = Mock()
-        profile.min_advance_booking_hours = 0
         neighborhood = Mock()
         neighborhood.parent_region = "Manhattan"
         area = Mock()
@@ -492,7 +489,6 @@ class TestStudentConflictValidation:
         service.catalog_entry = Mock(name="Test Service")
         service.session_price = Mock(return_value=50.0)
         profile = Mock()
-        profile.min_advance_booking_hours = 0
         neighborhood = Mock()
         neighborhood.parent_region = "Manhattan"
         area = Mock()

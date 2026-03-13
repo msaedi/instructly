@@ -14,6 +14,7 @@ from app.core.exceptions import (
     RepositoryException,
 )
 from app.services.availability_service import AvailabilityService
+from app.services.config_service import ConfigService
 
 
 class _Slot:
@@ -393,7 +394,7 @@ def test_compute_public_availability_exercises_merge_trim_and_buffer_edge_paths(
     service.instructor_repository = MagicMock()
     service.conflict_repository = MagicMock()
     service.instructor_repository.get_by_user_id.return_value = SimpleNamespace(
-        min_advance_booking_hours=2, buffer_time_minutes=30
+        non_travel_buffer_minutes=30
     )
     service.conflict_repository.get_bookings_for_date.return_value = [
         SimpleNamespace(start_time=time(23, 0), end_time=time(22, 0))
@@ -407,6 +408,16 @@ def test_compute_public_availability_exercises_merge_trim_and_buffer_edge_paths(
     monkeypatch.setattr(
         "app.services.availability_service.windows_from_bits",
         lambda _bits: [("09:00:00", "10:00:00"), ("09:30:00", "10:30:00")],
+    )
+    monkeypatch.setattr(
+        ConfigService,
+        "get_advance_notice_minutes",
+        lambda self, location_type=None: 60,
+    )
+    monkeypatch.setattr(
+        ConfigService,
+        "get_default_buffer_minutes",
+        lambda self, location_type=None: 15,
     )
 
     out = service.compute_public_availability(

@@ -67,6 +67,8 @@ from .conversation import (
 
 # Instructor profile schemas
 from .instructor import (
+    CalendarSettingsAcknowledgeResponse,
+    CalendarSettingsResponse,
     InstructorProfileBase,
     InstructorProfileCreate,
     InstructorProfileResponse,
@@ -74,6 +76,7 @@ from .instructor import (
     ServiceBase,
     ServiceCreate,
     ServiceResponse,
+    UpdateCalendarSettings,
 )
 from .main_responses import ReadyProbeResponse
 
@@ -130,6 +133,9 @@ __all__ = [
     "InstructorProfileCreate",
     "InstructorProfileUpdate",
     "InstructorProfileResponse",
+    "UpdateCalendarSettings",
+    "CalendarSettingsResponse",
+    "CalendarSettingsAcknowledgeResponse",
     "ServiceBase",
     "ServiceCreate",
     "ServiceResponse",

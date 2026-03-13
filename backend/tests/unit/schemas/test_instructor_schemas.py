@@ -21,6 +21,7 @@ from pydantic import ValidationError
 import pytest
 
 from app.schemas.instructor import (
+    CalendarSettingsResponse,
     InstructorFilterParams,
     InstructorProfileCreate,
     InstructorProfileResponse,
@@ -32,6 +33,7 @@ from app.schemas.instructor import (
     ServiceAreaCheckCoordinates,
     ServiceCreate,
     ServiceResponse,
+    UpdateCalendarSettings,
     UserBasicPrivacy,
 )
 
@@ -653,8 +655,10 @@ class TestInstructorProfileResponseFromOrm:
         profile.updated_at = None
         profile.bio = "Test bio for instructor profile."
         profile.years_experience = 5
-        profile.min_advance_booking_hours = 2
-        profile.buffer_time_minutes = 0
+        profile.non_travel_buffer_minutes = 15
+        profile.travel_buffer_minutes = 60
+        profile.overnight_protection_enabled = True
+        profile.calendar_settings_acknowledged_at = None
         profile.is_favorited = None
         profile.favorited_count = 0
         profile.skills_configured = False
@@ -685,6 +689,10 @@ class TestInstructorProfileResponseFromOrm:
         assert response.id == profile.id
         assert response.user.first_name == "John"
         assert response.user.last_initial == "D"
+        assert response.non_travel_buffer_minutes == 15
+        assert response.travel_buffer_minutes == 60
+        assert response.overnight_protection_enabled is True
+        assert response.calendar_settings_acknowledged_at is None
 
     def test_from_orm_with_teaching_locations(self) -> None:
         """from_orm should process teaching locations (lines 585-594)."""
@@ -1044,3 +1052,34 @@ class TestPreferredPublicSpaceIn:
         """Extra fields should be rejected."""
         with pytest.raises(ValidationError, match="extra"):
             PreferredPublicSpaceIn(address="Central Park", extra="field")
+
+
+class TestCalendarSettingsSchemas:
+    """Tests for dedicated calendar settings schemas."""
+
+    def test_update_calendar_settings_accepts_partial_payload(self) -> None:
+        payload = UpdateCalendarSettings(non_travel_buffer_minutes=15)
+        assert payload.non_travel_buffer_minutes == 15
+        assert payload.travel_buffer_minutes is None
+        assert payload.overnight_protection_enabled is None
+
+    @pytest.mark.parametrize(
+        ("field_name", "value"),
+        [
+            ("non_travel_buffer_minutes", -1),
+            ("non_travel_buffer_minutes", 121),
+            ("travel_buffer_minutes", 14),
+            ("travel_buffer_minutes", 121),
+        ],
+    )
+    def test_update_calendar_settings_rejects_out_of_range_values(
+        self, field_name: str, value: int
+    ) -> None:
+        with pytest.raises(ValidationError):
+            UpdateCalendarSettings(**{field_name: value})
+
+    def test_calendar_settings_response_defaults(self) -> None:
+        response = CalendarSettingsResponse()
+        assert response.non_travel_buffer_minutes == 15
+        assert response.travel_buffer_minutes == 60
+        assert response.overnight_protection_enabled is True

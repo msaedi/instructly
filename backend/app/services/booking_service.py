@@ -4884,7 +4884,7 @@ class BookingService(BaseService):
             }
 
         # Check minimum advance booking using UTC.
-        min_advance_hours = getattr(instructor_profile, "min_advance_booking_hours", 0) or 0
+        min_advance_minutes = self._get_advance_notice_minutes()
         now_utc = datetime.now(timezone.utc)
         lesson_tz = TimezoneService.get_lesson_timezone(
             self._resolve_instructor_timezone(instructor_profile),
@@ -4901,8 +4901,8 @@ class BookingService(BaseService):
             return {"available": False, "reason": str(exc)}
 
         # For >=24 hour min advance, use date-level granularity to avoid HH:MM boundary flakiness
-        if min_advance_hours >= 24:
-            min_booking_dt = now_utc + timedelta(hours=min_advance_hours)
+        if min_advance_minutes >= 24 * 60:
+            min_booking_dt = now_utc + timedelta(minutes=min_advance_minutes)
             min_date_only = min_booking_dt.date()
 
             if booking_start_utc.date() < min_date_only or (
@@ -4911,17 +4911,23 @@ class BookingService(BaseService):
             ):
                 return {
                     "available": False,
-                    "reason": f"Must book at least {min_advance_hours} hours in advance",
-                    "min_advance_hours": min_advance_hours,
+                    "reason": (
+                        f"Must book at least {self._format_advance_notice(min_advance_minutes)} "
+                        "in advance"
+                    ),
+                    "min_advance_minutes": min_advance_minutes,
                 }
         else:
             # For <24 hour min advance, do precise time comparison
-            hours_until = TimezoneService.hours_until(booking_start_utc)
-            if hours_until < min_advance_hours:
+            minutes_until = (booking_start_utc - now_utc).total_seconds() / 60
+            if minutes_until < min_advance_minutes:
                 return {
                     "available": False,
-                    "reason": f"Must book at least {min_advance_hours} hours in advance",
-                    "min_advance_hours": min_advance_hours,
+                    "reason": (
+                        f"Must book at least {self._format_advance_notice(min_advance_minutes)} "
+                        "in advance"
+                    ),
+                    "min_advance_minutes": min_advance_minutes,
                 }
 
         # Verify bitmap availability covers the requested range
@@ -5070,6 +5076,20 @@ class BookingService(BaseService):
         offers_at_location = bool(getattr(service, "offers_at_location", False))
         offers_travel = bool(getattr(service, "offers_travel", False))
         return (not offers_at_location) and offers_travel
+
+    def _get_advance_notice_minutes(self, location_type: Optional[str] = None) -> int:
+        """Resolve advance-notice minutes from platform configuration."""
+        return ConfigService(self.db).get_advance_notice_minutes(location_type)
+
+    @staticmethod
+    def _format_advance_notice(minutes: int) -> str:
+        """Human-readable advance-notice text for validation messages."""
+        if minutes % 60 == 0:
+            hours = minutes // 60
+            suffix = "" if hours == 1 else "s"
+            return f"{hours} hour{suffix}"
+        suffix = "" if minutes == 1 else "s"
+        return f"{minutes} minute{suffix}"
 
     def _validate_service_area(
         self,
@@ -5225,12 +5245,12 @@ class BookingService(BaseService):
                 )
 
         # Check minimum advance booking time (UTC)
-        # For instructors with >=24 hour min advance, enforce on date granularity to avoid HH:MM boundary flakiness
-        min_advance_hours = getattr(instructor_profile, "min_advance_booking_hours", 0) or 0
+        # For >=24 hour advance notice, enforce on date granularity to avoid HH:MM boundary flakiness
+        min_advance_minutes = self._get_advance_notice_minutes(booking_data.location_type)
         now_utc = datetime.now(timezone.utc)
 
-        if min_advance_hours >= 24:
-            min_booking_dt = now_utc + timedelta(hours=min_advance_hours)
+        if min_advance_minutes >= 24 * 60:
+            min_booking_dt = now_utc + timedelta(minutes=min_advance_minutes)
             min_date_only = min_booking_dt.date()
 
             if booking_start_utc.date() < min_date_only or (
@@ -5238,13 +5258,15 @@ class BookingService(BaseService):
                 and booking_start_utc.time() < min_booking_dt.time()
             ):
                 raise BusinessRuleException(
-                    f"Bookings must be made at least {min_advance_hours} hours in advance"
+                    "Bookings must be made at least "
+                    f"{self._format_advance_notice(min_advance_minutes)} in advance"
                 )
         else:
-            hours_until = TimezoneService.hours_until(booking_start_utc)
-            if hours_until < min_advance_hours:
+            minutes_until = (booking_start_utc - now_utc).total_seconds() / 60
+            if minutes_until < min_advance_minutes:
                 raise BusinessRuleException(
-                    f"Bookings must be made at least {min_advance_hours} hours in advance"
+                    "Bookings must be made at least "
+                    f"{self._format_advance_notice(min_advance_minutes)} in advance"
                 )
 
     def _create_booking_record(

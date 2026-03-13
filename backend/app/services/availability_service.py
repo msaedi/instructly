@@ -67,6 +67,7 @@ from ..utils.time_helpers import string_to_time, time_to_string
 from ..utils.time_utils import time_to_minutes
 from .audit_redaction import redact
 from .base import BaseService
+from .config_service import ConfigService
 from .search.cache_invalidation import invalidate_on_availability_change
 
 # TYPE_CHECKING import to avoid circular dependencies
@@ -1717,16 +1718,21 @@ class AvailabilityService(BaseService):
         """
         slot_minutes = MINUTES_PER_SLOT
         profile = self.instructor_repository.get_by_user_id(instructor_id)
-        min_advance_hours = (
-            int(getattr(profile, "min_advance_booking_hours", 0) or 0) if apply_min_advance else 0
+        config_service = ConfigService(self.db)
+        min_advance_minutes = (
+            config_service.get_advance_notice_minutes() if apply_min_advance else 0
         )
-        buffer_minutes = int(getattr(profile, "buffer_time_minutes", 0) or 0)
+        buffer_minutes = config_service.get_default_buffer_minutes()
+        if profile is not None:
+            buffer_minutes = int(
+                getattr(profile, "non_travel_buffer_minutes", buffer_minutes) or buffer_minutes
+            )
         earliest_allowed_local: Optional[datetime] = None
         earliest_allowed_date: Optional[date] = None
         earliest_allowed_minutes: Optional[int] = None
-        if min_advance_hours > 0:
+        if min_advance_minutes > 0:
             earliest_allowed_local = get_user_now_by_id(instructor_id, self.db) + timedelta(
-                hours=min_advance_hours
+                minutes=min_advance_minutes
             )
             earliest_allowed_local = earliest_allowed_local.replace(second=0, microsecond=0)
             minutes_since_midnight = time_to_minutes(

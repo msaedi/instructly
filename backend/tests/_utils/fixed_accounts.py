@@ -88,8 +88,7 @@ def ensure_instructor_profile_and_service(
             bgc_status="passed",
             is_live=True,
             bgc_completed_at=datetime.now(timezone.utc),
-            min_advance_booking_hours=2,
-            buffer_time_minutes=15,
+            non_travel_buffer_minutes=15,
         )
         db.add(prof)
         db.flush()

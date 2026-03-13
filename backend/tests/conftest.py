@@ -1602,6 +1602,9 @@ def _public_profile_kwargs(**profile_kwargs):
         "bgc_status": "passed",
         "is_live": True,
         "bgc_completed_at": datetime.now(timezone.utc),
+        "non_travel_buffer_minutes": 15,
+        "travel_buffer_minutes": 60,
+        "overnight_protection_enabled": True,
     }
     defaults.update(profile_kwargs)
     return defaults
@@ -1621,6 +1624,20 @@ def freeze_availability_now(monkeypatch):
     monkeypatch.setattr(
         "app.services.availability_service.get_user_now_by_id",
         _fake_get_user_now_by_id,
+    )
+
+
+@pytest.fixture(autouse=True)
+def default_booking_rules_for_tests(monkeypatch):
+    """Keep existing booking tests deterministic while they migrate to booking_rules."""
+
+    monkeypatch.setattr(
+        "app.services.config_service.ConfigService.get_advance_notice_minutes",
+        lambda self, location_type=None: 0,
+    )
+    monkeypatch.setattr(
+        "app.services.config_service.ConfigService.get_default_buffer_minutes",
+        lambda self, location_type=None: 0,
     )
 
 
@@ -1664,8 +1681,7 @@ def test_instructor(db: Session, test_password: str) -> User:
         **_public_profile_kwargs(
             bio="Test instructor bio",
             years_experience=5,
-            min_advance_booking_hours=2,
-            buffer_time_minutes=15,
+            non_travel_buffer_minutes=15,
         ),
     )
     db.add(profile)
@@ -1827,8 +1843,7 @@ def test_instructor_2(db: Session, test_password: str) -> User:
         **_public_profile_kwargs(
             bio="Second test instructor bio",
             years_experience=3,
-            min_advance_booking_hours=1,
-            buffer_time_minutes=10,
+            non_travel_buffer_minutes=10,
         ),
     )
     db.add(profile)
@@ -1995,8 +2010,7 @@ def test_booking(db: Session, test_student: User, test_instructor_with_availabil
             **_public_profile_kwargs(
                 bio="Test instructor bio",
                 years_experience=5,
-                min_advance_booking_hours=2,
-                buffer_time_minutes=15,
+                non_travel_buffer_minutes=15,
             ),
         )
         db.add(profile)
@@ -2562,7 +2576,6 @@ def sample_instructors_with_services(db: Session, test_password: str) -> list[Us
         **_public_profile_kwargs(
             bio="Expert piano teacher",
             years_experience=10,
-            min_advance_booking_hours=24,
         ),
     )
     db.add(piano_profile)
@@ -2629,7 +2642,6 @@ def sample_instructors_with_services(db: Session, test_password: str) -> list[Us
         **_public_profile_kwargs(
             bio="Certified yoga instructor",
             years_experience=5,
-            min_advance_booking_hours=24,
         ),
     )
     db.add(yoga_profile)

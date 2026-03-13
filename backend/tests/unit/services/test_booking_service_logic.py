@@ -166,7 +166,6 @@ class TestBookingServiceUnit:
         profile = Mock(spec=InstructorProfile)
         profile.id = generate_ulid()
         profile.user_id = generate_ulid()  # Same as mock_instructor.id
-        profile.min_advance_booking_hours = 24
         neighborhood = Mock()
         neighborhood.parent_region = "Manhattan"
         area = Mock()
@@ -368,7 +367,6 @@ class TestBookingServiceUnit:
         mock_instructor_profile,
         monkeypatch: pytest.MonkeyPatch,
     ):
-        mock_instructor_profile.min_advance_booking_hours = 1
         if not hasattr(mock_instructor_profile, "user") or mock_instructor_profile.user is None:
             mock_instructor_profile.user = Mock()
         mock_instructor_profile.user.timezone = "America/New_York"
@@ -419,7 +417,6 @@ class TestBookingServiceUnit:
         mock_instructor_profile,
         monkeypatch: pytest.MonkeyPatch,
     ):
-        mock_instructor_profile.min_advance_booking_hours = 1
         if not hasattr(mock_instructor_profile, "user") or mock_instructor_profile.user is None:
             mock_instructor_profile.user = Mock()
         mock_instructor_profile.user.timezone = "America/New_York"

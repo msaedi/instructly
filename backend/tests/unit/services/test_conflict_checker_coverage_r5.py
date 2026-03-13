@@ -195,7 +195,6 @@ class TestConflictCheckerMinimumAdvanceBooking:
         """Line 284: Returns invalid when instructor not found."""
         # Profile exists but instructor doesn't
         mock_profile = Mock(spec=InstructorProfile)
-        mock_profile.min_advance_booking_hours = 24
         service.repository.get_instructor_profile.return_value = mock_profile
 
         # Instructor NOT found
@@ -232,7 +231,6 @@ class TestConflictCheckerValidateBookingConstraints:
         service.user_repository.get_by_id.return_value = mock_user
 
         mock_profile = Mock(spec=InstructorProfile)
-        mock_profile.min_advance_booking_hours = 2
         service.repository.get_instructor_profile.return_value = mock_profile
         service.repository.get_bookings_for_conflict_check.return_value = []
         service.repository.get_blackout_date.return_value = None
@@ -750,7 +748,6 @@ class TestValidateBookingConstraintsCoverage:
         service.user_repository.get_by_id.return_value = mock_user
 
         mock_profile = Mock(spec=InstructorProfile)
-        mock_profile.min_advance_booking_hours = 2
         service.repository.get_instructor_profile.return_value = mock_profile
         service.repository.get_bookings_for_conflict_check.return_value = []
         service.repository.get_blackout_date.return_value = None

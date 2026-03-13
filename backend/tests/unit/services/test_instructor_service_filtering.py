@@ -57,8 +57,7 @@ class TestInstructorServiceFiltering:
         profile.user_id = user_id
         profile.bio = bio
         profile.years_experience = 5
-        profile.min_advance_booking_hours = 24
-        profile.buffer_time_minutes = 15
+        profile.non_travel_buffer_minutes = 15
         profile.created_at = datetime.now()
         profile.updated_at = None
 

@@ -97,9 +97,7 @@ async def test_availability_full_with_blackout(monkeypatch):
 
     class DummyAvailabilityService:
         def __init__(self):
-            self.instructor_repository = SimpleNamespace(
-                get_by_user_id=lambda _id: SimpleNamespace(min_advance_booking_hours=0)
-            )
+            self.instructor_repository = SimpleNamespace(get_by_user_id=lambda _id: SimpleNamespace())
             self.db = None
 
         def get_blackout_dates(self, _instructor_id: str):
@@ -147,9 +145,7 @@ async def test_availability_full_cache_write_fails_gracefully(monkeypatch):
 
     class DummyAvailabilityService:
         def __init__(self):
-            self.instructor_repository = SimpleNamespace(
-                get_by_user_id=lambda _id: SimpleNamespace(min_advance_booking_hours=0)
-            )
+            self.instructor_repository = SimpleNamespace(get_by_user_id=lambda _id: SimpleNamespace())
             self.db = None
 
         def get_blackout_dates(self, _instructor_id: str):

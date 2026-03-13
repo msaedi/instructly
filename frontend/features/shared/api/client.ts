@@ -466,8 +466,6 @@ export const publicApi = {
         }>;
         service_area_summary?: string | null;
         years_experience: number;
-        min_advance_booking_hours: number;
-        buffer_time_minutes: number;
         created_at: string;
         updated_at?: string;
         user: {

@@ -22,10 +22,9 @@ from app.utils.time_utils import time_to_minutes
 
 
 def _configure_profile(db: Session, instructor_id: str) -> InstructorProfile:
-    """Set min_advance_booking_hours and buffer_time to 0 for predictable tests."""
+    """Set non-travel buffer to 0 for predictable subtraction tests."""
     profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor_id).one()
-    profile.min_advance_booking_hours = 0
-    profile.buffer_time_minutes = 0
+    profile.non_travel_buffer_minutes = 0
     db.flush()
     return profile
 

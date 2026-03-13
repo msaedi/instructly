@@ -1003,7 +1003,7 @@ class AvailabilityCheckResponse(StrictModel):
 
     available: bool
     reason: Optional[str] = None
-    min_advance_hours: Optional[int] = None
+    min_advance_minutes: Optional[int] = None
     conflicts_with: Optional[List[ConflictingBookingInfo]] = Field(
         default=None, description="List of conflicting bookings if any"
     )

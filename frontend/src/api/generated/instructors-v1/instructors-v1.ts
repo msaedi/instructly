@@ -22,6 +22,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  CalendarSettingsAcknowledgeResponse,
+  CalendarSettingsResponse,
   CheckServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGetParams,
   CoverageFeatureCollectionResponse,
   GenerateBioResponse,
@@ -32,6 +34,7 @@ import type {
   InstructorServiceAreaCheckResponse,
   ListInstructorsApiV1InstructorsGetParams,
   PaginatedResponseInstructorProfileResponse,
+  UpdateCalendarSettings,
 } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
@@ -582,6 +585,219 @@ export const useUpdateProfileApiV1InstructorsMePut = <
   TContext
 > => {
   return useMutation(getUpdateProfileApiV1InstructorsMePutMutationOptions(options), queryClient);
+};
+/**
+ * Update instructor calendar settings used by the availability page.
+ * @summary Update Calendar Settings
+ */
+export const getUpdateCalendarSettingsApiV1InstructorsMeCalendarSettingsPatchUrl = () => {
+  return `/api/v1/instructors/me/calendar-settings`;
+};
+
+export const updateCalendarSettingsApiV1InstructorsMeCalendarSettingsPatch = async (
+  updateCalendarSettings: UpdateCalendarSettings,
+  options?: RequestInit
+): Promise<CalendarSettingsResponse> => {
+  return customFetch<CalendarSettingsResponse>(
+    getUpdateCalendarSettingsApiV1InstructorsMeCalendarSettingsPatchUrl(),
+    {
+      ...options,
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(updateCalendarSettings),
+    }
+  );
+};
+
+export const getUpdateCalendarSettingsApiV1InstructorsMeCalendarSettingsPatchMutationOptions = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCalendarSettingsApiV1InstructorsMeCalendarSettingsPatch>>,
+    TError,
+    { data: UpdateCalendarSettings },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateCalendarSettingsApiV1InstructorsMeCalendarSettingsPatch>>,
+  TError,
+  { data: UpdateCalendarSettings },
+  TContext
+> => {
+  const mutationKey = ['updateCalendarSettingsApiV1InstructorsMeCalendarSettingsPatch'];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateCalendarSettingsApiV1InstructorsMeCalendarSettingsPatch>>,
+    { data: UpdateCalendarSettings }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateCalendarSettingsApiV1InstructorsMeCalendarSettingsPatch(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateCalendarSettingsApiV1InstructorsMeCalendarSettingsPatchMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof updateCalendarSettingsApiV1InstructorsMeCalendarSettingsPatch>>
+  >;
+export type UpdateCalendarSettingsApiV1InstructorsMeCalendarSettingsPatchMutationBody =
+  UpdateCalendarSettings;
+export type UpdateCalendarSettingsApiV1InstructorsMeCalendarSettingsPatchMutationError =
+  ErrorType<void | HTTPValidationError>;
+
+/**
+ * @summary Update Calendar Settings
+ */
+export const useUpdateCalendarSettingsApiV1InstructorsMeCalendarSettingsPatch = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateCalendarSettingsApiV1InstructorsMeCalendarSettingsPatch>>,
+      TError,
+      { data: UpdateCalendarSettings },
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateCalendarSettingsApiV1InstructorsMeCalendarSettingsPatch>>,
+  TError,
+  { data: UpdateCalendarSettings },
+  TContext
+> => {
+  return useMutation(
+    getUpdateCalendarSettingsApiV1InstructorsMeCalendarSettingsPatchMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Record dismissal of the first-save calendar settings acknowledgement.
+ * @summary Acknowledge Calendar Settings
+ */
+export const getAcknowledgeCalendarSettingsApiV1InstructorsMeCalendarSettingsAcknowledgePostUrl =
+  () => {
+    return `/api/v1/instructors/me/calendar-settings/acknowledge`;
+  };
+
+export const acknowledgeCalendarSettingsApiV1InstructorsMeCalendarSettingsAcknowledgePost = async (
+  options?: RequestInit
+): Promise<CalendarSettingsAcknowledgeResponse> => {
+  return customFetch<CalendarSettingsAcknowledgeResponse>(
+    getAcknowledgeCalendarSettingsApiV1InstructorsMeCalendarSettingsAcknowledgePostUrl(),
+    {
+      ...options,
+      method: 'POST',
+    }
+  );
+};
+
+export const getAcknowledgeCalendarSettingsApiV1InstructorsMeCalendarSettingsAcknowledgePostMutationOptions =
+  <TError = ErrorType<void>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof acknowledgeCalendarSettingsApiV1InstructorsMeCalendarSettingsAcknowledgePost
+        >
+      >,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof acknowledgeCalendarSettingsApiV1InstructorsMeCalendarSettingsAcknowledgePost
+      >
+    >,
+    TError,
+    void,
+    TContext
+  > => {
+    const mutationKey = [
+      'acknowledgeCalendarSettingsApiV1InstructorsMeCalendarSettingsAcknowledgePost',
+    ];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof acknowledgeCalendarSettingsApiV1InstructorsMeCalendarSettingsAcknowledgePost
+        >
+      >,
+      void
+    > = () => {
+      return acknowledgeCalendarSettingsApiV1InstructorsMeCalendarSettingsAcknowledgePost(
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type AcknowledgeCalendarSettingsApiV1InstructorsMeCalendarSettingsAcknowledgePostMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof acknowledgeCalendarSettingsApiV1InstructorsMeCalendarSettingsAcknowledgePost
+      >
+    >
+  >;
+
+export type AcknowledgeCalendarSettingsApiV1InstructorsMeCalendarSettingsAcknowledgePostMutationError =
+  ErrorType<void>;
+
+/**
+ * @summary Acknowledge Calendar Settings
+ */
+export const useAcknowledgeCalendarSettingsApiV1InstructorsMeCalendarSettingsAcknowledgePost = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof acknowledgeCalendarSettingsApiV1InstructorsMeCalendarSettingsAcknowledgePost
+        >
+      >,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof acknowledgeCalendarSettingsApiV1InstructorsMeCalendarSettingsAcknowledgePost>
+  >,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(
+    getAcknowledgeCalendarSettingsApiV1InstructorsMeCalendarSettingsAcknowledgePostMutationOptions(
+      options
+    ),
+    queryClient
+  );
 };
 /**
  * Generate a personalized bio for the current instructor using AI.

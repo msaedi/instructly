@@ -35,6 +35,7 @@ from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
 from app.schemas.booking import BookingCreate, BookingUpdate
 from app.services.booking_service import BookingService
+from app.services.config_service import ConfigService
 from app.services.notification_service import NotificationService
 from tests._utils.bitmap_avail import get_day_windows, seed_day
 
@@ -256,14 +257,12 @@ class TestBookingServiceCreation:
     async def test_create_booking_minimum_advance_hours(
         self, db: Session, test_instructor_with_availability: User, test_student: User, mock_notification_service: Mock
     ):
-        """Test minimum advance booking hours validation."""
-        # Set high minimum advance booking hours
+        """Test minimum advance booking validation."""
         profile = (
             db.query(InstructorProfile)
             .filter(InstructorProfile.user_id == test_instructor_with_availability.id)
             .first()
         )
-        profile.min_advance_booking_hours = 48  # 2 days
         db.commit()
 
         # Try to book tomorrow (less than 48 hours) - get windows from bitmap storage
@@ -296,10 +295,19 @@ class TestBookingServiceCreation:
             location_lng=-73.985,
         )
 
-        with pytest.raises(BusinessRuleException, match="at least 48 hours in advance"):
-            await asyncio.to_thread(booking_service.create_booking,
-                test_student, booking_data, selected_duration=booking_data.selected_duration
+        with pytest.MonkeyPatch.context() as patch_ctx:
+            patch_ctx.setattr(
+                ConfigService,
+                "get_advance_notice_minutes",
+                lambda self, location_type=None: 48 * 60,
             )
+            with pytest.raises(BusinessRuleException, match="at least 48 hours in advance"):
+                await asyncio.to_thread(
+                    booking_service.create_booking,
+                    test_student,
+                    booking_data,
+                    selected_duration=booking_data.selected_duration,
+                )
 
 
 class TestBookingServiceCancellation:

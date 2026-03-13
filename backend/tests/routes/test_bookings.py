@@ -564,7 +564,7 @@ class TestBookingRoutes:
         mock_booking_service.check_availability.return_value = {
             "available": True,
             "reason": None,
-            "min_advance_hours": 2,
+            "min_advance_minutes": 60,
             "conflicts_with": [],
         }
 

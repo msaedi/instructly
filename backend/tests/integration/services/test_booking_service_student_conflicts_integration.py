@@ -113,8 +113,7 @@ class TestStudentConflictValidationIntegration:
 
         profile = InstructorProfile(
             user_id=instructor.id,
-            min_advance_booking_hours=1,
-        )
+            )
         db.add(profile)
         db.flush()
         add_service_areas_for_boroughs(db, user=instructor, boroughs=["Manhattan"])
@@ -190,8 +189,7 @@ class TestStudentConflictValidationIntegration:
 
         profile = InstructorProfile(
             user_id=instructor.id,
-            min_advance_booking_hours=1,
-        )
+            )
         db.add(profile)
         db.flush()
         add_service_areas_for_boroughs(db, user=instructor, boroughs=["Brooklyn"])

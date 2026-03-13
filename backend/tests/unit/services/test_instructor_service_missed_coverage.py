@@ -102,8 +102,7 @@ def _make_mock_profile(
     profile.user_id = user_id
     profile.bio = bio
     profile.years_experience = years_experience
-    profile.min_advance_booking_hours = 24
-    profile.buffer_time_minutes = 15
+    profile.non_travel_buffer_minutes = 15
     profile.skills_configured = True
     profile.identity_verified_at = None
     profile.background_check_uploaded_at = None

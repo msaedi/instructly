@@ -9,7 +9,11 @@ import pytest
 from app.core.exceptions import BusinessRuleException, DomainException, NotFoundException
 from app.core.ulid_helper import generate_ulid
 from app.routes.v1 import instructors as instructors_routes
-from app.schemas.instructor import InstructorProfileCreate, InstructorProfileUpdate
+from app.schemas.instructor import (
+    InstructorProfileCreate,
+    InstructorProfileUpdate,
+    UpdateCalendarSettings,
+)
 from app.services.address_service import AddressService
 
 
@@ -22,8 +26,10 @@ def _profile_payload(*, user_id: str, profile_id: str) -> dict:
         "years_experience": 4,
         "created_at": now,
         "updated_at": None,
-        "min_advance_booking_hours": 2,
-        "buffer_time_minutes": 0,
+        "non_travel_buffer_minutes": 15,
+        "travel_buffer_minutes": 60,
+        "overnight_protection_enabled": True,
+        "calendar_settings_acknowledged_at": None,
         "user": {
             "id": user_id,
             "first_name": "Taylor",
@@ -72,6 +78,12 @@ class _InstructorServiceStub:
 
     def update_instructor_profile(self, *_args, **_kwargs):
         raise DomainException("bad update")
+
+    def update_calendar_settings(self, *_args, **_kwargs):
+        raise DomainException("bad update")
+
+    def acknowledge_calendar_settings(self, *_args, **_kwargs):
+        raise NotFoundException("not found")
 
     def go_live(self, *_args, **_kwargs):
         raise BusinessRuleException("missing prereqs")
@@ -256,6 +268,93 @@ async def test_update_profile_success_dict(test_instructor):
         cache_service=SimpleNamespace(),
     )
     assert response.id == "profile-1"
+
+
+@pytest.mark.asyncio
+async def test_update_calendar_settings_requires_instructor(test_student):
+    with pytest.raises(HTTPException) as exc:
+        await instructors_routes.update_calendar_settings(
+            calendar_settings=UpdateCalendarSettings(non_travel_buffer_minutes=15),
+            current_user=test_student,
+            instructor_service=_InstructorServiceStub(),
+        )
+    assert exc.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_update_calendar_settings_not_found(test_instructor):
+    service = _InstructorServiceStub()
+    service.update_calendar_settings = lambda *_args, **_kwargs: (_ for _ in ()).throw(
+        NotFoundException("not found")
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await instructors_routes.update_calendar_settings(
+            calendar_settings=UpdateCalendarSettings(non_travel_buffer_minutes=20),
+            current_user=test_instructor,
+            instructor_service=service,
+        )
+    assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_update_calendar_settings_success(test_instructor):
+    service = _InstructorServiceStub()
+    service.update_calendar_settings = lambda *_args, **_kwargs: {
+        "non_travel_buffer_minutes": 20,
+        "travel_buffer_minutes": 75,
+        "overnight_protection_enabled": False,
+    }
+
+    response = await instructors_routes.update_calendar_settings(
+        calendar_settings=UpdateCalendarSettings(
+            non_travel_buffer_minutes=20,
+            travel_buffer_minutes=75,
+            overnight_protection_enabled=False,
+        ),
+        current_user=test_instructor,
+        instructor_service=service,
+    )
+
+    assert response.non_travel_buffer_minutes == 20
+    assert response.travel_buffer_minutes == 75
+    assert response.overnight_protection_enabled is False
+
+
+@pytest.mark.asyncio
+async def test_acknowledge_calendar_settings_requires_instructor(test_student):
+    with pytest.raises(HTTPException) as exc:
+        await instructors_routes.acknowledge_calendar_settings(
+            current_user=test_student,
+            instructor_service=_InstructorServiceStub(),
+        )
+    assert exc.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_acknowledge_calendar_settings_not_found(test_instructor):
+    with pytest.raises(HTTPException) as exc:
+        await instructors_routes.acknowledge_calendar_settings(
+            current_user=test_instructor,
+            instructor_service=_InstructorServiceStub(),
+        )
+    assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_acknowledge_calendar_settings_success(test_instructor):
+    acknowledged_at = datetime.now(timezone.utc)
+    service = _InstructorServiceStub()
+    service.acknowledge_calendar_settings = lambda *_args, **_kwargs: {
+        "calendar_settings_acknowledged_at": acknowledged_at,
+    }
+
+    response = await instructors_routes.acknowledge_calendar_settings(
+        current_user=test_instructor,
+        instructor_service=service,
+    )
+
+    assert response.calendar_settings_acknowledged_at == acknowledged_at
 
 
 @pytest.mark.asyncio

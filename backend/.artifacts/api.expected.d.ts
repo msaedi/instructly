@@ -3359,6 +3359,38 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/instructors/me/calendar-settings": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch: operations["update_calendar_settings_api_v1_instructors_me_calendar_settings_patch"];
+ trace?: never;
+ };
+ "/api/v1/instructors/me/calendar-settings/acknowledge": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["acknowledge_calendar_settings_api_v1_instructors_me_calendar_settings_acknowledge_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/instructors/me/generate-bio": {
  parameters: {
  query?: never;
@@ -6366,7 +6398,7 @@ export type components = {
  AvailabilityCheckResponse: {
  available: boolean;
  conflicts_with?: components["schemas"]["ConflictingBookingInfo"][] | null;
- min_advance_hours?: number | null;
+ min_advance_minutes?: number | null;
  reason?: string | null;
  time_info?: components["schemas"]["TimeSlotInfo"] | null;
  };
@@ -7011,6 +7043,14 @@ export type components = {
  redis_info?: {
  [key: string]: unknown;
  } | null;
+ };
+ CalendarSettingsAcknowledgeResponse: {
+ calendar_settings_acknowledged_at?: string | null;
+ };
+ CalendarSettingsResponse: {
+ non_travel_buffer_minutes: number;
+ overnight_protection_enabled: boolean;
+ travel_buffer_minutes: number;
  };
  CandidateCategoryTrend: {
  category: string;
@@ -7736,8 +7776,6 @@ export type components = {
  };
  InstructorProfileCreate: {
  bio: string;
- buffer_time_minutes: number;
- min_advance_booking_hours: number;
  services: components["schemas"]["ServiceCreate"][];
  years_experience: number;
  };
@@ -7747,7 +7785,7 @@ export type components = {
  bgc_name_mismatch: boolean;
  bgc_status?: string | null;
  bio: string;
- buffer_time_minutes: number;
+ calendar_settings_acknowledged_at?: string | null;
  created_at: string;
  favorited_count: number;
  id: string;
@@ -7757,8 +7795,9 @@ export type components = {
  is_favorited?: boolean | null;
  is_founding_instructor: boolean;
  is_live: boolean;
- min_advance_booking_hours: number;
+ non_travel_buffer_minutes: number;
  onboarding_completed_at?: string | null;
+ overnight_protection_enabled: boolean;
  preferred_public_spaces?: components["schemas"]["PreferredPublicSpaceOut"][];
  preferred_teaching_locations?: components["schemas"]["PreferredTeachingLocationOut"][];
  service_area_boroughs?: string[];
@@ -7766,6 +7805,7 @@ export type components = {
  service_area_summary?: string | null;
  services: components["schemas"]["ServiceResponse"][];
  skills_configured: boolean;
+ travel_buffer_minutes: number;
  updated_at?: string | null;
  user: components["schemas"]["UserBasicPrivacy"];
  user_id: string;
@@ -7773,8 +7813,6 @@ export type components = {
  };
  InstructorProfileUpdate: {
  bio?: string | null;
- buffer_time_minutes?: number | null;
- min_advance_booking_hours?: number | null;
  preferred_public_spaces?: components["schemas"]["PreferredPublicSpaceIn"][] | null;
  preferred_teaching_locations?: components["schemas"]["PreferredTeachingLocationIn"][] | null;
  services?: components["schemas"]["ServiceCreate"][] | null;
@@ -10280,6 +10318,11 @@ export type components = {
  student_first_name: string;
  student_last_name: string;
  total_price: number;
+ };
+ UpdateCalendarSettings: {
+ non_travel_buffer_minutes?: number | null;
+ overnight_protection_enabled?: boolean | null;
+ travel_buffer_minutes?: number | null;
  };
  UpdateConversationStateRequest: {
  state: "active" | "archived" | "trashed";
@@ -17281,6 +17324,92 @@ export interface operations {
  [name: string]: unknown;
  };
  content?: never;
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ };
+ };
+ update_calendar_settings_api_v1_instructors_me_calendar_settings_patch: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["UpdateCalendarSettings"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CalendarSettingsResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ acknowledge_calendar_settings_api_v1_instructors_me_calendar_settings_acknowledge_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CalendarSettingsAcknowledgeResponse"];
+ };
  };
  401: {
  headers: {

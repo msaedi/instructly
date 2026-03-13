@@ -1346,7 +1346,7 @@ export interface AvailabilityCheckResponse {
   available: boolean;
   /** List of conflicting bookings if any */
   conflicts_with?: ConflictingBookingInfo[] | null;
-  min_advance_hours?: number | null;
+  min_advance_minutes?: number | null;
   reason?: string | null;
   /** Time slot information for the availability check */
   time_info?: TimeSlotInfo | null;
@@ -2540,6 +2540,22 @@ export interface CacheMetricsResponse {
   redis_info?: CacheMetricsResponseRedisInfo;
 }
 
+/**
+ * Acknowledgement timestamp returned after the first-save popup is dismissed.
+ */
+export interface CalendarSettingsAcknowledgeResponse {
+  calendar_settings_acknowledged_at?: string | null;
+}
+
+/**
+ * Focused calendar settings payload for availability-page updates.
+ */
+export interface CalendarSettingsResponse {
+  non_travel_buffer_minutes?: number;
+  overnight_protection_enabled?: boolean;
+  travel_buffer_minutes?: number;
+}
+
 export interface CandidateCategoryTrend {
   category: string;
   count: number;
@@ -3700,12 +3716,7 @@ export interface InstructorProfileResponse {
    * @maxLength 1000
    */
   bio: string;
-  /**
-   * Buffer time between bookings
-   * @minimum 0
-   * @maximum 60
-   */
-  buffer_time_minutes?: number;
+  calendar_settings_acknowledged_at?: string | null;
   created_at: string;
   /** Number of students who favorited this instructor */
   favorited_count?: number;
@@ -3718,13 +3729,9 @@ export interface InstructorProfileResponse {
   /** Whether the instructor is a founding instructor */
   is_founding_instructor?: boolean;
   is_live?: boolean;
-  /**
-   * Minimum hours in advance for bookings
-   * @minimum 0
-   * @maximum 168
-   */
-  min_advance_booking_hours?: number;
+  non_travel_buffer_minutes?: number;
   onboarding_completed_at?: string | null;
+  overnight_protection_enabled?: boolean;
   preferred_public_spaces?: PreferredPublicSpaceOut[];
   preferred_teaching_locations?: PreferredTeachingLocationOut[];
   service_area_boroughs?: string[];
@@ -3733,6 +3740,7 @@ export interface InstructorProfileResponse {
   services: ServiceResponse[];
   /** Whether skills/pricing were configured at least once */
   skills_configured?: boolean;
+  travel_buffer_minutes?: number;
   updated_at?: string | null;
   user: UserBasicPrivacy;
   user_id: string;
@@ -4109,18 +4117,6 @@ export interface InstructorProfileCreate {
    */
   bio: string;
   /**
-   * Buffer time between bookings
-   * @minimum 0
-   * @maximum 60
-   */
-  buffer_time_minutes?: number;
-  /**
-   * Minimum hours in advance for bookings
-   * @minimum 0
-   * @maximum 168
-   */
-  min_advance_booking_hours?: number;
-  /**
    * Services offered by the instructor
    * @minItems 1
    * @maxItems 20
@@ -4165,10 +4161,6 @@ All fields are optional for partial updates.
  */
 export interface InstructorProfileUpdate {
   bio?: string | null;
-  /** Buffer time between bookings */
-  buffer_time_minutes?: number | null;
-  /** Minimum hours in advance for bookings */
-  min_advance_booking_hours?: number | null;
   preferred_public_spaces?: PreferredPublicSpaceIn[] | null;
   preferred_teaching_locations?: PreferredTeachingLocationIn[] | null;
   services?: ServiceCreate[] | null;
@@ -8432,6 +8424,15 @@ export interface TypingRequest {
 export interface UnreadCountResponse {
   unread_count: number;
   user_id: string;
+}
+
+/**
+ * Editable instructor calendar settings surfaced on the availability page.
+ */
+export interface UpdateCalendarSettings {
+  non_travel_buffer_minutes?: number | null;
+  overnight_protection_enabled?: boolean | null;
+  travel_buffer_minutes?: number | null;
 }
 
 export type UpdateConversationStateRequestState =

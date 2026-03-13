@@ -142,8 +142,9 @@ class CatalogSystemTester:
                 user_id=instructor.id,
                 bio="Professional pianist with 15 years of teaching experience. Specializing in classical and jazz piano.",
                 years_experience=15,
-                min_advance_booking_hours=24,
-                buffer_time_minutes=15,
+                non_travel_buffer_minutes=15,
+                travel_buffer_minutes=60,
+                overnight_protection_enabled=True,
             )
             self.session.add(profile)
             self.session.flush()

@@ -454,8 +454,7 @@ class TestBookingRepositoryFutureBookings:
             user_id=second_instructor.id,
             bio="Second instructor bio",
             years_experience=3,
-            min_advance_booking_hours=2,
-            buffer_time_minutes=15,
+            non_travel_buffer_minutes=15,
         )
         db.add(profile)
         db.flush()

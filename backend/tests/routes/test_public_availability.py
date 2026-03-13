@@ -22,6 +22,7 @@ from app.models.availability import BlackoutDate
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
+from app.services.config_service import ConfigService
 from tests._utils.bitmap_avail import seed_day
 
 try:  # pragma: no cover - fallback for direct backend pytest runs
@@ -246,8 +247,7 @@ class TestPublicAvailability:
             db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
         )
         assert profile is not None
-        profile.min_advance_booking_hours = 4
-        profile.buffer_time_minutes = 0
+        profile.non_travel_buffer_minutes = 0
         db.commit()
 
         target_date = date.today()
@@ -257,6 +257,11 @@ class TestPublicAvailability:
         monkeypatch.setattr(
             "app.services.availability_service.get_user_now_by_id",
             lambda *_: tz.localize(datetime.combine(target_date, time(10, 30))),
+        )
+        monkeypatch.setattr(
+            ConfigService,
+            "get_advance_notice_minutes",
+            lambda self, location_type=None: 60,
         )
 
         response = public_client.get(
@@ -270,7 +275,7 @@ class TestPublicAvailability:
         slots = response.json()["availability_by_date"][target_date.isoformat()]["available_slots"]
         assert slots, "Expected filtered slots"
         first_slot = slots[0]
-        assert first_slot["start_time"] == "14:30"
+        assert first_slot["start_time"] == "11:30"
         assert first_slot["end_time"] == "17:00"
 
     def test_public_availability_respects_buffer_time(
@@ -287,8 +292,7 @@ class TestPublicAvailability:
             db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
         )
         assert profile is not None
-        profile.buffer_time_minutes = 30
-        profile.min_advance_booking_hours = 0
+        profile.non_travel_buffer_minutes = 30
         db.commit()
 
         target_date = date.today()
@@ -349,8 +353,7 @@ class TestPublicAvailability:
             db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
         )
         assert profile is not None
-        profile.buffer_time_minutes = 30
-        profile.min_advance_booking_hours = 0
+        profile.non_travel_buffer_minutes = 30
         db.commit()
 
         target_date = date.today() + timedelta(days=1)
@@ -425,16 +428,14 @@ class TestPublicAvailability:
 
         # Get instructor's profile and service
         profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor.id).first()
-        profile.buffer_time_minutes = 0
-        profile.min_advance_booking_hours = 0
+        profile.non_travel_buffer_minutes = 0
         db.commit()
         refreshed = (
             db.query(InstructorProfile)
             .filter(InstructorProfile.user_id == test_instructor.id)
             .first()
         )
-        assert refreshed.buffer_time_minutes == 0
-        assert refreshed.min_advance_booking_hours == 0
+        assert refreshed.non_travel_buffer_minutes == 0
 
         service = (
             db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()

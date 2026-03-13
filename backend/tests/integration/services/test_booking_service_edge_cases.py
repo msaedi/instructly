@@ -647,8 +647,7 @@ class TestStudentDoubleBookingPrevention:
         if not profile2:
             profile2 = InstructorProfile(
                 user_id=second_instructor.id,
-                min_advance_booking_hours=1,
-            )
+                )
             db.add(profile2)
             db.flush()
             add_service_areas_for_boroughs(db, user=second_instructor, boroughs=["Manhattan"])
@@ -825,8 +824,7 @@ class TestStudentDoubleBookingPrevention:
         if not profile2:
             profile2 = InstructorProfile(
                 user_id=second_instructor.id,
-                min_advance_booking_hours=1,
-            )
+                )
             db.add(profile2)
             db.flush()
             add_service_areas_for_boroughs(db, user=second_instructor, boroughs=["Manhattan"])

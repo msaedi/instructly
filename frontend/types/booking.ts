@@ -161,8 +161,6 @@ export interface InstructorProfile {
   service_area_boroughs?: string[];
   service_area_neighborhoods?: ServiceAreaNeighborhood[];
   service_area_summary?: string | null;
-  min_advance_booking_hours: number;
-  buffer_time_minutes: number;
   created_at: string;
   updated_at: string;
 

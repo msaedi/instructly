@@ -37,8 +37,7 @@ def test_service(db: Session, test_instructor: User) -> Service:
             user_id=test_instructor.id,
             bio="Test instructor bio",
             years_experience=5,
-            min_advance_booking_hours=24,
-            buffer_time_minutes=15,
+            non_travel_buffer_minutes=15,
         )
         db.add(profile)
         db.flush()

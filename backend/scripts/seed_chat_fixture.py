@@ -86,8 +86,9 @@ def _ensure_profile(session: Session, instructor) -> object:
         user_id=instructor.id,
         bio="Auto-generated chat fixture profile",
         years_experience=5,
-        min_advance_booking_hours=24,
-        buffer_time_minutes=0,
+        non_travel_buffer_minutes=0,
+        travel_buffer_minutes=60,
+        overnight_protection_enabled=True,
         skills_configured=True,
         is_live=True,
     )
@@ -318,8 +319,8 @@ def seed_chat_fixture_booking(
         if max_day < min_day:
             min_day, max_day = max_day, min_day
 
-        min_advance_hours = profile.min_advance_booking_hours or 24
-        min_start = now + timedelta(hours=min_advance_hours)
+        min_advance_minutes = 60
+        min_start = now + timedelta(minutes=min_advance_minutes)
 
         for delta in range((max_day - min_day).days + 1):
             candidate_day = min_day + timedelta(days=delta)

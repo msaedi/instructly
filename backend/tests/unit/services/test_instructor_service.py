@@ -72,8 +72,6 @@ def test_create_instructor_profile_with_services_assigns_role():
     profile_data = InstructorProfileCreate(
         bio="Experienced instructor with years of lessons.",
         years_experience=5,
-        min_advance_booking_hours=2,
-        buffer_time_minutes=0,
         services=[_make_service_create("cat-1")],
     )
 
@@ -448,8 +446,7 @@ def test_profile_to_dict_handles_non_iterable_services_and_service_areas():
         user_id="user-1",
         bio="Bio",
         years_experience=3,
-        min_advance_booking_hours=2,
-        buffer_time_minutes=0,
+        non_travel_buffer_minutes=0,
         identity_verified_at=None,
         created_at=None,
         updated_at=None,
@@ -488,8 +485,7 @@ def test_profile_to_dict_preferred_places_privacy():
         user_id="user-1",
         bio="Bio",
         years_experience=3,
-        min_advance_booking_hours=2,
-        buffer_time_minutes=0,
+        non_travel_buffer_minutes=0,
         identity_verified_at=None,
         created_at=None,
         updated_at=None,

@@ -46,7 +46,6 @@ def _zero_min_advance_for_new_api(db: Session, test_instructor_with_availability
         .first()
     )
     if profile:
-        profile.min_advance_booking_hours = 0
         db.add(profile)
         db.commit()
 

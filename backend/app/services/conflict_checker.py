@@ -23,6 +23,7 @@ from ..models.booking import BookingStatus
 from ..repositories import RepositoryFactory
 from ..repositories.conflict_checker_repository import ConflictCheckerRepository
 from .base import BaseService
+from .config_service import ConfigService
 
 logger = logging.getLogger(__name__)
 
@@ -294,7 +295,8 @@ class ConflictChecker(BaseService):
         )
 
         # Calculate minimum booking time
-        min_booking_time = instructor_now + timedelta(hours=profile.min_advance_booking_hours)
+        min_advance_minutes = ConfigService(self.db).get_advance_notice_minutes()
+        min_booking_time = instructor_now + timedelta(minutes=min_advance_minutes)
 
         # For comparison, we need to ensure both times are timezone-aware
         # Convert booking_datetime to instructor's timezone for fair comparison
@@ -304,12 +306,15 @@ class ConflictChecker(BaseService):
             hours_until_booking = (booking_datetime_tz - instructor_now).total_seconds() / 3600
             return {
                 "valid": False,
-                "reason": f"Bookings must be made at least {profile.min_advance_booking_hours} hours in advance (instructor timezone)",
-                "min_advance_hours": profile.min_advance_booking_hours,
+                "reason": (
+                    "Bookings must be made at least "
+                    f"{min_advance_minutes} minutes in advance (instructor timezone)"
+                ),
+                "min_advance_minutes": min_advance_minutes,
                 "hours_until_booking": max(0, hours_until_booking),
             }
 
-        return {"valid": True, "min_advance_hours": profile.min_advance_booking_hours}
+        return {"valid": True, "min_advance_minutes": min_advance_minutes}
 
     @BaseService.measure_operation("check_blackout")
     def check_blackout_date(self, instructor_id: str, target_date: date) -> bool:

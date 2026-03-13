@@ -43,6 +43,7 @@ from ...services import availability_service as availability_service_module
 from ...services.audit_service import AuditService
 from ...services.availability_service import AvailabilityService
 from ...services.cache_service import CacheService
+from ...services.config_service import ConfigService
 from ...services.conflict_checker import ConflictChecker
 from ...services.email import EmailService
 from ...services.instructor_service import InstructorService
@@ -108,14 +109,13 @@ def _apply_min_advance_filter(
     if not availability_by_date:
         return 0, None
 
-    profile = availability_service.instructor_repository.get_by_user_id(instructor_id)
-    min_advance_hours = int(getattr(profile, "min_advance_booking_hours", 0) or 0)
-    if min_advance_hours <= 0:
+    min_advance_minutes = ConfigService(availability_service.db).get_advance_notice_minutes()
+    if min_advance_minutes <= 0:
         return _recompute_public_totals(availability_by_date)
 
     earliest_allowed_local = _get_user_now_by_id(
         instructor_id, availability_service.db
-    ) + timedelta(hours=min_advance_hours)
+    ) + timedelta(minutes=min_advance_minutes)
     earliest_allowed_local = earliest_allowed_local.replace(second=0, microsecond=0)
     minutes_since_midnight = time_to_minutes(earliest_allowed_local.time(), is_end_time=False)
     aligned_minutes = (

@@ -4415,6 +4415,46 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/instructors/me/calendar-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Calendar Settings
+         * @description Update instructor calendar settings used by the availability page.
+         */
+        patch: operations["update_calendar_settings_api_v1_instructors_me_calendar_settings_patch"];
+        trace?: never;
+    };
+    "/api/v1/instructors/me/calendar-settings/acknowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Acknowledge Calendar Settings
+         * @description Record dismissal of the first-save calendar settings acknowledgement.
+         */
+        post: operations["acknowledge_calendar_settings_api_v1_instructors_me_calendar_settings_acknowledge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/instructors/me/generate-bio": {
         parameters: {
             query?: never;
@@ -9474,8 +9514,8 @@ export type components = {
              * @description List of conflicting bookings if any
              */
             conflicts_with?: components["schemas"]["ConflictingBookingInfo"][] | null;
-            /** Min Advance Hours */
-            min_advance_hours?: number | null;
+            /** Min Advance Minutes */
+            min_advance_minutes?: number | null;
             /** Reason */
             reason?: string | null;
             /** @description Time slot information for the availability check */
@@ -11164,6 +11204,35 @@ export type components = {
             redis_info?: {
                 [key: string]: unknown;
             } | null;
+        };
+        /**
+         * CalendarSettingsAcknowledgeResponse
+         * @description Acknowledgement timestamp returned after the first-save popup is dismissed.
+         */
+        CalendarSettingsAcknowledgeResponse: {
+            /** Calendar Settings Acknowledged At */
+            calendar_settings_acknowledged_at?: string | null;
+        };
+        /**
+         * CalendarSettingsResponse
+         * @description Focused calendar settings payload for availability-page updates.
+         */
+        CalendarSettingsResponse: {
+            /**
+             * Non Travel Buffer Minutes
+             * @default 15
+             */
+            non_travel_buffer_minutes: number;
+            /**
+             * Overnight Protection Enabled
+             * @default true
+             */
+            overnight_protection_enabled: boolean;
+            /**
+             * Travel Buffer Minutes
+             * @default 60
+             */
+            travel_buffer_minutes: number;
         };
         /** CandidateCategoryTrend */
         CandidateCategoryTrend: {
@@ -13313,18 +13382,6 @@ export type components = {
              */
             bio: string;
             /**
-             * Buffer Time Minutes
-             * @description Buffer time between bookings
-             * @default 0
-             */
-            buffer_time_minutes: number;
-            /**
-             * Min Advance Booking Hours
-             * @description Minimum hours in advance for bookings
-             * @default 2
-             */
-            min_advance_booking_hours: number;
-            /**
              * Services
              * @description Services offered by the instructor
              */
@@ -13362,12 +13419,8 @@ export type components = {
              * @description Instructor biography/description
              */
             bio: string;
-            /**
-             * Buffer Time Minutes
-             * @description Buffer time between bookings
-             * @default 0
-             */
-            buffer_time_minutes: number;
+            /** Calendar Settings Acknowledged At */
+            calendar_settings_acknowledged_at?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -13407,13 +13460,17 @@ export type components = {
              */
             is_live: boolean;
             /**
-             * Min Advance Booking Hours
-             * @description Minimum hours in advance for bookings
-             * @default 2
+             * Non Travel Buffer Minutes
+             * @default 15
              */
-            min_advance_booking_hours: number;
+            non_travel_buffer_minutes: number;
             /** Onboarding Completed At */
             onboarding_completed_at?: string | null;
+            /**
+             * Overnight Protection Enabled
+             * @default true
+             */
+            overnight_protection_enabled: boolean;
             /** Preferred Public Spaces */
             preferred_public_spaces?: components["schemas"]["PreferredPublicSpaceOut"][];
             /** Preferred Teaching Locations */
@@ -13432,6 +13489,11 @@ export type components = {
              * @default false
              */
             skills_configured: boolean;
+            /**
+             * Travel Buffer Minutes
+             * @default 60
+             */
+            travel_buffer_minutes: number;
             /** Updated At */
             updated_at?: string | null;
             user: components["schemas"]["UserBasicPrivacy"];
@@ -13452,16 +13514,6 @@ export type components = {
         InstructorProfileUpdate: {
             /** Bio */
             bio?: string | null;
-            /**
-             * Buffer Time Minutes
-             * @description Buffer time between bookings
-             */
-            buffer_time_minutes?: number | null;
-            /**
-             * Min Advance Booking Hours
-             * @description Minimum hours in advance for bookings
-             */
-            min_advance_booking_hours?: number | null;
             /** Preferred Public Spaces */
             preferred_public_spaces?: components["schemas"]["PreferredPublicSpaceIn"][] | null;
             /** Preferred Teaching Locations */
@@ -20570,6 +20622,18 @@ export type components = {
             student_last_name: string;
             /** Total Price */
             total_price: number;
+        };
+        /**
+         * UpdateCalendarSettings
+         * @description Editable instructor calendar settings surfaced on the availability page.
+         */
+        UpdateCalendarSettings: {
+            /** Non Travel Buffer Minutes */
+            non_travel_buffer_minutes?: number | null;
+            /** Overnight Protection Enabled */
+            overnight_protection_enabled?: boolean | null;
+            /** Travel Buffer Minutes */
+            travel_buffer_minutes?: number | null;
         };
         /**
          * UpdateConversationStateRequest
@@ -28506,6 +28570,101 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description User is not an instructor or insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Profile not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_calendar_settings_api_v1_instructors_me_calendar_settings_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCalendarSettings"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarSettingsResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description User is not an instructor or insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Profile not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    acknowledge_calendar_settings_api_v1_instructors_me_calendar_settings_acknowledge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarSettingsAcknowledgeResponse"];
+                };
             };
             /** @description Not authenticated */
             401: {
