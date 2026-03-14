@@ -17,7 +17,7 @@ import type { WeekBits } from '@/types/availability';
 import type { InstructorProfile } from '@/types/instructor';
 import { UserData } from '@/types/user';
 import { getWeekDates } from '@/lib/availability/dateHelpers';
-import { Calendar, ArrowLeft } from 'lucide-react';
+import { Calendar, ArrowLeft, CarFront, MonitorCheck } from 'lucide-react';
 import { SLOTS_PER_DAY, MINUTES_PER_SLOT } from '@/lib/calendar/bitset';
 import { useEmbedded } from '../_embedded/EmbeddedContext';
 import { logger } from '@/lib/logger';
@@ -39,9 +39,12 @@ import {
 import {
   areCalendarSettingsEqual,
   deriveCalendarAcknowledgementVariant,
+  formatTagLabel,
   getCalendarSettingsDraft,
+  getAvailableTagOptions,
   type CalendarSettingsDraft,
 } from '@/components/availability/calendarSettings';
+import { TAG_ONLINE_ONLY } from '@/lib/calendar/bitset';
 
 const CalendarSkeleton = () => (
   <div className="space-y-2" aria-hidden="true">
@@ -99,9 +102,13 @@ function AvailabilityPageImpl() {
     currentWeekStart,
     weekBits,
     savedWeekBits,
+    weekTags,
+    savedWeekTags,
+    hasUnsavedChanges,
     isLoading,
     navigateWeek,
     setWeekBits,
+    setWeekTags,
     setMessage,
     message,
     refreshSchedule,
@@ -118,24 +125,6 @@ function AvailabilityPageImpl() {
     useUpdateCalendarSettingsApiV1InstructorsMeCalendarSettingsPatch();
   const acknowledgeCalendarSettingsMutation =
     useAcknowledgeCalendarSettingsApiV1InstructorsMeCalendarSettingsAcknowledgePost();
-
-  const serializeBits = useCallback((bits: WeekBits) => {
-    return Object.fromEntries(
-      Object.entries(bits)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([date, dayBits]) => [date, Array.from(dayBits)])
-    );
-  }, []);
-
-  const serializedWeekBits = useMemo(
-    () => JSON.stringify(serializeBits(weekBits)),
-    [serializeBits, weekBits]
-  );
-  const serializedSavedWeekBits = useMemo(
-    () => JSON.stringify(serializeBits(savedWeekBits)),
-    [serializeBits, savedWeekBits]
-  );
-  const hasPendingChanges = serializedWeekBits !== serializedSavedWeekBits;
 
   const [activeDay, setActiveDay] = useState(0);
   const [repeatWeeks, setRepeatWeeks] = useState<number>(4);
@@ -186,6 +175,10 @@ function AvailabilityPageImpl() {
   const effectiveCalendarSettings = calendarSettings ?? profileCalendarSettings;
   const calendarAcknowledgementVariant = useMemo(
     () => deriveCalendarAcknowledgementVariant(instructorProfile?.services ?? []),
+    [instructorProfile?.services]
+  );
+  const availableTagOptions = useMemo(
+    () => getAvailableTagOptions(instructorProfile?.services ?? []),
     [instructorProfile?.services]
   );
   const calendarSettingsAcknowledgedAt =
@@ -535,10 +528,11 @@ function AvailabilityPageImpl() {
 
   const handleDiscardChanges = useCallback(() => {
     setWeekBits(savedWeekBits);
+    setWeekTags(savedWeekTags);
     setMessage(null);
     setConflictState(null);
     toast.info('Reverted to last saved schedule.');
-  }, [savedWeekBits, setWeekBits, setMessage]);
+  }, [savedWeekBits, savedWeekTags, setWeekBits, setWeekTags, setMessage]);
 
   const persistWeek = useCallback(
     async ({
@@ -625,7 +619,7 @@ function AvailabilityPageImpl() {
     if (!autosaveEnabled || typeof window === 'undefined') {
       return;
     }
-    if (!hasPendingChanges || isLoading || isSaving || conflictState) {
+    if (!hasUnsavedChanges || isLoading || isSaving || conflictState) {
       if (autosaveTimer.current) {
         window.clearTimeout(autosaveTimer.current);
         autosaveTimer.current = null;
@@ -648,7 +642,7 @@ function AvailabilityPageImpl() {
         autosaveTimer.current = null;
       }
     };
-  }, [autosaveEnabled, conflictState, hasPendingChanges, isLoading, isSaving, persistWeek]);
+  }, [autosaveEnabled, conflictState, hasUnsavedChanges, isLoading, isSaving, persistWeek]);
 
   const handleCalendarSettingsAcknowledge = useCallback(async () => {
     try {
@@ -670,11 +664,11 @@ function AvailabilityPageImpl() {
     <WeekNavigator
       currentWeekStart={currentWeekStart}
       onNavigate={navigateWeek}
-      hasUnsavedChanges={hasPendingChanges}
+      hasUnsavedChanges={hasUnsavedChanges}
       showSubtitle={false}
       disabled={isLoading}
     />
-  ), [currentWeekStart, navigateWeek, isLoading, hasPendingChanges]);
+  ), [currentWeekStart, navigateWeek, isLoading, hasUnsavedChanges]);
 
   return (
     <div className="min-h-screen insta-dashboard-page">
@@ -861,8 +855,11 @@ function AvailabilityPageImpl() {
           <WeekView
             weekDates={weekDateInfo}
             weekBits={weekBits}
+            weekTags={weekTags}
             bookedSlots={bookedSlots}
             onBitsChange={handleBitsChange}
+            onTagsChange={setWeekTags}
+            availableTagOptions={availableTagOptions}
             isMobile={isMobile}
             activeDayIndex={activeDay}
             onActiveDayChange={setActiveDay}
@@ -873,6 +870,44 @@ function AvailabilityPageImpl() {
           />
         )}
       </div>
+      {availableTagOptions.length > 0 && (
+        <div
+          data-testid="availability-tag-legend"
+          className="mt-4 rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900/50 dark:text-gray-200"
+        >
+          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            Format Tags
+          </div>
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3">
+            {availableTagOptions.map((tag) => (
+              <div
+                key={tag}
+                className="inline-flex items-center gap-2 rounded-full border border-transparent px-3 py-1.5"
+              >
+                {tag === TAG_ONLINE_ONLY ? (
+                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300">
+                    <MonitorCheck className="h-4 w-4" />
+                  </span>
+                ) : (
+                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
+                    <CarFront className="h-4 w-4" />
+                  </span>
+                )}
+                <div className="leading-tight">
+                  <div className="font-medium text-gray-900 dark:text-gray-100">
+                    {formatTagLabel(tag)}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    {tag === TAG_ONLINE_ONLY
+                      ? 'Only online lessons during these hours'
+                      : 'Online and studio lessons, no travel'}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <CalendarSettingsSection
         value={effectiveCalendarSettings}
         saveState={
@@ -900,7 +935,7 @@ function AvailabilityPageImpl() {
     onAcknowledge={handleCalendarSettingsAcknowledge}
   />
 
-  {hasPendingChanges && (
+  {hasUnsavedChanges && (
       <div className="fixed bottom-4 left-1/2 z-40 w-full max-w-3xl -translate-x-1/2 px-4">
         <div className="flex items-center justify-between gap-4 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 py-3 shadow-lg insta-surface-card">
           <div className="text-sm text-gray-800 dark:text-gray-200">
@@ -918,7 +953,7 @@ function AvailabilityPageImpl() {
             <button
               type="button"
               onClick={handleSaveWeek}
-              disabled={isSaving || !hasPendingChanges}
+              disabled={isSaving || !hasUnsavedChanges}
               className="rounded-full bg-[#7E22CE] px-5 py-2 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60 insta-primary-btn"
             >
               {isSaving ? 'Saving…' : 'Save Week'}

@@ -27,6 +27,9 @@ function formatMinutesLabel(minutes: number): string {
   return `${minutes} minutes`;
 }
 
+const settingsCardClassName =
+  'rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/50';
+
 export default function CalendarSettingsSection({
   value,
   saveState,
@@ -67,7 +70,7 @@ export default function CalendarSettingsSection({
       </div>
 
       <div className="mt-5 space-y-4">
-        <div className="grid gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/50 md:grid-cols-[minmax(0,1fr)_220px] md:items-center">
+        <div className={`grid gap-3 ${settingsCardClassName} md:grid-cols-[minmax(0,1fr)_220px] md:items-center`}>
           <div>
             <label
               htmlFor="calendar-non-travel-buffer"
@@ -101,7 +104,7 @@ export default function CalendarSettingsSection({
           </Select>
         </div>
 
-        <div className="grid gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/50 md:grid-cols-[minmax(0,1fr)_220px] md:items-center">
+        <div className={`grid gap-3 ${settingsCardClassName} md:grid-cols-[minmax(0,1fr)_220px] md:items-center`}>
           <div>
             <label
               htmlFor="calendar-travel-buffer"
@@ -136,18 +139,20 @@ export default function CalendarSettingsSection({
         </div>
       </div>
 
-      <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
-        <div className="flex items-start justify-between gap-4">
-          <div className="pr-4">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+      <div
+        className={`mt-6 grid gap-3 ${settingsCardClassName} md:grid-cols-[minmax(0,1fr)_220px] md:items-center`}
+      >
+        <div>
+          <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">
               Overnight Booking Protection
-            </h3>
-            <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">
-              When enabled, students can&apos;t book early morning lessons overnight. Online/studio
-              slots before 9am and travel slots before 11am are protected from bookings made after
-              8pm.
-            </p>
-          </div>
+          </h3>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+            When enabled, students can&apos;t book early morning lessons overnight. Online/studio
+            slots before 9am and travel slots before 11am are protected from bookings made after
+            8pm.
+          </p>
+        </div>
+        <div className="flex items-center justify-center md:justify-center">
           <ToggleSwitch
             checked={value.overnightProtectionEnabled}
             onChange={() => onOvernightProtectionChange(!value.overnightProtectionEnabled)}

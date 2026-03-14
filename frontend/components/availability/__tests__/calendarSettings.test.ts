@@ -4,8 +4,24 @@ import {
   TRAVEL_BUFFER_OPTIONS,
   areCalendarSettingsEqual,
   deriveCalendarAcknowledgementVariant,
+  formatTagLabel,
   getCalendarSettingsDraft,
+  getAvailableTagOptions,
+  isTaggingEnabled,
 } from '../calendarSettings';
+import { TAG_NO_TRAVEL, TAG_ONLINE_ONLY } from '@/lib/calendar/bitset';
+
+const serviceWithFormats = (...formats: Array<'student_location' | 'instructor_location' | 'online'>) => ({
+  id: `service-${formats.join('-')}`,
+  service_catalog_id: 'catalog-1',
+  service_catalog_name: 'Piano',
+  min_hourly_rate: 90,
+  description: null,
+  format_prices: formats.map((format, index) => ({
+    format,
+    hourly_rate: 90 + index * 10,
+  })),
+});
 
 describe('calendarSettings helpers', () => {
   it('builds defaults when profile settings are missing', () => {
@@ -48,51 +64,68 @@ describe('calendarSettings helpers', () => {
 
   it('derives the mixed-format acknowledgement variant', () => {
     expect(
-      deriveCalendarAcknowledgementVariant([
-        {
-          id: 'service-1',
-          service_catalog_id: 'catalog-1',
-          service_catalog_name: 'Piano',
-          min_hourly_rate: 90,
-          description: null,
-          format_prices: [
-            { format: 'student_location', hourly_rate: 120 },
-            { format: 'online', hourly_rate: 90 },
-          ],
-        },
-      ])
+      deriveCalendarAcknowledgementVariant([serviceWithFormats('student_location', 'online')])
     ).toBe('mixed_formats');
   });
 
   it('derives the travel-only acknowledgement variant', () => {
-    expect(
-      deriveCalendarAcknowledgementVariant([
-        {
-          id: 'service-1',
-          service_catalog_id: 'catalog-1',
-          service_catalog_name: 'Piano',
-          min_hourly_rate: 120,
-          description: null,
-          format_prices: [{ format: 'student_location', hourly_rate: 120 }],
-        },
-      ])
-    ).toBe('travel_only');
+    expect(deriveCalendarAcknowledgementVariant([serviceWithFormats('student_location')])).toBe(
+      'travel_only'
+    );
   });
 
   it('derives the non-travel acknowledgement variant and exposes valid options', () => {
-    expect(
-      deriveCalendarAcknowledgementVariant([
-        {
-          id: 'service-1',
-          service_catalog_id: 'catalog-1',
-          service_catalog_name: 'Piano',
-          min_hourly_rate: 100,
-          description: null,
-          format_prices: [{ format: 'instructor_location', hourly_rate: 100 }],
-        },
-      ])
-    ).toBe('non_travel_only');
+    expect(deriveCalendarAcknowledgementVariant([serviceWithFormats('instructor_location')])).toBe(
+      'non_travel_only'
+    );
     expect(CALENDAR_BUFFER_OPTIONS).toContain(0);
     expect(TRAVEL_BUFFER_OPTIONS).toEqual([15, 20, 25, 30, 45, 60, 75, 90, 120]);
+  });
+
+  it('returns no tag options for single-format instructors', () => {
+    expect(getAvailableTagOptions([serviceWithFormats('online')])).toEqual([]);
+    expect(getAvailableTagOptions([serviceWithFormats('instructor_location')])).toEqual([]);
+    expect(getAvailableTagOptions([serviceWithFormats('student_location')])).toEqual([]);
+    expect(isTaggingEnabled([serviceWithFormats('online')])).toBe(false);
+  });
+
+  it('returns online-only for online and studio instructors', () => {
+    expect(
+      getAvailableTagOptions([serviceWithFormats('online', 'instructor_location')])
+    ).toEqual([TAG_ONLINE_ONLY]);
+  });
+
+  it('returns online-only for online and travel instructors', () => {
+    expect(getAvailableTagOptions([serviceWithFormats('online', 'student_location')])).toEqual([
+      TAG_ONLINE_ONLY,
+    ]);
+  });
+
+  it('returns no-travel for studio and travel instructors', () => {
+    expect(
+      getAvailableTagOptions([serviceWithFormats('instructor_location', 'student_location')])
+    ).toEqual([TAG_NO_TRAVEL]);
+  });
+
+  it('returns both tags for instructors offering all three formats', () => {
+    expect(
+      getAvailableTagOptions([
+        serviceWithFormats('online'),
+        serviceWithFormats('student_location'),
+        serviceWithFormats('instructor_location'),
+      ])
+    ).toEqual([TAG_ONLINE_ONLY, TAG_NO_TRAVEL]);
+    expect(
+      isTaggingEnabled([
+        serviceWithFormats('online'),
+        serviceWithFormats('student_location'),
+        serviceWithFormats('instructor_location'),
+      ])
+    ).toBe(true);
+  });
+
+  it('maps format tags to readable labels', () => {
+    expect(formatTagLabel(TAG_ONLINE_ONLY)).toBe('Online Only');
+    expect(formatTagLabel(TAG_NO_TRAVEL)).toBe('No Travel');
   });
 });

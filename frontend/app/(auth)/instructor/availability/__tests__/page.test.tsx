@@ -12,6 +12,7 @@ const mockFetchBookedSlots = jest.fn();
 const mockInvalidateWeekSnapshot = jest.fn();
 const mockUpdateCalendarSettings = jest.fn();
 const mockAcknowledgeCalendarSettings = jest.fn();
+const mockWeekView = jest.fn();
 
 const baseWeekBits = {
   '2026-03-16': new Uint8Array([1]),
@@ -19,6 +20,14 @@ const baseWeekBits = {
 
 const savedWeekBits = {
   '2026-03-16': new Uint8Array([0]),
+};
+
+const baseWeekTags = {
+  '2026-03-16': new Uint8Array(72),
+};
+
+const savedWeekTags = {
+  '2026-03-16': new Uint8Array(72),
 };
 
 jest.mock('sonner', () => ({
@@ -44,6 +53,7 @@ jest.mock('next/dynamic', () => (loadFn: () => Promise<unknown>) => {
 
   const MockDynamic = (props: Record<string, unknown>) => {
     if ('weekDates' in props) {
+      mockWeekView(props);
       return <div data-testid="mock-week-view" />;
     }
     if ('open' in props && 'onOverwrite' in props) {
@@ -70,9 +80,13 @@ jest.mock('@/hooks/availability/useAvailability', () => ({
     currentWeekStart: new Date('2026-03-16T00:00:00.000Z'),
     weekBits: baseWeekBits,
     savedWeekBits,
+    weekTags: baseWeekTags,
+    savedWeekTags,
+    hasUnsavedChanges: true,
     isLoading: false,
     navigateWeek: jest.fn(),
     setWeekBits: jest.fn(),
+    setWeekTags: jest.fn(),
     setMessage: jest.fn(),
     message: null,
     refreshSchedule: mockRefreshSchedule,
@@ -275,6 +289,32 @@ describe('InstructorAvailabilityPage', () => {
     expect(
       screen.getByRole('switch', { name: 'Overnight Booking Protection' })
     ).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('shows the tag legend for mixed-format instructors and passes tag props to the week view', () => {
+    renderPage({
+      formatPrices: [
+        { format: 'student_location', hourly_rate: 95 },
+        { format: 'online', hourly_rate: 80 },
+      ],
+    });
+
+    expect(screen.getByTestId('availability-tag-legend')).toBeInTheDocument();
+    expect(screen.getByText(/Online Only/i)).toBeInTheDocument();
+    expect(mockWeekView).toHaveBeenCalledWith(
+      expect.objectContaining({
+        weekTags: baseWeekTags,
+        availableTagOptions: [1],
+      })
+    );
+  });
+
+  it('hides the tag legend for single-format instructors', () => {
+    renderPage({
+      formatPrices: [{ format: 'online', hourly_rate: 75 }],
+    });
+
+    expect(screen.queryByTestId('availability-tag-legend')).not.toBeInTheDocument();
   });
 
   it('auto-saves the full settings payload after debounced edits and collapses rapid changes', async () => {

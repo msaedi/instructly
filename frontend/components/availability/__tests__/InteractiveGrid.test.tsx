@@ -2,9 +2,17 @@ import React from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import InteractiveGrid from '../InteractiveGrid';
-import type { WeekBits, WeekDateInfo, DayOfWeek } from '@/types/availability';
+import type { WeekBits, WeekDateInfo, DayOfWeek, WeekTags } from '@/types/availability';
 import type { BookedSlotPreview } from '@/types/booking';
-import { BYTES_PER_DAY, BITS_PER_CELL } from '@/lib/calendar/bitset';
+import {
+  BYTES_PER_DAY,
+  BITS_PER_CELL,
+  newEmptyTags,
+  setRangeTag,
+  TAG_NONE,
+  TAG_NO_TRAVEL,
+  TAG_ONLINE_ONLY,
+} from '@/lib/calendar/bitset';
 
 // Mock clsx to pass through classnames
 jest.mock('clsx', () => ({
@@ -24,6 +32,10 @@ function makeCellBits(bitmapStart: number): Uint8Array {
     }
   }
   return bits;
+}
+
+function makeCellTags(bitmapStart: number, tag: typeof TAG_NONE | typeof TAG_ONLINE_ONLY | typeof TAG_NO_TRAVEL): Uint8Array {
+  return setRangeTag(newEmptyTags(), bitmapStart, BITS_PER_CELL, tag);
 }
 
 describe('InteractiveGrid', () => {
@@ -210,6 +222,590 @@ describe('InteractiveGrid', () => {
       }
 
       expect(onBitsChange).toHaveBeenCalled();
+    });
+  });
+
+  describe('tagging', () => {
+    const mixedTagOptions = [TAG_ONLINE_ONLY, TAG_NO_TRAVEL] as const;
+
+    const TagWrapper = ({
+      initialBits,
+      initialTags,
+      bookedSlots = [],
+      availableTagOptions = mixedTagOptions,
+      isMobile = false,
+    }: {
+      initialBits?: WeekBits;
+      initialTags?: WeekTags;
+      bookedSlots?: BookedSlotPreview[];
+      availableTagOptions?: readonly (typeof TAG_ONLINE_ONLY | typeof TAG_NO_TRAVEL)[];
+      isMobile?: boolean;
+    }) => {
+      const [bits, setBits] = React.useState<WeekBits>(initialBits ?? {
+        '2030-01-07': makeCellBits(108),
+      });
+      const [tags, setTags] = React.useState<WeekTags>(initialTags ?? {});
+
+      return (
+        <InteractiveGrid
+          {...defaultProps}
+          weekBits={bits}
+          weekTags={tags}
+          onBitsChange={setBits}
+          onTagsChange={setTags}
+          availableTagOptions={[...availableTagOptions]}
+          bookedSlots={bookedSlots}
+          startHour={9}
+          endHour={10}
+          isMobile={isMobile}
+        />
+      );
+    };
+
+    it('hides tagging UI when no tag options are available', () => {
+      render(
+        <InteractiveGrid
+          {...defaultProps}
+          weekBits={{
+            '2030-01-07': makeCellBits(108),
+          }}
+          weekTags={{}}
+          onBitsChange={jest.fn()}
+          onTagsChange={jest.fn()}
+          availableTagOptions={[]}
+          startHour={9}
+          endHour={10}
+        />
+      );
+
+      const firstCell = screen.getAllByTestId('availability-cell')[0];
+      expect(firstCell).toHaveAttribute('data-tag-state', 'none');
+      fireEvent.contextMenu(firstCell!);
+      expect(screen.queryByTestId('format-tag-popover')).not.toBeInTheDocument();
+    });
+
+    it('shows the tag popover with the correct options on right click', () => {
+      render(<TagWrapper />);
+
+      const firstCell = screen.getAllByTestId('availability-cell')[0];
+      fireEvent.contextMenu(firstCell!);
+
+      expect(screen.getByTestId('format-tag-popover')).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: 'All formats' })).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: 'Online Only' })).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: 'No Travel' })).toBeInTheDocument();
+    });
+
+    it('applies a selected tag and renders the matching indicator', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      render(
+        <TagWrapper
+          initialBits={{
+            '2030-01-10': makeCellBits(108),
+          }}
+        />
+      );
+
+      const targetCell = screen.getAllByTestId('availability-cell')[3];
+      fireEvent.contextMenu(targetCell!);
+      await user.click(screen.getByRole('radio', { name: 'Online Only' }));
+
+      expect(targetCell).toHaveAttribute('data-tag-state', 'online_only');
+      expect(screen.getByTestId('tag-indicator-online')).toBeInTheDocument();
+    });
+
+    it('clears tags back to none when a tagged cell is toggled off', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      render(
+        <TagWrapper
+          initialTags={{
+            '2030-01-07': makeCellTags(108, TAG_ONLINE_ONLY),
+          }}
+        />
+      );
+
+      const firstCell = screen.getAllByTestId('availability-cell')[0];
+      expect(firstCell).toHaveAttribute('data-tag-state', 'online_only');
+
+      await user.pointer([
+        { target: firstCell!, keys: '[MouseLeft>]' },
+        { target: firstCell!, keys: '[/MouseLeft]' },
+      ]);
+
+      expect(firstCell).toHaveAttribute('aria-selected', 'false');
+      expect(firstCell).toHaveAttribute('data-tag-state', 'inactive');
+    });
+
+    it('does not open the tag popover for booked cells', () => {
+      const bookedSlots: BookedSlotPreview[] = [
+        {
+          booking_id: 'booking-123',
+          date: '2030-01-07',
+          start_time: '09:00:00',
+          end_time: '09:30:00',
+          student_first_name: 'John',
+          student_last_initial: 'D',
+          service_name: 'Piano',
+          service_area_short: 'Manhattan',
+          duration_minutes: 30,
+          location_type: 'student_location',
+        },
+      ];
+
+      render(<TagWrapper bookedSlots={bookedSlots} />);
+
+      const firstCell = screen.getAllByTestId('availability-cell')[0];
+      fireEvent.contextMenu(firstCell!);
+
+      expect(screen.queryByTestId('format-tag-popover')).not.toBeInTheDocument();
+    });
+
+    it('clears tags across a deselected drag range', async () => {
+      render(
+        <TagWrapper
+          initialBits={{
+            '2030-01-07': (() => {
+              const bits = makeCellBits(108);
+              for (let i = 0; i < BITS_PER_CELL; i += 1) {
+                const slot = 114 + i;
+                const byteIdx = Math.floor(slot / 8);
+                const bitIdx = slot % 8;
+                bits[byteIdx] = (bits[byteIdx] ?? 0) | (1 << bitIdx);
+              }
+              return bits;
+            })(),
+          }}
+          initialTags={{
+            '2030-01-07': (() => {
+              let tags = makeCellTags(108, TAG_NO_TRAVEL);
+              tags = setRangeTag(tags, 114, BITS_PER_CELL, TAG_NO_TRAVEL);
+              return tags;
+            })(),
+          }}
+        />
+      );
+
+      const cells = screen.getAllByTestId('availability-cell');
+      const firstCell = cells[0];
+      const secondCell = cells[7];
+
+      fireEvent.mouseDown(firstCell!, { button: 0, buttons: 1 });
+      fireEvent.mouseEnter(secondCell!, { buttons: 1 });
+      fireEvent.mouseUp(secondCell!, { button: 0 });
+
+      expect(firstCell).toHaveAttribute('data-tag-state', 'inactive');
+      expect(secondCell).toHaveAttribute('data-tag-state', 'inactive');
+    });
+
+    it('safely skips tag clearing when no tag updater is provided', () => {
+      const WithoutTagUpdater = () => {
+        const [bits, setBits] = React.useState<WeekBits>({
+          '2030-01-07': (() => {
+            const next = makeCellBits(108);
+            for (let i = 0; i < BITS_PER_CELL; i += 1) {
+              const slot = 114 + i;
+              const byteIdx = Math.floor(slot / 8);
+              const bitIdx = slot % 8;
+              next[byteIdx] = (next[byteIdx] ?? 0) | (1 << bitIdx);
+            }
+            return next;
+          })(),
+        });
+
+        return (
+          <InteractiveGrid
+            {...defaultProps}
+            weekBits={bits}
+            weekTags={{ '2030-01-07': makeCellTags(108, TAG_NO_TRAVEL) }}
+            onBitsChange={setBits}
+            availableTagOptions={[TAG_ONLINE_ONLY, TAG_NO_TRAVEL]}
+            startHour={9}
+            endHour={10}
+          />
+        );
+      };
+
+      render(<WithoutTagUpdater />);
+
+      const cells = screen.getAllByTestId('availability-cell');
+      fireEvent.mouseDown(cells[0]!, { button: 0, buttons: 1 });
+      fireEvent.mouseEnter(cells[7]!, { buttons: 1 });
+      fireEvent.mouseUp(cells[7]!, { button: 0 });
+
+      expect(cells[0]).toHaveAttribute('aria-selected', 'false');
+      expect(cells[7]).toHaveAttribute('aria-selected', 'false');
+    });
+
+    it('applies a tag across a right-drag range', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      render(
+        <TagWrapper
+          initialBits={{
+            '2030-01-07': (() => {
+              let bits = makeCellBits(108);
+              bits = (() => {
+                const next = bits.slice();
+                for (let i = 0; i < BITS_PER_CELL; i += 1) {
+                  const slot = 114 + i;
+                  const byteIdx = Math.floor(slot / 8);
+                  const bitIdx = slot % 8;
+                  next[byteIdx] = (next[byteIdx] ?? 0) | (1 << bitIdx);
+                }
+                return next;
+              })();
+              return bits;
+            })(),
+          }}
+        />
+      );
+
+      const cells = screen.getAllByTestId('availability-cell');
+      const firstCell = cells[0];
+      const secondCell = cells[7];
+
+      fireEvent.mouseDown(firstCell!, { button: 2, buttons: 2 });
+      fireEvent.mouseEnter(secondCell!, { buttons: 2 });
+      fireEvent.mouseUp(secondCell!, { button: 2, buttons: 2 });
+      fireEvent.contextMenu(secondCell!, { button: 2, buttons: 2 });
+      await user.click(screen.getByRole('radio', { name: 'No Travel' }));
+
+      expect(firstCell).toHaveAttribute('data-tag-state', 'no_travel');
+      expect(secondCell).toHaveAttribute('data-tag-state', 'no_travel');
+    });
+
+    it('keeps mixed tag selections unchecked in the popover', () => {
+      render(
+        <TagWrapper
+          initialBits={{
+            '2030-01-10': (() => {
+              const bits = makeCellBits(108);
+              for (let i = 0; i < BITS_PER_CELL; i += 1) {
+                const slot = 114 + i;
+                const byteIdx = Math.floor(slot / 8);
+                const bitIdx = slot % 8;
+                bits[byteIdx] = (bits[byteIdx] ?? 0) | (1 << bitIdx);
+              }
+              return bits;
+            })(),
+          }}
+          initialTags={{
+            '2030-01-10': (() => {
+              let tags = makeCellTags(108, TAG_ONLINE_ONLY);
+              tags = setRangeTag(tags, 114, BITS_PER_CELL, TAG_NO_TRAVEL);
+              return tags;
+            })(),
+          }}
+        />
+      );
+
+      const cells = screen.getAllByTestId('availability-cell');
+      const firstCell = cells[3];
+      const secondCell = cells[10];
+
+      fireEvent.mouseDown(firstCell!, { button: 2, buttons: 2 });
+      fireEvent.mouseEnter(secondCell!, { buttons: 2 });
+      fireEvent.contextMenu(secondCell!, { button: 2, buttons: 2 });
+
+      expect(screen.getByRole('radio', { name: 'All formats' })).toHaveAttribute(
+        'aria-checked',
+        'false'
+      );
+      expect(screen.getByRole('radio', { name: 'Online Only' })).toHaveAttribute(
+        'aria-checked',
+        'false'
+      );
+      expect(screen.getByRole('radio', { name: 'No Travel' })).toHaveAttribute(
+        'aria-checked',
+        'false'
+      );
+    });
+
+    it('extends tag selection across different dates on the same row', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      render(
+        <TagWrapper
+          initialBits={{
+            '2030-01-07': makeCellBits(108),
+            '2030-01-08': makeCellBits(108),
+          }}
+        />
+      );
+
+      const cells = screen.getAllByTestId('availability-cell');
+      const mondayCell = cells[0];
+      const tuesdayCell = cells[1];
+
+      fireEvent.mouseDown(mondayCell!, { button: 2, buttons: 2 });
+      fireEvent.mouseEnter(tuesdayCell!, { buttons: 2 });
+      fireEvent.contextMenu(tuesdayCell!, { button: 2, buttons: 2 });
+      await user.click(screen.getByRole('radio', { name: 'Online Only' }));
+
+      expect(mondayCell).toHaveAttribute('data-tag-state', 'online_only');
+      expect(tuesdayCell).toHaveAttribute('data-tag-state', 'online_only');
+    });
+
+    it('re-enters the same cell during tag selection without losing the target range', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      render(<TagWrapper />);
+
+      const firstCell = screen.getAllByTestId('availability-cell')[0];
+      fireEvent.mouseDown(firstCell!, { button: 2, buttons: 2 });
+      fireEvent.mouseEnter(firstCell!, { buttons: 2 });
+      fireEvent.contextMenu(firstCell!, { button: 2, buttons: 2 });
+      await user.click(screen.getByRole('radio', { name: 'No Travel' }));
+
+      expect(firstCell).toHaveAttribute('data-tag-state', 'no_travel');
+    });
+
+    it('treats a mixed single-cell tag as an unchecked popover selection', () => {
+      const mixedTags = newEmptyTags();
+      const partiallyTagged = setRangeTag(mixedTags, 108, 3, TAG_ONLINE_ONLY);
+
+      render(
+        <TagWrapper
+          initialBits={{
+            '2030-01-10': makeCellBits(108),
+          }}
+          initialTags={{
+            '2030-01-10': partiallyTagged,
+          }}
+        />
+      );
+
+      const targetCell = screen.getAllByTestId('availability-cell')[3];
+      fireEvent.contextMenu(targetCell!);
+
+      expect(screen.getByRole('radio', { name: 'All formats' })).toHaveAttribute(
+        'aria-checked',
+        'false'
+      );
+    });
+
+    it('closes the popover without applying a tag when no tag updater is provided', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      render(
+        <InteractiveGrid
+          {...defaultProps}
+          weekBits={{ '2030-01-07': makeCellBits(108) }}
+          weekTags={{}}
+          onBitsChange={jest.fn()}
+          availableTagOptions={[TAG_ONLINE_ONLY, TAG_NO_TRAVEL]}
+          startHour={9}
+          endHour={10}
+        />
+      );
+
+      const firstCell = screen.getAllByTestId('availability-cell')[0];
+      fireEvent.contextMenu(firstCell!);
+      await user.click(screen.getByRole('radio', { name: 'Online Only' }));
+
+      expect(screen.queryByTestId('format-tag-popover')).not.toBeInTheDocument();
+      expect(firstCell).toHaveAttribute('data-tag-state', 'none');
+    });
+
+    it('ignores a synthetic mouse down immediately after long press opens the popover', async () => {
+      render(<TagWrapper isMobile={true} />);
+
+      const firstCell = screen.getAllByTestId('availability-cell')[0];
+      fireEvent.touchStart(firstCell!);
+
+      await act(async () => {
+        jest.advanceTimersByTime(450);
+      });
+
+      fireEvent.mouseDown(firstCell!, { button: 0, buttons: 1 });
+
+      expect(firstCell).toHaveAttribute('aria-selected', 'true');
+      expect(screen.getByTestId('format-tag-popover')).toBeInTheDocument();
+    });
+
+    it('does not start tag selection from an inactive cell on right mouse down', () => {
+      render(
+        <TagWrapper
+          initialBits={{
+            '2030-01-07': new Uint8Array(BYTES_PER_DAY),
+          }}
+        />
+      );
+
+      const firstCell = screen.getAllByTestId('availability-cell')[0];
+      fireEvent.mouseDown(firstCell!, { button: 2, buttons: 2 });
+      fireEvent.contextMenu(firstCell!, { button: 2, buttons: 2 });
+
+      expect(screen.queryByTestId('format-tag-popover')).not.toBeInTheDocument();
+    });
+
+    it('skips tag selection expansion when the hovered cell is locked', () => {
+      const bookedSlots: BookedSlotPreview[] = [
+        {
+          booking_id: 'booking-123',
+          date: '2030-01-07',
+          start_time: '09:30:00',
+          end_time: '10:00:00',
+          student_first_name: 'John',
+          student_last_initial: 'D',
+          service_name: 'Piano',
+          service_area_short: 'Manhattan',
+          duration_minutes: 30,
+          location_type: 'student_location',
+        },
+      ];
+
+      render(
+        <TagWrapper
+          initialBits={{
+            '2030-01-07': (() => {
+              const bits = makeCellBits(108);
+              for (let i = 0; i < BITS_PER_CELL; i += 1) {
+                const slot = 114 + i;
+                const byteIdx = Math.floor(slot / 8);
+                const bitIdx = slot % 8;
+                bits[byteIdx] = (bits[byteIdx] ?? 0) | (1 << bitIdx);
+              }
+              return bits;
+            })(),
+          }}
+          bookedSlots={bookedSlots}
+        />
+      );
+
+      const cells = screen.getAllByTestId('availability-cell');
+      const firstCell = cells[0];
+      const bookedCell = cells[7];
+
+      fireEvent.mouseDown(firstCell!, { button: 2, buttons: 2 });
+      fireEvent.mouseEnter(bookedCell!, { buttons: 2 });
+      fireEvent.contextMenu(bookedCell!, { button: 2, buttons: 2 });
+
+      expect(screen.queryByTestId('format-tag-popover')).not.toBeInTheDocument();
+    });
+
+    it('skips primary drag updates for locked cells', async () => {
+      const bookedSlots: BookedSlotPreview[] = [
+        {
+          booking_id: 'booking-321',
+          date: '2030-01-07',
+          start_time: '09:30:00',
+          end_time: '10:00:00',
+          student_first_name: 'Jane',
+          student_last_initial: 'R',
+          service_name: 'Violin',
+          service_area_short: 'Brooklyn',
+          duration_minutes: 30,
+          location_type: 'student_location',
+        },
+      ];
+
+      render(<TagWrapper bookedSlots={bookedSlots} initialBits={{}} />);
+
+      const cells = screen.getAllByTestId('availability-cell');
+      const firstCell = cells[0];
+      const bookedCell = cells[7];
+
+      fireEvent.mouseDown(firstCell!, { button: 0, buttons: 1 });
+      fireEvent.mouseEnter(bookedCell!, { buttons: 1 });
+      fireEvent.mouseUp(bookedCell!, { button: 0 });
+
+      expect(firstCell).toHaveAttribute('aria-selected', 'true');
+      expect(bookedCell).toHaveAttribute('aria-selected', 'false');
+    });
+
+    it('opens the same tag popover path on mobile long press', async () => {
+      render(<TagWrapper isMobile={true} />);
+
+      const firstCell = screen.getAllByTestId('availability-cell')[0];
+      fireEvent.touchStart(firstCell!);
+
+      await act(async () => {
+        jest.advanceTimersByTime(450);
+      });
+
+      expect(screen.getByTestId('format-tag-popover')).toBeInTheDocument();
+      fireEvent.touchEnd(firstCell!);
+    });
+
+    it('does not open the long-press popover for inactive touch targets', async () => {
+      render(
+        <TagWrapper
+          isMobile={true}
+          initialBits={{
+            '2030-01-07': new Uint8Array(BYTES_PER_DAY),
+          }}
+        />
+      );
+
+      const firstCell = screen.getAllByTestId('availability-cell')[0];
+      fireEvent.touchStart(firstCell!);
+      await act(async () => {
+        jest.advanceTimersByTime(450);
+      });
+      expect(screen.queryByTestId('format-tag-popover')).not.toBeInTheDocument();
+    });
+
+    it('cancels long press on multi-touch, touch move, and touch cancel', async () => {
+      render(<TagWrapper isMobile={true} />);
+
+      const firstCell = screen.getAllByTestId('availability-cell')[0];
+
+      fireEvent.touchStart(firstCell!, {
+        touches: [{ identifier: 1 }, { identifier: 2 }],
+      });
+      await act(async () => {
+        jest.advanceTimersByTime(450);
+      });
+      expect(screen.queryByTestId('format-tag-popover')).not.toBeInTheDocument();
+
+      fireEvent.touchStart(firstCell!, {
+        touches: [{ identifier: 1 }],
+      });
+      fireEvent.touchMove(firstCell!);
+      await act(async () => {
+        jest.advanceTimersByTime(450);
+      });
+      expect(screen.queryByTestId('format-tag-popover')).not.toBeInTheDocument();
+
+      fireEvent.touchStart(firstCell!, {
+        touches: [{ identifier: 1 }],
+      });
+      fireEvent.touchCancel(firstCell!);
+      await act(async () => {
+        jest.advanceTimersByTime(450);
+      });
+      expect(screen.queryByTestId('format-tag-popover')).not.toBeInTheDocument();
+    });
+
+    it('closes the popover when focus leaves through Radix open state changes', async () => {
+      render(<TagWrapper />);
+
+      const firstCell = screen.getAllByTestId('availability-cell')[0];
+      fireEvent.contextMenu(firstCell!);
+
+      expect(screen.getByTestId('format-tag-popover')).toBeInTheDocument();
+
+      fireEvent.keyDown(document, { key: 'Escape' });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(screen.queryByTestId('format-tag-popover')).not.toBeInTheDocument();
+    });
+
+    it('renders mixed tag cells with the base active palette', () => {
+      const mixedTags = newEmptyTags();
+      const partiallyTagged = setRangeTag(mixedTags, 108, 3, TAG_ONLINE_ONLY);
+
+      render(
+        <TagWrapper
+          initialTags={{
+            '2030-01-07': partiallyTagged,
+          }}
+        />
+      );
+
+      const firstCell = screen.getAllByTestId('availability-cell')[0];
+      expect(firstCell!).toHaveAttribute('data-tag-state', 'mixed');
+      expect(firstCell!.className).toContain('bg-[#EDE3FA]');
     });
   });
 

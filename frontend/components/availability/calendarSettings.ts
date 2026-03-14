@@ -1,4 +1,9 @@
 import { availableFormatsFromPrices } from '@/lib/pricing/formatPricing';
+import {
+  TAG_NO_TRAVEL,
+  TAG_ONLINE_ONLY,
+  type FormatTag,
+} from '@/lib/calendar/bitset';
 import type { InstructorProfile, InstructorService } from '@/types/instructor';
 
 export const CALENDAR_SETTINGS_DEFAULTS = {
@@ -20,6 +25,8 @@ export type CalendarSettingsAcknowledgementVariant =
   | 'mixed_formats'
   | 'non_travel_only'
   | 'travel_only';
+
+export type EditableFormatTag = typeof TAG_ONLINE_ONLY | typeof TAG_NO_TRAVEL;
 
 export function getCalendarSettingsDraft(
   profile?: Pick<
@@ -73,4 +80,39 @@ export function deriveCalendarAcknowledgementVariant(
   }
 
   return 'non_travel_only';
+}
+
+export function getAvailableTagOptions(
+  services: InstructorService[] = []
+): EditableFormatTag[] {
+  const allFormats = new Set(
+    services.flatMap((service) => availableFormatsFromPrices(service.format_prices ?? []))
+  );
+
+  const hasOnline = allFormats.has('online');
+  const hasStudio = allFormats.has('instructor_location');
+  const hasTravel = allFormats.has('student_location');
+
+  const available: EditableFormatTag[] = [];
+  if (hasOnline && (hasStudio || hasTravel)) {
+    available.push(TAG_ONLINE_ONLY);
+  }
+  if (hasTravel && hasStudio) {
+    available.push(TAG_NO_TRAVEL);
+  }
+  return available;
+}
+
+export function isTaggingEnabled(services: InstructorService[] = []): boolean {
+  return getAvailableTagOptions(services).length > 0;
+}
+
+export function formatTagLabel(tag: FormatTag): string {
+  if (tag === TAG_ONLINE_ONLY) {
+    return 'Online Only';
+  }
+  if (tag === TAG_NO_TRAVEL) {
+    return 'No Travel';
+  }
+  return 'All formats';
 }
