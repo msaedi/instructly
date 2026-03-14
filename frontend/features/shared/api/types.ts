@@ -394,7 +394,8 @@ export type FinalizeProfilePicturePayload = components['schemas']['FinalizeProfi
 export type UpcomingBookingResponse = components['schemas']['UpcomingBookingResponse'];
 
 // Availability update types
-export type WeekAvailabilityResponse = components['schemas']['WeekAvailabilityResponse'];
+export type WeekBitmapResponse = components['schemas']['WeekBitmapResponse'];
+export type WeekAvailabilityResponse = WeekBitmapResponse;
 export type WeekAvailabilityUpdateResponse = components['schemas']['WeekAvailabilityUpdateResponse'];
 export type CopyWeekResponse = components['schemas']['CopyWeekResponse'];
 

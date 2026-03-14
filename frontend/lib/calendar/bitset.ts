@@ -4,10 +4,26 @@ export const BYTES_PER_DAY = 36;
 export const BOOKING_START_STEP_MINUTES = 15;
 export const AVAILABILITY_CELL_MINUTES = 30;
 export const BITS_PER_CELL = 6; // AVAILABILITY_CELL_MINUTES / MINUTES_PER_SLOT
+export const BITS_PER_TAG = 2;
+export const TAG_BYTES_PER_DAY = Math.ceil((SLOTS_PER_DAY * BITS_PER_TAG) / 8);
+export const TAG_NONE = 0;
+export const TAG_ONLINE_ONLY = 1;
+export const TAG_NO_TRAVEL = 2;
+export const TAG_RESERVED = 3;
 export type DayBits = Uint8Array;
+export type DayTags = Uint8Array;
+export type FormatTag =
+  | typeof TAG_NONE
+  | typeof TAG_ONLINE_ONLY
+  | typeof TAG_NO_TRAVEL
+  | typeof TAG_RESERVED;
 
 export function newEmptyBits(): DayBits {
   return new Uint8Array(BYTES_PER_DAY);
+}
+
+export function newEmptyTags(): DayTags {
+  return new Uint8Array(TAG_BYTES_PER_DAY);
 }
 
 export function idx(hh: number, mm: number): number {
@@ -93,6 +109,71 @@ export function toggle(bits: DayBits, slotIndex: number, on: boolean): DayBits {
   const current: number = next[byte] ?? 0;
   next[byte] = on ? current | (1 << bit) : current & ~(1 << bit);
   return next;
+}
+
+export function getSlotTag(tags: DayTags, slot: number): FormatTag {
+  if (tags.length !== TAG_BYTES_PER_DAY) {
+    throw new Error(`tags length must be ${TAG_BYTES_PER_DAY}`);
+  }
+  if (slot < 0 || slot >= SLOTS_PER_DAY) {
+    throw new Error('slot out of range');
+  }
+  const bitOffset = slot * BITS_PER_TAG;
+  const byteIdx = Math.floor(bitOffset / 8);
+  const bitPos = bitOffset % 8;
+  return (((tags[byteIdx] ?? 0) >> bitPos) & 0b11) as FormatTag;
+}
+
+export function setSlotTag(tags: DayTags, slot: number, tag: FormatTag): DayTags {
+  if (tags.length !== TAG_BYTES_PER_DAY) {
+    throw new Error(`tags length must be ${TAG_BYTES_PER_DAY}`);
+  }
+  if (slot < 0 || slot >= SLOTS_PER_DAY) {
+    throw new Error('slot out of range');
+  }
+  if (tag < TAG_NONE || tag > TAG_RESERVED) {
+    throw new Error('tag must be 0-3');
+  }
+  const next = tags.slice();
+  const bitOffset = slot * BITS_PER_TAG;
+  const byteIdx = Math.floor(bitOffset / 8);
+  const bitPos = bitOffset % 8;
+  next[byteIdx] = (next[byteIdx] ?? 0) & ~(0b11 << bitPos);
+  next[byteIdx] = (next[byteIdx] ?? 0) | ((tag & 0b11) << bitPos);
+  return next;
+}
+
+export function setRangeTag(tags: DayTags, startSlot: number, count: number, tag: FormatTag): DayTags {
+  if (tags.length !== TAG_BYTES_PER_DAY) {
+    throw new Error(`tags length must be ${TAG_BYTES_PER_DAY}`);
+  }
+  if (tag < TAG_NONE || tag > TAG_RESERVED) {
+    throw new Error('tag must be 0-3');
+  }
+  const next = tags.slice();
+  for (let i = 0; i < count; i += 1) {
+    const slot = startSlot + i;
+    if (slot < 0 || slot >= SLOTS_PER_DAY) continue;
+    const bitOffset = slot * BITS_PER_TAG;
+    const byteIdx = Math.floor(bitOffset / 8);
+    const bitPos = bitOffset % 8;
+    next[byteIdx] = (next[byteIdx] ?? 0) & ~(0b11 << bitPos);
+    next[byteIdx] = (next[byteIdx] ?? 0) | ((tag & 0b11) << bitPos);
+  }
+  return next;
+}
+
+export function getRangeTag(tags: DayTags, startSlot: number, count: number): FormatTag | null {
+  if (count <= 0) {
+    throw new Error('count must be greater than 0');
+  }
+  const first = getSlotTag(tags, startSlot);
+  for (let i = 1; i < count; i += 1) {
+    if (getSlotTag(tags, startSlot + i) !== first) {
+      return null;
+    }
+  }
+  return first;
 }
 
 /** Toggle a range of consecutive slots (used by 30-min grid cells -> 6 bits). */

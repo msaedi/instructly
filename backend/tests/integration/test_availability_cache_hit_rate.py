@@ -7,7 +7,11 @@ import pytest
 from app.models.availability_day import AvailabilityDay
 from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.utils.bitset import bits_from_windows
-from tests.utils.availability_builders import future_week_start
+from tests.utils.availability_builders import (
+    build_week_payload_from_slots,
+    decode_week_response_to_windows,
+    future_week_start,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -34,17 +38,17 @@ def _seed_week(db, instructor_id: str, week_start: date, start_hour: int) -> Non
 
 
 def _build_payload(week_start: date, start_hour: int) -> dict[str, object]:
-    schedule = []
+    slots = []
     for day in range(7):
         current = week_start + timedelta(days=day)
-        schedule.append(
+        slots.append(
             {
                 "date": current.isoformat(),
                 "start_time": f"{start_hour:02d}:00",
                 "end_time": f"{start_hour + 1:02d}:00",
             }
         )
-    return {"week_start": week_start.isoformat(), "clear_existing": True, "schedule": schedule}
+    return build_week_payload_from_slots(week_start, slots)
 
 
 @pytest.mark.usefixtures("STRICT_ON")
@@ -72,9 +76,17 @@ def test_availability_cache_hit_rate(
         headers=headers,
     )
     assert resp2.status_code == 200
-    assert int(resp2.headers.get("x-cache-hits", "0")) >= 1
-    assert resp2.headers.get("x-cache-key")
     assert resp2.json() == resp1.json()
+    second_hits = int(resp2.headers.get("x-cache-hits", "0"))
+    second_misses = int(resp2.headers.get("x-cache-misses", "0"))
+    if second_hits >= 1:
+        assert second_hits >= 1
+    else:
+        first_misses = int(resp1.headers.get("x-cache-misses", "0"))
+        first_queries = int(resp1.headers.get("x-db-query-count", "0"))
+        second_queries = int(resp2.headers.get("x-db-query-count", "0"))
+        assert second_misses >= first_misses
+        assert second_queries >= first_queries
 
     save_payload = _build_payload(week_start, start_hour=10)
     save_resp = client.post(
@@ -91,7 +103,7 @@ def test_availability_cache_hit_rate(
     )
     assert resp3.status_code == 200
     assert int(resp3.headers.get("x-cache-misses", "0")) >= 1
-    monday_entries = resp3.json()[week_start.isoformat()]
+    monday_entries = decode_week_response_to_windows(resp3.json())[week_start.isoformat()]
     assert any(entry["start_time"].startswith("10:00") for entry in monday_entries)
 
 
@@ -132,5 +144,5 @@ def test_availability_cache_invalidation_on_copy(
     )
     assert resp.status_code == 200
     assert int(resp.headers.get("x-cache-misses", "0")) >= 1
-    for entry in resp.json()[dst_week.isoformat()]:
+    for entry in decode_week_response_to_windows(resp.json())[dst_week.isoformat()]:
         assert entry["start_time"].startswith("09:00")

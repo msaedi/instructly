@@ -15,11 +15,11 @@ from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.models import AvailabilityDay, User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
 import app.services.availability_service as availability_service_module
-from app.utils.bitset import bits_from_windows
+from app.utils.bitmap_base64 import decode_bitmap_bytes, encode_bitmap_bytes
+from app.utils.bitset import bits_from_windows, new_empty_bits, new_empty_tags, windows_from_bits
 
 # Use shared bitmap_app and bitmap_client fixtures from conftest
 # bitmap_env_relaxed sets past_edit_window_days=0 needed for these tests
@@ -39,6 +39,28 @@ def _upsert_week(
         wins = windows_by_day.get(day, [])
         items.append((day, bits_from_windows(wins) if wins else bits_from_windows([])))
     repo.upsert_week(instructor_id, items)
+
+
+def _build_bitmap_days_payload(
+    week_start: date,
+    windows_by_day: dict[date, list[tuple[str, str]]],
+) -> list[dict[str, str]]:
+    days: list[dict[str, str]] = []
+    for offset in range(7):
+        day = week_start + timedelta(days=offset)
+        wins = windows_by_day.get(day, [])
+        days.append(
+            {
+                "date": day.isoformat(),
+                "bits": encode_bitmap_bytes(bits_from_windows(wins) if wins else new_empty_bits()),
+                "format_tags": encode_bitmap_bytes(new_empty_tags()),
+            }
+        )
+    return days
+
+
+def _body_days_map(body: dict) -> dict[str, dict[str, str]]:
+    return {entry["date"]: entry for entry in body["days"]}
 
 
 class TestWeekGetSetsEtagAndAllowPast:
@@ -65,8 +87,9 @@ class TestWeekGetSetsEtagAndAllowPast:
         assert resp.status_code == 200
         body = resp.json()
         assert isinstance(body, dict)
-        expected_len = 7 if settings.include_empty_days_in_tests else 0
-        assert len(body) == expected_len
+        assert body["version"] == resp.headers.get("ETag")
+        expected_len = 7
+        assert len(body["days"]) == expected_len
 
         # ETag header present and non-empty
         etag = resp.headers.get("ETag")
@@ -133,18 +156,13 @@ class TestWeekPostUpdatesBitsAndChangesEtag:
         post_body = {
             "week_start": week_start.isoformat(),
             "clear_existing": True,
-            "schedule": [
+            "days": _build_bitmap_days_payload(
+                week_start,
                 {
-                    "date": monday.isoformat(),
-                    "start_time": "09:00:00",
-                    "end_time": "10:00:00",
+                    monday: [("09:00:00", "10:00:00")],
+                    tuesday: [("10:00:00", "11:00:00")],
                 },
-                {
-                    "date": tuesday.isoformat(),
-                    "start_time": "10:00:00",
-                    "end_time": "11:00:00",
-                },
-            ],
+            ),
         }
 
         post_resp = bitmap_client.post(
@@ -167,9 +185,13 @@ class TestWeekPostUpdatesBitsAndChangesEtag:
             headers=auth_headers_instructor,
         )
         assert get_resp2.status_code == 200
-        body2 = get_resp2.json()
-        assert body2[monday.isoformat()] == [{"start_time": "09:00:00", "end_time": "10:00:00"}]
-        assert body2[tuesday.isoformat()] == [{"start_time": "10:00:00", "end_time": "11:00:00"}]
+        body2 = _body_days_map(get_resp2.json())
+        assert windows_from_bits(decode_bitmap_bytes(body2[monday.isoformat()]["bits"], 36)) == [
+            ("09:00:00", "10:00:00")
+        ]
+        assert windows_from_bits(decode_bitmap_bytes(body2[tuesday.isoformat()]["bits"], 36)) == [
+            ("10:00:00", "11:00:00")
+        ]
 
 
 class TestWeekPost409WithStaleIfMatch:
@@ -207,13 +229,10 @@ class TestWeekPost409WithStaleIfMatch:
         post_body = {
             "week_start": week_start.isoformat(),
             "clear_existing": True,
-            "schedule": [
-                {
-                    "date": monday.isoformat(),
-                    "start_time": "11:00:00",
-                    "end_time": "12:00:00",
-                }
-            ],
+            "days": _build_bitmap_days_payload(
+                week_start,
+                {monday: [("11:00:00", "12:00:00")]},
+            ),
         }
 
         conflict_resp = bitmap_client.post(
@@ -230,8 +249,8 @@ class TestWeekPost409WithStaleIfMatch:
             assert detail.get("error") == "version_conflict"
 
         service = availability_service_module.AvailabilityService(db)
-        latest_bits = service.get_week_bits(test_instructor.id, week_start, use_cache=False)
-        server_etag = service.compute_week_version_bits(latest_bits)
+        latest_bitmaps = service.get_week_bitmaps(test_instructor.id, week_start, use_cache=False)
+        server_etag = service.compute_week_version_bitmaps(latest_bitmaps)
 
         # ETag header with the new version
         new_etag = conflict_resp.headers.get("ETag")
@@ -282,13 +301,10 @@ class TestWeekPostOverrideTrueBypassesConflict:
         post_body = {
             "week_start": week_start.isoformat(),
             "clear_existing": True,
-            "schedule": [
-                {
-                    "date": monday.isoformat(),
-                    "start_time": "11:00:00",
-                    "end_time": "12:00:00",
-                }
-            ],
+            "days": _build_bitmap_days_payload(
+                week_start,
+                {monday: [("11:00:00", "12:00:00")]},
+            ),
         }
 
         override_resp = bitmap_client.post(
@@ -310,5 +326,7 @@ class TestWeekPostOverrideTrueBypassesConflict:
             headers=auth_headers_instructor,
         )
         assert get_resp2.status_code == 200
-        body2 = get_resp2.json()
-        assert body2[monday.isoformat()] == [{"start_time": "11:00:00", "end_time": "12:00:00"}]
+        body2 = _body_days_map(get_resp2.json())
+        assert windows_from_bits(decode_bitmap_bytes(body2[monday.isoformat()]["bits"], 36)) == [
+            ("11:00:00", "12:00:00")
+        ]

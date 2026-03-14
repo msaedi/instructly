@@ -6,7 +6,12 @@ from importlib import reload
 from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
-from tests.utils.availability_builders import build_week_payload, future_week_start
+from tests.utils.availability_builders import (
+    build_week_payload,
+    build_week_payload_from_slots,
+    decode_week_response_to_windows,
+    future_week_start,
+)
 
 import app.main
 from app.middleware.perf_counters import PerfCounterMiddleware
@@ -133,10 +138,9 @@ def test_week_save_rejects_overlap_via_api(
     from backend.tests._utils.bitmap_seed import clear_week_bits
     clear_week_bits(db, test_instructor.id, week_start, weeks=1)
 
-    payload = {
-        "week_start": week_start.isoformat(),
-        "clear_existing": True,
-        "schedule": [
+    payload = build_week_payload_from_slots(
+        week_start,
+        [
             {
                 "date": week_start.isoformat(),
                 "start_time": "10:00",
@@ -148,7 +152,7 @@ def test_week_save_rejects_overlap_via_api(
                 "end_time": "11:30",
             },
         ],
-    }
+    )
 
     response = perf_client.post(
         "/api/v1/instructors/availability/week",
@@ -163,7 +167,7 @@ def test_week_save_rejects_overlap_via_api(
         headers=auth_headers_instructor,
     )
     assert get_response.status_code == 200
-    week_map = get_response.json()
+    week_map = decode_week_response_to_windows(get_response.json())
     slots = week_map[week_start.isoformat()]
     assert len(slots) == 1
     assert slots[0]["start_time"] == "10:00:00"
@@ -181,10 +185,9 @@ def test_week_save_overnight_round_trip_via_api(
     db.query(AvailabilityDay).filter(AvailabilityDay.instructor_id == test_instructor.id).delete()
     db.commit()
 
-    payload = {
-        "week_start": week_start.isoformat(),
-        "clear_existing": True,
-        "schedule": [
+    payload = build_week_payload_from_slots(
+        week_start,
+        [
             {
                 "date": week_start.isoformat(),
                 "start_time": "23:00",
@@ -194,9 +197,9 @@ def test_week_save_overnight_round_trip_via_api(
                 "date": (week_start + timedelta(days=1)).isoformat(),
                 "start_time": "00:00",
                 "end_time": "01:00",
-            }
+            },
         ],
-    }
+    )
 
     response = perf_client.post(
         "/api/v1/instructors/availability/week",
@@ -211,7 +214,7 @@ def test_week_save_overnight_round_trip_via_api(
         headers=auth_headers_instructor,
     )
     assert get_response.status_code == 200
-    week_map = get_response.json()
+    week_map = decode_week_response_to_windows(get_response.json())
 
     monday_slots = week_map.get(week_start.isoformat(), [])
     assert len(monday_slots) == 1

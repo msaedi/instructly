@@ -10,7 +10,7 @@
  * @module availability
  */
 
-import type { DayBits } from '@/lib/calendar/bitset';
+import type { DayBits, DayTags } from '@/lib/calendar/bitset';
 
 // Import types from generated OpenAPI shim
 import type {
@@ -131,6 +131,7 @@ export interface ExistingSlot {
  * Keys are ISO dates, values are 36-byte (288 five-minute slot) bitmaps.
  */
 export type WeekBits = Record<string, DayBits>;
+export type WeekTags = Record<string, DayTags>;
 
 /**
  * Detailed information about a validation operation

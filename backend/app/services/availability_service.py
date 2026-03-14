@@ -58,11 +58,13 @@ from ..schemas.availability_window import (
 )
 from ..utils.bitset import (
     bits_from_windows,
+    new_empty_tags,
     new_empty_bits,
     pack_indexes,
     unpack_indexes,
     windows_from_bits,
 )
+from ..utils.bitmap_base64 import encode_bitmap_bytes
 from ..utils.time_helpers import string_to_time, time_to_string
 from ..utils.time_utils import time_to_minutes
 from .audit_redaction import redact
@@ -149,6 +151,26 @@ class SaveWeekBitsResult(NamedTuple):
     skipped_past_window: int
     skipped_past_forbidden: int
     bits_by_day: Dict[date, bytes]
+    version: str
+    written_dates: List[date]
+    skipped_dates: List[date]
+    past_written_dates: List[date]
+    edited_dates: List[str]
+
+
+class DayBitmaps(NamedTuple):
+    bits: bytes
+    format_tags: bytes
+
+
+class SaveWeekBitmapsResult(NamedTuple):
+    rows_written: int
+    days_written: int
+    weeks_affected: int
+    windows_created: int
+    skipped_past_window: int
+    skipped_past_forbidden: int
+    bitmaps_by_day: Dict[date, DayBitmaps]
     version: str
     written_dates: List[date]
     skipped_dates: List[date]
@@ -244,6 +266,29 @@ class AvailabilityService(BaseService):
 
         return bits_by_day
 
+    @BaseService.measure_operation("get_week_bitmaps")
+    def get_week_bitmaps(
+        self, instructor_id: str, week_start: date, *, use_cache: bool = False
+    ) -> Dict[date, DayBitmaps]:
+        """Return dict of day -> (bits, format_tags), ensuring all 7 days are present."""
+        monday = week_start - timedelta(days=week_start.weekday())
+        if use_cache:
+            logger.debug(
+                "Week bitmap pair cache is not enabled; falling back to direct repository fetch",
+                extra={"instructor_id": instructor_id, "week_start": monday.isoformat()},
+            )
+
+        repo = self._bitmap_repo()
+        rows = repo.get_week_rows(instructor_id, monday)
+        existing = {
+            row.day_date: DayBitmaps(row.bits, row.format_tags or new_empty_tags()) for row in rows
+        }
+        bitmaps_by_day: Dict[date, DayBitmaps] = {}
+        for offset in range(7):
+            day = monday + timedelta(days=offset)
+            bitmaps_by_day[day] = existing.get(day, DayBitmaps(new_empty_bits(), new_empty_tags()))
+        return bitmaps_by_day
+
     @BaseService.measure_operation("compute_week_version_bits")
     def compute_week_version_bits(self, bits_by_day: Dict[date, bytes]) -> str:
         """Stable SHA1 of concatenated 7×bits ordered chronologically."""
@@ -254,6 +299,26 @@ class AvailabilityService(BaseService):
             monday = anchor - timedelta(days=anchor.weekday())
             ordered_days = [monday + timedelta(days=i) for i in range(7)]
             concat = b"".join(bits_by_day.get(day, new_empty_bits()) for day in ordered_days)
+        return hashlib.sha1(concat, usedforsecurity=False).hexdigest()
+
+    @BaseService.measure_operation("compute_week_version_bitmaps")
+    def compute_week_version_bitmaps(self, bitmaps_by_day: Dict[date, DayBitmaps]) -> str:
+        """Stable SHA1 of concatenated 7×(bits + format_tags) ordered chronologically."""
+        if not bitmaps_by_day:
+            concat = (new_empty_bits() + new_empty_tags()) * 7
+        else:
+            anchor = min(bitmaps_by_day.keys())
+            monday = anchor - timedelta(days=anchor.weekday())
+            ordered_days = [monday + timedelta(days=i) for i in range(7)]
+            concat = b"".join(
+                (
+                    bitmaps_by_day.get(day, DayBitmaps(new_empty_bits(), new_empty_tags())).bits
+                    + bitmaps_by_day.get(
+                        day, DayBitmaps(new_empty_bits(), new_empty_tags())
+                    ).format_tags
+                )
+                for day in ordered_days
+            )
         return hashlib.sha1(concat, usedforsecurity=False).hexdigest()
 
     @BaseService.measure_operation("get_week_bitmap_last_modified")
@@ -294,12 +359,19 @@ class AvailabilityService(BaseService):
         """
         monday = week_start - timedelta(days=week_start.weekday())
         days_this_week = [monday + timedelta(days=i) for i in range(7)]
-        current_raw = self.get_week_bits(instructor_id, monday, use_cache=False)
+        current_bitmaps = self.get_week_bitmaps(instructor_id, monday, use_cache=False)
         current_map: Dict[date, bytes] = {
-            day: current_raw.get(day, new_empty_bits()) for day in days_this_week
+            day: current_bitmaps.get(day, DayBitmaps(new_empty_bits(), new_empty_tags())).bits
+            for day in days_this_week
+        }
+        current_tag_map: Dict[date, bytes] = {
+            day: current_bitmaps.get(
+                day, DayBitmaps(new_empty_bits(), new_empty_tags())
+            ).format_tags
+            for day in days_this_week
         }
         allow_past = os.getenv("AVAILABILITY_ALLOW_PAST", "true").lower() in {"1", "true", "yes"}
-        server_version = self.compute_week_version_bits(current_map)
+        server_version = self.compute_week_version_bitmaps(current_bitmaps)
         if base_version and base_version != server_version and not override:
             raise ConflictException("Week has changed; please refresh and retry")
 
@@ -356,6 +428,9 @@ class AvailabilityService(BaseService):
 
         updates: List[Tuple[date, bytes]] = []
         target_map: Dict[date, bytes] = dict(current_map)
+        target_bitmap_map: Dict[date, DayBitmaps] = {
+            day: DayBitmaps(current_map[day], current_tag_map[day]) for day in days_this_week
+        }
         changed_dates_set: set[date] = set()
         past_written_dates_set: set[date] = set()
         skipped_window_dates: set[date] = set()
@@ -395,6 +470,7 @@ class AvailabilityService(BaseService):
                 continue
 
             target_map[day] = desired_bits
+            target_bitmap_map[day] = DayBitmaps(desired_bits, current_tag_map[day])
             updates.append((day, desired_bits))
             changed_dates_set.add(day)
             if day < instructor_today:
@@ -549,7 +625,7 @@ class AvailabilityService(BaseService):
             except Exception as cache_error:
                 logger.warning(f"Cache update error after bitmap save: {cache_error}")
 
-        new_version = self.compute_week_version_bits(after_map)
+        new_version = self.compute_week_version_bitmaps(target_bitmap_map)
         changed_dates = sorted(changed_dates_set)
         past_written_dates = sorted(past_written_dates_set)
         edited_date_strings = [d.isoformat() for d in changed_dates]
@@ -569,6 +645,296 @@ class AvailabilityService(BaseService):
             skipped_past_window=len(skipped_window_list),
             skipped_past_forbidden=len(skipped_forbidden_list),
             bits_by_day=after_map,
+            version=new_version,
+            written_dates=changed_dates,
+            skipped_dates=skipped_window_list,
+            past_written_dates=past_written_dates,
+            edited_dates=edited_date_strings,
+        )
+
+    @BaseService.measure_operation("save_week_bitmaps")
+    def save_week_bitmaps(
+        self,
+        instructor_id: str,
+        week_start: date,
+        bitmaps_by_day: Dict[date, DayBitmaps],
+        base_version: Optional[str],
+        override: bool,
+        clear_existing: bool,
+        *,
+        actor: Any | None = None,
+    ) -> SaveWeekBitmapsResult:
+        """Persist week availability using bitmap-native bits + format tags."""
+        monday = week_start - timedelta(days=week_start.weekday())
+        days_this_week = [monday + timedelta(days=i) for i in range(7)]
+        current_raw = self.get_week_bitmaps(instructor_id, monday, use_cache=False)
+        current_map: Dict[date, DayBitmaps] = {
+            day: current_raw.get(day, DayBitmaps(new_empty_bits(), new_empty_tags()))
+            for day in days_this_week
+        }
+        allow_past = os.getenv("AVAILABILITY_ALLOW_PAST", "true").lower() in {"1", "true", "yes"}
+        server_version = self.compute_week_version_bitmaps(current_map)
+        if base_version and base_version != server_version and not override:
+            raise ConflictException("Week has changed; please refresh and retry")
+
+        perf_debug = os.getenv("AVAILABILITY_PERF_DEBUG", "0").lower() in {"1", "true", "yes"}
+        instructor_today = get_user_today_by_id(instructor_id, self.db)
+        window_days = max(0, settings.past_edit_window_days)
+        past_cutoff: Optional[date] = (
+            instructor_today - timedelta(days=window_days) if window_days > 0 else None
+        )
+
+        now_minutes: Optional[int] = None
+
+        def _apply_same_day_cutoff(bits: bytes, target_day: date) -> bytes:
+            nonlocal now_minutes
+            if allow_past or target_day != instructor_today:
+                return bits
+            if now_minutes is None:
+                now_dt = get_user_now_by_id(instructor_id, self.db)
+                now_minutes = max(0, time_to_minutes(now_dt.time(), is_end_time=False))
+            cutoff_index = now_minutes // MINUTES_PER_SLOT
+            if cutoff_index <= 0:
+                return bits
+            original_indexes = unpack_indexes(bits)
+            filtered = [idx for idx in original_indexes if idx >= cutoff_index]
+            if len(filtered) == len(original_indexes):
+                return bits
+            return pack_indexes(filtered)
+
+        updates: List[Tuple[date, bytes, bytes]] = []
+        target_map: Dict[date, DayBitmaps] = dict(current_map)
+        changed_dates_set: set[date] = set()
+        past_written_dates_set: set[date] = set()
+        skipped_window_dates: set[date] = set()
+        skipped_forbidden_dates: set[date] = set()
+        windows_created_count = 0
+
+        for day in days_this_week:
+            existing = current_map[day]
+            provided = day in bitmaps_by_day
+            if provided:
+                desired_bits = bitmaps_by_day[day].bits
+                desired_tags = bitmaps_by_day[day].format_tags
+            elif clear_existing:
+                desired_bits = new_empty_bits()
+                desired_tags = new_empty_tags()
+            else:
+                desired_bits = existing.bits
+                desired_tags = existing.format_tags
+
+            if not allow_past and day == instructor_today:
+                desired_bits = _apply_same_day_cutoff(desired_bits, day)
+
+            if desired_bits == existing.bits and desired_tags == existing.format_tags:
+                continue
+
+            if not allow_past and day < instructor_today:
+                skipped_forbidden_dates.add(day)
+                continue
+
+            if past_cutoff and day < past_cutoff:
+                skipped_window_dates.add(day)
+                continue
+
+            target_map[day] = DayBitmaps(desired_bits, desired_tags)
+            updates.append((day, desired_bits, desired_tags))
+            changed_dates_set.add(day)
+            if day < instructor_today:
+                past_written_dates_set.add(day)
+
+            old_windows = windows_from_bits(existing.bits)
+            new_windows = windows_from_bits(desired_bits)
+            if len(new_windows) > len(old_windows):
+                windows_created_count += len(new_windows) - len(old_windows)
+
+            if perf_debug:
+                old_crc = hashlib.sha1(
+                    existing.bits + existing.format_tags, usedforsecurity=False
+                ).hexdigest()
+                new_crc = hashlib.sha1(
+                    desired_bits + desired_tags, usedforsecurity=False
+                ).hexdigest()
+                logger.debug(
+                    "bitmap_pair_write day=%s changed=%s old_crc=%s new_crc=%s override=%s allow_past=%s",
+                    day.isoformat(),
+                    "true",
+                    old_crc,
+                    new_crc,
+                    override,
+                    "true" if allow_past else "false",
+                )
+
+        skipped_window_list = sorted(skipped_window_dates)
+        skipped_forbidden_list = sorted(skipped_forbidden_dates)
+
+        if not updates:
+            return SaveWeekBitmapsResult(
+                rows_written=0,
+                days_written=0,
+                weeks_affected=0,
+                windows_created=0,
+                skipped_past_window=len(skipped_window_list),
+                skipped_past_forbidden=len(skipped_forbidden_list),
+                bitmaps_by_day=current_map,
+                version=server_version,
+                written_dates=[],
+                skipped_dates=skipped_window_list,
+                past_written_dates=[],
+                edited_dates=[],
+            )
+
+        with self.transaction():
+            repo = self._bitmap_repo()
+            rows_written = repo.upsert_week(instructor_id, updates)
+
+            audit_dates = sorted(
+                set(changed_dates_set) | set(skipped_window_list) | set(skipped_forbidden_list)
+            )
+
+            def _windows_payload(
+                bitmap_map: Dict[date, DayBitmaps], target_dates: List[date]
+            ) -> dict[str, Any]:
+                result: dict[str, Any] = {}
+                for target in target_dates:
+                    result[target.isoformat()] = [
+                        {"start_time": start, "end_time": end}
+                        for start, end in windows_from_bits(
+                            bitmap_map.get(
+                                target, DayBitmaps(new_empty_bits(), new_empty_tags())
+                            ).bits
+                        )
+                    ]
+                return result
+
+            def _tags_payload(
+                bitmap_map: Dict[date, DayBitmaps], target_dates: List[date]
+            ) -> dict[str, str]:
+                result: dict[str, str] = {}
+                for target in target_dates:
+                    result[target.isoformat()] = encode_bitmap_bytes(
+                        bitmap_map.get(
+                            target, DayBitmaps(new_empty_bits(), new_empty_tags())
+                        ).format_tags
+                    )
+                return result
+
+            if audit_dates and AUDIT_ENABLED:
+
+                def _window_counts(
+                    bitmap_map: Dict[date, DayBitmaps], target_dates: List[date]
+                ) -> dict[str, int]:
+                    counts: dict[str, int] = {}
+                    for target in target_dates:
+                        counts[target.isoformat()] = len(
+                            windows_from_bits(
+                                bitmap_map.get(
+                                    target, DayBitmaps(new_empty_bits(), new_empty_tags())
+                                ).bits
+                            )
+                        )
+                    return counts
+
+                before_payload = {
+                    "week_start": week_start.isoformat(),
+                    "windows": _windows_payload(current_map, audit_dates),
+                    "format_tags": _tags_payload(current_map, audit_dates),
+                }
+                before_payload["window_counts"] = _window_counts(current_map, audit_dates)
+                after_payload = {
+                    "week_start": week_start.isoformat(),
+                    "windows": _windows_payload(target_map, audit_dates),
+                    "format_tags": _tags_payload(target_map, audit_dates),
+                    "edited_dates": [d.isoformat() for d in sorted(changed_dates_set)],
+                    "skipped_dates": [d.isoformat() for d in skipped_window_list],
+                    "skipped_forbidden_dates": [d.isoformat() for d in skipped_forbidden_list],
+                    "historical_edit": bool(
+                        past_written_dates_set or skipped_window_list or skipped_forbidden_list
+                    ),
+                    "skipped_past_window": bool(skipped_window_list),
+                    "skipped_past_forbidden": bool(skipped_forbidden_list),
+                    "days_written": len(changed_dates_set),
+                }
+                after_payload["window_counts"] = _window_counts(target_map, audit_dates)
+                try:
+                    self._write_availability_audit(
+                        instructor_id,
+                        week_start,
+                        "save_week",
+                        actor=actor,
+                        before=before_payload,
+                        after=after_payload,
+                    )
+                except Exception as audit_err:
+                    logger.warning(
+                        "Audit write failed for bitmap save_week_bitmaps",
+                        extra={
+                            "instructor_id": instructor_id,
+                            "week_start": week_start.isoformat(),
+                            "error": str(audit_err),
+                        },
+                    )
+
+            event_dates = [
+                d
+                for d in sorted(changed_dates_set)
+                if not (settings.suppress_past_availability_events and d < instructor_today)
+            ]
+            if event_dates:
+                try:
+                    prepared = PreparedWeek(windows=[], affected_dates=set(event_dates))
+                    self._enqueue_week_save_event(
+                        instructor_id,
+                        week_start,
+                        week_dates=[week_start + timedelta(days=i) for i in range(7)],
+                        prepared=prepared,
+                        created_count=len(changed_dates_set),
+                        deleted_count=0,
+                        clear_existing=bool(clear_existing),
+                    )
+                except Exception as enqueue_err:
+                    logger.warning(
+                        "Outbox enqueue failed for bitmap save_week_bitmaps",
+                        extra={
+                            "instructor_id": instructor_id,
+                            "week_start": week_start.isoformat(),
+                            "error": str(enqueue_err),
+                        },
+                    )
+
+        after_map = dict(target_map)
+        if self.cache_service:
+            try:
+                week_map_after, _ = self._week_map_from_bits(
+                    {day: bitmaps.bits for day, bitmaps in after_map.items()},
+                    include_snapshots=False,
+                )
+                self._persist_week_cache(
+                    instructor_id=instructor_id,
+                    week_start=monday,
+                    week_map=week_map_after,
+                )
+            except Exception as cache_error:
+                logger.warning(f"Cache update error after bitmap save: {cache_error}")
+
+        new_version = self.compute_week_version_bitmaps(after_map)
+        changed_dates = sorted(changed_dates_set)
+        past_written_dates = sorted(past_written_dates_set)
+        edited_date_strings = [d.isoformat() for d in changed_dates]
+
+        if changed_dates:
+            self._invalidate_availability_caches(instructor_id, changed_dates)
+
+        invalidate_on_availability_change(instructor_id)
+
+        return SaveWeekBitmapsResult(
+            rows_written=rows_written,
+            days_written=len(changed_dates),
+            weeks_affected=1,
+            windows_created=windows_created_count,
+            skipped_past_window=len(skipped_window_list),
+            skipped_past_forbidden=len(skipped_forbidden_list),
+            bitmaps_by_day=after_map,
             version=new_version,
             written_dates=changed_dates,
             skipped_dates=skipped_window_list,
@@ -828,10 +1194,10 @@ class AvailabilityService(BaseService):
         end_date: date,
         windows: Optional[list[tuple[date, time, time]]] = None,
     ) -> str:
-        """Compute a deterministic week version using bitmap contents only."""
+        """Compute a deterministic week version using bits and format tags."""
         week_start = start_date - timedelta(days=start_date.weekday())
-        bits_by_day = self.get_week_bits(instructor_id, week_start)
-        return self.compute_week_version_bits(bits_by_day)
+        bitmaps_by_day = self.get_week_bitmaps(instructor_id, week_start)
+        return self.compute_week_version_bitmaps(bitmaps_by_day)
 
     @BaseService.measure_operation("get_week_last_modified")
     def get_week_last_modified(

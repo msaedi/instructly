@@ -4,7 +4,9 @@ import sqlalchemy as sa
 from sqlalchemy import Column, Date, DateTime, Index, LargeBinary, String
 from sqlalchemy.dialects.postgresql import BYTEA
 
+from app.core.constants import TAG_BYTES_PER_DAY
 from app.database import Base
+from app.utils.bitset import new_empty_tags
 
 
 class AvailabilityDay(Base):
@@ -14,6 +16,11 @@ class AvailabilityDay(Base):
     day_date = Column(Date, primary_key=True)
     # 36 bytes for 5-min resolution (288 slots/day). On PG we store BYTEA; on SQLite use LargeBinary
     bits = Column(BYTEA().with_variant(LargeBinary(), "sqlite"), nullable=False)
+    format_tags = Column(
+        BYTEA().with_variant(LargeBinary(length=TAG_BYTES_PER_DAY), "sqlite"),
+        nullable=False,
+        default=new_empty_tags,
+    )
     updated_at = Column(
         DateTime(timezone=True),
         nullable=False,

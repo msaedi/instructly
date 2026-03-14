@@ -11,10 +11,13 @@ from app.schemas.availability_window import (
     ApplyToDateRangeRequest,
     BlackoutDateCreate,
     CopyWeekRequest,
+    DayBitmapInput,
     ValidateWeekRequest,
-    WeekSpecificScheduleCreate,
+    WeekBitmapSaveRequest,
 )
 from app.services.availability_service import AvailabilityService
+from app.utils.bitmap_base64 import encode_bitmap_bytes
+from app.utils.bitset import bits_from_windows, new_empty_tags
 
 
 def _make_request() -> Request:
@@ -31,11 +34,11 @@ def _next_monday() -> date:
 
 def test_get_week_availability_domain_and_unexpected_errors(test_instructor):
     class DomainFailService:
-        def get_week_bits(self, *_args, **_kwargs):
+        def get_week_bitmaps(self, *_args, **_kwargs):
             raise DomainException("boom")
 
     class BoomService:
-        def get_week_bits(self, *_args, **_kwargs):
+        def get_week_bitmaps(self, *_args, **_kwargs):
             raise RuntimeError("boom")
 
     response = Response()
@@ -61,15 +64,15 @@ def test_get_week_availability_domain_and_unexpected_errors(test_instructor):
 
 def test_save_week_availability_parses_date_time_objects(db, test_instructor):
     week_start = _next_monday()
-    payload = WeekSpecificScheduleCreate(
+    payload = WeekBitmapSaveRequest(
         week_start=week_start,
         clear_existing=True,
-        schedule=[
-            {
-                "date": week_start.isoformat(),
-                "start_time": "09:00",
-                "end_time": "10:00",
-            }
+        days=[
+            DayBitmapInput(
+                date=week_start.isoformat(),
+                bits=encode_bitmap_bytes(bits_from_windows([("09:00:00", "10:00:00")])),
+                format_tags=encode_bitmap_bytes(new_empty_tags()),
+            )
         ],
     )
 
@@ -87,15 +90,12 @@ def test_save_week_availability_parses_date_time_objects(db, test_instructor):
 
 
 def test_save_week_availability_invalid_schedule_returns_500(db, test_instructor):
-    from app.schemas.availability_window import ScheduleItem
-
-    payload = WeekSpecificScheduleCreate.model_construct(
-        schedule=[
-            ScheduleItem.model_construct(date=None, start_time="09:00", end_time="10:00"),
-            ScheduleItem.model_construct(date="bad-date", start_time="09:00", end_time="10:00"),
+    payload = WeekBitmapSaveRequest.model_construct(
+        days=[
+            DayBitmapInput.model_construct(date="bad-date", bits="invalid", format_tags=None),
         ],
         clear_existing=True,
-        week_start=None,
+        week_start=_next_monday(),
         base_version=None,
         version=None,
         override=False,

@@ -8,13 +8,19 @@ from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 import app.core.timezone_utils as timezone_utils_module
 from app.models import AvailabilityDay, User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
 import app.services.availability_service as availability_service_module
 from app.services.booking_service import BookingService
-from app.utils.bitset import bits_from_windows, windows_from_bits
+from app.utils.bitmap_base64 import decode_bitmap_bytes, encode_bitmap_bytes
+from app.utils.bitset import (
+    bits_from_windows,
+    new_empty_bits,
+    new_empty_tags,
+    set_range_tag,
+    windows_from_bits,
+)
 
 # Use shared bitmap_app and bitmap_client fixtures from conftest
 
@@ -34,7 +40,29 @@ def _upsert_week(
     repo.upsert_week(instructor_id, items)
 
 
-def test_get_week_bitmap_returns_windows_and_etag(
+def _build_bitmap_days_payload(
+    week_start: date,
+    windows_by_day: Dict[date, List[Tuple[str, str]]],
+) -> list[dict[str, str]]:
+    days: list[dict[str, str]] = []
+    for offset in range(7):
+        day = week_start + timedelta(days=offset)
+        windows = windows_by_day.get(day, [])
+        days.append(
+            {
+                "date": day.isoformat(),
+                "bits": encode_bitmap_bytes(bits_from_windows(windows) if windows else new_empty_bits()),
+                "format_tags": encode_bitmap_bytes(new_empty_tags()),
+            }
+        )
+    return days
+
+
+def _body_days_map(body: dict) -> dict[str, dict[str, str]]:
+    return {entry["date"]: entry for entry in body["days"]}
+
+
+def test_get_week_bitmap_returns_base64_days_and_etag(
     bitmap_client: TestClient,
     db: Session,
     test_instructor: User,
@@ -58,28 +86,20 @@ def test_get_week_bitmap_returns_windows_and_etag(
     )
     assert resp.status_code == 200
     body = resp.json()
-    if settings.include_empty_days_in_tests:
-        expected_keys = {
-            (week_start + timedelta(days=offset)).isoformat() for offset in range(7)
-        }
-    else:
-        expected_keys = {
-            week_start.isoformat(),
-            (week_start + timedelta(days=1)).isoformat(),
-        }
-    assert set(body.keys()) == expected_keys
+    assert body["version"] == resp.headers.get("ETag")
+    days = _body_days_map(body)
+    expected_keys = {(week_start + timedelta(days=offset)).isoformat() for offset in range(7)}
+    assert set(days.keys()) == expected_keys
     assert resp.headers.get("ETag")
     assert resp.headers.get("Access-Control-Expose-Headers") == "ETag, Last-Modified, X-Allow-Past"
     assert resp.headers.get("X-Allow-Past") == "true"
 
-    first_day = body[week_start.isoformat()]
-    assert first_day == [
-        {"start_time": "09:00:00", "end_time": "10:00:00"},
-    ]
-    second_day = body[(week_start + timedelta(days=1)).isoformat()]
-    assert second_day == [
-        {"start_time": "14:00:00", "end_time": "15:00:00"},
-    ]
+    first_day = days[week_start.isoformat()]
+    second_day = days[(week_start + timedelta(days=1)).isoformat()]
+    assert windows_from_bits(decode_bitmap_bytes(first_day["bits"], 36)) == [("09:00:00", "10:00:00")]
+    assert windows_from_bits(decode_bitmap_bytes(second_day["bits"], 36)) == [("14:00:00", "15:00:00")]
+    assert decode_bitmap_bytes(first_day["format_tags"], 72) == new_empty_tags()
+    assert decode_bitmap_bytes(second_day["format_tags"], 72) == new_empty_tags()
 
 
 def test_save_week_bitmap_initial_then_if_match_conflict_and_override(
@@ -100,18 +120,13 @@ def test_save_week_bitmap_initial_then_if_match_conflict_and_override(
     body = {
         "week_start": week_start.isoformat(),
         "clear_existing": True,
-        "schedule": [
+        "days": _build_bitmap_days_payload(
+            week_start,
             {
-                "date": week_start.isoformat(),
-                "start_time": "09:00:00",
-                "end_time": "10:00:00",
+                week_start: [("09:00:00", "10:00:00")],
+                week_start + timedelta(days=2): [("15:00:00", "16:00:00")],
             },
-            {
-                "date": (week_start + timedelta(days=2)).isoformat(),
-                "start_time": "15:00:00",
-                "end_time": "16:00:00",
-            },
-        ],
+        ),
     }
 
     resp = bitmap_client.post(
@@ -123,7 +138,7 @@ def test_save_week_bitmap_initial_then_if_match_conflict_and_override(
     first_version = resp.headers.get("ETag")
     assert first_version
     payload = resp.json()
-    expected_windows = len(body["schedule"])
+    expected_windows = 2
     assert payload["windows_created"] == expected_windows
     assert payload["days_written"] == 2
     assert payload.get("weeks_affected") == 1
@@ -135,13 +150,10 @@ def test_save_week_bitmap_initial_then_if_match_conflict_and_override(
 
     intermediate_body = {
         **body,
-        "schedule": [
-            {
-                "date": week_start.isoformat(),
-                "start_time": "10:00:00",
-                "end_time": "11:00:00",
-            }
-        ],
+        "days": _build_bitmap_days_payload(
+            week_start,
+            {week_start: [("10:00:00", "11:00:00")]},
+        ),
     }
 
     override_update = bitmap_client.post(
@@ -156,13 +168,10 @@ def test_save_week_bitmap_initial_then_if_match_conflict_and_override(
 
     conflicting_body = {
         **body,
-        "schedule": [
-            {
-                "date": week_start.isoformat(),
-                "start_time": "11:00:00",
-                "end_time": "12:00:00",
-            }
-        ],
+        "days": _build_bitmap_days_payload(
+            week_start,
+            {week_start: [("11:00:00", "12:00:00")]},
+        ),
     }
 
     conflict_resp = bitmap_client.post(
@@ -211,13 +220,10 @@ async def test_midnight_window_round_trip(
     payload = {
         "week_start": monday.isoformat(),
         "clear_existing": True,
-        "schedule": [
-            {
-                "date": monday.isoformat(),
-                "start_time": "23:30:00",
-                "end_time": "24:00:00",
-            }
-        ],
+        "days": _build_bitmap_days_payload(
+            monday,
+            {monday: [("23:30:00", "24:00:00")]},
+        ),
     }
 
     create_resp = bitmap_client.post(
@@ -233,8 +239,10 @@ async def test_midnight_window_round_trip(
         headers=auth_headers_instructor,
     )
     assert get_resp.status_code == 200
-    body = get_resp.json()
-    assert body[monday.isoformat()] == [{"start_time": "23:30:00", "end_time": "00:00:00"}]
+    body = _body_days_map(get_resp.json())
+    assert windows_from_bits(decode_bitmap_bytes(body[monday.isoformat()]["bits"], 36)) == [
+        ("23:30:00", "24:00:00"),
+    ]
 
     booking_service = BookingService(db)
     windows = await asyncio.to_thread(booking_service._get_instructor_availability_windows,
@@ -291,18 +299,13 @@ def test_save_week_bitmap_persists_past_days_when_allowed(
     payload = {
         "week_start": week_start.isoformat(),
         "clear_existing": True,
-        "schedule": [
+        "days": _build_bitmap_days_payload(
+            week_start,
             {
-                "date": past_day.isoformat(),
-                "start_time": "08:00:00",
-                "end_time": "09:00:00",
+                past_day: [("08:00:00", "09:00:00")],
+                future_day: [("16:00:00", "17:00:00")],
             },
-            {
-                "date": future_day.isoformat(),
-                "start_time": "16:00:00",
-                "end_time": "17:00:00",
-            },
-        ],
+        ),
     }
 
     resp = bitmap_client.post(
@@ -319,17 +322,79 @@ def test_save_week_bitmap_persists_past_days_when_allowed(
         headers=auth_headers_instructor,
     )
     assert fetched.status_code == 200
-    body = fetched.json()
-    assert body[past_day.isoformat()] == [
-        {"start_time": "08:00:00", "end_time": "09:00:00"},
+    body = _body_days_map(fetched.json())
+    assert windows_from_bits(decode_bitmap_bytes(body[past_day.isoformat()]["bits"], 36)) == [
+        ("08:00:00", "09:00:00"),
     ]
-    assert body[future_day.isoformat()] == [
-        {"start_time": "16:00:00", "end_time": "17:00:00"},
+    assert windows_from_bits(decode_bitmap_bytes(body[future_day.isoformat()]["bits"], 36)) == [
+        ("16:00:00", "17:00:00"),
     ]
 
     stored = repo.get_week(test_instructor.id, week_start)
     assert windows_from_bits(stored[past_day]) == [("08:00:00", "09:00:00")]
     assert windows_from_bits(stored[future_day]) == [("16:00:00", "17:00:00")]
+
+
+def test_week_bitmap_round_trip_preserves_format_tags_and_updates_etag(
+    bitmap_client: TestClient,
+    db: Session,
+    test_instructor: User,
+    auth_headers_instructor: dict,
+) -> None:
+    repo = AvailabilityDayRepository(db)
+    db.query(AvailabilityDay).filter(AvailabilityDay.instructor_id == test_instructor.id).delete()
+    today = date.today()
+    days_until_monday = (7 - today.weekday()) % 7
+    if days_until_monday == 0:
+        days_until_monday = 7
+    week_start = today + timedelta(days=days_until_monday)
+    day = week_start
+
+    initial_days = _build_bitmap_days_payload(week_start, {day: [("09:00:00", "10:00:00")]})
+    initial_days[0]["format_tags"] = encode_bitmap_bytes(set_range_tag(new_empty_tags(), 108, 12, 1))
+
+    first_resp = bitmap_client.post(
+        "/api/v1/instructors/availability/week",
+        json={
+            "week_start": week_start.isoformat(),
+            "clear_existing": True,
+            "days": initial_days,
+        },
+        headers=auth_headers_instructor,
+    )
+    assert first_resp.status_code == 200
+    assert first_resp.json()["days_written"] == 1
+    first_etag = first_resp.headers.get("ETag")
+
+    get_resp = bitmap_client.get(
+        "/api/v1/instructors/availability/week",
+        params={"start_date": week_start.isoformat()},
+        headers=auth_headers_instructor,
+    )
+    assert get_resp.status_code == 200
+    body = _body_days_map(get_resp.json())
+    assert decode_bitmap_bytes(body[day.isoformat()]["format_tags"], 72) == decode_bitmap_bytes(
+        initial_days[0]["format_tags"],
+        72,
+    )
+
+    updated_days = _build_bitmap_days_payload(week_start, {day: [("09:00:00", "10:00:00")]})
+    updated_days[0]["format_tags"] = encode_bitmap_bytes(set_range_tag(new_empty_tags(), 108, 12, 2))
+    second_resp = bitmap_client.post(
+        "/api/v1/instructors/availability/week",
+        json={
+            "week_start": week_start.isoformat(),
+            "clear_existing": True,
+            "days": updated_days,
+        },
+        headers={**auth_headers_instructor, "If-Match": first_etag},
+    )
+    assert second_resp.status_code == 200
+    second_etag = second_resp.headers.get("ETag")
+    assert second_etag and second_etag != first_etag
+
+    stored = repo.get_week_bitmaps(test_instructor.id, week_start)
+    assert stored[day][1] == decode_bitmap_bytes(updated_days[0]["format_tags"], 72)
 
 
 def test_copy_week_bitmap_copies_all_days(

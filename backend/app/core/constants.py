@@ -16,6 +16,16 @@ BOOKING_START_STEP_MINUTES = 15  # Student booking increment
 AVAILABILITY_CELL_MINUTES = 30  # Instructor editor cell size
 BITS_PER_CELL = 6  # AVAILABILITY_CELL_MINUTES / MINUTES_PER_SLOT
 
+# Format tags — 2 bits per slot
+BITS_PER_TAG = 2
+TAG_BYTES_PER_DAY = (SLOTS_PER_DAY * BITS_PER_TAG + 7) // 8
+
+# Tag values
+TAG_NONE = 0
+TAG_ONLINE_ONLY = 1
+TAG_NO_TRAVEL = 2
+TAG_RESERVED = 3
+
 # SSE (Server-Sent Events) configuration
 SSE_PATH_PREFIX = "/api/v1/messages/stream"  # Centralized SSE path for middleware (v1)
 

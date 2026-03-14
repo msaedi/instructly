@@ -49,6 +49,21 @@ class WeekAvailabilityUpdateResponse(StrictModel):
     week_version: str | None = None
 
 
+class DayBitmapResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    date: str
+    bits: str
+    format_tags: str
+
+
+class WeekBitmapResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    days: List[DayBitmapResponse] = Field(default_factory=list)
+    version: str
+
+
 class CopyWeekResponse(StrictModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for copying week availability."""

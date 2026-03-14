@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.models.user import User
+from tests.utils.availability_builders import build_week_payload_from_slots
 
 
 @pytest.mark.asyncio
@@ -20,17 +21,16 @@ async def test_validate_changes_bitmap_smoke(
         monday = monday + timedelta(days=7)  # Ensure it's a future Monday
 
     # Create initial availability
-    week_payload = {
-        "week_start": monday.isoformat(),
-        "clear_existing": True,
-        "schedule": [
+    week_payload = build_week_payload_from_slots(
+        monday,
+        [
             {
                 "date": monday.isoformat(),
                 "start_time": "09:00:00",
                 "end_time": "10:00:00",
             }
         ],
-    }
+    )
 
     create_resp = client.post(
         "/api/v1/instructors/availability/week",

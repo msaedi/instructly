@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 from tests._utils.bitmap_seed import next_monday, seed_week_bits
+from tests.utils.availability_builders import decode_week_response_to_windows
 
 from app.core.config import settings
 from app.models import AvailabilityDay, User
@@ -52,7 +53,6 @@ class TestApplyBitmapPatternAcrossWeeksExactCopy:
         db.query(AvailabilityDay).filter(AvailabilityDay.instructor_id == test_instructor.id).delete()
         db.commit()
 
-        from app.core.config import settings
 
         source_week, pattern = _prepare_source_week(db, test_instructor.id, weeks_ahead=8)
         assert settings.clamp_copy_to_future is False
@@ -96,7 +96,7 @@ class TestApplyBitmapPatternAcrossWeeksExactCopy:
                 headers=auth_headers_instructor,
             )
             assert get_resp.status_code == 200
-            week_payload = get_resp.json()
+            week_payload = decode_week_response_to_windows(get_resp.json())
             etag = get_resp.headers.get("ETag")
             assert etag
             seen_etags.add(etag)
@@ -118,11 +118,7 @@ class TestApplyBitmapPatternAcrossWeeksExactCopy:
                     assert day_key in week_payload
                     assert week_payload[day_key] == expected_payload
                 else:
-                    if settings.include_empty_days_in_tests:
-                        assert day_key in week_payload
-                        assert week_payload[day_key] == []
-                    else:
-                        assert day_key not in week_payload
+                    assert week_payload.get(day_key, []) == []
 
         assert len(seen_etags) >= 1
 
@@ -184,9 +180,6 @@ class TestApplyBitmapEmptySourceReturnsNoopMessage:
                 headers=auth_headers_instructor,
             )
             assert get_resp.status_code == 200
-        payload = get_resp.json()
-        if settings.include_empty_days_in_tests:
-            assert len(payload) == 7
-            assert all(not entries for entries in payload.values())
-        else:
-            assert payload == {}
+        payload = decode_week_response_to_windows(get_resp.json())
+        assert len(payload) == 7
+        assert all(not entries for entries in payload.values())

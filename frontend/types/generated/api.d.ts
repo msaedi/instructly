@@ -12402,6 +12402,36 @@ export type components = {
              */
             start: string;
         };
+        /**
+         * DayBitmapInput
+         * @description Single day's bitmap payload for instructor week editing.
+         */
+        DayBitmapInput: {
+            /**
+             * Bits
+             * @description Base64-encoded 36-byte day bitmap
+             */
+            bits: string;
+            /**
+             * Date
+             * @description ISO date string (YYYY-MM-DD)
+             */
+            date: string;
+            /**
+             * Format Tags
+             * @description Base64-encoded 72-byte tag bitmap; omitted means all-zero tags
+             */
+            format_tags?: string | null;
+        };
+        /** DayBitmapResponse */
+        DayBitmapResponse: {
+            /** Bits */
+            bits: string;
+            /** Date */
+            date: string;
+            /** Format Tags */
+            format_tags: string;
+        };
         /** DeleteBlackoutResponse */
         DeleteBlackoutResponse: {
             /** Blackout Id */
@@ -18676,27 +18706,6 @@ export type components = {
             set_as_default: boolean;
         };
         /**
-         * ScheduleItem
-         * @description Individual schedule item for availability creation.
-         */
-        ScheduleItem: {
-            /**
-             * Date
-             * @description ISO date string (YYYY-MM-DD)
-             */
-            date: string;
-            /**
-             * End Time
-             * @description End time (HH:MM or HH:MM:SS)
-             */
-            end_time: string;
-            /**
-             * Start Time
-             * @description Start time (HH:MM or HH:MM:SS)
-             */
-            start_time: string;
-        };
-        /**
          * SearchAnalyticsSummaryResponse
          * @description Comprehensive search analytics summary.
          */
@@ -20296,22 +20305,6 @@ export type components = {
             pct: number;
         };
         /**
-         * TimeRange
-         * @description Simple time range for schedule entries.
-         */
-        TimeRange: {
-            /**
-             * End Time
-             * Format: time
-             */
-            end_time: string;
-            /**
-             * Start Time
-             * Format: time
-             */
-            start_time: string;
-        };
-        /**
          * TimeSlot
          * @description Time slot for availability.
          */
@@ -21146,13 +21139,6 @@ export type components = {
             /** Included */
             included: boolean;
         };
-        /**
-         * WeekAvailabilityResponse
-         * @description Week availability mapping keyed by ISO date string.
-         */
-        WeekAvailabilityResponse: {
-            [key: string]: components["schemas"]["TimeRange"][];
-        };
         /** WeekAvailabilityUpdateResponse */
         WeekAvailabilityUpdateResponse: {
             /**
@@ -21197,11 +21183,18 @@ export type components = {
             /** Windows Updated */
             windows_updated: number;
         };
+        /** WeekBitmapResponse */
+        WeekBitmapResponse: {
+            /** Days */
+            days?: components["schemas"]["DayBitmapResponse"][];
+            /** Version */
+            version: string;
+        };
         /**
-         * WeekSpecificScheduleCreate
-         * @description Schema for creating schedule for specific dates.
+         * WeekBitmapSaveRequest
+         * @description Bitmap-native save payload for instructor week editing.
          */
-        WeekSpecificScheduleCreate: {
+        WeekBitmapSaveRequest: {
             /**
              * Base Version
              * @description Client's baseline week version when saving (If-Match fallback)
@@ -21209,10 +21202,15 @@ export type components = {
             base_version?: string | null;
             /**
              * Clear Existing
-             * @description Whether to clear existing entries for the week before saving
+             * @description Whether to clear existing day rows for the week before saving
              * @default true
              */
             clear_existing: boolean;
+            /**
+             * Days
+             * @description Bitmap payload for edited days in the week
+             */
+            days: components["schemas"]["DayBitmapInput"][];
             /**
              * Override
              * @description If true, bypass server-side version checks when saving
@@ -21220,20 +21218,16 @@ export type components = {
              */
             override: boolean;
             /**
-             * Schedule
-             * @description List of schedule items with date, start_time, and end_time
-             */
-            schedule: components["schemas"]["ScheduleItem"][];
-            /**
              * Version
              * @description Deprecated alias for base_version (optimistic concurrency token)
              */
             version?: string | null;
             /**
              * Week Start
-             * @description Optional Monday date. If not provided, inferred from schedule dates
+             * Format: date
+             * @description Monday of the target week
              */
-            week_start?: string | null;
+            week_start: string;
         };
         /**
          * WeekValidationResponse
@@ -28234,7 +28228,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WeekAvailabilityResponse"];
+                    "application/json": components["schemas"]["WeekBitmapResponse"];
                 };
             };
             /** @description Not authenticated */
@@ -28274,7 +28268,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["WeekSpecificScheduleCreate"];
+                "application/json": components["schemas"]["WeekBitmapSaveRequest"];
             };
         };
         responses: {

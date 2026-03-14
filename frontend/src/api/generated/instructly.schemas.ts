@@ -3390,6 +3390,24 @@ export interface DatabaseStatsResponse {
   status: string;
 }
 
+/**
+ * Single day's bitmap payload for instructor week editing.
+ */
+export interface DayBitmapInput {
+  /** Base64-encoded 36-byte day bitmap */
+  bits: string;
+  /** ISO date string (YYYY-MM-DD) */
+  date: string;
+  /** Base64-encoded 72-byte tag bitmap; omitted means all-zero tags */
+  format_tags?: string | null;
+}
+
+export interface DayBitmapResponse {
+  bits: string;
+  date: string;
+  format_tags: string;
+}
+
 export interface DeleteBlackoutResponse {
   blackout_id: string;
   message?: string;
@@ -7588,18 +7606,6 @@ export interface SavePaymentMethodRequest {
 }
 
 /**
- * Individual schedule item for availability creation.
- */
-export interface ScheduleItem {
-  /** ISO date string (YYYY-MM-DD) */
-  date: string;
-  /** End time (HH:MM or HH:MM:SS) */
-  end_time: string;
-  /** Start time (HH:MM or HH:MM:SS) */
-  start_time: string;
-}
-
-/**
  * Metrics for a search type.
  */
 export interface SearchTypeMetrics {
@@ -8331,14 +8337,6 @@ export interface TFAVerifyLoginResponse {
 }
 
 /**
- * Simple time range for schedule entries.
- */
-export interface TimeRange {
-  end_time: string;
-  start_time: string;
-}
-
-/**
  * Time slot for availability.
  */
 export interface TimeSlot {
@@ -8727,13 +8725,6 @@ export interface WebhookResponse {
   status: string;
 }
 
-/**
- * Week availability mapping keyed by ISO date string.
- */
-export interface WeekAvailabilityResponse {
-  [key: string]: TimeRange[];
-}
-
 export interface WeekAvailabilityUpdateResponse {
   days_written?: number;
   edited_dates?: string[];
@@ -8750,22 +8741,27 @@ export interface WeekAvailabilityUpdateResponse {
   windows_updated: number;
 }
 
+export interface WeekBitmapResponse {
+  days?: DayBitmapResponse[];
+  version: string;
+}
+
 /**
- * Schema for creating schedule for specific dates.
+ * Bitmap-native save payload for instructor week editing.
  */
-export interface WeekSpecificScheduleCreate {
+export interface WeekBitmapSaveRequest {
   /** Client's baseline week version when saving (If-Match fallback) */
   base_version?: string | null;
-  /** Whether to clear existing entries for the week before saving */
+  /** Whether to clear existing day rows for the week before saving */
   clear_existing?: boolean;
+  /** Bitmap payload for edited days in the week */
+  days: DayBitmapInput[];
   /** If true, bypass server-side version checks when saving */
   override?: boolean;
-  /** List of schedule items with date, start_time, and end_time */
-  schedule: ScheduleItem[];
   /** Deprecated alias for base_version (optimistic concurrency token) */
   version?: string | null;
-  /** Optional Monday date. If not provided, inferred from schedule dates */
-  week_start?: string | null;
+  /** Monday of the target week */
+  week_start: string;
 }
 
 /**

@@ -7482,6 +7482,16 @@ export type components = {
  end: string;
  start: string;
  };
+ DayBitmapInput: {
+ bits: string;
+ date: string;
+ format_tags?: string | null;
+ };
+ DayBitmapResponse: {
+ bits: string;
+ date: string;
+ format_tags: string;
+ };
  DeleteBlackoutResponse: {
  blackout_id: string;
  message: string;
@@ -9719,11 +9729,6 @@ export type components = {
  payment_method_id: string;
  set_as_default: boolean;
  };
- ScheduleItem: {
- date: string;
- end_time: string;
- start_time: string;
- };
  SearchAnalyticsSummaryResponse: {
  conversions: components["schemas"]["ConversionMetrics"];
  date_range: components["schemas"]["DateRange"];
@@ -10214,10 +10219,6 @@ export type components = {
  min: number;
  pct: number;
  };
- TimeRange: {
- end_time: string;
- start_time: string;
- };
  TimeSlot: {
  end_time: string;
  start_time: string;
@@ -10524,9 +10525,6 @@ export type components = {
  events?: components["schemas"]["WebhookEventBrief"][];
  included: boolean;
  };
- WeekAvailabilityResponse: {
- [key: string]: components["schemas"]["TimeRange"][];
- };
  WeekAvailabilityUpdateResponse: {
  days_written: number;
  edited_dates?: string[];
@@ -10542,13 +10540,17 @@ export type components = {
  windows_deleted: number;
  windows_updated: number;
  };
- WeekSpecificScheduleCreate: {
+ WeekBitmapResponse: {
+ days?: components["schemas"]["DayBitmapResponse"][];
+ version: string;
+ };
+ WeekBitmapSaveRequest: {
  base_version?: string | null;
  clear_existing: boolean;
+ days: components["schemas"]["DayBitmapInput"][];
  override: boolean;
- schedule: components["schemas"]["ScheduleItem"][];
  version?: string | null;
- week_start?: string | null;
+ week_start: string;
  };
  WeekValidationResponse: {
  details: components["schemas"]["ValidationSlotDetail"][];
@@ -17016,7 +17018,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["WeekAvailabilityResponse"];
+ "application/json": components["schemas"]["WeekBitmapResponse"];
  };
  };
  401: {
@@ -17052,7 +17054,7 @@ export interface operations {
  };
  requestBody: {
  content: {
- "application/json": components["schemas"]["WeekSpecificScheduleCreate"];
+ "application/json": components["schemas"]["WeekBitmapSaveRequest"];
  };
  };
  responses: {
