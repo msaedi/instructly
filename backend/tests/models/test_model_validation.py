@@ -28,6 +28,7 @@ from app.auth import get_password_hash
 from app.core.enums import RoleName
 from app.database import Base
 from app.models import (
+    AvailabilityDay,
     BlackoutDate,
     Booking,
     BookingStatus,
@@ -763,6 +764,19 @@ class TestArchitecturalIntegrity:
         # Should NOT have these deprecated models
         assert not hasattr(models, "AvailabilitySlot")
         assert not hasattr(models, "InstructorAvailability")
+
+    def test_availability_day_model_matches_bitmap_constraints(self):
+        """AvailabilityDay model metadata should mirror the bitmap migration."""
+        table = AvailabilityDay.__table__
+        constraint_names = {
+            constraint.name
+            for constraint in table.constraints
+            if getattr(constraint, "name", None)
+        }
+
+        assert "ck_bits_length" in constraint_names
+        assert "ck_format_tags_length" in constraint_names
+        assert table.c.format_tags.server_default is not None
 
 
 # Smoke test to ensure our test setup works

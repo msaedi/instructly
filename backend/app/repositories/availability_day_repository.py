@@ -5,6 +5,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, cast
 
 from sqlalchemy.orm import Session
 
+from app.core.constants import BITS_PER_TAG, BYTES_PER_DAY, SLOTS_PER_DAY, TAG_BYTES_PER_DAY
 from app.models import AvailabilityDay
 from app.utils.bitset import new_empty_tags
 
@@ -14,9 +15,45 @@ MultiInstructorBitmapItem = Tuple[str, date, bytes]
 MultiInstructorBitmapWithTagsItem = Tuple[str, date, bytes, bytes]
 
 
+def normalize_format_tags(bits: bytes, format_tags: bytes) -> bytes:
+    """Clear tags for any slot whose availability bit is off."""
+    if len(bits) != BYTES_PER_DAY:
+        raise ValueError(f"bits length must be {BYTES_PER_DAY}")
+    if len(format_tags) != TAG_BYTES_PER_DAY:
+        raise ValueError(f"format_tags length must be {TAG_BYTES_PER_DAY}")
+
+    normalized = bytearray(format_tags)
+    for slot in range(SLOTS_PER_DAY):
+        if bits[slot // 8] & (1 << (slot % 8)):
+            continue
+
+        bit_offset = slot * BITS_PER_TAG
+        byte_idx = bit_offset // 8
+        bit_pos = bit_offset % 8
+        normalized[byte_idx] &= ~(0b11 << bit_pos)
+
+    return bytes(normalized)
+
+
 class AvailabilityDayRepository:
     def __init__(self, db: Session):
         self.db = db
+
+    @staticmethod
+    def _normalize_format_tags(bits: bytes, format_tags: bytes) -> bytes:
+        return normalize_format_tags(bits, format_tags)
+
+    def _resolve_format_tags(
+        self,
+        *,
+        bits: bytes,
+        provided_format_tags: Optional[bytes],
+        existing_format_tags: Optional[bytes] = None,
+    ) -> bytes:
+        candidate = provided_format_tags
+        if candidate is None:
+            candidate = existing_format_tags or new_empty_tags()
+        return self._normalize_format_tags(bits, candidate)
 
     def get_week_rows(self, instructor_id: str, week_start: date) -> List[AvailabilityDay]:
         week_end = week_start + timedelta(days=6)
@@ -95,7 +132,7 @@ class AvailabilityDayRepository:
         count = 0
         for item in items:
             day_date, bits = item[0], item[1]
-            format_tags = item[2] if len(item) == 3 else None
+            provided_format_tags = item[2] if len(item) == 3 else None
             row = (
                 self.db.query(AvailabilityDay)
                 .filter(
@@ -106,14 +143,20 @@ class AvailabilityDayRepository:
             )
             if row:
                 row.bits = bits
-                if format_tags is not None:
-                    row.format_tags = format_tags
+                row.format_tags = self._resolve_format_tags(
+                    bits=bits,
+                    provided_format_tags=provided_format_tags,
+                    existing_format_tags=row.format_tags,
+                )
             else:
                 row = AvailabilityDay(
                     instructor_id=instructor_id,
                     day_date=day_date,
                     bits=bits,
-                    format_tags=format_tags or new_empty_tags(),
+                    format_tags=self._resolve_format_tags(
+                        bits=bits,
+                        provided_format_tags=provided_format_tags,
+                    ),
                 )
                 self.db.add(row)
             count += 1
@@ -164,19 +207,25 @@ class AvailabilityDayRepository:
         count = 0
         for item in items:
             instructor_id, day_date, bits = item[0], item[1], item[2]
-            format_tags = item[3] if len(item) == 4 else None
+            provided_format_tags = item[3] if len(item) == 4 else None
             key = (instructor_id, day_date)
             row = existing_lookup.get(key)
             if row:
                 row.bits = bits
-                if format_tags is not None:
-                    row.format_tags = format_tags
+                row.format_tags = self._resolve_format_tags(
+                    bits=bits,
+                    provided_format_tags=provided_format_tags,
+                    existing_format_tags=row.format_tags,
+                )
             else:
                 row = AvailabilityDay(
                     instructor_id=instructor_id,
                     day_date=day_date,
                     bits=bits,
-                    format_tags=format_tags or new_empty_tags(),
+                    format_tags=self._resolve_format_tags(
+                        bits=bits,
+                        provided_format_tags=provided_format_tags,
+                    ),
                 )
                 self.db.add(row)
                 existing_lookup[key] = row  # Track for future iterations
@@ -207,6 +256,23 @@ class AvailabilityDayRepository:
 
         from sqlalchemy import text
 
+        instructor_ids = list({item[0] for item in items})
+        dates = [item[1] for item in items]
+        min_date = min(dates)
+        max_date = max(dates)
+        existing_rows = (
+            self.db.query(AvailabilityDay)
+            .filter(
+                AvailabilityDay.instructor_id.in_(instructor_ids),
+                AvailabilityDay.day_date >= min_date,
+                AvailabilityDay.day_date <= max_date,
+            )
+            .all()
+        )
+        existing_lookup: Dict[Tuple[str, date], AvailabilityDay] = {
+            (row.instructor_id, row.day_date): row for row in existing_rows
+        }
+
         total = 0
         # Process in chunks to avoid parameter limits
         for chunk_start in range(0, len(items), batch_size):
@@ -217,7 +283,14 @@ class AvailabilityDayRepository:
             params: Dict[str, Any] = {}
             for i, item in enumerate(chunk):
                 instructor_id, day_date, bits = item[0], item[1], item[2]
-                format_tags = item[3] if len(item) == 4 else new_empty_tags()
+                provided_format_tags = item[3] if len(item) == 4 else None
+                key = (instructor_id, day_date)
+                existing_row = existing_lookup.get(key)
+                format_tags = self._resolve_format_tags(
+                    bits=bits,
+                    provided_format_tags=provided_format_tags,
+                    existing_format_tags=existing_row.format_tags if existing_row else None,
+                )
                 values_clauses.append(
                     f"(:instructor_id_{i}, :day_date_{i}, :bits_{i}, :format_tags_{i})"
                 )
@@ -225,6 +298,12 @@ class AvailabilityDayRepository:
                 params[f"day_date_{i}"] = day_date
                 params[f"bits_{i}"] = bits
                 params[f"format_tags_{i}"] = format_tags
+                existing_lookup[key] = AvailabilityDay(
+                    instructor_id=instructor_id,
+                    day_date=day_date,
+                    bits=bits,
+                    format_tags=format_tags,
+                )
 
             # PostgreSQL native UPSERT (parameterized - values_clauses are placeholders only)
             sql = f"""

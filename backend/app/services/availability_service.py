@@ -48,7 +48,10 @@ from ..monitoring.availability_perf import (
     availability_perf_span,
     estimate_payload_size_bytes,
 )
-from ..repositories.availability_day_repository import AvailabilityDayRepository
+from ..repositories.availability_day_repository import (
+    AvailabilityDayRepository,
+    normalize_format_tags,
+)
 from ..repositories.factory import RepositoryFactory
 from ..schemas.availability_window import (
     BlackoutDateCreate,
@@ -727,6 +730,7 @@ class AvailabilityService(BaseService):
 
             if not allow_past and day == instructor_today:
                 desired_bits = _apply_same_day_cutoff(desired_bits, day)
+            desired_tags = normalize_format_tags(desired_bits, desired_tags)
 
             if desired_bits == existing.bits and desired_tags == existing.format_tags:
                 continue

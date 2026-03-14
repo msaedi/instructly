@@ -401,6 +401,62 @@ def test_week_bitmap_round_trip_preserves_format_tags_and_updates_etag(
     assert stored[day][1] == decode_bitmap_bytes(updated_days[0]["format_tags"], 72)
 
 
+def test_week_bitmap_post_returns_version_for_normalized_format_tags(
+    bitmap_client: TestClient,
+    db: Session,
+    test_instructor: User,
+    auth_headers_instructor: dict,
+) -> None:
+    repo = AvailabilityDayRepository(db)
+    db.query(AvailabilityDay).filter(AvailabilityDay.instructor_id == test_instructor.id).delete()
+    today = date.today()
+    days_until_monday = (7 - today.weekday()) % 7
+    if days_until_monday == 0:
+        days_until_monday = 7
+    week_start = today + timedelta(days=days_until_monday)
+    day = week_start
+
+    days = _build_bitmap_days_payload(week_start, {day: [("09:00:00", "10:00:00")]})
+    stale_tags = set_range_tag(new_empty_tags(), 108, 12, 1)
+    stale_tags = set_range_tag(stale_tags, 156, 12, 1)
+    days[0]["format_tags"] = encode_bitmap_bytes(stale_tags)
+
+    post_resp = bitmap_client.post(
+        "/api/v1/instructors/availability/week",
+        json={
+            "week_start": week_start.isoformat(),
+            "clear_existing": True,
+            "days": days,
+        },
+        headers=auth_headers_instructor,
+    )
+    assert post_resp.status_code == 200
+    post_body = post_resp.json()
+    post_etag = post_resp.headers.get("ETag")
+    assert post_etag
+    assert post_body["version"] == post_etag
+
+    get_resp = bitmap_client.get(
+        "/api/v1/instructors/availability/week",
+        params={"start_date": week_start.isoformat()},
+        headers=auth_headers_instructor,
+    )
+    assert get_resp.status_code == 200
+    get_body = get_resp.json()
+    get_etag = get_resp.headers.get("ETag")
+    assert get_etag
+    assert get_body["version"] == get_etag
+    assert post_body["version"] == get_body["version"]
+    assert post_etag == get_etag
+
+    expected_tags = set_range_tag(new_empty_tags(), 108, 12, 1)
+    fetched_day = _body_days_map(get_body)[day.isoformat()]
+    assert decode_bitmap_bytes(fetched_day["format_tags"], 72) == expected_tags
+
+    stored = repo.get_week_bitmaps(test_instructor.id, week_start)
+    assert stored[day][1] == expected_tags
+
+
 def test_copy_week_bitmap_copies_all_days(
     bitmap_client: TestClient,
     db: Session,
