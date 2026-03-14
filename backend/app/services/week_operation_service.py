@@ -21,7 +21,7 @@ FIXED IN THIS VERSION:
 from datetime import date, timedelta
 import logging
 import os
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Set
 
 from sqlalchemy.orm import Session
 
@@ -31,7 +31,7 @@ from ..core.timezone_utils import get_user_today_by_id
 from ..models.audit_log import AuditLog
 from ..monitoring.availability_perf import COPY_WEEK_ENDPOINT, availability_perf_span
 from ..repositories.factory import RepositoryFactory
-from ..utils.bitset import bits_from_windows, new_empty_bits, windows_from_bits
+from ..utils.bitset import new_empty_bits, new_empty_tags, windows_from_bits
 from .audit_redaction import redact
 from .base import BaseService
 
@@ -137,12 +137,15 @@ class WeekOperationService(BaseService):
             self._validate_week_dates(from_week_start, to_week_start)
 
             target_week_dates = self.calculate_week_dates(to_week_start)
-            bits_by_day = self.availability_service.get_week_bits(
+            bitmaps_by_day = self.availability_service.get_week_bitmaps(
                 instructor_id,
                 from_week_start,
                 use_cache=False,
             )
-            has_any_bits = any(bits and bits != new_empty_bits() for bits in bits_by_day.values())
+            has_any_bits = any(
+                day_bitmaps.bits and day_bitmaps.bits != new_empty_bits()
+                for day_bitmaps in bitmaps_by_day.values()
+            )
             if not has_any_bits:
                 self.logger.warning(
                     "copy_week_availability: source week has no availability windows",
@@ -161,16 +164,15 @@ class WeekOperationService(BaseService):
                 }
                 return result
 
-            windows_by_day: dict[date, list[tuple[str, str]]] = {}
-            items: list[tuple[date, bytes]] = []
+            items: list[tuple[date, bytes, bytes]] = []
             for offset, dst_day in enumerate(target_week_dates):
                 src_day = from_week_start + timedelta(days=offset)
-                src_bits = bits_by_day.get(src_day, new_empty_bits())
-                windows = windows_from_bits(src_bits)
-                windows_by_day[dst_day] = windows
-                items.append((dst_day, bits_from_windows(windows)))
+                src_bitmaps = bitmaps_by_day.get(src_day)
+                src_bits = src_bitmaps.bits if src_bitmaps is not None else new_empty_bits()
+                src_tags = src_bitmaps.format_tags if src_bitmaps is not None else new_empty_tags()
+                items.append((dst_day, src_bits, src_tags))
 
-            days_written = sum(1 for _, bits in items if bits and bits != new_empty_bits())
+            days_written = sum(1 for _, bits, _ in items if bits and bits != new_empty_bits())
 
             with self.transaction():
                 repo = self.availability_service._bitmap_repo()
@@ -557,16 +559,23 @@ class WeekOperationService(BaseService):
         weeks_applied = len(affected_weeks_sorted)
         dates_processed = len(all_dates)
 
-        source_bits_map = self.availability_service.get_week_bits(
+        source_bitmaps_map = self.availability_service.get_week_bitmaps(
             instructor_id, from_week_start, use_cache=False
         )
         source_monday = from_week_start - timedelta(days=from_week_start.weekday())
-        source_bits_by_weekday: Dict[int, bytes] = {}
+        source_bitmaps_by_weekday: Dict[int, tuple[bytes, bytes]] = {}
         for offset in range(7):
             src_day = source_monday + timedelta(days=offset)
-            source_bits_by_weekday[offset] = source_bits_map.get(src_day, empty_bits)
+            source_day_bitmaps = source_bitmaps_map.get(src_day)
+            if source_day_bitmaps is None:
+                source_bitmaps_by_weekday[offset] = (empty_bits, new_empty_tags())
+                continue
+            source_bitmaps_by_weekday[offset] = (
+                source_day_bitmaps.bits,
+                source_day_bitmaps.format_tags,
+            )
 
-        if not any(bits != empty_bits for bits in source_bits_by_weekday.values()):
+        if not any(bits != empty_bits for bits, _ in source_bitmaps_by_weekday.values()):
             self.logger.info(
                 "apply_pattern_to_date_range(bitmap): source week has no availability bits",
                 extra={
@@ -602,41 +611,49 @@ class WeekOperationService(BaseService):
         days_with_windows: Set[str] = set()
 
         for week_start in affected_weeks_sorted:
-            existing_bits = self.availability_service.get_week_bits(
+            existing_bitmaps = self.availability_service.get_week_bitmaps(
                 instructor_id, week_start, use_cache=False
             )
-            windows_by_day: Dict[date, List[Tuple[str, str]]] = {}
+            bitmaps_by_day: Dict[date, tuple[bytes, bytes]] = {}
             week_has_changes = False
 
             for offset in range(7):
                 target_day = week_start + timedelta(days=offset)
-                previous_bits = existing_bits.get(target_day, empty_bits)
-                previous_windows = windows_from_bits(previous_bits)
+                previous_bitmap = existing_bitmaps.get(target_day)
+                previous_bits = previous_bitmap.bits if previous_bitmap is not None else empty_bits
+                previous_tags = (
+                    previous_bitmap.format_tags if previous_bitmap is not None else new_empty_tags()
+                )
 
                 if not (start_date <= target_day <= end_date):
-                    windows_by_day[target_day] = list(previous_windows)
+                    bitmaps_by_day[target_day] = (previous_bits, previous_tags)
                     continue
 
-                source_bits = source_bits_by_weekday.get(offset, empty_bits)
-                source_windows = windows_from_bits(source_bits)
+                source_bits, source_tags = source_bitmaps_by_weekday.get(
+                    offset, (empty_bits, new_empty_tags())
+                )
 
                 if clamp_to_future and target_day < instructor_today:
-                    if source_bits != previous_bits:
+                    if source_bits != previous_bits or source_tags != previous_tags:
                         skipped_past_targets += 1
-                    windows_by_day[target_day] = list(previous_windows)
+                    bitmaps_by_day[target_day] = (previous_bits, previous_tags)
                     continue
 
-                windows_by_day[target_day] = list(source_windows)
-                if source_bits != previous_bits:
+                bitmaps_by_day[target_day] = (source_bits, source_tags)
+                if source_bits != previous_bits or source_tags != previous_tags:
                     week_has_changes = True
 
             if not week_has_changes:
                 continue
 
-            save_result = self.availability_service.save_week_bits(
+            from .availability_service import DayBitmaps
+
+            save_result = self.availability_service.save_week_bitmaps(
                 instructor_id=instructor_id,
                 week_start=week_start,
-                windows_by_day=windows_by_day,
+                bitmaps_by_day={
+                    day: DayBitmaps(bits, tags) for day, (bits, tags) in bitmaps_by_day.items()
+                },
                 base_version=None,
                 override=True,
                 clear_existing=False,
@@ -652,7 +669,8 @@ class WeekOperationService(BaseService):
             for changed_day in save_result.written_dates:
                 iso_day = changed_day.isoformat()
                 written_dates.add(iso_day)
-                day_bits = save_result.bits_by_day.get(changed_day, empty_bits)
+                day_bitmap = save_result.bitmaps_by_day.get(changed_day)
+                day_bits = day_bitmap.bits if day_bitmap is not None else empty_bits
                 new_windows = windows_from_bits(day_bits)
                 if new_windows:
                     days_with_windows.add(iso_day)

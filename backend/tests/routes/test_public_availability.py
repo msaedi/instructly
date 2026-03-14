@@ -411,7 +411,7 @@ class TestPublicAvailability:
 
         assert response.status_code == status.HTTP_200_OK
         slots = response.json()["availability_by_date"][target_date.isoformat()]["available_slots"]
-        assert {("09:00", "10:00"), ("11:30", "12:00")} == {
+        assert {("09:00", "09:30"), ("11:30", "12:00")} == {
             (slot["start_time"], slot["end_time"]) for slot in slots
         }
 
@@ -652,6 +652,76 @@ class TestPublicAvailability:
             "available_slots"
         ]
         assert omitted_slots == []
+
+    def test_public_availability_blocks_buffer_before_existing_travel_booking(
+        self,
+        public_client,
+        db,
+        test_instructor,
+        test_student,
+        full_detail_settings,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        instructor = test_instructor
+        profile = (
+            db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
+        )
+        assert profile is not None
+        profile.non_travel_buffer_minutes = 15
+        profile.travel_buffer_minutes = 60
+        db.commit()
+
+        target_date = date.today() + timedelta(days=7)
+        seed_day(db, instructor.id, target_date, [("13:00", "18:00")])
+
+        service = (
+            db.query(Service)
+            .filter(Service.instructor_profile_id == profile.id, Service.is_active == True)
+            .first()
+        )
+        assert service is not None
+
+        booking = Booking(
+            instructor_id=instructor.id,
+            student_id=test_student.id,
+            booking_date=target_date,
+            start_time=time(15, 0),
+            end_time=time(16, 0),
+            **booking_timezone_fields(target_date, time(15, 0), time(16, 0)),
+            status=BookingStatus.CONFIRMED,
+            location_type="student_location",
+            instructor_service_id=service.id,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Test Service",
+            hourly_rate=service.hourly_rate,
+            total_price=service.hourly_rate,
+            duration_minutes=60,
+        )
+        db.add(booking)
+        db.commit()
+
+        monkeypatch.setattr(
+            ConfigService,
+            "get_advance_notice_minutes",
+            lambda self, location_type=None: 0,
+        )
+
+        response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": "student_location",
+            },
+        )
+        if response.status_code == 404:
+            pytest.skip("Public routes not registered in main.py")
+
+        assert response.status_code == status.HTTP_200_OK
+        slots = response.json()["availability_by_date"][target_date.isoformat()]["available_slots"]
+        assert slots == [
+            {"start_time": "13:00", "end_time": "14:00"},
+            {"start_time": "17:00", "end_time": "18:00"},
+        ]
 
     def test_public_availability_hides_overnight_protected_online_slots(
         self,

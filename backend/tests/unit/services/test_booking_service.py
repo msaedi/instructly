@@ -64,6 +64,15 @@ def _enable_default_overnight_rules(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+def _active_service(**overrides: object) -> SimpleNamespace:
+    return SimpleNamespace(
+        offers_online=True,
+        offers_travel=True,
+        offers_at_location=True,
+        **overrides,
+    )
+
+
 def make_booking(**overrides: object) -> SimpleNamespace:
     pd = SimpleNamespace(
         payment_status=overrides.pop("payment_status", PaymentStatus.AUTHORIZED.value),
@@ -163,7 +172,7 @@ def booking_service(mock_db: MagicMock, mock_repository: MagicMock) -> BookingSe
 # --- check_availability ---
 
 def test_check_availability_conflict_returns_unavailable(booking_service: BookingService) -> None:
-    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
     booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
         user=SimpleNamespace(timezone="UTC"),
     )
@@ -207,7 +216,7 @@ def test_check_availability_missing_service_id_returns_unavailable(
 
 def test_check_availability_instructor_profile_missing(booking_service: BookingService) -> None:
     booking_service.repository.check_time_conflict.return_value = False
-    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
     booking_service.conflict_checker_repository.get_instructor_profile.return_value = None
 
     result = booking_service.check_availability(
@@ -222,11 +231,37 @@ def test_check_availability_instructor_profile_missing(booking_service: BookingS
     assert "profile" in result["reason"].lower()
 
 
+def test_check_availability_rejects_unsupported_location_capability(
+    booking_service: BookingService,
+) -> None:
+    booking_service.repository.check_time_conflict.return_value = False
+    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace(
+        offers_online=True,
+        offers_travel=False,
+        offers_at_location=False,
+    )
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
+        user=SimpleNamespace(timezone="UTC"),
+    )
+
+    result = booking_service.check_availability(
+        instructor_id=generate_ulid(),
+        booking_date=date(2030, 1, 1),
+        start_time=time(10, 0),
+        end_time=time(11, 0),
+        service_id=generate_ulid(),
+        location_type="student_location",
+    )
+
+    assert result["available"] is False
+    assert result["reason"] == "This instructor doesn't travel for this service"
+
+
 def test_check_availability_booking_time_validation_error(
     booking_service: BookingService,
 ) -> None:
     booking_service.repository.check_time_conflict.return_value = False
-    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
     booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
         user=SimpleNamespace(timezone="UTC"),
     )
@@ -248,7 +283,7 @@ def test_check_availability_booking_time_validation_error(
 
 def test_check_availability_min_advance_over_24(booking_service: BookingService, monkeypatch: pytest.MonkeyPatch) -> None:
     booking_service.repository.check_time_conflict.return_value = False
-    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
     booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
         user=SimpleNamespace(timezone="UTC"),
     )
@@ -275,7 +310,7 @@ def test_check_availability_min_advance_under_24(
     booking_service: BookingService, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     booking_service.repository.check_time_conflict.return_value = False
-    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
     booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
         user=SimpleNamespace(timezone="UTC"),
     )
@@ -304,7 +339,7 @@ def test_check_availability_min_advance_under_24(
 def test_check_availability_online_notice_rejects_45_minutes(
     booking_service: BookingService, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
     booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
         user=SimpleNamespace(timezone="UTC"),
     )
@@ -336,7 +371,7 @@ def test_check_availability_online_notice_rejects_45_minutes(
 def test_check_availability_travel_notice_rejects_2_hours_for_student_location(
     booking_service: BookingService, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
     booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
         user=SimpleNamespace(timezone="UTC"),
     )
@@ -368,7 +403,7 @@ def test_check_availability_travel_notice_rejects_2_hours_for_student_location(
 def test_check_availability_neutral_location_uses_travel_notice(
     booking_service: BookingService, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
     booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
         user=SimpleNamespace(timezone="UTC"),
     )
@@ -398,7 +433,7 @@ def test_check_availability_neutral_location_uses_travel_notice(
 
 
 def test_check_availability_student_conflict_returns_unavailable(booking_service: BookingService) -> None:
-    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
     booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
         user=SimpleNamespace(timezone="UTC"),
     )
@@ -448,7 +483,7 @@ def test_check_availability_uses_overnight_protection(
 ) -> None:
     _enable_default_overnight_rules(monkeypatch)
     _freeze_time(monkeypatch, request_time)
-    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
     booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
         user=SimpleNamespace(timezone="UTC"),
         overnight_protection_enabled=protection_enabled,
@@ -480,7 +515,7 @@ def test_check_availability_overnight_protection_uses_instructor_timezone(
     fixed_now = datetime(2030, 1, 2, 3, 1, tzinfo=timezone.utc)
     lesson_start = datetime(2030, 1, 2, 13, 0, tzinfo=timezone.utc)
     _freeze_time(monkeypatch, fixed_now)
-    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
     booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
         user=SimpleNamespace(timezone="America/New_York"),
         overnight_protection_enabled=True,
@@ -506,7 +541,7 @@ def test_check_availability_overnight_protection_uses_instructor_timezone(
 
 def test_check_availability_available_true(booking_service: BookingService) -> None:
     booking_service.repository.check_time_conflict.return_value = False
-    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
     booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
         user=SimpleNamespace(timezone="UTC"),
     )
@@ -542,7 +577,7 @@ def test_check_availability_respects_format_tags(
     tagged_slots: bytes,
     expected_available: bool,
 ) -> None:
-    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
     booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
         user=SimpleNamespace(timezone="UTC"),
     )
@@ -575,7 +610,7 @@ def test_check_availability_respects_format_tags(
 def test_check_availability_rejects_mixed_tagged_range(
     booking_service: BookingService,
 ) -> None:
-    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
     booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
         user=SimpleNamespace(timezone="UTC"),
     )
@@ -625,7 +660,7 @@ def test_check_availability_uses_format_aware_advance_notice(
 ) -> None:
     fixed_now = datetime(2030, 1, 1, 10, 0, tzinfo=timezone.utc)
     _freeze_time(monkeypatch, fixed_now)
-    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
     booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
         user=SimpleNamespace(timezone="UTC"),
     )

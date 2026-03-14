@@ -1471,8 +1471,7 @@ class TestComputePublicAvailabilityExpandedCoverage:
             test_booking.instructor_id, target_date, target_date
         )
         slots = result[target_date.isoformat()]
-        assert slots
-        assert slots[0][0] >= time(1, 30)
+        assert slots == []
 
 
 class TestValidateNoOverlapsExistingCoverage:

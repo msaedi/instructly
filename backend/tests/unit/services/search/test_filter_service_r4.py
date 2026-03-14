@@ -328,6 +328,47 @@ def test_filter_availability_drops_candidate_when_conservative_travel_buffer_rem
     assert result == []
 
 
+def test_filter_availability_drops_slot_before_existing_booking_when_travel_buffer_applies(
+    repository: Mock,
+) -> None:
+    service = FilterService(repository=repository, location_resolver=Mock(), region_code="nyc")
+    target_day = date.today()
+    repository.filter_by_availability.return_value = {"inst_1": [target_day]}
+    repository.get_buffered_availability_context.return_value = {
+        "bits_by_key": {
+            ("inst_1", target_day): bits_from_windows([("14:00", "15:00")]),
+        },
+        "bookings_by_key": {
+            ("inst_1", target_day): [
+                SimpleNamespace(
+                    start_time=filter_service_module.time(15, 0),
+                    end_time=filter_service_module.time(16, 0),
+                    location_type="online",
+                )
+            ],
+        },
+        "profiles_by_instructor": {
+            "inst_1": SimpleNamespace(non_travel_buffer_minutes=15, travel_buffer_minutes=60)
+        },
+    }
+
+    candidates = [
+        filter_service_module.FilteredCandidate(
+            service_id="svc_1",
+            service_catalog_id="cat_1",
+            instructor_id="inst_1",
+            hybrid_score=0.5,
+            name="Service",
+            description=None,
+            min_hourly_rate=50,
+        )
+    ]
+
+    result = service._filter_availability(candidates, _base_query(lesson_type="in_person"), 60)
+
+    assert result == []
+
+
 def test_filter_availability_drops_in_person_candidate_when_slots_are_online_only(
     repository: Mock,
 ) -> None:

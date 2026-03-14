@@ -4932,6 +4932,14 @@ class BookingService(BaseService):
                 "reason": "Instructor profile not found",
             }
 
+        try:
+            self._validate_location_capability(service, normalized_location_type)
+        except ValidationException as exc:
+            return {
+                "available": False,
+                "reason": str(exc),
+            }
+
         # Check minimum advance booking using UTC.
         min_advance_minutes = self._get_advance_notice_minutes(normalized_location_type)
         now_utc = datetime.now(timezone.utc)

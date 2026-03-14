@@ -2221,7 +2221,10 @@ class AvailabilityService(BaseService):
                 )
                 else non_travel_buffer_minutes
             )
-            start_minute = time_to_minutes(start_time, is_end_time=False)
+            start_minute = max(
+                0,
+                time_to_minutes(start_time, is_end_time=False) - max(0, buffer_minutes),
+            )
             end_minute = min(
                 24 * 60,
                 time_to_minutes(end_time, is_end_time=True) + max(0, buffer_minutes),

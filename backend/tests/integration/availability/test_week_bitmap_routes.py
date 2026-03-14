@@ -30,13 +30,17 @@ def _upsert_week(
     instructor_id: str,
     week_start: date,
     windows_by_day: Dict[date, List[Tuple[str, str]]],
+    *,
+    tags_by_day: Dict[date, bytes] | None = None,
 ) -> None:
     """Helper to seed bitmap availability for tests."""
     items = []
     for offset in range(7):
         day = week_start + timedelta(days=offset)
         wins = windows_by_day.get(day, [])
-        items.append((day, bits_from_windows(wins) if wins else bits_from_windows([])))
+        bits = bits_from_windows(wins) if wins else bits_from_windows([])
+        format_tags = (tags_by_day or {}).get(day, new_empty_tags())
+        items.append((day, bits, format_tags))
     repo.upsert_week(instructor_id, items)
 
 
@@ -413,7 +417,11 @@ def test_copy_week_bitmap_copies_all_days(
         source_week + timedelta(days=offset): [("09:00:00", "10:00:00")]
         for offset in range(7)
     }
-    _upsert_week(repo, test_instructor.id, source_week, windows)
+    tags_by_day = {
+        source_week + timedelta(days=0): set_range_tag(new_empty_tags(), 108, 12, 1),
+        source_week + timedelta(days=1): set_range_tag(new_empty_tags(), 108, 12, 2),
+    }
+    _upsert_week(repo, test_instructor.id, source_week, windows, tags_by_day=tags_by_day)
     db.commit()
 
     resp = bitmap_client.post(
@@ -428,7 +436,9 @@ def test_copy_week_bitmap_copies_all_days(
     data = resp.json()
     assert data["windows_copied"] == 7
 
-    copied = repo.get_week(test_instructor.id, target_week)
+    copied = repo.get_week_bitmaps(test_instructor.id, target_week)
     for offset in range(7):
         day = target_week + timedelta(days=offset)
-        assert windows_from_bits(copied[day]) == [("09:00:00", "10:00:00")]
+        copied_bits, copied_tags = copied[day]
+        assert windows_from_bits(copied_bits) == [("09:00:00", "10:00:00")]
+        assert copied_tags == tags_by_day.get(day - timedelta(days=7), new_empty_tags())
