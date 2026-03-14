@@ -155,6 +155,7 @@ describe('Modal', () => {
       // Click on the overlay (the backdrop)
       const overlay = document.querySelector('.insta-dialog-backdrop');
       expect(overlay).toBeInTheDocument();
+      expect(overlay).toHaveClass('bg-black/50');
       await user.click(overlay as Element);
 
       await waitFor(() => {

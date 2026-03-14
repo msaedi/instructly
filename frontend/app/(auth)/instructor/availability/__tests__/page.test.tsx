@@ -291,30 +291,78 @@ describe('InstructorAvailabilityPage', () => {
     ).toHaveAttribute('aria-checked', 'true');
   });
 
-  it('shows the tag legend for mixed-format instructors and passes tag props to the week view', () => {
-    renderPage({
+  it('shows the paint toolbar for mixed-format instructors and passes tag props to the week view', async () => {
+    const { user } = renderPage({
       formatPrices: [
         { format: 'student_location', hourly_rate: 95 },
         { format: 'online', hourly_rate: 80 },
       ],
     });
 
-    expect(screen.getByTestId('availability-tag-legend')).toBeInTheDocument();
-    expect(screen.getByText(/Online Only/i)).toBeInTheDocument();
+    expect(screen.getByTestId('availability-paint-toolbar')).toBeInTheDocument();
+    expect(screen.getByText(/Tip: Click any cell to mark yourself available/i)).toBeInTheDocument();
+    expect(screen.getByText('Business Hours')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /All.*All lesson formats/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('radio').map((item) => item.textContent)).toEqual([
+      expect.stringContaining('All'),
+      expect.stringContaining('Online'),
+    ]);
     expect(mockWeekView).toHaveBeenCalledWith(
       expect.objectContaining({
         weekTags: baseWeekTags,
         availableTagOptions: [1],
+        paintMode: 0,
       })
+    );
+
+    await user.click(screen.getByRole('radio', { name: /Online.*Online lessons only/i }));
+
+    await waitFor(() =>
+      expect(mockWeekView).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          paintMode: 1,
+        })
+      )
     );
   });
 
-  it('hides the tag legend for single-format instructors', () => {
+  it('keeps the toolbar above the grid and moves the secondary controls below it', () => {
     renderPage({
-      formatPrices: [{ format: 'online', hourly_rate: 75 }],
+      formatPrices: [
+        { format: 'student_location', hourly_rate: 95 },
+        { format: 'instructor_location', hourly_rate: 85 },
+        { format: 'online', hourly_rate: 80 },
+      ],
     });
 
-    expect(screen.queryByTestId('availability-tag-legend')).not.toBeInTheDocument();
+    const tip = screen.getByText(/Tip: Click any cell to mark yourself available/i);
+    const teachingWindow = screen.getByText('Business Hours');
+    const toolbar = screen.getByTestId('availability-paint-toolbar');
+    const grid = screen.getByTestId('mock-week-view');
+    const legend = screen.getByText('Format tags');
+
+    expect(
+      toolbar.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      grid.compareDocumentPosition(tip) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      tip.compareDocumentPosition(teachingWindow) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      teachingWindow.compareDocumentPosition(legend) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it('hides the paint toolbar for single-format instructors', () => {
+    renderPage({
+      formatPrices: [
+        { format: 'online', hourly_rate: 75 },
+      ],
+    });
+
+    expect(screen.queryByTestId('availability-paint-toolbar')).not.toBeInTheDocument();
   });
 
   it('auto-saves the full settings payload after debounced edits and collapses rapid changes', async () => {
@@ -426,5 +474,17 @@ describe('InstructorAvailabilityPage', () => {
     expect(
       screen.queryByTestId('calendar-settings-acknowledgement-modal')
     ).not.toBeInTheDocument();
+  });
+
+  it('opens the protections modal from the about link', async () => {
+    const { user } = renderPage({
+      acknowledgedAt: '2026-03-12T20:00:00Z',
+    });
+
+    await user.click(screen.getByRole('button', { name: 'About calendar protections' }));
+
+    expect(screen.getByTestId('calendar-settings-acknowledgement-modal')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
+    expect(mockAcknowledgeCalendarSettings).not.toHaveBeenCalled();
   });
 });

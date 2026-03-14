@@ -1,5 +1,6 @@
 import { availableFormatsFromPrices } from '@/lib/pricing/formatPricing';
 import {
+  TAG_NONE,
   TAG_NO_TRAVEL,
   TAG_ONLINE_ONLY,
   type FormatTag,
@@ -27,6 +28,7 @@ export type CalendarSettingsAcknowledgementVariant =
   | 'travel_only';
 
 export type EditableFormatTag = typeof TAG_ONLINE_ONLY | typeof TAG_NO_TRAVEL;
+export type AvailabilityPaintMode = typeof TAG_NONE | EditableFormatTag;
 
 export function getCalendarSettingsDraft(
   profile?: Pick<

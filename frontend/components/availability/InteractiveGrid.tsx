@@ -2,15 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
-  MouseEvent as ReactMouseEvent,
   KeyboardEvent as ReactKeyboardEvent,
-  TouchEvent as ReactTouchEvent,
+  MouseEvent as ReactMouseEvent,
 } from 'react';
 import clsx from 'clsx';
-import * as Popover from '@radix-ui/react-popover';
-import { CarFront, Check, MonitorCheck } from 'lucide-react';
+import { MonitorCheck } from 'lucide-react';
 
 import type { WeekBits, WeekDateInfo, WeekTags } from '@/types/availability';
+import type { BookedSlotPreview } from '@/types/booking';
 import type { DayBits, FormatTag } from '@/lib/calendar/bitset';
 import {
   idx,
@@ -26,9 +25,12 @@ import {
   TAG_NO_TRAVEL,
   TAG_ONLINE_ONLY,
 } from '@/lib/calendar/bitset';
-import type { BookedSlotPreview } from '@/types/booking';
-import type { EditableFormatTag } from './calendarSettings';
+import type {
+  AvailabilityPaintMode,
+  EditableFormatTag,
+} from './calendarSettings';
 import { formatTagLabel } from './calendarSettings';
+import NoTravelIcon from './NoTravelIcon';
 
 interface InteractiveGridProps {
   weekDates: WeekDateInfo[];
@@ -37,6 +39,7 @@ interface InteractiveGridProps {
   onBitsChange: (next: WeekBits | ((prev: WeekBits) => WeekBits)) => void;
   onTagsChange?: (next: WeekTags | ((prev: WeekTags) => WeekTags)) => void;
   availableTagOptions?: EditableFormatTag[];
+  paintMode?: AvailabilityPaintMode;
   bookedSlots?: BookedSlotPreview[];
   startHour?: number;
   endHour?: number;
@@ -47,16 +50,12 @@ interface InteractiveGridProps {
   allowPastEditing?: boolean;
 }
 
-const HALF_HOURS_PER_HOUR = 2;
-const LONG_PRESS_DELAY_MS = 450;
+type PaintInstruction =
+  | { kind: 'toggle-availability'; desired: boolean }
+  | { kind: 'apply-tag'; tag: EditableFormatTag }
+  | { kind: 'clear-tag' };
 
-type TagSelection = Record<string, Set<number>>;
-type TagAnchor = {
-  date: string;
-  row: number;
-  col: number;
-  slotIndex: number;
-};
+const HALF_HOURS_PER_HOUR = 2;
 
 const HOURS_LABEL = (hour: number) => {
   if (hour === 24) return '12:00 AM (+1d)';
@@ -65,7 +64,6 @@ const HOURS_LABEL = (hour: number) => {
   return `${display}:00 ${period}`;
 };
 
-/** Check if all 6 bits of a 30-min cell are set (slotIndex = bitmap start of cell). */
 const isCellSelected = (bits: DayBits | undefined, slotIndex: number): boolean => {
   return isRangeSet(bits, slotIndex, BITS_PER_CELL);
 };
@@ -73,12 +71,12 @@ const isCellSelected = (bits: DayBits | undefined, slotIndex: number): boolean =
 const isSlotBooked = (
   booked: BookedSlotPreview[] | undefined,
   date: string,
-  slotIndex: number,
+  row: number,
   startHour: number
 ): boolean => {
   if (!booked?.length) return false;
-  const hour = startHour + Math.floor(slotIndex / HALF_HOURS_PER_HOUR);
-  const minute = (slotIndex % HALF_HOURS_PER_HOUR) * AVAILABILITY_CELL_MINUTES;
+  const hour = startHour + Math.floor(row / HALF_HOURS_PER_HOUR);
+  const minute = (row % HALF_HOURS_PER_HOUR) * AVAILABILITY_CELL_MINUTES;
   const nextMinutes = minute === 0 ? AVAILABILITY_CELL_MINUTES : 0;
   const nextHour = minute === 0 ? hour : hour + 1;
   const start = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`;
@@ -112,27 +110,40 @@ const getNowInTimezone = (tz?: string) => {
   return { isoDate, minutes };
 };
 
-/** Return the bitmap start index for a 30-min grid cell (row). */
 const getCellBitmapStart = (startHour: number, row: number) => {
   const hour = startHour + Math.floor(row / HALF_HOURS_PER_HOUR);
   const minute = row % 2 === 1 ? 30 : 0;
   return idx(hour, minute);
 };
 
-const cloneTagSelection = (selection: TagSelection): TagSelection => {
-  const next: TagSelection = {};
-  Object.entries(selection).forEach(([date, slots]) => {
-    next[date] = new Set(slots);
-  });
-  return next;
-};
+function resolvePaintInstruction(
+  selected: boolean,
+  currentTag: FormatTag | null,
+  paintMode: AvailabilityPaintMode
+): PaintInstruction {
+  if (paintMode === TAG_NONE) {
+    return {
+      kind: 'toggle-availability',
+      desired: !selected,
+    };
+  }
 
-const selectionHasSlots = (selection: TagSelection): boolean =>
-  Object.values(selection).some((slots) => slots.size > 0);
+  if (!selected) {
+    return {
+      kind: 'apply-tag',
+      tag: paintMode,
+    };
+  }
 
-const singleCellSelection = (date: string, slotIndex: number): TagSelection => ({
-  [date]: new Set([slotIndex]),
-});
+  if (currentTag === paintMode) {
+    return { kind: 'clear-tag' };
+  }
+
+  return {
+    kind: 'apply-tag',
+    tag: paintMode,
+  };
+}
 
 export default function InteractiveGrid({
   weekDates,
@@ -141,6 +152,7 @@ export default function InteractiveGrid({
   onBitsChange,
   onTagsChange,
   availableTagOptions = [],
+  paintMode = TAG_NONE,
   bookedSlots = [],
   startHour = 6,
   endHour = 22,
@@ -150,282 +162,26 @@ export default function InteractiveGrid({
   onActiveDayChange: _onActiveDayChange,
   allowPastEditing = false,
 }: InteractiveGridProps) {
-  const rows = useMemo(() => (endHour - startHour) * HALF_HOURS_PER_HOUR, [startHour, endHour]);
+  const rows = useMemo(() => (endHour - startHour) * HALF_HOURS_PER_HOUR, [endHour, startHour]);
   const [activeCell, setActiveCell] = useState({ row: 0, col: 0 });
   const taggingEnabled = availableTagOptions.length > 0;
-
+  const effectivePaintMode = taggingEnabled ? paintMode : TAG_NONE;
   const [isDragging, setIsDragging] = useState(false);
-  const [dragValue, setDragValue] = useState<boolean | null>(null);
-  const dragValueRef = useRef<boolean | null>(null);
-  const pendingRef = useRef<Record<string, Set<number>>>({});
-  const [pendingByDate, setPendingByDate] = useState<Record<string, Set<number>>>({});
-  const rafRef = useRef<number | null>(null);
+  const dragInstructionRef = useRef<PaintInstruction | null>(null);
   const lastHoverRowRef = useRef<{ date: string; row: number } | null>(null);
-  const [isTagSelecting, setIsTagSelecting] = useState(false);
-  const [tagSelection, setTagSelection] = useState<TagSelection>({});
-  const tagSelectionRef = useRef<TagSelection>({});
-  const tagHoverRef = useRef<{ date: string; row: number } | null>(null);
-  const [tagAnchor, setTagAnchor] = useState<TagAnchor | null>(null);
-  const longPressTimerRef = useRef<number | null>(null);
-  const longPressTriggeredRef = useRef(false);
-  const suppressNextMouseDownRef = useRef(false);
   const gridRef = useRef<HTMLDivElement>(null);
-
-  const setTagSelectionState = useCallback((next: TagSelection) => {
-    tagSelectionRef.current = next;
-    setTagSelection(next);
-  }, []);
-
-  const clearTagSelection = useCallback(() => {
-    setTagSelectionState({});
-    tagHoverRef.current = null;
-    setIsTagSelecting(false);
-  }, [setTagSelectionState]);
-
-  const clearLongPressTimer = useCallback(() => {
-    if (longPressTimerRef.current !== null) {
-      window.clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-  }, []);
-
-  const applyImmediate = useCallback(
-    (date: string, slotIndex: number, desired: boolean) => {
-      onBitsChange((prev) => {
-        const current = prev[date] ?? newEmptyBits();
-        if (isCellSelected(current, slotIndex) === desired) {
-          return prev;
-        }
-        return {
-          ...prev,
-          [date]: toggleRange(current, slotIndex, BITS_PER_CELL, desired),
-        };
-      });
-
-      if (!desired && onTagsChange) {
-        onTagsChange((prev) => {
-          const current = prev[date] ?? newEmptyTags();
-          const updated = setRangeTag(current, slotIndex, BITS_PER_CELL, TAG_NONE);
-          return {
-            ...prev,
-            [date]: updated,
-          };
-        });
-      }
-    },
-    [onBitsChange, onTagsChange]
-  );
-
-  const clearTagsForSelection = useCallback(
-    (selection: TagSelection) => {
-      if (!onTagsChange) {
-        return;
-      }
-
-      onTagsChange((prev) => {
-        const next: WeekTags = { ...prev };
-        Object.entries(selection).forEach(([date, slotIndices]) => {
-          let updated = next[date] ?? newEmptyTags();
-          Array.from(slotIndices).forEach((slotIndex) => {
-            updated = setRangeTag(updated, slotIndex, BITS_PER_CELL, TAG_NONE);
-          });
-          next[date] = updated;
-        });
-        return next;
-      });
-    },
-    [onTagsChange]
-  );
-
-  const flushPending = useCallback(() => {
-    const desired = dragValueRef.current;
-    if (desired === null) {
-      pendingRef.current = {};
-      setPendingByDate({});
-      return;
-    }
-
-    const payload = pendingRef.current;
-    pendingRef.current = {};
-    setPendingByDate({});
-    const dates = Object.keys(payload);
-    if (!dates.length) {
-      return;
-    }
-
-    onBitsChange((prev) => {
-      let changed = false;
-      const next: WeekBits = { ...prev };
-      for (const date of dates) {
-        const indices = Array.from(payload[date] ?? []);
-        const current = next[date] ?? newEmptyBits();
-        let updated = current;
-        indices.forEach((slotIndex) => {
-          const selected = isCellSelected(updated, slotIndex);
-          if (selected !== desired) {
-            updated = toggleRange(updated, slotIndex, BITS_PER_CELL, desired);
-          }
-        });
-        if (updated !== current) {
-          next[date] = updated;
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-
-    if (desired === false) {
-      clearTagsForSelection(payload);
-    }
-  }, [clearTagsForSelection, onBitsChange]);
-
-  const scheduleFlush = useCallback(() => {
-    if (rafRef.current !== null) return;
-    rafRef.current = window.requestAnimationFrame(() => {
-      rafRef.current = null;
-      flushPending();
-    });
-  }, [flushPending]);
-
-  const cancelScheduledFlush = useCallback(() => {
-    if (rafRef.current !== null) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-  }, []);
-
-  const enqueueUpdate = useCallback(
-    (date: string, slotIndex: number, desired: boolean) => {
-      const currentBits = weekBits[date];
-      if (isCellSelected(currentBits, slotIndex) === desired) {
-        return;
-      }
-      let setForDate = pendingRef.current[date];
-      if (!setForDate) {
-        setForDate = new Set<number>();
-        pendingRef.current[date] = setForDate;
-      }
-      setForDate.add(slotIndex);
-      setPendingByDate((prev) => {
-        const next = { ...prev };
-        const updatedSet = new Set(prev[date] ?? []);
-        updatedSet.add(slotIndex);
-        next[date] = updatedSet;
-        return next;
-      });
-      scheduleFlush();
-    },
-    [scheduleFlush, weekBits]
-  );
-
-  const updateTagSelection = useCallback(
-    (date: string, row: number, slotIndex: number) => {
-      setTagSelection((prev) => {
-        const next = cloneTagSelection(prev);
-        const previous = tagHoverRef.current ?? { date, row };
-
-        if (previous.date !== date) {
-          const nextSet = next[date] ?? new Set<number>();
-          nextSet.add(slotIndex);
-          next[date] = nextSet;
-          tagHoverRef.current = { date, row };
-          tagSelectionRef.current = next;
-          return next;
-        }
-
-        const delta = row - previous.row;
-        const nextSet = next[date] ?? new Set<number>();
-        if (delta === 0) {
-          nextSet.add(slotIndex);
-        } else {
-          const step = delta > 0 ? 1 : -1;
-          for (let r = previous.row + step; step > 0 ? r <= row : r >= row; r += step) {
-            nextSet.add(getCellBitmapStart(startHour, r));
-          }
-        }
-        next[date] = nextSet;
-        tagHoverRef.current = { date, row };
-        tagSelectionRef.current = next;
-        return next;
-      });
-    },
-    [startHour]
-  );
-
-  const openTagMenu = useCallback(
-    (anchor: TagAnchor, selection: TagSelection) => {
-      setTagSelectionState(selection);
-      setTagAnchor(anchor);
-      setIsTagSelecting(false);
-      tagHoverRef.current = null;
-    },
-    [setTagSelectionState]
-  );
-
-  const closeTagMenu = useCallback(() => {
-    setTagAnchor(null);
-    clearTagSelection();
-  }, [clearTagSelection]);
-
-  const applyTagToSelection = useCallback(
-    (tag: FormatTag) => {
-      if (!onTagsChange) {
-        closeTagMenu();
-        return;
-      }
-
-      onTagsChange((prev) => {
-        const next: WeekTags = { ...prev };
-        Object.entries(tagSelectionRef.current).forEach(([date, slotIndices]) => {
-          let updated = next[date] ?? newEmptyTags();
-          Array.from(slotIndices).forEach((slotIndex) => {
-            updated = setRangeTag(updated, slotIndex, BITS_PER_CELL, tag);
-          });
-          next[date] = updated;
-        });
-        return next;
-      });
-
-      closeTagMenu();
-    },
-    [closeTagMenu, onTagsChange]
-  );
-
-  const finishDrag = useCallback(() => {
-    if (!isDragging) return;
-    cancelScheduledFlush();
-    flushPending();
-    pendingRef.current = {};
-    setIsDragging(false);
-    setDragValue(null);
-    dragValueRef.current = null;
-    lastHoverRowRef.current = null;
-  }, [cancelScheduledFlush, flushPending, isDragging]);
-
-  useEffect(() => {
-    dragValueRef.current = dragValue;
-  }, [dragValue]);
-
-  useEffect(() => {
-    const handleWindowUp = () => {
-      finishDrag();
-      setIsTagSelecting(false);
-      tagHoverRef.current = null;
-      clearLongPressTimer();
-    };
-    window.addEventListener('mouseup', handleWindowUp);
-    return () => window.removeEventListener('mouseup', handleWindowUp);
-  }, [clearLongPressTimer, finishDrag]);
-
-  useEffect(() => {
-    return () => {
-      lastHoverRowRef.current = null;
-      tagHoverRef.current = null;
-      clearLongPressTimer();
-    };
-  }, [clearLongPressTimer]);
+  const weekBitsRef = useRef(weekBits);
+  const weekTagsRef = useRef(weekTags);
 
   const [nowInfo, setNowInfo] = useState(() => getNowInTimezone(timezone));
+
+  useEffect(() => {
+    weekBitsRef.current = weekBits;
+  }, [weekBits]);
+
+  useEffect(() => {
+    weekTagsRef.current = weekTags;
+  }, [weekTags]);
 
   useEffect(() => {
     const tick = () => setNowInfo(getNowInTimezone(timezone));
@@ -434,12 +190,29 @@ export default function InteractiveGrid({
     return () => window.clearInterval(interval);
   }, [timezone]);
 
+  const finishDrag = useCallback(() => {
+    setIsDragging(false);
+    dragInstructionRef.current = null;
+    lastHoverRowRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    const handleWindowUp = () => {
+      finishDrag();
+    };
+
+    window.addEventListener('mouseup', handleWindowUp);
+    return () => window.removeEventListener('mouseup', handleWindowUp);
+  }, [finishDrag]);
+
   const displayDates = useMemo(() => {
     if (!isMobile) return weekDates;
     const dateInfo = weekDates[activeDayIndex] ?? weekDates[0];
     return dateInfo ? [dateInfo] : [];
-  }, [isMobile, activeDayIndex, weekDates]);
+  }, [activeDayIndex, isMobile, weekDates]);
+
   const columnCount = displayDates.length;
+
   const clampedActiveCell = useMemo(() => {
     const maxRow = Math.max(rows - 1, 0);
     const maxCol = Math.max(columnCount - 1, 0);
@@ -468,43 +241,109 @@ export default function InteractiveGrid({
     (date: string, row: number) => {
       if (date < todayIso) return true;
       if (date > todayIso) return false;
-      const cellEndMinutes = (startHour + Math.floor((row + 1) / HALF_HOURS_PER_HOUR)) * 60 +
+      const cellEndMinutes =
+        (startHour + Math.floor((row + 1) / HALF_HOURS_PER_HOUR)) * 60 +
         ((row + 1) % 2 === 1 ? 30 : 0);
       return cellEndMinutes <= nowMinutes;
     },
     [nowMinutes, startHour, todayIso]
   );
 
-  const tagMenuOptions = useMemo(
-    () => [TAG_NONE, ...availableTagOptions] as FormatTag[],
-    [availableTagOptions]
+  const applyInstructionToCell = useCallback(
+    (date: string, slotIndex: number, instruction: PaintInstruction) => {
+      const currentBits = weekBitsRef.current[date] ?? newEmptyBits();
+      const selected = isCellSelected(currentBits, slotIndex);
+      const currentTags = weekTagsRef.current[date] ?? newEmptyTags();
+      const currentTag = selected ? getRangeTag(currentTags, slotIndex, BITS_PER_CELL) : TAG_NONE;
+
+      if (instruction.kind === 'toggle-availability') {
+        if (selected === instruction.desired) {
+          return;
+        }
+
+        onBitsChange((prev) => {
+          const bits = prev[date] ?? newEmptyBits();
+          if (isCellSelected(bits, slotIndex) === instruction.desired) {
+            return prev;
+          }
+          return {
+            ...prev,
+            [date]: toggleRange(bits, slotIndex, BITS_PER_CELL, instruction.desired),
+          };
+        });
+
+        if (onTagsChange) {
+          onTagsChange((prev) => {
+            const tags = prev[date] ?? newEmptyTags();
+            const updated = setRangeTag(tags, slotIndex, BITS_PER_CELL, TAG_NONE);
+            return {
+              ...prev,
+              [date]: updated,
+            };
+          });
+        }
+        return;
+      }
+
+      if (instruction.kind === 'clear-tag') {
+        if (!selected || !onTagsChange || currentTag === TAG_NONE) {
+          return;
+        }
+
+        onTagsChange((prev) => {
+          const tags = prev[date] ?? newEmptyTags();
+          const updated = setRangeTag(tags, slotIndex, BITS_PER_CELL, TAG_NONE);
+          return {
+            ...prev,
+            [date]: updated,
+          };
+        });
+        return;
+      }
+
+      if (!selected) {
+        onBitsChange((prev) => {
+          const bits = prev[date] ?? newEmptyBits();
+          if (isCellSelected(bits, slotIndex)) {
+            return prev;
+          }
+          return {
+            ...prev,
+            [date]: toggleRange(bits, slotIndex, BITS_PER_CELL, true),
+          };
+        });
+      }
+
+      if (!onTagsChange || currentTag === instruction.tag) {
+        return;
+      }
+
+      onTagsChange((prev) => {
+        const tags = prev[date] ?? newEmptyTags();
+        const updated = setRangeTag(tags, slotIndex, BITS_PER_CELL, instruction.tag);
+        return {
+          ...prev,
+          [date]: updated,
+        };
+      });
+    },
+    [onBitsChange, onTagsChange]
   );
 
-  const currentSelectionTag = useMemo(() => {
-    if (!selectionHasSlots(tagSelection)) {
-      return TAG_NONE;
-    }
-
-    let uniformTag: FormatTag | null | undefined;
-    for (const [date, slotIndices] of Object.entries(tagSelection)) {
-      const dayTags = weekTags[date] ?? newEmptyTags();
-      for (const slotIndex of slotIndices) {
-        const cellTag = getRangeTag(dayTags, slotIndex, BITS_PER_CELL);
-        if (cellTag === null) {
-          return null;
-        }
-        if (uniformTag === undefined) {
-          uniformTag = cellTag;
-          continue;
-        }
-        if (uniformTag !== cellTag) {
-          return null;
-        }
-      }
-    }
-
-    return uniformTag ?? TAG_NONE;
-  }, [tagSelection, weekTags]);
+  const focusGridCell = useCallback(
+    (rowIndex: number, columnIndex: number) => {
+      const maxRow = Math.max(rows - 1, 0);
+      const maxCol = Math.max(columnCount - 1, 0);
+      const nextRow = Math.min(Math.max(rowIndex, 0), maxRow);
+      const nextCol = Math.min(Math.max(columnIndex, 0), maxCol);
+      setActiveCell({ row: nextRow, col: nextCol });
+      const targetCell = gridRef.current?.querySelector<HTMLButtonElement>(
+        `[data-row-index="${nextRow}"][data-col-index="${nextCol}"]`
+      );
+      targetCell?.focus();
+    },
+    [columnCount, rows]
+  );
 
   const handleMouseDown = useCallback(
     (
@@ -514,34 +353,22 @@ export default function InteractiveGrid({
       columnIndex: number,
       slotIndex: number,
       selected: boolean,
+      cellTag: FormatTag | null,
       locked: boolean
     ) => {
       event.preventDefault();
-      if (suppressNextMouseDownRef.current) {
-        suppressNextMouseDownRef.current = false;
+      if (event.button !== 0 || locked) {
         return;
       }
-      if (event.button === 2) {
-        if (!taggingEnabled || !selected || locked) {
-          return;
-        }
-        setActiveCell({ row, col: columnIndex });
-        setTagSelectionState(singleCellSelection(date, slotIndex));
-        setIsTagSelecting(true);
-        tagHoverRef.current = { date, row };
-        return;
-      }
-      if (locked) return;
+
       setActiveCell({ row, col: columnIndex });
-      const desired = !isCellSelected(weekBits[date], slotIndex);
-      pendingRef.current = {};
-      setIsDragging(true);
-      setDragValue(desired);
-      dragValueRef.current = desired;
+      const instruction = resolvePaintInstruction(selected, cellTag, effectivePaintMode);
+      dragInstructionRef.current = instruction;
       lastHoverRowRef.current = { date, row };
-      applyImmediate(date, slotIndex, desired);
+      setIsDragging(true);
+      applyInstructionToCell(date, slotIndex, instruction);
     },
-    [applyImmediate, setTagSelectionState, taggingEnabled, weekBits]
+    [applyInstructionToCell, effectivePaintMode]
   );
 
   const handleMouseEnter = useCallback(
@@ -550,68 +377,42 @@ export default function InteractiveGrid({
       date: string,
       row: number,
       slotIndex: number,
-      selected: boolean,
       locked: boolean
     ) => {
-      if (isTagSelecting && event.buttons === 2) {
-        if (!taggingEnabled || !selected || locked) {
-          return;
-        }
-        updateTagSelection(date, row, slotIndex);
+      const instruction = dragInstructionRef.current;
+      if (!isDragging || !instruction || event.buttons === 0 || locked) {
         return;
       }
 
-      const desired = dragValueRef.current;
-      if (!isDragging || desired === null || event.buttons === 0) return;
-      if (locked) return;
-
       const previous = lastHoverRowRef.current;
       if (!previous || previous.date !== date) {
-        enqueueUpdate(date, slotIndex, desired);
+        applyInstructionToCell(date, slotIndex, instruction);
         lastHoverRowRef.current = { date, row };
         return;
       }
 
       const delta = row - previous.row;
       if (delta === 0) {
-        enqueueUpdate(date, slotIndex, desired);
+        applyInstructionToCell(date, slotIndex, instruction);
       } else {
         const step = delta > 0 ? 1 : -1;
-        for (let r = previous.row + step; step > 0 ? r <= row : r >= row; r += step) {
-          const interpolatedIndex = getCellBitmapStart(startHour, r);
-          enqueueUpdate(date, interpolatedIndex, desired);
+        for (let currentRow = previous.row + step; step > 0 ? currentRow <= row : currentRow >= row; currentRow += step) {
+          applyInstructionToCell(date, getCellBitmapStart(startHour, currentRow), instruction);
         }
       }
 
       lastHoverRowRef.current = { date, row };
     },
-    [enqueueUpdate, isDragging, isTagSelecting, startHour, taggingEnabled, updateTagSelection]
+    [applyInstructionToCell, isDragging, startHour]
   );
 
   const handleMouseUp = useCallback(
     (event: ReactMouseEvent<HTMLButtonElement>) => {
       event.preventDefault();
-      if (event.button === 2) {
-        setIsTagSelecting(false);
-        tagHoverRef.current = null;
-        return;
-      }
       finishDrag();
     },
     [finishDrag]
   );
-
-  const focusGridCell = useCallback((rowIndex: number, columnIndex: number) => {
-    const maxRow = Math.max(rows - 1, 0);
-    const maxCol = Math.max(columnCount - 1, 0);
-    const nextRow = Math.min(Math.max(rowIndex, 0), maxRow);
-    const nextCol = Math.min(Math.max(columnIndex, 0), maxCol);
-    setActiveCell({ row: nextRow, col: nextCol });
-    const targetCell = gridRef.current?.querySelector<HTMLButtonElement>(
-      `[data-row-index="${nextRow}"][data-col-index="${nextCol}"]`
-    );
-    targetCell?.focus();
-  }, [columnCount, rows]);
 
   const handleCellKeyDown = useCallback(
     (
@@ -620,18 +421,21 @@ export default function InteractiveGrid({
       slotIndex: number,
       rowIndex: number,
       columnIndex: number,
+      selected: boolean,
+      cellTag: FormatTag | null,
       locked: boolean
     ) => {
       if (event.key === ' ' || event.key === 'Enter') {
         event.preventDefault();
         if (locked) return;
-        const desired = !isCellSelected(weekBits[date], slotIndex);
-        applyImmediate(date, slotIndex, desired);
+        const instruction = resolvePaintInstruction(selected, cellTag, effectivePaintMode);
+        applyInstructionToCell(date, slotIndex, instruction);
         return;
       }
 
       let nextRowIndex = rowIndex;
       let nextColumnIndex = columnIndex;
+
       switch (event.key) {
         case 'ArrowLeft':
           nextColumnIndex = Math.max(0, columnIndex - 1);
@@ -661,61 +465,7 @@ export default function InteractiveGrid({
       }
       focusGridCell(nextRowIndex, nextColumnIndex);
     },
-    [applyImmediate, columnCount, focusGridCell, rows, weekBits]
-  );
-
-  const handleContextMenu = useCallback(
-    (
-      event: ReactMouseEvent<HTMLButtonElement>,
-      anchor: TagAnchor,
-      selected: boolean,
-      locked: boolean
-    ) => {
-      event.preventDefault();
-      if (!taggingEnabled || !selected || locked) {
-        return;
-      }
-      const currentSelection = selectionHasSlots(tagSelectionRef.current)
-        ? tagSelectionRef.current
-        : singleCellSelection(anchor.date, anchor.slotIndex);
-      openTagMenu(anchor, currentSelection);
-    },
-    [openTagMenu, taggingEnabled]
-  );
-
-  const handleTouchStart = useCallback(
-    (
-      event: ReactTouchEvent<HTMLButtonElement>,
-      anchor: TagAnchor,
-      selected: boolean,
-      locked: boolean
-    ) => {
-      if (!taggingEnabled || !selected || locked) {
-        return;
-      }
-      clearLongPressTimer();
-      longPressTriggeredRef.current = false;
-      longPressTimerRef.current = window.setTimeout(() => {
-        longPressTriggeredRef.current = true;
-        suppressNextMouseDownRef.current = true;
-        openTagMenu(anchor, singleCellSelection(anchor.date, anchor.slotIndex));
-      }, LONG_PRESS_DELAY_MS);
-      if (event.touches.length > 1) {
-        clearLongPressTimer();
-      }
-    },
-    [clearLongPressTimer, openTagMenu, taggingEnabled]
-  );
-
-  const handleTouchEnd = useCallback(
-    (event: ReactTouchEvent<HTMLButtonElement>) => {
-      clearLongPressTimer();
-      if (longPressTriggeredRef.current) {
-        event.preventDefault();
-      }
-      longPressTriggeredRef.current = false;
-    },
-    [clearLongPressTimer]
+    [applyInstructionToCell, columnCount, effectivePaintMode, focusGridCell, rows]
   );
 
   return (
@@ -734,39 +484,46 @@ export default function InteractiveGrid({
           <div
             role="columnheader"
             aria-hidden="true"
-            className="sticky left-0 top-0 z-20 bg-white/80 dark:bg-gray-900/70 backdrop-blur px-2 py-1 border-r border-gray-200 dark:border-gray-700"
+            className="sticky left-0 top-0 z-20 border-r border-gray-200 bg-white/80 px-2 py-1 backdrop-blur dark:border-gray-700 dark:bg-gray-900/70"
           />
-          {displayDates.map((info, idx) => {
+          {displayDates.map((info, index) => {
             const isToday = info.fullDate === todayIso;
-            const dateObj = info.date;
-            const dow = dateObj.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
-            const dayNum = dateObj.getDate();
-            const headerClasses = clsx(
-              'relative sticky top-0 z-20 bg-white/80 dark:bg-gray-900/70 backdrop-blur px-2 pt-1 pb-0 text-center'
-            );
             const isPastDate = info.fullDate < todayIso;
+            const dayNum = info.date.getDate();
+            const dayLabel = info.date.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+
             return (
-              <div key={info.fullDate} className={headerClasses} role="columnheader">
-                {idx > 0 && (
-                  <span className="absolute left-0 bottom-0 w-px bg-gray-200 dark:bg-gray-700" style={{ height: '50%' }} />
-                )}
-                {idx === displayDates.length - 1 && (
-                  <span className="absolute right-0 bottom-0 w-px bg-gray-200 dark:bg-gray-700" style={{ height: '50%' }} />
-                )}
+              <div
+                key={info.fullDate}
+                role="columnheader"
+                className="relative sticky top-0 z-20 bg-white/80 px-2 pt-1 pb-0 text-center backdrop-blur dark:bg-gray-900/70"
+              >
+                {index > 0 ? (
+                  <span
+                    className="absolute bottom-0 left-0 w-px bg-gray-200 dark:bg-gray-700"
+                    style={{ height: '50%' }}
+                  />
+                ) : null}
+                {index === displayDates.length - 1 ? (
+                  <span
+                    className="absolute bottom-0 right-0 w-px bg-gray-200 dark:bg-gray-700"
+                    style={{ height: '50%' }}
+                  />
+                ) : null}
                 <div
                   className={clsx(
-                    'text-[10px] tracking-wide uppercase',
+                    'text-[10px] uppercase tracking-wide',
                     isPastDate ? 'text-gray-400 dark:text-gray-300' : 'text-gray-500 dark:text-gray-400'
                   )}
                 >
-                  {dow}
+                  {dayLabel}
                 </div>
                 <div className="mt-0.5">
                   <span
                     className={clsx(
-                      'inline-flex items-center justify-center text-2xl font-medium',
+                      'inline-flex items-center justify-center px-1 py-0 text-2xl font-medium leading-none',
                       isToday
-                        ? 'border-2 border-[#7E22CE] rounded-md px-1 py-0 leading-none text-[#111827] dark:text-white'
+                        ? 'rounded-md border-2 border-[#7E22CE] text-[#111827] dark:text-white'
                         : isPastDate
                           ? 'text-gray-400 dark:text-gray-300'
                           : 'text-gray-900 dark:text-gray-100'
@@ -785,55 +542,51 @@ export default function InteractiveGrid({
             <div
               role="rowheader"
               className={clsx(
-                'sticky left-0 z-10 flex items-center bg-white/80 dark:bg-gray-900/70 px-2 py-1 backdrop-blur border-r border-gray-200 dark:border-gray-700 border-b border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400',
+                'sticky left-0 z-10 flex items-center border-r border-b border-gray-200 bg-white/80 px-2 py-1 text-xs text-gray-500 backdrop-blur dark:border-gray-700 dark:bg-gray-900/70 dark:text-gray-400',
                 isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8',
                 row === 0 && 'border-t border-gray-200 dark:border-gray-700'
               )}
             >
-              {row % HALF_HOURS_PER_HOUR === 0 ? HOURS_LABEL(Math.floor(row / HALF_HOURS_PER_HOUR) + startHour) : ''}
+              {row % HALF_HOURS_PER_HOUR === 0
+                ? HOURS_LABEL(Math.floor(row / HALF_HOURS_PER_HOUR) + startHour)
+                : ''}
             </div>
             {displayDates.map((info, columnIndex) => {
               const date = info.fullDate;
               const dayBits = weekBits[date] ?? newEmptyBits();
               const dayTags = weekTags[date] ?? newEmptyTags();
-              const pendingForDate = pendingByDate[date];
               const slotIndex = getCellBitmapStart(startHour, row);
               const booked = isSlotBooked(bookedSlots, date, row, startHour);
               const behaviourPast = isPastSlot(date, row);
+              const visualPast = isPastForStyle(date, row);
               const locked = behaviourPast || booked;
               const selected = isCellSelected(dayBits, slotIndex);
               const cellTag = selected ? getRangeTag(dayTags, slotIndex, BITS_PER_CELL) : TAG_NONE;
-              const isPreview = !!pendingForDate?.has(slotIndex);
-              const isTagPreview = !!tagSelection[date]?.has(slotIndex);
-              const isMenuOpen =
-                tagAnchor?.date === date &&
-                tagAnchor.row === row &&
-                tagAnchor.col === columnIndex;
-              const visualPast = isPastForStyle(date, row);
-              const tagStyleEnabled = selected && !visualPast && !booked;
-              const fillClass = selected
-                ? tagStyleEnabled && cellTag === TAG_ONLINE_ONLY
-                  ? 'bg-sky-100 dark:bg-sky-500/25'
-                  : tagStyleEnabled && cellTag === TAG_NO_TRAVEL
-                    ? 'bg-emerald-100 dark:bg-emerald-500/25'
-                    : 'bg-[#EDE3FA] dark:bg-purple-500/25'
-                : visualPast
-                  ? 'bg-gray-50 dark:bg-gray-800/60'
-                  : 'bg-white dark:bg-gray-900/60';
-              const fadeClass = visualPast ? 'opacity-70' : 'opacity-100';
+              const isLastColumn = columnIndex === displayDates.length - 1;
               const labelHour = startHour + Math.floor(row / HALF_HOURS_PER_HOUR);
               const labelMinute = row % 2 === 1 ? '30' : '00';
               const weekdayLabel = info.date.toLocaleDateString('en-US', { weekday: 'long' });
               const ariaLabel = `${weekdayLabel} ${String(labelHour).padStart(2, '0')}:${labelMinute}`;
-              const isLastColumn = columnIndex === displayDates.length - 1;
               const isToday = date === todayIso;
               const windowStartMinutes = startHour * 60;
               const windowEndMinutes = endHour * 60;
               const withinWindow = nowMinutes >= windowStartMinutes && nowMinutes <= windowEndMinutes;
               const relativeMinutes = nowMinutes - windowStartMinutes;
               const nowRow = Math.floor(relativeMinutes / AVAILABILITY_CELL_MINUTES);
-              const nowOffsetPercent = ((relativeMinutes % AVAILABILITY_CELL_MINUTES) / AVAILABILITY_CELL_MINUTES) * 100;
-              const showNowMarker = isToday && withinWindow && row === Math.max(0, Math.min(rows - 1, nowRow));
+              const nowOffsetPercent =
+                ((relativeMinutes % AVAILABILITY_CELL_MINUTES) / AVAILABILITY_CELL_MINUTES) * 100;
+              const showNowMarker =
+                isToday && withinWindow && row === Math.max(0, Math.min(rows - 1, nowRow));
+              const fillClass = selected
+                ? cellTag === TAG_ONLINE_ONLY
+                  ? 'bg-sky-100 dark:bg-sky-500/25'
+                  : cellTag === TAG_NO_TRAVEL
+                    ? 'bg-emerald-100 dark:bg-emerald-500/25'
+                    : 'bg-[#EDE3FA] dark:bg-purple-500/25'
+                : visualPast
+                  ? 'bg-gray-50 dark:bg-gray-800/60'
+                  : 'bg-white dark:bg-gray-900/60';
+              const fadeClass = !selected && visualPast ? 'opacity-70' : 'opacity-100';
               const tagState = !selected
                 ? 'inactive'
                 : cellTag === TAG_ONLINE_ONLY
@@ -843,169 +596,113 @@ export default function InteractiveGrid({
                     : cellTag === null
                       ? 'mixed'
                       : 'none';
-              const tagAnchorData: TagAnchor = {
-                date,
-                row,
-                col: columnIndex,
-                slotIndex,
-              };
 
               return (
-                <Popover.Root
+                <button
                   key={`${date}-${row}`}
-                  open={isMenuOpen}
-                  onOpenChange={(open) => {
-                    if (!open) {
-                      closeTagMenu();
+                  type="button"
+                  role="gridcell"
+                  data-testid="availability-cell"
+                  data-date={date}
+                  data-time={`${String(labelHour).padStart(2, '0')}:${labelMinute}:00`}
+                  data-row-index={row}
+                  data-col-index={columnIndex}
+                  data-tag-state={tagState}
+                  aria-selected={selected}
+                  aria-disabled={behaviourPast}
+                  aria-label={ariaLabel}
+                  tabIndex={
+                    clampedActiveCell.row === row && clampedActiveCell.col === columnIndex ? 0 : -1
+                  }
+                  className={clsx(
+                    'group relative w-full flex-none cursor-pointer border-l border-b border-gray-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-0 dark:border-gray-700',
+                    isLastColumn && 'border-r border-gray-200 dark:border-gray-700',
+                    row === 0 && 'border-t border-gray-200 dark:border-gray-700',
+                    isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8',
+                    fillClass,
+                    fadeClass
+                  )}
+                  onMouseDown={(event) =>
+                    handleMouseDown(
+                      event,
+                      date,
+                      row,
+                      columnIndex,
+                      slotIndex,
+                      selected,
+                      cellTag,
+                      locked
+                    )
+                  }
+                  onMouseEnter={(event) =>
+                    handleMouseEnter(event, date, row, slotIndex, locked)
+                  }
+                  onMouseUp={handleMouseUp}
+                  onMouseLeave={(event) => {
+                    if (event.buttons === 0) {
+                      finishDrag();
                     }
                   }}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                  }}
+                  onFocus={() => setActiveCell({ row, col: columnIndex })}
+                  onKeyDown={(event) =>
+                    handleCellKeyDown(
+                      event,
+                      date,
+                      slotIndex,
+                      row,
+                      columnIndex,
+                      selected,
+                      cellTag,
+                      locked
+                    )
+                  }
                 >
-                  <Popover.Anchor asChild>
-                    <button
-                      type="button"
-                      role="gridcell"
-                      data-testid="availability-cell"
-                      data-date={date}
-                      data-time={`${String(labelHour).padStart(2, '0')}:${labelMinute}:00`}
-                      data-row-index={row}
-                      data-col-index={columnIndex}
-                      data-tag-state={tagState}
-                      aria-selected={selected}
-                      aria-disabled={behaviourPast}
-                      aria-label={ariaLabel}
-                      tabIndex={clampedActiveCell.row === row && clampedActiveCell.col === columnIndex ? 0 : -1}
-                      className={clsx(
-                        'group relative w-full flex-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-[#7E22CE] cursor-pointer',
-                        'border-b border-l border-gray-200 dark:border-gray-700',
-                        isLastColumn && 'border-r border-gray-200 dark:border-gray-700',
-                        row === 0 && 'border-t border-gray-200 dark:border-gray-700',
-                        isMobile ? 'h-10' : 'h-6 sm:h-7 md:h-8',
-                        isPreview && 'ring-2 ring-[#D4B5F0] ring-inset',
-                        isTagPreview && 'ring-2 ring-sky-300 ring-inset',
-                        fillClass,
-                        fadeClass
-                      )}
-                      onMouseDown={(event) =>
-                        handleMouseDown(event, date, row, columnIndex, slotIndex, selected, locked)
-                      }
-                      onMouseEnter={(event) =>
-                        handleMouseEnter(event, date, row, slotIndex, selected, locked)
-                      }
-                      onMouseUp={handleMouseUp}
-                      onMouseLeave={(event) => {
-                        if (event.buttons === 0) finishDrag();
-                      }}
-                      onContextMenu={(event) =>
-                        handleContextMenu(event, tagAnchorData, selected, locked)
-                      }
-                      onTouchStart={(event) =>
-                        handleTouchStart(event, tagAnchorData, selected, locked)
-                      }
-                      onTouchMove={() => clearLongPressTimer()}
-                      onTouchEnd={handleTouchEnd}
-                      onTouchCancel={() => {
-                        clearLongPressTimer();
-                        longPressTriggeredRef.current = false;
-                      }}
-                      onFocus={() => setActiveCell({ row, col: columnIndex })}
-                      onKeyDown={(event) =>
-                        handleCellKeyDown(event, date, slotIndex, row, columnIndex, locked)
-                      }
+                  {booked ? (
+                    <span className="pointer-events-none absolute inset-0 rounded-sm bg-[repeating-linear-gradient(45deg,rgba(156,163,175,0.35),rgba(156,163,175,0.35)_6px,rgba(156,163,175,0.2)_6px,rgba(156,163,175,0.2)_12px)]" />
+                  ) : null}
+                  {showNowMarker ? (
+                    <>
+                      <div
+                        className="now-line"
+                        data-testid="now-line"
+                        style={{ top: `${nowOffsetPercent}%` }}
+                      />
+                      <span
+                        className="now-dot"
+                        style={{ top: `${nowOffsetPercent}%`, left: '0' }}
+                      />
+                    </>
+                  ) : null}
+                  {selected && !booked && cellTag === TAG_ONLINE_ONLY ? (
+                    <span
+                      data-testid="tag-indicator-online"
+                      className="pointer-events-none absolute inset-0 flex items-center justify-center text-sky-700 dark:text-sky-300"
                     >
-                      {booked && (
-                        <span className="pointer-events-none absolute inset-0 rounded-sm bg-[repeating-linear-gradient(45deg,rgba(156,163,175,0.35),rgba(156,163,175,0.35)_6px,rgba(156,163,175,0.2)_6px,rgba(156,163,175,0.2)_12px)]" />
-                      )}
-                      {showNowMarker && (
-                        <>
-                          <div
-                            className="now-line"
-                            data-testid="now-line"
-                            style={{ top: `${nowOffsetPercent}%` }}
-                          />
-                          <span
-                            className="now-dot"
-                            style={{ top: `${nowOffsetPercent}%`, left: '0' }}
-                          />
-                        </>
-                      )}
-                      {tagStyleEnabled && cellTag === TAG_ONLINE_ONLY && (
-                        <span
-                          data-testid="tag-indicator-online"
-                          className="pointer-events-none absolute inset-0 flex items-center justify-center text-sky-700 dark:text-sky-300"
-                        >
-                          <MonitorCheck className="h-3.5 w-3.5" />
-                        </span>
-                      )}
-                      {tagStyleEnabled && cellTag === TAG_NO_TRAVEL && (
-                        <span
-                          data-testid="tag-indicator-no-travel"
-                          className="pointer-events-none absolute inset-0 flex items-center justify-center text-emerald-700 dark:text-emerald-300"
-                        >
-                          <CarFront className="h-3.5 w-3.5" />
-                        </span>
-                      )}
-                      <span className="sr-only">
-                        {info.date.toLocaleDateString('en-US', {
-                          weekday: 'long',
-                          month: 'long',
-                          day: 'numeric',
-                        })}
-                      </span>
-                      <span className="absolute inset-x-1 bottom-1 text-[10px] text-gray-400 dark:text-gray-500 opacity-0 transition-opacity group-hover:opacity-100">
-                        {selected ? formatTagLabel(cellTag ?? TAG_NONE) : booked ? 'Booked' : 'Available'}
-                      </span>
-                    </button>
-                  </Popover.Anchor>
-                  {isMenuOpen && (
-                    <Popover.Portal>
-                      <Popover.Content
-                        data-testid="format-tag-popover"
-                        side="top"
-                        sideOffset={8}
-                        align="center"
-                        className="z-50 w-48 rounded-xl border border-gray-200 bg-white p-2 shadow-xl outline-none dark:border-gray-700 dark:bg-gray-900"
-                      >
-                        <div
-                          role="radiogroup"
-                          aria-label="Format tag options"
-                          className="space-y-1"
-                        >
-                          {tagMenuOptions.map((tag) => {
-                            const checked = currentSelectionTag === tag;
-                            return (
-                              <button
-                                key={tag}
-                                type="button"
-                                role="radio"
-                                aria-checked={checked}
-                                data-testid={`format-tag-option-${tag}`}
-                                className={clsx(
-                                  'flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors',
-                                  checked
-                                    ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100'
-                                    : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800/80'
-                                )}
-                                onClick={() => applyTagToSelection(tag)}
-                              >
-                                <span>{formatTagLabel(tag)}</span>
-                                <span
-                                  className={clsx(
-                                    'inline-flex h-4 w-4 items-center justify-center rounded-full border',
-                                    checked
-                                      ? 'border-[#7E22CE] bg-[#7E22CE] text-white'
-                                      : 'border-gray-300 text-transparent dark:border-gray-600'
-                                  )}
-                                >
-                                  <Check className="h-3 w-3" />
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </Popover.Content>
-                    </Popover.Portal>
-                  )}
-                </Popover.Root>
+                      <MonitorCheck className="h-3.5 w-3.5" />
+                    </span>
+                  ) : null}
+                  {selected && !booked && cellTag === TAG_NO_TRAVEL ? (
+                    <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-emerald-700 dark:text-emerald-300">
+                      <NoTravelIcon
+                        className="h-3.5 w-3.5"
+                        data-testid="tag-indicator-no-travel"
+                      />
+                    </span>
+                  ) : null}
+                  <span className="sr-only">
+                    {info.date.toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
+                  </span>
+                  <span className="absolute inset-x-1 bottom-1 text-[10px] text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 dark:text-gray-500">
+                    {selected ? formatTagLabel(cellTag ?? TAG_NONE) : booked ? 'Booked' : 'Available'}
+                  </span>
+                </button>
               );
             })}
           </div>

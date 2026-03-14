@@ -21,6 +21,7 @@ interface CalendarSettingsSectionProps {
   onNonTravelChange: (minutes: number) => void;
   onTravelChange: (minutes: number) => void;
   onOvernightProtectionChange: (enabled: boolean) => void;
+  onOpenCalendarProtectionsInfo?: () => void;
 }
 
 function formatMinutesLabel(minutes: number): string {
@@ -37,6 +38,7 @@ export default function CalendarSettingsSection({
   onNonTravelChange,
   onTravelChange,
   onOvernightProtectionChange,
+  onOpenCalendarProtectionsInfo,
 }: CalendarSettingsSectionProps) {
   const saveLabel =
     saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved' : null;
@@ -161,6 +163,18 @@ export default function CalendarSettingsSection({
           />
         </div>
       </div>
+
+      {onOpenCalendarProtectionsInfo ? (
+        <div className="mt-3 flex justify-start">
+          <button
+            type="button"
+            onClick={onOpenCalendarProtectionsInfo}
+            className="text-sm font-medium text-[#7E22CE] underline-offset-4 transition-colors hover:text-purple-700 hover:underline dark:text-purple-300 dark:hover:text-purple-200"
+          >
+            About calendar protections
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

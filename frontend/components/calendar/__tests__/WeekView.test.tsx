@@ -19,6 +19,7 @@ jest.mock('@/components/availability/InteractiveGrid', () => {
 // Mock bitset
 jest.mock('@/lib/calendar/bitset', () => ({
   newEmptyBits: jest.fn(() => new Uint8Array(36)),
+  TAG_ONLINE_ONLY: 1,
 }));
 
 describe('WeekView', () => {
@@ -120,6 +121,15 @@ describe('WeekView', () => {
     expect(mockInteractiveGrid).toHaveBeenCalledWith(
       expect.objectContaining({
         availableTagOptions: [TAG_ONLINE_ONLY],
+      })
+    );
+  });
+
+  it('passes paintMode when provided', () => {
+    render(<WeekView {...defaultProps} paintMode={TAG_ONLINE_ONLY} />);
+    expect(mockInteractiveGrid).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paintMode: TAG_ONLINE_ONLY,
       })
     );
   });
@@ -230,5 +240,6 @@ describe('WeekView', () => {
     expect(calledProps).not.toHaveProperty('weekTags');
     expect(calledProps).not.toHaveProperty('onTagsChange');
     expect(calledProps).not.toHaveProperty('availableTagOptions');
+    expect(calledProps).not.toHaveProperty('paintMode');
   });
 });

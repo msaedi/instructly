@@ -8,8 +8,12 @@ interface CalendarSettingsAcknowledgementModalProps {
   isOpen: boolean;
   variant: CalendarSettingsAcknowledgementVariant;
   isSubmitting?: boolean;
-  onAcknowledge: () => void;
+  mode?: 'required' | 'info';
+  onAcknowledge?: () => void;
+  onClose?: () => void;
 }
+
+const noop = () => {};
 
 function renderBody(variant: CalendarSettingsAcknowledgementVariant) {
   if (variant === 'mixed_formats') {
@@ -72,22 +76,27 @@ export default function CalendarSettingsAcknowledgementModal({
   isOpen,
   variant,
   isSubmitting = false,
+  mode = 'required',
   onAcknowledge,
+  onClose,
 }: CalendarSettingsAcknowledgementModalProps) {
+  const isRequired = mode === 'required';
+
   return (
     <Modal
       isOpen={isOpen}
-      onClose={Function.prototype as () => void}
+      onClose={onClose ?? noop}
       title="Your calendar protections are on"
       description="Review how lesson buffers and overnight booking protection work."
-      size="md"
-      closeOnBackdrop={false}
-      closeOnEscape={false}
-      showCloseButton={false}
+      size="sm"
+      autoHeight={true}
+      closeOnBackdrop={!isRequired}
+      closeOnEscape={!isRequired}
+      showCloseButton={!isRequired}
       footer={
         <div className="flex justify-end">
-          <Button onClick={onAcknowledge} disabled={isSubmitting}>
-            {isSubmitting ? 'Saving…' : 'OK'}
+          <Button onClick={isRequired ? onAcknowledge : onClose} disabled={isRequired && isSubmitting}>
+            {isRequired ? (isSubmitting ? 'Saving…' : 'OK') : 'Close'}
           </Button>
         </div>
       }

@@ -9,7 +9,7 @@ import {
   getAvailableTagOptions,
   isTaggingEnabled,
 } from '../calendarSettings';
-import { TAG_NO_TRAVEL, TAG_ONLINE_ONLY } from '@/lib/calendar/bitset';
+import { TAG_NO_TRAVEL, TAG_NONE, TAG_ONLINE_ONLY } from '@/lib/calendar/bitset';
 
 const serviceWithFormats = (...formats: Array<'student_location' | 'instructor_location' | 'online'>) => ({
   id: `service-${formats.join('-')}`,
@@ -68,6 +68,12 @@ describe('calendarSettings helpers', () => {
     ).toBe('mixed_formats');
   });
 
+  it('defaults the acknowledgement variant to non-travel when no services are present', () => {
+    expect(deriveCalendarAcknowledgementVariant()).toBe('non_travel_only');
+    expect(getAvailableTagOptions()).toEqual([]);
+    expect(isTaggingEnabled()).toBe(false);
+  });
+
   it('derives the travel-only acknowledgement variant', () => {
     expect(deriveCalendarAcknowledgementVariant([serviceWithFormats('student_location')])).toBe(
       'travel_only'
@@ -87,6 +93,23 @@ describe('calendarSettings helpers', () => {
     expect(getAvailableTagOptions([serviceWithFormats('instructor_location')])).toEqual([]);
     expect(getAvailableTagOptions([serviceWithFormats('student_location')])).toEqual([]);
     expect(isTaggingEnabled([serviceWithFormats('online')])).toBe(false);
+  });
+
+  it('ignores services without format_prices data', () => {
+    const onlineServiceWithoutFormats = {
+      ...serviceWithFormats('online'),
+      format_prices: undefined,
+    } as unknown as ReturnType<typeof serviceWithFormats>;
+
+    const travelServiceWithoutFormats = {
+      ...serviceWithFormats('student_location'),
+      format_prices: undefined,
+    } as unknown as ReturnType<typeof serviceWithFormats>;
+
+    expect(
+      deriveCalendarAcknowledgementVariant([onlineServiceWithoutFormats])
+    ).toBe('non_travel_only');
+    expect(getAvailableTagOptions([travelServiceWithoutFormats])).toEqual([]);
   });
 
   it('returns online-only for online and studio instructors', () => {
@@ -125,6 +148,7 @@ describe('calendarSettings helpers', () => {
   });
 
   it('maps format tags to readable labels', () => {
+    expect(formatTagLabel(TAG_NONE)).toBe('All formats');
     expect(formatTagLabel(TAG_ONLINE_ONLY)).toBe('Online Only');
     expect(formatTagLabel(TAG_NO_TRAVEL)).toBe('No Travel');
   });

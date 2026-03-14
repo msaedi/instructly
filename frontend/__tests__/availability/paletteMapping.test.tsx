@@ -2,7 +2,7 @@
  * Test suite to lock palette mapping behavior for availability grid cells.
  *
  * Locks the behavior that:
- * - past + selected → bg-[#EDE3FA] + fade opacity-70
+ * - past + selected → bg-[#EDE3FA] without fade so saved availability remains visible
  * - future + selected → bg-[#EDE3FA] without fade
  * - past + unselected → bg-gray-50 opacity-70
  * - future + unselected → bg-white
@@ -69,11 +69,10 @@ describe('Availability palette mapping', () => {
     const ariaSelected = pastCell.getAttribute('aria-selected');
 
     // Note: Setting bits correctly requires matching the date format and slot calculation
-    // This test documents the expected behavior: when a past cell IS selected,
-    // it should have bg-[#EDE3FA] and opacity-70
+    // Past selected cells should keep the same saved availability palette.
     expect(ariaSelected).toBe('true');
     expect(className).toContain('bg-[#EDE3FA]');
-    expect(className).toContain('opacity-70');
+    expect(className).not.toContain('opacity-70');
   });
 
   it('applies correct classes for future + selected cells', () => {
