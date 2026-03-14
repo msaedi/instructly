@@ -2,6 +2,8 @@ import { test, expect, type Page } from '@playwright/test';
 import { seedSessionCookie } from './support/cookies';
 import { isInstructor } from './utils/projects';
 import { mockAuthenticatedPageBackgroundApis } from './utils/authenticatedPageMocks';
+import { BYTES_PER_DAY, fromWindows, newEmptyTags, toWindows } from '../lib/calendar/bitset';
+import { decodeBase64ToUint8Array, encodeUint8ArrayToBase64 } from '../lib/calendar/bitmapBase64';
 
 test.beforeAll(({}, workerInfo) => {
   test.skip(!isInstructor(workerInfo), `Instructor-only spec (current project: ${workerInfo.project.name})`);
@@ -13,6 +15,7 @@ const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME;
 
 type ScheduleEntry = { date: string; start_time: string; end_time: string };
 type ScheduleSeed = Record<string, Array<Omit<ScheduleEntry, 'date'>>>;
+type DayBitmapPayload = { date: string; bits: string; format_tags: string };
 
 type WeekContext = {
   dates: {
@@ -97,6 +100,37 @@ const buildAvailabilityRows = (schedule: ScheduleSeed) =>
       start_time: slot.start_time,
       end_time: slot.end_time,
     }))
+  );
+
+const buildWeekBitmapResponse = (weekStartISO: string, schedule: ScheduleSeed, version: string) => {
+  const weekStart = new Date(`${weekStartISO}T00:00:00Z`);
+  const days = Array.from({ length: 7 }, (_, offset) => {
+    const day = addDays(weekStart, offset);
+    const dateISO = formatISODate(day);
+    const windows = schedule[dateISO] ?? [];
+    return {
+      date: dateISO,
+      bits: encodeUint8ArrayToBase64(fromWindows(windows)),
+      format_tags: encodeUint8ArrayToBase64(newEmptyTags()),
+    };
+  });
+  return { days, version };
+};
+
+const decodePostedBitmapDays = (days: DayBitmapPayload[] = []): ScheduleSeed => {
+  const grouped: ScheduleSeed = {};
+  for (const day of days) {
+    const windows = toWindows(decodeBase64ToUint8Array(day.bits, BYTES_PER_DAY));
+    if (windows.length > 0) {
+      grouped[day.date] = windows;
+    }
+  }
+  return grouped;
+};
+
+const flattenScheduleEntries = (schedule: ScheduleSeed): ScheduleEntry[] =>
+  Object.entries(schedule).flatMap(([date, slots]) =>
+    slots.map((slot) => ({ date, start_time: slot.start_time, end_time: slot.end_time }))
   );
 
 const fulfillJson = async (
@@ -332,7 +366,9 @@ test.describe('Instructor availability calendar', () => {
 
     await page.route(/.*\/instructors\/availability\/week(\?.*)?$/, async (route, request) => {
       if (request.method() === 'GET') {
-        await fulfillJson(route, currentSchedule, 200, { ETag: currentEtag });
+        await fulfillJson(route, buildWeekBitmapResponse(week.iso.base, currentSchedule, currentEtag), 200, {
+          ETag: currentEtag,
+        });
         await page.evaluate(
           (version) => {
             (window as Window & { __week_version?: string }).__week_version = version;
@@ -344,23 +380,18 @@ test.describe('Instructor availability calendar', () => {
 
       if (request.method() === 'POST') {
         const payload = (await request.postDataJSON()) as {
-          schedule?: ScheduleEntry[];
+          days?: DayBitmapPayload[];
           override?: boolean;
           base_version?: string | null;
         };
-        const schedulePayload = payload?.schedule ?? [];
+        const grouped = decodePostedBitmapDays(payload?.days);
+        const schedulePayload = flattenScheduleEntries(grouped);
         const headers = await request.allHeaders();
         const ifMatchValue = headers['if-match'] ?? headers['If-Match'] ?? headers['IF-MATCH'];
-    ifMatchHeaders.push(ifMatchValue ?? undefined);
+        ifMatchHeaders.push(ifMatchValue ?? undefined);
         baseVersions.push(payload.base_version ?? undefined);
         expect(payload.override ?? false).toBe(false);
         expect(ifMatchValue).toBe(currentEtag);
-        const grouped: typeof currentSchedule = {};
-        for (const entry of schedulePayload) {
-          const targetDate = entry.date;
-          grouped[targetDate] = grouped[targetDate] || [];
-          grouped[targetDate]!.push({ start_time: entry.start_time, end_time: entry.end_time });
-        }
         postedSchedules.push(schedulePayload);
         currentSchedule = grouped;
         currentEtag = '"v2"';
@@ -505,7 +536,9 @@ test.describe('Instructor availability calendar', () => {
 
     await page.route(/.*\/instructors\/availability\/week(\?.*)?$/, async (route, request) => {
       if (request.method() === 'GET') {
-        await fulfillJson(route, currentSchedule, 200, { ETag: currentEtag });
+        await fulfillJson(route, buildWeekBitmapResponse(week.iso.base, currentSchedule, currentEtag), 200, {
+          ETag: currentEtag,
+        });
         await page.evaluate(
           (version) => {
             (window as Window & { __week_version?: string }).__week_version = version;
@@ -517,7 +550,7 @@ test.describe('Instructor availability calendar', () => {
 
       if (request.method() === 'POST') {
         const payload = (await request.postDataJSON()) as {
-          schedule?: ScheduleEntry[];
+          days?: DayBitmapPayload[];
           override?: boolean;
           base_version?: string | null;
         };
@@ -525,7 +558,8 @@ test.describe('Instructor availability calendar', () => {
         const ifMatchValue = headers['if-match'] ?? headers['If-Match'] ?? headers['IF-MATCH'];
         ifMatchHeaders.push(ifMatchValue ?? undefined);
         baseVersions.push(payload.base_version ?? undefined);
-        const schedulePayload = payload?.schedule ?? [];
+        const grouped = decodePostedBitmapDays(payload?.days);
+        const schedulePayload = flattenScheduleEntries(grouped);
         if (!payload.override) {
           expect(ifMatchValue).toBe(currentEtag);
           conflictCounter += 1;
@@ -543,12 +577,6 @@ test.describe('Instructor availability calendar', () => {
           return;
         }
         expect(ifMatchValue).toBe(currentEtag);
-        const grouped: typeof currentSchedule = {};
-        for (const entry of schedulePayload) {
-          const targetDate = entry.date;
-          grouped[targetDate] = grouped[targetDate] || [];
-          grouped[targetDate]!.push({ start_time: entry.start_time, end_time: entry.end_time });
-        }
         postedSchedules.push(schedulePayload);
         currentSchedule = grouped;
         currentEtag = '"v4"';
@@ -603,7 +631,7 @@ test.describe('Instructor availability calendar', () => {
     expect(firstPost.status()).toBe(409);
     expect(firstPost.headers()['etag']).toBe(currentEtag);
 
-    const conflictModal = page.getByRole('dialog');
+    const conflictModal = page.getByTestId('conflict-modal');
     await expect(conflictModal).toBeVisible();
     await expect(page.getByText('Latest version: "v2"')).toBeVisible();
 
@@ -627,7 +655,7 @@ test.describe('Instructor availability calendar', () => {
     expect(secondPost.status()).toBe(409);
     expect(secondPost.headers()['etag']).toBe(currentEtag);
 
-    const conflictModalSecond = page.getByRole('dialog');
+    const conflictModalSecond = page.getByTestId('conflict-modal');
     await expect(conflictModalSecond).toBeVisible();
     await expect(page.getByText('Latest version: "v3"')).toBeVisible();
     await page.evaluate(
@@ -673,7 +701,7 @@ test.describe('Instructor availability calendar', () => {
 
     await page.route(/.*\/instructors\/availability\/week(\?.*)?$/, (route, request) =>
       request.method() === 'GET'
-        ? fulfillJson(route, initialSchedule, 200, { ETag: '"v1"' })
+        ? fulfillJson(route, buildWeekBitmapResponse(week.iso.base, initialSchedule, '"v1"'), 200, { ETag: '"v1"' })
         : route.fallback()
     );
 
@@ -721,7 +749,9 @@ test.describe('Instructor availability calendar', () => {
 
     await page.route(/.*\/instructors\/availability\/week(\?.*)?$/, async (route, request) => {
       if (request.method() === 'GET') {
-        await fulfillJson(route, currentSchedule, 200, { ETag: currentEtag });
+        await fulfillJson(route, buildWeekBitmapResponse(week.iso.base, currentSchedule, currentEtag), 200, {
+          ETag: currentEtag,
+        });
         await page.evaluate(
           (version) => {
             (window as Window & { __week_version?: string }).__week_version = version;
@@ -733,15 +763,11 @@ test.describe('Instructor availability calendar', () => {
 
       if (request.method() === 'POST') {
         const payload = (await request.postDataJSON()) as {
-          schedule?: ScheduleEntry[];
+          days?: DayBitmapPayload[];
           override?: boolean;
         };
-        const schedulePayload = payload.schedule ?? [];
-        const grouped: typeof currentSchedule = {};
-        for (const entry of schedulePayload) {
-          grouped[entry.date] = grouped[entry.date] || [];
-          grouped[entry.date]!.push({ start_time: entry.start_time, end_time: entry.end_time });
-        }
+        const grouped = decodePostedBitmapDays(payload.days);
+        const schedulePayload = flattenScheduleEntries(grouped);
         currentSchedule = grouped;
         currentEtag = currentEtag === '"v1"' ? '"v2"' : '"v3"';
         await fulfillJson(

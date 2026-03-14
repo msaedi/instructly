@@ -2,6 +2,8 @@ import { test, expect, type Page } from '@playwright/test';
 import { isInstructor } from '../utils/projects';
 import { seedSessionCookie } from '../support/cookies';
 import { mockAuthenticatedPageBackgroundApis } from '../utils/authenticatedPageMocks';
+import { BYTES_PER_DAY, fromWindows, newEmptyTags, toWindows } from '../../lib/calendar/bitset';
+import { decodeBase64ToUint8Array, encodeUint8ArrayToBase64 } from '../../lib/calendar/bitmapBase64';
 
 test.beforeAll(({}, workerInfo) => {
   test.skip(!isInstructor(workerInfo), `Instructor-only spec (current project: ${workerInfo.project.name})`);
@@ -11,6 +13,7 @@ test.describe.configure({ mode: 'serial' });
 
 type ScheduleEntry = { date: string; start_time: string; end_time: string };
 type ScheduleSeed = Record<string, Array<Omit<ScheduleEntry, 'date'>>>;
+type DayBitmapPayload = { date: string; bits: string; format_tags: string };
 
 type WeekContext = {
   iso: {
@@ -23,6 +26,7 @@ type RouteState = {
   schedule: ScheduleSeed;
   etag: string;
   version: number;
+  weekStartISO: string;
 };
 
 const formatISODate = (date: Date) => {
@@ -49,6 +53,12 @@ const createWeekContext = (): WeekContext => {
   };
 };
 
+const addDays = (date: Date, days: number) => {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+};
+
 const buildAvailabilityRows = (schedule: ScheduleSeed) =>
   Object.entries(schedule).flatMap(([date, slots]) =>
     slots.map((slot, idx) => ({
@@ -59,11 +69,42 @@ const buildAvailabilityRows = (schedule: ScheduleSeed) =>
     }))
   );
 
-const groupSchedule = (entries: ScheduleEntry[]) => {
+const flattenScheduleEntries = (schedule: ScheduleSeed): ScheduleEntry[] =>
+  Object.entries(schedule).flatMap(([date, slots]) =>
+    slots.map((slot) => ({ date, start_time: slot.start_time, end_time: slot.end_time }))
+  );
+
+const buildWeekBitmapResponse = (weekStartISO: string, schedule: ScheduleSeed, version: string) => {
+  const weekStart = new Date(`${weekStartISO}T00:00:00Z`);
+  const days = Array.from({ length: 7 }, (_, offset) => {
+    const day = addDays(weekStart, offset);
+    const dateISO = formatISODate(day);
+    const windows = schedule[dateISO] ?? [];
+    return {
+      date: dateISO,
+      bits: encodeUint8ArrayToBase64(fromWindows(windows)),
+      format_tags: encodeUint8ArrayToBase64(newEmptyTags()),
+    };
+  });
+  return { days, version };
+};
+
+const resolveWeekStartISO = (requestUrl: string, fallbackWeekStartISO?: string) => {
+  try {
+    const url = new URL(requestUrl);
+    return url.searchParams.get('start_date') ?? url.searchParams.get('week_start') ?? fallbackWeekStartISO ?? '';
+  } catch {
+    return fallbackWeekStartISO ?? '';
+  }
+};
+
+const groupScheduleFromBitmapDays = (days: DayBitmapPayload[] = []) => {
   const grouped: ScheduleSeed = {};
-  for (const entry of entries) {
-    grouped[entry.date] = grouped[entry.date] || [];
-    grouped[entry.date]!.push({ start_time: entry.start_time, end_time: entry.end_time });
+  for (const day of days) {
+    const windows = toWindows(decodeBase64ToUint8Array(day.bits, BYTES_PER_DAY));
+    if (windows.length > 0) {
+      grouped[day.date] = windows;
+    }
   }
   return grouped;
 };
@@ -188,6 +229,7 @@ const createRouteState = (schedule: ScheduleSeed): RouteState => ({
   schedule,
   etag: '"v1"',
   version: 1,
+  weekStartISO: Object.keys(schedule).sort()[0] ?? '',
 });
 
 const setClientVersion = async (page: Page, version: string | null) => {
@@ -231,6 +273,7 @@ const setupAvailabilityRoutes = async (page: Page, state: RouteState) => {
 
   await page.route(/.*\/instructors\/availability\/week(\?.*)?$/, async (route, request) => {
     if (request.method() === 'GET') {
+      const requestedWeekStart = resolveWeekStartISO(request.url(), state.weekStartISO);
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -238,14 +281,19 @@ const setupAvailabilityRoutes = async (page: Page, state: RouteState) => {
           ETag: state.etag,
           'Last-Modified': new Date().toUTCString(),
         },
-        body: JSON.stringify(state.schedule),
+        body: JSON.stringify(buildWeekBitmapResponse(requestedWeekStart, state.schedule, state.etag)),
       });
       await setClientVersion(page, state.etag);
       return;
     }
 
     if (request.method() === 'POST') {
-      const payload = (await request.postDataJSON()) as { schedule?: ScheduleEntry[]; override?: boolean };
+      const payload = (await request.postDataJSON()) as {
+        days?: DayBitmapPayload[];
+        override?: boolean;
+        week_start?: string;
+      };
+      const targetWeekStart = payload.week_start ?? state.weekStartISO;
       const headers = await request.allHeaders();
       const ifMatch = headers['if-match'] ?? headers['If-Match'] ?? headers['IF-MATCH'];
       const override = Boolean(payload.override);
@@ -261,7 +309,7 @@ const setupAvailabilityRoutes = async (page: Page, state: RouteState) => {
         return;
       }
 
-      state.schedule = groupSchedule(payload.schedule ?? []);
+      state.schedule = groupScheduleFromBitmapDays(payload.days);
       state.version += 1;
       state.etag = `"v${state.version}"`;
 
@@ -271,9 +319,9 @@ const setupAvailabilityRoutes = async (page: Page, state: RouteState) => {
         headers: { ETag: state.etag, 'Last-Modified': new Date().toUTCString() },
         body: JSON.stringify({
           message: 'Saved weekly availability',
-          week_start: Object.keys(state.schedule)[0] ?? '',
-          week_end: Object.keys(state.schedule)[0] ?? '',
-          windows_created: payload.schedule?.length ?? 0,
+          week_start: targetWeekStart,
+          week_end: formatISODate(addDays(new Date(`${targetWeekStart}T00:00:00Z`), 6)),
+          windows_created: flattenScheduleEntries(state.schedule).length,
           windows_updated: 0,
           windows_deleted: 0,
         }),
