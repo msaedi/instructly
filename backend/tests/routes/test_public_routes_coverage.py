@@ -54,11 +54,22 @@ async def test_availability_minimal_no_slots(monkeypatch):
             return user
 
     class DummyAvailabilityService:
-        def get_week_windows_as_slot_like(self, *_args, **_kwargs):
+        def __init__(self) -> None:
+            self.db = None
+
+        def get_blackout_dates(self, *_args, **_kwargs):
             return []
+
+        def compute_public_availability(self, *_args, **_kwargs):
+            return {}
 
     monkeypatch.setattr(public_routes.settings, "public_availability_detail_level", "minimal")
     monkeypatch.setattr(public_routes.settings, "public_availability_show_instructor_name", False)
+    monkeypatch.setattr(
+        public_routes.ConfigService,
+        "get_advance_notice_minutes",
+        lambda self, location_type=None: 0,
+    )
     start_date = date.today() + timedelta(days=1)
 
     result = await public_routes.get_instructor_public_availability(
@@ -97,9 +108,7 @@ async def test_availability_full_with_blackout(monkeypatch):
 
     class DummyAvailabilityService:
         def __init__(self):
-            self.instructor_repository = SimpleNamespace(
-                get_by_user_id=lambda _id: SimpleNamespace(min_advance_booking_hours=0)
-            )
+            self.instructor_repository = SimpleNamespace(get_by_user_id=lambda _id: SimpleNamespace())
             self.db = None
 
         def get_blackout_dates(self, _instructor_id: str):
@@ -147,9 +156,7 @@ async def test_availability_full_cache_write_fails_gracefully(monkeypatch):
 
     class DummyAvailabilityService:
         def __init__(self):
-            self.instructor_repository = SimpleNamespace(
-                get_by_user_id=lambda _id: SimpleNamespace(min_advance_booking_hours=0)
-            )
+            self.instructor_repository = SimpleNamespace(get_by_user_id=lambda _id: SimpleNamespace())
             self.db = None
 
         def get_blackout_dates(self, _instructor_id: str):
@@ -244,14 +251,25 @@ async def test_availability_cache_read_error_falls_through(monkeypatch):
             return user
 
     class DummyAvailabilityService:
-        def get_week_windows_as_slot_like(self, *_args, **_kwargs):
+        def __init__(self) -> None:
+            self.db = None
+
+        def get_blackout_dates(self, *_args, **_kwargs):
             return []
+
+        def compute_public_availability(self, *_args, **_kwargs):
+            return {}
 
     class FailingCache:
         async def get(self, _key: str):
             raise RuntimeError("cache read failed")
 
     monkeypatch.setattr(public_routes.settings, "public_availability_detail_level", "minimal")
+    monkeypatch.setattr(
+        public_routes.ConfigService,
+        "get_advance_notice_minutes",
+        lambda self, location_type=None: 0,
+    )
 
     result = await public_routes.get_instructor_public_availability(
         instructor_id=user.id,

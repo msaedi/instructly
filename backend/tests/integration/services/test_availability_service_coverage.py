@@ -22,6 +22,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.constants import TAG_NONE, TAG_ONLINE_ONLY
 from app.core.exceptions import (
     AvailabilityOverlapException,
     ConflictException,
@@ -39,9 +40,16 @@ from app.schemas.availability_window import (
     SpecificDateAvailabilityCreate,
     WeekSpecificScheduleCreate,
 )
-from app.services.availability_service import AvailabilityService
+from app.services.availability_service import AvailabilityService, DayBitmaps
 from app.services.cache_service import CacheKeyBuilder
-from app.utils.bitset import bits_from_windows, new_empty_bits
+from app.services.config_service import ConfigService
+from app.utils.bitset import (
+    bits_from_windows,
+    get_slot_tag,
+    new_empty_bits,
+    new_empty_tags,
+    set_range_tag,
+)
 from tests._utils.bitmap_avail import seed_day
 
 
@@ -1282,6 +1290,90 @@ class TestSaveWeekBitsGuardrailsCoverage:
         )
         assert result.skipped_past_window == 1
 
+    def test_save_week_bits_clears_tags_for_slots_it_turns_off(
+        self, db: Session, availability_service: AvailabilityService, test_instructor: User
+    ):
+        monday = get_future_monday(4)
+        repo = AvailabilityDayRepository(db)
+        initial_bits = bits_from_windows([("09:00:00", "11:00:00")])
+        initial_tags = set_range_tag(new_empty_tags(), 108, 24, TAG_ONLINE_ONLY)
+        repo.upsert_week(test_instructor.id, [(monday, initial_bits, initial_tags)])
+
+        availability_service.save_week_bits(
+            test_instructor.id,
+            monday,
+            {monday: [("10:00:00", "11:00:00")]},
+            None,
+            False,
+            False,
+        )
+
+        stored_bits, stored_tags = repo.get_day_bitmaps(test_instructor.id, monday)
+        assert stored_bits == bits_from_windows([("10:00:00", "11:00:00")])
+        assert get_slot_tag(stored_tags, 108) == TAG_NONE
+        assert get_slot_tag(stored_tags, 120) == TAG_ONLINE_ONLY
+
+
+class TestSaveWeekBitmapsTagNormalizationCoverage:
+    def test_same_day_cutoff_clears_trimmed_tags(
+        self, db: Session, test_instructor: User, monkeypatch
+    ):
+        fixed_today = date(2026, 1, 19)
+        monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "0")
+        monkeypatch.setattr(
+            "app.services.availability_service.get_user_today_by_id",
+            lambda instructor_id, db_session: fixed_today,
+        )
+        monkeypatch.setattr(
+            "app.services.availability_service.get_user_now_by_id",
+            lambda instructor_id, db_session: datetime.combine(
+                fixed_today, time(10, 0), tzinfo=timezone.utc
+            ),
+        )
+
+        service = AvailabilityService(db)
+        repo = AvailabilityDayRepository(db)
+        monday = fixed_today - timedelta(days=fixed_today.weekday())
+        initial_bits = bits_from_windows([("09:00:00", "11:00:00")])
+        initial_tags = set_range_tag(new_empty_tags(), 108, 24, TAG_ONLINE_ONLY)
+
+        service.save_week_bitmaps(
+            test_instructor.id,
+            monday,
+            {fixed_today: DayBitmaps(initial_bits, initial_tags)},
+            None,
+            False,
+            False,
+        )
+
+        stored_bits, stored_tags = repo.get_day_bitmaps(test_instructor.id, fixed_today)
+        assert stored_bits == bits_from_windows([("10:00:00", "11:00:00")])
+        assert get_slot_tag(stored_tags, 108) == TAG_NONE
+        assert get_slot_tag(stored_tags, 120) == TAG_ONLINE_ONLY
+
+    def test_save_week_bitmaps_returns_version_for_normalized_tags(
+        self, db: Session, test_instructor: User
+    ):
+        service = AvailabilityService(db)
+        monday = get_future_monday(4)
+        bits = bits_from_windows([("09:00:00", "10:00:00")])
+        tags = set_range_tag(new_empty_tags(), 108, 12, TAG_ONLINE_ONLY)
+        tags = set_range_tag(tags, 156, 12, TAG_ONLINE_ONLY)
+
+        result = service.save_week_bitmaps(
+            test_instructor.id,
+            monday,
+            {monday: DayBitmaps(bits, tags)},
+            None,
+            False,
+            False,
+        )
+
+        saved_day = result.bitmaps_by_day[monday]
+        assert get_slot_tag(saved_day.format_tags, 108) == TAG_ONLINE_ONLY
+        assert get_slot_tag(saved_day.format_tags, 156) == TAG_NONE
+        assert result.version == service.compute_week_version_bitmaps(result.bitmaps_by_day)
+
 
 class TestSaveWeekBitsAuditOutboxCoverage:
     """Cover audit and outbox event creation in save_week_bits."""
@@ -1418,6 +1510,38 @@ class TestSpecificDateAvailabilityConflictCoverage:
                 test_instructor.id, availability_data
             )
 
+    def test_add_specific_date_preserves_valid_tags_without_reviving_cleared_ones(
+        self, db: Session, availability_service: AvailabilityService, test_instructor: User
+    ):
+        target_date = date.today() + timedelta(days=45)
+        repo = AvailabilityDayRepository(db)
+        initial_bits = bits_from_windows([("09:00:00", "11:00:00")])
+        initial_tags = set_range_tag(new_empty_tags(), 108, 24, TAG_ONLINE_ONLY)
+        repo.upsert_week(test_instructor.id, [(target_date, initial_bits, initial_tags)])
+
+        availability_service.save_week_bits(
+            test_instructor.id,
+            target_date,
+            {target_date: [("09:00:00", "10:00:00")]},
+            None,
+            False,
+            False,
+        )
+
+        availability_service.add_specific_date_availability(
+            test_instructor.id,
+            SpecificDateAvailabilityCreate(
+                specific_date=target_date,
+                start_time=time(10, 0),
+                end_time=time(11, 0),
+            ),
+        )
+
+        stored_bits, stored_tags = repo.get_day_bitmaps(test_instructor.id, target_date)
+        assert stored_bits == bits_from_windows([("09:00:00", "11:00:00")])
+        assert get_slot_tag(stored_tags, 108) == TAG_ONLINE_ONLY
+        assert get_slot_tag(stored_tags, 120) == TAG_NONE
+
 
 class TestBlackoutDeleteNotFoundCoverage:
     """Cover delete_blackout_date not found path."""
@@ -1441,8 +1565,7 @@ class TestComputePublicAvailabilityExpandedCoverage:
             .filter(InstructorProfile.user_id == test_booking.instructor_id)
             .first()
         )
-        profile.min_advance_booking_hours = 2
-        profile.buffer_time_minutes = 15
+        profile.non_travel_buffer_minutes = 15
         db.flush()
 
         target_date = date.today() + timedelta(days=1)
@@ -1461,13 +1584,17 @@ class TestComputePublicAvailabilityExpandedCoverage:
             "app.services.availability_service.get_user_now_by_id",
             lambda instructor_id, db_session: fake_now,
         )
+        monkeypatch.setattr(
+            ConfigService,
+            "get_advance_notice_minutes",
+            lambda self, location_type=None: 120,
+        )
 
         result = service.compute_public_availability(
             test_booking.instructor_id, target_date, target_date
         )
         slots = result[target_date.isoformat()]
-        assert slots
-        assert slots[0][0] >= time(1, 30)
+        assert slots == []
 
 
 class TestValidateNoOverlapsExistingCoverage:
@@ -1969,8 +2096,7 @@ class TestComputePublicAvailabilityExtraCoverage:
             .filter(InstructorProfile.user_id == test_booking.instructor_id)
             .first()
         )
-        profile.min_advance_booking_hours = 36
-        profile.buffer_time_minutes = 0
+        profile.non_travel_buffer_minutes = 0
         db.flush()
 
         start_date = date.today()
@@ -1984,6 +2110,11 @@ class TestComputePublicAvailabilityExtraCoverage:
         monkeypatch.setattr(
             "app.services.availability_service.get_user_now_by_id",
             lambda instructor_id, db_session: fake_now,
+        )
+        monkeypatch.setattr(
+            ConfigService,
+            "get_advance_notice_minutes",
+            lambda self, location_type=None: 60,
         )
 
         result = service.compute_public_availability(

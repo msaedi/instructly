@@ -1,19 +1,31 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { useQueryClient } from '@tanstack/react-query';
+import CalendarSettingsAcknowledgementModal from '@/components/availability/CalendarSettingsAcknowledgementModal';
+import CalendarSettingsSection from '@/components/availability/CalendarSettingsSection';
+import FormatTagPaintToolbar from '@/components/availability/FormatTagPaintToolbar';
 import WeekNavigator from '@/components/availability/WeekNavigator';
 import Link from 'next/link';
 import { useAvailability } from '@/hooks/availability/useAvailability';
 import { useBookedSlots } from '@/hooks/availability/useBookedSlots';
+import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/queries/useAuth';
 import { AVAILABILITY_CONSTANTS } from '@/types/availability';
 import type { WeekBits } from '@/types/availability';
+import type { InstructorProfile } from '@/types/instructor';
 import { UserData } from '@/types/user';
 import { getWeekDates } from '@/lib/availability/dateHelpers';
-import { Calendar, ArrowLeft } from 'lucide-react';
-import { SLOTS_PER_DAY, MINUTES_PER_SLOT } from '@/lib/calendar/bitset';
+import { Calendar, ArrowLeft, MonitorCheck } from 'lucide-react';
+import {
+  SLOTS_PER_DAY,
+  MINUTES_PER_SLOT,
+  TAG_NONE,
+  TAG_NO_TRAVEL,
+  TAG_ONLINE_ONLY,
+} from '@/lib/calendar/bitset';
 import { useEmbedded } from '../_embedded/EmbeddedContext';
 import { logger } from '@/lib/logger';
 import {
@@ -25,7 +37,21 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
+import NoTravelIcon from '@/components/availability/NoTravelIcon';
 import { useAvailabilityWeekInvalidation } from '@/features/instructor-profile/hooks/useAvailabilityWeekInvalidation';
+import { queryKeys } from '@/src/api/queryKeys';
+import {
+  useAcknowledgeCalendarSettingsApiV1InstructorsMeCalendarSettingsAcknowledgePost,
+  useUpdateCalendarSettingsApiV1InstructorsMeCalendarSettingsPatch,
+} from '@/src/api/generated/instructors-v1/instructors-v1';
+import {
+  areCalendarSettingsEqual,
+  type AvailabilityPaintMode,
+  deriveCalendarAcknowledgementVariant,
+  getCalendarSettingsDraft,
+  getAvailableTagOptions,
+  type CalendarSettingsDraft,
+} from '@/components/availability/calendarSettings';
 
 const CalendarSkeleton = () => (
   <div className="space-y-2" aria-hidden="true">
@@ -53,21 +79,43 @@ const LHCI = process.env['NEXT_PUBLIC_LH_CI'] === '1';
 const autosaveEnv = process.env['NEXT_PUBLIC_AVAIL_AUTOSAVE']?.toLowerCase();
 const AVAIL_AUTOSAVE_ENABLED = autosaveEnv === '1' || autosaveEnv === 'true';
 const AUTOSAVE_DELAY_MS = 1200;
+const SAVE_STATE_RESET_MS = 1500;
 const refetchAfterSaveEnv = process.env['NEXT_PUBLIC_AVAILABILITY_REFETCH_AFTER_SAVE']?.toLowerCase();
 const REFETCH_AFTER_SAVE = refetchAfterSaveEnv === '1' || refetchAfterSaveEnv === 'true';
 
+type PersistWeekSource = 'manual' | 'apply' | 'autosave';
+
+function mergeCalendarSettingsIntoProfile(
+  current: InstructorProfile | undefined,
+  updates: Partial<InstructorProfile>
+): InstructorProfile | undefined {
+  if (!current) {
+    return current;
+  }
+
+  return {
+    ...current,
+    ...updates,
+  };
+}
 
 function AvailabilityPageImpl() {
   const embedded = useEmbedded();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { data: instructorProfile, isLoading: isInstructorProfileLoading } = useInstructorProfileMe(true);
   const userData = user as unknown as UserData;
   const {
     currentWeekStart,
     weekBits,
     savedWeekBits,
+    weekTags,
+    savedWeekTags,
+    hasUnsavedChanges,
     isLoading,
     navigateWeek,
     setWeekBits,
+    setWeekTags,
     setMessage,
     message,
     refreshSchedule,
@@ -80,24 +128,10 @@ function AvailabilityPageImpl() {
   } = useAvailability();
   const currentWeekStartIso = currentWeekStart ? currentWeekStart.toISOString().split('T')[0] : undefined;
   const invalidateWeekSnapshot = useAvailabilityWeekInvalidation(userData?.id, currentWeekStartIso);
-
-  const serializeBits = useCallback((bits: WeekBits) => {
-    return Object.fromEntries(
-      Object.entries(bits)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([date, dayBits]) => [date, Array.from(dayBits)])
-    );
-  }, []);
-
-  const serializedWeekBits = useMemo(
-    () => JSON.stringify(serializeBits(weekBits)),
-    [serializeBits, weekBits]
-  );
-  const serializedSavedWeekBits = useMemo(
-    () => JSON.stringify(serializeBits(savedWeekBits)),
-    [serializeBits, savedWeekBits]
-  );
-  const hasPendingChanges = serializedWeekBits !== serializedSavedWeekBits;
+  const updateCalendarSettingsMutation =
+    useUpdateCalendarSettingsApiV1InstructorsMeCalendarSettingsPatch();
+  const acknowledgeCalendarSettingsMutation =
+    useAcknowledgeCalendarSettingsApiV1InstructorsMeCalendarSettingsAcknowledgePost();
 
   const [activeDay, setActiveDay] = useState(0);
   const [repeatWeeks, setRepeatWeeks] = useState<number>(4);
@@ -109,10 +143,23 @@ function AvailabilityPageImpl() {
   const [lastUpdatedLocal, setLastUpdatedLocal] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [cookiesInitialized, setCookiesInitialized] = useState(false);
+  const [calendarSettings, setCalendarSettings] = useState<CalendarSettingsDraft | null>(null);
+  const [lastCommittedCalendarSettings, setLastCommittedCalendarSettings] =
+    useState<CalendarSettingsDraft | null>(null);
+  const [calendarSettingsSaveState, setCalendarSettingsSaveState] = useState<
+    'idle' | 'saving' | 'saved'
+  >('idle');
+  const [isCalendarAcknowledgementOpen, setIsCalendarAcknowledgementOpen] = useState(false);
+  const [calendarAcknowledgementMode, setCalendarAcknowledgementMode] =
+    useState<'required' | 'info'>('required');
+  const [shouldCheckAcknowledgement, setShouldCheckAcknowledgement] = useState(false);
+  const [paintMode, setPaintMode] = useState<AvailabilityPaintMode>(TAG_NONE);
 
   // Refs to track current hour range for auto-expand logic (avoids dependency array issues)
   const startHourRef = useRef(startHour);
   const endHourRef = useRef(endHour);
+  const calendarSettingsAutosaveTimer = useRef<number | null>(null);
+  const calendarSettingsSaveStateTimer = useRef<number | null>(null);
 
   // Cookie helper functions for hour range persistence
   const getCookie = useCallback((name: string): string | null => {
@@ -131,6 +178,41 @@ function AvailabilityPageImpl() {
   const [isConflictOverwriting, setIsConflictOverwriting] = useState(false);
   const autosaveTimer = useRef<number | null>(null);
   const autosaveEnabled = AVAIL_AUTOSAVE_ENABLED;
+  const profileCalendarSettings = useMemo(
+    () => getCalendarSettingsDraft(instructorProfile),
+    [instructorProfile]
+  );
+  const effectiveCalendarSettings = calendarSettings ?? profileCalendarSettings;
+  const calendarAcknowledgementVariant = useMemo(
+    () => deriveCalendarAcknowledgementVariant(instructorProfile?.services ?? []),
+    [instructorProfile?.services]
+  );
+  const availableTagOptions = useMemo(
+    () => getAvailableTagOptions(instructorProfile?.services ?? []),
+    [instructorProfile?.services]
+  );
+  const calendarSettingsAcknowledgedAt =
+    instructorProfile?.calendar_settings_acknowledged_at ?? null;
+
+  useEffect(() => {
+    if (availableTagOptions.length === 0 && paintMode !== TAG_NONE) {
+      setPaintMode(TAG_NONE);
+      return;
+    }
+
+    if (paintMode !== TAG_NONE && !availableTagOptions.includes(paintMode)) {
+      setPaintMode(TAG_NONE);
+    }
+  }, [availableTagOptions, paintMode]);
+
+  const patchInstructorProfileCache = useCallback(
+    (updates: Partial<InstructorProfile>) => {
+      queryClient.setQueryData<InstructorProfile | undefined>(queryKeys.instructors.me, (current) =>
+        mergeCalendarSettingsIntoProfile(current, updates)
+      );
+    },
+    [queryClient]
+  );
 
   useEffect(() => {
     if (process.env.NODE_ENV === 'production') return;
@@ -178,6 +260,31 @@ function AvailabilityPageImpl() {
     }
   }, [currentWeekStart, isLoading, fetchBookedSlots]);
 
+  useEffect(() => {
+    if (!instructorProfile) {
+      return;
+    }
+
+    if (!calendarSettings || !lastCommittedCalendarSettings) {
+      setCalendarSettings(profileCalendarSettings);
+      setLastCommittedCalendarSettings(profileCalendarSettings);
+      return;
+    }
+
+    if (
+      areCalendarSettingsEqual(calendarSettings, lastCommittedCalendarSettings) &&
+      !areCalendarSettingsEqual(profileCalendarSettings, lastCommittedCalendarSettings)
+    ) {
+      setCalendarSettings(profileCalendarSettings);
+      setLastCommittedCalendarSettings(profileCalendarSettings);
+    }
+  }, [
+    instructorProfile,
+    calendarSettings,
+    lastCommittedCalendarSettings,
+    profileCalendarSettings,
+  ]);
+
   // Saving indicator not used in the new autosave flow, keep for future use
 
   // Convert Date[] from hook to WeekDateInfo[] for components
@@ -200,6 +307,28 @@ function AvailabilityPageImpl() {
     startHourRef.current = startHour;
     endHourRef.current = endHour;
   }, [startHour, endHour]);
+
+  useEffect(() => {
+    if (calendarSettingsSaveState !== 'saved' || typeof window === 'undefined') {
+      return;
+    }
+
+    if (calendarSettingsSaveStateTimer.current) {
+      window.clearTimeout(calendarSettingsSaveStateTimer.current);
+    }
+
+    calendarSettingsSaveStateTimer.current = window.setTimeout(() => {
+      calendarSettingsSaveStateTimer.current = null;
+      setCalendarSettingsSaveState('idle');
+    }, SAVE_STATE_RESET_MS);
+
+    return () => {
+      if (calendarSettingsSaveStateTimer.current) {
+        window.clearTimeout(calendarSettingsSaveStateTimer.current);
+        calendarSettingsSaveStateTimer.current = null;
+      }
+    };
+  }, [calendarSettingsSaveState]);
 
   // Initialize hour range from cookies on mount
   useEffect(() => {
@@ -302,15 +431,141 @@ function AvailabilityPageImpl() {
     setMessage(null);
   }, [setWeekBits, setMessage]);
 
+  const handleTagsChange = useCallback((next: typeof weekTags | ((prev: typeof weekTags) => typeof weekTags)) => {
+    setWeekTags(next);
+    setMessage(null);
+  }, [setMessage, setWeekTags]);
+
+  const handleCalendarSettingsChange = useCallback(
+    (updates: Partial<CalendarSettingsDraft>) => {
+      setCalendarSettings((current) => ({
+        ...(current ?? profileCalendarSettings),
+        ...updates,
+      }));
+    },
+    [profileCalendarSettings]
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (!calendarSettings || !lastCommittedCalendarSettings) {
+      return;
+    }
+
+    if (updateCalendarSettingsMutation.isPending) {
+      if (calendarSettingsAutosaveTimer.current) {
+        window.clearTimeout(calendarSettingsAutosaveTimer.current);
+        calendarSettingsAutosaveTimer.current = null;
+      }
+      return;
+    }
+
+    if (areCalendarSettingsEqual(calendarSettings, lastCommittedCalendarSettings)) {
+      if (calendarSettingsAutosaveTimer.current) {
+        window.clearTimeout(calendarSettingsAutosaveTimer.current);
+        calendarSettingsAutosaveTimer.current = null;
+      }
+      return;
+    }
+
+    if (calendarSettingsAutosaveTimer.current) {
+      window.clearTimeout(calendarSettingsAutosaveTimer.current);
+    }
+
+    calendarSettingsAutosaveTimer.current = window.setTimeout(() => {
+      const draftToSave = calendarSettings;
+      calendarSettingsAutosaveTimer.current = null;
+      setCalendarSettingsSaveState('saving');
+
+      void updateCalendarSettingsMutation
+        .mutateAsync({
+          data: {
+            non_travel_buffer_minutes: draftToSave.nonTravelBufferMinutes,
+            travel_buffer_minutes: draftToSave.travelBufferMinutes,
+            overnight_protection_enabled: draftToSave.overnightProtectionEnabled,
+          },
+        })
+        .then((response) => {
+          const savedSettings: CalendarSettingsDraft = {
+            nonTravelBufferMinutes:
+              response.non_travel_buffer_minutes ?? draftToSave.nonTravelBufferMinutes,
+            travelBufferMinutes:
+              response.travel_buffer_minutes ?? draftToSave.travelBufferMinutes,
+            overnightProtectionEnabled:
+              response.overnight_protection_enabled ?? draftToSave.overnightProtectionEnabled,
+          };
+
+          setLastCommittedCalendarSettings(savedSettings);
+          setCalendarSettings((current) =>
+            areCalendarSettingsEqual(current, draftToSave) ? savedSettings : current
+          );
+          patchInstructorProfileCache({
+            non_travel_buffer_minutes: savedSettings.nonTravelBufferMinutes,
+            travel_buffer_minutes: savedSettings.travelBufferMinutes,
+            overnight_protection_enabled: savedSettings.overnightProtectionEnabled,
+          });
+          setCalendarSettingsSaveState('saved');
+          void queryClient.invalidateQueries({ queryKey: queryKeys.instructors.me });
+        })
+        .catch((error: unknown) => {
+          logger.error('Failed to save calendar settings', error as Error);
+          setCalendarSettingsSaveState('idle');
+          toast.error('Failed to save calendar settings');
+        });
+    }, AUTOSAVE_DELAY_MS);
+
+    return () => {
+      if (calendarSettingsAutosaveTimer.current) {
+        window.clearTimeout(calendarSettingsAutosaveTimer.current);
+        calendarSettingsAutosaveTimer.current = null;
+      }
+    };
+  }, [
+    calendarSettings,
+    lastCommittedCalendarSettings,
+    patchInstructorProfileCache,
+    queryClient,
+    updateCalendarSettingsMutation,
+  ]);
+
+  useEffect(() => {
+    if (!shouldCheckAcknowledgement) {
+      return;
+    }
+
+    if (isInstructorProfileLoading && !instructorProfile) {
+      return;
+    }
+
+    if (calendarSettingsAcknowledgedAt == null) {
+      setCalendarAcknowledgementMode('required');
+      setIsCalendarAcknowledgementOpen(true);
+    }
+
+    setShouldCheckAcknowledgement(false);
+  }, [
+    calendarSettingsAcknowledgedAt,
+    instructorProfile,
+    isInstructorProfileLoading,
+    shouldCheckAcknowledgement,
+  ]);
+
   const handleDiscardChanges = useCallback(() => {
     setWeekBits(savedWeekBits);
+    setWeekTags(savedWeekTags);
     setMessage(null);
     setConflictState(null);
     toast.info('Reverted to last saved schedule.');
-  }, [savedWeekBits, setWeekBits, setMessage]);
+  }, [savedWeekBits, savedWeekTags, setWeekBits, setWeekTags, setMessage]);
 
   const persistWeek = useCallback(
-    async ({ override = false }: { override?: boolean } = {}) => {
+    async ({
+      override = false,
+      source = 'manual',
+    }: { override?: boolean; source?: PersistWeekSource } = {}) => {
       setIsSaving(true);
       try {
         const result = await saveWeek({
@@ -349,6 +604,9 @@ function AvailabilityPageImpl() {
         } catch (error) {
           logger.warn('Failed to invalidate availability snapshot after save', error as Error);
         }
+        if (source !== 'autosave') {
+          setShouldCheckAcknowledgement(true);
+        }
         return true;
       } finally {
         setIsSaving(false);
@@ -358,7 +616,7 @@ function AvailabilityPageImpl() {
   );
 
   const handleSaveWeek = useCallback(() => {
-    void persistWeek();
+    void persistWeek({ source: 'manual' });
   }, [persistWeek]);
 
   const handleConflictRefresh = useCallback(async () => {
@@ -377,7 +635,7 @@ function AvailabilityPageImpl() {
 
   const handleConflictOverwrite = useCallback(async () => {
     setIsConflictOverwriting(true);
-    const success = await persistWeek({ override: true });
+    const success = await persistWeek({ override: true, source: 'manual' });
     if (success) {
       setConflictState(null);
     }
@@ -388,7 +646,7 @@ function AvailabilityPageImpl() {
     if (!autosaveEnabled || typeof window === 'undefined') {
       return;
     }
-    if (!hasPendingChanges || isLoading || isSaving || conflictState) {
+    if (!hasUnsavedChanges || isLoading || isSaving || conflictState) {
       if (autosaveTimer.current) {
         window.clearTimeout(autosaveTimer.current);
         autosaveTimer.current = null;
@@ -402,7 +660,7 @@ function AvailabilityPageImpl() {
 
     autosaveTimer.current = window.setTimeout(() => {
       autosaveTimer.current = null;
-      void persistWeek();
+      void persistWeek({ source: 'autosave' });
     }, AUTOSAVE_DELAY_MS);
 
     return () => {
@@ -411,17 +669,42 @@ function AvailabilityPageImpl() {
         autosaveTimer.current = null;
       }
     };
-  }, [autosaveEnabled, conflictState, hasPendingChanges, isLoading, isSaving, persistWeek]);
+  }, [autosaveEnabled, conflictState, hasUnsavedChanges, isLoading, isSaving, persistWeek]);
+
+  const handleCalendarSettingsAcknowledge = useCallback(async () => {
+    try {
+      const response = await acknowledgeCalendarSettingsMutation.mutateAsync();
+      const acknowledgedAt =
+        response.calendar_settings_acknowledged_at ?? new Date().toISOString();
+      patchInstructorProfileCache({
+        calendar_settings_acknowledged_at: acknowledgedAt,
+      });
+      setIsCalendarAcknowledgementOpen(false);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.instructors.me });
+    } catch (error) {
+      logger.error('Failed to acknowledge calendar settings', error as Error);
+      toast.error('Failed to record calendar settings acknowledgement');
+    }
+  }, [acknowledgeCalendarSettingsMutation, patchInstructorProfileCache, queryClient]);
+
+  const handleOpenCalendarProtectionsInfo = useCallback(() => {
+    setCalendarAcknowledgementMode('info');
+    setIsCalendarAcknowledgementOpen(true);
+  }, []);
+
+  const handleCloseCalendarAcknowledgement = useCallback(() => {
+    setIsCalendarAcknowledgementOpen(false);
+  }, []);
 
   const header = useMemo(() => (
     <WeekNavigator
       currentWeekStart={currentWeekStart}
       onNavigate={navigateWeek}
-      hasUnsavedChanges={hasPendingChanges}
+      hasUnsavedChanges={hasUnsavedChanges}
       showSubtitle={false}
       disabled={isLoading}
     />
-  ), [currentWeekStart, navigateWeek, isLoading, hasPendingChanges]);
+  ), [currentWeekStart, navigateWeek, isLoading, hasUnsavedChanges]);
 
   return (
     <div className="min-h-screen insta-dashboard-page">
@@ -462,169 +745,255 @@ function AvailabilityPageImpl() {
         />
 
         <div className="p-6 insta-surface-card insta-availability-panel">
-        {header}
+          {header}
 
-      {/* Tip below the week navigator */}
-      <div className="insta-availability-tip mb-3 rounded-md px-3 py-2 relative">
-        <p className="text-sm font-medium">Tip: Click any cell to mark yourself available</p>
-        <p className="text-xs">Most instructors start with 10–15 hours/week</p>
-        <p className="absolute bottom-2 right-3 text-[11px]">Last updated: <span>{lastUpdatedLocal || '—'}</span></p>
-      </div>
+          {availableTagOptions.length > 0 ? (
+            <div className="mb-4">
+              <FormatTagPaintToolbar
+                availableTagOptions={availableTagOptions}
+                value={paintMode}
+                onChange={setPaintMode}
+              />
+            </div>
+          ) : null}
 
-      {/* Quick nav */}
-      <div className="-mt-1 mb-2 flex items-center">
-        <button
-          type="button"
-          onClick={() => {
-            goToCurrentWeek();
-          }}
-          className="px-3 py-1 rounded-md text-sm insta-secondary-btn"
-        >
-          Today
-        </button>
-      </div>
-
-      {/* Actions (top of grid) */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        {/* Repeat dropdown */}
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-700 dark:text-gray-300">Repeat this schedule:</span>
-          <div className="relative inline-flex items-center">
-            <Select value={String(repeatWeeks)} onValueChange={(v) => setRepeatWeeks(parseInt(v, 10))}>
-              <SelectTrigger className="h-8 w-24 sm:w-28">
-                <SelectValue placeholder="Repeat" />
-              </SelectTrigger>
-              <SelectContent>
-                {[1,2,3,4,6,8,12].map((w) => (
-                  <SelectItem key={w} value={String(w)}>{w} weeks</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <button
-          onClick={async () => {
-            const end = new Date(currentWeekStart);
-            end.setDate(end.getDate() + repeatWeeks * 7);
-            const endISO = `${end.getFullYear()}-${String(end.getMonth()+1).padStart(2,'0')}-${String(end.getDate()).padStart(2,'0')}`;
-            const res = await applyToFutureWeeks(endISO);
-            if (!res.success) {
-              toast.error(res.message || 'Failed to apply to future weeks');
-              return;
-            }
-            toast.success(`Applied through ${endISO}`);
-            const persisted = await persistWeek();
-            if (!persisted) return;
-          }}
-          className="inline-flex items-center justify-center px-3 py-1 rounded-md text-white text-sm whitespace-nowrap insta-primary-btn"
-        >
-          Apply
-        </button>
-
-        {/* Hour range controls */}
-        <div className="ml-auto flex items-center gap-2">
-          <div className="flex flex-col leading-tight mr-1">
-            <span className="text-sm text-gray-700 dark:text-gray-300">Teaching window</span>
-            <span className="text-[11px] text-gray-500 dark:text-gray-400 -mt-0.5">Business Hours</span>
-          </div>
-          <div className="relative inline-flex items-center">
-            <Select value={String(startHour)} onValueChange={(v) => {
-              const sv = parseInt(v, 10);
-              setStartHour(sv);
-              if (sv >= endHour) setEndHour(Math.min(sv + 1, 24));
-            }}>
-              <SelectTrigger className="h-8 w-28"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 24 }, (_, h) => h).map((h) => (
-                  <SelectItem key={h} value={String(h)}>{formatHour(h)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <span className="text-gray-500 dark:text-gray-400">to</span>
-          <div className="relative inline-flex items-center">
-            <Select value={String(endHour)} onValueChange={(v) => {
-              const ev = parseInt(v, 10);
-              setEndHour(ev);
-              if (ev <= startHour) setStartHour(Math.max(ev - 1, 0));
-            }}>
-              <SelectTrigger className="h-8 w-28"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 24 }, (_, h) => h + 1).map((h) => (
-                  <SelectItem key={h} value={String(h)}>{formatHour(h)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </div>
-
-      <ConflictModal
-        open={Boolean(conflictState)}
-        onClose={() => setConflictState(null)}
-        onRefresh={handleConflictRefresh}
-        onOverwrite={handleConflictOverwrite}
-        isRefreshing={isConflictRefreshing}
-        isOverwriting={isConflictOverwriting}
-        {...(conflictState?.serverVersion
-          ? { serverVersion: conflictState.serverVersion }
-          : {})}
-      />
-
-      {/* Mobile day chips */}
-      {isMobile && (
-        <div className="mb-3 flex gap-2 overflow-x-auto">
-          {weekDateInfo.map((d, i) => (
-            <button
-              key={d.fullDate}
-              onClick={() => setActiveDay(i)}
-              className={`px-3 py-2 rounded-full text-sm font-semibold border ${i === activeDay ? 'bg-[#7E22CE] text-white border-[#7E22CE]' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-700'}`}
-            >
-              {d.date.toLocaleDateString('en-US', { weekday: 'short' })}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Interactive Grid */}
-      {allowPastEdits === false && (
-        <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
-          Past-day changes are ignored on save.
-        </div>
-      )}
-      <div className="mt-2">
-        {LHCI ? (
-          <div
-            data-testid="lhci-availability-skeleton"
-            style={{ height: 720 }}
-            className="flex flex-col"
-          >
-            <CalendarSkeleton />
-          </div>
-        ) : isLoading ? (
-          <CalendarSkeleton />
-        ) : (
-          <WeekView
-            weekDates={weekDateInfo}
-            weekBits={weekBits}
-            bookedSlots={bookedSlots}
-            onBitsChange={handleBitsChange}
-            isMobile={isMobile}
-            activeDayIndex={activeDay}
-            onActiveDayChange={setActiveDay}
-            {...(userData?.timezone && { timezone: userData.timezone })}
-            startHour={startHour}
-            endHour={endHour}
-            allowPastEditing={allowPastEdits === true}
+          <ConflictModal
+            open={Boolean(conflictState)}
+            onClose={() => setConflictState(null)}
+            onRefresh={handleConflictRefresh}
+            onOverwrite={handleConflictOverwrite}
+            isRefreshing={isConflictRefreshing}
+            isOverwriting={isConflictOverwriting}
+            {...(conflictState?.serverVersion
+              ? { serverVersion: conflictState.serverVersion }
+              : {})}
           />
-        )}
-      </div>
-      <div className="pb-16" />
-    </div>
-  </div>
 
-  {hasPendingChanges && (
+          {isMobile ? (
+            <div className="mb-3 flex gap-2 overflow-x-auto">
+              {weekDateInfo.map((dateInfo, index) => (
+                <button
+                  key={dateInfo.fullDate}
+                  onClick={() => setActiveDay(index)}
+                  className={`rounded-full border px-3 py-2 text-sm font-semibold ${
+                    index === activeDay
+                      ? 'border-[#7E22CE] bg-[#7E22CE] text-white'
+                      : 'border-gray-300 bg-white text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                  }`}
+                >
+                  {dateInfo.date.toLocaleDateString('en-US', { weekday: 'short' })}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {allowPastEdits === false ? (
+            <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+              Past-day changes are ignored on save.
+            </div>
+          ) : null}
+
+          <div className="mt-2">
+            {LHCI ? (
+              <div
+                data-testid="lhci-availability-skeleton"
+                style={{ height: 720 }}
+                className="flex flex-col"
+              >
+                <CalendarSkeleton />
+              </div>
+            ) : isLoading ? (
+              <CalendarSkeleton />
+            ) : (
+              <WeekView
+                weekDates={weekDateInfo}
+                weekBits={weekBits}
+                weekTags={weekTags}
+                bookedSlots={bookedSlots}
+                onBitsChange={handleBitsChange}
+                onTagsChange={handleTagsChange}
+                availableTagOptions={availableTagOptions}
+                paintMode={paintMode}
+                isMobile={isMobile}
+                activeDayIndex={activeDay}
+                onActiveDayChange={setActiveDay}
+                {...(userData?.timezone ? { timezone: userData.timezone } : {})}
+                startHour={startHour}
+                endHour={endHour}
+                allowPastEditing={allowPastEdits === true}
+              />
+            )}
+          </div>
+
+          <div className="mt-4 insta-availability-tip rounded-md px-3 py-2 relative">
+            <p className="text-sm font-medium">Tip: Click any cell to mark yourself available</p>
+            <p className="text-xs">Most instructors start with 10-15 hours/week</p>
+            <p className="absolute bottom-2 right-3 text-[11px]">
+              Last updated: <span>{lastUpdatedLocal || '—'}</span>
+            </p>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                goToCurrentWeek();
+              }}
+              className="rounded-md px-3 py-1 text-sm insta-secondary-btn"
+            >
+              Today
+            </button>
+
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-700 dark:text-gray-300">
+                Repeat this schedule:
+              </span>
+              <div className="relative inline-flex items-center">
+                <Select
+                  value={String(repeatWeeks)}
+                  onValueChange={(value) => setRepeatWeeks(Number.parseInt(value, 10))}
+                >
+                  <SelectTrigger className="h-8 w-24 sm:w-28">
+                    <SelectValue placeholder="Repeat" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3, 4, 6, 8, 12].map((weeks) => (
+                      <SelectItem key={weeks} value={String(weeks)}>
+                        {weeks} weeks
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                const end = new Date(currentWeekStart);
+                end.setDate(end.getDate() + repeatWeeks * 7);
+                const endISO = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+                const result = await applyToFutureWeeks(endISO);
+                if (!result.success) {
+                  toast.error(result.message || 'Failed to apply to future weeks');
+                  return;
+                }
+                toast.success(`Applied through ${endISO}`);
+                const persisted = await persistWeek({ source: 'apply' });
+                if (!persisted) return;
+              }}
+              className="inline-flex items-center justify-center rounded-md px-3 py-1 text-sm whitespace-nowrap text-white insta-primary-btn"
+            >
+              Apply
+            </button>
+
+            <div className="ml-auto flex items-center gap-2">
+              <div className="mr-1 flex flex-col leading-tight">
+                <span className="text-sm text-gray-700 dark:text-gray-300">Teaching window</span>
+                <span className="-mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+                  Business Hours
+                </span>
+              </div>
+              <div className="relative inline-flex items-center">
+                <Select
+                  value={String(startHour)}
+                  onValueChange={(value) => {
+                    const nextStart = Number.parseInt(value, 10);
+                    setStartHour(nextStart);
+                    if (nextStart >= endHour) setEndHour(Math.min(nextStart + 1, 24));
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-28">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 24 }, (_, hour) => hour).map((hour) => (
+                      <SelectItem key={hour} value={String(hour)}>
+                        {formatHour(hour)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <span className="text-gray-500 dark:text-gray-400">to</span>
+              <div className="relative inline-flex items-center">
+                <Select
+                  value={String(endHour)}
+                  onValueChange={(value) => {
+                    const nextEnd = Number.parseInt(value, 10);
+                    setEndHour(nextEnd);
+                    if (nextEnd <= startHour) setStartHour(Math.max(nextEnd - 1, 0));
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-28">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 24 }, (_, hour) => hour + 1).map((hour) => (
+                      <SelectItem key={hour} value={String(hour)}>
+                        {formatHour(hour)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          {availableTagOptions.length > 0 ? (
+            <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/50">
+              <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                Format tags
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-300">
+                {availableTagOptions.includes(TAG_NO_TRAVEL) ? (
+                  <div className="inline-flex items-center gap-2">
+                    <NoTravelIcon className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
+                    <span>No Travel — Online and studio only</span>
+                  </div>
+                ) : null}
+                {availableTagOptions.includes(TAG_ONLINE_ONLY) ? (
+                  <div className="inline-flex items-center gap-2">
+                    <MonitorCheck className="h-4 w-4 text-sky-600 dark:text-sky-300" />
+                    <span>Online — Online lessons only</span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          <CalendarSettingsSection
+            value={effectiveCalendarSettings}
+            saveState={
+              updateCalendarSettingsMutation.isPending ? 'saving' : calendarSettingsSaveState
+            }
+            disabled={
+              Boolean(updateCalendarSettingsMutation.isPending) || isInstructorProfileLoading
+            }
+            onNonTravelChange={(minutes) =>
+              handleCalendarSettingsChange({ nonTravelBufferMinutes: minutes })
+            }
+            onTravelChange={(minutes) =>
+              handleCalendarSettingsChange({ travelBufferMinutes: minutes })
+            }
+            onOvernightProtectionChange={(enabled) =>
+              handleCalendarSettingsChange({ overnightProtectionEnabled: enabled })
+            }
+            onOpenCalendarProtectionsInfo={handleOpenCalendarProtectionsInfo}
+          />
+          <div className="pb-16" />
+        </div>
+      </div>
+
+  <CalendarSettingsAcknowledgementModal
+    isOpen={isCalendarAcknowledgementOpen}
+    variant={calendarAcknowledgementVariant}
+    mode={calendarAcknowledgementMode}
+    isSubmitting={acknowledgeCalendarSettingsMutation.isPending}
+    onAcknowledge={handleCalendarSettingsAcknowledge}
+    onClose={handleCloseCalendarAcknowledgement}
+  />
+
+  {hasUnsavedChanges && (
       <div className="fixed bottom-4 left-1/2 z-40 w-full max-w-3xl -translate-x-1/2 px-4">
         <div className="flex items-center justify-between gap-4 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 py-3 shadow-lg insta-surface-card">
           <div className="text-sm text-gray-800 dark:text-gray-200">
@@ -642,7 +1011,7 @@ function AvailabilityPageImpl() {
             <button
               type="button"
               onClick={handleSaveWeek}
-              disabled={isSaving || !hasPendingChanges}
+              disabled={isSaving || !hasUnsavedChanges}
               className="rounded-full bg-[#7E22CE] px-5 py-2 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60 insta-primary-btn"
             >
               {isSaving ? 'Saving…' : 'Save Week'}

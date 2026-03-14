@@ -4,6 +4,7 @@ import pytz
 
 from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.services.availability_service import AvailabilityService
+from app.services.config_service import ConfigService
 from app.utils.bitset import bits_from_windows
 
 
@@ -11,8 +12,7 @@ def test_compute_public_availability_keeps_midnight_windows(db, test_instructor,
     """Ensure late-night windows ending at midnight survive min-advance trimming."""
 
     profile = test_instructor.instructor_profile
-    profile.min_advance_booking_hours = 3
-    profile.buffer_time_minutes = 0
+    profile.non_travel_buffer_minutes = 0
     db.flush()
 
     target_date = date.today()
@@ -31,6 +31,11 @@ def test_compute_public_availability_keeps_midnight_windows(db, test_instructor,
         return fake_now
 
     monkeypatch.setattr("app.services.availability_service.get_user_now_by_id", _fake_now)
+    monkeypatch.setattr(
+        ConfigService,
+        "get_advance_notice_minutes",
+        lambda self, location_type=None: 180,
+    )
 
     service = AvailabilityService(db)
     result = service.compute_public_availability(test_instructor.id, target_date, target_date)

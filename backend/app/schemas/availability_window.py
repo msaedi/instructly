@@ -13,6 +13,9 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.constants import BYTES_PER_DAY, TAG_BYTES_PER_DAY
+from app.utils.bitmap_base64 import decode_bitmap_bytes
+
 from ._strict_base import StrictModel, StrictRequestModel
 from .base import StandardizedModel
 
@@ -199,6 +202,71 @@ class WeekSpecificScheduleCreate(StrictRequestModel):
     def validate_monday(cls, v: Optional[DateType]) -> Optional[DateType]:
         """Ensure week start is a Monday if provided."""
         if v and v.weekday() != 0:
+            raise ValueError("Week start must be a Monday")
+        return v
+
+
+class DayBitmapInput(StrictModel):
+    """Single day's bitmap payload for instructor week editing."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    date: str = Field(description="ISO date string (YYYY-MM-DD)")
+    bits: str = Field(description="Base64-encoded 36-byte day bitmap")
+    format_tags: Optional[str] = Field(
+        default=None,
+        description="Base64-encoded 72-byte tag bitmap; omitted means all-zero tags",
+    )
+
+    @field_validator("date")
+    @classmethod
+    def validate_iso_date(cls, v: str) -> str:
+        datetime.date.fromisoformat(v)
+        return v
+
+    @field_validator("bits")
+    @classmethod
+    def validate_bits_base64(cls, v: str) -> str:
+        decode_bitmap_bytes(v, BYTES_PER_DAY)
+        return v
+
+    @field_validator("format_tags")
+    @classmethod
+    def validate_format_tags_base64(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        decode_bitmap_bytes(v, TAG_BYTES_PER_DAY)
+        return v
+
+
+class WeekBitmapSaveRequest(StrictRequestModel):
+    """Bitmap-native save payload for instructor week editing."""
+
+    model_config = StrictRequestModel.model_config
+
+    week_start: DateType = Field(description="Monday of the target week")
+    days: List[DayBitmapInput] = Field(description="Bitmap payload for edited days in the week")
+    clear_existing: bool = Field(
+        default=True,
+        description="Whether to clear existing day rows for the week before saving",
+    )
+    base_version: Optional[str] = Field(
+        None,
+        description="Client's baseline week version when saving (If-Match fallback)",
+    )
+    version: Optional[str] = Field(
+        None,
+        description="Deprecated alias for base_version (optimistic concurrency token)",
+    )
+    override: bool = Field(
+        default=False,
+        description="If true, bypass server-side version checks when saving",
+    )
+
+    @field_validator("week_start")
+    @classmethod
+    def validate_week_start_monday(cls, v: DateType) -> DateType:
+        if v.weekday() != 0:
             raise ValueError("Week start must be a Monday")
         return v
 

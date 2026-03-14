@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+from tests.utils.availability_builders import build_week_payload_from_slots
 
 from app.auth import create_access_token
 from app.core.config import settings
@@ -77,17 +78,16 @@ def test_preview_session_cookie_powers_api_routes(
     booked = client.get(f"/api/v1/instructors/availability/week/booked-slots?start_date={start_date}")
     assert booked.status_code == 200
 
-    payload = {
-        "week_start": start_date,
-        "clear_existing": True,
-        "schedule": [
+    payload = build_week_payload_from_slots(
+        datetime.fromisoformat(start_date).date(),
+        [
             {
                 "date": start_date,
                 "start_time": "09:00",
                 "end_time": "10:00",
             }
         ],
-    }
+    )
     csrf_headers = {
         "Origin": "https://preview.instainstru.com",
         "Referer": "https://preview.instainstru.com/instructors/dashboard",

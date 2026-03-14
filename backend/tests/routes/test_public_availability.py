@@ -10,6 +10,7 @@ These tests ensure that:
 5. Edge cases are handled
 """
 
+from copy import deepcopy
 from datetime import date, datetime, time, timedelta
 
 from fastapi import status
@@ -22,12 +23,37 @@ from app.models.availability import BlackoutDate
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
+from app.repositories.availability_day_repository import AvailabilityDayRepository
+from app.services.config_service import DEFAULT_BOOKING_RULES_CONFIG, ConfigService
+from app.utils.bitset import bits_from_windows, new_empty_tags, set_range_tag
 from tests._utils.bitmap_avail import seed_day
 
 try:  # pragma: no cover - fallback for direct backend pytest runs
     from backend.tests.utils.booking_timezone import booking_timezone_fields
 except ModuleNotFoundError:  # pragma: no cover
     from tests.utils.booking_timezone import booking_timezone_fields
+
+
+ORIGINAL_GET_OVERNIGHT_EARLIEST_HOUR = ConfigService.get_overnight_earliest_hour
+ORIGINAL_IS_IN_OVERNIGHT_WINDOW = ConfigService.is_in_overnight_window
+
+
+def _enable_default_overnight_rules(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        ConfigService,
+        "get_booking_rules_config",
+        lambda self: (deepcopy(DEFAULT_BOOKING_RULES_CONFIG), None),
+    )
+    monkeypatch.setattr(
+        ConfigService,
+        "get_overnight_earliest_hour",
+        ORIGINAL_GET_OVERNIGHT_EARLIEST_HOUR,
+    )
+    monkeypatch.setattr(
+        ConfigService,
+        "is_in_overnight_window",
+        ORIGINAL_IS_IN_OVERNIGHT_WINDOW,
+    )
 
 
 @pytest.fixture
@@ -246,8 +272,7 @@ class TestPublicAvailability:
             db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
         )
         assert profile is not None
-        profile.min_advance_booking_hours = 4
-        profile.buffer_time_minutes = 0
+        profile.non_travel_buffer_minutes = 0
         db.commit()
 
         target_date = date.today()
@@ -257,6 +282,59 @@ class TestPublicAvailability:
         monkeypatch.setattr(
             "app.services.availability_service.get_user_now_by_id",
             lambda *_: tz.localize(datetime.combine(target_date, time(10, 30))),
+        )
+        monkeypatch.setattr(
+            ConfigService,
+            "get_advance_notice_minutes",
+            lambda self, location_type=None: 60 if location_type == "online" else 180,
+        )
+
+        response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": "online",
+            },
+        )
+        if response.status_code == 404:
+            pytest.skip("Public routes not registered in main.py")
+
+        assert response.status_code == status.HTTP_200_OK
+        slots = response.json()["availability_by_date"][target_date.isoformat()]["available_slots"]
+        assert slots, "Expected filtered slots"
+        first_slot = slots[0]
+        assert first_slot["start_time"] == "11:30"
+        assert first_slot["end_time"] == "17:00"
+
+    def test_public_availability_defaults_to_travel_notice_when_location_type_omitted(
+        self,
+        public_client,
+        db,
+        test_instructor,
+        full_detail_settings,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        instructor = test_instructor
+        profile = (
+            db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
+        )
+        assert profile is not None
+        profile.non_travel_buffer_minutes = 0
+        db.commit()
+
+        target_date = date.today()
+        seed_day(db, instructor.id, target_date, [("09:00", "17:00")])
+
+        tz = pytz.timezone(getattr(instructor, "timezone", "America/New_York"))
+        monkeypatch.setattr(
+            "app.services.availability_service.get_user_now_by_id",
+            lambda *_: tz.localize(datetime.combine(target_date, time(10, 30))),
+        )
+        monkeypatch.setattr(
+            ConfigService,
+            "get_advance_notice_minutes",
+            lambda self, location_type=None: 60 if location_type == "online" else 180,
         )
 
         response = public_client.get(
@@ -270,7 +348,7 @@ class TestPublicAvailability:
         slots = response.json()["availability_by_date"][target_date.isoformat()]["available_slots"]
         assert slots, "Expected filtered slots"
         first_slot = slots[0]
-        assert first_slot["start_time"] == "14:30"
+        assert first_slot["start_time"] == "13:30"
         assert first_slot["end_time"] == "17:00"
 
     def test_public_availability_respects_buffer_time(
@@ -287,8 +365,7 @@ class TestPublicAvailability:
             db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
         )
         assert profile is not None
-        profile.buffer_time_minutes = 30
-        profile.min_advance_booking_hours = 0
+        profile.non_travel_buffer_minutes = 30
         db.commit()
 
         target_date = date.today()
@@ -323,7 +400,11 @@ class TestPublicAvailability:
 
         response = public_client.get(
             f"/api/v1/public/instructors/{instructor.id}/availability",
-            params={"start_date": target_date.isoformat(), "end_date": target_date.isoformat()},
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": "online",
+            },
         )
         if response.status_code == 404:
             pytest.skip("Public routes not registered in main.py")
@@ -333,6 +414,451 @@ class TestPublicAvailability:
         assert {("09:00", "09:30"), ("11:30", "12:00")} == {
             (slot["start_time"], slot["end_time"]) for slot in slots
         }
+
+    def test_public_availability_uses_travel_buffer_for_requested_travel_slots(
+        self,
+        public_client,
+        db,
+        test_instructor,
+        test_student,
+        full_detail_settings,
+    ):
+        instructor = test_instructor
+        profile = (
+            db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
+        )
+        assert profile is not None
+        profile.non_travel_buffer_minutes = 15
+        profile.travel_buffer_minutes = 60
+        db.commit()
+
+        target_date = date.today()
+        seed_day(db, instructor.id, target_date, [("14:00", "17:00")])
+
+        service = (
+            db.query(Service)
+            .filter(Service.instructor_profile_id == profile.id, Service.is_active == True)
+            .first()
+        )
+        assert service is not None
+
+        booking_date = target_date
+        start_time = time(14, 0)
+        end_time = time(15, 0)
+        booking = Booking(
+            instructor_id=instructor.id,
+            student_id=test_student.id,
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            location_type="online",
+            **booking_timezone_fields(booking_date, start_time, end_time),
+            status=BookingStatus.CONFIRMED,
+            instructor_service_id=service.id,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Test Service",
+            hourly_rate=service.hourly_rate,
+            total_price=service.hourly_rate,
+            duration_minutes=60,
+        )
+        db.add(booking)
+        db.commit()
+
+        response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": "student_location",
+            },
+        )
+        if response.status_code == 404:
+            pytest.skip("Public routes not registered in main.py")
+
+        assert response.status_code == status.HTTP_200_OK
+        slots = response.json()["availability_by_date"][target_date.isoformat()]["available_slots"]
+        assert slots == [{"start_time": "16:00", "end_time": "17:00"}]
+
+    def test_public_availability_defaults_to_conservative_travel_buffer(
+        self,
+        public_client,
+        db,
+        test_instructor,
+        test_student,
+        full_detail_settings,
+    ):
+        instructor = test_instructor
+        profile = (
+            db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
+        )
+        assert profile is not None
+        profile.non_travel_buffer_minutes = 15
+        profile.travel_buffer_minutes = 60
+        db.commit()
+
+        target_date = date.today()
+        seed_day(db, instructor.id, target_date, [("14:00", "17:00")])
+
+        service = (
+            db.query(Service)
+            .filter(Service.instructor_profile_id == profile.id, Service.is_active == True)
+            .first()
+        )
+        assert service is not None
+
+        booking_date = target_date
+        start_time = time(14, 0)
+        end_time = time(15, 0)
+        booking = Booking(
+            instructor_id=instructor.id,
+            student_id=test_student.id,
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            location_type="online",
+            **booking_timezone_fields(booking_date, start_time, end_time),
+            status=BookingStatus.CONFIRMED,
+            instructor_service_id=service.id,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Test Service",
+            hourly_rate=service.hourly_rate,
+            total_price=service.hourly_rate,
+            duration_minutes=60,
+        )
+        db.add(booking)
+        db.commit()
+
+        response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={"start_date": target_date.isoformat(), "end_date": target_date.isoformat()},
+        )
+        if response.status_code == 404:
+            pytest.skip("Public routes not registered in main.py")
+
+        assert response.status_code == status.HTTP_200_OK
+        slots = response.json()["availability_by_date"][target_date.isoformat()]["available_slots"]
+        assert slots == [{"start_time": "16:00", "end_time": "17:00"}]
+
+    def test_public_availability_splits_online_only_segment_for_travel_requests(
+        self,
+        public_client,
+        db,
+        test_instructor,
+        full_detail_settings,
+    ):
+        instructor = test_instructor
+        target_date = date.today() + timedelta(days=7)
+        repo = AvailabilityDayRepository(db)
+        bits = bits_from_windows([("09:00", "12:00")])
+        format_tags = set_range_tag(new_empty_tags(), 108, 12, 1)
+        repo.upsert_week(instructor.id, [(target_date, bits, format_tags)])
+        db.commit()
+
+        online_response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": "online",
+            },
+        )
+        if online_response.status_code == 404:
+            pytest.skip("Public routes not registered in main.py")
+
+        assert online_response.status_code == status.HTTP_200_OK
+        online_slots = online_response.json()["availability_by_date"][target_date.isoformat()][
+            "available_slots"
+        ]
+        assert online_slots == [{"start_time": "09:00", "end_time": "12:00"}]
+
+        travel_response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": "student_location",
+            },
+        )
+        assert travel_response.status_code == status.HTTP_200_OK
+        travel_slots = travel_response.json()["availability_by_date"][target_date.isoformat()][
+            "available_slots"
+        ]
+        assert travel_slots == [{"start_time": "10:00", "end_time": "12:00"}]
+
+    def test_public_availability_hides_no_travel_day_for_student_location_and_omitted_location(
+        self,
+        public_client,
+        db,
+        test_instructor,
+        full_detail_settings,
+    ):
+        instructor = test_instructor
+        target_date = date.today() + timedelta(days=7)
+        repo = AvailabilityDayRepository(db)
+        bits = bits_from_windows([("09:00", "12:00")])
+        format_tags = set_range_tag(new_empty_tags(), 108, 36, 2)
+        repo.upsert_week(instructor.id, [(target_date, bits, format_tags)])
+        db.commit()
+
+        online_response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": "online",
+            },
+        )
+        if online_response.status_code == 404:
+            pytest.skip("Public routes not registered in main.py")
+
+        assert online_response.status_code == status.HTTP_200_OK
+        online_slots = online_response.json()["availability_by_date"][target_date.isoformat()][
+            "available_slots"
+        ]
+        assert online_slots == [{"start_time": "09:00", "end_time": "12:00"}]
+
+        instructor_location_response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": "instructor_location",
+            },
+        )
+        assert instructor_location_response.status_code == status.HTTP_200_OK
+        instructor_location_slots = instructor_location_response.json()["availability_by_date"][
+            target_date.isoformat()
+        ]["available_slots"]
+        assert instructor_location_slots == [{"start_time": "09:00", "end_time": "12:00"}]
+
+        student_location_response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": "student_location",
+            },
+        )
+        assert student_location_response.status_code == status.HTTP_200_OK
+        student_slots = student_location_response.json()["availability_by_date"][target_date.isoformat()][
+            "available_slots"
+        ]
+        assert student_slots == []
+
+        omitted_location_response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={"start_date": target_date.isoformat(), "end_date": target_date.isoformat()},
+        )
+        assert omitted_location_response.status_code == status.HTTP_200_OK
+        omitted_slots = omitted_location_response.json()["availability_by_date"][target_date.isoformat()][
+            "available_slots"
+        ]
+        assert omitted_slots == []
+
+    def test_public_availability_blocks_buffer_before_existing_travel_booking(
+        self,
+        public_client,
+        db,
+        test_instructor,
+        test_student,
+        full_detail_settings,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        instructor = test_instructor
+        profile = (
+            db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
+        )
+        assert profile is not None
+        profile.non_travel_buffer_minutes = 15
+        profile.travel_buffer_minutes = 60
+        db.commit()
+
+        target_date = date.today() + timedelta(days=7)
+        seed_day(db, instructor.id, target_date, [("13:00", "18:00")])
+
+        service = (
+            db.query(Service)
+            .filter(Service.instructor_profile_id == profile.id, Service.is_active == True)
+            .first()
+        )
+        assert service is not None
+
+        booking = Booking(
+            instructor_id=instructor.id,
+            student_id=test_student.id,
+            booking_date=target_date,
+            start_time=time(15, 0),
+            end_time=time(16, 0),
+            **booking_timezone_fields(target_date, time(15, 0), time(16, 0)),
+            status=BookingStatus.CONFIRMED,
+            location_type="student_location",
+            instructor_service_id=service.id,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Test Service",
+            hourly_rate=service.hourly_rate,
+            total_price=service.hourly_rate,
+            duration_minutes=60,
+        )
+        db.add(booking)
+        db.commit()
+
+        monkeypatch.setattr(
+            ConfigService,
+            "get_advance_notice_minutes",
+            lambda self, location_type=None: 0,
+        )
+
+        response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": "student_location",
+            },
+        )
+        if response.status_code == 404:
+            pytest.skip("Public routes not registered in main.py")
+
+        assert response.status_code == status.HTTP_200_OK
+        slots = response.json()["availability_by_date"][target_date.isoformat()]["available_slots"]
+        assert slots == [
+            {"start_time": "13:00", "end_time": "14:00"},
+            {"start_time": "17:00", "end_time": "18:00"},
+        ]
+
+    def test_public_availability_hides_overnight_protected_online_slots(
+        self,
+        public_client,
+        db,
+        test_instructor,
+        full_detail_settings,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        instructor = test_instructor
+        profile = (
+            db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
+        )
+        assert profile is not None
+        profile.non_travel_buffer_minutes = 0
+        profile.overnight_protection_enabled = True
+        db.commit()
+
+        target_date = date.today() + timedelta(days=1)
+        seed_day(db, instructor.id, target_date, [("08:00", "12:00")])
+
+        tz = pytz.timezone(getattr(instructor, "timezone", "America/New_York"))
+        monkeypatch.setattr(
+            "app.services.availability_service.get_user_now_by_id",
+            lambda *_: tz.localize(datetime.combine(date.today(), time(22, 0))),
+        )
+        monkeypatch.setattr(
+            ConfigService,
+            "get_advance_notice_minutes",
+            lambda self, location_type=None: 0,
+        )
+        _enable_default_overnight_rules(monkeypatch)
+
+        response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": "online",
+            },
+        )
+        if response.status_code == 404:
+            pytest.skip("Public routes not registered in main.py")
+
+        assert response.status_code == status.HTTP_200_OK
+        slots = response.json()["availability_by_date"][target_date.isoformat()]["available_slots"]
+        assert slots == [{"start_time": "09:00", "end_time": "12:00"}]
+
+    def test_public_availability_uses_travel_fallback_for_overnight_filter(
+        self,
+        public_client,
+        db,
+        test_instructor,
+        full_detail_settings,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        instructor = test_instructor
+        profile = (
+            db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
+        )
+        assert profile is not None
+        profile.non_travel_buffer_minutes = 0
+        profile.overnight_protection_enabled = True
+        db.commit()
+
+        target_date = date.today() + timedelta(days=1)
+        seed_day(db, instructor.id, target_date, [("08:00", "12:00")])
+
+        tz = pytz.timezone(getattr(instructor, "timezone", "America/New_York"))
+        monkeypatch.setattr(
+            "app.services.availability_service.get_user_now_by_id",
+            lambda *_: tz.localize(datetime.combine(date.today(), time(22, 0))),
+        )
+        monkeypatch.setattr(
+            ConfigService,
+            "get_advance_notice_minutes",
+            lambda self, location_type=None: 0,
+        )
+        _enable_default_overnight_rules(monkeypatch)
+
+        response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={"start_date": target_date.isoformat(), "end_date": target_date.isoformat()},
+        )
+        if response.status_code == 404:
+            pytest.skip("Public routes not registered in main.py")
+
+        assert response.status_code == status.HTTP_200_OK
+        slots = response.json()["availability_by_date"][target_date.isoformat()]["available_slots"]
+        assert slots == [{"start_time": "11:00", "end_time": "12:00"}]
+
+    def test_public_availability_allows_overnight_slots_when_protection_disabled(
+        self,
+        public_client,
+        db,
+        test_instructor,
+        full_detail_settings,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        instructor = test_instructor
+        profile = (
+            db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
+        )
+        assert profile is not None
+        profile.non_travel_buffer_minutes = 0
+        profile.overnight_protection_enabled = False
+        db.commit()
+
+        target_date = date.today() + timedelta(days=1)
+        seed_day(db, instructor.id, target_date, [("08:00", "12:00")])
+
+        tz = pytz.timezone(getattr(instructor, "timezone", "America/New_York"))
+        monkeypatch.setattr(
+            "app.services.availability_service.get_user_now_by_id",
+            lambda *_: tz.localize(datetime.combine(date.today(), time(22, 0))),
+        )
+        monkeypatch.setattr(
+            ConfigService,
+            "get_advance_notice_minutes",
+            lambda self, location_type=None: 0,
+        )
+        _enable_default_overnight_rules(monkeypatch)
+
+        response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": "online",
+            },
+        )
+        if response.status_code == 404:
+            pytest.skip("Public routes not registered in main.py")
+
+        assert response.status_code == status.HTTP_200_OK
+        slots = response.json()["availability_by_date"][target_date.isoformat()]["available_slots"]
+        assert slots == [{"start_time": "08:00", "end_time": "12:00"}]
 
     def test_next_available_respects_buffer_and_notice(
         self,
@@ -349,8 +875,7 @@ class TestPublicAvailability:
             db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
         )
         assert profile is not None
-        profile.buffer_time_minutes = 30
-        profile.min_advance_booking_hours = 0
+        profile.non_travel_buffer_minutes = 30
         db.commit()
 
         target_date = date.today() + timedelta(days=1)
@@ -399,7 +924,7 @@ class TestPublicAvailability:
         payload = response.json()
         assert payload["found"]
         assert payload["date"] == target_date.isoformat()
-        assert payload["start_time"] == "10:30:00"
+        assert payload["start_time"] == "11:00:00"
 
     def test_get_public_availability_default_end_date(self, public_client, test_instructor, full_detail_settings):
         """Test that end_date defaults to configured days if not provided."""
@@ -425,16 +950,14 @@ class TestPublicAvailability:
 
         # Get instructor's profile and service
         profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor.id).first()
-        profile.buffer_time_minutes = 0
-        profile.min_advance_booking_hours = 0
+        profile.non_travel_buffer_minutes = 0
         db.commit()
         refreshed = (
             db.query(InstructorProfile)
             .filter(InstructorProfile.user_id == test_instructor.id)
             .first()
         )
-        assert refreshed.buffer_time_minutes == 0
-        assert refreshed.min_advance_booking_hours == 0
+        assert refreshed.non_travel_buffer_minutes == 0
 
         service = (
             db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
@@ -466,7 +989,11 @@ class TestPublicAvailability:
 
         response = public_client.get(
             f"/api/v1/public/instructors/{test_instructor.id}/availability",
-            params={"start_date": today.isoformat(), "end_date": today.isoformat()},
+            params={
+                "start_date": today.isoformat(),
+                "end_date": today.isoformat(),
+                "location_type": "online",
+            },
         )
 
         if response.status_code == 404:
@@ -612,7 +1139,11 @@ class TestPublicAvailability:
 
         response = public_client.get(
             f"/api/v1/public/instructors/{test_instructor.id}/availability",
-            params={"start_date": today.isoformat(), "end_date": today.isoformat()},
+            params={
+                "start_date": today.isoformat(),
+                "end_date": today.isoformat(),
+                "location_type": "online",
+            },
         )
 
         if response.status_code == 404:
@@ -684,3 +1215,96 @@ class TestPublicAvailability:
         assert today_summary["afternoon_available"] is True
         assert today_summary["evening_available"] is False
         assert today_summary["total_hours"] == 4.0  # 2 + 2 hours
+
+    def test_detail_levels_share_same_buffer_aware_windows(
+        self,
+        public_client,
+        db,
+        test_instructor,
+        test_student,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        instructor = test_instructor
+        profile = (
+            db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
+        )
+        assert profile is not None
+        profile.non_travel_buffer_minutes = 15
+        profile.travel_buffer_minutes = 60
+        db.commit()
+
+        target_date = date.today()
+        seed_day(db, instructor.id, target_date, [("09:00", "12:00")])
+
+        service = (
+            db.query(Service)
+            .filter(Service.instructor_profile_id == profile.id, Service.is_active == True)
+            .first()
+        )
+        assert service is not None
+
+        booking = Booking(
+            instructor_id=instructor.id,
+            student_id=test_student.id,
+            booking_date=target_date,
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            location_type="online",
+            **booking_timezone_fields(target_date, time(9, 0), time(10, 0)),
+            status=BookingStatus.CONFIRMED,
+            instructor_service_id=service.id,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Test Service",
+            hourly_rate=service.hourly_rate,
+            total_price=service.hourly_rate,
+            duration_minutes=60,
+        )
+        db.add(booking)
+        db.commit()
+
+        monkeypatch.setattr(settings, "public_availability_cache_ttl", 0)
+
+        monkeypatch.setattr(settings, "public_availability_detail_level", "full")
+        full_response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": "online",
+            },
+        )
+        if full_response.status_code == 404:
+            pytest.skip("Public routes not registered in main.py")
+        full_payload = full_response.json()
+        assert full_payload["availability_by_date"][target_date.isoformat()]["available_slots"] == [
+            {"start_time": "10:15", "end_time": "12:00"}
+        ]
+
+        monkeypatch.setattr(settings, "public_availability_detail_level", "minimal")
+        minimal_response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": "online",
+            },
+        )
+        assert minimal_response.status_code == status.HTTP_200_OK
+        minimal_payload = minimal_response.json()
+        assert minimal_payload["has_availability"] is True
+        assert minimal_payload["earliest_available_date"] == target_date.isoformat()
+
+        monkeypatch.setattr(settings, "public_availability_detail_level", "summary")
+        summary_response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": "online",
+            },
+        )
+        assert summary_response.status_code == status.HTTP_200_OK
+        summary_payload = summary_response.json()
+        day_summary = summary_payload["availability_summary"][target_date.isoformat()]
+        assert day_summary["morning_available"] is True
+        assert day_summary["afternoon_available"] is False
+        assert day_summary["total_hours"] == 1.75

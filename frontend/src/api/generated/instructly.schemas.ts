@@ -1295,6 +1295,19 @@ export interface AvailabilityCacheMetricsResponse {
 }
 
 /**
+ * Requested booking format
+ */
+export type AvailabilityCheckRequestLocationType =
+  (typeof AvailabilityCheckRequestLocationType)[keyof typeof AvailabilityCheckRequestLocationType];
+
+export const AvailabilityCheckRequestLocationType = {
+  student_location: 'student_location',
+  instructor_location: 'instructor_location',
+  online: 'online',
+  neutral_location: 'neutral_location',
+} as const;
+
+/**
  * Check if a specific time is available for booking.
 
 Clean Architecture: Uses instructor, date, and time directly.
@@ -1309,6 +1322,14 @@ export interface AvailabilityCheckRequest {
   instructor_id: string;
   /** Service to book */
   instructor_service_id: string;
+  /** Optional latitude for service-area validation */
+  location_lat?: number | null;
+  /** Optional longitude for service-area validation */
+  location_lng?: number | null;
+  /** Requested booking format */
+  location_type: AvailabilityCheckRequestLocationType;
+  /** Optional duration in minutes for parity with booking validation */
+  selected_duration?: number | null;
   /** Start time to check */
   start_time: string;
 }
@@ -1346,7 +1367,7 @@ export interface AvailabilityCheckResponse {
   available: boolean;
   /** List of conflicting bookings if any */
   conflicts_with?: ConflictingBookingInfo[] | null;
-  min_advance_hours?: number | null;
+  min_advance_minutes?: number | null;
   reason?: string | null;
   /** Time slot information for the availability check */
   time_info?: TimeSlotInfo | null;
@@ -2540,6 +2561,22 @@ export interface CacheMetricsResponse {
   redis_info?: CacheMetricsResponseRedisInfo;
 }
 
+/**
+ * Acknowledgement timestamp returned after the first-save popup is dismissed.
+ */
+export interface CalendarSettingsAcknowledgeResponse {
+  calendar_settings_acknowledged_at?: string | null;
+}
+
+/**
+ * Focused calendar settings payload for availability-page updates.
+ */
+export interface CalendarSettingsResponse {
+  non_travel_buffer_minutes?: number;
+  overnight_protection_enabled?: boolean;
+  travel_buffer_minutes?: number;
+}
+
 export interface CandidateCategoryTrend {
   category: string;
   count: number;
@@ -3359,6 +3396,24 @@ export interface DatabaseStatsResponse {
   status: string;
 }
 
+/**
+ * Single day's bitmap payload for instructor week editing.
+ */
+export interface DayBitmapInput {
+  /** Base64-encoded 36-byte day bitmap */
+  bits: string;
+  /** ISO date string (YYYY-MM-DD) */
+  date: string;
+  /** Base64-encoded 72-byte tag bitmap; omitted means all-zero tags */
+  format_tags?: string | null;
+}
+
+export interface DayBitmapResponse {
+  bits: string;
+  date: string;
+  format_tags: string;
+}
+
 export interface DeleteBlackoutResponse {
   blackout_id: string;
   message?: string;
@@ -3700,12 +3755,7 @@ export interface InstructorProfileResponse {
    * @maxLength 1000
    */
   bio: string;
-  /**
-   * Buffer time between bookings
-   * @minimum 0
-   * @maximum 60
-   */
-  buffer_time_minutes?: number;
+  calendar_settings_acknowledged_at?: string | null;
   created_at: string;
   /** Number of students who favorited this instructor */
   favorited_count?: number;
@@ -3718,13 +3768,9 @@ export interface InstructorProfileResponse {
   /** Whether the instructor is a founding instructor */
   is_founding_instructor?: boolean;
   is_live?: boolean;
-  /**
-   * Minimum hours in advance for bookings
-   * @minimum 0
-   * @maximum 168
-   */
-  min_advance_booking_hours?: number;
+  non_travel_buffer_minutes?: number;
   onboarding_completed_at?: string | null;
+  overnight_protection_enabled?: boolean;
   preferred_public_spaces?: PreferredPublicSpaceOut[];
   preferred_teaching_locations?: PreferredTeachingLocationOut[];
   service_area_boroughs?: string[];
@@ -3733,6 +3779,7 @@ export interface InstructorProfileResponse {
   services: ServiceResponse[];
   /** Whether skills/pricing were configured at least once */
   skills_configured?: boolean;
+  travel_buffer_minutes?: number;
   updated_at?: string | null;
   user: UserBasicPrivacy;
   user_id: string;
@@ -4109,18 +4156,6 @@ export interface InstructorProfileCreate {
    */
   bio: string;
   /**
-   * Buffer time between bookings
-   * @minimum 0
-   * @maximum 60
-   */
-  buffer_time_minutes?: number;
-  /**
-   * Minimum hours in advance for bookings
-   * @minimum 0
-   * @maximum 168
-   */
-  min_advance_booking_hours?: number;
-  /**
    * Services offered by the instructor
    * @minItems 1
    * @maxItems 20
@@ -4165,10 +4200,6 @@ All fields are optional for partial updates.
  */
 export interface InstructorProfileUpdate {
   bio?: string | null;
-  /** Buffer time between bookings */
-  buffer_time_minutes?: number | null;
-  /** Minimum hours in advance for bookings */
-  min_advance_booking_hours?: number | null;
   preferred_public_spaces?: PreferredPublicSpaceIn[] | null;
   preferred_teaching_locations?: PreferredTeachingLocationIn[] | null;
   services?: ServiceCreate[] | null;
@@ -7581,18 +7612,6 @@ export interface SavePaymentMethodRequest {
 }
 
 /**
- * Individual schedule item for availability creation.
- */
-export interface ScheduleItem {
-  /** ISO date string (YYYY-MM-DD) */
-  date: string;
-  /** End time (HH:MM or HH:MM:SS) */
-  end_time: string;
-  /** Start time (HH:MM or HH:MM:SS) */
-  start_time: string;
-}
-
-/**
  * Metrics for a search type.
  */
 export interface SearchTypeMetrics {
@@ -8324,14 +8343,6 @@ export interface TFAVerifyLoginResponse {
 }
 
 /**
- * Simple time range for schedule entries.
- */
-export interface TimeRange {
-  end_time: string;
-  start_time: string;
-}
-
-/**
  * Time slot for availability.
  */
 export interface TimeSlot {
@@ -8432,6 +8443,15 @@ export interface TypingRequest {
 export interface UnreadCountResponse {
   unread_count: number;
   user_id: string;
+}
+
+/**
+ * Editable instructor calendar settings surfaced on the availability page.
+ */
+export interface UpdateCalendarSettings {
+  non_travel_buffer_minutes?: number | null;
+  overnight_protection_enabled?: boolean | null;
+  travel_buffer_minutes?: number | null;
 }
 
 export type UpdateConversationStateRequestState =
@@ -8711,13 +8731,6 @@ export interface WebhookResponse {
   status: string;
 }
 
-/**
- * Week availability mapping keyed by ISO date string.
- */
-export interface WeekAvailabilityResponse {
-  [key: string]: TimeRange[];
-}
-
 export interface WeekAvailabilityUpdateResponse {
   days_written?: number;
   edited_dates?: string[];
@@ -8734,22 +8747,27 @@ export interface WeekAvailabilityUpdateResponse {
   windows_updated: number;
 }
 
+export interface WeekBitmapResponse {
+  days?: DayBitmapResponse[];
+  version: string;
+}
+
 /**
- * Schema for creating schedule for specific dates.
+ * Bitmap-native save payload for instructor week editing.
  */
-export interface WeekSpecificScheduleCreate {
+export interface WeekBitmapSaveRequest {
   /** Client's baseline week version when saving (If-Match fallback) */
   base_version?: string | null;
-  /** Whether to clear existing entries for the week before saving */
+  /** Whether to clear existing day rows for the week before saving */
   clear_existing?: boolean;
+  /** Bitmap payload for edited days in the week */
+  days: DayBitmapInput[];
   /** If true, bypass server-side version checks when saving */
   override?: boolean;
-  /** List of schedule items with date, start_time, and end_time */
-  schedule: ScheduleItem[];
   /** Deprecated alias for base_version (optimistic concurrency token) */
   version?: string | null;
-  /** Optional Monday date. If not provided, inferred from schedule dates */
-  week_start?: string | null;
+  /** Monday of the target week */
+  week_start: string;
 }
 
 /**
@@ -9855,6 +9873,15 @@ export type GetInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAva
      * End date (defaults to configured days from start)
      */
     end_date?: string | null;
+    /**
+     * Optional booking format used for advance-notice and overnight trimming
+     */
+    location_type?:
+      | 'student_location'
+      | 'instructor_location'
+      | 'online'
+      | 'neutral_location'
+      | null;
   };
 
 export type GetNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGetParams = {

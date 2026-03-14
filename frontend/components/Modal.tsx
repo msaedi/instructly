@@ -106,7 +106,7 @@ const Modal: React.FC<ModalProps> = ({
       }}
    >
       <Dialog.Portal>
-        <Dialog.Overlay className="insta-dialog-backdrop fixed inset-0 bg-black/30 backdrop-blur-sm z-40 transition-all duration-200" />
+        <Dialog.Overlay className="insta-dialog-backdrop fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-all duration-200" />
         <Dialog.Content
           className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
           aria-modal="true"

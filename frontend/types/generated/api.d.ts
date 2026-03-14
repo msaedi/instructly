@@ -4415,6 +4415,46 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/instructors/me/calendar-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Calendar Settings
+         * @description Update instructor calendar settings used by the availability page.
+         */
+        patch: operations["update_calendar_settings_api_v1_instructors_me_calendar_settings_patch"];
+        trace?: never;
+    };
+    "/api/v1/instructors/me/calendar-settings/acknowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Acknowledge Calendar Settings
+         * @description Record dismissal of the first-save calendar settings acknowledgement.
+         */
+        post: operations["acknowledge_calendar_settings_api_v1_instructors_me_calendar_settings_acknowledge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/instructors/me/generate-bio": {
         parameters: {
             query?: never;
@@ -9456,6 +9496,27 @@ export type components = {
              */
             instructor_service_id: string;
             /**
+             * Location Lat
+             * @description Optional latitude for service-area validation
+             */
+            location_lat?: number | null;
+            /**
+             * Location Lng
+             * @description Optional longitude for service-area validation
+             */
+            location_lng?: number | null;
+            /**
+             * Location Type
+             * @description Requested booking format
+             * @enum {string}
+             */
+            location_type: "student_location" | "instructor_location" | "online" | "neutral_location";
+            /**
+             * Selected Duration
+             * @description Optional duration in minutes for parity with booking validation
+             */
+            selected_duration?: number | null;
+            /**
              * Start Time
              * Format: time
              * @description Start time to check
@@ -9474,8 +9535,8 @@ export type components = {
              * @description List of conflicting bookings if any
              */
             conflicts_with?: components["schemas"]["ConflictingBookingInfo"][] | null;
-            /** Min Advance Hours */
-            min_advance_hours?: number | null;
+            /** Min Advance Minutes */
+            min_advance_minutes?: number | null;
             /** Reason */
             reason?: string | null;
             /** @description Time slot information for the availability check */
@@ -11165,6 +11226,35 @@ export type components = {
                 [key: string]: unknown;
             } | null;
         };
+        /**
+         * CalendarSettingsAcknowledgeResponse
+         * @description Acknowledgement timestamp returned after the first-save popup is dismissed.
+         */
+        CalendarSettingsAcknowledgeResponse: {
+            /** Calendar Settings Acknowledged At */
+            calendar_settings_acknowledged_at?: string | null;
+        };
+        /**
+         * CalendarSettingsResponse
+         * @description Focused calendar settings payload for availability-page updates.
+         */
+        CalendarSettingsResponse: {
+            /**
+             * Non Travel Buffer Minutes
+             * @default 15
+             */
+            non_travel_buffer_minutes: number;
+            /**
+             * Overnight Protection Enabled
+             * @default true
+             */
+            overnight_protection_enabled: boolean;
+            /**
+             * Travel Buffer Minutes
+             * @default 60
+             */
+            travel_buffer_minutes: number;
+        };
         /** CandidateCategoryTrend */
         CandidateCategoryTrend: {
             /** Category */
@@ -12327,6 +12417,36 @@ export type components = {
              */
             start: string;
         };
+        /**
+         * DayBitmapInput
+         * @description Single day's bitmap payload for instructor week editing.
+         */
+        DayBitmapInput: {
+            /**
+             * Bits
+             * @description Base64-encoded 36-byte day bitmap
+             */
+            bits: string;
+            /**
+             * Date
+             * @description ISO date string (YYYY-MM-DD)
+             */
+            date: string;
+            /**
+             * Format Tags
+             * @description Base64-encoded 72-byte tag bitmap; omitted means all-zero tags
+             */
+            format_tags?: string | null;
+        };
+        /** DayBitmapResponse */
+        DayBitmapResponse: {
+            /** Bits */
+            bits: string;
+            /** Date */
+            date: string;
+            /** Format Tags */
+            format_tags: string;
+        };
         /** DeleteBlackoutResponse */
         DeleteBlackoutResponse: {
             /** Blackout Id */
@@ -13313,18 +13433,6 @@ export type components = {
              */
             bio: string;
             /**
-             * Buffer Time Minutes
-             * @description Buffer time between bookings
-             * @default 0
-             */
-            buffer_time_minutes: number;
-            /**
-             * Min Advance Booking Hours
-             * @description Minimum hours in advance for bookings
-             * @default 2
-             */
-            min_advance_booking_hours: number;
-            /**
              * Services
              * @description Services offered by the instructor
              */
@@ -13362,12 +13470,8 @@ export type components = {
              * @description Instructor biography/description
              */
             bio: string;
-            /**
-             * Buffer Time Minutes
-             * @description Buffer time between bookings
-             * @default 0
-             */
-            buffer_time_minutes: number;
+            /** Calendar Settings Acknowledged At */
+            calendar_settings_acknowledged_at?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -13407,13 +13511,17 @@ export type components = {
              */
             is_live: boolean;
             /**
-             * Min Advance Booking Hours
-             * @description Minimum hours in advance for bookings
-             * @default 2
+             * Non Travel Buffer Minutes
+             * @default 15
              */
-            min_advance_booking_hours: number;
+            non_travel_buffer_minutes: number;
             /** Onboarding Completed At */
             onboarding_completed_at?: string | null;
+            /**
+             * Overnight Protection Enabled
+             * @default true
+             */
+            overnight_protection_enabled: boolean;
             /** Preferred Public Spaces */
             preferred_public_spaces?: components["schemas"]["PreferredPublicSpaceOut"][];
             /** Preferred Teaching Locations */
@@ -13432,6 +13540,11 @@ export type components = {
              * @default false
              */
             skills_configured: boolean;
+            /**
+             * Travel Buffer Minutes
+             * @default 60
+             */
+            travel_buffer_minutes: number;
             /** Updated At */
             updated_at?: string | null;
             user: components["schemas"]["UserBasicPrivacy"];
@@ -13452,16 +13565,6 @@ export type components = {
         InstructorProfileUpdate: {
             /** Bio */
             bio?: string | null;
-            /**
-             * Buffer Time Minutes
-             * @description Buffer time between bookings
-             */
-            buffer_time_minutes?: number | null;
-            /**
-             * Min Advance Booking Hours
-             * @description Minimum hours in advance for bookings
-             */
-            min_advance_booking_hours?: number | null;
             /** Preferred Public Spaces */
             preferred_public_spaces?: components["schemas"]["PreferredPublicSpaceIn"][] | null;
             /** Preferred Teaching Locations */
@@ -18618,27 +18721,6 @@ export type components = {
             set_as_default: boolean;
         };
         /**
-         * ScheduleItem
-         * @description Individual schedule item for availability creation.
-         */
-        ScheduleItem: {
-            /**
-             * Date
-             * @description ISO date string (YYYY-MM-DD)
-             */
-            date: string;
-            /**
-             * End Time
-             * @description End time (HH:MM or HH:MM:SS)
-             */
-            end_time: string;
-            /**
-             * Start Time
-             * @description Start time (HH:MM or HH:MM:SS)
-             */
-            start_time: string;
-        };
-        /**
          * SearchAnalyticsSummaryResponse
          * @description Comprehensive search analytics summary.
          */
@@ -20238,22 +20320,6 @@ export type components = {
             pct: number;
         };
         /**
-         * TimeRange
-         * @description Simple time range for schedule entries.
-         */
-        TimeRange: {
-            /**
-             * End Time
-             * Format: time
-             */
-            end_time: string;
-            /**
-             * Start Time
-             * Format: time
-             */
-            start_time: string;
-        };
-        /**
          * TimeSlot
          * @description Time slot for availability.
          */
@@ -20570,6 +20636,18 @@ export type components = {
             student_last_name: string;
             /** Total Price */
             total_price: number;
+        };
+        /**
+         * UpdateCalendarSettings
+         * @description Editable instructor calendar settings surfaced on the availability page.
+         */
+        UpdateCalendarSettings: {
+            /** Non Travel Buffer Minutes */
+            non_travel_buffer_minutes?: number | null;
+            /** Overnight Protection Enabled */
+            overnight_protection_enabled?: boolean | null;
+            /** Travel Buffer Minutes */
+            travel_buffer_minutes?: number | null;
         };
         /**
          * UpdateConversationStateRequest
@@ -21076,13 +21154,6 @@ export type components = {
             /** Included */
             included: boolean;
         };
-        /**
-         * WeekAvailabilityResponse
-         * @description Week availability mapping keyed by ISO date string.
-         */
-        WeekAvailabilityResponse: {
-            [key: string]: components["schemas"]["TimeRange"][];
-        };
         /** WeekAvailabilityUpdateResponse */
         WeekAvailabilityUpdateResponse: {
             /**
@@ -21127,11 +21198,18 @@ export type components = {
             /** Windows Updated */
             windows_updated: number;
         };
+        /** WeekBitmapResponse */
+        WeekBitmapResponse: {
+            /** Days */
+            days?: components["schemas"]["DayBitmapResponse"][];
+            /** Version */
+            version: string;
+        };
         /**
-         * WeekSpecificScheduleCreate
-         * @description Schema for creating schedule for specific dates.
+         * WeekBitmapSaveRequest
+         * @description Bitmap-native save payload for instructor week editing.
          */
-        WeekSpecificScheduleCreate: {
+        WeekBitmapSaveRequest: {
             /**
              * Base Version
              * @description Client's baseline week version when saving (If-Match fallback)
@@ -21139,10 +21217,15 @@ export type components = {
             base_version?: string | null;
             /**
              * Clear Existing
-             * @description Whether to clear existing entries for the week before saving
+             * @description Whether to clear existing day rows for the week before saving
              * @default true
              */
             clear_existing: boolean;
+            /**
+             * Days
+             * @description Bitmap payload for edited days in the week
+             */
+            days: components["schemas"]["DayBitmapInput"][];
             /**
              * Override
              * @description If true, bypass server-side version checks when saving
@@ -21150,20 +21233,16 @@ export type components = {
              */
             override: boolean;
             /**
-             * Schedule
-             * @description List of schedule items with date, start_time, and end_time
-             */
-            schedule: components["schemas"]["ScheduleItem"][];
-            /**
              * Version
              * @description Deprecated alias for base_version (optimistic concurrency token)
              */
             version?: string | null;
             /**
              * Week Start
-             * @description Optional Monday date. If not provided, inferred from schedule dates
+             * Format: date
+             * @description Monday of the target week
              */
-            week_start?: string | null;
+            week_start: string;
         };
         /**
          * WeekValidationResponse
@@ -28164,7 +28243,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WeekAvailabilityResponse"];
+                    "application/json": components["schemas"]["WeekBitmapResponse"];
                 };
             };
             /** @description Not authenticated */
@@ -28204,7 +28283,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["WeekSpecificScheduleCreate"];
+                "application/json": components["schemas"]["WeekBitmapSaveRequest"];
             };
         };
         responses: {
@@ -28506,6 +28585,101 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description User is not an instructor or insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Profile not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_calendar_settings_api_v1_instructors_me_calendar_settings_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCalendarSettings"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarSettingsResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description User is not an instructor or insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Profile not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    acknowledge_calendar_settings_api_v1_instructors_me_calendar_settings_acknowledge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarSettingsAcknowledgeResponse"];
+                };
             };
             /** @description Not authenticated */
             401: {
@@ -31128,6 +31302,8 @@ export interface operations {
                 start_date: string;
                 /** @description End date (defaults to configured days from start) */
                 end_date?: string | null;
+                /** @description Optional booking format used for advance-notice and overnight trimming */
+                location_type?: ("student_location" | "instructor_location" | "online" | "neutral_location") | null;
             };
             header?: never;
             path: {

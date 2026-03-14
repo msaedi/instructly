@@ -1,5 +1,7 @@
 import { renderHook, act } from '@testing-library/react';
 import { useWeekSchedule } from '@/hooks/availability/useWeekSchedule';
+import { fromWindows, newEmptyTags } from '@/lib/calendar/bitset';
+import { encodeUint8ArrayToBase64 } from '@/lib/calendar/bitmapBase64';
 
 // Mock logger to reduce console noise
 jest.mock('@/lib/logger', () => ({
@@ -14,6 +16,20 @@ jest.mock('@/lib/logger', () => ({
 }));
 
 const mockFetchWithAuth = jest.fn();
+
+function makeWeekBitmapResponse(
+  entries: Record<string, Array<{ start_time: string; end_time: string }> | undefined | null>,
+  version = 'abc123',
+) {
+  const days = Object.entries(entries)
+    .filter(([, windows]) => Array.isArray(windows))
+    .map(([date, windows]) => ({
+      date,
+      bits: encodeUint8ArrayToBase64(fromWindows(windows ?? [])),
+      format_tags: encodeUint8ArrayToBase64(newEmptyTags()),
+    }));
+  return { days, version };
+}
 
 // Basic mock for fetchWithAuth via jest module factory if needed
 jest.mock('@/lib/api', () => {
@@ -70,7 +86,7 @@ describe('useWeekSchedule', () => {
       if (url.includes('/api/v1/instructors/availability/week')) {
         return {
           ok: true,
-          json: async () => ({}),
+          json: async () => ({ days: [], version: 'abc123' }),
           headers: {
             get: (name: string) => {
               if (name === 'ETag') return 'abc123';
@@ -396,6 +412,7 @@ describe('useWeekSchedule', () => {
       });
 
       expect(result.current.version).toBe('newVersion123');
+      expect((window as Window & { __week_version?: string }).__week_version).toBe('newVersion123');
     });
 
     it('clears version when undefined', async () => {
@@ -410,6 +427,40 @@ describe('useWeekSchedule', () => {
       });
 
       expect(result.current.version).toBeUndefined();
+      expect('__week_version' in (window as Window & { __week_version?: string })).toBe(false);
+    });
+  });
+
+  describe('tag state setters', () => {
+    it('supports functional setWeekTags and setSavedWeekTags updates', async () => {
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0));
+      });
+
+      const nextTags = newEmptyTags();
+      nextTags[0] = 1;
+
+      await act(async () => {
+        result.current.setWeekTags((prev) => ({
+          ...prev,
+          '2030-01-07': nextTags,
+        }));
+      });
+
+      expect(result.current.weekTags['2030-01-07']?.[0]).toBe(1);
+      expect(result.current.hasUnsavedChanges).toBe(true);
+
+      await act(async () => {
+        result.current.setSavedWeekTags((prev) => ({
+          ...prev,
+          '2030-01-07': nextTags,
+        }));
+      });
+
+      expect(result.current.savedWeekTags['2030-01-07']?.[0]).toBe(1);
+      expect(result.current.hasUnsavedChanges).toBe(false);
     });
   });
 
@@ -651,15 +702,16 @@ describe('useWeekSchedule', () => {
     it('loads schedule data with actual time slots', async () => {
       mockFetchWithAuth.mockImplementationOnce(async () => ({
         ok: true,
-        json: async () => ({
-          '2030-01-07': [
-            { start_time: '09:00:00', end_time: '12:00:00' },
-            { start_time: '14:00:00', end_time: '17:00:00' },
-          ],
-          '2030-01-08': [
-            { start_time: '10:00:00', end_time: '15:00:00' },
-          ],
-        }),
+        json: async () =>
+          makeWeekBitmapResponse({
+            '2030-01-07': [
+              { start_time: '09:00:00', end_time: '12:00:00' },
+              { start_time: '14:00:00', end_time: '17:00:00' },
+            ],
+            '2030-01-08': [
+              { start_time: '10:00:00', end_time: '15:00:00' },
+            ],
+          }),
         headers: {
           get: (name: string) => {
             if (name === 'ETag') return 'abc123';
@@ -677,14 +729,28 @@ describe('useWeekSchedule', () => {
 
       expect(result.current.weekSchedule).toBeDefined();
       expect(Object.keys(result.current.weekSchedule).length).toBeGreaterThan(0);
+      expect(result.current.weekTags['2030-01-07']).toBeDefined();
     });
 
-    it('skips dates with empty slot arrays', async () => {
+    it('loads empty bitmap days into weekBits while keeping weekSchedule filtered', async () => {
       mockFetchWithAuth.mockImplementationOnce(async () => ({
         ok: true,
         json: async () => ({
-          '2030-01-07': [],
-          '2030-01-08': [{ start_time: '10:00:00', end_time: '11:00:00' }],
+          days: [
+            {
+              date: '2030-01-07',
+              bits: encodeUint8ArrayToBase64(fromWindows([])),
+              format_tags: encodeUint8ArrayToBase64(newEmptyTags()),
+            },
+            {
+              date: '2030-01-08',
+              bits: encodeUint8ArrayToBase64(
+                fromWindows([{ start_time: '10:00:00', end_time: '11:00:00' }]),
+              ),
+              format_tags: encodeUint8ArrayToBase64(newEmptyTags()),
+            },
+          ],
+          version: 'abc123',
         }),
         headers: {
           get: (name: string) => {
@@ -700,18 +766,18 @@ describe('useWeekSchedule', () => {
         await new Promise((r) => setTimeout(r, 50));
       });
 
-      // Empty arrays should be filtered out
+      expect(result.current.weekBits['2030-01-07']).toBeDefined();
       expect(result.current.weekSchedule['2030-01-07']).toBeUndefined();
+      expect(result.current.weekSchedule['2030-01-08']).toBeDefined();
     });
 
-    it('handles dates with undefined slots', async () => {
+    it('ignores malformed day entries that are absent from the bitmap response list', async () => {
       mockFetchWithAuth.mockImplementationOnce(async () => ({
         ok: true,
-        json: async () => ({
-          '2030-01-07': undefined,
-          '2030-01-08': null,
-          '2030-01-09': [{ start_time: '09:00:00', end_time: '10:00:00' }],
-        }),
+        json: async () =>
+          makeWeekBitmapResponse({
+            '2030-01-09': [{ start_time: '09:00:00', end_time: '10:00:00' }],
+          }),
         headers: {
           get: () => null,
         },
@@ -723,9 +789,9 @@ describe('useWeekSchedule', () => {
         await new Promise((r) => setTimeout(r, 50));
       });
 
-      // Undefined/null slots should be filtered out
       expect(result.current.weekSchedule['2030-01-07']).toBeUndefined();
       expect(result.current.weekSchedule['2030-01-08']).toBeUndefined();
+      expect(result.current.weekSchedule['2030-01-09']).toBeDefined();
     });
   });
 

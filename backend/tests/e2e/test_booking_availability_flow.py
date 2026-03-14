@@ -68,6 +68,7 @@ async def test_booking_availability_flow(monkeypatch, db: Session, test_instruct
     availability_service = AvailabilityService(db, cache_service=cache_service)
     notification_stub = _StubNotificationService()
     booking_service = BookingService(db, notification_service=notification_stub, cache_service=cache_service)
+    booking_service.availability_repository = AvailabilityDayRepository(db)
 
     # Patch StripeService used within cancel_booking to avoid external calls.
     monkeypatch.setattr("app.services.stripe_service.StripeService", _StubStripeService)

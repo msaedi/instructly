@@ -33,6 +33,7 @@ from sqlalchemy.orm import relationship, synonym
 from sqlalchemy.sql import func
 import ulid
 
+from ..constants.booking_rules_defaults import BOOKING_RULES_DEFAULTS
 from ..database import Base
 
 if TYPE_CHECKING:
@@ -54,8 +55,9 @@ class InstructorProfile(Base):
         user_id: Foreign key to users table (one-to-one relationship)
         bio: Professional biography/description
         years_experience: Years of teaching experience
-        min_advance_booking_hours: Minimum hours advance notice for bookings
-        buffer_time_minutes: Buffer time between bookings
+        non_travel_buffer_minutes: Buffer for online/studio bookings
+        travel_buffer_minutes: Buffer for travel bookings
+        overnight_protection_enabled: Instructor toggle for overnight protection
         created_at: Timestamp when profile was created
         updated_at: Timestamp when profile was last updated
 
@@ -88,8 +90,15 @@ class InstructorProfile(Base):
     slug = Column(String(200), nullable=True)
 
     # Booking preferences
-    min_advance_booking_hours = Column(Integer, nullable=False, default=2)
-    buffer_time_minutes = Column(Integer, nullable=False, default=0)
+    non_travel_buffer_minutes = Column(Integer, nullable=False, default=15, server_default="15")
+    travel_buffer_minutes = Column(Integer, nullable=False, default=60, server_default="60")
+    overnight_protection_enabled = Column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
+    calendar_settings_acknowledged_at = Column(DateTime(timezone=True), nullable=True)
     current_tier_pct = Column(Numeric(5, 2), nullable=False, default=15.00, server_default="15.00")
     commission_override_pct = Column(Numeric(5, 2), nullable=True)
     commission_override_until = Column(DateTime(timezone=True), nullable=True)
@@ -352,7 +361,7 @@ class InstructorProfile(Base):
         Returns:
             bool: True if booking meets advance notice requirement
         """
-        required_hours = cast(int, self.min_advance_booking_hours)
+        required_hours = int(BOOKING_RULES_DEFAULTS["advance_notice_online_minutes"]) // 60
         return hours_until_booking >= required_hours
 
     def to_dict(self, include_services: bool = True) -> dict[str, Any]:
@@ -370,8 +379,14 @@ class InstructorProfile(Base):
             "user_id": self.user_id,
             "bio": self.bio,
             "years_experience": self.years_experience,
-            "min_advance_booking_hours": self.min_advance_booking_hours,
-            "buffer_time_minutes": self.buffer_time_minutes,
+            "non_travel_buffer_minutes": self.non_travel_buffer_minutes,
+            "travel_buffer_minutes": self.travel_buffer_minutes,
+            "overnight_protection_enabled": self.overnight_protection_enabled,
+            "calendar_settings_acknowledged_at": (
+                self.calendar_settings_acknowledged_at.isoformat()
+                if self.calendar_settings_acknowledged_at
+                else None
+            ),
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

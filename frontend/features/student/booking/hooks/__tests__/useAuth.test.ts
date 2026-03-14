@@ -237,6 +237,7 @@ describe('storeBookingIntent', () => {
       date: '2024-12-25',
       time: '14:00',
       duration: 60,
+      locationType: 'instructor_location' as const,
       skipModal: true,
     };
 
@@ -244,6 +245,7 @@ describe('storeBookingIntent', () => {
 
     const stored = JSON.parse(sessionStorage.getItem('bookingIntent') ?? '{}');
     expect(stored.skipModal).toBe(true);
+    expect(stored.locationType).toBe('instructor_location');
   });
 
   it('handles storage error gracefully', () => {

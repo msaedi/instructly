@@ -6,8 +6,9 @@ import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { formatDateForAPI } from '@/lib/availability/dateHelpers';
 import { logger } from '@/lib/logger';
 import { isRecord, isUnknownArray } from '@/lib/typesafe';
-import { WeekSchedule, TimeSlot, WeekBits } from '@/types/availability';
-import { fromWindows, toWindows } from '@/lib/calendar/bitset';
+import { WeekSchedule, WeekBits, WeekTags } from '@/types/availability';
+import { fromWindows, newEmptyTags } from '@/lib/calendar/bitset';
+import { encodeUint8ArrayToBase64 } from '@/lib/calendar/bitmapBase64';
 import { computeBitsDelta } from '@/hooks/availability/bitsDelta';
 import type {
   ApiErrorResponse,
@@ -38,6 +39,8 @@ export interface UseAvailabilityReturn {
   currentWeekStart: Date;
   weekBits: WeekBits;
   savedWeekBits: WeekBits;
+  weekTags: WeekTags;
+  savedWeekTags: WeekTags;
   weekSchedule: WeekSchedule;
   savedWeekSchedule: WeekSchedule;
   hasUnsavedChanges: boolean;
@@ -48,6 +51,7 @@ export interface UseAvailabilityReturn {
   // actions
   navigateWeek: (dir: 'prev' | 'next') => void;
   setWeekBits: (next: WeekBits | ((prev: WeekBits) => WeekBits)) => void;
+  setWeekTags: (next: WeekTags | ((prev: WeekTags) => WeekTags)) => void;
   setMessage: (m: { type: 'success' | 'error' | 'info'; text: string } | null) => void;
   refreshSchedule: () => Promise<void>;
   currentWeekDisplay: string;
@@ -89,17 +93,6 @@ function extractErrorMessage(err: unknown, fallback: string): string {
   }
 }
 
-function bitsRecordToSchedule(bits: WeekBits): WeekSchedule {
-  const schedule: WeekSchedule = {};
-  Object.entries(bits).forEach(([date, dayBits]) => {
-    const windows = toWindows(dayBits);
-    if (windows.length > 0) {
-      schedule[date] = windows;
-    }
-  });
-  return schedule;
-}
-
 function scheduleToBits(schedule: WeekSchedule): WeekBits {
   const record: WeekBits = {};
   Object.entries(schedule).forEach(([date, windows]) => {
@@ -110,12 +103,22 @@ function scheduleToBits(schedule: WeekSchedule): WeekBits {
   return record;
 }
 
+function normalizeWeekTagsForBits(bits: WeekBits, tags: WeekTags): WeekTags {
+  const next: WeekTags = {};
+  Object.keys(bits).forEach((date) => {
+    next[date] = tags[date]?.slice() ?? newEmptyTags();
+  });
+  return next;
+}
+
 
 export function useAvailability(): UseAvailabilityReturn {
   const {
     currentWeekStart,
     weekBits,
     savedWeekBits,
+    weekTags,
+    savedWeekTags,
     weekSchedule,
     savedWeekSchedule,
     hasUnsavedChanges,
@@ -125,6 +128,8 @@ export function useAvailability(): UseAvailabilityReturn {
     navigateWeek,
     setWeekBits,
     setSavedWeekBits,
+    setWeekTags,
+    setSavedWeekTags,
     setMessage,
     refreshSchedule,
     goToCurrentWeek,
@@ -141,31 +146,24 @@ export function useAvailability(): UseAvailabilityReturn {
     async (opts: SaveWeekOptions = {}) => {
       const week_start = formatDateForAPI(currentWeekStart);
       const bitsSource: WeekBits = opts.scheduleOverride ? scheduleToBits(opts.scheduleOverride) : weekBits;
-      const scheduleSource: WeekSchedule =
-        opts.scheduleOverride ?? bitsRecordToSchedule(bitsSource);
+      const tagsSource: WeekTags =
+        opts.scheduleOverride ? normalizeWeekTagsForBits(bitsSource, weekTags) : weekTags;
       const clearExisting = opts.clearExisting ?? true;
       const override = Boolean(opts.override);
+      const days = Object.entries(bitsSource)
+        .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
+        .map(([date, dayBits]) => ({
+          date,
+          bits: encodeUint8ArrayToBase64(dayBits),
+          format_tags: encodeUint8ArrayToBase64(tagsSource[date] ?? newEmptyTags()),
+        }));
 
-      const schedule: Array<{ date: string; start_time: string; end_time: string }> = [];
-      Object.entries(scheduleSource).forEach(([date, slots]) => {
-        (slots || []).forEach((slot: TimeSlot) => {
-          schedule.push({ date, start_time: slot.start_time, end_time: slot.end_time });
-        });
-      });
-
-      schedule.sort((a, b) => {
-        if (a.date !== b.date) return a.date.localeCompare(b.date);
-        if (a.start_time !== b.start_time) return a.start_time.localeCompare(b.start_time);
-        return a.end_time.localeCompare(b.end_time);
-      });
-
-      const daysCount = Object.keys(scheduleSource).length;
+      const daysCount = days.length;
       const bitsDelta = computeBitsDelta(savedWeekBits, bitsSource);
 
       logger.info('Saving weekly availability snapshot', {
         week_start,
         days: daysCount,
-        total_slots: schedule.length,
       });
 
       try {
@@ -190,7 +188,7 @@ export function useAvailability(): UseAvailabilityReturn {
           body: JSON.stringify({
             week_start,
             clear_existing: clearExisting,
-            schedule,
+            days,
             base_version: effectiveVersion,
             override,
           }),
@@ -261,6 +259,8 @@ export function useAvailability(): UseAvailabilityReturn {
         }
         setWeekBits(bitsSource);
         setSavedWeekBits(bitsSource);
+        setWeekTags(tagsSource);
+        setSavedWeekTags(tagsSource);
 
         return {
           success: true,
@@ -276,10 +276,13 @@ export function useAvailability(): UseAvailabilityReturn {
       currentWeekStart,
       weekBits,
       savedWeekBits,
+      weekTags,
       etag,
       setVersion,
       setSavedWeekBits,
       setWeekBits,
+      setSavedWeekTags,
+      setWeekTags,
       setAllowPastEdits,
     ]
   );
@@ -387,6 +390,8 @@ export function useAvailability(): UseAvailabilityReturn {
     currentWeekStart,
     weekBits,
     savedWeekBits,
+    weekTags,
+    savedWeekTags,
     weekSchedule,
     savedWeekSchedule,
     hasUnsavedChanges,
@@ -395,6 +400,7 @@ export function useAvailability(): UseAvailabilityReturn {
     message,
     navigateWeek,
     setWeekBits,
+    setWeekTags,
     setMessage,
     refreshSchedule,
     goToCurrentWeek,

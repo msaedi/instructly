@@ -989,8 +989,7 @@ class TestPrivacyServiceCoverage:
         mock_instructor = Mock()
         mock_instructor.bio = "Test bio"
         mock_instructor.years_experience = 5
-        mock_instructor.min_advance_booking_hours = 2
-        mock_instructor.buffer_time_minutes = 15
+        mock_instructor.non_travel_buffer_minutes = 15
         mock_instructor.created_at = datetime.now(timezone.utc)
 
         # Create mock service areas with 2 boroughs
@@ -1062,8 +1061,7 @@ class TestPrivacyServiceCoverage:
         mock_instructor = Mock()
         mock_instructor.bio = "Test bio"
         mock_instructor.years_experience = 5
-        mock_instructor.min_advance_booking_hours = 2
-        mock_instructor.buffer_time_minutes = 15
+        mock_instructor.non_travel_buffer_minutes = 15
         mock_instructor.created_at = datetime.now(timezone.utc)
 
         # Create mock service area with None metadata (uses region attributes)
@@ -1245,8 +1243,7 @@ class TestPrivacyServiceCoverage:
         mock_instructor = Mock()
         mock_instructor.bio = "Test bio"
         mock_instructor.years_experience = 5
-        mock_instructor.min_advance_booking_hours = 2
-        mock_instructor.buffer_time_minutes = 15
+        mock_instructor.non_travel_buffer_minutes = 15
         mock_instructor.created_at = datetime.now(timezone.utc)
 
         # Create 3 boroughs
@@ -1544,8 +1541,7 @@ class TestPrivacyServiceCoverage:
         mock_instructor = Mock()
         mock_instructor.bio = "Test bio"
         mock_instructor.years_experience = 5
-        mock_instructor.min_advance_booking_hours = 2
-        mock_instructor.buffer_time_minutes = 15
+        mock_instructor.non_travel_buffer_minutes = 15
         mock_instructor.created_at = datetime.now(timezone.utc)
 
         # Service area with no borough info

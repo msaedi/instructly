@@ -12,6 +12,8 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.models.user import User
+from app.utils.bitmap_base64 import decode_bitmap_bytes, encode_bitmap_bytes
+from app.utils.bitset import bits_from_windows, new_empty_tags, windows_from_bits
 
 # Use shared bitmap_app and bitmap_client fixtures from conftest
 
@@ -48,13 +50,18 @@ def test_post_and_get_week_no_slot_queries(
     # POST /instructors/availability/week
     payload = {
         "week_start": monday_str,
-        "schedule": [
-            {"date": monday_str, "start_time": "09:00:00", "end_time": "12:00:00"},
-            {"date": monday_str, "start_time": "14:00:00", "end_time": "17:00:00"},
+        "days": [
+            {
+                "date": monday_str,
+                "bits": encode_bitmap_bytes(
+                    bits_from_windows([("09:00:00", "12:00:00"), ("14:00:00", "17:00:00")])
+                ),
+                "format_tags": encode_bitmap_bytes(new_empty_tags()),
+            },
             {
                 "date": (week_start + timedelta(days=2)).isoformat(),
-                "start_time": "10:00:00",
-                "end_time": "15:00:00",
+                "bits": encode_bitmap_bytes(bits_from_windows([("10:00:00", "15:00:00")])),
+                "format_tags": encode_bitmap_bytes(new_empty_tags()),
             },
         ],
         "clear_existing": True,
@@ -94,8 +101,9 @@ def test_post_and_get_week_no_slot_queries(
 
     # Verify GET response structure
     assert isinstance(get_data, dict)
-    assert monday_str in get_data
-    assert len(get_data[monday_str]) >= 2  # At least two windows on Monday
+    days = {entry["date"]: entry for entry in get_data["days"]}
+    assert monday_str in days
+    assert len(windows_from_bits(decode_bitmap_bytes(days[monday_str]["bits"], 36))) >= 2
 
     # Check perf header - should be "0" (no slot queries)
     slot_header_get = get_response.headers.get("x-db-table-availability_slots")

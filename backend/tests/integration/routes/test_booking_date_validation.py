@@ -100,6 +100,7 @@ def test_check_availability_rejects_datetime_strings(client: TestClient):
         'booking_date': '2025-08-01 09:00:00',
         'start_time': '09:00',
         'end_time': '10:00',
+        'location_type': 'online',
     }
     resp = client.post('/api/v1/bookings/check-availability', json=payload)
     assert resp.status_code == 422

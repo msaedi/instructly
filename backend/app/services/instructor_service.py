@@ -38,11 +38,14 @@ from ..repositories.instructor_preferred_place_repository import (
     InstructorPreferredPlaceRepository,
 )
 from ..schemas.instructor import (
+    CalendarSettingsAcknowledgeResponse,
+    CalendarSettingsResponse,
     InstructorProfileCreate,
     InstructorProfileUpdate,
     PreferredPublicSpaceIn,
     PreferredTeachingLocationIn,
     ServiceCreate,
+    UpdateCalendarSettings,
 )
 from ..utils.location_privacy import jitter_coordinates
 from .base import BaseService
@@ -631,6 +634,59 @@ class InstructorService(BaseService):
         # Return fresh data
         return self.get_instructor_profile(user_id)
 
+    @BaseService.measure_operation("update_calendar_settings")
+    def update_calendar_settings(
+        self, user_id: str, update_data: UpdateCalendarSettings
+    ) -> Dict[str, Any]:
+        """Update instructor calendar settings independently from the profile form."""
+
+        profile = self.profile_repository.find_one_by(user_id=user_id)
+        if not profile:
+            raise NotFoundException("Instructor profile not found")
+
+        updates = update_data.model_dump(exclude_unset=True)
+        with self.transaction():
+            updated_profile = self.profile_repository.update(profile.id, **updates)
+
+        if self.cache_service:
+            self._invalidate_instructor_caches(user_id)
+        invalidate_on_instructor_profile_change(user_id)
+
+        effective = updated_profile or profile
+        return CalendarSettingsResponse(
+            non_travel_buffer_minutes=getattr(effective, "non_travel_buffer_minutes", 15),
+            travel_buffer_minutes=getattr(effective, "travel_buffer_minutes", 60),
+            overnight_protection_enabled=getattr(effective, "overnight_protection_enabled", True),
+        ).model_dump(mode="python")
+
+    @BaseService.measure_operation("acknowledge_calendar_settings")
+    def acknowledge_calendar_settings(self, user_id: str) -> Dict[str, Any]:
+        """Persist the first-save acknowledgement timestamp for calendar settings."""
+
+        profile = self.profile_repository.find_one_by(user_id=user_id)
+        if not profile:
+            raise NotFoundException("Instructor profile not found")
+
+        acknowledged_at = getattr(profile, "calendar_settings_acknowledged_at", None)
+        if acknowledged_at is None:
+            acknowledged_at = datetime.now(timezone.utc)
+            with self.transaction():
+                updated_profile = self.profile_repository.update(
+                    profile.id,
+                    calendar_settings_acknowledged_at=acknowledged_at,
+                )
+                acknowledged_at = getattr(
+                    updated_profile, "calendar_settings_acknowledged_at", acknowledged_at
+                )
+
+            if self.cache_service:
+                self._invalidate_instructor_caches(user_id)
+            invalidate_on_instructor_profile_change(user_id)
+
+        return CalendarSettingsAcknowledgeResponse(
+            calendar_settings_acknowledged_at=acknowledged_at
+        ).model_dump(mode="python")
+
     @BaseService.measure_operation("delete_instructor_profile")
     def delete_instructor_profile(self, user_id: str) -> None:
         """
@@ -789,9 +845,11 @@ class InstructorService(BaseService):
                     bgc_submitted_first_name=None,
                     bgc_submitted_last_name=None,
                     bgc_submitted_dob=None,
-                    skills_configured=True
-                    if not getattr(profile, "skills_configured", False)
-                    else profile.skills_configured,
+                    skills_configured=(
+                        True
+                        if not getattr(profile, "skills_configured", False)
+                        else profile.skills_configured
+                    ),
                 )
             else:
                 updated_profile = self.profile_repository.update(
@@ -1362,8 +1420,12 @@ class InstructorService(BaseService):
             "user_id": profile.user_id,
             "bio": profile.bio,
             "years_experience": profile.years_experience,
-            "min_advance_booking_hours": profile.min_advance_booking_hours,
-            "buffer_time_minutes": profile.buffer_time_minutes,
+            "non_travel_buffer_minutes": getattr(profile, "non_travel_buffer_minutes", 15),
+            "travel_buffer_minutes": getattr(profile, "travel_buffer_minutes", 60),
+            "overnight_protection_enabled": getattr(profile, "overnight_protection_enabled", True),
+            "calendar_settings_acknowledged_at": getattr(
+                profile, "calendar_settings_acknowledged_at", None
+            ),
             "preferred_teaching_locations": teaching_locations,
             "preferred_public_spaces": public_spaces,
             "service_area_neighborhoods": service_area_neighborhoods,
@@ -1380,14 +1442,16 @@ class InstructorService(BaseService):
             "is_founding_instructor": getattr(profile, "is_founding_instructor", False),
             "created_at": profile.created_at,
             "updated_at": profile.updated_at,
-            "user": {
-                "id": profile.user.id,
-                "first_name": profile.user.first_name,
-                "last_initial": profile.user.last_name[0] if profile.user.last_name else "",
-                # No email or full last_name for privacy protection
-            }
-            if hasattr(profile, "user") and profile.user
-            else None,
+            "user": (
+                {
+                    "id": profile.user.id,
+                    "first_name": profile.user.first_name,
+                    "last_initial": profile.user.last_name[0] if profile.user.last_name else "",
+                    # No email or full last_name for privacy protection
+                }
+                if hasattr(profile, "user") and profile.user
+                else None
+            ),
             "services": [
                 {
                     "id": service.id,

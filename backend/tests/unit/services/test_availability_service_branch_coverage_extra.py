@@ -14,6 +14,8 @@ from app.core.exceptions import (
     RepositoryException,
 )
 from app.services.availability_service import AvailabilityService
+from app.services.config_service import ConfigService
+from app.utils.bitset import new_empty_tags
 
 
 class _Slot:
@@ -28,6 +30,7 @@ def _service() -> AvailabilityService:
     service.db = MagicMock()
     service.logger = MagicMock()
     service.cache_service = MagicMock()
+    service.config_service = ConfigService(service.db)
     return service
 
 
@@ -42,6 +45,11 @@ def test_interval_helpers_raise_for_invalid_ranges_and_unknown_overlap_values():
         service._raise_overlap(target_date, (None, None), (None, None))
 
     assert "unknown" in str(exc_info.value)
+
+
+@pytest.mark.parametrize("buffer_value", [True, False])
+def test_coerce_buffer_minutes_uses_default_for_boolean(buffer_value: bool):
+    assert AvailabilityService._coerce_buffer_minutes(buffer_value, 15) == 15
 
 
 def test_determine_week_start_uses_schedule_then_timezone_fallback():
@@ -390,10 +398,11 @@ def test_compute_public_availability_exercises_merge_trim_and_buffer_edge_paths(
     service = _service()
     service._bitmap_repo = MagicMock()
     service._bitmap_repo.return_value.get_day_bits.side_effect = [b"bits"]
+    service._bitmap_repo.return_value.get_day_bitmaps.return_value = (b"bits", new_empty_tags())
     service.instructor_repository = MagicMock()
     service.conflict_repository = MagicMock()
     service.instructor_repository.get_by_user_id.return_value = SimpleNamespace(
-        min_advance_booking_hours=2, buffer_time_minutes=30
+        non_travel_buffer_minutes=30
     )
     service.conflict_repository.get_bookings_for_date.return_value = [
         SimpleNamespace(start_time=time(23, 0), end_time=time(22, 0))
@@ -407,6 +416,16 @@ def test_compute_public_availability_exercises_merge_trim_and_buffer_edge_paths(
     monkeypatch.setattr(
         "app.services.availability_service.windows_from_bits",
         lambda _bits: [("09:00:00", "10:00:00"), ("09:30:00", "10:30:00")],
+    )
+    monkeypatch.setattr(
+        ConfigService,
+        "get_advance_notice_minutes",
+        lambda self, location_type=None: 60,
+    )
+    monkeypatch.setattr(
+        ConfigService,
+        "get_default_buffer_minutes",
+        lambda self, location_type=None: 15,
     )
 
     out = service.compute_public_availability(

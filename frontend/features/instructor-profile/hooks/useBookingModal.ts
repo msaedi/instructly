@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { LocationType } from '@/types/booking';
 
 interface BookingModalState {
   isOpen: boolean;
@@ -6,6 +7,7 @@ interface BookingModalState {
   selectedTime?: string;
   selectedService?: unknown;
   selectedDuration?: number;
+  selectedLocationType?: LocationType;
 }
 
 /**
@@ -21,6 +23,7 @@ export function useBookingModal() {
     time?: string;
     service?: unknown;
     duration?: number;
+    locationType?: LocationType;
   }) => {
     setModalState({
       isOpen: true,
@@ -28,6 +31,7 @@ export function useBookingModal() {
       ...(options?.time !== undefined && { selectedTime: options.time }),
       ...(options?.service !== undefined && { selectedService: options.service }),
       ...(options?.duration !== undefined && { selectedDuration: options.duration }),
+      ...(options?.locationType !== undefined && { selectedLocationType: options.locationType }),
     });
   };
 

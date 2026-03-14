@@ -6,6 +6,7 @@ Target: Raise coverage from 86.36% to 92%+
 Missed lines: 129-132, 186, 284, 363, 372->380, 376->380, 391, 399->408, 402->408, 446, 448, 484-498
 """
 
+from copy import deepcopy
 from datetime import date, datetime, time, timedelta
 from unittest.mock import Mock, patch
 
@@ -18,7 +19,17 @@ from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.repositories.conflict_checker_repository import ConflictCheckerRepository
 from app.repositories.user_repository import UserRepository
+from app.services.config_service import DEFAULT_BOOKING_RULES_CONFIG, ConfigService
 from app.services.conflict_checker import ConflictChecker
+
+
+def _attach_default_config_service(service: ConflictChecker) -> ConflictChecker:
+    config_service = ConfigService(service.db)
+    config_service.get_booking_rules_config = Mock(
+        return_value=(deepcopy(DEFAULT_BOOKING_RULES_CONFIG), None)
+    )
+    service.config_service = config_service
+    return service
 
 
 class TestConflictCheckerCheckTimeConflicts:
@@ -31,7 +42,7 @@ class TestConflictCheckerCheckTimeConflicts:
         mock_repository = Mock(spec=ConflictCheckerRepository)
         svc = ConflictChecker(mock_db)
         svc.repository = mock_repository
-        return svc
+        return _attach_default_config_service(svc)
 
     def test_check_time_conflicts_returns_true_when_conflicts_exist(self, service):
         """Line 132: Returns True when there are conflicts."""
@@ -98,7 +109,7 @@ class TestConflictCheckerGetBookedTimesForWeek:
         mock_repository = Mock(spec=ConflictCheckerRepository)
         svc = ConflictChecker(mock_db)
         svc.repository = mock_repository
-        return svc
+        return _attach_default_config_service(svc)
 
     def test_skips_cancelled_bookings(self, service):
         """Line 186: Cancelled bookings should be skipped in weekly view."""
@@ -189,13 +200,12 @@ class TestConflictCheckerMinimumAdvanceBooking:
         svc = ConflictChecker(mock_db)
         svc.repository = mock_repository
         svc.user_repository = Mock(spec=UserRepository)
-        return svc
+        return _attach_default_config_service(svc)
 
     def test_instructor_not_found_returns_invalid(self, service):
         """Line 284: Returns invalid when instructor not found."""
         # Profile exists but instructor doesn't
         mock_profile = Mock(spec=InstructorProfile)
-        mock_profile.min_advance_booking_hours = 24
         service.repository.get_instructor_profile.return_value = mock_profile
 
         # Instructor NOT found
@@ -222,7 +232,7 @@ class TestConflictCheckerValidateBookingConstraints:
         svc = ConflictChecker(mock_db)
         svc.repository = mock_repository
         svc.user_repository = Mock(spec=UserRepository)
-        return svc
+        return _attach_default_config_service(svc)
 
     def _setup_basic_mocks(self, service, instructor_id):
         """Helper to set up basic mocks for validation tests."""
@@ -232,7 +242,6 @@ class TestConflictCheckerValidateBookingConstraints:
         service.user_repository.get_by_id.return_value = mock_user
 
         mock_profile = Mock(spec=InstructorProfile)
-        mock_profile.min_advance_booking_hours = 2
         service.repository.get_instructor_profile.return_value = mock_profile
         service.repository.get_bookings_for_conflict_check.return_value = []
         service.repository.get_blackout_date.return_value = None
@@ -392,7 +401,7 @@ class TestConflictCheckerFindNextAvailableTime:
         mock_repository = Mock(spec=ConflictCheckerRepository)
         svc = ConflictChecker(mock_db)
         svc.repository = mock_repository
-        return svc
+        return _attach_default_config_service(svc)
 
     def _create_mock_booking(self, start: time, end: time) -> Mock:
         """Helper to create mock booking."""
@@ -529,7 +538,7 @@ class TestGetBookedTimesForDate:
         mock_repository = Mock(spec=ConflictCheckerRepository)
         svc = ConflictChecker(mock_db)
         svc.repository = mock_repository
-        return svc
+        return _attach_default_config_service(svc)
 
     def test_returns_confirmed_bookings(self, service):
         """Lines 150-152: Returns booked times for confirmed bookings."""
@@ -673,7 +682,7 @@ class TestValidateTimeRangeCoverage:
         """Create ConflictChecker with mock repository."""
         mock_db = Mock(spec=Session)
         svc = ConflictChecker(mock_db)
-        return svc
+        return _attach_default_config_service(svc)
 
     def test_duration_below_minimum(self, service):
         """Line 244: Duration below minimum returns invalid."""
@@ -713,7 +722,7 @@ class TestCheckMinimumAdvanceBookingCoverage:
         svc = ConflictChecker(mock_db)
         svc.repository = mock_repository
         svc.user_repository = Mock(spec=UserRepository)
-        return svc
+        return _attach_default_config_service(svc)
 
     def test_profile_not_found_returns_invalid(self, service):
         """Line 279: Profile not found returns invalid."""
@@ -740,7 +749,7 @@ class TestValidateBookingConstraintsCoverage:
         svc = ConflictChecker(mock_db)
         svc.repository = mock_repository
         svc.user_repository = Mock(spec=UserRepository)
-        return svc
+        return _attach_default_config_service(svc)
 
     def _setup_basic_mocks(self, service, instructor_id):
         """Helper to set up basic mocks for validation tests."""
@@ -750,7 +759,6 @@ class TestValidateBookingConstraintsCoverage:
         service.user_repository.get_by_id.return_value = mock_user
 
         mock_profile = Mock(spec=InstructorProfile)
-        mock_profile.min_advance_booking_hours = 2
         service.repository.get_instructor_profile.return_value = mock_profile
         service.repository.get_bookings_for_conflict_check.return_value = []
         service.repository.get_blackout_date.return_value = None

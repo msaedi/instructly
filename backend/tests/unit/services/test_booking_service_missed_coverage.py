@@ -26,6 +26,7 @@ from app.core.exceptions import (
     ValidationException,
 )
 from app.models.booking import BookingStatus, PaymentStatus
+from app.utils.bitset import new_empty_tags
 
 
 def _make_service(
@@ -41,7 +42,14 @@ def _make_service(
     svc.db = MagicMock()
     svc.repository = repository or MagicMock()
     svc.availability_repository = MagicMock()
+    svc.availability_repository.get_day_bitmaps.return_value = (b"\xff" * 36, new_empty_tags())
+    svc.availability_repository.get_day_bits.return_value = b"\xff" * 36
     svc.conflict_checker_repository = conflict_checker or MagicMock()
+    svc.conflict_checker = MagicMock()
+    svc.conflict_checker.check_time_conflicts.return_value = False
+    svc.conflict_checker.check_student_time_conflicts.return_value = False
+    svc.conflict_checker.check_booking_conflicts.return_value = []
+    svc.conflict_checker.check_student_booking_conflicts.return_value = []
     svc.cache_service = cache_service
     svc.notification_service = MagicMock()
     svc.event_publisher = MagicMock()
@@ -919,7 +927,6 @@ class TestCreateBookingWithPaymentSetupReschedule:
         mock_profile.user = MagicMock()
         mock_profile.user.timezone = "America/New_York"
         mock_profile.user_id = "01TESTINSTR00000000000001"
-        mock_profile.min_advance_booking_hours = 0
 
         svc._validate_booking_prerequisites = MagicMock(return_value=(mock_service, mock_profile))
         svc._calculate_and_validate_end_time = MagicMock(return_value=time(11, 0))
@@ -1153,7 +1160,6 @@ class TestRescheduledBookingInstructorMismatch:
         mock_profile.user = MagicMock()
         mock_profile.user.timezone = "America/New_York"
         mock_profile.user_id = "INSTR1"
-        mock_profile.min_advance_booking_hours = 0
 
         svc._validate_booking_prerequisites = MagicMock(return_value=(mock_service, mock_profile))
         svc._calculate_and_validate_end_time = MagicMock(return_value=time(11, 0))
@@ -1660,7 +1666,6 @@ class TestCheckConflictsStudentBranch:
         bd.location_type = "in-person"
 
         mock_profile = MagicMock()
-        mock_profile.min_advance_booking_hours = 0
 
         mock_service = MagicMock()
 
@@ -1671,7 +1676,7 @@ class TestCheckConflictsStudentBranch:
 
 @pytest.mark.unit
 class TestMinAdvanceBookingHoursDate:
-    """Covers branch 5182->exit: min_advance_hours >= 24 date-level check."""
+    """Covers date-level min advance enforcement for long booking lead times."""
 
     @patch("app.services.booking_service.TimezoneService")
     def test_min_advance_24h_fails_booking_too_soon(self, mock_tz):
@@ -1687,6 +1692,7 @@ class TestMinAdvanceBookingHoursDate:
 
         svc = _make_service()
         svc._resolve_lesson_timezone = MagicMock(return_value="America/New_York")
+        svc._get_advance_notice_minutes = MagicMock(return_value=48 * 60)
         svc._validate_location_capability = MagicMock()
         svc._validate_service_area = MagicMock()
         svc.repository.check_time_conflict.return_value = []
@@ -1699,7 +1705,6 @@ class TestMinAdvanceBookingHoursDate:
         bd.location_type = "in-person"
 
         mock_profile = MagicMock()
-        mock_profile.min_advance_booking_hours = 48  # 48 hours advance required
 
         mock_service = MagicMock()
         student = _fake_user()
@@ -2157,17 +2162,18 @@ class TestUpdateBookingEmptyUpdateDict:
 
 @pytest.mark.unit
 class TestCheckAvailabilityMinAdvanceHours:
-    """Covers branch 4905->4924: min advance hours >=24 fails."""
+    """Covers long lead-time min advance enforcement in check_availability."""
 
     @patch("app.services.booking_service.TimezoneService")
     def test_24h_advance_too_soon(self, mock_tz):
-        """When min_advance_booking_hours >= 24 and booking is too soon, returns unavailable."""
+        """When advance notice is >= 24 hours and booking is too soon, returns unavailable."""
         mock_tz.hours_until.return_value = 20.0
         mock_tz.DEFAULT_TIMEZONE = "America/New_York"
         mock_tz.get_lesson_timezone.return_value = "America/New_York"
 
         svc = _make_service()
         svc.log_operation = MagicMock()
+        svc._get_advance_notice_minutes = MagicMock(return_value=48 * 60)
         svc._resolve_instructor_timezone = MagicMock(return_value="America/New_York")
 
         # Must pass conflict check first (line 4855)
@@ -2185,7 +2191,6 @@ class TestCheckAvailabilityMinAdvanceHours:
 
         mock_profile = MagicMock()
         mock_profile.user = MagicMock(timezone="America/New_York")
-        mock_profile.min_advance_booking_hours = 48
         svc.conflict_checker_repository.get_instructor_profile.return_value = mock_profile
 
         result = svc.check_availability(

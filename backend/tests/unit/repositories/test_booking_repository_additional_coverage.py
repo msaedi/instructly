@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, time
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -33,6 +34,28 @@ def test_find_booking_opportunities_breaks_when_slot_too_short() -> None:
     )
 
     assert opportunities == []
+
+
+def test_acquire_transaction_advisory_lock_uses_postgres() -> None:
+    repo, mock_db = _make_repo()
+    mock_db.get_bind.return_value = SimpleNamespace(
+        dialect=SimpleNamespace(name="postgresql")
+    )
+
+    repo.acquire_transaction_advisory_lock(12345)
+
+    sql, params = mock_db.execute.call_args.args
+    assert str(sql) == "SELECT pg_advisory_xact_lock(:lock_key)"
+    assert params == {"lock_key": 12345}
+
+
+def test_acquire_transaction_advisory_lock_skips_non_postgres() -> None:
+    repo, mock_db = _make_repo()
+    mock_db.get_bind.return_value = SimpleNamespace(dialect=SimpleNamespace(name="sqlite"))
+
+    repo.acquire_transaction_advisory_lock(12345)
+
+    mock_db.execute.assert_not_called()
 
 
 def test_find_booking_opportunities_raises_repository_exception() -> None:

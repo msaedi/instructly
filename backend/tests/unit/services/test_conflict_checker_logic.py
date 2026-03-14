@@ -6,7 +6,9 @@ UPDATED FOR CLEAN ARCHITECTURE: Tests now match the current ConflictChecker
 implementation which works directly with bookings without slot references.
 """
 
+from copy import deepcopy
 from datetime import date, datetime, time, timedelta
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
@@ -19,7 +21,17 @@ from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.repositories.conflict_checker_repository import ConflictCheckerRepository
 from app.repositories.user_repository import UserRepository
+from app.services.config_service import DEFAULT_BOOKING_RULES_CONFIG, ConfigService
 from app.services.conflict_checker import ConflictChecker
+
+
+def _attach_default_config_service(service: ConflictChecker) -> ConflictChecker:
+    config_service = ConfigService(service.db)
+    config_service.get_booking_rules_config = Mock(
+        return_value=(deepcopy(DEFAULT_BOOKING_RULES_CONFIG), None)
+    )
+    service.config_service = config_service
+    return service
 
 
 class TestConflictCheckerDataTransformation:
@@ -32,7 +44,7 @@ class TestConflictCheckerDataTransformation:
         mock_repository = Mock(spec=ConflictCheckerRepository)
         service = ConflictChecker(mock_db)
         service.repository = mock_repository
-        return service
+        return _attach_default_config_service(service)
 
     def test_booking_conflict_response_formatting(self, service):
         """Test how booking conflicts are formatted for response."""
@@ -181,6 +193,50 @@ class TestConflictCheckerDataTransformation:
 
         assert week_data == {}
 
+    @pytest.mark.parametrize("status", [BookingStatus.CONFIRMED, BookingStatus.PENDING])
+    def test_active_booking_missing_location_type_logs_warning(self, service, caplog, status):
+        booking = Mock(spec=Booking)
+        booking.id = generate_ulid()
+        booking.start_time = time(10, 0)
+        booking.end_time = time(11, 0)
+        booking.service_name = "Lesson"
+        booking.status = status
+        booking.location_type = None
+        booking.student = Mock(first_name="John", last_name="Doe")
+
+        service.repository.get_bookings_for_conflict_check.return_value = [booking]
+        service.repository.get_instructor_profile.return_value = SimpleNamespace(
+            travel_buffer_minutes=0,
+            non_travel_buffer_minutes=0,
+        )
+
+        with caplog.at_level("WARNING"):
+            service.check_booking_conflicts(
+                instructor_id=generate_ulid(),
+                check_date=date.today(),
+                start_time=time(14, 0),
+                end_time=time(15, 0),
+            )
+
+        assert f"Active booking {booking.id} missing location_type" in caplog.text
+
+    def test_missing_location_type_warning_skips_inactive_or_present_values(self, service, caplog):
+        cancelled = Mock(spec=Booking)
+        cancelled.id = generate_ulid()
+        cancelled.status = BookingStatus.CANCELLED
+        cancelled.location_type = None
+
+        active_with_location = Mock(spec=Booking)
+        active_with_location.id = generate_ulid()
+        active_with_location.status = BookingStatus.CONFIRMED
+        active_with_location.location_type = "online"
+
+        with caplog.at_level("WARNING"):
+            assert service._get_booking_location_type(cancelled) is None
+            assert service._get_booking_location_type(active_with_location) == "online"
+
+        assert "missing location_type" not in caplog.text
+
 
 class TestConflictCheckerValidationRules:
     """Test validation rules and business constraints."""
@@ -193,7 +249,7 @@ class TestConflictCheckerValidationRules:
         service = ConflictChecker(mock_db)
         service.repository = mock_repository
         service.user_repository = Mock(spec=UserRepository)
-        return service
+        return _attach_default_config_service(service)
 
     def _setup_user_mock(self, service, user_id=generate_ulid(), timezone="America/New_York"):
         """Helper to set up user mock with timezone."""
@@ -212,7 +268,6 @@ class TestConflictCheckerValidationRules:
 
         # Mock profile with 2 hour advance requirement
         mock_profile = Mock(spec=InstructorProfile)
-        mock_profile.min_advance_booking_hours = 2
         service.repository.get_instructor_profile.return_value = mock_profile
 
         # Set up user mock with timezone and deterministic "today"
@@ -254,6 +309,53 @@ class TestConflictCheckerValidationRules:
         assert result["valid"] == False
         assert any("past time slots" in error for error in result["errors"])
 
+    def test_check_booking_conflicts_fetches_config_once(self, service):
+        profile = SimpleNamespace(travel_buffer_minutes=60, non_travel_buffer_minutes=15)
+        booking_one = Mock(spec=Booking)
+        booking_one.id = generate_ulid()
+        booking_one.start_time = time(10, 0)
+        booking_one.end_time = time(11, 0)
+        booking_one.location_type = "online"
+        booking_one.student = Mock(first_name="John", last_name="Doe")
+        booking_one.service_name = "Lesson A"
+        booking_one.status = BookingStatus.CONFIRMED
+
+        booking_two = Mock(spec=Booking)
+        booking_two.id = generate_ulid()
+        booking_two.start_time = time(12, 0)
+        booking_two.end_time = time(13, 0)
+        booking_two.location_type = "student_location"
+        booking_two.student = Mock(first_name="Jane", last_name="Doe")
+        booking_two.service_name = "Lesson B"
+        booking_two.status = BookingStatus.PENDING
+
+        service.repository.get_bookings_for_conflict_check.return_value = [booking_one, booking_two]
+        service.repository.get_instructor_profile.return_value = profile
+        service.config_service = Mock(spec=ConfigService)
+        service.config_service.get_booking_rules_config.return_value = (
+            {
+                "default_non_travel_buffer_minutes": 15,
+                "default_travel_buffer_minutes": 60,
+            },
+            None,
+        )
+        service.config_service._resolve_default_buffer_minutes_from_config.side_effect = [60, 15]
+
+        service.check_booking_conflicts(
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(10, 30),
+            end_time=time(11, 30),
+            new_location_type="student_location",
+        )
+
+        service.config_service.get_booking_rules_config.assert_called_once_with()
+        assert service.config_service._resolve_default_buffer_minutes_from_config.call_count == 2
+
+    @pytest.mark.parametrize("buffer_value", [True, False])
+    def test_coerce_buffer_minutes_uses_default_for_boolean(self, service, buffer_value: bool):
+        assert service._coerce_buffer_minutes(buffer_value, 15) == 15
+
     @patch("app.services.conflict_checker.get_user_today_by_id")
     def test_service_duration_validation_rules(self, mock_get_today, service):
         """Test service-specific duration validation."""
@@ -273,7 +375,6 @@ class TestConflictCheckerValidationRules:
         mock_get_today.return_value = today
 
         mock_profile = Mock(spec=InstructorProfile)
-        mock_profile.min_advance_booking_hours = 2
         service.repository.get_instructor_profile.return_value = mock_profile
 
         # Test service duration mismatch - use a duration not in the options
@@ -304,7 +405,6 @@ class TestConflictCheckerValidationRules:
         # Mock other validations to pass
         service.repository.get_bookings_for_conflict_check.return_value = []
         mock_profile = Mock(spec=InstructorProfile)
-        mock_profile.min_advance_booking_hours = 2
         service.repository.get_instructor_profile.return_value = mock_profile
 
         # Set up user mock with timezone
@@ -390,6 +490,10 @@ class TestConflictCheckerValidationRules:
             mock_bookings.append(mock_booking)
 
         service.repository.get_bookings_for_conflict_check.return_value = mock_bookings
+        service.repository.get_instructor_profile.return_value = SimpleNamespace(
+            travel_buffer_minutes=0,
+            non_travel_buffer_minutes=0,
+        )
 
         conflicts = service.check_booking_conflicts(
             instructor_id=generate_ulid(), check_date=date.today(), start_time=check_start, end_time=check_end
@@ -433,7 +537,6 @@ class TestConflictCheckerValidationRules:
         """Test advance booking time calculation logic."""
         # Mock instructor profile
         mock_profile = Mock(spec=InstructorProfile)
-        mock_profile.min_advance_booking_hours = 24
         service.repository.get_instructor_profile.return_value = mock_profile
 
         # Set up user mock with timezone
@@ -454,7 +557,11 @@ class TestConflictCheckerValidationRules:
             mock_get_user_now.return_value = nyc_now
 
             # Also need to mock datetime.combine for the test
-            with patch("app.services.conflict_checker.datetime") as mock_datetime:
+            with patch.object(
+                ConfigService,
+                "get_advance_notice_minutes",
+                return_value=60,
+            ), patch("app.services.conflict_checker.datetime") as mock_datetime:
                 mock_datetime.combine = datetime.combine
 
                 # Test booking exactly 24 hours and 1 minute in advance
@@ -466,17 +573,116 @@ class TestConflictCheckerValidationRules:
                 )
 
                 assert result["valid"] == True
-                assert result["min_advance_hours"] == 24
+                assert result["min_advance_minutes"] == 60
 
-                # Test booking too soon (23 hours - tomorrow at 9 AM)
+                # Test booking too soon (30 minutes ahead in instructor time)
                 result = service.check_minimum_advance_booking(
                     instructor_id=generate_ulid(),
-                    booking_date=datetime(2024, 1, 16, 9, 0, 0).date(),
-                    booking_time=datetime(2024, 1, 16, 9, 0, 0).time(),
+                    booking_date=datetime(2024, 1, 15, 10, 30, 0).date(),
+                    booking_time=datetime(2024, 1, 15, 10, 30, 0).time(),
                 )
 
                 assert result["valid"] == False, f"Expected False but got {result}"
-                assert "at least 24 hours in advance" in result["reason"]
+                assert "at least 60 minutes in advance" in result["reason"]
+
+    def test_instructor_conflicts_use_travel_buffer_when_either_booking_requires_travel(self, service):
+        service.repository.get_instructor_profile.return_value = SimpleNamespace(
+            travel_buffer_minutes=60,
+            non_travel_buffer_minutes=15,
+        )
+        existing = Mock(spec=Booking)
+        existing.id = generate_ulid()
+        existing.start_time = time(10, 0)
+        existing.end_time = time(11, 0)
+        existing.location_type = "online"
+        existing.student = Mock(first_name="John", last_name="Doe")
+        existing.service_name = "Piano"
+        existing.status = BookingStatus.CONFIRMED
+        service.repository.get_bookings_for_conflict_check.return_value = [existing]
+
+        conflicts = service.check_booking_conflicts(
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(11, 30),
+            end_time=time(12, 30),
+            new_location_type="student_location",
+        )
+        assert len(conflicts) == 1
+
+        no_conflict = service.check_booking_conflicts(
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(12, 0),
+            end_time=time(13, 0),
+            new_location_type="student_location",
+        )
+        assert no_conflict == []
+
+    def test_instructor_conflicts_use_non_travel_buffer_when_both_bookings_are_non_travel(self, service):
+        service.repository.get_instructor_profile.return_value = SimpleNamespace(
+            travel_buffer_minutes=60,
+            non_travel_buffer_minutes=15,
+        )
+        existing = Mock(spec=Booking)
+        existing.id = generate_ulid()
+        existing.start_time = time(10, 0)
+        existing.end_time = time(11, 0)
+        existing.location_type = "online"
+        existing.student = Mock(first_name="John", last_name="Doe")
+        existing.service_name = "Piano"
+        existing.status = BookingStatus.CONFIRMED
+        service.repository.get_bookings_for_conflict_check.return_value = [existing]
+
+        conflicts = service.check_booking_conflicts(
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(11, 10),
+            end_time=time(12, 10),
+            new_location_type="online",
+        )
+        assert len(conflicts) == 1
+
+        no_conflict = service.check_booking_conflicts(
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(11, 15),
+            end_time=time(12, 15),
+            new_location_type="instructor_location",
+        )
+        assert no_conflict == []
+
+    def test_student_conflicts_use_student_travel_buffer(self, service):
+        existing = Mock(spec=Booking)
+        existing.id = generate_ulid()
+        existing.start_time = time(10, 0)
+        existing.end_time = time(11, 0)
+        existing.location_type = "online"
+        existing.service_name = "Piano"
+        existing.status = BookingStatus.CONFIRMED
+        existing.instructor_id = generate_ulid()
+        service.repository.get_student_bookings_for_conflict_check.return_value = [existing]
+
+        instructor_profile = SimpleNamespace(travel_buffer_minutes=60, non_travel_buffer_minutes=15)
+
+        conflicts = service.check_student_booking_conflicts(
+            student_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(11, 30),
+            end_time=time(12, 30),
+            new_location_type="instructor_location",
+            instructor_profile=instructor_profile,
+        )
+        assert len(conflicts) == 1
+
+        no_conflict = service.check_student_booking_conflicts(
+            student_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(12, 0),
+            end_time=time(13, 0),
+            new_location_type="neutral_location",
+            instructor_profile=instructor_profile,
+        )
+        assert len(no_conflict) == 0
 
     def test_find_next_available_time_logic(self, service):
         """Test finding next available time slot."""
@@ -547,7 +753,7 @@ class TestConflictCheckerEdgeCases:
         service = ConflictChecker(mock_db)
         service.repository = mock_repository
         service.user_repository = Mock(spec=UserRepository)
-        return service
+        return _attach_default_config_service(service)
 
     def _setup_user_mock(self, service, user_id=generate_ulid(), timezone="America/New_York"):
         """Helper to set up user mock with timezone."""
@@ -609,7 +815,6 @@ class TestConflictCheckerEdgeCases:
         service.repository.get_blackout_date.return_value = None
 
         mock_profile = Mock(spec=InstructorProfile)
-        mock_profile.min_advance_booking_hours = 2
         service.repository.get_instructor_profile.return_value = mock_profile
 
         # Set up user mock with timezone
@@ -627,3 +832,138 @@ class TestConflictCheckerEdgeCases:
 
         assert result["valid"] == False
         assert any("not found or no longer available" in error for error in result["errors"])
+
+
+def _make_booking_for_conflict(
+    *,
+    start_time: time,
+    end_time: time,
+    location_type: str,
+) -> Mock:
+    booking = Mock(spec=Booking)
+    booking.id = generate_ulid()
+    booking.service_name = "Lesson"
+    booking.status = BookingStatus.CONFIRMED
+    booking.start_time = start_time
+    booking.end_time = end_time
+    booking.location_type = location_type
+    booking.instructor_id = generate_ulid()
+    booking.student = Mock(first_name="Test", last_name="Student")
+    return booking
+
+
+class TestConflictCheckerFormatAwareBuffers:
+    @pytest.fixture
+    def service(self):
+        mock_db = Mock(spec=Session)
+        mock_repository = Mock(spec=ConflictCheckerRepository)
+        service = ConflictChecker(mock_db)
+        service.repository = mock_repository
+        service.user_repository = Mock(spec=UserRepository)
+        return _attach_default_config_service(service)
+
+    def test_instructor_non_travel_buffer_blocks_adjacent_online_booking(self, service):
+        existing_booking = _make_booking_for_conflict(
+            start_time=time(10, 0),
+            end_time=time(11, 0),
+            location_type="online",
+        )
+        service.repository.get_bookings_for_conflict_check.return_value = [existing_booking]
+        profile = Mock(spec=InstructorProfile)
+        profile.non_travel_buffer_minutes = 15
+        profile.travel_buffer_minutes = 60
+
+        conflicts = service.check_booking_conflicts(
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(11, 10),
+            end_time=time(12, 10),
+            new_location_type="online",
+            instructor_profile=profile,
+        )
+        assert len(conflicts) == 1
+
+        no_conflicts = service.check_booking_conflicts(
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(11, 15),
+            end_time=time(12, 15),
+            new_location_type="online",
+            instructor_profile=profile,
+        )
+        assert no_conflicts == []
+
+    @pytest.mark.parametrize("new_location_type", ["student_location", "neutral_location"])
+    def test_instructor_travel_buffer_applies_when_either_side_travels(
+        self, service, new_location_type: str
+    ):
+        existing_booking = _make_booking_for_conflict(
+            start_time=time(10, 0),
+            end_time=time(11, 0),
+            location_type="online",
+        )
+        service.repository.get_bookings_for_conflict_check.return_value = [existing_booking]
+        profile = Mock(spec=InstructorProfile)
+        profile.non_travel_buffer_minutes = 15
+        profile.travel_buffer_minutes = 60
+
+        conflicts = service.check_booking_conflicts(
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(11, 30),
+            end_time=time(12, 30),
+            new_location_type=new_location_type,
+            instructor_profile=profile,
+        )
+        assert len(conflicts) == 1
+
+        no_conflicts = service.check_booking_conflicts(
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(12, 0),
+            end_time=time(13, 0),
+            new_location_type=new_location_type,
+            instructor_profile=profile,
+        )
+        assert no_conflicts == []
+
+    def test_student_conflicts_use_student_travel_perspective(self, service):
+        existing_booking = _make_booking_for_conflict(
+            start_time=time(10, 0),
+            end_time=time(11, 0),
+            location_type="online",
+        )
+        service.repository.get_student_bookings_for_conflict_check.return_value = [existing_booking]
+        profile = Mock(spec=InstructorProfile)
+        profile.non_travel_buffer_minutes = 15
+        profile.travel_buffer_minutes = 60
+
+        travel_conflicts = service.check_student_booking_conflicts(
+            student_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(11, 30),
+            end_time=time(12, 30),
+            new_location_type="instructor_location",
+            instructor_profile=profile,
+        )
+        assert len(travel_conflicts) == 1
+
+        non_travel_conflicts = service.check_student_booking_conflicts(
+            student_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(11, 10),
+            end_time=time(12, 10),
+            new_location_type="student_location",
+            instructor_profile=profile,
+        )
+        assert len(non_travel_conflicts) == 1
+
+        non_travel_clear = service.check_student_booking_conflicts(
+            student_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(11, 15),
+            end_time=time(12, 15),
+            new_location_type="student_location",
+            instructor_profile=profile,
+        )
+        assert non_travel_clear == []

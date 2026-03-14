@@ -13,8 +13,6 @@ export interface PreferredPublicSpacePayload {
 export interface InstructorUpdatePayload {
   bio: string;
   years_experience: number;
-  min_advance_booking_hours?: number;
-  buffer_time_minutes?: number;
   preferred_teaching_locations?: PreferredTeachingLocationPayload[];
   preferred_public_spaces?: PreferredPublicSpacePayload[];
   services?: Array<Record<string, unknown>>;
@@ -51,8 +49,6 @@ export function debugProfilePayload(name: string, payload: unknown): void {
 const UPDATE_KEYS = new Set<keyof InstructorUpdatePayload>([
   'bio',
   'years_experience',
-  'min_advance_booking_hours',
-  'buffer_time_minutes',
   'preferred_teaching_locations',
   'preferred_public_spaces',
   'services',

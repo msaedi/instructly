@@ -49,6 +49,8 @@ from ...repositories.filter_repository import FilterRepository
 from ...schemas.address_responses import CoverageFeatureCollectionResponse
 from ...schemas.base_responses import PaginatedResponse
 from ...schemas.instructor import (
+    CalendarSettingsAcknowledgeResponse,
+    CalendarSettingsResponse,
     GenerateBioResponse,
     InstructorFilterParams,
     InstructorProfileCreate,
@@ -56,6 +58,7 @@ from ...schemas.instructor import (
     InstructorProfileUpdate,
     InstructorServiceAreaCheckResponse,
     ServiceAreaCheckCoordinates,
+    UpdateCalendarSettings,
 )
 from ...services.address_service import AddressService
 from ...services.bio_generation_service import BioGenerationService
@@ -280,6 +283,76 @@ async def update_profile(
         if hasattr(profile_data, "id"):
             return InstructorProfileResponse.from_orm(profile_data)
         return InstructorProfileResponse(**profile_data)
+    except NotFoundException:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+    except DomainException as e:
+        raise e.to_http_exception()
+
+
+@router.patch(
+    "/me/calendar-settings",
+    response_model=CalendarSettingsResponse,
+    dependencies=[Depends(require_beta_access("instructor")), Depends(rate_limit("write"))],
+    responses={
+        401: {"description": "Not authenticated"},
+        403: {"description": "User is not an instructor or insufficient permissions"},
+        404: {"description": "Profile not found"},
+    },
+)
+async def update_calendar_settings(
+    calendar_settings: UpdateCalendarSettings = Body(...),
+    current_user: User = Depends(get_current_active_user),
+    instructor_service: InstructorService = Depends(get_instructor_service),
+) -> CalendarSettingsResponse:
+    """Update instructor calendar settings used by the availability page."""
+
+    if not current_user.is_instructor:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only instructors can update calendar settings",
+        )
+
+    try:
+        payload = await asyncio.to_thread(
+            instructor_service.update_calendar_settings,
+            current_user.id,
+            calendar_settings,
+        )
+        return CalendarSettingsResponse(**payload)
+    except NotFoundException:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+    except DomainException as e:
+        raise e.to_http_exception()
+
+
+@router.post(
+    "/me/calendar-settings/acknowledge",
+    response_model=CalendarSettingsAcknowledgeResponse,
+    dependencies=[Depends(require_beta_access("instructor")), Depends(rate_limit("write"))],
+    responses={
+        401: {"description": "Not authenticated"},
+        403: {"description": "User is not an instructor or insufficient permissions"},
+        404: {"description": "Profile not found"},
+    },
+)
+async def acknowledge_calendar_settings(
+    current_user: User = Depends(get_current_active_user),
+    instructor_service: InstructorService = Depends(get_instructor_service),
+) -> CalendarSettingsAcknowledgeResponse:
+    """Record dismissal of the first-save calendar settings acknowledgement."""
+
+    if not current_user.is_instructor:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only instructors can acknowledge calendar settings",
+        )
+
+    try:
+        payload = await asyncio.to_thread(
+            instructor_service.acknowledge_calendar_settings,
+            current_user.id,
+        )
+        return CalendarSettingsAcknowledgeResponse(**payload)
     except NotFoundException:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
     except DomainException as e:

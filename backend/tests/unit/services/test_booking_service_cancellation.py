@@ -105,6 +105,11 @@ def booking_service(mock_db: MagicMock, mock_repository: MagicMock) -> BookingSe
     service.transaction = MagicMock(return_value=_transaction_cm())
     service.audit_repository = MagicMock()
     service.cache_service = MagicMock()
+    service.conflict_checker = MagicMock()
+    service.conflict_checker.check_time_conflicts.return_value = False
+    service.conflict_checker.check_student_time_conflicts.return_value = False
+    service.conflict_checker.check_booking_conflicts.return_value = []
+    service.conflict_checker.check_student_booking_conflicts.return_value = []
     return service
 
 

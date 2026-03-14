@@ -22,7 +22,7 @@ def test_chat_fixture_idempotent(monkeypatch, capsys):
     )
     monkeypatch.setitem(sys.modules, "app.models.booking", booking_module)
 
-    profile = types.SimpleNamespace(id="profile-1", min_advance_booking_hours=1)
+    profile = types.SimpleNamespace(id="profile-1")
     service = types.SimpleNamespace(id="service-1", duration_options=[60], hourly_rate=80, name="Lesson")
 
     users = {

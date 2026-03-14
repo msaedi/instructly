@@ -37,6 +37,7 @@ def test_check_availability_rejects_extra_field(client: TestClient):
         "booking_date": "2025-08-01",
         "start_time": "09:00",
         "end_time": "10:00",
+        "location_type": "online",
         "plus_one": True,
     }
     resp = client.post("/api/v1/bookings/check-availability", json=payload)

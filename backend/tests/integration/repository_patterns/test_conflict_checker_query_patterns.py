@@ -151,8 +151,8 @@ class TestConflictCheckerQueryPatterns:
         # def get_instructor_profile(self, instructor_id: int) -> Optional[InstructorProfile]
 
         assert profile is not None
-        assert hasattr(profile, "min_advance_booking_hours")
-        assert hasattr(profile, "buffer_time_minutes")
+        assert hasattr(profile, "travel_buffer_minutes")
+        assert hasattr(profile, "non_travel_buffer_minutes")
 
     def test_query_pattern_validate_service_constraints(self, db: Session, test_instructor: User):
         """Document query pattern for service validation."""

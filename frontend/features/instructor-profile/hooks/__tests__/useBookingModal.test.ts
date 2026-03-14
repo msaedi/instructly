@@ -10,6 +10,7 @@ describe('useBookingModal', () => {
     expect(result.current.selectedTime).toBeUndefined();
     expect(result.current.selectedService).toBeUndefined();
     expect(result.current.selectedDuration).toBeUndefined();
+    expect(result.current.selectedLocationType).toBeUndefined();
   });
 
   it('opens modal without options', () => {
@@ -87,6 +88,17 @@ describe('useBookingModal', () => {
     expect(result.current.selectedDuration).toBe(45);
   });
 
+  it('opens modal with location type option', () => {
+    const { result } = renderHook(() => useBookingModal());
+
+    act(() => {
+      result.current.openBookingModal({ locationType: 'student_location' });
+    });
+
+    expect(result.current.isOpen).toBe(true);
+    expect(result.current.selectedLocationType).toBe('student_location');
+  });
+
   it('closes modal and resets all state', () => {
     const { result } = renderHook(() => useBookingModal());
 
@@ -112,6 +124,7 @@ describe('useBookingModal', () => {
     expect(result.current.selectedTime).toBeUndefined();
     expect(result.current.selectedService).toBeUndefined();
     expect(result.current.selectedDuration).toBeUndefined();
+    expect(result.current.selectedLocationType).toBeUndefined();
   });
 
   it('can reopen modal after closing', () => {

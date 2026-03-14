@@ -6,8 +6,8 @@ from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 from tests._utils.bitmap_seed import next_monday, seed_week_bits
+from tests.utils.availability_builders import decode_week_response_to_windows
 
-from app.core.config import settings
 from app.models import AvailabilityDay, User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.utils.bitset import windows_from_bits
@@ -89,7 +89,7 @@ def test_apply_bitmap_pattern_across_weeks(
             headers=auth_headers_instructor,
         )
         assert get_resp.status_code == 200
-        payload = get_resp.json()
+        payload = decode_week_response_to_windows(get_resp.json())
         for weekday in range(7):
             target_day = target_monday + timedelta(days=weekday)
             expected = [
@@ -101,11 +101,7 @@ def test_apply_bitmap_pattern_across_weeks(
                 assert day_key in payload
                 assert payload[day_key] == expected
             else:
-                if settings.include_empty_days_in_tests:
-                    assert day_key in payload
-                    assert payload[day_key] == []
-                else:
-                    assert day_key not in payload
+                assert payload.get(day_key, []) == []
 
 
 def test_apply_bitmap_pattern_no_source_bits(
@@ -159,9 +155,6 @@ def test_apply_bitmap_pattern_no_source_bits(
             headers=auth_headers_instructor,
         )
         assert get_resp.status_code == 200
-        payload = get_resp.json()
-        if settings.include_empty_days_in_tests:
-            assert len(payload) == 7
-            assert all(not entries for entries in payload.values())
-        else:
-            assert payload == {}
+        payload = decode_week_response_to_windows(get_resp.json())
+        assert len(payload) == 7
+        assert all(not entries for entries in payload.values())

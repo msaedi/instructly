@@ -14,8 +14,11 @@ from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
 from app.database import get_db_session
 from app.repositories.filter_repository import FilterRepository
+from app.services.config_service import ConfigService
 from app.services.search.location_resolver import LocationResolver, ResolvedLocation
 from app.services.search.retriever import ServiceCandidate
+from app.utils.bitset import windows_from_bits
+from app.utils.time_helpers import string_to_time
 
 if TYPE_CHECKING:
     from app.services.search.query_parser import ParsedQuery
@@ -689,6 +692,14 @@ class FilterService:
                 time_before=time_before,
                 duration_minutes=duration_minutes,
             )
+        availability_map = self._refine_buffered_availability_map(
+            availability_map,
+            instructor_ids=instructor_ids,
+            parsed_query=parsed_query,
+            time_after=time_after,
+            time_before=time_before,
+            duration_minutes=duration_minutes,
+        )
 
         filtered = []
         for c in candidates:
@@ -702,6 +713,106 @@ class FilterService:
                 c.passed_availability = False
 
         return filtered
+
+    @staticmethod
+    def _search_requested_location_type(parsed_query: "ParsedQuery") -> str:
+        return "online" if parsed_query.lesson_type == "online" else "student_location"
+
+    def _refine_buffered_availability_map(
+        self,
+        availability_map: Dict[str, List[date]],
+        *,
+        instructor_ids: List[str],
+        parsed_query: "ParsedQuery",
+        time_after: time | None,
+        time_before: time | None,
+        duration_minutes: int,
+    ) -> Dict[str, List[date]]:
+        if not availability_map:
+            return availability_map
+
+        dates_to_check = sorted(
+            {available_date for dates in availability_map.values() for available_date in dates}
+        )
+        if not dates_to_check:
+            return availability_map
+
+        context_getter = getattr(self.repository, "get_buffered_availability_context", None)
+        if not callable(context_getter):
+            return availability_map
+
+        context = context_getter(instructor_ids, dates_to_check)
+        if not isinstance(context, dict):
+            return availability_map
+
+        bits_by_key = context.get("bits_by_key")
+        format_tags_by_key = context.get("format_tags_by_key")
+        bookings_by_key = context.get("bookings_by_key")
+        profiles_by_instructor = context.get("profiles_by_instructor")
+        if not isinstance(bits_by_key, dict):
+            return availability_map
+        if not isinstance(format_tags_by_key, dict):
+            format_tags_by_key = {}
+        if not isinstance(bookings_by_key, dict):
+            bookings_by_key = {}
+        if not isinstance(profiles_by_instructor, dict):
+            profiles_by_instructor = {}
+
+        from app.services.availability_service import AvailabilityService
+
+        requested_location_type = self._search_requested_location_type(parsed_query)
+        repository_db = getattr(self.repository, "db", None)
+        default_non_travel_buffer_minutes = 15
+        default_travel_buffer_minutes = 60
+        if repository_db is not None:
+            config_service = ConfigService(repository_db)
+            default_non_travel_buffer_minutes = config_service.get_default_buffer_minutes("online")
+            default_travel_buffer_minutes = config_service.get_default_buffer_minutes(
+                "student_location"
+            )
+
+        refined: Dict[str, List[date]] = {}
+        for instructor_id, available_dates in availability_map.items():
+            kept_dates: List[date] = []
+            profile = profiles_by_instructor.get(instructor_id)
+            (
+                non_travel_buffer_minutes,
+                travel_buffer_minutes,
+            ) = AvailabilityService._resolve_buffer_profile_values(
+                profile,
+                default_non_travel_buffer_minutes=default_non_travel_buffer_minutes,
+                default_travel_buffer_minutes=default_travel_buffer_minutes,
+            )
+            for available_date in available_dates:
+                bits = bits_by_key.get((instructor_id, available_date))
+                if bits is None:
+                    continue
+                base_windows = [
+                    (string_to_time(start_str), string_to_time(end_str))
+                    for start_str, end_str in windows_from_bits(bits)
+                ]
+                remaining_windows = AvailabilityService._subtract_buffered_bookings_from_windows(
+                    base_windows,
+                    bookings_by_key.get((instructor_id, available_date), []),
+                    requested_location_type=requested_location_type,
+                    non_travel_buffer_minutes=non_travel_buffer_minutes,
+                    travel_buffer_minutes=travel_buffer_minutes,
+                )
+                remaining_windows = AvailabilityService._filter_windows_by_format_tags(
+                    remaining_windows,
+                    format_tags_by_key.get((instructor_id, available_date)),
+                    requested_location_type=requested_location_type,
+                )
+                if AvailabilityService._windows_support_booking_request(
+                    remaining_windows,
+                    time_after=time_after,
+                    time_before=time_before,
+                    duration_minutes=duration_minutes,
+                ):
+                    kept_dates.append(available_date)
+            if kept_dates:
+                refined[instructor_id] = kept_dates
+        return refined
 
     def _parse_time(self, time_str: Optional[str]) -> Optional[time]:
         """Parse time string (HH:MM) to time object."""

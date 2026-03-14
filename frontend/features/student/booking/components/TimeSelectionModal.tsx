@@ -26,7 +26,11 @@ import {
   formatCents,
   type NormalizedModality,
 } from '@/lib/pricing/priceFloors';
-import { availableFormatsFromPrices } from '@/lib/pricing/formatPricing';
+import {
+  availableFormatsFromPrices,
+  getFormatRate,
+} from '@/lib/pricing/formatPricing';
+import type { LocationType } from '@/types/booking';
 import {
   areNumberSetsEqual,
   consumePreparedBookingTiming,
@@ -44,6 +48,29 @@ interface AvailabilitySlot {
 }
 
 const SLOT_STEP_MINUTES = 15;
+type SelectableLocationType = Exclude<LocationType, 'neutral_location'>;
+const FORMAT_PICKER_ORDER: readonly SelectableLocationType[] = [
+  'online',
+  'instructor_location',
+  'student_location',
+];
+
+const isSelectableLocationType = (
+  value: LocationType | string | null | undefined,
+): value is SelectableLocationType =>
+  value === 'online' || value === 'instructor_location' || value === 'student_location';
+
+const getFormatPickerLabel = (locationType: SelectableLocationType): string => {
+  if (locationType === 'online') return 'Online';
+  if (locationType === 'instructor_location') return "At instructor's location";
+  return 'At your location';
+};
+
+const getFormatPickerDescription = (locationType: SelectableLocationType): string => {
+  if (locationType === 'online') return 'Live video lesson through the platform';
+  if (locationType === 'instructor_location') return 'You travel to the instructor';
+  return 'The instructor travels to you';
+};
 
 const normalizeDateInput = (value?: string | Date | null): string | null => {
   if (!value) {
@@ -113,7 +140,16 @@ export interface TimeSelectionModalProps {
   initialDate?: string | Date | null;
   initialTimeHHMM24?: string | null;
   initialDurationMinutes?: number | null;
-  onTimeSelected?: (selection: { date: string; time: string; duration: number }) => void;
+  initialLocationType?: LocationType | null;
+  lockLocationType?: boolean;
+  onTimeSelected?: (selection: {
+    date: string;
+    time: string;
+    duration: number;
+    locationType: LocationType;
+    serviceId?: string;
+    hourlyRate: number;
+  }) => void;
   serviceId?: string; // Optional service ID from search context
   bookingDraftId?: string;
   appliedCreditCents?: number;
@@ -128,6 +164,8 @@ export default function TimeSelectionModal({
   initialDate,
   initialTimeHHMM24,
   initialDurationMinutes,
+  initialLocationType,
+  lockLocationType = false,
   onTimeSelected,
   serviceId,
   bookingDraftId,
@@ -157,21 +195,80 @@ export default function TimeSelectionModal({
     return instructor.services[0] ?? null;
   }, [instructor.services, serviceId]);
 
-  const selectedHourlyRate = useMemo(() => {
-    if (!selectedService) return 0;
-    const raw = (selectedService as unknown as Record<string, unknown>)?.['min_hourly_rate'] as unknown;
-    const parsed = typeof raw === 'number' ? raw : parseFloat(String(raw ?? '0'));
-    return Number.isFinite(parsed) ? parsed : 0;
+  const availableLocationTypes = useMemo<SelectableLocationType[]>(() => {
+    const formats = availableFormatsFromPrices(selectedService?.format_prices ?? []);
+    return FORMAT_PICKER_ORDER.filter((format) => formats.includes(format));
   }, [selectedService]);
 
-  const selectedModality = useMemo<NormalizedModality>(() => {
-    const formats = availableFormatsFromPrices(selectedService?.format_prices ?? []);
-    if (formats.length > 0) {
-      const primary = formats.includes('online') ? 'online' : formats[0];
-      return primary === 'online' ? 'online' : 'in_person';
+  const [selectedLocationType, setSelectedLocationType] = useState<LocationType | null>(() => {
+    if (lockLocationType && initialLocationType) {
+      return initialLocationType;
     }
-    return 'online';
-  }, [selectedService]);
+    if (
+      initialLocationType &&
+      isSelectableLocationType(initialLocationType) &&
+      availableLocationTypes.includes(initialLocationType)
+    ) {
+      return initialLocationType;
+    }
+    if (availableLocationTypes.length === 1) {
+      return availableLocationTypes[0] ?? null;
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (lockLocationType) {
+      setSelectedLocationType(initialLocationType ?? null);
+      return;
+    }
+
+    setSelectedLocationType((previous) => {
+      if (
+        previous &&
+        isSelectableLocationType(previous) &&
+        availableLocationTypes.includes(previous)
+      ) {
+        return previous;
+      }
+      if (
+        initialLocationType &&
+        isSelectableLocationType(initialLocationType) &&
+        availableLocationTypes.includes(initialLocationType)
+      ) {
+        return initialLocationType;
+      }
+      if (availableLocationTypes.length === 1) {
+        return availableLocationTypes[0] ?? null;
+      }
+      return null;
+    });
+  }, [availableLocationTypes, initialLocationType, lockLocationType]);
+
+  const selectedPricingFormat = useMemo<SelectableLocationType | null>(() => {
+    if (selectedLocationType === 'neutral_location') {
+      return 'student_location';
+    }
+    return isSelectableLocationType(selectedLocationType) ? selectedLocationType : null;
+  }, [selectedLocationType]);
+
+  const selectedHourlyRate = useMemo(() => {
+    if (!selectedService) return 0;
+    const exactRate = selectedPricingFormat
+      ? getFormatRate(selectedService.format_prices ?? [], selectedPricingFormat)
+      : null;
+    const raw =
+      exactRate ??
+      ((selectedService as unknown as Record<string, unknown>)?.['min_hourly_rate'] as unknown);
+    const parsed = typeof raw === 'number' ? raw : parseFloat(String(raw ?? '0'));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }, [selectedPricingFormat, selectedService]);
+
+  const selectedModality = useMemo<NormalizedModality>(() => {
+    return selectedLocationType === 'online' ? 'online' : 'in_person';
+  }, [selectedLocationType]);
+
+  const hasResolvedLocationType = Boolean(selectedLocationType);
 
   const instructorAvatarUser = useMemo(
     () => ({
@@ -474,6 +571,9 @@ export default function TimeSelectionModal({
   }, [bookingDraftId, effectiveAppliedCreditCents, isOpen]);
 
   const priceFloorViolation = useMemo(() => {
+    if (!hasResolvedLocationType) {
+      return null;
+    }
     return getPriceFloorViolation({
       pricingFloors,
       hasSelectedService: Boolean(selectedService),
@@ -481,7 +581,14 @@ export default function TimeSelectionModal({
       selectedDuration,
       selectedModality,
     });
-  }, [pricingFloors, selectedDuration, selectedHourlyRate, selectedModality, selectedService]);
+  }, [
+    hasResolvedLocationType,
+    pricingFloors,
+    selectedDuration,
+    selectedHourlyRate,
+    selectedModality,
+    selectedService,
+  ]);
 
   const priceFloorWarning = useMemo(() => {
     if (!priceFloorViolation) return null;
@@ -501,7 +608,9 @@ export default function TimeSelectionModal({
     });
   }, [priceFloorViolation, selectedDuration, selectedModality, selectedService]);
 
-  const isSelectionComplete = Boolean(selectedDate && selectedTime && !priceFloorViolation);
+  const isSelectionComplete = Boolean(
+    hasResolvedLocationType && selectedDate && selectedTime && !priceFloorViolation
+  );
 
   const mobileModalRef = useRef<HTMLDivElement>(null);
   const desktopModalRef = useRef<HTMLDivElement>(null);
@@ -528,6 +637,7 @@ export default function TimeSelectionModal({
       const response = await publicApi.getInstructorAvailability(instructor.user_id.toString(), {
         start_date: localDateStr,
         end_date: localEndStr,
+        location_type: selectedLocationType!,
       });
 
       if (response.data?.availability_by_date) {
@@ -586,14 +696,14 @@ export default function TimeSelectionModal({
     } finally {
       // Loading state cleared
     }
-  }, [instructor.user_id, studentTimezone, applySlotsForDate]);
+  }, [instructor.user_id, selectedLocationType, studentTimezone, applySlotsForDate]);
 
   // Fetch availability data when modal opens
   useEffect(() => {
-    if (isOpen && instructor.user_id) {
+    if (isOpen && instructor.user_id && hasResolvedLocationType) {
       void fetchAvailability();
     }
-  }, [isOpen, instructor.user_id, fetchAvailability]);
+  }, [fetchAvailability, hasResolvedLocationType, instructor.user_id, isOpen]);
 
   const initialSelectionAppliedRef = useRef(false);
 
@@ -669,8 +779,33 @@ export default function TimeSelectionModal({
     }
   };
 
+  const resetSchedulingState = useCallback(() => {
+    hasUserChosenDateRef.current = false;
+    selectedDateRef.current = null;
+    setSelectedDate(null);
+    setSelectedTime(null);
+    setShowTimeDropdown(false);
+    setTimeSlots([]);
+    setAvailableDates([]);
+    setAvailabilityData(null);
+    setLoadingTimeSlots(false);
+    setDurationAvailabilityNotice(null);
+  }, []);
+
+  const handleLocationTypeSelect = useCallback(
+    (nextLocationType: SelectableLocationType) => {
+      if (selectedLocationType === nextLocationType) {
+        return;
+      }
+      setSelectedLocationType(nextLocationType);
+      resetSchedulingState();
+    },
+    [resetSchedulingState, selectedLocationType],
+  );
+
   // Handle continue button - go directly to payment
   const handleContinue = () => {
+    const resolvedLocationType = selectedLocationType as LocationType;
     if (priceFloorViolation) {
       logger.warn('Blocking continue due to price floor violation', {
         duration: selectedDuration,
@@ -705,21 +840,25 @@ export default function TimeSelectionModal({
 
       // If callback provided, use it
       if (onTimeSelected) {
+        const resolvedServiceId = serviceId || selectedService?.id;
         onTimeSelected({
           date: selectedDate,
           time: normalizedTimeHHMM,
           duration: selectedDuration,
+          locationType: resolvedLocationType,
+          hourlyRate: selectedHourlyRate,
+          ...(resolvedServiceId ? { serviceId: resolvedServiceId } : {}),
         });
         onClose();
         return;
       }
 
       // Otherwise, go directly to payment page
-      const selectedService = serviceId
+      const resolvedService = serviceId
         ? instructor.services.find((s) => s.id === serviceId) || (instructor.services.length > 0 ? instructor.services[0] : null)
         : (instructor.services.length > 0 ? instructor.services[0] : null); // Use first service as fallback
 
-      if (!selectedService) {
+      if (!resolvedService) {
         logger.error('No service found for booking', { serviceId, services: instructor.services });
         onClose();
         return;
@@ -751,6 +890,7 @@ export default function TimeSelectionModal({
         const bookingIntent: {
           instructorId: string;
           serviceId?: string;
+          locationType?: LocationType;
           date: string;
           time: string;
           duration: number;
@@ -760,9 +900,10 @@ export default function TimeSelectionModal({
           date: selectedDate,
           time: normalizedTimeHHMM,
           duration: selectedDuration,
+          locationType: resolvedLocationType,
         };
 
-        const finalServiceId = serviceId || selectedService.id;
+        const finalServiceId = serviceId || selectedService?.id;
         if (finalServiceId) {
           bookingIntent.serviceId = finalServiceId;
         }
@@ -778,7 +919,14 @@ export default function TimeSelectionModal({
       }
 
       // Prepare booking data for payment page
-      const locationLabel = selectedModality === 'in_person' ? 'In-person (student to confirm location)' : 'Online';
+      const locationLabel =
+        resolvedLocationType === 'online'
+          ? 'Online'
+          : resolvedLocationType === 'instructor_location'
+            ? "Instructor's location"
+            : resolvedLocationType === 'neutral_location'
+              ? 'Agreed public location'
+              : 'Student provided address';
 
       const instructorTimezone =
         typeof instructor?.user?.timezone === 'string' ? instructor.user.timezone : undefined;
@@ -787,9 +935,9 @@ export default function TimeSelectionModal({
         instructorId: instructor.user_id,
         instructorName: `${instructor.user.first_name} ${instructor.user.last_initial}.`,
         // Ensure we propagate the instructor_service_id ULID, never a display name
-        serviceId: serviceId || selectedService.id,
-        skill: selectedService.skill,
-        lessonType: selectedService.skill, // Same as skill for display
+        serviceId: serviceId || resolvedService.id,
+        skill: resolvedService.skill,
+        lessonType: resolvedService.skill, // Same as skill for display
         date: selectedDate,
         startTime: startTime,
         endTime: endTime,
@@ -800,6 +948,7 @@ export default function TimeSelectionModal({
         location: locationLabel,
         metadata: {
           modality: selectedModality,
+          location_type: resolvedLocationType,
           ...(instructorTimezone ? { timezone: instructorTimezone } : {}),
         },
         freeCancellationUntil: freeCancellationUntil.toISOString(),
@@ -817,6 +966,7 @@ export default function TimeSelectionModal({
             time: selectedTime,
             duration: selectedDuration,
             instructorId: instructor.user_id,
+            locationType: resolvedLocationType,
           })
         );
       } catch {
@@ -879,6 +1029,7 @@ export default function TimeSelectionModal({
         const response = await publicApi.getInstructorAvailability(instructor.user_id.toString(), {
           start_date: date,
           end_date: date,
+          ...(selectedLocationType ? { location_type: selectedLocationType } : {}),
         });
 
         if (response.data?.availability_by_date?.[date]) {
@@ -1065,6 +1216,60 @@ export default function TimeSelectionModal({
 
   if (!isOpen) return null;
 
+  const showFormatPicker = !lockLocationType && availableLocationTypes.length > 1;
+  const renderFormatPicker = () => {
+    if (!showFormatPicker || !selectedService) {
+      return null;
+    }
+
+    return (
+      <div className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800/70">
+        <div className="mb-3">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Choose lesson format</h3>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+            Availability and pricing update based on how you want to take this lesson.
+          </p>
+        </div>
+        <div className="grid gap-3">
+          {availableLocationTypes.map((locationType) => {
+            const rate =
+              getFormatRate(selectedService.format_prices ?? [], locationType) ??
+              selectedService.min_hourly_rate;
+            const isSelected = selectedLocationType === locationType;
+            return (
+              <button
+                key={locationType}
+                type="button"
+                data-testid={`format-option-${locationType}`}
+                aria-pressed={isSelected}
+                className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                  isSelected
+                    ? 'border-[#7E22CE] bg-[#F8F1FF] dark:border-[#C084FC] dark:bg-[#2B143F]'
+                    : 'border-gray-200 bg-white hover:border-[#C084FC] hover:bg-[#FAF5FF] dark:border-gray-700 dark:bg-gray-900 dark:hover:border-[#A855F7]'
+                }`}
+                onClick={() => handleLocationTypeSelect(locationType)}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                      {getFormatPickerLabel(locationType)}
+                    </div>
+                    <div className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                      {getFormatPickerDescription(locationType)}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-sm font-semibold text-gray-900 dark:text-white">
+                    ${rate}/hr
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   if (process.env.NODE_ENV !== 'production') {
     logDev('render:calendar-props', {
       variant: 'mobile',
@@ -1127,99 +1332,114 @@ export default function TimeSelectionModal({
 
           {/* Mobile Content */}
           <div className="flex-1 overflow-y-auto px-4 pb-20">
-            {/* Calendar Component */}
-            <Calendar
-              currentMonth={currentMonth}
-              selectedDate={selectedDate}
-              {...(effectiveInitialDate ? { preSelectedDate: effectiveInitialDate } : {})}
-              availableDates={availableDates}
-              onDateSelect={handleDateSelect}
-              onMonthChange={setCurrentMonth}
-            />
+            {renderFormatPicker()}
 
-            {/* Time Dropdown (shown when date selected) */}
-            {showTimeDropdown && (
-              <div className="mb-4">
-                <TimeDropdown
-                  selectedTime={selectedTime}
-                  timeSlots={timeSlots}
-                  isVisible={showTimeDropdown}
-                  onTimeSelect={handleTimeSelect}
-                  disabled={false}
-                  isLoading={loadingTimeSlots}
+            {hasResolvedLocationType ? (
+              <>
+                {/* Calendar Component */}
+                <Calendar
+                  currentMonth={currentMonth}
+                  selectedDate={selectedDate}
+                  {...(effectiveInitialDate ? { preSelectedDate: effectiveInitialDate } : {})}
+                  availableDates={availableDates}
+                  onDateSelect={handleDateSelect}
+                  onMonthChange={setCurrentMonth}
                 />
-              </div>
-            )}
 
-            {/* Duration Buttons (only if multiple durations) */}
-            <DurationButtons
-              durationOptions={durationOptions}
-              selectedDuration={selectedDuration}
-              onDurationSelect={handleDurationSelect}
-              disabledDurations={disabledDurations}
-            />
+                {/* Time Dropdown (shown when date selected) */}
+                {showTimeDropdown && (
+                  <div className="mb-4">
+                    <TimeDropdown
+                      selectedTime={selectedTime}
+                      timeSlots={timeSlots}
+                      isVisible={showTimeDropdown}
+                      onTimeSelect={handleTimeSelect}
+                      disabled={false}
+                      isLoading={loadingTimeSlots}
+                    />
+                  </div>
+                )}
 
-            {durationAvailabilityNotice && durationAvailabilityNotice.date === selectedDate && (
-              <div
-                className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
-                role="status"
-                aria-live="polite"
-              >
-                <p>
-                  {`No ${durationAvailabilityNotice.duration}-min slots on ${formatDateLabel(durationAvailabilityNotice.date)}.`}
-                  {durationAvailabilityNotice.nextDate
-                    ? ` The next available is ${formatDateLabel(durationAvailabilityNotice.nextDate)}.`
-                    : ' Try another date or duration.'}
-                </p>
-                {durationAvailabilityNotice.nextDate ? (
-                  <button
-                    type="button"
-                    className="mt-2 inline-flex items-center rounded-md bg-[#7E22CE] px-3 py-1 text-xs font-semibold text-white hover:bg-[#6b1fb8]"
-                    onClick={() => {
-                      const nextDate = durationAvailabilityNotice.nextDate;
-                      if (nextDate) {
-                        handleJumpToNextAvailable(nextDate);
-                      }
-                    }}
+                {/* Duration Buttons (only if multiple durations) */}
+                <DurationButtons
+                  durationOptions={durationOptions}
+                  selectedDuration={selectedDuration}
+                  onDurationSelect={handleDurationSelect}
+                  disabledDurations={disabledDurations}
+                />
+
+                {durationAvailabilityNotice && durationAvailabilityNotice.date === selectedDate && (
+                  <div
+                    className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+                    role="status"
+                    aria-live="polite"
                   >
-                    {`Jump to ${formatDateLabel(durationAvailabilityNotice.nextDate)}`}
-                  </button>
-                ) : null}
+                    <p>
+                      {`No ${durationAvailabilityNotice.duration}-min slots on ${formatDateLabel(durationAvailabilityNotice.date)}.`}
+                      {durationAvailabilityNotice.nextDate
+                        ? ` The next available is ${formatDateLabel(durationAvailabilityNotice.nextDate)}.`
+                        : ' Try another date or duration.'}
+                    </p>
+                    {durationAvailabilityNotice.nextDate ? (
+                      <button
+                        type="button"
+                        className="mt-2 inline-flex items-center rounded-md bg-[#7E22CE] px-3 py-1 text-xs font-semibold text-white hover:bg-[#6b1fb8]"
+                        onClick={() => {
+                          const nextDate = durationAvailabilityNotice.nextDate;
+                          if (nextDate) {
+                            handleJumpToNextAvailable(nextDate);
+                          }
+                        }}
+                      >
+                        {`Jump to ${formatDateLabel(durationAvailabilityNotice.nextDate)}`}
+                      </button>
+                    ) : null}
+                  </div>
+                )}
+
+                {/* Summary Section */}
+                <SummarySection
+                  selectedDate={selectedDate}
+                  selectedTime={selectedTime}
+                  selectedDuration={selectedDuration}
+                  price={getCurrentPrice()}
+                  onContinue={handleContinue}
+                  isComplete={isSelectionComplete}
+                  floorWarning={priceFloorWarning}
+                  pricingPreview={pricingPreview}
+                  isPricingPreviewLoading={isPricingPreviewLoading}
+                  pricingError={pricingPreviewError}
+                  hasBookingDraft={Boolean(bookingDraftId)}
+                />
+              </>
+            ) : (
+              <div
+                data-testid="format-selection-required"
+                className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800/40 dark:text-gray-300"
+              >
+                Choose a lesson format to see available dates and times.
               </div>
             )}
-
-            {/* Summary Section */}
-            <SummarySection
-              selectedDate={selectedDate}
-              selectedTime={selectedTime}
-              selectedDuration={selectedDuration}
-              price={getCurrentPrice()}
-              onContinue={handleContinue}
-              isComplete={isSelectionComplete}
-              floorWarning={priceFloorWarning}
-              pricingPreview={pricingPreview}
-              isPricingPreviewLoading={isPricingPreviewLoading}
-              pricingError={pricingPreviewError}
-              hasBookingDraft={Boolean(bookingDraftId)}
-            />
           </div>
 
           {/* Mobile Sticky CTA - Rendered by SummarySection */}
-          <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 p-4">
-            <SummarySection
-              selectedDate={selectedDate}
-              selectedTime={selectedTime}
-              selectedDuration={selectedDuration}
-              price={getCurrentPrice()}
-              onContinue={handleContinue}
-              isComplete={isSelectionComplete}
-              floorWarning={priceFloorWarning}
-              pricingPreview={pricingPreview}
-              isPricingPreviewLoading={isPricingPreviewLoading}
-              pricingError={pricingPreviewError}
-              hasBookingDraft={Boolean(bookingDraftId)}
-            />
-          </div>
+          {hasResolvedLocationType && (
+            <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 p-4">
+              <SummarySection
+                selectedDate={selectedDate}
+                selectedTime={selectedTime}
+                selectedDuration={selectedDuration}
+                price={getCurrentPrice()}
+                onContinue={handleContinue}
+                isComplete={isSelectionComplete}
+                floorWarning={priceFloorWarning}
+                pricingPreview={pricingPreview}
+                isPricingPreviewLoading={isPricingPreviewLoading}
+                pricingError={pricingPreviewError}
+                hasBookingDraft={Boolean(bookingDraftId)}
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -1277,40 +1497,52 @@ export default function TimeSelectionModal({
 
             {/* Desktop Content - Split Layout */}
             <div className="flex-1 overflow-y-auto px-8 pb-8">
+              {renderFormatPicker()}
               <div className="flex gap-8">
                 {/* Left Section - Calendar and Controls */}
                 <div className="flex-1">
-                  {/* Calendar Component */}
-                  <Calendar
-                    currentMonth={currentMonth}
-                    selectedDate={selectedDate}
-                    {...(effectiveInitialDate ? { preSelectedDate: effectiveInitialDate } : {})}
-                    availableDates={availableDates}
-                    onDateSelect={handleDateSelect}
-                    onMonthChange={setCurrentMonth}
-                  />
-
-                  {/* Time Dropdown (shown when date selected) */}
-                  {showTimeDropdown && (
-                    <div className="mb-4">
-                      <TimeDropdown
-                        selectedTime={selectedTime}
-                        timeSlots={timeSlots}
-                        isVisible={showTimeDropdown}
-                        onTimeSelect={handleTimeSelect}
-                        disabled={false}
-                        isLoading={loadingTimeSlots}
+                  {hasResolvedLocationType ? (
+                    <>
+                      {/* Calendar Component */}
+                      <Calendar
+                        currentMonth={currentMonth}
+                        selectedDate={selectedDate}
+                        {...(effectiveInitialDate ? { preSelectedDate: effectiveInitialDate } : {})}
+                        availableDates={availableDates}
+                        onDateSelect={handleDateSelect}
+                        onMonthChange={setCurrentMonth}
                       />
+
+                      {/* Time Dropdown (shown when date selected) */}
+                      {showTimeDropdown && (
+                        <div className="mb-4">
+                          <TimeDropdown
+                            selectedTime={selectedTime}
+                            timeSlots={timeSlots}
+                            isVisible={showTimeDropdown}
+                            onTimeSelect={handleTimeSelect}
+                            disabled={false}
+                            isLoading={loadingTimeSlots}
+                          />
+                        </div>
+                      )}
+
+                      {/* Duration Buttons (only if multiple durations) */}
+                      <DurationButtons
+                        durationOptions={durationOptions}
+                        selectedDuration={selectedDuration}
+                        onDurationSelect={handleDurationSelect}
+                        disabledDurations={disabledDurations}
+                      />
+                    </>
+                  ) : (
+                    <div
+                      data-testid="format-selection-required"
+                      className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800/40 dark:text-gray-300"
+                    >
+                      Choose a lesson format to see available dates and times.
                     </div>
                   )}
-
-                  {/* Duration Buttons (only if multiple durations) */}
-                  <DurationButtons
-                    durationOptions={durationOptions}
-                    selectedDuration={selectedDuration}
-                    onDurationSelect={handleDurationSelect}
-                    disabledDurations={disabledDurations}
-                  />
                 </div>
 
                 {/* Vertical Divider */}
@@ -1321,7 +1553,9 @@ export default function TimeSelectionModal({
 
                 {/* Right Section - Summary and CTA */}
                 <div className="w-[200px] flex-shrink-0 pt-12">
-                  {durationAvailabilityNotice && durationAvailabilityNotice.date === selectedDate && (
+                  {hasResolvedLocationType &&
+                    durationAvailabilityNotice &&
+                    durationAvailabilityNotice.date === selectedDate && (
                     <div
                       className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
                       role="status"
@@ -1349,19 +1583,21 @@ export default function TimeSelectionModal({
                       ) : null}
                     </div>
                   )}
-                  <SummarySection
-                    selectedDate={selectedDate}
-                    selectedTime={selectedTime}
-                    selectedDuration={selectedDuration}
-                    price={getCurrentPrice()}
-                    onContinue={handleContinue}
-                    isComplete={isSelectionComplete}
-                    floorWarning={priceFloorWarning}
-                    pricingPreview={pricingPreview}
-                    isPricingPreviewLoading={isPricingPreviewLoading}
-                    pricingError={pricingPreviewError}
-                    hasBookingDraft={Boolean(bookingDraftId)}
-                  />
+                  {hasResolvedLocationType && (
+                    <SummarySection
+                      selectedDate={selectedDate}
+                      selectedTime={selectedTime}
+                      selectedDuration={selectedDuration}
+                      price={getCurrentPrice()}
+                      onContinue={handleContinue}
+                      isComplete={isSelectionComplete}
+                      floorWarning={priceFloorWarning}
+                      pricingPreview={pricingPreview}
+                      isPricingPreviewLoading={isPricingPreviewLoading}
+                      pricingError={pricingPreviewError}
+                      hasBookingDraft={Boolean(bookingDraftId)}
+                    />
+                  )}
                 </div>
               </div>
             </div>

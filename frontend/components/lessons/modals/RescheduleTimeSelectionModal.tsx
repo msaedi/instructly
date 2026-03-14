@@ -14,6 +14,7 @@ import Calendar from '@/features/shared/booking/ui/Calendar';
 import TimeDropdown from '@/features/shared/booking/ui/TimeDropdown';
 import DurationButtons from '@/features/shared/booking/ui/DurationButtons';
 import SummarySection from '@/features/shared/booking/ui/SummarySection';
+import type { LocationType } from '@/types/booking';
 
 // Type for availability slots
 interface AvailabilitySlot {
@@ -120,6 +121,7 @@ interface RescheduleTimeSelectionModalProps {
     date: string;
     time: string;
     service: string;
+    location_type?: LocationType;
   };
 }
 
@@ -234,6 +236,7 @@ export default function RescheduleTimeSelectionModal({
       const response = await publicApi.getInstructorAvailability(instructor.user_id.toString(), {
         start_date: localDateStr,
         end_date: localEndStr,
+        ...(currentLesson?.location_type ? { location_type: currentLesson.location_type } : {}),
       });
 
       if (response.error || !response.data?.availability_by_date) {
@@ -360,7 +363,7 @@ export default function RescheduleTimeSelectionModal({
       if (!isMountedRef.current) return;
       dispatch({ type: 'AVAILABILITY_LOAD_FAIL' });
     }
-  }, [instructor.user_id, studentTimezone]);
+  }, [currentLesson?.location_type, instructor.user_id, studentTimezone]);
 
   // Fetch availability data when modal opens
   useEffect(() => {

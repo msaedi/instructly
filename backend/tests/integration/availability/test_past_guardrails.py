@@ -9,6 +9,10 @@ from datetime import date, datetime, timedelta, timezone
 from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
+from tests.utils.availability_builders import (
+    build_week_payload_from_slots,
+    decode_week_response_to_windows,
+)
 
 from app.core.config import settings
 from app.models import AuditLog, AvailabilityDay, EventOutbox
@@ -63,10 +67,9 @@ def test_bitmap_past_clamp_skips_outside_window(
     far_past = week_start
     recent_past = week_start + timedelta(days=6)
 
-    request_body = {
-        "week_start": week_start.isoformat(),
-        "clear_existing": True,
-        "schedule": [
+    request_body = build_week_payload_from_slots(
+        week_start,
+        [
             {
                 "date": far_past.isoformat(),
                 "start_time": "08:00:00",
@@ -78,7 +81,7 @@ def test_bitmap_past_clamp_skips_outside_window(
                 "end_time": "11:00:00",
             },
         ],
-    }
+    )
 
     resp = bitmap_client.post(
         "/api/v1/instructors/availability/week",
@@ -96,7 +99,7 @@ def test_bitmap_past_clamp_skips_outside_window(
         headers=auth_headers_instructor,
     )
     assert get_resp.status_code == 200
-    week_map = get_resp.json()
+    week_map = decode_week_response_to_windows(get_resp.json())
     assert week_map.get(far_past.isoformat(), []) == []
     assert week_map[recent_past.isoformat()] == [
         {"start_time": "10:00:00", "end_time": "11:00:00"}

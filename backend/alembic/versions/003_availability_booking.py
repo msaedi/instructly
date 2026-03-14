@@ -64,11 +64,22 @@ def upgrade() -> None:
 
     print("Creating availability_days table...")
     bits_type = BYTEA if is_postgres else LargeBinary
+    empty_tags_default = (
+        sa.text("decode(repeat('00', 72), 'hex')")
+        if is_postgres
+        else sa.text("zeroblob(72)")
+    )
     op.create_table(
         "availability_days",
         sa.Column("instructor_id", sa.String(length=26), nullable=False),
         sa.Column("day_date", sa.Date(), nullable=False),
         sa.Column("bits", bits_type, nullable=False),
+        sa.Column(
+            "format_tags",
+            bits_type,
+            nullable=False,
+            server_default=empty_tags_default,
+        ),
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
@@ -77,6 +88,7 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("instructor_id", "day_date"),
         sa.CheckConstraint("length(bits) = 36", name="ck_bits_length"),
+        sa.CheckConstraint("length(format_tags) = 72", name="ck_format_tags_length"),
     )
     op.create_index(
         "ix_avail_days_instructor_date",

@@ -25,6 +25,7 @@ from app.models.user import User
 from app.schemas.booking import BookingCreate
 from app.services.booking_service import BookingService
 from app.services.timezone_service import TimezoneService
+from app.utils.bitset import new_empty_tags
 
 
 @pytest.fixture
@@ -82,6 +83,11 @@ def booking_service(mock_db, mock_repository, mock_notification_service):
         repository=mock_repository,
     )
     service.audit_repository = MagicMock()
+    service.conflict_checker = MagicMock()
+    service.conflict_checker.check_time_conflicts.return_value = False
+    service.conflict_checker.check_student_time_conflicts.return_value = False
+    service.conflict_checker.check_booking_conflicts.return_value = []
+    service.conflict_checker.check_student_booking_conflicts.return_value = []
     return service
 
 
@@ -859,7 +865,7 @@ class TestCheckConflictsAndRules:
 
     def test_instructor_conflict(self, booking_service, mock_repository):
         """Test error when instructor has conflict."""
-        mock_repository.check_time_conflict.return_value = True
+        booking_service.conflict_checker.check_booking_conflicts.return_value = ["conflict"]
 
         student = MagicMock(spec=User)
         student.id = generate_ulid()
@@ -1067,6 +1073,7 @@ class TestValidateAgainstAvailabilityBitsExtended:
         booking_data.booking_date = date(2026, 12, 25)
         booking_data.start_time = time(23, 0)
         booking_data.end_time = time(0, 0)  # Midnight
+        booking_data.location_type = "online"
         instructor_profile = MagicMock(spec=InstructorProfile)
         instructor_profile.user = MagicMock()
         instructor_profile.user.timezone = "America/New_York"
@@ -1074,6 +1081,7 @@ class TestValidateAgainstAvailabilityBitsExtended:
         # Create an availability repository mock
         availability_repo = MagicMock()
         availability_repo.get_day_bits.return_value = b"\xff" * 36  # All slots available
+        availability_repo.get_day_bitmaps.return_value = (b"\xff" * 36, new_empty_tags())
         booking_service.availability_repository = availability_repo
 
         # Should not raise

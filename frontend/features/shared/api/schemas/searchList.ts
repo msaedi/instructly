@@ -41,8 +41,6 @@ export async function loadSearchListSchema() {
         .optional()
         .default([]),
       years_experience: z.number(),
-      min_advance_booking_hours: z.number().optional(),
-      buffer_time_minutes: z.number().optional(),
       created_at: z.string(),
       updated_at: z.string().optional(),
       user: User,

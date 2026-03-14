@@ -19,13 +19,14 @@ from datetime import date, time, timedelta
 import pytest
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import BusinessRuleException
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService
 from app.models.user import User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.schemas.booking import BookingCreate
 from app.services.booking_service import BookingService
-from app.utils.bitset import bits_from_windows, new_empty_bits
+from app.utils.bitset import bits_from_windows, new_empty_bits, new_empty_tags, set_range_tag
 
 
 def _next_monday(reference: date) -> date:
@@ -70,8 +71,16 @@ def _create_booking_data(
     booking_date: date,
     start_time: time,
     end_time: time,
+    *,
+    location_type: str = "online",
 ) -> BookingCreate:
     """Create a BookingCreate schema for testing."""
+    location_kwargs: dict[str, object] = {}
+    if location_type != "online":
+        location_kwargs["location_address"] = "123 Test St, New York, NY"
+    if location_type in {"student_location", "neutral_location"}:
+        location_kwargs["location_lat"] = 40.7128
+        location_kwargs["location_lng"] = -74.0060
     return BookingCreate(
         instructor_id=instructor_id,
         instructor_service_id=service_id,
@@ -79,8 +88,15 @@ def _create_booking_data(
         start_time=start_time,
         end_time=end_time,
         selected_duration=60,
-        location_type="online",
+        location_type=location_type,
+        **location_kwargs,
     )
+
+
+def _make_booking_service(db: Session) -> BookingService:
+    service = BookingService(db)
+    service.availability_repository = AvailabilityDayRepository(db)
+    return service
 
 
 class TestEarlyMorningBookingTimezone:
@@ -125,7 +141,7 @@ class TestEarlyMorningBookingTimezone:
             end_time=time(2, 0),
         )
 
-        service = BookingService(db)
+        service = _make_booking_service(db)
         profile = db.query(InstructorProfile).filter_by(user_id=instructor_with_timezone.id).first()
 
         # This should NOT raise - availability exists for 1am-2am on target_day
@@ -156,7 +172,7 @@ class TestEarlyMorningBookingTimezone:
             end_time=time(11, 0),
         )
 
-        service = BookingService(db)
+        service = _make_booking_service(db)
         profile = db.query(InstructorProfile).filter_by(user_id=instructor_with_timezone.id).first()
 
         # Should not raise
@@ -185,7 +201,7 @@ class TestEarlyMorningBookingTimezone:
             end_time=time(0, 0),  # Midnight
         )
 
-        service = BookingService(db)
+        service = _make_booking_service(db)
         profile = db.query(InstructorProfile).filter_by(user_id=instructor_with_timezone.id).first()
 
         # Should not raise
@@ -213,11 +229,10 @@ class TestEarlyMorningBookingTimezone:
             end_time=time(3, 0),
         )
 
-        service = BookingService(db)
+        service = _make_booking_service(db)
         profile = db.query(InstructorProfile).filter_by(user_id=instructor_with_timezone.id).first()
 
         # Should raise because no availability
-        from app.core.exceptions import BusinessRuleException
         with pytest.raises(BusinessRuleException, match="Requested time is not available"):
             service._validate_against_availability_bits(booking_data, profile)
 
@@ -244,11 +259,94 @@ class TestEarlyMorningBookingTimezone:
             end_time=time(1, 0),
         )
 
-        service = BookingService(db)
+        service = _make_booking_service(db)
         profile = db.query(InstructorProfile).filter_by(user_id=instructor_with_timezone.id).first()
 
         # Should not raise
         service._validate_against_availability_bits(booking_data, profile)
+
+    @pytest.mark.parametrize(
+        ("location_type", "tags", "should_raise", "expected_code"),
+        [
+            ("online", set_range_tag(new_empty_tags(), 108, 12, 1), False, None),
+            ("student_location", set_range_tag(new_empty_tags(), 108, 12, 1), True, "FORMAT_TAG_INCOMPATIBLE"),
+            ("instructor_location", set_range_tag(new_empty_tags(), 108, 12, 2), False, None),
+            ("neutral_location", set_range_tag(new_empty_tags(), 108, 12, 2), True, "FORMAT_TAG_INCOMPATIBLE"),
+        ],
+    )
+    def test_booking_validation_respects_uniform_format_tags(
+        self,
+        db: Session,
+        instructor_with_timezone: User,
+        instructor_service: InstructorService,
+        location_type: str,
+        tags: bytes,
+        should_raise: bool,
+        expected_code: str | None,
+    ) -> None:
+        target_day = _next_monday(date.today()) + timedelta(days=3)
+
+        repo = AvailabilityDayRepository(db)
+        morning_bits = bits_from_windows([("09:00:00", "10:00:00")])
+        repo.upsert_week(instructor_with_timezone.id, [(target_day, morning_bits, tags)])
+        db.commit()
+
+        booking_data = _create_booking_data(
+            instructor_id=instructor_with_timezone.id,
+            service_id=instructor_service.id,
+            booking_date=target_day,
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            location_type=location_type,
+        )
+
+        service = _make_booking_service(db)
+        profile = db.query(InstructorProfile).filter_by(user_id=instructor_with_timezone.id).first()
+
+        if should_raise:
+            with pytest.raises(
+                BusinessRuleException,
+                match="This time slot is not available for the selected lesson format",
+            ) as exc_info:
+                service._validate_against_availability_bits(booking_data, profile)
+            assert exc_info.value.code == expected_code
+            return
+
+        service._validate_against_availability_bits(booking_data, profile)
+
+    def test_booking_validation_rejects_mixed_range_when_any_slot_is_incompatible(
+        self,
+        db: Session,
+        instructor_with_timezone: User,
+        instructor_service: InstructorService,
+    ) -> None:
+        target_day = _next_monday(date.today()) + timedelta(days=3)
+
+        repo = AvailabilityDayRepository(db)
+        morning_bits = bits_from_windows([("09:00:00", "10:00:00")])
+        mixed_tags = set_range_tag(new_empty_tags(), 114, 6, 1)
+        repo.upsert_week(instructor_with_timezone.id, [(target_day, morning_bits, mixed_tags)])
+        db.commit()
+
+        booking_data = _create_booking_data(
+            instructor_id=instructor_with_timezone.id,
+            service_id=instructor_service.id,
+            booking_date=target_day,
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            location_type="student_location",
+        )
+
+        service = _make_booking_service(db)
+        profile = db.query(InstructorProfile).filter_by(user_id=instructor_with_timezone.id).first()
+
+        with pytest.raises(
+            BusinessRuleException,
+            match="This time slot is not available for the selected lesson format",
+        ) as exc_info:
+            service._validate_against_availability_bits(booking_data, profile)
+
+        assert exc_info.value.code == "FORMAT_TAG_INCOMPATIBLE"
 
 
 class TestResolveLocalBookingDay:
@@ -275,7 +373,7 @@ class TestResolveLocalBookingDay:
             end_time=time(2, 0),
         )
 
-        service = BookingService(db)
+        service = _make_booking_service(db)
         profile = db.query(InstructorProfile).filter_by(user_id=instructor_with_timezone.id).first()
 
         result = service._resolve_local_booking_day(booking_data, profile)
@@ -305,7 +403,7 @@ class TestResolveLocalBookingDay:
             (time(22, 0), time(23, 0)),  # 10pm (edge)
         ]
 
-        service = BookingService(db)
+        service = _make_booking_service(db)
         profile = db.query(InstructorProfile).filter_by(user_id=instructor_with_timezone.id).first()
 
         for start_time, end_time in test_times:

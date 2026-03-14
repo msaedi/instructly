@@ -4,6 +4,7 @@ from datetime import date, timedelta
 
 from fastapi.testclient import TestClient
 import pytest
+from tests.utils.availability_builders import build_week_payload_from_slots
 
 
 @pytest.mark.integration
@@ -35,16 +36,18 @@ def test_instructor_availability_requires_instructor_role(
     auth_headers_instructor,
 ) -> None:
     schedule_date = date.today() + timedelta(days=21)
-    payload = {
-        "schedule": [
+    week_start = schedule_date - timedelta(days=schedule_date.weekday())
+    payload = build_week_payload_from_slots(
+        week_start,
+        [
             {
                 "date": schedule_date.isoformat(),
                 "start_time": "08:00",
                 "end_time": "09:00",
             }
         ],
-        "clear_existing": False,
-    }
+        clear_existing=False,
+    )
 
     unauth_response = client.post("/api/v1/instructors/availability/week", json=payload)
     assert unauth_response.status_code in (401, 403)

@@ -21,7 +21,7 @@ const createWrapper = () => {
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
   Wrapper.displayName = 'QueryClientWrapper';
-  return Wrapper;
+  return Object.assign(Wrapper, { queryClient });
 };
 
 describe('usePublicAvailability', () => {
@@ -212,5 +212,36 @@ describe('usePublicAvailability', () => {
 
     // Empty string should be filtered, and duplicates deduped
     expect(getInstructorAvailabilityMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes location_type through queries and cache keys', async () => {
+    getInstructorAvailabilityMock.mockResolvedValueOnce({
+      status: 200,
+      data: {
+        availability_by_date: {},
+        timezone: 'UTC',
+      },
+    });
+
+    const wrapper = createWrapper();
+    const { result } = renderHook(() => usePublicAvailability(['inst-z'], 'online'), {
+      wrapper,
+    });
+
+    await waitFor(() => {
+      expect(result.current['inst-z']).toBeDefined();
+    });
+
+    expect(getInstructorAvailabilityMock).toHaveBeenCalledWith('inst-z', {
+      start_date: '2025-01-10',
+      end_date: '2025-01-24',
+      location_type: 'online',
+    });
+    const cached = wrapper.queryClient
+      .getQueryCache()
+      .find({
+        queryKey: ['availability', 'public', 'inst-z', '2025-01-10', '2025-01-24', 'online'],
+      });
+    expect(cached).toBeTruthy();
   });
 });

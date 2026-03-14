@@ -774,8 +774,9 @@ class DatabaseSeeder:
                     user_id=user_id,
                     bio=_bio,
                     years_experience=profile_data.get("years_experience", 1),
-                    min_advance_booking_hours=2,
-                    buffer_time_minutes=0,
+                    non_travel_buffer_minutes=15,
+                    travel_buffer_minutes=60,
+                    overnight_protection_enabled=True,
                     current_tier_pct=current_tier_pct_value,
                     last_tier_eval_at=_now,
                     # Onboarding defaults for seeded instructors

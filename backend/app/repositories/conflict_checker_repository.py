@@ -18,11 +18,14 @@ from datetime import date
 import logging
 from typing import List, Optional, cast
 
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.sql.elements import ColumnElement
 
 from ..core.exceptions import RepositoryException
 from ..models.availability import BlackoutDate
 from ..models.booking import Booking, BookingStatus
+from ..models.booking_payment import BookingPayment
 from ..models.instructor import InstructorProfile
 from ..models.service_catalog import InstructorService
 from .base_repository import BaseRepository
@@ -42,6 +45,26 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
         """Initialize with Booking model as primary."""
         super().__init__(db, Booking)
         self.logger = logging.getLogger(__name__)
+
+    @staticmethod
+    def _conflict_status_filter() -> ColumnElement[bool]:
+        return or_(
+            and_(
+                Booking.status == BookingStatus.PENDING,
+                or_(
+                    BookingPayment.id.is_(None),
+                    BookingPayment.auth_failure_count.is_(None),
+                    BookingPayment.auth_failure_count == 0,
+                ),
+            ),
+            Booking.status.in_(
+                [
+                    BookingStatus.CONFIRMED,
+                    BookingStatus.COMPLETED,
+                    BookingStatus.NO_SHOW,
+                ]
+            ),
+        )
 
     # Booking Conflict Queries
 
@@ -64,6 +87,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
         try:
             query = (
                 self.db.query(Booking)
+                .outerjoin(BookingPayment, BookingPayment.booking_id == Booking.id)
                 .options(
                     joinedload(Booking.student),
                     joinedload(Booking.instructor),
@@ -71,20 +95,48 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
                 .filter(
                     Booking.instructor_id == instructor_id,
                     Booking.booking_date == check_date,
-                    Booking.status.in_(
-                        [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
-                    ),
+                    self._conflict_status_filter(),
                 )
             )
 
             if exclude_booking_id:
                 query = query.filter(Booking.id != exclude_booking_id)
 
-            return cast(List[Booking], query.all())
+            return cast(List[Booking], query.order_by(Booking.start_time).all())
 
         except Exception as e:
             self.logger.error(f"Error getting bookings for conflict check: {str(e)}")
             raise RepositoryException(f"Failed to get conflict bookings: {str(e)}")
+
+    def get_student_bookings_for_conflict_check(
+        self, student_id: str, check_date: date, exclude_booking_id: Optional[str] = None
+    ) -> List[Booking]:
+        """
+        Get a student's bookings that could conflict with a requested time on a specific date.
+        """
+        try:
+            query = (
+                self.db.query(Booking)
+                .outerjoin(BookingPayment, BookingPayment.booking_id == Booking.id)
+                .options(
+                    joinedload(Booking.instructor),
+                    joinedload(Booking.student),
+                )
+                .filter(
+                    Booking.student_id == student_id,
+                    Booking.booking_date == check_date,
+                    self._conflict_status_filter(),
+                )
+            )
+
+            if exclude_booking_id:
+                query = query.filter(Booking.id != exclude_booking_id)
+
+            return cast(List[Booking], query.order_by(Booking.start_time).all())
+
+        except Exception as e:
+            self.logger.error(f"Error getting student bookings for conflict check: {str(e)}")
+            raise RepositoryException(f"Failed to get student conflict bookings: {str(e)}")
 
     def get_bookings_for_date(self, instructor_id: str, target_date: date) -> List[Booking]:
         """

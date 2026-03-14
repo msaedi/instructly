@@ -2,8 +2,15 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
+from app.core.constants import TAG_NO_TRAVEL, TAG_NONE, TAG_ONLINE_ONLY
 from app.repositories.availability_day_repository import AvailabilityDayRepository
-from app.utils.bitset import new_empty_bits
+from app.utils.bitset import (
+    bits_from_windows,
+    get_slot_tag,
+    new_empty_bits,
+    new_empty_tags,
+    set_range_tag,
+)
 
 
 def _make_bits(*prefix_bytes: int) -> bytes:
@@ -115,3 +122,57 @@ def test_delete_days_for_instructor_no_exclusions(db):
     repo.upsert_week(instructor_id, [(day, bits), (day + timedelta(days=1), bits)])
     deleted = repo.delete_days_for_instructor(instructor_id)
     assert deleted == 2
+
+
+def test_upsert_week_bits_only_update_clears_tags_for_disabled_slots(db):
+    repo = AvailabilityDayRepository(db)
+    instructor_id = "inst-tags-upsert"
+    day = date.today()
+    initial_bits = bits_from_windows([("09:00:00", "11:00:00")])
+    initial_tags = set_range_tag(new_empty_tags(), 108, 24, TAG_ONLINE_ONLY)
+
+    repo.upsert_week(instructor_id, [(day, initial_bits, initial_tags)])
+
+    updated_bits = bits_from_windows([("10:00:00", "11:00:00")])
+    repo.upsert_week(instructor_id, [(day, updated_bits)])
+
+    stored_bits, stored_tags = repo.get_day_bitmaps(instructor_id, day)
+    assert stored_bits == updated_bits
+    assert get_slot_tag(stored_tags, 108) == TAG_NONE
+    assert get_slot_tag(stored_tags, 120) == TAG_ONLINE_ONLY
+
+
+def test_bulk_upsert_all_bits_only_update_clears_tags_for_disabled_slots(db):
+    repo = AvailabilityDayRepository(db)
+    instructor_id = "inst-tags-bulk"
+    day = date.today()
+    initial_bits = bits_from_windows([("12:00:00", "14:00:00")])
+    initial_tags = set_range_tag(new_empty_tags(), 144, 24, TAG_NO_TRAVEL)
+
+    repo.bulk_upsert_all([(instructor_id, day, initial_bits, initial_tags)])
+
+    updated_bits = bits_from_windows([("13:00:00", "14:00:00")])
+    repo.bulk_upsert_all([(instructor_id, day, updated_bits)])
+
+    stored_bits, stored_tags = repo.get_day_bitmaps(instructor_id, day)
+    assert stored_bits == updated_bits
+    assert get_slot_tag(stored_tags, 144) == TAG_NONE
+    assert get_slot_tag(stored_tags, 156) == TAG_NO_TRAVEL
+
+
+def test_bulk_upsert_native_bits_only_update_clears_tags_for_disabled_slots(db):
+    repo = AvailabilityDayRepository(db)
+    instructor_id = "inst-tags-native"
+    day = date.today()
+    initial_bits = bits_from_windows([("15:00:00", "17:00:00")])
+    initial_tags = set_range_tag(new_empty_tags(), 180, 24, TAG_ONLINE_ONLY)
+
+    repo.bulk_upsert_native([(instructor_id, day, initial_bits, initial_tags)], batch_size=1)
+
+    updated_bits = bits_from_windows([("16:00:00", "17:00:00")])
+    repo.bulk_upsert_native([(instructor_id, day, updated_bits)], batch_size=1)
+
+    stored_bits, stored_tags = repo.get_day_bitmaps(instructor_id, day)
+    assert stored_bits == updated_bits
+    assert get_slot_tag(stored_tags, 180) == TAG_NONE
+    assert get_slot_tag(stored_tags, 192) == TAG_ONLINE_ONLY
