@@ -36,7 +36,7 @@ from app.repositories.availability_day_repository import AvailabilityDayReposito
 from app.repositories.booking_repository import BookingRepository
 from app.schemas.booking import BookingCreate, BookingUpdate
 from app.services.booking_service import BookingService
-from app.utils.bitset import bits_from_windows
+from app.utils.bitset import bits_from_windows, new_empty_tags
 
 REAL_DATETIME = datetime
 
@@ -88,6 +88,7 @@ class TestBookingServiceUnit:
         repository = Mock()
         repository.get_slots_by_date.return_value = []
         repository.get_day_bits.return_value = b"\xff" * 36  # 288 five-minute slots
+        repository.get_day_bitmaps.return_value = (b"\xff" * 36, new_empty_tags())
         return repository
 
     @pytest.fixture

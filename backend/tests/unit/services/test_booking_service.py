@@ -15,7 +15,7 @@ from app.models.booking import BookingStatus, PaymentStatus
 from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.services.booking_service import BookingService
 from app.services.config_service import DEFAULT_BOOKING_RULES_CONFIG, ConfigService
-from app.utils.bitset import bits_from_windows
+from app.utils.bitset import bits_from_windows, new_empty_tags, set_range_tag
 
 REAL_DATETIME = datetime
 ORIGINAL_GET_OVERNIGHT_EARLIEST_HOUR = ConfigService.get_overnight_earliest_hour
@@ -153,6 +153,10 @@ def booking_service(mock_db: MagicMock, mock_repository: MagicMock) -> BookingSe
     service.conflict_checker.check_student_time_conflicts.return_value = False
     service.conflict_checker.check_booking_conflicts.return_value = []
     service.conflict_checker.check_student_booking_conflicts.return_value = []
+    full_day_bits = bits_from_windows([("00:00:00", "24:00:00")])
+    service.availability_repository = MagicMock()
+    service.availability_repository.get_day_bitmaps.return_value = (full_day_bits, new_empty_tags())
+    service.availability_repository.get_day_bits.return_value = full_day_bits
     return service
 
 
@@ -521,6 +525,84 @@ def test_check_availability_available_true(booking_service: BookingService) -> N
 
     assert result["available"] is True
     assert result["time_info"]["date"] == "2030-01-01"
+
+
+@pytest.mark.parametrize(
+    ("location_type", "tagged_slots", "expected_available"),
+    [
+        ("online", set_range_tag(new_empty_tags(), 120, 12, 1), True),
+        ("student_location", set_range_tag(new_empty_tags(), 120, 12, 1), False),
+        ("instructor_location", set_range_tag(new_empty_tags(), 120, 12, 2), True),
+        ("neutral_location", set_range_tag(new_empty_tags(), 120, 12, 2), False),
+    ],
+)
+def test_check_availability_respects_format_tags(
+    booking_service: BookingService,
+    location_type: str,
+    tagged_slots: bytes,
+    expected_available: bool,
+) -> None:
+    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
+        user=SimpleNamespace(timezone="UTC"),
+    )
+    booking_service._get_advance_notice_minutes = Mock(return_value=0)
+    booking_service._resolve_booking_times_utc = Mock(
+        return_value=(
+            datetime(2030, 1, 1, 10, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 1, 11, 0, tzinfo=timezone.utc),
+        )
+    )
+    booking_service.availability_repository.get_day_bitmaps.return_value = (
+        bits_from_windows([("00:00:00", "24:00:00")]),
+        tagged_slots,
+    )
+
+    result = booking_service.check_availability(
+        instructor_id=generate_ulid(),
+        booking_date=date(2030, 1, 1),
+        start_time=time(10, 0),
+        end_time=time(11, 0),
+        service_id=generate_ulid(),
+        location_type=location_type,
+    )
+
+    assert result["available"] is expected_available
+    if not expected_available:
+        assert result["reason"] == "This time slot is not available for the selected lesson format"
+
+
+def test_check_availability_rejects_mixed_tagged_range(
+    booking_service: BookingService,
+) -> None:
+    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
+        user=SimpleNamespace(timezone="UTC"),
+    )
+    booking_service._get_advance_notice_minutes = Mock(return_value=0)
+    booking_service._resolve_booking_times_utc = Mock(
+        return_value=(
+            datetime(2030, 1, 1, 10, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 1, 11, 0, tzinfo=timezone.utc),
+        )
+    )
+    tagged_slots = set_range_tag(new_empty_tags(), 126, 6, 1)
+    booking_service.availability_repository.get_day_bitmaps.return_value = (
+        bits_from_windows([("00:00:00", "24:00:00")]),
+        tagged_slots,
+    )
+
+    result = booking_service.check_availability(
+        instructor_id=generate_ulid(),
+        booking_date=date(2030, 1, 1),
+        start_time=time(10, 0),
+        end_time=time(11, 0),
+        service_id=generate_ulid(),
+        location_type="student_location",
+    )
+
+    assert result["available"] is False
+    assert result["reason"] == "This time slot is not available for the selected lesson format"
 
 
 @pytest.mark.parametrize(

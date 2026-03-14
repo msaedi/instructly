@@ -225,7 +225,9 @@ from app.models.payment import PaymentEvent
 from app.models.rbac import Role
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.subcategory import ServiceSubcategory
+from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.schemas.booking import BookingCreate
+from app.utils.bitset import bits_from_windows
 
 
 class TestBookingPaymentService:
@@ -347,13 +349,21 @@ class TestBookingPaymentService:
     @pytest.fixture
     def booking_service(self, db: Session) -> BookingService:
         """Create BookingService instance."""
-        return BookingService(db)
+        service = BookingService(db)
+        service.availability_repository = AvailabilityDayRepository(db)
+        return service
 
     @pytest.fixture
-    def booking_data(self, instructor_setup) -> BookingCreate:
+    def booking_data(self, db: Session, instructor_setup) -> BookingCreate:
         """Create sample booking data."""
         instructor, profile, service = instructor_setup
         tomorrow = date.today() + timedelta(days=1)
+        repo = AvailabilityDayRepository(db)
+        repo.upsert_week(
+            instructor.id,
+            [(tomorrow, bits_from_windows([("14:00:00", "15:00:00")]))],
+        )
+        db.flush()
 
         return BookingCreate(
             instructor_id=instructor.id,

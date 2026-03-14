@@ -25,6 +25,7 @@ from app.models.user import User
 from app.schemas.booking import BookingCreate
 from app.services.booking_service import BookingService
 from app.services.timezone_service import TimezoneService
+from app.utils.bitset import new_empty_tags
 
 
 @pytest.fixture
@@ -1072,6 +1073,7 @@ class TestValidateAgainstAvailabilityBitsExtended:
         booking_data.booking_date = date(2026, 12, 25)
         booking_data.start_time = time(23, 0)
         booking_data.end_time = time(0, 0)  # Midnight
+        booking_data.location_type = "online"
         instructor_profile = MagicMock(spec=InstructorProfile)
         instructor_profile.user = MagicMock()
         instructor_profile.user.timezone = "America/New_York"
@@ -1079,6 +1081,7 @@ class TestValidateAgainstAvailabilityBitsExtended:
         # Create an availability repository mock
         availability_repo = MagicMock()
         availability_repo.get_day_bits.return_value = b"\xff" * 36  # All slots available
+        availability_repo.get_day_bitmaps.return_value = (b"\xff" * 36, new_empty_tags())
         booking_service.availability_repository = availability_repo
 
         # Should not raise

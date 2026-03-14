@@ -57,6 +57,7 @@ from ..repositories.factory import RepositoryFactory
 from ..repositories.filter_repository import FilterRepository
 from ..repositories.job_repository import JobRepository
 from ..schemas.booking import BookingCreate, BookingUpdate
+from ..utils.bitset import get_slot_tag, is_tag_compatible, new_empty_tags
 from ..utils.time_helpers import string_to_time
 from ..utils.time_utils import time_to_minutes
 from .audit_redaction import redact
@@ -518,6 +519,47 @@ class BookingService(BaseService):
                 return False
         return True
 
+    def _get_day_bitmaps(self, instructor_id: str, day: date) -> tuple[bytes, bytes]:
+        """Return (bits, format_tags) for a day, defaulting tags to all-zero."""
+        repo = getattr(self, "availability_repository", None)
+        if repo is None or (
+            not hasattr(repo, "get_day_bitmaps") and not hasattr(repo, "get_day_bits")
+        ):
+            repo = AvailabilityDayRepository(self.db)
+
+        if hasattr(repo, "get_day_bitmaps"):
+            bitmaps = repo.get_day_bitmaps(instructor_id, day)
+            if bitmaps is not None:
+                return bitmaps
+
+        bits = repo.get_day_bits(instructor_id, day) if hasattr(repo, "get_day_bits") else None
+        return (bits or b"", new_empty_tags())
+
+    def _get_bitmap_availability_error(
+        self,
+        instructor_id: str,
+        day: date,
+        start_index: int,
+        end_index: int,
+        *,
+        location_type: str | None,
+    ) -> str | None:
+        """Return a user-facing availability error when bits or tags reject the request."""
+        bits, format_tags = self._get_day_bitmaps(instructor_id, day)
+        for idx in range(start_index, end_index):
+            byte_i = idx // 8
+            bit_mask = 1 << (idx % 8)
+            if byte_i >= len(bits) or (bits[byte_i] & bit_mask) == 0:
+                return "Requested time is not available"
+
+        normalized_location_type = normalize_location_type(location_type)
+        for idx in range(start_index, end_index):
+            tag = get_slot_tag(format_tags, idx)
+            if not is_tag_compatible(tag, normalized_location_type):
+                return "This time slot is not available for the selected lesson format"
+
+        return None
+
     def _validate_against_availability_bits(
         self,
         booking_data: BookingCreate,
@@ -550,10 +592,20 @@ class BookingService(BaseService):
             raise BusinessRuleException("Requested time is not available")
 
         local_day = self._resolve_local_booking_day(booking_data, instructor_profile)
-        if not self._check_bits_coverage(
-            booking_data.instructor_id, local_day, start_index, end_index
-        ):
-            raise BusinessRuleException("Requested time is not available")
+        error_message = self._get_bitmap_availability_error(
+            booking_data.instructor_id,
+            local_day,
+            start_index,
+            end_index,
+            location_type=booking_data.location_type,
+        )
+        if error_message:
+            error_code = (
+                "FORMAT_TAG_INCOMPATIBLE"
+                if error_message == "This time slot is not available for the selected lesson format"
+                else None
+            )
+            raise BusinessRuleException(error_message, code=error_code)
 
     def _build_conflict_details(
         self, booking_data: BookingCreate, student_id: Optional[str]
@@ -4980,10 +5032,17 @@ class BookingService(BaseService):
         ):
             return {"available": False, "reason": "Requested time is not available"}
 
-        if not self._check_bits_coverage(instructor_id, booking_date, start_index, end_index):
+        error_message = self._get_bitmap_availability_error(
+            instructor_id,
+            booking_date,
+            start_index,
+            end_index,
+            location_type=normalized_location_type,
+        )
+        if error_message:
             return {
                 "available": False,
-                "reason": "Requested time is not available",
+                "reason": error_message,
             }
 
         return {

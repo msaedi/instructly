@@ -746,10 +746,13 @@ class FilterService:
             return availability_map
 
         bits_by_key = context.get("bits_by_key")
+        format_tags_by_key = context.get("format_tags_by_key")
         bookings_by_key = context.get("bookings_by_key")
         profiles_by_instructor = context.get("profiles_by_instructor")
         if not isinstance(bits_by_key, dict):
             return availability_map
+        if not isinstance(format_tags_by_key, dict):
+            format_tags_by_key = {}
         if not isinstance(bookings_by_key, dict):
             bookings_by_key = {}
         if not isinstance(profiles_by_instructor, dict):
@@ -794,6 +797,11 @@ class FilterService:
                     requested_location_type=requested_location_type,
                     non_travel_buffer_minutes=non_travel_buffer_minutes,
                     travel_buffer_minutes=travel_buffer_minutes,
+                )
+                remaining_windows = AvailabilityService._filter_windows_by_format_tags(
+                    remaining_windows,
+                    format_tags_by_key.get((instructor_id, available_date)),
+                    requested_location_type=requested_location_type,
                 )
                 if AvailabilityService._windows_support_booking_request(
                     remaining_windows,

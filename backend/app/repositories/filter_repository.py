@@ -548,6 +548,7 @@ class FilterRepository:
         if not instructor_ids or not dates:
             return {
                 "bits_by_key": {},
+                "format_tags_by_key": {},
                 "bookings_by_key": {},
                 "profiles_by_instructor": {},
             }
@@ -557,6 +558,7 @@ class FilterRepository:
                 AvailabilityDay.instructor_id,
                 AvailabilityDay.day_date,
                 AvailabilityDay.bits,
+                AvailabilityDay.format_tags,
             )
             .filter(
                 AvailabilityDay.instructor_id.in_(instructor_ids),
@@ -569,6 +571,11 @@ class FilterRepository:
             (row.instructor_id, row.day_date): row.bits
             for row in availability_rows
             if row.bits is not None
+        }
+        format_tags_by_key = {
+            (row.instructor_id, row.day_date): row.format_tags
+            for row in availability_rows
+            if row.format_tags is not None
         }
 
         booking_rows = (
@@ -602,6 +609,7 @@ class FilterRepository:
 
         return {
             "bits_by_key": bits_by_key,
+            "format_tags_by_key": format_tags_by_key,
             "bookings_by_key": bookings_by_key,
             "profiles_by_instructor": profiles_by_instructor,
         }

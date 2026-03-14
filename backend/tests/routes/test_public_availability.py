@@ -23,7 +23,9 @@ from app.models.availability import BlackoutDate
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
+from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.services.config_service import DEFAULT_BOOKING_RULES_CONFIG, ConfigService
+from app.utils.bitset import bits_from_windows, new_empty_tags, set_range_tag
 from tests._utils.bitmap_avail import seed_day
 
 try:  # pragma: no cover - fallback for direct backend pytest runs
@@ -534,6 +536,122 @@ class TestPublicAvailability:
         assert response.status_code == status.HTTP_200_OK
         slots = response.json()["availability_by_date"][target_date.isoformat()]["available_slots"]
         assert slots == [{"start_time": "16:00", "end_time": "17:00"}]
+
+    def test_public_availability_splits_online_only_segment_for_travel_requests(
+        self,
+        public_client,
+        db,
+        test_instructor,
+        full_detail_settings,
+    ):
+        instructor = test_instructor
+        target_date = date.today() + timedelta(days=7)
+        repo = AvailabilityDayRepository(db)
+        bits = bits_from_windows([("09:00", "12:00")])
+        format_tags = set_range_tag(new_empty_tags(), 108, 12, 1)
+        repo.upsert_week(instructor.id, [(target_date, bits, format_tags)])
+        db.commit()
+
+        online_response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": "online",
+            },
+        )
+        if online_response.status_code == 404:
+            pytest.skip("Public routes not registered in main.py")
+
+        assert online_response.status_code == status.HTTP_200_OK
+        online_slots = online_response.json()["availability_by_date"][target_date.isoformat()][
+            "available_slots"
+        ]
+        assert online_slots == [{"start_time": "09:00", "end_time": "12:00"}]
+
+        travel_response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": "student_location",
+            },
+        )
+        assert travel_response.status_code == status.HTTP_200_OK
+        travel_slots = travel_response.json()["availability_by_date"][target_date.isoformat()][
+            "available_slots"
+        ]
+        assert travel_slots == [{"start_time": "10:00", "end_time": "12:00"}]
+
+    def test_public_availability_hides_no_travel_day_for_student_location_and_omitted_location(
+        self,
+        public_client,
+        db,
+        test_instructor,
+        full_detail_settings,
+    ):
+        instructor = test_instructor
+        target_date = date.today() + timedelta(days=7)
+        repo = AvailabilityDayRepository(db)
+        bits = bits_from_windows([("09:00", "12:00")])
+        format_tags = set_range_tag(new_empty_tags(), 108, 36, 2)
+        repo.upsert_week(instructor.id, [(target_date, bits, format_tags)])
+        db.commit()
+
+        online_response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": "online",
+            },
+        )
+        if online_response.status_code == 404:
+            pytest.skip("Public routes not registered in main.py")
+
+        assert online_response.status_code == status.HTTP_200_OK
+        online_slots = online_response.json()["availability_by_date"][target_date.isoformat()][
+            "available_slots"
+        ]
+        assert online_slots == [{"start_time": "09:00", "end_time": "12:00"}]
+
+        instructor_location_response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": "instructor_location",
+            },
+        )
+        assert instructor_location_response.status_code == status.HTTP_200_OK
+        instructor_location_slots = instructor_location_response.json()["availability_by_date"][
+            target_date.isoformat()
+        ]["available_slots"]
+        assert instructor_location_slots == [{"start_time": "09:00", "end_time": "12:00"}]
+
+        student_location_response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={
+                "start_date": target_date.isoformat(),
+                "end_date": target_date.isoformat(),
+                "location_type": "student_location",
+            },
+        )
+        assert student_location_response.status_code == status.HTTP_200_OK
+        student_slots = student_location_response.json()["availability_by_date"][target_date.isoformat()][
+            "available_slots"
+        ]
+        assert student_slots == []
+
+        omitted_location_response = public_client.get(
+            f"/api/v1/public/instructors/{instructor.id}/availability",
+            params={"start_date": target_date.isoformat(), "end_date": target_date.isoformat()},
+        )
+        assert omitted_location_response.status_code == status.HTTP_200_OK
+        omitted_slots = omitted_location_response.json()["availability_by_date"][target_date.isoformat()][
+            "available_slots"
+        ]
+        assert omitted_slots == []
 
     def test_public_availability_hides_overnight_protected_online_slots(
         self,

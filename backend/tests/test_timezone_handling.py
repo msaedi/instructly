@@ -15,6 +15,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.user import User
 from app.services.config_service import ConfigService
+from app.utils.bitset import new_empty_tags
 
 
 def _make_instructor_profile(tz_name: str, min_advance_hours: int = 1) -> MagicMock:
@@ -40,6 +41,12 @@ def _run_check_availability(
     from app.services.booking_service import BookingService
 
     booking_service = BookingService(db)
+    booking_service.availability_repository = MagicMock()
+    booking_service.availability_repository.get_day_bitmaps.return_value = (
+        b"\xff" * 36,
+        new_empty_tags(),
+    )
+    booking_service.availability_repository.get_day_bits.return_value = b"\xff" * 36
 
     with patch("app.services.booking_service.datetime") as mock_dt:
         mock_dt.now.return_value = now_utc
@@ -60,16 +67,13 @@ def _run_check_availability(
                         mock_ccr.get_active_service.return_value = MagicMock()
                         mock_ccr.get_instructor_profile.return_value = instructor_profile
 
-                        with patch.object(
-                            booking_service, "_check_bits_coverage", return_value=True
-                        ):
-                            return booking_service.check_availability(
-                                instructor_id=instructor_profile.user.id,
-                                booking_date=booking_date,
-                                start_time=start_time,
-                                end_time=end_time,
-                                service_id="test_service",
-                            )
+                        return booking_service.check_availability(
+                            instructor_id=instructor_profile.user.id,
+                            booking_date=booking_date,
+                            start_time=start_time,
+                            end_time=end_time,
+                            service_id="test_service",
+                        )
 
 
 def _make_booking(booking_date: date, end_time: time, tz_name: str) -> MagicMock:

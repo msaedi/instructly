@@ -26,6 +26,7 @@ from app.core.exceptions import (
     ValidationException,
 )
 from app.models.booking import BookingStatus, PaymentStatus
+from app.utils.bitset import new_empty_tags
 
 
 def _make_service(
@@ -41,6 +42,8 @@ def _make_service(
     svc.db = MagicMock()
     svc.repository = repository or MagicMock()
     svc.availability_repository = MagicMock()
+    svc.availability_repository.get_day_bitmaps.return_value = (b"\xff" * 36, new_empty_tags())
+    svc.availability_repository.get_day_bits.return_value = b"\xff" * 36
     svc.conflict_checker_repository = conflict_checker or MagicMock()
     svc.conflict_checker = MagicMock()
     svc.conflict_checker.check_time_conflicts.return_value = False

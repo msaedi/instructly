@@ -18,6 +18,7 @@ from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
 from app.schemas.booking import BookingCreate
 from app.services.booking_service import BookingService
+from app.utils.bitset import new_empty_tags
 
 
 @pytest.fixture(autouse=True)
@@ -122,6 +123,7 @@ class TestStudentConflictValidation:
         """Create a mock availability repository."""
         repo = Mock()
         repo.get_day_bits = Mock(return_value=b"\xff" * 36)
+        repo.get_day_bitmaps = Mock(return_value=(b"\xff" * 36, new_empty_tags()))
         return repo
 
     @pytest.fixture

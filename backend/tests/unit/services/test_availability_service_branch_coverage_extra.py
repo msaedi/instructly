@@ -15,6 +15,7 @@ from app.core.exceptions import (
 )
 from app.services.availability_service import AvailabilityService
 from app.services.config_service import ConfigService
+from app.utils.bitset import new_empty_tags
 
 
 class _Slot:
@@ -391,6 +392,7 @@ def test_compute_public_availability_exercises_merge_trim_and_buffer_edge_paths(
     service = _service()
     service._bitmap_repo = MagicMock()
     service._bitmap_repo.return_value.get_day_bits.side_effect = [b"bits"]
+    service._bitmap_repo.return_value.get_day_bitmaps.return_value = (b"bits", new_empty_tags())
     service.instructor_repository = MagicMock()
     service.conflict_repository = MagicMock()
     service.instructor_repository.get_by_user_id.return_value = SimpleNamespace(

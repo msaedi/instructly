@@ -58,6 +58,8 @@ from ..schemas.availability_window import (
 )
 from ..utils.bitset import (
     bits_from_windows,
+    get_slot_tag,
+    is_tag_compatible,
     new_empty_tags,
     new_empty_bits,
     pack_indexes,
@@ -2258,6 +2260,55 @@ class AvailabilityService(BaseService):
                 return True
         return False
 
+    @classmethod
+    def _filter_windows_by_format_tags(
+        cls,
+        windows: list[tuple[time, time]],
+        format_tags: bytes | None,
+        *,
+        requested_location_type: str | None,
+    ) -> list[tuple[time, time]]:
+        if not windows:
+            return []
+
+        tags = format_tags or new_empty_tags()
+        normalized_requested_location = normalize_location_type(requested_location_type)
+        filtered: list[tuple[time, time]] = []
+
+        for start_time, end_time in windows:
+            start_minute = time_to_minutes(start_time, is_end_time=False)
+            end_minute = time_to_minutes(end_time, is_end_time=True)
+            start_slot = start_minute // MINUTES_PER_SLOT
+            end_slot = end_minute // MINUTES_PER_SLOT
+            compatible_run_start: int | None = None
+
+            for slot in range(start_slot, end_slot):
+                tag = get_slot_tag(tags, slot)
+                compatible = is_tag_compatible(tag, normalized_requested_location)
+                if compatible:
+                    if compatible_run_start is None:
+                        compatible_run_start = slot
+                    continue
+
+                if compatible_run_start is not None and slot > compatible_run_start:
+                    filtered.append(
+                        (
+                            cls._minutes_to_time(compatible_run_start * MINUTES_PER_SLOT),
+                            cls._minutes_to_time(slot * MINUTES_PER_SLOT),
+                        )
+                    )
+                    compatible_run_start = None
+
+            if compatible_run_start is not None and end_slot > compatible_run_start:
+                filtered.append(
+                    (
+                        cls._minutes_to_time(compatible_run_start * MINUTES_PER_SLOT),
+                        cls._minutes_to_time(end_slot * MINUTES_PER_SLOT),
+                    )
+                )
+
+        return filtered
+
     @BaseService.measure_operation("compute_public_availability")
     def compute_public_availability(
         self,
@@ -2317,10 +2368,13 @@ class AvailabilityService(BaseService):
         # Fetch availability windows from bitmap
         bitmap_repo = self._bitmap_repo()
         by_date: dict[date, list[tuple[time, time]]] = {}
+        tags_by_date: dict[date, bytes] = {}
         current_date = start_date
         while current_date <= end_date:
-            bits = bitmap_repo.get_day_bits(instructor_id, current_date)
-            if bits:
+            day_bitmaps = bitmap_repo.get_day_bitmaps(instructor_id, current_date)
+            if day_bitmaps:
+                bits, format_tags = day_bitmaps
+                tags_by_date[current_date] = format_tags
                 windows_str: list[tuple[str, str]] = windows_from_bits(bits)
                 # Convert to time objects for return type
                 windows_time: list[tuple[time, time]] = [
@@ -2364,6 +2418,11 @@ class AvailabilityService(BaseService):
                 requested_location_type=effective_requested_location_type,
                 non_travel_buffer_minutes=non_travel_buffer_minutes,
                 travel_buffer_minutes=travel_buffer_minutes,
+            )
+            remaining = self._filter_windows_by_format_tags(
+                remaining,
+                tags_by_date.get(cur),
+                requested_location_type=effective_requested_location_type,
             )
 
             if earliest_allowed_date:
