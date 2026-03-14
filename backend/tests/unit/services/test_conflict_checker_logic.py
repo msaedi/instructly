@@ -6,6 +6,7 @@ UPDATED FOR CLEAN ARCHITECTURE: Tests now match the current ConflictChecker
 implementation which works directly with bookings without slot references.
 """
 
+from copy import deepcopy
 from datetime import date, datetime, time, timedelta
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -20,8 +21,17 @@ from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.repositories.conflict_checker_repository import ConflictCheckerRepository
 from app.repositories.user_repository import UserRepository
-from app.services.config_service import ConfigService
+from app.services.config_service import DEFAULT_BOOKING_RULES_CONFIG, ConfigService
 from app.services.conflict_checker import ConflictChecker
+
+
+def _attach_default_config_service(service: ConflictChecker) -> ConflictChecker:
+    config_service = ConfigService(service.db)
+    config_service.get_booking_rules_config = Mock(
+        return_value=(deepcopy(DEFAULT_BOOKING_RULES_CONFIG), None)
+    )
+    service.config_service = config_service
+    return service
 
 
 class TestConflictCheckerDataTransformation:
@@ -34,7 +44,7 @@ class TestConflictCheckerDataTransformation:
         mock_repository = Mock(spec=ConflictCheckerRepository)
         service = ConflictChecker(mock_db)
         service.repository = mock_repository
-        return service
+        return _attach_default_config_service(service)
 
     def test_booking_conflict_response_formatting(self, service):
         """Test how booking conflicts are formatted for response."""
@@ -195,7 +205,7 @@ class TestConflictCheckerValidationRules:
         service = ConflictChecker(mock_db)
         service.repository = mock_repository
         service.user_repository = Mock(spec=UserRepository)
-        return service
+        return _attach_default_config_service(service)
 
     def _setup_user_mock(self, service, user_id=generate_ulid(), timezone="America/New_York"):
         """Helper to set up user mock with timezone."""
@@ -254,6 +264,53 @@ class TestConflictCheckerValidationRules:
 
         assert result["valid"] == False
         assert any("past time slots" in error for error in result["errors"])
+
+    def test_check_booking_conflicts_fetches_config_once(self, service):
+        profile = SimpleNamespace(travel_buffer_minutes=60, non_travel_buffer_minutes=15)
+        booking_one = Mock(spec=Booking)
+        booking_one.id = generate_ulid()
+        booking_one.start_time = time(10, 0)
+        booking_one.end_time = time(11, 0)
+        booking_one.location_type = "online"
+        booking_one.student = Mock(first_name="John", last_name="Doe")
+        booking_one.service_name = "Lesson A"
+        booking_one.status = BookingStatus.CONFIRMED
+
+        booking_two = Mock(spec=Booking)
+        booking_two.id = generate_ulid()
+        booking_two.start_time = time(12, 0)
+        booking_two.end_time = time(13, 0)
+        booking_two.location_type = "student_location"
+        booking_two.student = Mock(first_name="Jane", last_name="Doe")
+        booking_two.service_name = "Lesson B"
+        booking_two.status = BookingStatus.PENDING
+
+        service.repository.get_bookings_for_conflict_check.return_value = [booking_one, booking_two]
+        service.repository.get_instructor_profile.return_value = profile
+        service.config_service = Mock(spec=ConfigService)
+        service.config_service.get_booking_rules_config.return_value = (
+            {
+                "default_non_travel_buffer_minutes": 15,
+                "default_travel_buffer_minutes": 60,
+            },
+            None,
+        )
+        service.config_service._resolve_default_buffer_minutes_from_config.side_effect = [60, 15]
+
+        service.check_booking_conflicts(
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(10, 30),
+            end_time=time(11, 30),
+            new_location_type="student_location",
+        )
+
+        service.config_service.get_booking_rules_config.assert_called_once_with()
+        assert service.config_service._resolve_default_buffer_minutes_from_config.call_count == 2
+
+    @pytest.mark.parametrize("buffer_value", [True, False])
+    def test_coerce_buffer_minutes_uses_default_for_boolean(self, service, buffer_value: bool):
+        assert service._coerce_buffer_minutes(buffer_value, 15) == 15
 
     @patch("app.services.conflict_checker.get_user_today_by_id")
     def test_service_duration_validation_rules(self, mock_get_today, service):
@@ -389,6 +446,10 @@ class TestConflictCheckerValidationRules:
             mock_bookings.append(mock_booking)
 
         service.repository.get_bookings_for_conflict_check.return_value = mock_bookings
+        service.repository.get_instructor_profile.return_value = SimpleNamespace(
+            travel_buffer_minutes=0,
+            non_travel_buffer_minutes=0,
+        )
 
         conflicts = service.check_booking_conflicts(
             instructor_id=generate_ulid(), check_date=date.today(), start_time=check_start, end_time=check_end
@@ -648,7 +709,7 @@ class TestConflictCheckerEdgeCases:
         service = ConflictChecker(mock_db)
         service.repository = mock_repository
         service.user_repository = Mock(spec=UserRepository)
-        return service
+        return _attach_default_config_service(service)
 
     def _setup_user_mock(self, service, user_id=generate_ulid(), timezone="America/New_York"):
         """Helper to set up user mock with timezone."""
@@ -755,7 +816,7 @@ class TestConflictCheckerFormatAwareBuffers:
         service = ConflictChecker(mock_db)
         service.repository = mock_repository
         service.user_repository = Mock(spec=UserRepository)
-        return service
+        return _attach_default_config_service(service)
 
     def test_instructor_non_travel_buffer_blocks_adjacent_online_booking(self, service):
         existing_booking = _make_booking_for_conflict(

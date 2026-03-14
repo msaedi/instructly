@@ -282,6 +282,58 @@ class TestConfigServiceBookingRules:
             service = ConfigService(db)
             assert service.get_default_buffer_minutes(location_type) == expected_minutes
 
+    def test_booking_rule_accessors_fall_back_to_defaults_for_none_values(self) -> None:
+        db = MagicMock()
+        config_with_nones = deepcopy(DEFAULT_BOOKING_RULES_CONFIG)
+        config_with_nones.update(
+            {
+                "advance_notice_online_minutes": None,
+                "default_non_travel_buffer_minutes": None,
+                "overnight_online_earliest_hour": None,
+                "overnight_protection_window_start_hour": None,
+                "overnight_protection_window_end_hour": None,
+            }
+        )
+
+        with patch.object(
+            ConfigService,
+            "get_booking_rules_config",
+            return_value=(config_with_nones, None),
+        ), patch.object(
+            ConfigService,
+            "get_advance_notice_minutes",
+            ORIGINAL_GET_ADVANCE_NOTICE_MINUTES,
+        ), patch.object(
+            ConfigService,
+            "get_default_buffer_minutes",
+            ORIGINAL_GET_DEFAULT_BUFFER_MINUTES,
+        ), patch.object(
+            ConfigService,
+            "get_overnight_earliest_hour",
+            ORIGINAL_GET_OVERNIGHT_EARLIEST_HOUR,
+        ), patch.object(
+            ConfigService,
+            "get_overnight_window_hours",
+            ORIGINAL_GET_OVERNIGHT_WINDOW_HOURS,
+        ):
+            service = ConfigService(db)
+            assert (
+                service.get_advance_notice_minutes("online")
+                == DEFAULT_BOOKING_RULES_CONFIG["advance_notice_online_minutes"]
+            )
+            assert (
+                service.get_default_buffer_minutes("online")
+                == DEFAULT_BOOKING_RULES_CONFIG["default_non_travel_buffer_minutes"]
+            )
+            assert (
+                service.get_overnight_earliest_hour("online")
+                == DEFAULT_BOOKING_RULES_CONFIG["overnight_online_earliest_hour"]
+            )
+            assert service.get_overnight_window_hours() == (
+                DEFAULT_BOOKING_RULES_CONFIG["overnight_protection_window_start_hour"],
+                DEFAULT_BOOKING_RULES_CONFIG["overnight_protection_window_end_hour"],
+            )
+
     @pytest.mark.parametrize(
         ("location_type", "expected_hour"),
         [

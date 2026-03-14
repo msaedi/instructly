@@ -46,6 +46,11 @@ def test_interval_helpers_raise_for_invalid_ranges_and_unknown_overlap_values():
     assert "unknown" in str(exc_info.value)
 
 
+@pytest.mark.parametrize("buffer_value", [True, False])
+def test_coerce_buffer_minutes_uses_default_for_boolean(buffer_value: bool):
+    assert AvailabilityService._coerce_buffer_minutes(buffer_value, 15) == 15
+
+
 def test_determine_week_start_uses_schedule_then_timezone_fallback():
     service = _service()
 

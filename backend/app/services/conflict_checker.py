@@ -44,7 +44,12 @@ class ConflictChecker(BaseService):
     booking data without referencing availability slots.
     """
 
-    def __init__(self, db: Session, repository: Optional[ConflictCheckerRepository] = None):
+    def __init__(
+        self,
+        db: Session,
+        repository: Optional[ConflictCheckerRepository] = None,
+        config_service: Optional[ConfigService] = None,
+    ):
         """
         Initialize conflict checker service.
 
@@ -56,11 +61,12 @@ class ConflictChecker(BaseService):
         self.logger = logging.getLogger(__name__)
         self.repository = repository or RepositoryFactory.create_conflict_checker_repository(db)
         self.user_repository = RepositoryFactory.create_user_repository(db)
+        self.config_service = config_service or ConfigService(db)
 
     @staticmethod
     def _coerce_buffer_minutes(value: object, default: int) -> int:
         if isinstance(value, bool):
-            return int(value)
+            return default
         if isinstance(value, int):
             return max(0, value)
         if isinstance(value, float):
@@ -78,6 +84,8 @@ class ConflictChecker(BaseService):
         new_location_type: str | None,
         instructor_profile: InstructorProfile | None,
         *,
+        travel_default: int,
+        non_travel_default: int,
         perspective: str,
     ) -> int:
         if perspective == "student":
@@ -89,9 +97,6 @@ class ConflictChecker(BaseService):
                 existing_location_type
             ) or is_instructor_travel_format(new_location_type)
 
-        config_service = ConfigService(self.db)
-        travel_default = config_service.get_default_buffer_minutes("student_location")
-        non_travel_default = config_service.get_default_buffer_minutes("online")
         if instructor_profile is None:
             return travel_default if travel_required else non_travel_default
 
@@ -123,7 +128,7 @@ class ConflictChecker(BaseService):
         )
         earlier_start, earlier_end = min(first_interval, second_interval)
         later_start, _later_end = max(first_interval, second_interval)
-        return later_start < earlier_end + max(0, buffer_minutes)
+        return bool(later_start < earlier_end + max(0, buffer_minutes))
 
     @BaseService.measure_operation("check_booking_conflicts")
     def check_booking_conflicts(
@@ -157,6 +162,13 @@ class ConflictChecker(BaseService):
         )
         profile = instructor_profile or self.repository.get_instructor_profile(instructor_id)
         normalized_new_location_type = normalize_location_type(new_location_type)
+        booking_rules_config, _updated_at = self.config_service.get_booking_rules_config()
+        travel_default = self.config_service._resolve_default_buffer_minutes_from_config(
+            booking_rules_config, "student_location"
+        )
+        non_travel_default = self.config_service._resolve_default_buffer_minutes_from_config(
+            booking_rules_config, "online"
+        )
 
         conflicts = []
         for booking in bookings:
@@ -164,6 +176,8 @@ class ConflictChecker(BaseService):
                 getattr(booking, "location_type", None),
                 normalized_new_location_type,
                 profile,
+                travel_default=travel_default,
+                non_travel_default=non_travel_default,
                 perspective="instructor",
             )
             if self._conflicts_with_buffer(
@@ -246,6 +260,13 @@ class ConflictChecker(BaseService):
             student_id, check_date, exclude_id
         )
         normalized_new_location_type = normalize_location_type(new_location_type)
+        booking_rules_config, _updated_at = self.config_service.get_booking_rules_config()
+        travel_default = self.config_service._resolve_default_buffer_minutes_from_config(
+            booking_rules_config, "student_location"
+        )
+        non_travel_default = self.config_service._resolve_default_buffer_minutes_from_config(
+            booking_rules_config, "online"
+        )
 
         conflicts = []
         for booking in bookings:
@@ -253,6 +274,8 @@ class ConflictChecker(BaseService):
                 getattr(booking, "location_type", None),
                 normalized_new_location_type,
                 instructor_profile,
+                travel_default=travel_default,
+                non_travel_default=non_travel_default,
                 perspective="student",
             )
             if self._conflicts_with_buffer(
@@ -464,7 +487,7 @@ class ConflictChecker(BaseService):
         )
 
         # Calculate minimum booking time
-        min_advance_minutes = ConfigService(self.db).get_advance_notice_minutes(location_type)
+        min_advance_minutes = self.config_service.get_advance_notice_minutes(location_type)
         min_booking_time = instructor_now + timedelta(minutes=min_advance_minutes)
 
         # For comparison, we need to ensure both times are timezone-aware

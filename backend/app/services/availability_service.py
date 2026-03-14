@@ -2077,7 +2077,7 @@ class AvailabilityService(BaseService):
     @staticmethod
     def _coerce_buffer_minutes(value: object, default: int) -> int:
         if isinstance(value, bool):
-            return int(value)
+            return default
         if isinstance(value, int):
             return max(0, value)
         if isinstance(value, float):

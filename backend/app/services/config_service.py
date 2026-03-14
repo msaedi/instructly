@@ -66,6 +66,52 @@ class ConfigService(BaseService):
         super().__init__(db)
         self.repo = PlatformConfigRepository(db)
 
+    @staticmethod
+    def _get_booking_rules_int(config: Dict[str, Any], key: str) -> int:
+        value = config.get(key)
+        return int(value) if value is not None else int(DEFAULT_BOOKING_RULES_CONFIG[key])
+
+    @classmethod
+    def _resolve_advance_notice_minutes_from_config(
+        cls, config: Dict[str, Any], location_type: str | None = None
+    ) -> int:
+        normalized_location = normalize_location_type(location_type)
+        if normalized_location in INSTRUCTOR_TRAVEL_LOCATION_TYPES:
+            key = "advance_notice_travel_minutes"
+        elif normalized_location in STUDIO_LOCATION_TYPES:
+            key = "advance_notice_studio_minutes"
+        else:
+            key = "advance_notice_online_minutes"
+        return cls._get_booking_rules_int(config, key)
+
+    @classmethod
+    def _resolve_overnight_window_hours_from_config(cls, config: Dict[str, Any]) -> tuple[int, int]:
+        start_hour = cls._get_booking_rules_int(config, "overnight_protection_window_start_hour")
+        end_hour = cls._get_booking_rules_int(config, "overnight_protection_window_end_hour")
+        return start_hour, end_hour
+
+    @classmethod
+    def _resolve_overnight_earliest_hour_from_config(
+        cls, config: Dict[str, Any], location_type: str | None = None
+    ) -> int:
+        normalized_location = normalize_location_type(location_type)
+        if normalized_location in INSTRUCTOR_TRAVEL_LOCATION_TYPES:
+            key = "overnight_travel_earliest_hour"
+        else:
+            key = "overnight_online_earliest_hour"
+        return cls._get_booking_rules_int(config, key)
+
+    @classmethod
+    def _resolve_default_buffer_minutes_from_config(
+        cls, config: Dict[str, Any], location_type: str | None = None
+    ) -> int:
+        normalized_location = normalize_location_type(location_type)
+        if normalized_location in INSTRUCTOR_TRAVEL_LOCATION_TYPES:
+            key = "default_travel_buffer_minutes"
+        else:
+            key = "default_non_travel_buffer_minutes"
+        return cls._get_booking_rules_int(config, key)
+
     @BaseService.measure_operation("get_pricing_config")
     def get_pricing_config(self) -> Tuple[Dict[str, Any], datetime | None]:
         record = self.repo.get_by_key("pricing")
@@ -92,33 +138,12 @@ class ConfigService(BaseService):
     @BaseService.measure_operation("get_advance_notice_minutes")
     def get_advance_notice_minutes(self, location_type: str | None = None) -> int:
         config, _updated_at = self.get_booking_rules_config()
-        normalized_location = normalize_location_type(location_type)
-        if normalized_location in INSTRUCTOR_TRAVEL_LOCATION_TYPES:
-            key = "advance_notice_travel_minutes"
-        elif normalized_location in STUDIO_LOCATION_TYPES:
-            key = "advance_notice_studio_minutes"
-        else:
-            key = "advance_notice_online_minutes"
-        return int(config.get(key, DEFAULT_BOOKING_RULES_CONFIG[key]) or 0)
+        return self._resolve_advance_notice_minutes_from_config(config, location_type)
 
     @BaseService.measure_operation("get_overnight_window_hours")
     def get_overnight_window_hours(self) -> tuple[int, int]:
         config, _updated_at = self.get_booking_rules_config()
-        start_hour = int(
-            config.get(
-                "overnight_protection_window_start_hour",
-                DEFAULT_BOOKING_RULES_CONFIG["overnight_protection_window_start_hour"],
-            )
-            or 0
-        )
-        end_hour = int(
-            config.get(
-                "overnight_protection_window_end_hour",
-                DEFAULT_BOOKING_RULES_CONFIG["overnight_protection_window_end_hour"],
-            )
-            or 0
-        )
-        return start_hour, end_hour
+        return self._resolve_overnight_window_hours_from_config(config)
 
     @BaseService.measure_operation("is_in_overnight_window")
     def is_in_overnight_window(self, local_dt: datetime) -> bool:
@@ -128,19 +153,9 @@ class ConfigService(BaseService):
     @BaseService.measure_operation("get_overnight_earliest_hour")
     def get_overnight_earliest_hour(self, location_type: str | None = None) -> int:
         config, _updated_at = self.get_booking_rules_config()
-        normalized_location = normalize_location_type(location_type)
-        if normalized_location in INSTRUCTOR_TRAVEL_LOCATION_TYPES:
-            key = "overnight_travel_earliest_hour"
-        else:
-            key = "overnight_online_earliest_hour"
-        return int(config.get(key, DEFAULT_BOOKING_RULES_CONFIG[key]) or 0)
+        return self._resolve_overnight_earliest_hour_from_config(config, location_type)
 
     @BaseService.measure_operation("get_default_buffer_minutes")
     def get_default_buffer_minutes(self, location_type: str | None = None) -> int:
         config, _updated_at = self.get_booking_rules_config()
-        normalized_location = normalize_location_type(location_type)
-        if normalized_location in INSTRUCTOR_TRAVEL_LOCATION_TYPES:
-            key = "default_travel_buffer_minutes"
-        else:
-            key = "default_non_travel_buffer_minutes"
-        return int(config.get(key, DEFAULT_BOOKING_RULES_CONFIG[key]) or 0)
+        return self._resolve_default_buffer_minutes_from_config(config, location_type)
