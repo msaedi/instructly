@@ -199,10 +199,12 @@ class AvailabilityService(BaseService):
         repository: Optional["AvailabilityRepository"] = None,
         bulk_repository: Optional["BulkOperationRepository"] = None,
         conflict_repository: Optional["ConflictCheckerRepository"] = None,
+        config_service: Optional[ConfigService] = None,
     ):
         """Initialize availability service with optional cache and repositories."""
         super().__init__(db, cache=cache_service)
         self.cache_service = cache_service
+        self.config_service = config_service or ConfigService(db)
 
         # Initialize repositories
         self.repository = repository or RepositoryFactory.create_availability_repository(db)
@@ -2333,14 +2335,13 @@ class AvailabilityService(BaseService):
         """
         effective_requested_location_type = requested_location_type or "student_location"
         profile = self.instructor_repository.get_by_user_id(instructor_id)
-        config_service = ConfigService(self.db)
         min_advance_minutes = (
-            config_service.get_advance_notice_minutes(effective_requested_location_type)
+            self.config_service.get_advance_notice_minutes(effective_requested_location_type)
             if apply_min_advance
             else 0
         )
-        default_non_travel_buffer_minutes = config_service.get_default_buffer_minutes("online")
-        default_travel_buffer_minutes = config_service.get_default_buffer_minutes(
+        default_non_travel_buffer_minutes = self.config_service.get_default_buffer_minutes("online")
+        default_travel_buffer_minutes = self.config_service.get_default_buffer_minutes(
             "student_location"
         )
         non_travel_buffer_minutes, travel_buffer_minutes = self._resolve_buffer_profile_values(

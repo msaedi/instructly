@@ -193,6 +193,50 @@ class TestConflictCheckerDataTransformation:
 
         assert week_data == {}
 
+    @pytest.mark.parametrize("status", [BookingStatus.CONFIRMED, BookingStatus.PENDING])
+    def test_active_booking_missing_location_type_logs_warning(self, service, caplog, status):
+        booking = Mock(spec=Booking)
+        booking.id = generate_ulid()
+        booking.start_time = time(10, 0)
+        booking.end_time = time(11, 0)
+        booking.service_name = "Lesson"
+        booking.status = status
+        booking.location_type = None
+        booking.student = Mock(first_name="John", last_name="Doe")
+
+        service.repository.get_bookings_for_conflict_check.return_value = [booking]
+        service.repository.get_instructor_profile.return_value = SimpleNamespace(
+            travel_buffer_minutes=0,
+            non_travel_buffer_minutes=0,
+        )
+
+        with caplog.at_level("WARNING"):
+            service.check_booking_conflicts(
+                instructor_id=generate_ulid(),
+                check_date=date.today(),
+                start_time=time(14, 0),
+                end_time=time(15, 0),
+            )
+
+        assert f"Active booking {booking.id} missing location_type" in caplog.text
+
+    def test_missing_location_type_warning_skips_inactive_or_present_values(self, service, caplog):
+        cancelled = Mock(spec=Booking)
+        cancelled.id = generate_ulid()
+        cancelled.status = BookingStatus.CANCELLED
+        cancelled.location_type = None
+
+        active_with_location = Mock(spec=Booking)
+        active_with_location.id = generate_ulid()
+        active_with_location.status = BookingStatus.CONFIRMED
+        active_with_location.location_type = "online"
+
+        with caplog.at_level("WARNING"):
+            assert service._get_booking_location_type(cancelled) is None
+            assert service._get_booking_location_type(active_with_location) == "online"
+
+        assert "missing location_type" not in caplog.text
+
 
 class TestConflictCheckerValidationRules:
     """Test validation rules and business constraints."""

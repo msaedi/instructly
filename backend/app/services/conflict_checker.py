@@ -14,7 +14,7 @@ without any reference to availability slots.
 
 from datetime import date, datetime, time, timedelta, timezone
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from sqlalchemy.orm import Session
 
@@ -77,6 +77,18 @@ class ConflictChecker(BaseService):
             except ValueError:
                 return default
         return default
+
+    def _get_booking_location_type(self, booking: Any) -> str | None:
+        location_type = getattr(booking, "location_type", None)
+        if location_type is None and getattr(booking, "status", None) in (
+            BookingStatus.CONFIRMED,
+            BookingStatus.PENDING,
+        ):
+            self.logger.warning(
+                "Active booking %s missing location_type",
+                getattr(booking, "id", "<unknown>"),
+            )
+        return cast(Optional[str], location_type)
 
     def _get_buffer_minutes(
         self,
@@ -173,7 +185,7 @@ class ConflictChecker(BaseService):
         conflicts = []
         for booking in bookings:
             buffer_minutes = self._get_buffer_minutes(
-                getattr(booking, "location_type", None),
+                self._get_booking_location_type(booking),
                 normalized_new_location_type,
                 profile,
                 travel_default=travel_default,
@@ -271,7 +283,7 @@ class ConflictChecker(BaseService):
         conflicts = []
         for booking in bookings:
             buffer_minutes = self._get_buffer_minutes(
-                getattr(booking, "location_type", None),
+                self._get_booking_location_type(booking),
                 normalized_new_location_type,
                 instructor_profile,
                 travel_default=travel_default,

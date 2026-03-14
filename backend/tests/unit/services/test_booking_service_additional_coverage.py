@@ -272,6 +272,40 @@ def test_write_booking_audit_status_change_maps_terminal_actions(
     assert actions == ["booking.complete", "booking.cancel"]
 
 
+def test_booking_create_lock_key_is_deterministic() -> None:
+    instructor_id = generate_ulid()
+    booking_date = date(2030, 1, 1)
+
+    key = BookingService._booking_create_lock_key(instructor_id, booking_date)
+
+    assert isinstance(key, int)
+    assert key == BookingService._booking_create_lock_key(instructor_id, booking_date)
+    assert key != BookingService._booking_create_lock_key(instructor_id, booking_date + timedelta(days=1))
+    assert key != BookingService._booking_create_lock_key(generate_ulid(), booking_date)
+
+
+def test_acquire_booking_create_advisory_lock_delegates_to_repository(
+    booking_service: BookingService,
+) -> None:
+    instructor_id = generate_ulid()
+    booking_date = date(2030, 1, 1)
+    booking_service.repository.acquire_transaction_advisory_lock = Mock()
+
+    booking_service._acquire_booking_create_advisory_lock(instructor_id, booking_date)
+
+    booking_service.repository.acquire_transaction_advisory_lock.assert_called_once_with(
+        BookingService._booking_create_lock_key(instructor_id, booking_date)
+    )
+
+
+def test_acquire_booking_create_advisory_lock_skips_missing_repository_method(
+    booking_service: BookingService,
+) -> None:
+    booking_service.repository = object()
+
+    booking_service._acquire_booking_create_advisory_lock(generate_ulid(), date(2030, 1, 1))
+
+
 def test_create_booking_integrity_error_with_scope(
     booking_service: BookingService, mock_repository: MagicMock
 ) -> None:
@@ -351,6 +385,43 @@ def test_create_booking_repository_exception(
         booking_service.create_booking(student, booking_data, selected_duration=60)
 
 
+def test_create_booking_acquires_advisory_lock_before_insert(
+    booking_service: BookingService, mock_repository: MagicMock
+) -> None:
+    student = make_user(RoleName.STUDENT.value)
+    booking_data = make_booking_data()
+    service = SimpleNamespace(duration_options=[60])
+    instructor_profile = SimpleNamespace()
+    booking = make_booking()
+
+    booking_service._validate_booking_prerequisites = Mock(return_value=(service, instructor_profile))
+    booking_service._calculate_and_validate_end_time = Mock(return_value=time(11, 0))
+    booking_service._validate_against_availability_bits = Mock()
+    booking_service._check_conflicts_and_rules = Mock()
+    booking_service._acquire_booking_create_advisory_lock = Mock()
+    booking_service._create_booking_record = Mock(return_value=booking)
+    booking_service._enqueue_booking_outbox_event = Mock()
+    booking_service._snapshot_booking = Mock(return_value={})
+    booking_service._write_booking_audit = Mock()
+    booking_service._handle_post_booking_tasks = Mock()
+
+    mock_repository.transaction.return_value = _transaction_cm()
+
+    result = booking_service.create_booking(student, booking_data, selected_duration=60)
+
+    assert result is booking
+    booking_service._acquire_booking_create_advisory_lock.assert_called_once_with(
+        booking_data.instructor_id,
+        booking_data.booking_date,
+    )
+    booking_service._check_conflicts_and_rules.assert_called_once_with(
+        booking_data,
+        service,
+        instructor_profile,
+        student,
+    )
+
+
 def test_create_booking_with_payment_setup_reschedule_linkage(
     booking_service: BookingService, mock_repository: MagicMock
 ) -> None:
@@ -417,6 +488,55 @@ def test_create_booking_with_payment_setup_reschedule_linkage(
     assert previous_reschedule.rescheduled_to_booking_id == booking.id
     assert current_reschedule.reschedule_count == 2
     assert current_reschedule.late_reschedule_used is True
+
+
+def test_create_booking_with_payment_setup_acquires_advisory_lock(
+    booking_service: BookingService, mock_repository: MagicMock
+) -> None:
+    student = make_user(RoleName.STUDENT.value)
+    booking_data = make_booking_data()
+    service = SimpleNamespace(duration_options=[60])
+    instructor_profile = SimpleNamespace()
+    booking = make_booking(total_price=100)
+
+    booking_service._validate_booking_prerequisites = Mock(return_value=(service, instructor_profile))
+    booking_service._calculate_and_validate_end_time = Mock(return_value=time(11, 0))
+    booking_service._validate_against_availability_bits = Mock()
+    booking_service._check_conflicts_and_rules = Mock()
+    booking_service._acquire_booking_create_advisory_lock = Mock()
+    booking_service._create_booking_record = Mock(return_value=booking)
+    booking_service._enqueue_booking_outbox_event = Mock()
+    booking_service._snapshot_booking = Mock(return_value={})
+    booking_service._write_booking_audit = Mock()
+
+    mock_repository.transaction.return_value = _transaction_cm()
+    mock_repository.get_by_id.return_value = booking
+
+    with patch("app.services.stripe_service.StripeService") as mock_stripe_service:
+        stripe_service = mock_stripe_service.return_value
+        stripe_service.get_or_create_customer.return_value = SimpleNamespace(
+            stripe_customer_id="cus_123"
+        )
+        with patch(
+            "app.services.booking_service.stripe.SetupIntent.create",
+            return_value=SimpleNamespace(
+                id="seti_123",
+                client_secret="secret_123",
+                status="requires_payment_method",
+            ),
+        ):
+            with patch("app.repositories.payment_repository.PaymentRepository") as payment_repo:
+                payment_repo.return_value.create_payment_event = Mock()
+                booking_service.create_booking_with_payment_setup(
+                    student,
+                    booking_data,
+                    selected_duration=60,
+                )
+
+    booking_service._acquire_booking_create_advisory_lock.assert_called_once_with(
+        booking_data.instructor_id,
+        booking_data.booking_date,
+    )
 
 
 def test_create_booking_with_payment_setup_refresh_missing(
@@ -630,6 +750,69 @@ def test_create_rescheduled_booking_with_existing_payment_integrity_error(
         )
 
 
+def test_create_rescheduled_booking_with_existing_payment_acquires_advisory_lock(
+    booking_service: BookingService, mock_repository: MagicMock
+) -> None:
+    student = make_user(RoleName.STUDENT.value)
+    booking_data = make_booking_data()
+    service = SimpleNamespace(duration_options=[60])
+    instructor_profile = SimpleNamespace()
+    booking = make_booking()
+    existing_booking = make_booking(
+        instructor_id=booking_data.instructor_id,
+        booking_start_utc=datetime(2030, 1, 1, 14, 0, tzinfo=timezone.utc),
+    )
+    old_reschedule = SimpleNamespace(
+        reschedule_count=1,
+        late_reschedule_used=False,
+        rescheduled_to_booking_id=None,
+        original_lesson_datetime=None,
+    )
+    current_reschedule = SimpleNamespace(
+        reschedule_count=0,
+        late_reschedule_used=False,
+        rescheduled_to_booking_id=None,
+        original_lesson_datetime=None,
+    )
+
+    booking_service._validate_booking_prerequisites = Mock(return_value=(service, instructor_profile))
+    booking_service._calculate_and_validate_end_time = Mock(return_value=time(11, 0))
+    booking_service._validate_against_availability_bits = Mock()
+    booking_service._check_conflicts_and_rules = Mock()
+    booking_service._acquire_booking_create_advisory_lock = Mock()
+    booking_service._create_booking_record = Mock(return_value=booking)
+    booking_service._enqueue_booking_outbox_event = Mock()
+    booking_service._snapshot_booking = Mock(return_value={})
+    booking_service._write_booking_audit = Mock()
+    booking_service._handle_post_booking_tasks = Mock()
+    booking_service._get_booking_start_utc = Mock(
+        return_value=datetime(2030, 1, 1, 14, 0, tzinfo=timezone.utc)
+    )
+
+    mock_repository.transaction.return_value = _transaction_cm()
+    mock_repository.get_by_id.side_effect = [existing_booking, existing_booking]
+    mock_repository.ensure_reschedule.side_effect = [old_reschedule, current_reschedule]
+
+    with patch("app.services.booking_service.RepositoryFactory.create_credit_repository") as credit_repo:
+        credit_repo.return_value.get_reserved_credits_for_booking.return_value = []
+        with patch("app.repositories.payment_repository.PaymentRepository") as payment_repo:
+            payment_repo.return_value.get_payment_by_intent_id.return_value = None
+            booking_service.create_rescheduled_booking_with_existing_payment(
+                student,
+                booking_data,
+                selected_duration=60,
+                original_booking_id=existing_booking.id,
+                payment_intent_id="pi_123",
+                payment_status="requires_capture",
+                payment_method_id="pm_123",
+            )
+
+    booking_service._acquire_booking_create_advisory_lock.assert_called_once_with(
+        booking_data.instructor_id,
+        booking_data.booking_date,
+    )
+
+
 def test_create_rescheduled_booking_with_locked_funds_missing_original_in_tx(
     booking_service: BookingService, mock_repository: MagicMock
 ) -> None:
@@ -659,6 +842,62 @@ def test_create_rescheduled_booking_with_locked_funds_missing_original_in_tx(
             selected_duration=60,
             original_booking_id=existing_booking.id,
         )
+
+
+def test_create_rescheduled_booking_with_locked_funds_acquires_advisory_lock(
+    booking_service: BookingService, mock_repository: MagicMock
+) -> None:
+    student = make_user(RoleName.STUDENT.value)
+    booking_data = make_booking_data()
+    service = SimpleNamespace(duration_options=[60])
+    instructor_profile = SimpleNamespace()
+    booking = make_booking()
+    existing_booking = make_booking(
+        instructor_id=booking_data.instructor_id,
+        booking_start_utc=datetime(2030, 1, 1, 14, 0, tzinfo=timezone.utc),
+    )
+    current_reschedule = SimpleNamespace(
+        reschedule_count=0,
+        late_reschedule_used=False,
+        rescheduled_to_booking_id=None,
+        original_lesson_datetime=None,
+    )
+    old_reschedule = SimpleNamespace(
+        reschedule_count=1,
+        late_reschedule_used=False,
+        rescheduled_to_booking_id=None,
+        original_lesson_datetime=None,
+    )
+
+    booking_service._validate_booking_prerequisites = Mock(return_value=(service, instructor_profile))
+    booking_service._calculate_and_validate_end_time = Mock(return_value=time(11, 0))
+    booking_service._validate_against_availability_bits = Mock()
+    booking_service._check_conflicts_and_rules = Mock()
+    booking_service._acquire_booking_create_advisory_lock = Mock()
+    booking_service._create_booking_record = Mock(return_value=booking)
+    booking_service._enqueue_booking_outbox_event = Mock()
+    booking_service._snapshot_booking = Mock(return_value={})
+    booking_service._write_booking_audit = Mock()
+    booking_service._handle_post_booking_tasks = Mock()
+    booking_service._get_booking_start_utc = Mock(
+        return_value=datetime(2030, 1, 1, 14, 0, tzinfo=timezone.utc)
+    )
+
+    mock_repository.transaction.return_value = _transaction_cm()
+    mock_repository.get_by_id.side_effect = [existing_booking, existing_booking]
+    mock_repository.ensure_reschedule.side_effect = [current_reschedule, old_reschedule]
+
+    booking_service.create_rescheduled_booking_with_locked_funds(
+        student,
+        booking_data,
+        selected_duration=60,
+        original_booking_id=existing_booking.id,
+    )
+
+    booking_service._acquire_booking_create_advisory_lock.assert_called_once_with(
+        booking_data.instructor_id,
+        booking_data.booking_date,
+    )
 
 
 def test_confirm_booking_payment_gaming_reschedule_immediate_auth_error(

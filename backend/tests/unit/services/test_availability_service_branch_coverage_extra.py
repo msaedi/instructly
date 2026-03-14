@@ -30,6 +30,7 @@ def _service() -> AvailabilityService:
     service.db = MagicMock()
     service.logger = MagicMock()
     service.cache_service = MagicMock()
+    service.config_service = ConfigService(service.db)
     return service
 
 

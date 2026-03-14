@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
+import hashlib
 import logging
 import os
 from types import SimpleNamespace
@@ -141,6 +142,24 @@ class BookingService(BaseService):
             return True
         message = str(exc).lower()
         return "deadlock detected" in message
+
+    @staticmethod
+    def _booking_create_lock_key(instructor_id: str, booking_date: date) -> int:
+        payload = f"{instructor_id}:{booking_date.isoformat()}".encode("utf-8")
+        digest = hashlib.sha256(payload).digest()
+        return int.from_bytes(digest[:8], byteorder="big", signed=True)
+
+    def _acquire_booking_create_advisory_lock(self, instructor_id: str, booking_date: date) -> None:
+        acquire_lock = getattr(self.repository, "acquire_transaction_advisory_lock", None)
+        if not callable(acquire_lock):
+            return
+
+        acquire_lock(
+            self._booking_create_lock_key(
+                instructor_id,
+                booking_date,
+            )
+        )
 
     def __init__(
         self,
@@ -724,13 +743,15 @@ class BookingService(BaseService):
         # 4. Ensure requested interval fits published availability (bitmap V2)
         self._validate_against_availability_bits(booking_data, instructor_profile)
 
-        # 5. Check conflicts and apply business rules
-        self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
-
-        # 6. Create the booking with transaction
+        # 5. Create the booking with transaction-scoped conflict protection
         transactional_repo = cast(Any, self.repository)
         try:
             with transactional_repo.transaction():
+                self._acquire_booking_create_advisory_lock(
+                    booking_data.instructor_id,
+                    booking_data.booking_date,
+                )
+                self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
                 booking = self._create_booking_record(
                     student, booking_data, service, instructor_profile, selected_duration
                 )
@@ -823,13 +844,15 @@ class BookingService(BaseService):
         # 4. Ensure requested interval fits published availability (bitmap V2)
         self._validate_against_availability_bits(booking_data, instructor_profile)
 
-        # 5. Check conflicts and apply business rules
-        self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
-
-        # 6. Create booking with PENDING status initially
+        # 5. Create booking with PENDING status initially and transaction-scoped conflict protection
         transactional_repo = cast(Any, self.repository)
         try:
             with transactional_repo.transaction():
+                self._acquire_booking_create_advisory_lock(
+                    booking_data.instructor_id,
+                    booking_data.booking_date,
+                )
+                self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
                 booking = self._create_booking_record(
                     student, booking_data, service, instructor_profile, selected_duration
                 )
@@ -1049,14 +1072,16 @@ class BookingService(BaseService):
         # 4. Ensure requested interval fits published availability (bitmap V2)
         self._validate_against_availability_bits(booking_data, instructor_profile)
 
-        # 5. Check conflicts and apply business rules
-        self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
-
-        # 6. Create the booking with transaction
+        # 5. Create the booking with transaction-scoped conflict protection
         transactional_repo = cast(Any, self.repository)
         old_booking: Optional[Booking] = None
         try:
             with transactional_repo.transaction():
+                self._acquire_booking_create_advisory_lock(
+                    booking_data.instructor_id,
+                    booking_data.booking_date,
+                )
+                self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
                 booking = self._create_booking_record(
                     student, booking_data, service, instructor_profile, selected_duration
                 )
@@ -1209,13 +1234,16 @@ class BookingService(BaseService):
         # 4. Ensure requested interval fits published availability (bitmap V2)
         self._validate_against_availability_bits(booking_data, instructor_profile)
 
-        # 5. Check conflicts and apply business rules
-        self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
-
+        # 5. Create booking with transaction-scoped conflict protection
         transactional_repo = cast(Any, self.repository)
         old_booking: Optional[Booking] = None
         try:
             with transactional_repo.transaction():
+                self._acquire_booking_create_advisory_lock(
+                    booking_data.instructor_id,
+                    booking_data.booking_date,
+                )
+                self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
                 booking = self._create_booking_record(
                     student, booking_data, service, instructor_profile, selected_duration
                 )

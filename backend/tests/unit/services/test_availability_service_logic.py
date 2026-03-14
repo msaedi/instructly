@@ -12,8 +12,8 @@ FIXES:
 - Removed expectations of is_available field (now properly removed from service)
 """
 
-from datetime import date, time, timedelta
-from unittest.mock import Mock, patch
+from datetime import date, datetime, time, timedelta
+from unittest.mock import Mock, call, patch
 
 import pytest
 
@@ -22,10 +22,12 @@ from app.core.ulid_helper import generate_ulid
 from app.models.availability import BlackoutDate
 from app.repositories.availability_repository import AvailabilityRepository
 from app.schemas.availability_window import (
+    ScheduleItem,
     SpecificDateAvailabilityCreate,
     WeekSpecificScheduleCreate,
 )
 from app.services.availability_service import AvailabilityService
+from app.services.config_service import ConfigService
 from app.utils.bitset import bits_from_windows
 
 
@@ -101,12 +103,10 @@ class TestAvailabilityServiceBusinessLogic:
             day_after = date.today() + timedelta(days=2)
             instructor_id = generate_ulid()
 
-            # Create dictionary items that match what the method expects
-            # Based on the service code, it expects dicts with 'date' key as string
             schedule = [
-                {"date": tomorrow.isoformat(), "start_time": "09:00", "end_time": "10:00"},
-                {"date": tomorrow.isoformat(), "start_time": "14:00", "end_time": "15:00"},
-                {"date": day_after.isoformat(), "start_time": "09:00", "end_time": "10:00"},
+                ScheduleItem(date=tomorrow.isoformat(), start_time="09:00", end_time="10:00"),
+                ScheduleItem(date=tomorrow.isoformat(), start_time="14:00", end_time="15:00"),
+                ScheduleItem(date=day_after.isoformat(), start_time="09:00", end_time="10:00"),
             ]
 
             result = service._group_schedule_by_date(schedule, instructor_id)
@@ -115,19 +115,54 @@ class TestAvailabilityServiceBusinessLogic:
             assert len(result[tomorrow]) == 2  # Two slots for tomorrow
             assert len(result[day_after]) == 1  # One slot for day after
 
+    def test_compute_public_availability_uses_injected_config_service(self, unit_db):
+        config_service = Mock(spec=ConfigService)
+        config_service.get_advance_notice_minutes.return_value = 30
+        config_service.get_default_buffer_minutes.side_effect = [15, 60]
+
+        service = AvailabilityService(unit_db, config_service=config_service)
+        service.instructor_repository = Mock()
+        service.instructor_repository.get_by_user_id.return_value = None
+        bitmap_repo = Mock()
+        bitmap_repo.get_day_bitmaps.return_value = None
+        service._bitmap_repo = Mock(return_value=bitmap_repo)
+        service.conflict_repository = Mock()
+        service.conflict_repository.get_bookings_for_date.return_value = []
+
+        target_date = date.today() + timedelta(days=1)
+        with patch(
+            "app.services.availability_service.get_user_now_by_id",
+            return_value=datetime.combine(target_date, time(0, 0)),
+        ):
+            result = service.compute_public_availability(
+                generate_ulid(),
+                target_date,
+                target_date,
+            )
+
+        assert result == {target_date.isoformat(): []}
+        config_service.get_advance_notice_minutes.assert_called_once_with("student_location")
+        assert config_service.get_default_buffer_minutes.call_args_list == [
+            call("online"),
+            call("student_location"),
+        ]
+
     def test_slot_exists_check(self, service):
         """Test slot existence checking via repository."""
-        # Mock repository response
-        service.repository.slot_exists.return_value = True
+        bitmap_repo = Mock()
+        bitmap_repo.get_day_bits.return_value = bits_from_windows([("09:00:00", "10:00:00")])
+        service._bitmap_repo = Mock(return_value=bitmap_repo)
+        service._invalidate_availability_caches = Mock()
 
-        # Call the add_specific_date_availability which uses slot_exists
         availability_data = SpecificDateAvailabilityCreate(
             specific_date=date.today() + timedelta(days=1), start_time=time(9, 0), end_time=time(10, 0)
         )
 
-        # This should raise ConflictException due to slot existing
-        with pytest.raises(ConflictException, match="This time slot already exists"):
-            service.add_specific_date_availability(instructor_id=generate_ulid(), availability_data=availability_data)
+        with patch("app.services.availability_service.invalidate_on_availability_change"):
+            with pytest.raises(ConflictException, match="This time slot already exists"):
+                service.add_specific_date_availability(
+                    instructor_id=generate_ulid(), availability_data=availability_data
+                )
 
 
 class TestAvailabilityServiceQueryHelpers:
@@ -169,31 +204,35 @@ class TestAvailabilityServiceQueryHelpers:
         assert result[tuesday_str][0]["start_time"] == "14:00:00"
         assert result[tuesday_str][0]["end_time"] == "15:00:00"
 
-    def test_delete_slots_by_dates(self, service):
-        """Test deleting slots by dates via repository."""
-        # Mock repository response
-        service.repository.delete_slots_by_dates.return_value = 3
-
-        # Call the repository method
-        result = service.repository.delete_slots_by_dates(
-            instructor_id=123, dates=[date.today(), date.today() + timedelta(days=1)]
+    def test_get_availability_summary_counts_bitmap_windows(self, service):
+        """Test summary counts from bitmap-backed day rows."""
+        today = date.today()
+        row = Mock()
+        row.day_date = today
+        row.bits = bits_from_windows(
+            [("09:00:00", "10:00:00"), ("14:00:00", "15:00:00")]
         )
+        bitmap_repo = Mock()
+        bitmap_repo.get_days_in_range.return_value = [row]
+        service._bitmap_repo = Mock(return_value=bitmap_repo)
 
-        assert result == 3
-        service.repository.delete_slots_by_dates.assert_called_once()
+        result = service.get_availability_summary(instructor_id=123, start_date=today, end_date=today)
 
-    def test_count_available_slots(self, service):
-        """Test counting available slots via repository."""
-        # Mock repository response
-        service.repository.count_available_slots.return_value = 5
+        assert result == {today.isoformat(): 2}
 
-        # Call the repository method
-        result = service.repository.count_available_slots(
-            instructor_id=123, start_date=date.today(), end_date=date.today() + timedelta(days=7)
-        )
+    def test_get_availability_for_date_returns_slots(self, service):
+        """Test date-level availability uses bitmap storage."""
+        target_date = date.today()
+        bitmap_repo = Mock()
+        bitmap_repo.get_day_bits.return_value = bits_from_windows([("09:00:00", "10:00:00")])
+        service._bitmap_repo = Mock(return_value=bitmap_repo)
 
-        assert result == 5
-        service.repository.count_available_slots.assert_called_once()
+        result = service.get_availability_for_date(instructor_id=123, target_date=target_date)
+
+        assert result == {
+            "date": target_date.isoformat(),
+            "slots": [{"start_time": "09:00:00", "end_time": "10:00:00"}],
+        }
 
 
 class TestAvailabilityServiceCacheHandling:
@@ -224,27 +263,17 @@ class TestAvailabilityServiceCacheHandling:
     def test_cache_fallback_on_error(self, unit_db):
         """Test that service continues working when cache fails."""
         cache_service = Mock()
-        cache_service.get_week_availability.side_effect = Exception("Cache error")
+        cache_service.get_json.side_effect = Exception("Cache error")
+        cache_service.key_builder.build.return_value = "availability:week:test"
+        cache_service.TTL_TIERS = {"hot": 300, "warm": 600}
 
         service = AvailabilityService(unit_db, cache_service=cache_service)
 
-        # Mock repository
-        mock_repository = Mock(spec=AvailabilityRepository)
-        service.repository = mock_repository
-
-        # Mock successful repository query - returns bitmap windows as dict
         test_date = date.today()
-        mock_window = {
-            "start_time": "09:00:00",
-            "end_time": "10:00:00",
-        }
+        service.get_week_bits = Mock(
+            return_value={test_date: bits_from_windows([("09:00:00", "10:00:00")])}
+        )
 
-        # Repository returns week map with windows
-        service.repository.get_week_availability.return_value = {
-            test_date.isoformat(): [mock_window]
-        }
-
-        # Should still work despite cache error
         result = service.get_week_availability(
             instructor_id=generate_ulid(), start_date=date.today() - timedelta(days=date.today().weekday())
         )
@@ -291,16 +320,20 @@ class TestAvailabilityServiceErrorHandling:
 
     def test_duplicate_slot_detection(self, service):
         """Test duplicate slot detection via repository."""
-        # Mock repository methods
-        service.repository.slot_exists.return_value = True  # Slot already exists
+        bitmap_repo = Mock()
+        bitmap_repo.get_day_bits.return_value = bits_from_windows([("09:00:00", "10:00:00")])
+        service._bitmap_repo = Mock(return_value=bitmap_repo)
+        service._invalidate_availability_caches = Mock()
 
         availability_data = SpecificDateAvailabilityCreate(
             specific_date=date.today() + timedelta(days=1), start_time=time(9, 0), end_time=time(10, 0)
         )
 
-        # Should raise ConflictException due to duplicate slot
-        with pytest.raises(ConflictException, match="This time slot already exists"):
-            service.add_specific_date_availability(instructor_id=123, availability_data=availability_data)
+        with patch("app.services.availability_service.invalidate_on_availability_change"):
+            with pytest.raises(ConflictException, match="This time slot already exists"):
+                service.add_specific_date_availability(
+                    instructor_id=123, availability_data=availability_data
+                )
 
 
 class TestAvailabilityServiceNoBackwardCompatibility:
@@ -319,16 +352,10 @@ class TestAvailabilityServiceNoBackwardCompatibility:
 
     def test_no_is_available_in_responses(self, service):
         """Test that responses don't include the removed is_available field."""
-        # Mock repository response - returns bitmap windows as dict
         test_date = date.today()
-        mock_window = {
-            "start_time": "09:00:00",
-            "end_time": "10:00:00",
-        }
-
-        service.repository.get_week_availability.return_value = {
-            test_date.isoformat(): [mock_window]
-        }
+        service.get_week_bits = Mock(
+            return_value={test_date: bits_from_windows([("09:00:00", "10:00:00")])}
+        )
 
         result = service.get_week_availability(instructor_id=123, start_date=test_date)
 
@@ -339,18 +366,10 @@ class TestAvailabilityServiceNoBackwardCompatibility:
 
     def test_get_availability_for_date_no_is_available(self, service):
         """Test that get_availability_for_date doesn't return is_available."""
-        # Mock repository response - returns bitmap windows as dict
         test_date = date.today()
-        mock_window = {
-            "start_time": "09:00:00",
-            "end_time": "10:00:00",
-        }
-
-        # get_availability_for_date returns windows for the date
-        service.repository.get_day_bits = Mock(return_value=None)  # No availability
-        service.repository.get_week_availability.return_value = {
-            test_date.isoformat(): [mock_window]
-        }
+        bitmap_repo = Mock()
+        bitmap_repo.get_day_bits.return_value = bits_from_windows([("09:00:00", "10:00:00")])
+        service._bitmap_repo = Mock(return_value=bitmap_repo)
 
         result = service.get_availability_for_date(instructor_id=123, target_date=test_date)
 

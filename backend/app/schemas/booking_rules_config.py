@@ -41,7 +41,7 @@ class BookingRulesConfig(BaseModel):
     @model_validator(mode="after")
     def validate_windows(self) -> "BookingRulesConfig":
         if self.default_travel_buffer_minutes < self.default_non_travel_buffer_minutes:
-            raise ValueError("Travel buffer must be greater than or equal to non-travel buffer")
+            raise ValueError("Travel buffer must be at least equal to non-travel buffer")
         return self
 
 
