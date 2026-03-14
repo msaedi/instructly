@@ -65,12 +65,14 @@ def _enable_default_overnight_rules(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _active_service(**overrides: object) -> SimpleNamespace:
-    return SimpleNamespace(
-        offers_online=True,
-        offers_travel=True,
-        offers_at_location=True,
-        **overrides,
-    )
+    payload = {
+        "offers_online": True,
+        "offers_travel": True,
+        "offers_at_location": True,
+        "duration_options": [30, 60, 90],
+    }
+    payload.update(overrides)
+    return SimpleNamespace(**payload)
 
 
 def make_booking(**overrides: object) -> SimpleNamespace:
@@ -166,6 +168,8 @@ def booking_service(mock_db: MagicMock, mock_repository: MagicMock) -> BookingSe
     service.availability_repository = MagicMock()
     service.availability_repository.get_day_bitmaps.return_value = (full_day_bits, new_empty_tags())
     service.availability_repository.get_day_bits.return_value = full_day_bits
+    service.filter_repository = MagicMock()
+    service.filter_repository.is_location_in_service_area.return_value = True
     return service
 
 
@@ -255,6 +259,62 @@ def test_check_availability_rejects_unsupported_location_capability(
 
     assert result["available"] is False
     assert result["reason"] == "This instructor doesn't travel for this service"
+
+
+def test_check_availability_rejects_invalid_duration_before_preflight_passes(
+    booking_service: BookingService,
+) -> None:
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service(
+        duration_options=[30, 60]
+    )
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
+        user=SimpleNamespace(timezone="UTC"),
+    )
+
+    result = booking_service.check_availability(
+        instructor_id=generate_ulid(),
+        booking_date=date(2030, 1, 1),
+        start_time=time(10, 0),
+        end_time=time(10, 45),
+        service_id=generate_ulid(),
+        selected_duration=45,
+    )
+
+    assert result["available"] is False
+    assert result["reason"] == "Invalid duration 45. Available options: [30, 60]"
+
+
+def test_check_availability_rejects_outside_service_area_when_coordinates_provided(
+    booking_service: BookingService,
+) -> None:
+    instructor_id = generate_ulid()
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service(
+        offers_travel=True,
+        offers_at_location=False,
+    )
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
+        user=SimpleNamespace(timezone="UTC"),
+    )
+    booking_service.filter_repository.is_location_in_service_area.return_value = False
+
+    result = booking_service.check_availability(
+        instructor_id=instructor_id,
+        booking_date=date(2030, 1, 1),
+        start_time=time(10, 0),
+        end_time=time(11, 0),
+        service_id=generate_ulid(),
+        location_type="student_location",
+        location_lat=40.8448,
+        location_lng=-73.8648,
+    )
+
+    assert result["available"] is False
+    assert "outside the instructor's service area" in result["reason"]
+    booking_service.filter_repository.is_location_in_service_area.assert_called_once_with(
+        instructor_id=instructor_id,
+        lat=40.8448,
+        lng=-73.8648,
+    )
 
 
 def test_check_availability_booking_time_validation_error(

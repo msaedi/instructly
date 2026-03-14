@@ -284,6 +284,20 @@ def test_availability_check_request_time_validation() -> None:
         )
 
 
+def test_availability_check_request_allows_midnight_rollover() -> None:
+    request = AvailabilityCheckRequest(
+        instructor_id="inst",
+        instructor_service_id="svc",
+        booking_date="2024-01-01",
+        start_time="23:00",
+        end_time="00:00",
+        location_type="online",
+    )
+
+    assert request.start_time == time(23, 0)
+    assert request.end_time == time(0, 0)
+
+
 def test_upcoming_booking_response_coerce_price() -> None:
     class BadAmount:
         def __init__(self) -> None:

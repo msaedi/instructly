@@ -285,15 +285,18 @@ async def check_availability(
     try:
         result = await asyncio.to_thread(
             booking_service.check_availability,
-            check_data.instructor_id,
-            check_data.booking_date,
-            check_data.start_time,
-            check_data.end_time,
-            check_data.instructor_service_id,
-            None,
-            None,
-            check_data.location_type,
-            current_user.id,
+            instructor_id=check_data.instructor_id,
+            booking_date=check_data.booking_date,
+            start_time=check_data.start_time,
+            end_time=check_data.end_time,
+            service_id=check_data.instructor_service_id,
+            instructor_service_id=None,
+            exclude_booking_id=None,
+            location_type=check_data.location_type,
+            student_id=current_user.id,
+            selected_duration=check_data.selected_duration,
+            location_lat=check_data.location_lat,
+            location_lng=check_data.location_lng,
         )
 
         return AvailabilityCheckResponse(**result)
@@ -766,17 +769,35 @@ async def reschedule_booking(
             else:
                 _location_type = "online"
 
+            _student_note = (
+                original.student_note
+                if isinstance(getattr(original, "student_note", None), str)
+                else None
+            )
+            _meeting_location = (
+                original.meeting_location
+                if isinstance(getattr(original, "meeting_location", None), str)
+                else None
+            )
+            _location_address = _safe_str(getattr(original, "location_address", None))
+            _location_lat = _safe_float(getattr(original, "location_lat", None))
+            _location_lng = _safe_float(getattr(original, "location_lng", None))
+            _location_place_id = _safe_str(getattr(original, "location_place_id", None))
+
             availability = await asyncio.to_thread(
                 booking_service.check_availability,
-                original.instructor_id,
-                payload.booking_date,
-                payload.start_time,
-                proposed_end_time,
-                payload.instructor_service_id or original.instructor_service_id,
-                None,
-                original.id,
-                _location_type,
-                current_user.id,
+                instructor_id=original.instructor_id,
+                booking_date=payload.booking_date,
+                start_time=payload.start_time,
+                end_time=proposed_end_time,
+                service_id=payload.instructor_service_id or original.instructor_service_id,
+                instructor_service_id=None,
+                exclude_booking_id=original.id,
+                location_type=_location_type,
+                student_id=current_user.id,
+                selected_duration=payload.selected_duration,
+                location_lat=_location_lat,
+                location_lng=_location_lng,
             )
 
             if isinstance(availability, dict):
@@ -793,21 +814,6 @@ async def reschedule_booking(
                     reason = availability.get("reason")
                 reason = reason or "Requested time is unavailable"
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=reason)
-
-            _student_note = (
-                original.student_note
-                if isinstance(getattr(original, "student_note", None), str)
-                else None
-            )
-            _meeting_location = (
-                original.meeting_location
-                if isinstance(getattr(original, "meeting_location", None), str)
-                else None
-            )
-            _location_address = _safe_str(getattr(original, "location_address", None))
-            _location_lat = _safe_float(getattr(original, "location_lat", None))
-            _location_lng = _safe_float(getattr(original, "location_lng", None))
-            _location_place_id = _safe_str(getattr(original, "location_place_id", None))
 
             new_booking_data = BookingCreate(
                 instructor_id=original.instructor_id,

@@ -959,6 +959,24 @@ class AvailabilityCheckRequest(StrictRequestModel):
     start_time: time = Field(..., description="Start time to check")
     end_time: time = Field(..., description="End time to check")
     location_type: LocationTypeLiteral = Field(..., description="Requested booking format")
+    selected_duration: Optional[int] = Field(
+        None,
+        ge=MIN_SESSION_DURATION,
+        le=720,
+        description="Optional duration in minutes for parity with booking validation",
+    )
+    location_lat: Optional[float] = Field(
+        None,
+        ge=-90.0,
+        le=90.0,
+        description="Optional latitude for service-area validation",
+    )
+    location_lng: Optional[float] = Field(
+        None,
+        ge=-180.0,
+        le=180.0,
+        description="Optional longitude for service-area validation",
+    )
 
     @field_validator("start_time", "end_time", mode="before")
     @classmethod
@@ -977,11 +995,17 @@ class AvailabilityCheckRequest(StrictRequestModel):
     @classmethod
     def validate_time_order(cls, v: time, info: Any) -> time:
         """Ensure end time is after start time."""
-        if (
-            isinstance(getattr(info, "data", None), dict)
-            and "start_time" in info.data
-            and v <= info.data["start_time"]
-        ):
+        start_time_value = None
+        if isinstance(getattr(info, "data", None), dict):
+            start_time_value = info.data.get("start_time")
+
+        if start_time_value is None:
+            return v
+
+        if v == time(0, 0) and start_time_value != time(0, 0):
+            return v
+
+        if v <= start_time_value:
             raise ValueError("End time must be after start time")
         return v
 

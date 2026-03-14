@@ -6393,7 +6393,10 @@ export type components = {
  end_time: string;
  instructor_id: string;
  instructor_service_id: string;
+ location_lat?: number | null;
+ location_lng?: number | null;
  location_type: "student_location" | "instructor_location" | "online" | "neutral_location";
+ selected_duration?: number | null;
  start_time: string;
  };
  AvailabilityCheckResponse: {

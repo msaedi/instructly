@@ -1322,8 +1322,14 @@ export interface AvailabilityCheckRequest {
   instructor_id: string;
   /** Service to book */
   instructor_service_id: string;
+  /** Optional latitude for service-area validation */
+  location_lat?: number | null;
+  /** Optional longitude for service-area validation */
+  location_lng?: number | null;
   /** Requested booking format */
   location_type: AvailabilityCheckRequestLocationType;
+  /** Optional duration in minutes for parity with booking validation */
+  selected_duration?: number | null;
   /** Start time to check */
   start_time: string;
 }

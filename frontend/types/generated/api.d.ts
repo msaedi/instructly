@@ -9496,11 +9496,26 @@ export type components = {
              */
             instructor_service_id: string;
             /**
+             * Location Lat
+             * @description Optional latitude for service-area validation
+             */
+            location_lat?: number | null;
+            /**
+             * Location Lng
+             * @description Optional longitude for service-area validation
+             */
+            location_lng?: number | null;
+            /**
              * Location Type
              * @description Requested booking format
              * @enum {string}
              */
             location_type: "student_location" | "instructor_location" | "online" | "neutral_location";
+            /**
+             * Selected Duration
+             * @description Optional duration in minutes for parity with booking validation
+             */
+            selected_duration?: number | null;
             /**
              * Start Time
              * Format: time

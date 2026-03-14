@@ -530,7 +530,7 @@ class BookingService(BaseService):
         if hasattr(repo, "get_day_bitmaps"):
             bitmaps = repo.get_day_bitmaps(instructor_id, day)
             if bitmaps is not None:
-                return bitmaps
+                return cast(tuple[bytes, bytes], bitmaps)
 
         bits = repo.get_day_bits(instructor_id, day) if hasattr(repo, "get_day_bits") else None
         return (bits or b"", new_empty_tags())
@@ -4891,6 +4891,9 @@ class BookingService(BaseService):
         exclude_booking_id: Optional[str] = None,
         location_type: Optional[str] = None,
         student_id: Optional[str] = None,
+        selected_duration: Optional[int] = None,
+        location_lat: Optional[float] = None,
+        location_lng: Optional[float] = None,
     ) -> Dict[str, Any]:
         """
         Check if a time range is available for booking.
@@ -4934,6 +4937,34 @@ class BookingService(BaseService):
 
         try:
             self._validate_location_capability(service, normalized_location_type)
+        except ValidationException as exc:
+            return {
+                "available": False,
+                "reason": str(exc),
+            }
+
+        try:
+            self._validate_selected_duration_for_service(
+                service=service,
+                booking_date=booking_date,
+                start_time=start_time,
+                end_time=end_time,
+                selected_duration=selected_duration,
+            )
+        except ValidationException as exc:
+            return {
+                "available": False,
+                "reason": str(exc),
+            }
+
+        try:
+            self._validate_service_area_for_availability_check(
+                instructor_id=instructor_id,
+                service=service,
+                location_type=normalized_location_type,
+                location_lat=location_lat,
+                location_lng=location_lng,
+            )
         except ValidationException as exc:
             return {
                 "available": False,
@@ -5184,15 +5215,15 @@ class BookingService(BaseService):
 
     def _get_advance_notice_minutes(self, location_type: Optional[str] = None) -> int:
         """Resolve advance-notice minutes from platform configuration."""
-        return ConfigService(self.db).get_advance_notice_minutes(location_type)
+        return int(ConfigService(self.db).get_advance_notice_minutes(location_type))
 
     def _get_overnight_earliest_hour(self, location_type: Optional[str] = None) -> int:
         """Resolve the earliest locally-bookable hour during overnight protection."""
-        return ConfigService(self.db).get_overnight_earliest_hour(location_type)
+        return int(ConfigService(self.db).get_overnight_earliest_hour(location_type))
 
     def _is_in_overnight_window(self, booking_time_local: datetime) -> bool:
         """Return whether the request is being made inside the overnight booking window."""
-        return ConfigService(self.db).is_in_overnight_window(booking_time_local)
+        return bool(ConfigService(self.db).is_in_overnight_window(booking_time_local))
 
     @staticmethod
     def _format_advance_notice(minutes: int) -> str:
@@ -5265,6 +5296,75 @@ class BookingService(BaseService):
                 "Please choose a different location or select a different instructor.",
                 code="OUTSIDE_SERVICE_AREA",
             )
+
+    def _validate_service_area_for_availability_check(
+        self,
+        *,
+        instructor_id: str,
+        service: InstructorService,
+        location_type: Optional[str],
+        location_lat: Optional[float],
+        location_lng: Optional[float],
+    ) -> None:
+        """Apply service-area validation parity for availability checks when coordinates exist."""
+        normalized_location_type = normalize_location_type(location_type)
+        if normalized_location_type == "student_location":
+            pass
+        elif normalized_location_type == "neutral_location":
+            if not self._neutral_location_uses_service_area(service):
+                return
+        else:
+            return
+
+        if location_lat is None or location_lng is None:
+            return
+
+        is_covered = self.filter_repository.is_location_in_service_area(
+            instructor_id=instructor_id,
+            lat=float(location_lat),
+            lng=float(location_lng),
+        )
+        if not is_covered:
+            raise ValidationException(
+                "This location is outside the instructor's service area. "
+                "Please choose a different location or select a different instructor.",
+                code="OUTSIDE_SERVICE_AREA",
+            )
+
+    def _validate_selected_duration_for_service(
+        self,
+        *,
+        service: InstructorService,
+        booking_date: date,
+        start_time: time,
+        end_time: time,
+        selected_duration: Optional[int],
+    ) -> None:
+        """Validate optional duration input so availability preflights match booking creation."""
+        if selected_duration is None:
+            return
+
+        self._validate_min_session_duration_floor(selected_duration)
+
+        raw_duration_options = getattr(service, "duration_options", None)
+        duration_options = (
+            list(raw_duration_options)
+            if isinstance(raw_duration_options, (list, tuple, set))
+            else []
+        )
+
+        if selected_duration not in duration_options:
+            raise ValidationException(
+                f"Invalid duration {selected_duration}. Available options: {duration_options}"
+            )
+
+        calculated_end_time = self._calculate_and_validate_end_time(
+            booking_date,
+            start_time,
+            selected_duration,
+        )
+        if calculated_end_time != end_time:
+            raise ValidationException("Selected duration does not match the requested time range")
 
     def _validate_location_capability(
         self, service: InstructorService, location_type: Optional[str]
