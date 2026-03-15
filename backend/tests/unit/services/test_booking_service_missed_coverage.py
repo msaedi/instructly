@@ -54,6 +54,7 @@ def _make_service(
     svc.notification_service = MagicMock()
     svc.event_publisher = MagicMock()
     svc.system_message_service = MagicMock()
+    svc.config_service = MagicMock()
     svc.service_area_repository = MagicMock()
     svc.filter_repository = MagicMock()
     svc.event_outbox_repository = MagicMock()

@@ -124,7 +124,7 @@ class PublicInstructorAvailability(BaseModel):
         # Exclude None values from serialization to keep responses clean
         json_schema_extra={
             "example": {
-                "instructor_id": 123,
+                "instructor_id": "01HQXYZ0000000000000000000",
                 "instructor_first_name": "Sarah",
                 "instructor_last_initial": "C",
                 "availability_by_date": {
@@ -198,7 +198,7 @@ class PublicAvailabilitySummary(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "instructor_id": 123,
+                "instructor_id": "01HQXYZ0000000000000000000",
                 "instructor_first_name": "Sarah",
                 "instructor_last_initial": "C",
                 "availability_summary": {

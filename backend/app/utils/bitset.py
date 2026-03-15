@@ -127,7 +127,7 @@ def is_tag_compatible(tag: int, location_type: str) -> bool:
         return location_type == "online"
     if tag == TAG_NO_TRAVEL:
         return location_type in {"online", "instructor_location"}
-    return False
+    return False  # TAG_RESERVED (3) intentionally blocks all formats
 
 
 def windows_from_bits(bits: bytes) -> List[Tuple[str, str]]:

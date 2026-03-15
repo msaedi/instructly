@@ -1317,15 +1317,14 @@ def test_get_booking_with_payment_summary_student(booking_service: BookingServic
     booking = make_booking(student_id="student")
     booking_service.get_booking_for_user = Mock(return_value=booking)
     user = SimpleNamespace(id="student")
+    booking_service.config_service = MagicMock()
 
-    with patch("app.services.config_service.ConfigService") as config_cls, patch(
-        "app.repositories.factory.RepositoryFactory"
-    ) as repo_factory, patch(
+    with patch("app.repositories.factory.RepositoryFactory") as repo_factory, patch(
         "app.repositories.review_repository.ReviewTipRepository"
     ) as tip_repo_cls, patch(
         "app.services.payment_summary_service.build_student_payment_summary"
     ) as build_summary:
-        config_cls.return_value.get_pricing_config.return_value = ({"fees": True}, None)
+        booking_service.config_service.get_pricing_config.return_value = ({"fees": True}, None)
         repo_factory.create_payment_repository.return_value = MagicMock()
         tip_repo_cls.return_value = MagicMock()
         build_summary.return_value = {"summary": True}
@@ -1333,6 +1332,51 @@ def test_get_booking_with_payment_summary_student(booking_service: BookingServic
         result = booking_service.get_booking_with_payment_summary(booking.id, user)
 
     assert result == (booking, {"summary": True})
+    booking_service.config_service.get_pricing_config.assert_called_once_with()
+
+
+def test_booking_rule_helpers_delegate_to_injected_config_service(
+    booking_service: BookingService,
+) -> None:
+    booking_service.config_service = MagicMock()
+    booking_service.config_service.get_advance_notice_minutes.return_value = 90
+    booking_service.config_service.get_overnight_earliest_hour.return_value = 11
+    now_local = datetime(2030, 1, 1, 22, 30)
+    booking_service.config_service.is_in_overnight_window.return_value = True
+
+    assert booking_service._get_advance_notice_minutes("student_location") == 90
+    assert booking_service._get_overnight_earliest_hour("student_location") == 11
+    assert booking_service._is_in_overnight_window(now_local) is True
+
+    booking_service.config_service.get_advance_notice_minutes.assert_called_once_with(
+        "student_location"
+    )
+    booking_service.config_service.get_overnight_earliest_hour.assert_called_once_with(
+        "student_location"
+    )
+    booking_service.config_service.is_in_overnight_window.assert_called_once_with(now_local)
+
+
+def test_validate_reschedule_payment_method_uses_injected_config_service(
+    booking_service: BookingService,
+) -> None:
+    booking_service.config_service = MagicMock()
+
+    with patch("app.services.booking_service.PricingService") as pricing_cls, patch(
+        "app.services.booking_service.StripeService"
+    ) as stripe_cls:
+        stripe_cls.return_value.payment_repository.get_default_payment_method.return_value = (
+            SimpleNamespace(stripe_payment_method_id="pm_123")
+        )
+
+        result = booking_service.validate_reschedule_payment_method(generate_ulid())
+
+    assert result == (True, "pm_123")
+    stripe_cls.assert_called_once_with(
+        booking_service.db,
+        config_service=booking_service.config_service,
+        pricing_service=pricing_cls.return_value,
+    )
 
 
 # --- misc helpers ---

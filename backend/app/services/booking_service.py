@@ -129,6 +129,7 @@ class BookingService(BaseService):
     availability_repository: "AvailabilityRepository"
     conflict_checker_repository: "ConflictCheckerRepository"
     cache_service: Optional[CacheServiceSyncAdapter]
+    config_service: ConfigService
     notification_service: NotificationService
     event_outbox_repository: "EventOutboxRepository"
     audit_repository: "AuditRepository"
@@ -170,6 +171,7 @@ class BookingService(BaseService):
         conflict_checker_repository: Optional["ConflictCheckerRepository"] = None,
         cache_service: Optional[CacheService | CacheServiceSyncAdapter] = None,
         system_message_service: Optional[SystemMessageService] = None,
+        config_service: Optional[ConfigService] = None,
     ):
         """
         Initialize booking service.
@@ -182,6 +184,7 @@ class BookingService(BaseService):
             conflict_checker_repository: Optional ConflictCheckerRepository instance
             cache_service: Optional cache service for invalidation
             system_message_service: Optional system message service for conversation messages
+            config_service: Optional config service for booking rules and pricing config
         """
         cache_impl = cache_service
         cache_adapter: Optional[CacheServiceSyncAdapter] = None
@@ -190,6 +193,7 @@ class BookingService(BaseService):
         elif isinstance(cache_impl, CacheService):
             cache_adapter = CacheServiceSyncAdapter(cache_impl)
         super().__init__(db, cache=cache_adapter)
+        self.config_service = config_service or ConfigService(db)
         self.notification_service = notification_service or NotificationService(db, cache_adapter)
         self.event_publisher = event_publisher or EventPublisher(JobRepository(db))
         self.system_message_service = system_message_service or SystemMessageService(db)
@@ -207,6 +211,7 @@ class BookingService(BaseService):
         self.conflict_checker = ConflictChecker(
             db,
             repository=self.conflict_checker_repository,
+            config_service=self.config_service,
         )
         self.cache_service = cache_adapter
         self.service_area_repository = RepositoryFactory.create_instructor_service_area_repository(
@@ -941,7 +946,7 @@ class BookingService(BaseService):
         # ========== Phase 2: Stripe SetupIntent (NO transaction) ==========
         stripe_service = StripeService(
             self.db,
-            config_service=ConfigService(self.db),
+            config_service=self.config_service,
             pricing_service=PricingService(self.db),
         )
 
@@ -1388,7 +1393,7 @@ class BookingService(BaseService):
         if save_payment_method:
             stripe_service = StripeService(
                 self.db,
-                config_service=ConfigService(self.db),
+                config_service=self.config_service,
                 pricing_service=PricingService(self.db),
             )
             stripe_service.save_payment_method(
@@ -1635,7 +1640,7 @@ class BookingService(BaseService):
 
         stripe_service = StripeService(
             self.db,
-            config_service=ConfigService(self.db),
+            config_service=self.config_service,
             pricing_service=PricingService(self.db),
         )
 
@@ -1901,7 +1906,7 @@ class BookingService(BaseService):
         else:
             stripe_service = StripeService(
                 self.db,
-                config_service=ConfigService(self.db),
+                config_service=self.config_service,
                 pricing_service=PricingService(self.db),
             )
             stripe_results = self._execute_cancellation_stripe_calls(cancel_ctx, stripe_service)
@@ -2172,7 +2177,7 @@ class BookingService(BaseService):
         # Phase 2: Stripe calls (no transaction)
         stripe_service = StripeService(
             self.db,
-            config_service=ConfigService(self.db),
+            config_service=self.config_service,
             pricing_service=PricingService(self.db),
         )
 
@@ -2293,7 +2298,7 @@ class BookingService(BaseService):
 
         stripe_service = StripeService(
             self.db,
-            config_service=ConfigService(self.db),
+            config_service=self.config_service,
             pricing_service=PricingService(self.db),
         )
 
@@ -4495,7 +4500,7 @@ class BookingService(BaseService):
                 else:
                     stripe_service = StripeService(
                         self.db,
-                        config_service=ConfigService(self.db),
+                        config_service=self.config_service,
                         pricing_service=PricingService(self.db),
                     )
                     stripe_result = self._refund_for_instructor_no_show(
@@ -4512,7 +4517,7 @@ class BookingService(BaseService):
                 else:
                     stripe_service = StripeService(
                         self.db,
-                        config_service=ConfigService(self.db),
+                        config_service=self.config_service,
                         pricing_service=PricingService(self.db),
                     )
                     stripe_result = self._refund_for_instructor_no_show(
@@ -4529,7 +4534,7 @@ class BookingService(BaseService):
                 else:
                     stripe_service = StripeService(
                         self.db,
-                        config_service=ConfigService(self.db),
+                        config_service=self.config_service,
                         pricing_service=PricingService(self.db),
                     )
                     stripe_result = self._payout_for_student_no_show(
@@ -4549,7 +4554,7 @@ class BookingService(BaseService):
             else:
                 stripe_service = StripeService(
                     self.db,
-                    config_service=ConfigService(self.db),
+                    config_service=self.config_service,
                     pricing_service=PricingService(self.db),
                 )
                 stripe_result = self._payout_for_student_no_show(
@@ -5243,15 +5248,15 @@ class BookingService(BaseService):
 
     def _get_advance_notice_minutes(self, location_type: Optional[str] = None) -> int:
         """Resolve advance-notice minutes from platform configuration."""
-        return int(ConfigService(self.db).get_advance_notice_minutes(location_type))
+        return int(self.config_service.get_advance_notice_minutes(location_type))
 
     def _get_overnight_earliest_hour(self, location_type: Optional[str] = None) -> int:
         """Resolve the earliest locally-bookable hour during overnight protection."""
-        return int(ConfigService(self.db).get_overnight_earliest_hour(location_type))
+        return int(self.config_service.get_overnight_earliest_hour(location_type))
 
     def _is_in_overnight_window(self, booking_time_local: datetime) -> bool:
         """Return whether the request is being made inside the overnight booking window."""
-        return bool(ConfigService(self.db).is_in_overnight_window(booking_time_local))
+        return bool(self.config_service.is_in_overnight_window(booking_time_local))
 
     @staticmethod
     def _format_advance_notice(minutes: int) -> str:
@@ -6173,7 +6178,6 @@ class BookingService(BaseService):
         """
         from ..repositories.factory import RepositoryFactory
         from ..repositories.review_repository import ReviewTipRepository
-        from ..services.config_service import ConfigService
         from ..services.payment_summary_service import build_student_payment_summary
 
         booking = self.get_booking_for_user(booking_id, user)
@@ -6182,8 +6186,7 @@ class BookingService(BaseService):
 
         payment_summary: Optional[PaymentSummary] = None
         if booking.student_id == user.id:
-            config_service = ConfigService(self.db)
-            pricing_config, _ = config_service.get_pricing_config()
+            pricing_config, _ = self.config_service.get_pricing_config()
             payment_repo = RepositoryFactory.create_payment_repository(self.db)
             tip_repo = ReviewTipRepository(self.db)
             payment_summary = build_student_payment_summary(
@@ -6296,15 +6299,10 @@ class BookingService(BaseService):
         Returns:
             Tuple of (has_valid_method, stripe_payment_method_id)
         """
-        from ..services.config_service import ConfigService as _ConfigService
-        from ..services.pricing_service import PricingService as _PricingService
-        from ..services.stripe_service import StripeService as _StripeService
-
-        config_service = _ConfigService(self.db)
-        pricing_service = _PricingService(self.db)
-        stripe_service = _StripeService(
+        pricing_service = PricingService(self.db)
+        stripe_service = StripeService(
             self.db,
-            config_service=config_service,
+            config_service=self.config_service,
             pricing_service=pricing_service,
         )
 
