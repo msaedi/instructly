@@ -1081,6 +1081,7 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
                         "slug": svc_slug,
                         "eligible_age_groups": age_groups,
                         "default_duration_minutes": 60,
+                        "requires_certification": False,
                         "online_capable": True,
                         "display_order": svc_display_order,
                         "is_active": True,
@@ -1097,7 +1098,7 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
         stats["services"] = _bulk_insert(
             session, "service_catalog",
             ["id", "subcategory_id", "name", "slug", "eligible_age_groups",
-             "default_duration_minutes", "online_capable", "display_order", "is_active"],
+             "default_duration_minutes", "requires_certification", "online_capable", "display_order", "is_active"],
             service_rows,
         )
 

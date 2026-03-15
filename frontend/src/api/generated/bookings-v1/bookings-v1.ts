@@ -37,11 +37,12 @@ import type {
   GetBookingsApiV1BookingsGetParams,
   GetUpcomingBookingsApiV1BookingsUpcomingGetParams,
   HTTPValidationError,
+  InstructorBookingResponse,
   NoShowDisputeRequest,
   NoShowDisputeResponse,
   NoShowReportRequest,
   NoShowReportResponse,
-  PaginatedResponseBookingResponse,
+  PaginatedResponseUnionBookingResponseInstructorBookingResponse,
   PaginatedResponseUpcomingBookingResponse,
   PricingPreviewOut,
   RetryPaymentResponse,
@@ -85,11 +86,14 @@ export const getGetBookingsApiV1BookingsGetUrl = (params?: GetBookingsApiV1Booki
 export const getBookingsApiV1BookingsGet = async (
   params?: GetBookingsApiV1BookingsGetParams,
   options?: RequestInit
-): Promise<PaginatedResponseBookingResponse> => {
-  return customFetch<PaginatedResponseBookingResponse>(getGetBookingsApiV1BookingsGetUrl(params), {
-    ...options,
-    method: 'GET',
-  });
+): Promise<PaginatedResponseUnionBookingResponseInstructorBookingResponse> => {
+  return customFetch<PaginatedResponseUnionBookingResponseInstructorBookingResponse>(
+    getGetBookingsApiV1BookingsGetUrl(params),
+    {
+      ...options,
+      method: 'GET',
+    }
+  );
 };
 
 export const getGetBookingsApiV1BookingsGetQueryKey = (
@@ -823,11 +827,14 @@ export const getGetBookingDetailsApiV1BookingsBookingIdGetUrl = (bookingId: stri
 export const getBookingDetailsApiV1BookingsBookingIdGet = async (
   bookingId: string,
   options?: RequestInit
-): Promise<BookingResponse> => {
-  return customFetch<BookingResponse>(getGetBookingDetailsApiV1BookingsBookingIdGetUrl(bookingId), {
-    ...options,
-    method: 'GET',
-  });
+): Promise<BookingResponse | InstructorBookingResponse> => {
+  return customFetch<BookingResponse | InstructorBookingResponse>(
+    getGetBookingDetailsApiV1BookingsBookingIdGetUrl(bookingId),
+    {
+      ...options,
+      method: 'GET',
+    }
+  );
 };
 
 export const getGetBookingDetailsApiV1BookingsBookingIdGetQueryKey = (bookingId: string) => {
@@ -985,13 +992,16 @@ export const updateBookingApiV1BookingsBookingIdPatch = async (
   bookingId: string,
   bookingUpdate: BookingUpdate,
   options?: RequestInit
-): Promise<BookingResponse> => {
-  return customFetch<BookingResponse>(getUpdateBookingApiV1BookingsBookingIdPatchUrl(bookingId), {
-    ...options,
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(bookingUpdate),
-  });
+): Promise<InstructorBookingResponse> => {
+  return customFetch<InstructorBookingResponse>(
+    getUpdateBookingApiV1BookingsBookingIdPatchUrl(bookingId),
+    {
+      ...options,
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(bookingUpdate),
+    }
+  );
 };
 
 export const getUpdateBookingApiV1BookingsBookingIdPatchMutationOptions = <
@@ -1077,8 +1087,8 @@ export const cancelBookingApiV1BookingsBookingIdCancelPost = async (
   bookingId: string,
   bookingCancel: BookingCancel,
   options?: RequestInit
-): Promise<BookingResponse> => {
-  return customFetch<BookingResponse>(
+): Promise<BookingResponse | InstructorBookingResponse> => {
+  return customFetch<BookingResponse | InstructorBookingResponse>(
     getCancelBookingApiV1BookingsBookingIdCancelPostUrl(bookingId),
     {
       ...options,
@@ -1173,8 +1183,8 @@ export const getCompleteBookingApiV1BookingsBookingIdCompletePostUrl = (bookingI
 export const completeBookingApiV1BookingsBookingIdCompletePost = async (
   bookingId: string,
   options?: RequestInit
-): Promise<BookingResponse> => {
-  return customFetch<BookingResponse>(
+): Promise<InstructorBookingResponse> => {
+  return customFetch<InstructorBookingResponse>(
     getCompleteBookingApiV1BookingsBookingIdCompletePostUrl(bookingId),
     {
       ...options,
@@ -1935,8 +1945,8 @@ export const rescheduleBookingApiV1BookingsBookingIdReschedulePost = async (
   bookingId: string,
   bookingRescheduleRequest: BookingRescheduleRequest,
   options?: RequestInit
-): Promise<BookingResponse> => {
-  return customFetch<BookingResponse>(
+): Promise<BookingResponse | InstructorBookingResponse> => {
+  return customFetch<BookingResponse | InstructorBookingResponse>(
     getRescheduleBookingApiV1BookingsBookingIdReschedulePostUrl(bookingId),
     {
       ...options,

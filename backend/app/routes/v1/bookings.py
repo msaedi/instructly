@@ -55,6 +55,7 @@ from ...schemas.booking import (
     BookingResponse,
     BookingStatsResponse,
     BookingUpdate,
+    InstructorBookingResponse,
     NoShowDisputeRequest,
     NoShowDisputeResponse,
     NoShowReportRequest,
@@ -73,6 +74,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["bookings-v1"])
 
 ULID_PATH_PATTERN = r"^[0-9A-HJKMNP-TV-Z]{26}$"
+BookingRouteResponse = BookingResponse | InstructorBookingResponse
 
 
 def handle_domain_exception(exc: DomainException) -> NoReturn:
@@ -80,6 +82,82 @@ def handle_domain_exception(exc: DomainException) -> NoReturn:
     if hasattr(exc, "to_http_exception"):
         raise exc.to_http_exception()
     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+
+
+def _booking_id_for_log(booking: Any) -> str:
+    if isinstance(booking, dict):
+        booking_id = booking.get("id")
+        return str(booking_id) if booking_id is not None else "unknown"
+    return str(getattr(booking, "id", "unknown"))
+
+
+def _uses_instructor_booking_response(user: User) -> bool:
+    return user.is_instructor
+
+
+def _public_student_payload(student_payload: dict[str, Any]) -> dict[str, Any]:
+    student = dict(student_payload)
+    last_initial = student.get("last_initial")
+    if not isinstance(last_initial, str):
+        last_name = student.get("last_name")
+        last_initial = last_name[0] if isinstance(last_name, str) and last_name else ""
+    student["last_initial"] = last_initial
+    student.pop("last_name", None)
+    student.pop("email", None)
+    student.pop("phone", None)
+    return student
+
+
+def _validate_booking_payload_for_user(
+    payload: dict[str, Any], current_user: User
+) -> BookingRouteResponse:
+    response_model = (
+        InstructorBookingResponse
+        if _uses_instructor_booking_response(current_user)
+        else BookingResponse
+    )
+    if hasattr(response_model, "model_validate"):
+        return response_model.model_validate(payload)
+    return response_model.parse_obj(payload)
+
+
+def _serialize_booking_for_user(
+    booking: Any,
+    current_user: User,
+    *,
+    payment_summary: Any = None,
+) -> BookingRouteResponse:
+    if isinstance(booking, dict) and booking.get("_from_cache", False):
+        cached_booking = dict(booking)
+        is_instructor = current_user.id == cached_booking.get("instructor_id")
+
+        instructor_payload = cached_booking.get("instructor")
+        if isinstance(instructor_payload, dict):
+            instructor = dict(instructor_payload)
+            instructor_last_name = instructor.get("last_name", "")
+            instructor["last_initial"] = (
+                instructor_last_name
+                if is_instructor
+                else instructor_last_name[0]
+                if instructor_last_name
+                else ""
+            )
+            instructor.pop("last_name", None)
+            cached_booking["instructor"] = instructor
+
+        if _uses_instructor_booking_response(current_user):
+            student_payload = cached_booking.get("student")
+            if isinstance(student_payload, dict):
+                cached_booking["student"] = _public_student_payload(student_payload)
+
+        return _validate_booking_payload_for_user(cached_booking, current_user)
+
+    response_model = (
+        InstructorBookingResponse
+        if _uses_instructor_booking_response(current_user)
+        else BookingResponse
+    )
+    return response_model.from_booking(booking, payment_summary=payment_summary)
 
 
 # ============================================================================
@@ -333,7 +411,7 @@ async def send_reminder_emails(
 
 @router.get(
     "",
-    response_model=PaginatedResponse[BookingResponse],
+    response_model=PaginatedResponse[BookingRouteResponse],
     dependencies=[Depends(require_beta_phase_access()), Depends(new_rate_limit("read"))],
 )
 async def get_bookings(
@@ -346,7 +424,7 @@ async def get_bookings(
     per_page: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
-) -> PaginatedResponse[BookingResponse]:
+) -> PaginatedResponse[BookingRouteResponse]:
     """
     Get bookings for the current user with advanced filtering.
 
@@ -381,41 +459,17 @@ async def get_bookings(
         end = start + per_page
         paginated_bookings = bookings[start:end]
 
-        # Convert to BookingResponse objects with privacy protection
-        booking_responses: list[BookingResponse | dict[str, Any]] = []
+        # Convert to audience-safe booking responses.
+        booking_responses: list[BookingRouteResponse] = []
         for booking in paginated_bookings:
             try:
-                if isinstance(booking, dict) and booking.get("_from_cache", False):
-                    # Cached data might need privacy adjustments
-                    cached_booking = dict(booking)
-                    is_instructor = current_user.id == cached_booking.get("instructor_id")
-
-                    instructor_payload = cached_booking.get("instructor")
-                    if isinstance(instructor_payload, dict):
-                        instructor = dict(instructor_payload)
-                        instructor_last_name = instructor.get("last_name", "")
-                        instructor["last_initial"] = (
-                            instructor_last_name
-                            if is_instructor
-                            else instructor_last_name[0]
-                            if instructor_last_name
-                            else ""
-                        )
-                        instructor.pop("last_name", None)
-                        cached_booking["instructor"] = instructor
-
-                    # Guard against malformed cache payloads causing 500s during response serialization.
-                    if hasattr(BookingResponse, "model_validate"):
-                        BookingResponse.model_validate(cached_booking)
-                    else:  # pragma: no cover - pydantic v1 compatibility
-                        BookingResponse.parse_obj(cached_booking)
-
-                    booking_responses.append(cached_booking)
-                else:
-                    # Fresh SQLAlchemy object - use from_booking for privacy protection
-                    booking_responses.append(BookingResponse.from_booking(booking))
-            except Exception as e:
-                logger.error(f"Failed to process booking {getattr(booking, 'id', 'unknown')}: {e}")
+                booking_responses.append(_serialize_booking_for_user(booking, current_user))
+            except Exception as exc:
+                logger.error(
+                    "Failed to process booking %s: %s",
+                    _booking_id_for_log(booking),
+                    exc,
+                )
                 continue
 
         return PaginatedResponse(
@@ -596,7 +650,7 @@ async def get_booking_pricing(
 
 @router.get(
     "/{booking_id}",
-    response_model=BookingResponse,
+    response_model=BookingRouteResponse,
     dependencies=[Depends(new_rate_limit("read"))],
     responses={404: {"description": "Booking not found"}},
 )
@@ -609,7 +663,7 @@ async def get_booking_details(
     ),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
-) -> BookingResponse:
+) -> BookingRouteResponse:
     """Get full booking details with privacy protection for students."""
     try:
         # Service method returns booking + payment summary (no direct db access needed)
@@ -620,14 +674,18 @@ async def get_booking_details(
             raise NotFoundException("Booking not found")
 
         booking, payment_summary_data = result
-        return BookingResponse.from_booking(booking, payment_summary=payment_summary_data)
+        return _serialize_booking_for_user(
+            booking,
+            current_user,
+            payment_summary=payment_summary_data,
+        )
     except DomainException as e:
         handle_domain_exception(e)
 
 
 @router.patch(
     "/{booking_id}",
-    response_model=BookingResponse,
+    response_model=InstructorBookingResponse,
     dependencies=[Depends(new_rate_limit("write"))],
     responses={404: {"description": "Booking not found"}},
 )
@@ -641,7 +699,7 @@ async def update_booking(
     update_data: BookingUpdate = Body(...),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
-) -> BookingResponse:
+) -> InstructorBookingResponse:
     """Update booking details (instructor only)."""
     try:
         booking = await asyncio.to_thread(
@@ -650,14 +708,14 @@ async def update_booking(
             current_user,
             update_data,
         )
-        return BookingResponse.from_booking(booking)
+        return InstructorBookingResponse.from_booking(booking)
     except DomainException as e:
         handle_domain_exception(e)
 
 
 @router.post(
     "/{booking_id}/cancel",
-    response_model=BookingResponse,
+    response_model=BookingRouteResponse,
     dependencies=[Depends(new_rate_limit("write"))],
     responses={404: {"description": "Booking not found"}},
 )
@@ -671,7 +729,7 @@ async def cancel_booking(
     cancel_data: BookingCancel = Body(...),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
-) -> BookingResponse:
+) -> BookingRouteResponse:
     """Cancel a booking."""
     try:
         async with booking_lock(booking_id) as acquired:
@@ -686,14 +744,14 @@ async def cancel_booking(
                 current_user,
                 cancel_data.reason,
             )
-            return BookingResponse.from_booking(booking)
+            return _serialize_booking_for_user(booking, current_user)
     except DomainException as e:
         handle_domain_exception(e)
 
 
 @router.post(
     "/{booking_id}/reschedule",
-    response_model=BookingResponse,
+    response_model=BookingRouteResponse,
     dependencies=[Depends(new_rate_limit("write"))],
     responses={404: {"description": "Booking not found"}, 409: {"description": "Time conflict"}},
 )
@@ -707,7 +765,7 @@ async def reschedule_booking(
     payload: BookingRescheduleRequest = Body(...),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
-) -> BookingResponse:
+) -> BookingRouteResponse:
     """
     Reschedule flow (server-orchestrated):
     - Validates access to the original booking
@@ -932,14 +990,14 @@ async def reschedule_booking(
                 raise e
             except Exception:
                 logger.debug("Non-fatal error ignored", exc_info=True)
-            return BookingResponse.from_booking(new_booking)
+            return _serialize_booking_for_user(new_booking, current_user)
     except DomainException as e:
         handle_domain_exception(e)
 
 
 @router.post(
     "/{booking_id}/complete",
-    response_model=BookingResponse,
+    response_model=InstructorBookingResponse,
     dependencies=[Depends(new_rate_limit("write"))],
     responses={
         403: {"description": "Permission denied"},
@@ -955,7 +1013,7 @@ async def complete_booking(
     ),
     current_user: User = Depends(require_permission(PermissionName.COMPLETE_BOOKINGS)),
     booking_service: BookingService = Depends(get_booking_service),
-) -> BookingResponse:
+) -> InstructorBookingResponse:
     """
     Mark a booking as completed.
 
@@ -971,7 +1029,7 @@ async def complete_booking(
             booking = await asyncio.to_thread(
                 booking_service.complete_booking, booking_id, current_user
             )
-            return BookingResponse.from_booking(booking)
+            return InstructorBookingResponse.from_booking(booking)
     except DomainException as e:
         handle_domain_exception(e)
 

@@ -862,6 +862,11 @@ class TestBookingRoutes:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["instructor_note"] == "Updated note"
+        assert data["student"] == {
+            "id": updated_booking.student.id,
+            "first_name": "Student",
+            "last_initial": "U",
+        }
 
     def test_get_booking_details_success(
         self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
@@ -919,6 +924,58 @@ class TestBookingRoutes:
         assert data["lesson_timezone"] == "America/New_York"
         assert data["instructor_timezone"] == "America/New_York"
         assert data["student_timezone"] == "America/Los_Angeles"
+
+    def test_get_booking_details_as_instructor_uses_public_student_identity(
+        self, client_with_mock_booking_service, auth_headers_instructor, mock_booking_service
+    ):
+        """Instructor booking detail responses should not expose student contact info."""
+        mock_booking = Mock()
+        booking_id = generate_ulid()
+        mock_booking.id = booking_id
+        mock_booking.student_id = generate_ulid()
+        mock_booking.instructor_id = generate_ulid()
+        mock_booking.instructor_service_id = generate_ulid()
+        mock_booking.booking_date = date.today() + timedelta(days=1)
+        mock_booking.start_time = time(9, 0)
+        mock_booking.end_time = time(10, 0)
+        mock_booking.status = BookingStatus.CONFIRMED
+        mock_booking.total_price = 50.0
+        mock_booking.service_name = "Piano Lesson"
+        mock_booking.hourly_rate = 50.0
+        mock_booking.duration_minutes = 60
+        mock_booking.service_area = "Manhattan"
+        mock_booking.meeting_location = "Central Park"
+        mock_booking.location_type = "neutral_location"
+        mock_booking.student_note = "Looking forward!"
+        mock_booking.instructor_note = None
+        mock_booking.created_at = datetime.now()
+        mock_booking.confirmed_at = datetime.now()
+        mock_booking.completed_at = None
+        mock_booking.cancelled_at = None
+        mock_booking.cancelled_by_id = None
+        mock_booking.cancellation_reason = None
+        mock_booking.student = Mock(
+            id=generate_ulid(), first_name="Test", last_name="Student", email="student@test.com"
+        )
+        mock_booking.instructor = Mock(
+            id=generate_ulid(), first_name="Test", last_name="Instructor", email="instructor@test.com"
+        )
+        mock_booking.instructor_service = self._create_mock_instructor_service()
+
+        mock_booking_service.get_booking_with_payment_summary.return_value = (mock_booking, None)
+
+        response = client_with_mock_booking_service.get(
+            f"/api/v1/bookings/{booking_id}",
+            headers=auth_headers_instructor,
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        student = response.json()["student"]
+        assert student == {
+            "id": mock_booking.student.id,
+            "first_name": "Test",
+            "last_initial": "S",
+        }
 
     def test_get_booking_details_not_found(
         self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
@@ -1253,6 +1310,11 @@ class TestBookingRoutes:
         data = response.json()
         assert data["total"] == 2
         assert len(data["items"]) == 2
+        assert data["items"][0]["student"] == {
+            "id": mock_bookings[0].student.id,
+            "first_name": "John",
+            "last_initial": "D",
+        }
         assert data["items"][0]["service_name"] == "Guitar Lesson"
 
     def test_check_availability_blackout_date(
@@ -2119,6 +2181,71 @@ class TestBookingIntegration:
         assert payload["total"] == 2
         assert len(payload["items"]) == 1
         assert payload["items"][0]["id"] == good_booking["id"]
+
+    def test_get_bookings_cached_payload_as_instructor_uses_public_student_identity(
+        self, client, auth_headers_instructor
+    ):
+        mock_booking_service = MagicMock()
+        booking_id = generate_ulid()
+        student_id = generate_ulid()
+        cached_booking = {
+            "id": booking_id,
+            "_from_cache": True,
+            "student_id": student_id,
+            "instructor_id": generate_ulid(),
+            "instructor_service_id": generate_ulid(),
+            "booking_date": date.today() + timedelta(days=1),
+            "start_time": time(9, 0),
+            "end_time": time(10, 0),
+            "service_name": "Piano",
+            "hourly_rate": 50.0,
+            "total_price": 50.0,
+            "duration_minutes": 60,
+            "status": BookingStatus.CONFIRMED.value,
+            "service_area": "Manhattan",
+            "meeting_location": "Studio",
+            "location_type": "neutral_location",
+            "student_note": None,
+            "instructor_note": None,
+            "created_at": datetime.now(),
+            "confirmed_at": datetime.now(),
+            "completed_at": None,
+            "cancelled_at": None,
+            "cancelled_by_id": None,
+            "cancellation_reason": None,
+            "student": {
+                "id": student_id,
+                "first_name": "Stu",
+                "last_name": "Dent",
+                "email": "s@example.com",
+            },
+            "instructor": {
+                "id": generate_ulid(),
+                "first_name": "Ins",
+                "last_name": "Tructor",
+                "email": "i@example.com",
+            },
+            "instructor_service": {
+                "id": generate_ulid(),
+                "name": "Piano",
+                "description": "Piano lessons",
+            },
+        }
+        mock_booking_service.get_bookings_for_user.return_value = [cached_booking]
+        app.dependency_overrides[get_booking_service] = lambda: mock_booking_service
+
+        try:
+            response = client.get("/api/v1/bookings/", headers=auth_headers_instructor)
+        finally:
+            app.dependency_overrides.pop(get_booking_service, None)
+
+        assert response.status_code == status.HTTP_200_OK
+        student = response.json()["items"][0]["student"]
+        assert student == {
+            "id": student_id,
+            "first_name": "Stu",
+            "last_initial": "D",
+        }
 
     def test_send_reminder_emails_handles_internal_exception(
         self, client, db

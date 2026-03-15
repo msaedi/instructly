@@ -8930,14 +8930,6 @@ export type components = {
  OverridePayload: {
  action: "approve" | "reject";
  };
- PaginatedResponse_BookingResponse_: {
- has_next: boolean;
- has_prev: boolean;
- items: components["schemas"]["BookingResponse"][];
- page: number;
- per_page: number;
- total: number;
- };
  PaginatedResponse_InstructorBookingResponse_: {
  has_next: boolean;
  has_prev: boolean;
@@ -8950,6 +8942,14 @@ export type components = {
  has_next: boolean;
  has_prev: boolean;
  items: components["schemas"]["InstructorProfilePublic"][];
+ page: number;
+ per_page: number;
+ total: number;
+ };
+ PaginatedResponse_Union_BookingResponse__InstructorBookingResponse__: {
+ has_next: boolean;
+ has_prev: boolean;
+ items: (components["schemas"]["BookingResponse"] | components["schemas"]["InstructorBookingResponse"])[];
  page: number;
  per_page: number;
  total: number;
@@ -15231,7 +15231,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["PaginatedResponse_BookingResponse_"];
+ "application/json": components["schemas"]["PaginatedResponse_Union_BookingResponse__InstructorBookingResponse__"];
  };
  };
  422: {
@@ -15399,7 +15399,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["BookingResponse"];
+ "application/json": components["schemas"]["BookingResponse"] | components["schemas"]["InstructorBookingResponse"];
  };
  };
  404: {
@@ -15438,7 +15438,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["BookingResponse"];
+ "application/json": components["schemas"]["InstructorBookingResponse"];
  };
  };
  404: {
@@ -15477,7 +15477,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["BookingResponse"];
+ "application/json": components["schemas"]["BookingResponse"] | components["schemas"]["InstructorBookingResponse"];
  };
  };
  404: {
@@ -15512,7 +15512,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["BookingResponse"];
+ "application/json": components["schemas"]["InstructorBookingResponse"];
  };
  };
  403: {
@@ -15764,7 +15764,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["BookingResponse"];
+ "application/json": components["schemas"]["BookingResponse"] | components["schemas"]["InstructorBookingResponse"];
  };
  };
  404: {

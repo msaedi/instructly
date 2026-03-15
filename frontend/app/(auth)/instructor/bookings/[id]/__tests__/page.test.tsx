@@ -50,8 +50,7 @@ const createMockBooking = (overrides = {}) => ({
   student_id: '01STUDENT123456789DEFGHI',
   student: {
     first_name: 'John',
-    last_name: 'Doe',
-    email: 'john@example.com',
+    last_initial: 'D',
   },
   student_note: null,
   instructor_note: null,
@@ -120,7 +119,7 @@ describe('Instructor Booking Details Page', () => {
       render(<BookingDetailsPage />);
 
       expect(screen.getByText('Piano Lesson')).toBeInTheDocument();
-      expect(screen.getByText('John Doe')).toBeInTheDocument();
+      expect(screen.getByText('John D.')).toBeInTheDocument();
       expect(screen.getByText('CONFIRMED')).toBeInTheDocument();
       expect(screen.getByText('Duration: 60 minutes')).toBeInTheDocument();
     });

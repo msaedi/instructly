@@ -14,7 +14,7 @@ export type BookingListItem = {
   total_price?: number | null;
   student?: {
     first_name?: string | null;
-    last_name?: string | null;
+    last_initial?: string | null;
   };
   instructor?: {
     first_name?: string | null;
@@ -87,6 +87,13 @@ function formatLessonDate(date: string, time: string): { date: string; time: str
   };
 }
 
+function formatStudentName(student?: BookingListItem['student']): string {
+  if (!student?.first_name) {
+    return 'Student';
+  }
+  return student.last_initial ? `${student.first_name} ${student.last_initial}.` : student.first_name;
+}
+
 export function BookingList({
   data,
   isLoading,
@@ -136,10 +143,7 @@ export function BookingList({
         const status = STATUS_LABELS[displayStatus] ?? booking.status ?? 'Pending';
         const badgeClasses =
           STATUS_STYLES[displayStatus] ?? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
-        const studentName =
-          booking.student?.first_name && booking.student?.last_name
-            ? `${booking.student.first_name} ${booking.student.last_name}`
-            : booking.student?.first_name ?? 'Student';
+        const studentName = formatStudentName(booking.student);
         const instructorName = booking.instructor
           ? `${booking.instructor.first_name}${booking.instructor.last_initial ? ` ${booking.instructor.last_initial}.` : ''}`
           : 'You';

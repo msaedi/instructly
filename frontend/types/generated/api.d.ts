@@ -16361,41 +16361,6 @@ export type components = {
              */
             action: "approve" | "reject";
         };
-        /** PaginatedResponse[BookingResponse] */
-        PaginatedResponse_BookingResponse_: {
-            /**
-             * Has Next
-             * @description Whether there's a next page
-             */
-            has_next: boolean;
-            /**
-             * Has Prev
-             * @description Whether there's a previous page
-             */
-            has_prev: boolean;
-            /**
-             * Items
-             * @description List of items
-             */
-            items: components["schemas"]["BookingResponse"][];
-            /**
-             * Page
-             * @description Current page number
-             * @default 1
-             */
-            page: number;
-            /**
-             * Per Page
-             * @description Items per page
-             * @default 20
-             */
-            per_page: number;
-            /**
-             * Total
-             * @description Total number of items
-             */
-            total: number;
-        };
         /** PaginatedResponse[InstructorBookingResponse] */
         PaginatedResponse_InstructorBookingResponse_: {
             /**
@@ -16448,6 +16413,41 @@ export type components = {
              * @description List of items
              */
             items: components["schemas"]["InstructorProfilePublic"][];
+            /**
+             * Page
+             * @description Current page number
+             * @default 1
+             */
+            page: number;
+            /**
+             * Per Page
+             * @description Items per page
+             * @default 20
+             */
+            per_page: number;
+            /**
+             * Total
+             * @description Total number of items
+             */
+            total: number;
+        };
+        /** PaginatedResponse[Union[BookingResponse, InstructorBookingResponse]] */
+        PaginatedResponse_Union_BookingResponse__InstructorBookingResponse__: {
+            /**
+             * Has Next
+             * @description Whether there's a next page
+             */
+            has_next: boolean;
+            /**
+             * Has Prev
+             * @description Whether there's a previous page
+             */
+            has_prev: boolean;
+            /**
+             * Items
+             * @description List of items
+             */
+            items: (components["schemas"]["BookingResponse"] | components["schemas"]["InstructorBookingResponse"])[];
             /**
              * Page
              * @description Current page number
@@ -26461,7 +26461,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedResponse_BookingResponse_"];
+                    "application/json": components["schemas"]["PaginatedResponse_Union_BookingResponse__InstructorBookingResponse__"];
                 };
             };
             /** @description Validation Error */
@@ -26642,7 +26642,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BookingResponse"];
+                    "application/json": components["schemas"]["BookingResponse"] | components["schemas"]["InstructorBookingResponse"];
                 };
             };
             /** @description Booking not found */
@@ -26685,7 +26685,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BookingResponse"];
+                    "application/json": components["schemas"]["InstructorBookingResponse"];
                 };
             };
             /** @description Booking not found */
@@ -26728,7 +26728,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BookingResponse"];
+                    "application/json": components["schemas"]["BookingResponse"] | components["schemas"]["InstructorBookingResponse"];
                 };
             };
             /** @description Booking not found */
@@ -26767,7 +26767,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BookingResponse"];
+                    "application/json": components["schemas"]["InstructorBookingResponse"];
                 };
             };
             /** @description Permission denied */
@@ -27047,7 +27047,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BookingResponse"];
+                    "application/json": components["schemas"]["BookingResponse"] | components["schemas"]["InstructorBookingResponse"];
                 };
             };
             /** @description Booking not found */

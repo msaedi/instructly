@@ -47,7 +47,8 @@ import type {
 
 // Type aliases for generated types
 // Keep generated type imports for future use
-export type PaginatedBookingResponse = components['schemas']['PaginatedResponse_BookingResponse_'];
+export type PaginatedBookingResponse =
+  components['schemas']['PaginatedResponse_Union_BookingResponse__InstructorBookingResponse__'];
 type InstructorProfileResponse = components['schemas']['InstructorProfileResponse'];
 
 export type InstructorBookingsParams = {

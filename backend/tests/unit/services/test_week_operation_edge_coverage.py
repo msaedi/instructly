@@ -133,27 +133,33 @@ class TestResolveActorPayloadWeekOp:
 
     def test_actor_none(self):
         svc = _make_service()
-        result = svc._resolve_actor_payload(None)
+        result = svc._resolve_actor_payload(None, default_role="instructor")
         assert result == {"role": "instructor"}
 
     def test_actor_dict_with_role(self):
         svc = _make_service()
-        result = svc._resolve_actor_payload({"id": "U1", "role": "admin"})
+        result = svc._resolve_actor_payload({"id": "U1", "role": "admin"}, default_role="instructor")
         assert result == {"id": "U1", "role": "admin"}
 
     def test_actor_dict_with_actor_id(self):
         svc = _make_service()
-        result = svc._resolve_actor_payload({"actor_id": "U2", "actor_role": "staff"})
+        result = svc._resolve_actor_payload(
+            {"actor_id": "U2", "actor_role": "staff"},
+            default_role="instructor",
+        )
         assert result == {"id": "U2", "role": "staff"}
 
     def test_actor_dict_with_user_id(self):
         svc = _make_service()
-        result = svc._resolve_actor_payload({"user_id": "U3", "role_name": "teacher"})
+        result = svc._resolve_actor_payload(
+            {"user_id": "U3", "role_name": "teacher"},
+            default_role="instructor",
+        )
         assert result == {"id": "U3", "role": "teacher"}
 
     def test_actor_dict_no_role(self):
         svc = _make_service()
-        result = svc._resolve_actor_payload({"id": "U4"})
+        result = svc._resolve_actor_payload({"id": "U4"}, default_role="instructor")
         assert result == {"id": "U4", "role": "instructor"}
 
     def test_actor_object_with_role(self):
@@ -163,7 +169,7 @@ class TestResolveActorPayloadWeekOp:
             id = "U5"
             role = "admin"
 
-        result = svc._resolve_actor_payload(Actor())
+        result = svc._resolve_actor_payload(Actor(), default_role="instructor")
         assert result == {"id": "U5", "role": "admin"}
 
     def test_actor_object_with_role_name(self):
@@ -174,7 +180,7 @@ class TestResolveActorPayloadWeekOp:
             role = None
             role_name = "teacher"
 
-        result = svc._resolve_actor_payload(Actor())
+        result = svc._resolve_actor_payload(Actor(), default_role="instructor")
         assert result == {"id": "U5b", "role": "teacher"}
 
     def test_actor_object_with_roles_list(self):
@@ -191,7 +197,7 @@ class TestResolveActorPayloadWeekOp:
             role_name = None
             roles = [RoleObj(None), RoleObj("editor")]
 
-        result = svc._resolve_actor_payload(Actor())
+        result = svc._resolve_actor_payload(Actor(), default_role="instructor")
         assert result == {"id": "U6", "role": "editor"}
 
     def test_actor_object_with_empty_roles_list(self):
@@ -207,7 +213,7 @@ class TestResolveActorPayloadWeekOp:
             role_name = None
             roles = [RoleObj()]
 
-        result = svc._resolve_actor_payload(Actor())
+        result = svc._resolve_actor_payload(Actor(), default_role="instructor")
         assert result == {"id": "U7", "role": "instructor"}
 
     def test_actor_object_no_role_at_all(self):
@@ -217,7 +223,7 @@ class TestResolveActorPayloadWeekOp:
         class Actor:
             id = "U8"
 
-        result = svc._resolve_actor_payload(Actor())
+        result = svc._resolve_actor_payload(Actor(), default_role="instructor")
         assert result == {"id": "U8", "role": "instructor"}
 
     def test_actor_object_with_roles_tuple(self):
@@ -234,7 +240,7 @@ class TestResolveActorPayloadWeekOp:
             role_name = None
             roles = (RoleObj("viewer"),)
 
-        result = svc._resolve_actor_payload(Actor())
+        result = svc._resolve_actor_payload(Actor(), default_role="instructor")
         assert result == {"id": "U9", "role": "viewer"}
 
 

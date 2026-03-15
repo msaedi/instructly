@@ -6,7 +6,6 @@ import type { ServiceAreaNeighborhood } from '@/types/instructor';
 // Note: Some types kept local because they differ from generated (use frontend-specific structures)
 import type {
   BookingStatus as GeneratedBookingStatus,
-  BookingListResponse as GeneratedBookingListResponse,
   AvailabilityCheckRequest as GeneratedAvailabilityCheckRequest,
   AvailabilityCheckResponse as GeneratedAvailabilityCheckResponse,
   BookingCreateResponse as GeneratedBookingCreateResponse,
@@ -18,7 +17,6 @@ import type {
 
 // Re-export generated types for convenience
 export type BookingStatus = GeneratedBookingStatus;
-export type BookingListResponse = GeneratedBookingListResponse;
 export type AvailabilityCheckRequest = GeneratedAvailabilityCheckRequest;
 export type AvailabilityCheckResponse = GeneratedAvailabilityCheckResponse;
 export type BookingCreateResponse = GeneratedBookingCreateResponse;
@@ -128,6 +126,16 @@ export interface Booking {
   service?: Service;
   // REMOVED: availability_slot relation
 }
+
+export type BookingListResponse = {
+  items: Booking[];
+  total: number;
+  page: number;
+  per_page: number;
+  pages?: number;
+  has_next?: boolean;
+  has_prev?: boolean;
+};
 
 // User type for relations
 export interface User {

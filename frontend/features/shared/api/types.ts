@@ -16,9 +16,11 @@ export type { operations } from '@/types/generated/api';
 // Canonical aliases for commonly used models (import these, not from Gen.* directly)
 export type User = components['schemas']['AuthUserWithPermissionsResponse'];
 export type Booking = components['schemas']['BookingResponse'];
+export type InstructorBookingResponse = components['schemas']['InstructorBookingResponse'];
 export type InstructorProfile = components['schemas']['InstructorProfileResponse'];
 export type InstructorProfileResponse = components['schemas']['InstructorProfileResponse'];
 export type InstructorProfilePublic = components['schemas']['InstructorProfilePublic'];
+export type StudentInfoPublic = components['schemas']['StudentInfoPublic'];
 
 // Common endpoint payloads
 export type CreateBookingRequest = components['schemas']['BookingCreate'];
@@ -29,8 +31,10 @@ export type AvailabilityCheckResponse = components['schemas']['AvailabilityCheck
 export type BookingPreview = components['schemas']['BookingPreviewResponse'];
 
 // Paginated wrappers with useful aliases
-export type BookingList = components['schemas']['PaginatedResponse_BookingResponse_'];
-export type BookingListResponse = components['schemas']['PaginatedResponse_BookingResponse_'];
+export type BookingList =
+  components['schemas']['PaginatedResponse_Union_BookingResponse__InstructorBookingResponse__'];
+export type BookingListResponse =
+  components['schemas']['PaginatedResponse_Union_BookingResponse__InstructorBookingResponse__'];
 export type UpcomingBookingList = components['schemas']['PaginatedResponse_UpcomingBookingResponse_'];
 
 // Search responses

@@ -863,12 +863,6 @@ class AvailabilityService(BaseService):
             payload["delta"] = {"created": created, "deleted": deleted}
         return redact(payload) or {}
 
-    def _resolve_actor_payload(
-        self, actor: Any | None, default_role: str = "instructor"
-    ) -> dict[str, Any]:
-        """Use the shared actor payload helper with instructor-centric defaults."""
-        return super()._resolve_actor_payload(actor, default_role=default_role)
-
     def _write_availability_audit(
         self,
         instructor_id: str,
@@ -881,7 +875,7 @@ class AvailabilityService(BaseService):
         default_role: str = "instructor",
     ) -> None:
         """Persist audit entry for availability changes."""
-        actor_payload = self._resolve_actor_payload(actor, default_role=default_role)
+        actor_payload = super()._resolve_actor_payload(actor, default_role=default_role)
         audit_entry = AuditLog.from_change(
             entity_type="availability",
             entity_id=f"{instructor_id}:{week_start.isoformat()}",

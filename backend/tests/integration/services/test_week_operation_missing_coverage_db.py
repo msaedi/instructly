@@ -592,7 +592,7 @@ class TestWeekOperationHelperCoverage:
             def __init__(self) -> None:
                 self.id = "actor3"
 
-        payload_default = service._resolve_actor_payload(ActorNoRole())
+        payload_default = service._resolve_actor_payload(ActorNoRole(), default_role="instructor")
         assert payload_default == {"id": "actor3", "role": "instructor"}
 
     def test_build_copy_audit_payload_includes_optional_fields(

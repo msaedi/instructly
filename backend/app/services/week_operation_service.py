@@ -406,12 +406,6 @@ class WeekOperationService(BaseService):
                     exc_info=True,
                 )
 
-    def _resolve_actor_payload(
-        self, actor: Any | None, default_role: str = "instructor"
-    ) -> dict[str, Any]:
-        """Use the shared actor payload helper with instructor-centric defaults."""
-        return super()._resolve_actor_payload(actor, default_role=default_role)
-
     def _week_window_counts(self, instructor_id: str, week_start: date) -> dict[str, int]:
         """Return window counts per day for the target week using bitmap storage."""
         week_dates = [week_start + timedelta(days=offset) for offset in range(7)]
@@ -465,7 +459,7 @@ class WeekOperationService(BaseService):
         after: dict[str, Any],
     ) -> None:
         """Persist audit entry for week copy operations."""
-        actor_payload = self._resolve_actor_payload(actor, default_role="instructor")
+        actor_payload = super()._resolve_actor_payload(actor, default_role="instructor")
         audit_entry = AuditLog.from_change(
             entity_type="availability",
             entity_id=f"{instructor_id}:{target_week_start.isoformat()}",

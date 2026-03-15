@@ -7,13 +7,12 @@
  * Routes to the appropriate v1 endpoint based on status and upcoming parameters.
  */
 
-import type { BookingStatus } from '@/features/shared/api/types';
+import type { BookingStatus, InstructorBookingResponse } from '@/features/shared/api/types';
 import {
   useInstructorBookingsList,
   useInstructorUpcomingBookings,
   useInstructorCompletedBookings,
 } from '@/src/api/services/instructor-bookings';
-import type { InstructorBookingResponse } from '@/src/api/generated/instructly.schemas';
 
 type PaginatedBookingResponse = {
   items: InstructorBookingResponse[];

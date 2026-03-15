@@ -6120,28 +6120,6 @@ export interface OverridePayload {
   action: OverridePayloadAction;
 }
 
-export interface PaginatedResponseBookingResponse {
-  /** Whether there's a next page */
-  has_next: boolean;
-  /** Whether there's a previous page */
-  has_prev: boolean;
-  /** List of items */
-  items: BookingResponse[];
-  /**
-   * Current page number
-   * @minimum 1
-   */
-  page?: number;
-  /**
-   * Items per page
-   * @minimum 1
-   * @maximum 100
-   */
-  per_page?: number;
-  /** Total number of items */
-  total: number;
-}
-
 export interface PaginatedResponseInstructorBookingResponse {
   /** Whether there's a next page */
   has_next: boolean;
@@ -6171,6 +6149,28 @@ export interface PaginatedResponseInstructorProfilePublic {
   has_prev: boolean;
   /** List of items */
   items: InstructorProfilePublic[];
+  /**
+   * Current page number
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * Items per page
+   * @minimum 1
+   * @maximum 100
+   */
+  per_page?: number;
+  /** Total number of items */
+  total: number;
+}
+
+export interface PaginatedResponseUnionBookingResponseInstructorBookingResponse {
+  /** Whether there's a next page */
+  has_next: boolean;
+  /** Whether there's a previous page */
+  has_prev: boolean;
+  /** List of items */
+  items: (BookingResponse | InstructorBookingResponse)[];
   /**
    * Current page number
    * @minimum 1
