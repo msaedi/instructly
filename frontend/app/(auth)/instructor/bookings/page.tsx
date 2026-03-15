@@ -12,6 +12,7 @@ import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import { BookingList, type BookingListItem } from '@/features/bookings/components/BookingList';
 import type { InstructorBookingResponse } from '@/features/shared/api/types';
 import { useInstructorBookings } from '@/hooks/queries/useInstructorBookings';
+import { formatDisplayName } from '@/lib/format/displayName';
 import { useCompleteBooking, useMarkBookingNoShow } from '@/src/api/services/bookings';
 import { queryKeys } from '@/src/api/queryKeys';
 
@@ -32,15 +33,6 @@ type PaginatedInstructorBookings = {
 };
 
 const parseTab = (value: string | null): TabValue => (value === 'past' ? 'past' : 'upcoming');
-
-const formatStudentDisplayName = (
-  student?: { first_name?: string | null; last_initial?: string | null } | null
-): string => {
-  if (!student?.first_name) {
-    return 'the student';
-  }
-  return student.last_initial ? `${student.first_name} ${student.last_initial}.` : student.first_name;
-};
 
 function BookingsPageImpl() {
   const embedded = useEmbedded();
@@ -229,7 +221,12 @@ function BookingsPageImpl() {
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 Are you sure you want to mark this lesson as a no-show? This indicates that
                 <span className="font-medium">
-                  {' '}{formatStudentDisplayName(noShowModalBooking.student)}
+                  {' '}
+                  {formatDisplayName(
+                    noShowModalBooking.student?.first_name,
+                    noShowModalBooking.student?.last_initial,
+                    'the student',
+                  )}
                 </span>{' '}
                 did not attend the scheduled lesson.
               </p>

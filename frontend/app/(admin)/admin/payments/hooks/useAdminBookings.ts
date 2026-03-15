@@ -4,7 +4,7 @@ import type {
   AdminBookingDetailResponse,
   AdminBookingListItem,
   ListAdminBookingsApiV1AdminBookingsGetParams,
-} from '@/src/api/generated/instructly.schemas';
+} from '@/features/shared/api/types';
 import { listAdminBookingsApiV1AdminBookingsGet } from '@/src/api/generated/admin-bookings/admin-bookings';
 import { PAYMENT_STATUS, type PaymentStatus } from '@/features/shared/types/paymentStatus';
 export type { PaymentStatus };

@@ -235,10 +235,10 @@ describe('PaymentSection referral integration', () => {
       total_price: 130,
       hourly_rate: 100,
       instructor_id: 'instructor-1',
-      instructor: { first_name: 'Jane', last_initial: 'D' },
+      instructor: { first_name: 'Jane', last_initial: 'D.' },
       service_name: 'Guitar Lesson',
       meeting_location: 'Online',
-      student: { id: 'student-1', first_name: 'Stu', last_initial: 'S' },
+      student: { id: 'student-1', first_name: 'Stu', last_initial: 'S.' },
       status: 'CONFIRMED',
       cancellation_reason: null,
       cancelled_at: null,
@@ -322,10 +322,10 @@ describe('PaymentSection credits behavior', () => {
       total_price: 45,
       hourly_rate: 45,
       instructor_id: 'instructor-1',
-      instructor: { first_name: 'Jane', last_initial: 'D' },
+      instructor: { first_name: 'Jane', last_initial: 'D.' },
       service_name: 'Lesson',
       meeting_location: 'Online',
-      student: { id: 'student-1', first_name: 'Stu', last_initial: 'S' },
+      student: { id: 'student-1', first_name: 'Stu', last_initial: 'S.' },
       status: 'PENDING',
     } as unknown as Booking;
 
@@ -405,10 +405,10 @@ describe('PaymentSection credits behavior', () => {
       total_price: 45,
       hourly_rate: 45,
       instructor_id: 'instructor-2',
-      instructor: { first_name: 'Sam', last_initial: 'K' },
+      instructor: { first_name: 'Sam', last_initial: 'K.' },
       service_name: 'Lesson',
       meeting_location: 'Online',
-      student: { id: 'student-2', first_name: 'Casey', last_initial: 'W' },
+      student: { id: 'student-2', first_name: 'Casey', last_initial: 'W.' },
       status: 'PENDING',
     } as unknown as Booking;
 

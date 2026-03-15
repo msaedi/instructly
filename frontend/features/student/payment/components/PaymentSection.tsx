@@ -9,6 +9,7 @@ import PaymentMethodSelection from './PaymentMethodSelection';
 import PaymentConfirmation from './PaymentConfirmation';
 import PaymentProcessing from './PaymentProcessing';
 import PaymentSuccess from './PaymentSuccess';
+import { formatDisplayName } from '@/lib/format/displayName';
 import { logger } from '@/lib/logger';
 import { requireString } from '@/lib/ts/safe';
 import { toDateOnlyString } from '@/lib/availability/dateHelpers';
@@ -18,7 +19,7 @@ import { paymentService, type CreateCheckoutRequest } from '@/services/api/payme
 import { queryKeys } from '@/lib/react-query/queryClient';
 import { queryKeys as apiQueryKeys } from '@/src/api/queryKeys';
 import { fetchBookingDetails, cancelBookingImperative } from '@/src/api/services/bookings';
-import type { BookingResponse } from '@/src/api/generated/instructly.schemas';
+import type { BookingResponse } from '@/features/shared/api/types';
 import { ApiProblemError } from '@/lib/api/fetch';
 
 // Type alias
@@ -136,7 +137,11 @@ const mergeBookingIntoPayment = (booking: Booking, fallback: BookingWithMetadata
     : fallback.date;
 
   const instructorName = booking.instructor
-    ? `${booking.instructor.first_name} ${booking.instructor.last_initial ?? ''}`.trim()
+    ? formatDisplayName(
+        booking.instructor.first_name,
+        booking.instructor.last_initial,
+        fallback.instructorName || 'Instructor',
+      )
     : fallback.instructorName;
 
   return {

@@ -694,7 +694,7 @@ async def test_public_availability_cache_hit_etag_304(monkeypatch):
     cached = PublicInstructorAvailability(
         instructor_id=user.id,
         instructor_first_name="Test",
-        instructor_last_initial="T",
+        instructor_last_initial="T.",
         detail_level="full",
         availability_by_date=availability_by_date,
         has_availability=True,
@@ -768,7 +768,7 @@ async def test_public_availability_cache_hit_applies_live_overnight_filter(monke
     cached = PublicInstructorAvailability(
         instructor_id=user.id,
         instructor_first_name="Test",
-        instructor_last_initial="T",
+        instructor_last_initial="T.",
         detail_level="full",
         availability_by_date={
             target_day.isoformat(): PublicDayAvailability(

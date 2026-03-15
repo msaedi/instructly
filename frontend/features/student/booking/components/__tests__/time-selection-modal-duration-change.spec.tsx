@@ -106,7 +106,7 @@ const instructor: TimeSelectionModalProps['instructor'] = {
   user_id: 'inst-1',
   user: {
     first_name: 'Jordan',
-    last_initial: 'M',
+    last_initial: 'M.',
   },
   services: [
     {

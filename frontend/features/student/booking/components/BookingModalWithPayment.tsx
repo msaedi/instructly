@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, MapPin, Clock, DollarSign, ChevronLeft } from 'lucide-react';
 import { BookingModalProps, Service } from '../types';
+import { formatDisplayName } from '@/lib/format/displayName';
 import { logger } from '@/lib/logger';
 import { at } from '@/lib/ts/safe';
 import { formatFullName } from '@/utils/nameDisplay';
@@ -98,7 +99,11 @@ export default function BookingModalWithPayment({
       const paymentBookingData: BookingPayment = {
         bookingId: '',
         instructorId: String(instructor.user_id),
-        instructorName: `${instructor.user.first_name} ${instructor.user.last_initial}.`,
+        instructorName: formatDisplayName(
+          instructor.user.first_name,
+          instructor.user.last_initial,
+          'Instructor',
+        ),
         lessonType: selectedService!.skill,
         date: bookingDate,
         startTime: selectedTime,
@@ -176,7 +181,11 @@ export default function BookingModalWithPayment({
     const booking = {
       id: `temp_${Date.now()}`, // Temporary ID until backend creates real one
       service_name: selectedService.skill,
-      instructor_name: `${instructor.user.first_name} ${instructor.user.last_initial}.`,
+      instructor_name: formatDisplayName(
+        instructor.user.first_name,
+        instructor.user.last_initial,
+        'Instructor',
+      ),
       instructor_id: String(instructor.user_id),
       booking_date: selectedDate,
       start_time: selectedTime,

@@ -85,7 +85,7 @@ def _base_booking_payload() -> dict:
             "last_name": "Taylor",
             "email": "ava@example.com",
         },
-        "instructor": {"id": "inst-1", "first_name": "Sam", "last_initial": "L"},
+        "instructor": {"id": "inst-1", "first_name": "Sam", "last_initial": "L."},
         "instructor_service": {"id": "service-1", "name": "Guitar", "description": None},
         "payment_summary": None,
     }
@@ -276,7 +276,7 @@ def test_instructor_booking_response_uses_public_student_identity() -> None:
     assert student_payload == {
         "id": "student-1",
         "first_name": "Ava",
-        "last_initial": "T",
+        "last_initial": "T.",
     }
 
 
@@ -344,7 +344,7 @@ def test_upcoming_booking_response_coerce_price() -> None:
         student_first_name="Ava",
         student_last_initial="T.",
         instructor_first_name="Sam",
-        instructor_last_name="L",
+        instructor_last_name="L.",
         meeting_location=None,
         total_price=BadAmount(),
     )
@@ -450,7 +450,7 @@ def test_booking_create_response_safe_float_and_upcoming_price_branches() -> Non
         student_first_name="Ava",
         student_last_initial="T.",
         instructor_first_name="Sam",
-        instructor_last_name="L",
+        instructor_last_name="L.",
         meeting_location=None,
         total_price=None,
     )
@@ -470,7 +470,7 @@ def test_booking_create_response_safe_float_and_upcoming_price_branches() -> Non
         student_first_name="Ava",
         student_last_initial="T.",
         instructor_first_name="Sam",
-        instructor_last_name="L",
+        instructor_last_name="L.",
         meeting_location=None,
         total_price=GoodAmount(),
     )

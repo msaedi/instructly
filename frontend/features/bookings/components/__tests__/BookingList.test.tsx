@@ -82,8 +82,8 @@ describe('BookingList', () => {
             end_time: '11:00:00',
             status: 'CONFIRMED',
             service_name: 'Guitar',
-            student: { first_name: 'Ava', last_initial: 'L' },
-            instructor: { first_name: 'Sam', last_initial: 'Q' },
+            student: { first_name: 'Ava', last_initial: 'L.' },
+            instructor: { first_name: 'Sam', last_initial: 'Q.' },
           },
         ]}
         emptyTitle="No bookings"
@@ -329,7 +329,7 @@ describe('BookingList', () => {
             start_time: '10:00:00',
             status: 'CONFIRMED',
             service_name: 'Cello',
-            instructor: { first_name: 'Sam', last_initial: 'Q' },
+            instructor: { first_name: 'Sam', last_initial: 'Q.' },
           },
         ]}
         emptyTitle="No bookings"

@@ -14,7 +14,7 @@ jest.mock('@/lib/logger', () => ({
 
 jest.mock('@/utils/nameDisplay', () => ({
   formatInstructorFromUser: jest.fn((instructor) =>
-    instructor ? `${instructor.first_name} ${instructor.last_initial}.` : null
+    instructor ? `${instructor.first_name} ${instructor.last_initial}` : null
   ),
   formatFullName: jest.fn((user) => `${user.first_name} ${user.last_name}`),
 }));
@@ -40,7 +40,7 @@ const createMockBooking = (overrides: LoosePartial<Booking> = {}): Booking => ({
   instructor: {
     id: '01K2GY3VEVJWKZDVH5INSTRUC1',
     first_name: 'Sarah',
-    last_initial: 'C',
+    last_initial: 'C.',
   },
   student: {
     id: '01K2GY3VEVJWKZDVH5STUDENT1',

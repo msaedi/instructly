@@ -72,7 +72,7 @@ describe('useConversations', () => {
       const mockData = createMockConversationListResponse([
         {
           id: 'conv1',
-          other_user: { id: 'user1', first_name: 'John', last_initial: 'D' },
+          other_user: { id: 'user1', first_name: 'John', last_initial: 'D.' },
           unread_count: 2,
           last_message: {
             content: 'Hello there',
@@ -115,7 +115,7 @@ describe('useConversations', () => {
       const mockData = createMockConversationListResponse([
         {
           id: 'conv1',
-          other_user: { id: 'user1', first_name: 'Archived', last_initial: 'U' },
+          other_user: { id: 'user1', first_name: 'Archived', last_initial: 'U.' },
           unread_count: 0,
           last_message: {
             content: 'Old message',
@@ -159,7 +159,7 @@ describe('useConversations', () => {
       const mockData = createMockConversationListResponse([
         {
           id: 'conv1',
-          other_user: { id: 'user1', first_name: 'Trashed', last_initial: 'U' },
+          other_user: { id: 'user1', first_name: 'Trashed', last_initial: 'U.' },
           unread_count: 0,
           last_message: {
             content: 'Deleted message',
@@ -203,7 +203,7 @@ describe('useConversations', () => {
       const mockData = createMockConversationListResponse([
         {
           id: 'conv1',
-          other_user: { id: 'user1', first_name: 'Student', last_initial: 'U' },
+          other_user: { id: 'user1', first_name: 'Student', last_initial: 'U.' },
           unread_count: 1,
           last_message: null,
           upcoming_booking_count: 0,
@@ -409,7 +409,7 @@ describe('useConversations', () => {
       const mockData = createMockConversationListResponse([
         {
           id: 'conv1',
-          other_user: { id: 'user1', first_name: 'NoMsg', last_initial: 'U' },
+          other_user: { id: 'user1', first_name: 'NoMsg', last_initial: 'U.' },
           unread_count: 0,
           last_message: null,
           upcoming_booking_count: 0,
@@ -446,7 +446,7 @@ describe('useConversations', () => {
       const mockData = createMockConversationListResponse([
         {
           id: 'conv1',
-          other_user: { id: 'user1', first_name: 'Long', last_initial: 'M' },
+          other_user: { id: 'user1', first_name: 'Long', last_initial: 'M.' },
           unread_count: 0,
           last_message: {
             content: longMessage,
@@ -486,7 +486,7 @@ describe('useConversations', () => {
       const mockData = createMockConversationListResponse([
         {
           id: 'conv1',
-          other_user: { id: 'user1', first_name: 'Booked', last_initial: 'U' },
+          other_user: { id: 'user1', first_name: 'Booked', last_initial: 'U.' },
           unread_count: 0,
           last_message: null,
           upcoming_booking_count: 2,
@@ -526,7 +526,7 @@ describe('useConversations', () => {
       const mockData = createMockConversationListResponse([
         {
           id: 'conv1',
-          other_user: { id: 'user1', first_name: 'NoNext', last_initial: 'B' },
+          other_user: { id: 'user1', first_name: 'NoNext', last_initial: 'B.' },
           unread_count: 0,
           last_message: null,
           upcoming_booking_count: 0,
@@ -734,7 +734,7 @@ describe('useConversations', () => {
       const mockData = createMockConversationListResponse([
         {
           id: 'conv1',
-          other_user: { id: 'user1', first_name: 'Student', last_initial: 'U' },
+          other_user: { id: 'user1', first_name: 'Student', last_initial: 'U.' },
           unread_count: 1,
           last_message: {
             content: 'Hello',
@@ -777,7 +777,7 @@ describe('useConversations', () => {
       const mockData = createMockConversationListResponse([
         {
           id: 'conv1',
-          other_user: { id: 'user1', first_name: 'Test', last_initial: 'U' },
+          other_user: { id: 'user1', first_name: 'Test', last_initial: 'U.' },
           unread_count: 0,
           last_message: {
             content: 'Hi',
@@ -819,7 +819,7 @@ describe('useConversations', () => {
       const mockData = createMockConversationListResponse([
         {
           id: 'conv1',
-          other_user: { id: 'user1', first_name: 'NoBookings', last_initial: 'U' },
+          other_user: { id: 'user1', first_name: 'NoBookings', last_initial: 'U.' },
           unread_count: 0,
           last_message: null,
           upcoming_booking_count: 0,
@@ -857,7 +857,7 @@ describe('useConversations', () => {
       const mockData = createMockConversationListResponse([
         {
           id: 'conv1',
-          other_user: { id: 'user1', first_name: 'Short', last_initial: 'M' },
+          other_user: { id: 'user1', first_name: 'Short', last_initial: 'M.' },
           unread_count: 0,
           last_message: {
             content: 'Hello there!',
@@ -898,7 +898,7 @@ describe('useConversations', () => {
       const mockData = createMockConversationListResponse([
         {
           id: 'conv1',
-          other_user: { id: 'user1', first_name: 'Exact', last_initial: 'M' },
+          other_user: { id: 'user1', first_name: 'Exact', last_initial: 'M.' },
           unread_count: 0,
           last_message: {
             content: exactMessage,

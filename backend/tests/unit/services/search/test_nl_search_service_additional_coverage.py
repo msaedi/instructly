@@ -927,7 +927,7 @@ class TestNlSearchServiceCore:
             {
                 "instructor_id": "inst_1",
                 "first_name": "A",
-                "last_initial": "B",
+                "last_initial": "B.",
                 "avg_rating": 4.5,
                 "review_count": 2,
                 "matching_services": [
@@ -944,7 +944,7 @@ class TestNlSearchServiceCore:
             {
                 "instructor_id": "inst_2",
                 "first_name": "C",
-                "last_initial": "D",
+                "last_initial": "D.",
                 "avg_rating": 4.8,
                 "review_count": 5,
                 "matching_services": [
@@ -1001,7 +1001,7 @@ class TestNlSearchServiceCore:
                 instructor=InstructorSummary(
                     id="inst_1",
                     first_name="A",
-                    last_initial="B",
+                    last_initial="B.",
                     profile_picture_url=None,
                     bio_snippet=None,
                     verified=False,
@@ -1996,7 +1996,7 @@ def test_transform_instructor_results_skips_empty_services(nl_service):
         {
             "instructor_id": "inst_1",
             "first_name": "A",
-            "last_initial": "B",
+            "last_initial": "B.",
             "avg_rating": 4.5,
             "review_count": 2,
             "matching_services": [],
@@ -2157,7 +2157,7 @@ async def test_hydrate_instructor_results_dedupes_and_distances(nl_service):
         {
             "instructor_id": "inst_1",
             "first_name": "A",
-            "last_initial": "B",
+            "last_initial": "B.",
             "avg_rating": 4.9,
             "review_count": 10,
             "profile_picture_key": None,
@@ -2170,7 +2170,7 @@ async def test_hydrate_instructor_results_dedupes_and_distances(nl_service):
         {
             "instructor_id": "inst_2",
             "first_name": "C",
-            "last_initial": "D",
+            "last_initial": "D.",
             "avg_rating": 4.5,
             "review_count": 5,
             "profile_picture_key": None,
@@ -2298,7 +2298,7 @@ async def test_hydrate_instructor_results_clarification_candidates_and_optional_
                 {
                     "instructor_id": "inst_1",
                     "first_name": "A",
-                    "last_initial": "B",
+                    "last_initial": "B.",
                     "avg_rating": 4.9,
                     "review_count": 10,
                     "profile_picture_key": None,
@@ -2311,7 +2311,7 @@ async def test_hydrate_instructor_results_clarification_candidates_and_optional_
                 {
                     "instructor_id": "inst_2",
                     "first_name": "C",
-                    "last_initial": "D",
+                    "last_initial": "D.",
                     "avg_rating": 4.5,
                     "review_count": 5,
                     "profile_picture_key": None,
@@ -2715,7 +2715,7 @@ async def test_hydrate_results_skips_duplicate_and_missing_profile(nl_service):
         {
             "instructor_id": "inst_1",
             "first_name": "Ada",
-            "last_initial": "L",
+            "last_initial": "L.",
             "avg_rating": 4.8,
             "review_count": 10,
             "profile_picture_key": None,
@@ -2779,7 +2779,7 @@ async def test_hydrate_results_loads_distance_map_for_clarification_candidates(n
                     {
                         "instructor_id": "inst_1",
                         "first_name": "Ada",
-                        "last_initial": "L",
+                        "last_initial": "L.",
                         "avg_rating": 5.0,
                         "review_count": 12,
                         "profile_picture_key": None,
@@ -3123,7 +3123,7 @@ async def test_hydrate_results_loads_distance_map_via_filter_repository(monkeypa
                 {
                     "instructor_id": "inst_distance",
                     "first_name": "Sam",
-                    "last_initial": "D",
+                    "last_initial": "D.",
                     "avg_rating": 4.7,
                     "review_count": 9,
                     "profile_picture_key": None,

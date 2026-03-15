@@ -29,7 +29,7 @@ const createSlot = (overrides: Partial<BookedSlotPreview> = {}): BookedSlotPrevi
   start_time: '09:00:00',
   end_time: '11:00:00',
   student_first_name: 'Jane',
-  student_last_initial: 'D',
+  student_last_initial: 'D.',
   service_name: 'Math',
   service_area_short: 'NYC',
   duration_minutes: 120,

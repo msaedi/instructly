@@ -98,6 +98,7 @@ def test_create_and_update_instructor_profile(db, test_student, monkeypatch):
     refreshed_user = service.user_repository.get_by_id(test_student.id)
     assert refreshed_user is not None
     assert any(role.name == RoleName.INSTRUCTOR for role in refreshed_user.roles)
+    assert not any(role.name == RoleName.STUDENT for role in refreshed_user.roles)
 
     profile = service.profile_repository.find_one_by(user_id=test_student.id)
     assert profile is not None

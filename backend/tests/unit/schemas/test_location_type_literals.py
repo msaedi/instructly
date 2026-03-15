@@ -46,7 +46,7 @@ def _base_booking_payload() -> dict:
         "instructor": {
             "id": "instructor-1",
             "first_name": "Instructor",
-            "last_initial": "T",
+            "last_initial": "T.",
         },
         "instructor_service": {
             "id": "service-1",

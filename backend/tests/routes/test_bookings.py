@@ -724,7 +724,7 @@ class TestBookingRoutes:
         assert data["items"][0]["student_last_initial"] == "S."
         assert data["items"][0]["instructor_first_name"] == "Test"
         # Student viewing instructor's info - sees only initial
-        assert data["items"][0]["instructor_last_name"] == "I"
+        assert data["items"][0]["instructor_last_name"] == "I."
 
     def test_get_upcoming_bookings_cached_dict(
         self, client_with_mock_booking_service, auth_headers_student, mock_booking_service, test_student
@@ -772,7 +772,7 @@ class TestBookingRoutes:
         assert data["total"] == 2
         assert data["items"][0]["total_price"] == 42.5
         assert data["items"][0]["student_last_initial"] == "S."
-        assert data["items"][0]["instructor_last_name"] == "I"
+        assert data["items"][0]["instructor_last_name"] == "I."
         assert data["items"][1]["total_price"] == 0.0
         assert data["items"][1]["student_last_initial"] == "L."
 
@@ -864,7 +864,7 @@ class TestBookingRoutes:
         assert data["student"] == {
             "id": updated_booking.student.id,
             "first_name": "Student",
-            "last_initial": "U",
+            "last_initial": "U.",
         }
 
     def test_get_booking_details_success(
@@ -925,14 +925,18 @@ class TestBookingRoutes:
         assert data["student_timezone"] == "America/Los_Angeles"
 
     def test_get_booking_details_as_instructor_uses_public_student_identity(
-        self, client_with_mock_booking_service, auth_headers_instructor, mock_booking_service
+        self,
+        client_with_mock_booking_service,
+        auth_headers_instructor,
+        mock_booking_service,
+        test_instructor,
     ):
         """Instructor booking detail responses should not expose student contact info."""
         mock_booking = Mock()
         booking_id = generate_ulid()
         mock_booking.id = booking_id
         mock_booking.student_id = generate_ulid()
-        mock_booking.instructor_id = generate_ulid()
+        mock_booking.instructor_id = test_instructor.id
         mock_booking.instructor_service_id = generate_ulid()
         mock_booking.booking_date = date.today() + timedelta(days=1)
         mock_booking.start_time = time(9, 0)
@@ -973,7 +977,7 @@ class TestBookingRoutes:
         assert student == {
             "id": mock_booking.student.id,
             "first_name": "Test",
-            "last_initial": "S",
+            "last_initial": "S.",
         }
 
     def test_get_booking_details_not_found(
@@ -1262,7 +1266,11 @@ class TestBookingRoutes:
         assert "at least 2 hours" in str(error_data)
 
     def test_get_bookings_as_instructor(
-        self, client_with_mock_booking_service, auth_headers_instructor, mock_booking_service
+        self,
+        client_with_mock_booking_service,
+        auth_headers_instructor,
+        mock_booking_service,
+        test_instructor,
     ):
         """Test instructor getting their bookings."""
         # Create instructor bookings
@@ -1284,7 +1292,7 @@ class TestBookingRoutes:
             booking.student_note = "First lesson"
             booking.instructor_note = None
             booking.student_id = generate_ulid()
-            booking.instructor_id = generate_ulid()
+            booking.instructor_id = test_instructor.id
             booking.instructor_service_id = generate_ulid()
             booking.created_at = datetime.now()
             booking.confirmed_at = datetime.now()
@@ -1312,7 +1320,7 @@ class TestBookingRoutes:
         assert data["items"][0]["student"] == {
             "id": mock_bookings[0].student.id,
             "first_name": "John",
-            "last_initial": "D",
+            "last_initial": "D.",
         }
         assert data["items"][0]["service_name"] == "Guitar Lesson"
 
@@ -2182,7 +2190,7 @@ class TestBookingIntegration:
         assert payload["items"][0]["id"] == good_booking["id"]
 
     def test_get_bookings_cached_payload_as_instructor_uses_public_student_identity(
-        self, client, auth_headers_instructor
+        self, client, auth_headers_instructor, test_instructor
     ):
         mock_booking_service = MagicMock()
         booking_id = generate_ulid()
@@ -2191,7 +2199,7 @@ class TestBookingIntegration:
             "id": booking_id,
             "_from_cache": True,
             "student_id": student_id,
-            "instructor_id": generate_ulid(),
+            "instructor_id": test_instructor.id,
             "instructor_service_id": generate_ulid(),
             "booking_date": date.today() + timedelta(days=1),
             "start_time": time(9, 0),
@@ -2243,7 +2251,7 @@ class TestBookingIntegration:
         assert student == {
             "id": student_id,
             "first_name": "Stu",
-            "last_initial": "D",
+            "last_initial": "D.",
         }
 
     def test_send_reminder_emails_handles_internal_exception(

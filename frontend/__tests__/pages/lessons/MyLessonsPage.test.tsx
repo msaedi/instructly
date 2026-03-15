@@ -93,7 +93,7 @@ describe('MyLessonsPage', () => {
         instructor: {
           id: 1,
           first_name: 'John',
-          last_initial: 'D',
+          last_initial: 'D.',
         },
       },
       {
@@ -114,7 +114,7 @@ describe('MyLessonsPage', () => {
         instructor: {
           id: 2,
           first_name: 'Jane',
-          last_initial: 'S',
+          last_initial: 'S.',
         },
       },
     ],
@@ -145,7 +145,7 @@ describe('MyLessonsPage', () => {
         instructor: {
           id: 1,
           first_name: 'John',
-          last_initial: 'D',
+          last_initial: 'D.',
         },
       },
       {
@@ -168,7 +168,7 @@ describe('MyLessonsPage', () => {
         instructor: {
           id: 2,
           first_name: 'Jane',
-          last_initial: 'S',
+          last_initial: 'S.',
         },
       },
     ],

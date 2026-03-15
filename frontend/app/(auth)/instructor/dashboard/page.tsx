@@ -25,6 +25,7 @@ import EditProfileModal from '@/components/modals/EditProfileModal';
 import { createStripeIdentitySession, createSignedUpload, fetchWithAuth } from '@/lib/api';
 import { getStripe } from '@/features/shared/payment/utils/stripe';
 import { paymentService } from '@/services/api/payments';
+import { formatDisplayName } from '@/lib/format/displayName';
 import { logger } from '@/lib/logger';
 import { InstructorProfile } from '@/types/instructor';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
@@ -785,7 +786,11 @@ export default function InstructorDashboardNew() {
                   </>
                 ) : (
                   unreadConversations.map((conv) => {
-                    const otherName = `${conv.other_user.first_name} ${conv.other_user.last_initial}.`;
+                    const otherName = formatDisplayName(
+                      conv.other_user.first_name,
+                      conv.other_user.last_initial,
+                      'Student',
+                    );
                     const preview = conv.last_message?.content || 'New message';
                     return (
                       <li key={conv.id}>

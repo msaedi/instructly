@@ -46,7 +46,7 @@ export type LocationType =
 export interface InstructorInfo {
   id: string;
   first_name: string;
-  last_initial: string;  // Only last initial, no full last name for privacy
+  last_initial: string;  // Privacy-safe display value like "S."
   full_name?: string; // Computed full name with last initial (optional API field)
   // Note: email excluded for privacy
 }

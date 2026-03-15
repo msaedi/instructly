@@ -22,7 +22,7 @@ describe('TimeSelectionFacade', () => {
       onClose: jest.fn(),
       instructor: {
         user_id: 'user-1',
-        user: { first_name: 'Alex', last_initial: 'Q' },
+        user: { first_name: 'Alex', last_initial: 'Q.' },
         services: [{ duration_options: [60], min_hourly_rate: 50, format_prices: [{ format: 'online', hourly_rate: 50 }], skill: 'Piano' }],
       },
     };
@@ -38,7 +38,7 @@ describe('TimeSelectionFacade', () => {
       onClose,
       instructor: {
         user_id: 'user-2',
-        user: { first_name: 'Sam', last_initial: 'K' },
+        user: { first_name: 'Sam', last_initial: 'K.' },
         services: [{ duration_options: [45], min_hourly_rate: 65, format_prices: [{ format: 'online', hourly_rate: 65 }], skill: 'Guitar' }],
       },
     };

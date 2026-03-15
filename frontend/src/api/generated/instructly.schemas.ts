@@ -2263,7 +2263,7 @@ export interface BookingRescheduleRequest {
 /**
  * Complete booking response with privacy protection.
 
-Shows instructor as "FirstName L" (last initial only).
+Shows instructor as "FirstName L.".
 Students see their own full information.
 Clean Architecture: No availability slot references.
  */
@@ -3800,7 +3800,7 @@ export interface FavoritedInstructor {
   id: string;
   /** Whether the instructor is active */
   is_active?: boolean;
-  /** Instructor last initial */
+  /** Instructor last initial (for example, "D.") */
   last_initial: string;
   /** Instructor profile details */
   profile?: InstructorProfilePublic | null;
@@ -4507,7 +4507,7 @@ export interface InstructorSummary {
   id: string;
   /** Founding instructor status */
   is_founding_instructor?: boolean;
-  /** Last name initial for privacy (e.g., 'D') */
+  /** Last name initial for privacy (e.g., 'D.') */
   last_initial: string;
   /** Profile picture URL */
   profile_picture_url?: string | null;

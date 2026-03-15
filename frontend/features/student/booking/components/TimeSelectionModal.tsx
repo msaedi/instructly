@@ -14,6 +14,7 @@ import {
   fetchPricingPreview,
   type PricingPreviewResponse,
 } from '@/lib/api/pricing';
+import { formatDisplayName } from '@/lib/format/displayName';
 import { useAuth, storeBookingIntent } from '../hooks/useAuth';
 import Calendar from '@/features/shared/booking/ui/Calendar';
 import TimeDropdown from '@/features/shared/booking/ui/TimeDropdown';
@@ -274,7 +275,7 @@ export default function TimeSelectionModal({
     () => ({
       id: instructor.user_id,
       first_name: instructor.user.first_name,
-      ...(instructor.user.last_initial ? { last_name: `${instructor.user.last_initial}.` } : {}),
+      ...(instructor.user.last_initial ? { last_name: instructor.user.last_initial } : {}),
       ...(typeof instructor.user.has_profile_picture === 'boolean'
         ? { has_profile_picture: instructor.user.has_profile_picture }
         : {}),
@@ -620,9 +621,11 @@ export default function TimeSelectionModal({
 
   // Get instructor first name and last initial
   const getInstructorDisplayName = () => {
-    const firstName = instructor.user.first_name;
-    const lastInitial = instructor.user.last_initial;
-    return `${firstName} ${lastInitial}.`;
+    return formatDisplayName(
+      instructor.user.first_name,
+      instructor.user.last_initial,
+      'Instructor',
+    );
   };
 
   const fetchAvailability = useCallback(async () => {
@@ -933,7 +936,11 @@ export default function TimeSelectionModal({
 
       const bookingData = {
         instructorId: instructor.user_id,
-        instructorName: `${instructor.user.first_name} ${instructor.user.last_initial}.`,
+        instructorName: formatDisplayName(
+          instructor.user.first_name,
+          instructor.user.last_initial,
+          'Instructor',
+        ),
         // Ensure we propagate the instructor_service_id ULID, never a display name
         serviceId: serviceId || resolvedService.id,
         skill: resolvedService.skill,

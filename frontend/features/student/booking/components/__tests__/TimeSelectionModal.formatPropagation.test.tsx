@@ -177,7 +177,7 @@ const availabilityResponse = {
   data: {
     instructor_id: 'inst-1',
     instructor_first_name: 'Ava',
-    instructor_last_initial: 'T',
+    instructor_last_initial: 'T.',
     availability_by_date: {
       '2025-01-12': {
         date: '2025-01-12',
@@ -195,7 +195,7 @@ const singleFormatInstructor = {
   user_id: 'inst-1',
   user: {
     first_name: 'Ava',
-    last_initial: 'T',
+    last_initial: 'T.',
     timezone: 'America/New_York',
   },
   services: [
@@ -213,7 +213,7 @@ const multiFormatInstructor = {
   user_id: 'inst-1',
   user: {
     first_name: 'Ava',
-    last_initial: 'T',
+    last_initial: 'T.',
     timezone: 'America/New_York',
   },
   services: [

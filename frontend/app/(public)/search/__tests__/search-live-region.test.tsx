@@ -83,7 +83,7 @@ const createSearchResult = (index: number) => ({
   relevance_score: 0.9 - index * 0.01,
   instructor: {
     first_name: `Ava${index + 1}`,
-    last_initial: 'L',
+    last_initial: 'L.',
     bio_snippet: '',
     profile_picture_url: '',
     verified: false,

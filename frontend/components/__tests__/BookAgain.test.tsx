@@ -148,7 +148,7 @@ describe('BookAgain', () => {
         instructor: {
           id: '01K2GY3VEVJWKZDVH5INSTRUC1',
           first_name: 'Sarah',
-          last_initial: 'C',
+          last_initial: 'C.',
         },
         service_name: 'Piano Lesson',
         instructor_service_id: '01K2GY3VEVJWKZDVH5SERVICE1',
@@ -160,7 +160,7 @@ describe('BookAgain', () => {
         instructor: {
           id: '01K2GY3VEVJWKZDVH5INSTRUC2',
           first_name: 'Mike',
-          last_initial: 'B',
+          last_initial: 'B.',
         },
         service_name: 'Guitar Lesson',
         instructor_service_id: '01K2GY3VEVJWKZDVH5SERVICE2',
@@ -248,7 +248,7 @@ describe('BookAgain', () => {
           instructor: {
             id: '01K2GY3VEVJWKZDVH5INSTRUC3',
             first_name: 'Alice',
-            last_initial: 'D',
+            last_initial: 'D.',
           },
           service_name: 'Violin Lesson',
           instructor_service_id: '01K2GY3VEVJWKZDVH5SERVICE3',
@@ -260,7 +260,7 @@ describe('BookAgain', () => {
           instructor: {
             id: '01K2GY3VEVJWKZDVH5INSTRUC4',
             first_name: 'Bob',
-            last_initial: 'E',
+            last_initial: 'E.',
           },
           service_name: 'Drums Lesson',
           instructor_service_id: '01K2GY3VEVJWKZDVH5SERVICE4',
@@ -289,7 +289,7 @@ describe('BookAgain', () => {
           instructor: {
             id: '01K2GY3VEVJWKZDVH5INSTRUC1', // Same as first instructor
             first_name: 'Sarah',
-            last_initial: 'C',
+            last_initial: 'C.',
           },
           service_name: 'Piano Lesson', // Same service
           instructor_service_id: '01K2GY3VEVJWKZDVH5SERVICE1',
@@ -319,7 +319,7 @@ describe('BookAgain', () => {
         instructor: {
           id: '01K2GY3VEVJWKZDVH5INSTRUC1',
           first_name: 'Sarah',
-          last_initial: 'C',
+          last_initial: 'C.',
         },
         service_name: 'Piano Lesson',
         instructor_service_id: '01K2GY3VEVJWKZDVH5SERVICE1',
@@ -384,7 +384,7 @@ describe('BookAgain', () => {
         instructor: {
           id: '01K2GY3VEVJWKZDVH5INSTRUC1',
           first_name: 'Sarah',
-          last_initial: 'C',
+          last_initial: 'C.',
         },
         service_name: 'Piano Lesson',
         instructor_service_id: '01K2GY3VEVJWKZDVH5SERVICE1',
@@ -396,7 +396,7 @@ describe('BookAgain', () => {
         instructor: {
           id: '01K2GY3VEVJWKZDVH5INSTRUC2',
           first_name: 'Mike',
-          last_initial: 'B',
+          last_initial: 'B.',
         },
         service_name: 'Guitar Lesson',
         instructor_service_id: '01K2GY3VEVJWKZDVH5SERVICE2',
@@ -436,7 +436,7 @@ describe('BookAgain', () => {
           instructor: {
             id: '01K2GY3VEVJWKZDVH5INSTRUC2',
             first_name: 'Mike',
-            last_initial: 'B',
+            last_initial: 'B.',
           },
           service_name: 'Guitar Lesson',
           instructor_service_id: '01K2GY3VEVJWKZDVH5SERVICE2',

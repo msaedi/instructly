@@ -21,7 +21,7 @@ describe('InstructorInfo', () => {
   const mockInstructor = {
     id: 1,
     first_name: 'Jane',
-    last_initial: 'S',
+    last_initial: 'S.',
     email: 'jane@example.com',
     role: 'INSTRUCTOR' as const,
     created_at: '2024-01-01T00:00:00Z',
@@ -95,7 +95,7 @@ describe('InstructorInfo', () => {
     const longNameInstructor = {
       ...mockInstructor,
       first_name: 'Alexandra',
-      last_initial: 'M',
+      last_initial: 'M.',
     };
 
     renderWithQueryClient(<InstructorInfo instructor={longNameInstructor} onChat={mockOnChat} />);

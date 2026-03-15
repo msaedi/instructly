@@ -141,7 +141,7 @@ describe('WeekView', () => {
         start_time: '10:00',
         end_time: '11:00',
         student_first_name: 'John',
-        student_last_initial: 'D',
+        student_last_initial: 'D.',
         service_name: 'Piano Lesson',
         service_area_short: 'UWS',
         duration_minutes: 60,

@@ -63,6 +63,10 @@ DEFAULT_BOOKING_RULES_CONFIG: Dict[str, Any] = BookingRulesConfig(
 class ConfigService(BaseService):
     """Business logic for reading/writing platform configuration."""
 
+    # Thread safety: safe under Uvicorn's single-threaded async event loop.
+    # If switching to multi-threaded workers, add threading.Lock around
+    # cache reads/writes. The worst case under current architecture is a
+    # harmless double-fetch on concurrent cache misses.
     _PRICING_CACHE_TTL_SECONDS: ClassVar[float] = 60.0
     _pricing_cache: ClassVar[tuple[Dict[str, Any], datetime | None, float] | None] = None
     _BOOKING_RULES_CACHE_TTL_SECONDS: ClassVar[float] = 60.0

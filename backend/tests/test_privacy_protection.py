@@ -39,7 +39,7 @@ class TestSchemaPrivacyProtection:
 
         # Verify only last initial is exposed
         assert info.first_name == "Michael"
-        assert info.last_initial == "R"
+        assert info.last_initial == "R."
         assert not hasattr(info, "last_name")
 
     def test_user_basic_privacy_from_user(self):
@@ -56,7 +56,7 @@ class TestSchemaPrivacyProtection:
 
         # Verify only last initial is exposed
         assert privacy_user.first_name == "Sarah"
-        assert privacy_user.last_initial == "T"
+        assert privacy_user.last_initial == "T."
         # Email should NOT be exposed for privacy
         assert not hasattr(privacy_user, "email")
         assert not hasattr(privacy_user, "last_name")
@@ -121,7 +121,7 @@ class TestSchemaPrivacyProtection:
 
         # Verify instructor privacy is protected
         assert response.instructor.first_name == "Michael"
-        assert response.instructor.last_initial == "R"
+        assert response.instructor.last_initial == "R."
         assert not hasattr(response.instructor, "last_name")
 
         # Verify student info is included (no privacy needed for own data)
@@ -162,7 +162,7 @@ class TestSchemaPrivacyProtection:
         response = InstructorProfileResponse.from_orm(profile)
 
         assert response.user.first_name == "Sarah"
-        assert response.user.last_initial == "T"
+        assert response.user.last_initial == "T."
         assert not hasattr(response.user, "email")
         assert not hasattr(response.user, "last_name")
         assert response.service_area_boroughs == ["Manhattan"]
@@ -224,7 +224,7 @@ class TestInstructorEndpointPrivacy:
         # Verify instructor privacy is protected
         assert "user" in data
         assert data["user"]["first_name"] == test_instructor.first_name
-        assert data["user"]["last_initial"] == test_instructor.last_name[0]
+        assert data["user"]["last_initial"] == f"{test_instructor.last_name[0]}."
         # Ensure full last name is NOT exposed
         assert "last_name" not in data["user"]
         # Ensure email is NOT exposed

@@ -8,18 +8,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { getLocationTypeIcon, type LocationType } from '@/types/booking';
 import { at } from '@/lib/ts/safe';
+import { formatDisplayName } from '@/lib/format/displayName';
 import { useBooking, useCompleteBooking, useMarkBookingNoShow } from '@/src/api/services/bookings';
 import { formatSessionDuration, formatSessionTime } from '@/lib/time/videoSession';
 import { queryKeys } from '@/src/api/queryKeys';
-
-function formatStudentDisplayName(
-  student?: { first_name?: string | null; last_initial?: string | null } | null
-): string {
-  if (!student?.first_name) {
-    return '';
-  }
-  return student.last_initial ? `${student.first_name} ${student.last_initial}.` : student.first_name;
-}
 
 export default function BookingDetailsPage() {
   const params = useParams();
@@ -69,7 +61,13 @@ export default function BookingDetailsPage() {
   };
 
   const needsAction = booking?.status === 'CONFIRMED' && isPastLesson();
-  const studentName = formatStudentDisplayName(booking?.student);
+  const studentLastInitial =
+    booking?.student && 'last_initial' in booking.student ? booking.student.last_initial : null;
+  const studentName = formatDisplayName(
+    booking?.student?.first_name,
+    studentLastInitial,
+    '',
+  );
 
   const formatTime = (timeStr: string) => {
     const parts = timeStr.split(':');

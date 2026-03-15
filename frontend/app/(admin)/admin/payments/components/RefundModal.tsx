@@ -4,9 +4,9 @@ import { AlertTriangle, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import {
-  AdminRefundReason,
+  type AdminRefundReason,
   type AdminRefundRequest,
-} from '@/src/api/generated/instructly.schemas';
+} from '@/features/shared/api/types';
 import { useAdminRefundBookingApiV1AdminBookingsBookingIdRefundPost } from '@/src/api/generated/admin-refunds/admin-refunds';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,18 +29,25 @@ interface RefundModalProps {
   onRefunded?: (bookingId: string) => void;
 }
 
+const refundReasonValues: Record<AdminRefundReason, AdminRefundReason> = {
+  instructor_no_show: 'instructor_no_show',
+  dispute: 'dispute',
+  platform_error: 'platform_error',
+  other: 'other',
+};
+
 const refundOptions = [
-  { value: AdminRefundReason.instructor_no_show, label: 'Instructor no-show' },
-  { value: AdminRefundReason.dispute, label: 'Dispute' },
-  { value: AdminRefundReason.platform_error, label: 'Platform error' },
-  { value: AdminRefundReason.other, label: 'Other' },
+  { value: refundReasonValues.instructor_no_show, label: 'Instructor no-show' },
+  { value: refundReasonValues.dispute, label: 'Dispute' },
+  { value: refundReasonValues.platform_error, label: 'Platform error' },
+  { value: refundReasonValues.other, label: 'Other' },
 ];
 
 const reasonStatusMap: Record<AdminRefundReason, string> = {
-  [AdminRefundReason.instructor_no_show]: 'NO_SHOW',
-  [AdminRefundReason.dispute]: 'CANCELLED',
-  [AdminRefundReason.platform_error]: 'CANCELLED',
-  [AdminRefundReason.other]: 'CANCELLED',
+  instructor_no_show: 'NO_SHOW',
+  dispute: 'CANCELLED',
+  platform_error: 'CANCELLED',
+  other: 'CANCELLED',
 };
 
 export default function RefundModal({ booking, open, onOpenChange, onRefunded }: RefundModalProps) {

@@ -162,7 +162,7 @@ def test_list_conversations_skips_missing_user_and_last_message(test_student, te
     item = response.conversations[0]
     assert item.id == "conv_with"
     assert item.other_user.first_name == test_student.first_name
-    assert item.other_user.last_initial == test_student.last_name[0]
+    assert item.other_user.last_initial == f"{test_student.last_name[0]}."
     assert not hasattr(item.other_user, "last_name")
     assert not hasattr(item.other_user, "email")
     assert item.last_message is not None

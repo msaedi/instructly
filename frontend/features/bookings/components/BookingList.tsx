@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { AlertTriangle, CalendarDays, CheckCircle, ChevronRight, Clock, User } from 'lucide-react';
 import { Fragment } from 'react';
 import { JoinLessonButton } from '@/components/lessons/video/JoinLessonButton';
+import { formatDisplayName } from '@/lib/format/displayName';
 
 export type BookingListItem = {
   id: string;
@@ -87,13 +88,6 @@ function formatLessonDate(date: string, time: string): { date: string; time: str
   };
 }
 
-function formatStudentName(student?: BookingListItem['student']): string {
-  if (!student?.first_name) {
-    return 'Student';
-  }
-  return student.last_initial ? `${student.first_name} ${student.last_initial}.` : student.first_name;
-}
-
 export function BookingList({
   data,
   isLoading,
@@ -143,9 +137,16 @@ export function BookingList({
         const status = STATUS_LABELS[displayStatus] ?? booking.status ?? 'Pending';
         const badgeClasses =
           STATUS_STYLES[displayStatus] ?? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
-        const studentName = formatStudentName(booking.student);
+        const studentName = formatDisplayName(
+          booking.student?.first_name,
+          booking.student?.last_initial,
+        );
         const instructorName = booking.instructor
-          ? `${booking.instructor.first_name}${booking.instructor.last_initial ? ` ${booking.instructor.last_initial}.` : ''}`
+          ? formatDisplayName(
+              booking.instructor.first_name,
+              booking.instructor.last_initial,
+              'You',
+            )
           : 'You';
         const showActionButtons = needsAction(booking) && (onComplete !== undefined || onNoShow !== undefined);
 

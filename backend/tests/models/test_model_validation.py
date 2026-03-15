@@ -545,18 +545,82 @@ class TestFieldValidation:
         assert len(user.roles) == 1
         assert any(role.name == RoleName.STUDENT for role in user.roles)
 
-        # Assign another role (users can have multiple roles)
+        # Assigning instructor replaces student
         permission_service.assign_role(user.id, RoleName.INSTRUCTOR)
         db.refresh(user)
 
-        # User should now have both roles
-        assert len(user.roles) == 2
-        assert any(role.name == RoleName.STUDENT for role in user.roles)
+        # User should now be instructor-only
+        assert len(user.roles) == 1
         assert any(role.name == RoleName.INSTRUCTOR for role in user.roles)
+        assert not any(role.name == RoleName.STUDENT for role in user.roles)
+
+        # Admin remains additive
+        permission_service.assign_role(user.id, RoleName.ADMIN)
+        db.refresh(user)
+        assert any(role.name == RoleName.INSTRUCTOR for role in user.roles)
+        assert any(role.name == RoleName.ADMIN for role in user.roles)
+        assert not any(role.name == RoleName.STUDENT for role in user.roles)
 
         # Try to assign invalid role should return False
         result = permission_service.assign_role(user.id, "invalid_role")
         assert result is False  # Invalid role assignment should fail
+
+    def test_admin_role_can_coexist_with_student(self, db):
+        """Test that admin remains additive alongside student role."""
+        user = User(
+            email="student.admin@example.com",
+            hashed_password="hash",
+            first_name="Student",
+            last_name="Admin",
+            phone="+12125550000",
+            zip_code="10001",
+        )
+        db.add(user)
+        db.flush()
+
+        permission_service = PermissionService(db)
+        permission_service.assign_role(user.id, RoleName.STUDENT)
+        permission_service.assign_role(user.id, RoleName.ADMIN)
+        db.refresh(user)
+
+        assert any(role.name == RoleName.STUDENT for role in user.roles)
+        assert any(role.name == RoleName.ADMIN for role in user.roles)
+        assert not any(role.name == RoleName.INSTRUCTOR for role in user.roles)
+
+    def test_assign_role_cleans_opposite_role_when_target_already_present(self, db):
+        """Recover from corrupted dual-role state by removing the opposite role."""
+        user = User(
+            email="corrupted.roles@example.com",
+            hashed_password="hash",
+            first_name="Corrupted",
+            last_name="Roles",
+            phone="+12125550000",
+            zip_code="10001",
+        )
+        db.add(user)
+        db.flush()
+
+        permission_service = PermissionService(db)
+        permission_service.assign_role(user.id, RoleName.STUDENT)
+        db.refresh(user)
+
+        instructor_role = permission_service.rbac_repository.get_role_by_name(RoleName.INSTRUCTOR)
+        assert instructor_role is not None
+
+        user.roles.append(instructor_role)
+        db.flush()
+        db.refresh(user)
+
+        assert any(role.name == RoleName.STUDENT for role in user.roles)
+        assert any(role.name == RoleName.INSTRUCTOR for role in user.roles)
+
+        result = permission_service.assign_role(user.id, RoleName.INSTRUCTOR)
+        db.refresh(user)
+
+        assert result is True
+        assert any(role.name == RoleName.INSTRUCTOR for role in user.roles)
+        assert not any(role.name == RoleName.STUDENT for role in user.roles)
+        assert len(user.roles) == 1
 
     def test_user_rbac_permissions(self, db):
         """Test that RBAC permissions work correctly."""

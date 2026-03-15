@@ -42,7 +42,7 @@ def test_public_availability_basic(client, db: Session, test_instructor):
     if settings.public_availability_detail_level == "full":
         # Full detail level checks
         assert data["instructor_first_name"] == test_instructor.first_name
-        assert data["instructor_last_initial"] == test_instructor.last_name[0]
+        assert data["instructor_last_initial"] == f"{test_instructor.last_name[0]}."
         assert "availability_by_date" in data
 
         # Check today's availability

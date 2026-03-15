@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import { shareOrCopy } from '@/features/shared/referrals/share';
+import { formatDisplayName } from '@/lib/format/displayName';
 import {
   formatCents,
   getPayoutStatusDisplay,
@@ -320,7 +321,11 @@ export default function InstructorReferralsPage() {
                         </div>
                         <div>
                           <p className="font-medium text-gray-900 dark:text-gray-100">
-                            {instructor.firstName} {instructor.lastInitial}.
+                            {formatDisplayName(
+                              instructor.firstName,
+                              instructor.lastInitial,
+                              'Instructor'
+                            )}
                           </p>
                           <p className="text-sm text-gray-500 dark:text-gray-400">Referred {formatDate(instructor.referredAt)}</p>
                           <p className="text-xs text-gray-400 dark:text-gray-300">{timelineText}</p>

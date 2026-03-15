@@ -42,7 +42,7 @@ class FavoritedInstructor(BaseModel):
 
     id: str = Field(..., description="Instructor user ID (ULID)")
     first_name: str = Field(..., description="Instructor first name")
-    last_initial: str = Field(..., description="Instructor last initial")
+    last_initial: str = Field(..., description='Instructor last initial (for example, "D.")')
     profile: Optional[InstructorProfilePublic] = Field(
         None, description="Instructor profile details"
     )
@@ -55,7 +55,7 @@ class FavoritedInstructor(BaseModel):
             "example": {
                 "id": "01K2K8CVN3A55280PFKJD9YHKV",
                 "first_name": "John",
-                "last_initial": "D",
+                "last_initial": "D.",
                 "profile": {
                     "bio": "Experienced piano teacher",
                     "years_experience": 10,
@@ -82,7 +82,7 @@ class FavoritesList(BaseModel):
                     {
                         "id": "01K2K8CVN3A55280PFKJD9YHKV",
                         "first_name": "John",
-                        "last_initial": "D",
+                        "last_initial": "D.",
                         "profile": {
                             "bio": "Experienced piano teacher",
                             "years_experience": 10,

@@ -20,9 +20,9 @@
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
+import type { AddressListResponse } from '@/features/shared/api/types';
 import { fetchWithAuth } from '@/lib/api';
 import { CACHE_TIMES } from '@/lib/react-query/queryClient';
-import type { AddressListResponse } from '@/src/api/generated/instructly.schemas';
 
 const QUERY_KEY = ['user', 'addresses'] as const;
 
@@ -63,4 +63,4 @@ export function useInvalidateUserAddresses() {
 }
 
 // Re-export the generated type for convenience
-export type { AddressListResponse, AddressResponse } from '@/src/api/generated/instructly.schemas';
+export type { AddressListResponse, AddressResponse } from '@/features/shared/api/types';

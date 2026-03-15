@@ -10744,7 +10744,7 @@ export type components = {
          * BookingResponse
          * @description Complete booking response with privacy protection.
          *
-         *     Shows instructor as "FirstName L" (last initial only).
+         *     Shows instructor as "FirstName L.".
          *     Students see their own full information.
          *     Clean Architecture: No availability slot references.
          */
@@ -12839,7 +12839,7 @@ export type components = {
             is_active: boolean;
             /**
              * Last Initial
-             * @description Instructor last initial
+             * @description Instructor last initial (for example, "D.")
              */
             last_initial: string;
             /** @description Instructor profile details */
@@ -14064,7 +14064,7 @@ export type components = {
             is_founding_instructor: boolean;
             /**
              * Last Initial
-             * @description Last name initial for privacy (e.g., 'D')
+             * @description Last name initial for privacy (e.g., 'D.')
              */
             last_initial: string;
             /**

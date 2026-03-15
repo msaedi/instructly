@@ -50,7 +50,7 @@ const createMockBooking = (overrides = {}) => ({
   student_id: '01STUDENT123456789DEFGHI',
   student: {
     first_name: 'John',
-    last_initial: 'D',
+    last_initial: 'D.',
   },
   student_note: null,
   instructor_note: null,

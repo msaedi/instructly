@@ -1169,7 +1169,7 @@ function ResultCard({ result }: { result: SearchResult }) {
               {(relevance_score * 100).toFixed(0)}%
             </span>
             <h3 className="font-medium text-gray-900 dark:text-gray-100">
-              {instructor.first_name} {instructor.last_initial}.
+              {instructor.first_name} {instructor.last_initial}
               {instructor.verified && <span className="ml-1 text-blue-500">✓</span>}
             </h3>
             {result.distance_mi !== null && result.distance_mi !== undefined && (

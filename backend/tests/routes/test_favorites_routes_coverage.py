@@ -91,7 +91,7 @@ async def test_get_favorites_builds_profiles(monkeypatch, test_student, test_ins
     assert response.total == 1
     assert response.favorites[0].id == test_instructor.id
     assert response.favorites[0].first_name == test_instructor.first_name
-    assert response.favorites[0].last_initial == test_instructor.last_name[0]
+    assert response.favorites[0].last_initial == f"{test_instructor.last_name[0]}."
     assert not hasattr(response.favorites[0], "email")
     assert not hasattr(response.favorites[0], "last_name")
     assert response.favorites[0].profile is not None

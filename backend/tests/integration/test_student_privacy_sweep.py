@@ -118,7 +118,7 @@ def test_instructor_booking_endpoints_hide_student_pii(
     _assert_public_student_identity(
         list_item["student"],
         expected_first_name=test_student.first_name,
-        expected_last_initial=test_student.last_name[0],
+        expected_last_initial=_student_initial(test_student.last_name),
     )
 
     detail_response = client.get(f"/api/v1/bookings/{booking_id}", headers=auth_headers_instructor)
@@ -127,7 +127,7 @@ def test_instructor_booking_endpoints_hide_student_pii(
     _assert_public_student_identity(
         detail["student"],
         expected_first_name=test_student.first_name,
-        expected_last_initial=test_student.last_name[0],
+        expected_last_initial=_student_initial(test_student.last_name),
     )
 
     upcoming_response = client.get("/api/v1/bookings/upcoming", headers=auth_headers_instructor)
@@ -158,7 +158,7 @@ def test_instructor_booking_endpoints_hide_student_pii(
     _assert_public_student_identity(
         instructor_item["student"],
         expected_first_name=test_student.first_name,
-        expected_last_initial=test_student.last_name[0],
+        expected_last_initial=_student_initial(test_student.last_name),
     )
 
     instructor_upcoming = client.get(
@@ -171,7 +171,7 @@ def test_instructor_booking_endpoints_hide_student_pii(
     _assert_public_student_identity(
         instructor_upcoming_item["student"],
         expected_first_name=test_student.first_name,
-        expected_last_initial=test_student.last_name[0],
+        expected_last_initial=_student_initial(test_student.last_name),
     )
 
 
@@ -197,14 +197,14 @@ def test_student_facing_instructor_surfaces_show_last_initial_only(
     bookings_item = next(item for item in bookings_response.json()["items"] if item["id"] == booking_id)
     instructor = bookings_item["instructor"]
     assert instructor["first_name"] == test_instructor.first_name
-    assert instructor["last_initial"] == test_instructor.last_name[0]
+    assert instructor["last_initial"] == f"{test_instructor.last_name[0]}."
     assert "last_name" not in instructor
     assert "email" not in instructor
 
     detail_response = client.get(f"/api/v1/bookings/{booking_id}", headers=auth_headers_student)
     assert detail_response.status_code == 200, detail_response.text
     detail = detail_response.json()
-    assert detail["instructor"]["last_initial"] == test_instructor.last_name[0]
+    assert detail["instructor"]["last_initial"] == f"{test_instructor.last_name[0]}."
     assert "last_name" not in detail["instructor"]
     assert "email" not in detail["instructor"]
 
@@ -212,13 +212,13 @@ def test_student_facing_instructor_surfaces_show_last_initial_only(
     assert upcoming_response.status_code == 200, upcoming_response.text
     upcoming = next(item for item in upcoming_response.json()["items"] if item["id"] == booking_id)
     assert upcoming["instructor_first_name"] == test_instructor.first_name
-    assert upcoming["instructor_last_name"] == test_instructor.last_name[0]
+    assert upcoming["instructor_last_name"] == f"{test_instructor.last_name[0]}."
 
     preview_response = client.get(f"/api/v1/bookings/{booking_id}/preview", headers=auth_headers_student)
     assert preview_response.status_code == 200, preview_response.text
     preview = preview_response.json()
     assert preview["instructor_first_name"] == test_instructor.first_name
-    assert preview["instructor_last_name"] == test_instructor.last_name[0]
+    assert preview["instructor_last_name"] == f"{test_instructor.last_name[0]}."
 
     favorite_add = client.post(
         f"/api/v1/favorites/{test_instructor.id}", headers=auth_headers_student
@@ -229,10 +229,10 @@ def test_student_facing_instructor_surfaces_show_last_initial_only(
     assert favorites_response.status_code == 200, favorites_response.text
     favorite = favorites_response.json()["favorites"][0]
     assert favorite["first_name"] == test_instructor.first_name
-    assert favorite["last_initial"] == test_instructor.last_name[0]
+    assert favorite["last_initial"] == f"{test_instructor.last_name[0]}."
     assert "email" not in favorite
     assert "last_name" not in favorite
-    assert favorite["profile"]["user"]["last_initial"] == test_instructor.last_name[0]
+    assert favorite["profile"]["user"]["last_initial"] == f"{test_instructor.last_name[0]}."
     assert "last_name" not in favorite["profile"]["user"]
     assert "email" not in favorite["profile"]["user"]
 
@@ -245,7 +245,7 @@ def test_student_facing_instructor_surfaces_show_last_initial_only(
         item for item in instructors_response.json()["items"] if item["user_id"] == test_instructor.id
     )
     assert instructor_item["user"]["first_name"] == test_instructor.first_name
-    assert instructor_item["user"]["last_initial"] == test_instructor.last_name[0]
+    assert instructor_item["user"]["last_initial"] == f"{test_instructor.last_name[0]}."
     assert "last_name" not in instructor_item["user"]
     assert "email" not in instructor_item["user"]
 
@@ -256,7 +256,7 @@ def test_student_facing_instructor_surfaces_show_last_initial_only(
     assert profile_response.status_code == 200, profile_response.text
     profile = profile_response.json()
     assert profile["user"]["first_name"] == test_instructor.first_name
-    assert profile["user"]["last_initial"] == test_instructor.last_name[0]
+    assert profile["user"]["last_initial"] == f"{test_instructor.last_name[0]}."
     assert "last_name" not in profile["user"]
     assert "email" not in profile["user"]
 
@@ -303,7 +303,7 @@ def test_conversation_headers_are_redacted_but_admin_booking_detail_keeps_full_i
     _assert_public_other_user(
         instructor_list_item["other_user"],
         expected_first_name=test_student.first_name,
-        expected_last_initial=test_student.last_name[0],
+        expected_last_initial=_student_initial(test_student.last_name),
     )
 
     instructor_detail = client.get(
@@ -314,7 +314,7 @@ def test_conversation_headers_are_redacted_but_admin_booking_detail_keeps_full_i
     _assert_public_other_user(
         instructor_detail.json()["other_user"],
         expected_first_name=test_student.first_name,
-        expected_last_initial=test_student.last_name[0],
+        expected_last_initial=_student_initial(test_student.last_name),
     )
 
     student_conversations = client.get("/api/v1/conversations", headers=auth_headers_student)
@@ -325,7 +325,7 @@ def test_conversation_headers_are_redacted_but_admin_booking_detail_keeps_full_i
     _assert_public_other_user(
         student_list_item["other_user"],
         expected_first_name=test_instructor.first_name,
-        expected_last_initial=test_instructor.last_name[0],
+        expected_last_initial=f"{test_instructor.last_name[0]}.",
     )
 
     student_detail = client.get(
@@ -336,7 +336,7 @@ def test_conversation_headers_are_redacted_but_admin_booking_detail_keeps_full_i
     _assert_public_other_user(
         student_detail.json()["other_user"],
         expected_first_name=test_instructor.first_name,
-        expected_last_initial=test_instructor.last_name[0],
+        expected_last_initial=f"{test_instructor.last_name[0]}.",
     )
 
     admin_detail = client.get(

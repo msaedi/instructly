@@ -20,7 +20,7 @@ describe('BookedSlotCell', () => {
   const mockSlot: BookedSlotPreview = {
     booking_id: '01K2GY3VEVJWKZDVH5HMNXEVRD',
     student_first_name: 'John',
-    student_last_initial: 'D',
+    student_last_initial: 'D.',
     service_name: 'Piano Lesson',
     service_area_short: 'UWS',
     location_type: 'student_location',
@@ -47,7 +47,7 @@ describe('BookedSlotCell', () => {
 
   it('displays student name in first slot', () => {
     render(<BookedSlotCell {...defaultProps} isFirstSlot={true} />);
-    expect(screen.getByText('John D')).toBeInTheDocument();
+    expect(screen.getByText('John D.')).toBeInTheDocument();
   });
 
   it('calls onClick when clicked', () => {
@@ -62,14 +62,14 @@ describe('BookedSlotCell', () => {
     render(<BookedSlotCell {...defaultProps} />);
     expect(screen.getByRole('button')).toHaveAttribute(
       'aria-label',
-      'Booking with John D for Piano Lesson'
+      'Booking with John D. for Piano Lesson'
     );
   });
 
   describe('desktop view (isFirstSlot = true)', () => {
     it('shows student name', () => {
       render(<BookedSlotCell {...defaultProps} />);
-      expect(screen.getByText('John D')).toBeInTheDocument();
+      expect(screen.getByText('John D.')).toBeInTheDocument();
     });
 
     it('shows service area abbreviation', () => {
@@ -108,7 +108,7 @@ describe('BookedSlotCell', () => {
 
     it('shows student name in smaller text', () => {
       render(<BookedSlotCell {...defaultProps} isFirstSlot={false} />);
-      expect(screen.getByText('John D')).toBeInTheDocument();
+      expect(screen.getByText('John D.')).toBeInTheDocument();
     });
   });
 
@@ -117,13 +117,13 @@ describe('BookedSlotCell', () => {
       render(<BookedSlotCell {...defaultProps} isMobile={true} />);
       expect(screen.getByRole('button')).toHaveAttribute(
         'aria-label',
-        'Booking with John D'
+        'Booking with John D.'
       );
     });
 
     it('shows student name in first slot', () => {
       render(<BookedSlotCell {...defaultProps} isMobile={true} isFirstSlot={true} />);
-      expect(screen.getByText('John D')).toBeInTheDocument();
+      expect(screen.getByText('John D.')).toBeInTheDocument();
     });
 
     it('shows location type icon', () => {

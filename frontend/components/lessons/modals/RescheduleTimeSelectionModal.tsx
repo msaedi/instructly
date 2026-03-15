@@ -10,6 +10,7 @@ import { at } from '@/lib/ts/safe';
 import { publicApi } from '@/features/shared/api/client';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { UserAvatar } from '@/components/user/UserAvatar';
+import { formatDisplayName } from '@/lib/format/displayName';
 import Calendar from '@/features/shared/booking/ui/Calendar';
 import TimeDropdown from '@/features/shared/booking/ui/TimeDropdown';
 import DurationButtons from '@/features/shared/booking/ui/DurationButtons';
@@ -160,7 +161,7 @@ export default function RescheduleTimeSelectionModal({
     () => ({
       id: instructor.user_id,
       first_name: instructor.user.first_name,
-      last_name: `${instructor.user.last_initial}.`,
+      last_name: instructor.user.last_initial,
     }),
     [instructor.user_id, instructor.user.first_name, instructor.user.last_initial]
   );
@@ -209,9 +210,11 @@ export default function RescheduleTimeSelectionModal({
 
   // Get instructor display name
   const getInstructorDisplayName = () => {
-    const firstName = instructor.user.first_name;
-    const lastInitial = instructor.user.last_initial;
-    return `${firstName} ${lastInitial}.`;
+    return formatDisplayName(
+      instructor.user.first_name,
+      instructor.user.last_initial,
+      'Instructor',
+    );
   };
 
   const isMountedRef = useRef(true);

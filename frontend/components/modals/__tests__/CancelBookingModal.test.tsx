@@ -37,7 +37,7 @@ describe('CancelBookingModal', () => {
     instructor: {
       id: '01K2MAY484FQGFEQVN3VKGYZ59',
       first_name: 'John',
-      last_initial: 'D',
+      last_initial: 'D.',
     },
   } as Booking;
 

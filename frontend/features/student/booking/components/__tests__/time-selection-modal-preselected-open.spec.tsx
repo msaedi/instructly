@@ -89,7 +89,7 @@ describe('TimeSelectionModal preselected initialization', () => {
       data: {
         instructor_id: 'inst-1',
         instructor_first_name: 'Jordan',
-        instructor_last_initial: 'M',
+        instructor_last_initial: 'M.',
         timezone: 'America/New_York',
         total_available_slots: 2,
         earliest_available_date: '2030-10-18',
@@ -112,7 +112,7 @@ describe('TimeSelectionModal preselected initialization', () => {
         onClose={jest.fn()}
         instructor={{
           user_id: 'inst-1',
-          user: { first_name: 'Jordan', last_initial: 'M' },
+          user: { first_name: 'Jordan', last_initial: 'M.' },
           services: [
             {
               id: 'svc-1',
@@ -157,7 +157,7 @@ describe('TimeSelectionModal preselected initialization', () => {
       data: {
         instructor_id: 'inst-1',
         instructor_first_name: 'Jordan',
-        instructor_last_initial: 'M',
+        instructor_last_initial: 'M.',
         timezone: 'America/New_York',
         total_available_slots: 1,
         earliest_available_date: '2030-10-18',
@@ -177,7 +177,7 @@ describe('TimeSelectionModal preselected initialization', () => {
         onClose={jest.fn()}
         instructor={{
           user_id: 'inst-1',
-          user: { first_name: 'Jordan', last_initial: 'M' },
+          user: { first_name: 'Jordan', last_initial: 'M.' },
           services: [
             {
               id: 'svc-1',

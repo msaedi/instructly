@@ -324,7 +324,7 @@ class RetrieverRepository:
             SELECT
                 ip.user_id as instructor_id,
                 u.first_name,
-                COALESCE(LEFT(u.last_name, 1), '') as last_initial,
+                CASE WHEN COALESCE(u.last_name, '') = '' THEN '' ELSE LEFT(u.last_name, 1) || '.' END as last_initial,
                 LEFT(ip.bio, 150) as bio_snippet,
                 ip.years_experience,
                 u.profile_picture_key,
@@ -448,7 +448,7 @@ class RetrieverRepository:
             SELECT
                 ip.user_id as instructor_id,
                 u.first_name,
-                COALESCE(LEFT(u.last_name, 1), '') as last_initial,
+                CASE WHEN COALESCE(u.last_name, '') = '' THEN '' ELSE LEFT(u.last_name, 1) || '.' END as last_initial,
                 LEFT(ip.bio, 150) as bio_snippet,
                 ip.years_experience,
                 u.profile_picture_key,
@@ -656,7 +656,7 @@ class RetrieverRepository:
                 SELECT
                     im.*,
                     u.first_name,
-                    COALESCE(LEFT(u.last_name, 1), '') as last_initial,
+                    CASE WHEN COALESCE(u.last_name, '') = '' THEN '' ELSE LEFT(u.last_name, 1) || '.' END as last_initial,
                     ip.bio,
                     ip.years_experience,
                     u.profile_picture_key,
@@ -835,7 +835,7 @@ class RetrieverRepository:
                 SELECT
                     im.*,
                     u.first_name,
-                    COALESCE(LEFT(u.last_name, 1), '') as last_initial,
+                    CASE WHEN COALESCE(u.last_name, '') = '' THEN '' ELSE LEFT(u.last_name, 1) || '.' END as last_initial,
                     ip.bio,
                     ip.years_experience,
                     u.profile_picture_key,

@@ -36,7 +36,7 @@ def _profile_payload(*, user_id: str, profile_id: str) -> dict:
             "id": user_id,
             "first_name": "Taylor",
             "last_name": "Smith",
-            "last_initial": "S",
+            "last_initial": "S.",
         },
         "preferred_teaching_locations": [
             {

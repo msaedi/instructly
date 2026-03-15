@@ -288,7 +288,7 @@ describe('useInstructorAvailability', () => {
       data: {
         instructor_id: 'inst-1',
         instructor_first_name: 'John',
-        instructor_last_initial: 'D',
+        instructor_last_initial: 'D.',
         availability_by_date: {
           '2025-01-10': {
             date: '2025-01-10',

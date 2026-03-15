@@ -48,7 +48,7 @@ describe('useInstructorProfile', () => {
         years_experience: 5,
         user: {
           first_name: 'John',
-          last_initial: 'D',
+          last_initial: 'D.',
           has_profile_picture: true,
           profile_picture_version: 3,
         },
@@ -71,7 +71,7 @@ describe('useInstructorProfile', () => {
     expect(result.current.data?.bio).toBe('Test bio');
     expect(result.current.data?.years_experience).toBe(5);
     expect(result.current.data?.user.first_name).toBe('John');
-    expect(result.current.data?.user.last_initial).toBe('D');
+    expect(result.current.data?.user.last_initial).toBe('D.');
     expect(result.current.data?.user.has_profile_picture).toBe(true);
     expect(result.current.data?.user.profile_picture_version).toBe(3);
     expect(result.current.data?.service_area_boroughs).toEqual(['Manhattan']);
@@ -82,7 +82,7 @@ describe('useInstructorProfile', () => {
     mockUseInstructor.mockReturnValue({
       data: {
         user_id: '01K2TEST00000000000000001',
-        user: { first_name: 'Test', last_initial: 'U' },
+        user: { first_name: 'Test', last_initial: 'U.' },
         services: [
           {
             id: 'svc-1',
@@ -125,7 +125,7 @@ describe('useInstructorProfile', () => {
     mockUseInstructor.mockReturnValue({
       data: {
         user_id: '01K2TEST00000000000000001',
-        user: { first_name: 'Test', last_initial: 'U' },
+        user: { first_name: 'Test', last_initial: 'U.' },
         services: [
           {
             id: 'svc-1',
@@ -155,7 +155,7 @@ describe('useInstructorProfile', () => {
     mockUseInstructor.mockReturnValue({
       data: {
         user_id: '01K2TEST00000000000000001',
-        user: { first_name: 'Test', last_initial: 'U' },
+        user: { first_name: 'Test', last_initial: 'U.' },
         services: [],
         preferred_teaching_locations: [
           { address: '123 Main St', label: 'Home Studio' },
@@ -182,7 +182,7 @@ describe('useInstructorProfile', () => {
     mockUseInstructor.mockReturnValue({
       data: {
         user_id: '01K2TEST00000000000000001',
-        user: { first_name: 'Test', last_initial: 'U' },
+        user: { first_name: 'Test', last_initial: 'U.' },
         services: [],
         preferred_teaching_locations: [
           { address: '123 Main St' },
@@ -211,7 +211,7 @@ describe('useInstructorProfile', () => {
     mockUseInstructor.mockReturnValue({
       data: {
         user_id: '01K2TEST00000000000000001',
-        user: { first_name: 'Test', last_initial: 'U' },
+        user: { first_name: 'Test', last_initial: 'U.' },
         services: [],
         preferred_public_spaces: [
           { address: 'Central Park', label: 'Park' },
@@ -238,7 +238,7 @@ describe('useInstructorProfile', () => {
     mockUseInstructor.mockReturnValue({
       data: {
         user_id: '01K2TEST00000000000000001',
-        user: { first_name: 'Test', last_initial: 'U' },
+        user: { first_name: 'Test', last_initial: 'U.' },
         services: [],
         preferred_public_spaces: [
           { address: 'Central Park' },
@@ -265,7 +265,7 @@ describe('useInstructorProfile', () => {
     mockUseInstructor.mockReturnValue({
       data: {
         user_id: '01K2TEST00000000000000001',
-        user: { first_name: 'Test', last_initial: 'U' },
+        user: { first_name: 'Test', last_initial: 'U.' },
         services: [],
         verified: true,
         is_favorited: true,
@@ -313,7 +313,7 @@ describe('useInstructorProfile', () => {
     mockUseInstructor.mockReturnValue({
       data: {
         user_id: '01K2TEST00000000000000001',
-        user: { first_name: 'Test', last_initial: 'U' },
+        user: { first_name: 'Test', last_initial: 'U.' },
         services: [],
         has_profile_picture: true,
         profile_picture_version: 5,
@@ -337,7 +337,7 @@ describe('useInstructorProfile', () => {
       data: {
         user_id: '01K2TEST00000000000000001',
         // No id field
-        user: { first_name: 'Test', last_initial: 'U' },
+        user: { first_name: 'Test', last_initial: 'U.' },
         services: [],
       },
       isLoading: false,
@@ -357,7 +357,7 @@ describe('useInstructorProfile', () => {
     mockUseInstructor.mockReturnValue({
       data: {
         user_id: '01K2TEST00000000000000001',
-        user: { first_name: 'Test', last_initial: 'U' },
+        user: { first_name: 'Test', last_initial: 'U.' },
         services: [
           {
             id: 'svc-1',
@@ -386,7 +386,7 @@ describe('useInstructorProfile', () => {
     mockUseInstructor.mockReturnValue({
       data: {
         user_id: '01K2TEST00000000000000001',
-        user: { first_name: 'Test', last_initial: 'U' },
+        user: { first_name: 'Test', last_initial: 'U.' },
         services: [
           {
             id: 'svc-1',
@@ -418,7 +418,7 @@ describe('useInstructorProfile', () => {
     mockUseInstructor.mockReturnValue({
       data: {
         user_id: '01K2TEST00000000000000001',
-        user: { first_name: 'Test', last_initial: 'U' },
+        user: { first_name: 'Test', last_initial: 'U.' },
         services: [],
         preferred_teaching_locations: [
           {
@@ -458,7 +458,7 @@ describe('useInstructorProfile', () => {
     mockUseInstructor.mockReturnValue({
       data: {
         user_id: '01K2TEST00000000000000001',
-        user: { first_name: 'Test', last_initial: 'U' },
+        user: { first_name: 'Test', last_initial: 'U.' },
         services: [],
         preferred_teaching_locations: [
           {
@@ -493,7 +493,7 @@ describe('useInstructorProfile', () => {
     mockUseInstructor.mockReturnValue({
       data: {
         user_id: '01K2TEST00000000000000001',
-        user: { first_name: 'Test', last_initial: 'U' },
+        user: { first_name: 'Test', last_initial: 'U.' },
         services: [],
         preferred_teaching_locations: [
           {
@@ -521,7 +521,7 @@ describe('useInstructorProfile', () => {
     mockUseInstructor.mockReturnValue({
       data: {
         user_id: '01K2TEST00000000000000001',
-        user: { first_name: 'Test', last_initial: 'U' },
+        user: { first_name: 'Test', last_initial: 'U.' },
         services: [],
         background_check_status: 'clear',
         background_check_verified: true,
@@ -546,7 +546,7 @@ describe('useInstructorProfile', () => {
     mockUseInstructor.mockReturnValue({
       data: {
         user_id: '01K2TEST00000000000000001',
-        user: { first_name: 'Test', last_initial: 'U' },
+        user: { first_name: 'Test', last_initial: 'U.' },
         services: [
           {
             id: 'svc-1',
@@ -575,7 +575,7 @@ describe('useInstructorProfile', () => {
       data: {
         // No id field, no user_id
         user_id: '',
-        user: { first_name: 'Test', last_initial: 'U' },
+        user: { first_name: 'Test', last_initial: 'U.' },
         services: [],
       },
       isLoading: false,
@@ -598,7 +598,7 @@ describe('useInstructorProfile', () => {
     mockUseInstructor.mockReturnValue({
       data: {
         user_id: '01K2TEST00000000000000001',
-        user: { first_name: 'Test', last_initial: 'U' },
+        user: { first_name: 'Test', last_initial: 'U.' },
         services: [
           {
             id: 'svc-num',
@@ -627,7 +627,7 @@ describe('useInstructorProfile', () => {
     mockUseInstructor.mockReturnValue({
       data: {
         user_id: '01K2TEST00000000000000001',
-        user: { first_name: 'Test', last_initial: 'U' },
+        user: { first_name: 'Test', last_initial: 'U.' },
         services: [],
         is_live: false,
         is_founding_instructor: false,
@@ -651,7 +651,7 @@ describe('useInstructorProfile', () => {
     mockUseInstructor.mockReturnValue({
       data: {
         user_id: '01K2TEST00000000000000001',
-        user: { first_name: 'Test', last_initial: 'U' },
+        user: { first_name: 'Test', last_initial: 'U.' },
         services: [],
         preferred_public_spaces: [
           { address: 'Prospect Park', label: 'Fave spot' },
@@ -681,7 +681,7 @@ describe('useInstructorProfile', () => {
     mockUseInstructor.mockReturnValue({
       data: {
         user_id: '01K2TEST00000000000000001',
-        user: { first_name: 'Test', last_initial: 'U' },
+        user: { first_name: 'Test', last_initial: 'U.' },
         services: [],
         // service_area_summary intentionally absent
       },
@@ -703,7 +703,7 @@ describe('useInstructorProfile', () => {
     mockUseInstructor.mockReturnValue({
       data: {
         user_id: '01K2TEST00000000000000001',
-        user: { first_name: 'Test', last_initial: 'U' },
+        user: { first_name: 'Test', last_initial: 'U.' },
         services: [],
         preferred_public_spaces: [
           { address: 'Central Park', label: 42 }, // Non-string label -> omitted
@@ -729,7 +729,7 @@ describe('useInstructorProfile', () => {
     mockUseInstructor.mockReturnValue({
       data: {
         user_id: '01K2TEST00000000000000001',
-        user: { first_name: 'Test', last_initial: 'U' },
+        user: { first_name: 'Test', last_initial: 'U.' },
         services: [
           {
             id: 'svc-null-rate',

@@ -112,7 +112,7 @@ class TestServicesRoutesAdditionalCoverage:
                     "id": "01K2MAY484FQGFEQVN3VKGYZ58",
                     "user_id": "01K2MAY484FQGFEQVN3VKGYZ59",
                     "first_name": "John",
-                    "last_initial": "D",
+                    "last_initial": "D.",
                     "bio": "Piano teacher",
                     "years_experience": 5,
                     "average_rating": 4.5,

@@ -155,5 +155,5 @@ def test_get_referred_instructors_paginates_and_formats_last_initial(
     assert len(payload["instructors"]) == 1
     instructor = payload["instructors"][0]
     assert instructor["first_name"] == "Ada"
-    assert instructor["last_initial"] == "L"
+    assert instructor["last_initial"] == "L."
     assert instructor["payout_status"] in {"pending_live", "pending_lesson", "pending_transfer"}

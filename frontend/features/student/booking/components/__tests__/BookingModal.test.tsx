@@ -34,7 +34,7 @@ const useRouterMock = useRouter as jest.Mock;
 
 const instructor: Instructor = {
   user_id: 'instructor-1',
-  user: { first_name: 'Jane', last_initial: 'D' },
+  user: { first_name: 'Jane', last_initial: 'D.' },
   bio: 'Bio',
   service_area_boroughs: ['Manhattan'],
   service_area_summary: 'NYC',

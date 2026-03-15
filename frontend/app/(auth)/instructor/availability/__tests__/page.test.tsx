@@ -190,7 +190,7 @@ function buildInstructorProfile({
     ],
     user: {
       first_name: 'Taylor',
-      last_initial: 'Q',
+      last_initial: 'Q.',
     },
     non_travel_buffer_minutes: 15,
     travel_buffer_minutes: 60,

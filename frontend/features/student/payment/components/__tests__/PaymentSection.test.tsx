@@ -4109,7 +4109,7 @@ describe('PaymentSection', () => {
           serviceId: 'service-789',
           instructor: {
             first_name: 'Sarah',
-            last_initial: 'C',
+            last_initial: 'C.',
           },
         },
       };
@@ -5116,7 +5116,7 @@ describe('PaymentSection', () => {
       fetchBookingDetailsMock.mockResolvedValue({
         id: 'booking-999',
         instructor_id: 'inst-abc',
-        instructor: { first_name: 'Jane', last_initial: 'D' },
+        instructor: { first_name: 'Jane', last_initial: 'D.' },
         service_name: 'Guitar',
         booking_date: '2025-03-20',
         start_time: '14:00',
@@ -6531,7 +6531,7 @@ describe('PaymentSection', () => {
       fetchBookingDetailsMock.mockResolvedValue({
         id: 'booking-refreshed',
         instructor_id: 'inst-refreshed',
-        instructor: { first_name: 'Alice', last_initial: 'W' },
+        instructor: { first_name: 'Alice', last_initial: 'W.' },
         service_name: 'Violin',
         booking_date: '2025-05-10',
         start_time: '15:00',
@@ -11380,7 +11380,7 @@ describe('PaymentSection', () => {
       fetchBookingDetails.mockResolvedValue({
         id: 'booking-merge-3',
         instructor_id: 'inst-999',
-        instructor: { first_name: 'Bob', last_initial: 'S' },
+        instructor: { first_name: 'Bob', last_initial: 'S.' },
         service_name: 'Drums',
         booking_date: '2025-10-01',
         start_time: '15:00',
@@ -12708,7 +12708,7 @@ describe('PaymentSection', () => {
       fetchBookingDetails.mockResolvedValue({
         id: 'booking-123',
         instructor_id: 'instructor-456',
-        instructor: { first_name: 'John', last_initial: 'D' },
+        instructor: { first_name: 'John', last_initial: 'D.' },
         booking_date: '2025-02-01',
         start_time: '10:00',
         end_time: '11:00',

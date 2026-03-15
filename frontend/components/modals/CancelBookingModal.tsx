@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { AlertCircle, Calendar, Clock } from 'lucide-react';
 import Modal from '@/components/Modal';
 import { Booking } from '@/types/booking';
+import { formatDisplayName } from '@/lib/format/displayName';
 import { logger } from '@/lib/logger';
 import { formatBookingDate, formatBookingTimeRange } from '@/lib/timezone/formatBookingTime';
 
@@ -152,7 +153,11 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
             <div className="text-gray-700 dark:text-gray-300">
               <span className="font-medium">
                 {booking.instructor
-                  ? `${booking.instructor.first_name} ${booking.instructor.last_initial}.`
+                  ? formatDisplayName(
+                      booking.instructor.first_name,
+                      booking.instructor.last_initial,
+                      'Unknown Instructor',
+                    )
                   : 'Unknown Instructor'}
               </span>
             </div>

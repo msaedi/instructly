@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { getAdminBookingStatsApiV1AdminBookingsStatsGet } from '@/src/api/generated/admin-bookings/admin-bookings';
-import type { AdminBookingStatsResponse } from '@/src/api/generated/instructly.schemas';
+import type { AdminBookingStatsResponse } from '@/features/shared/api/types';
 
 export type BookingStats = AdminBookingStatsResponse;
 

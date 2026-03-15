@@ -122,7 +122,7 @@ describe('InstructorProfilePage', () => {
     mockUseInstructorProfile.mockReturnValue({
       data: {
         user_id: 'inst-1',
-        user: { first_name: 'Ava', last_initial: 'L' },
+        user: { first_name: 'Ava', last_initial: 'L.' },
         services: [
           {
             id: 'svc-1',

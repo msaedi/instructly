@@ -43,7 +43,7 @@ const baseLesson = {
   booking_date: '2025-01-10',
   start_time: '10:00:00',
   service_name: 'Piano',
-  instructor: { first_name: 'Jane', last_initial: 'D' },
+  instructor: { first_name: 'Jane', last_initial: 'D.' },
 } as Booking;
 
 describe('CancellationConfirmationModal', () => {

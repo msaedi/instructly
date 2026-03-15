@@ -6,6 +6,7 @@ import Modal from '@/components/Modal';
 import type { Booking } from '@/features/shared/api/types';
 import { useCancelLesson } from '@/hooks/useMyLessons';
 import { format } from 'date-fns';
+import { formatDisplayName } from '@/lib/format/displayName';
 
 interface CancellationReasonModalProps {
   isOpen: boolean;
@@ -74,7 +75,11 @@ export function CancellationReasonModal({
             <p className="text-sm">
               <span className="font-medium">Lesson:</span> {lesson.service_name} with{' '}
               {lesson.instructor
-                ? `${lesson.instructor.first_name} ${lesson.instructor.last_initial}.`
+                ? formatDisplayName(
+                    lesson.instructor.first_name,
+                    lesson.instructor.last_initial,
+                    'Instructor',
+                  )
                 : 'Instructor'}
             </p>
             <p className="text-sm">

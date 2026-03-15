@@ -54,6 +54,7 @@ from ...utils.cookies import (
     effective_cookie_domain,
     session_cookie_candidates,
 )
+from ...utils.privacy import format_last_initial
 from ...utils.time_helpers import string_to_time
 from ...utils.time_utils import time_to_minutes
 
@@ -612,7 +613,7 @@ async def get_instructor_public_availability(
                 else None
             ),
             instructor_last_initial=(
-                instructor_user.last_name[0]
+                format_last_initial(instructor_user.last_name, with_period=True)
                 if (settings.public_availability_show_instructor_name and instructor_user.last_name)
                 else None
             ),
@@ -633,7 +634,7 @@ async def get_instructor_public_availability(
                 else None
             ),
             instructor_last_initial=(
-                instructor_user.last_name[0]
+                format_last_initial(instructor_user.last_name, with_period=True)
                 if (settings.public_availability_show_instructor_name and instructor_user.last_name)
                 else None
             ),
@@ -653,7 +654,7 @@ async def get_instructor_public_availability(
                 else None
             ),
             instructor_last_initial=(
-                instructor_user.last_name[0]
+                format_last_initial(instructor_user.last_name, with_period=True)
                 if (settings.public_availability_show_instructor_name and instructor_user.last_name)
                 else None
             ),

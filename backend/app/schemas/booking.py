@@ -485,7 +485,7 @@ class StudentInfoPublic(StandardizedModel):
         return cls(
             id=user.id,
             first_name=user.first_name,
-            last_initial=format_last_initial(getattr(user, "last_name", None)),
+            last_initial=format_last_initial(getattr(user, "last_name", None), with_period=True),
         )
 
 
@@ -499,7 +499,7 @@ class InstructorInfo(StandardizedModel):
 
     id: str
     first_name: str
-    last_initial: str  # Only last initial (e.g., "S") - NO PERIOD
+    last_initial: str  # Only last initial (e.g., "S.")
     # Note: email excluded for student privacy
 
     model_config = ConfigDict(from_attributes=True)
@@ -513,7 +513,7 @@ class InstructorInfo(StandardizedModel):
         return cls(
             id=user.id,
             first_name=user.first_name,
-            last_initial=format_last_initial(getattr(user, "last_name", None)),
+            last_initial=format_last_initial(getattr(user, "last_name", None), with_period=True),
         )
 
 
@@ -755,18 +755,15 @@ def _build_booking_response_data(
     return response_data
 
 
-class BookingResponse(BookingBase):
+class BookingResponseBase(BookingBase):
     """
-    Complete booking response with privacy protection.
+    Shared booking response fields for audience-specific DTOs.
 
-    Shows instructor as "FirstName L" (last initial only).
-    Students see their own full information.
-    Clean Architecture: No availability slot references.
+    Subclasses provide the audience-specific `student` field shape.
     """
 
     model_config = ConfigDict(from_attributes=True, validate_assignment=False)
 
-    student: StudentInfo  # Students see their own full info
     instructor: InstructorInfo  # Privacy-aware: only has last_initial
     instructor_service: BookingServiceInfo
     # Minimal info to display "Rescheduled from ..." on detail page
@@ -822,6 +819,18 @@ class BookingResponse(BookingBase):
         # Unknown type - return as-is and let Pydantic decide
         return v
 
+
+class BookingResponse(BookingResponseBase):
+    """
+    Complete booking response with privacy protection.
+
+    Shows instructor as "FirstName L.".
+    Students see their own full information.
+    Clean Architecture: No availability slot references.
+    """
+
+    student: StudentInfo  # Students see their own full info
+
     @classmethod
     def from_booking(
         cls, booking: Any, payment_summary: Optional[PaymentSummary] = None
@@ -841,10 +850,10 @@ class BookingResponse(BookingBase):
         )
 
 
-class InstructorBookingResponse(BookingResponse):
+class InstructorBookingResponse(BookingResponseBase):
     """Instructor-facing booking response with public student identity only."""
 
-    student: StudentInfoPublic  # type: ignore[assignment]
+    student: StudentInfoPublic
 
     @classmethod
     def from_booking(

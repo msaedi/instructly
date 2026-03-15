@@ -92,22 +92,28 @@ def _booking_id_for_log(booking: Any) -> str:
     return str(getattr(booking, "id", "unknown"))
 
 
-def _uses_instructor_booking_response(user: User) -> bool:
-    return user.is_instructor
+def _uses_instructor_booking_response(user: User, booking: Any) -> bool:
+    instructor_id = (
+        booking.get("instructor_id")
+        if isinstance(booking, dict)
+        else getattr(booking, "instructor_id", None)
+    )
+    return str(instructor_id) == str(user.id)
 
 
 def _public_student_payload(student_payload: dict[str, Any]) -> dict[str, Any]:
-    student = dict(student_payload)
-    last_initial = student.get("last_initial")
-    if not isinstance(last_initial, str):
-        last_initial = format_last_initial(
-            student.get("last_name") if isinstance(student.get("last_name"), str) else None
+    last_initial_source = student_payload.get("last_initial")
+    if not isinstance(last_initial_source, str):
+        last_initial_source = (
+            student_payload.get("last_name")
+            if isinstance(student_payload.get("last_name"), str)
+            else None
         )
-    student["last_initial"] = last_initial
-    student.pop("last_name", None)
-    student.pop("email", None)
-    student.pop("phone", None)
-    return student
+    return {
+        "id": student_payload.get("id"),
+        "first_name": student_payload.get("first_name"),
+        "last_initial": format_last_initial(last_initial_source, with_period=True),
+    }
 
 
 def _format_last_initial(last_name: str | None) -> str:
@@ -115,16 +121,16 @@ def _format_last_initial(last_name: str | None) -> str:
 
 
 def _validate_booking_payload_for_user(
-    payload: dict[str, Any], current_user: User
+    payload: dict[str, Any], current_user: User, booking: Any
 ) -> BookingRouteResponse:
-    response_model = (
-        InstructorBookingResponse
-        if _uses_instructor_booking_response(current_user)
-        else BookingResponse
-    )
-    if hasattr(response_model, "model_validate"):
-        return response_model.model_validate(payload)
-    return response_model.parse_obj(payload)
+    if _uses_instructor_booking_response(current_user, booking):
+        if hasattr(InstructorBookingResponse, "model_validate"):
+            return cast(BookingRouteResponse, InstructorBookingResponse.model_validate(payload))
+        return cast(BookingRouteResponse, InstructorBookingResponse.parse_obj(payload))
+
+    if hasattr(BookingResponse, "model_validate"):
+        return cast(BookingRouteResponse, BookingResponse.model_validate(payload))
+    return cast(BookingRouteResponse, BookingResponse.parse_obj(payload))
 
 
 def _serialize_booking_for_user(
@@ -135,35 +141,29 @@ def _serialize_booking_for_user(
 ) -> BookingRouteResponse:
     if isinstance(booking, dict) and booking.get("_from_cache", False):
         cached_booking = dict(booking)
-        is_instructor = current_user.id == cached_booking.get("instructor_id")
 
         instructor_payload = cached_booking.get("instructor")
         if isinstance(instructor_payload, dict):
             instructor = dict(instructor_payload)
-            instructor_last_name = instructor.get("last_name", "")
-            instructor["last_initial"] = (
-                instructor_last_name
-                if is_instructor
-                else instructor_last_name[0]
-                if instructor_last_name
-                else ""
+            instructor_last_name = (
+                instructor.get("last_name")
+                if isinstance(instructor.get("last_name"), str)
+                else None
             )
+            instructor["last_initial"] = _format_last_initial(instructor_last_name)
             instructor.pop("last_name", None)
             cached_booking["instructor"] = instructor
 
-        if _uses_instructor_booking_response(current_user):
+        if _uses_instructor_booking_response(current_user, cached_booking):
             student_payload = cached_booking.get("student")
             if isinstance(student_payload, dict):
                 cached_booking["student"] = _public_student_payload(student_payload)
 
-        return _validate_booking_payload_for_user(cached_booking, current_user)
+        return _validate_booking_payload_for_user(cached_booking, current_user, cached_booking)
 
-    response_model = (
-        InstructorBookingResponse
-        if _uses_instructor_booking_response(current_user)
-        else BookingResponse
-    )
-    return response_model.from_booking(booking, payment_summary=payment_summary)
+    if _uses_instructor_booking_response(current_user, booking):
+        return InstructorBookingResponse.from_booking(booking, payment_summary=payment_summary)
+    return BookingResponse.from_booking(booking, payment_summary=payment_summary)
 
 
 # ============================================================================
@@ -237,11 +237,11 @@ async def get_upcoming_bookings(
                         )
                         if booking.get("instructor")
                         else "Unknown",
-                        instructor_last_name=instructor_last_name
-                        if is_instructor
-                        else instructor_last_name[0]
-                        if instructor_last_name
-                        else "",
+                        instructor_last_name=(
+                            instructor_last_name
+                            if is_instructor
+                            else _format_last_initial(instructor_last_name)
+                        ),
                         meeting_location=booking["meeting_location"],
                     )
                 )
@@ -277,11 +277,13 @@ async def get_upcoming_bookings(
                         instructor_first_name=booking.instructor.first_name
                         if booking.instructor
                         else "Unknown",
-                        instructor_last_name=booking.instructor.last_name
-                        if is_instructor and booking.instructor
-                        else booking.instructor.last_name[0]
-                        if booking.instructor and booking.instructor.last_name
-                        else "",
+                        instructor_last_name=(
+                            booking.instructor.last_name
+                            if is_instructor and booking.instructor
+                            else _format_last_initial(booking.instructor.last_name)
+                            if booking.instructor
+                            else ""
+                        ),
                         meeting_location=booking.meeting_location,
                     )
                 )
@@ -581,11 +583,11 @@ async def get_booking_preview(
             student_first_name=booking.student.first_name,
             student_last_initial=_format_last_initial(booking.student.last_name),
             instructor_first_name=booking.instructor.first_name,
-            instructor_last_name=booking.instructor.last_name
-            if is_instructor
-            else booking.instructor.last_name[0]
-            if booking.instructor.last_name
-            else "",
+            instructor_last_name=(
+                booking.instructor.last_name
+                if is_instructor
+                else _format_last_initial(booking.instructor.last_name)
+            ),
             service_name=booking.service_name,
             booking_date=booking.booking_date.isoformat(),
             start_time=str(booking.start_time),

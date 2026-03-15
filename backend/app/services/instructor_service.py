@@ -49,6 +49,7 @@ from ..schemas.instructor import (
     UpdateCalendarSettings,
 )
 from ..utils.location_privacy import jitter_coordinates
+from ..utils.privacy import format_last_initial
 from .base import BaseService
 from .cache_service import CacheServiceSyncAdapter
 from .config_service import ConfigService
@@ -91,6 +92,7 @@ class PreparedProfileUpdateContext:
     """Precomputed async context for profile update work."""
 
     bio_city: str | None = None
+    user_record: User | None = None
     teaching_location_geocodes: dict[str, PreparedTeachingLocationGeocode] = field(
         default_factory=dict
     )
@@ -555,12 +557,15 @@ class InstructorService(BaseService):
         user_id: str,
         services: Sequence[ServiceCreate],
         *,
+        user_record: User | None = None,
         city: str | None = None,
     ) -> str:
         """Generate a default bio for instructors completing their profile."""
         try:
-            user_record = cast("User | None", self.user_repository.get_by_id(user_id))
-            first_name = getattr(user_record, "first_name", "") or ""
+            resolved_user = user_record or cast(
+                "User | None", self.user_repository.get_by_id(user_id)
+            )
+            first_name = getattr(resolved_user, "first_name", "") or ""
             resolved_city = city or "New York"
             skill_names: List[str] = []
             try:
@@ -601,9 +606,15 @@ class InstructorService(BaseService):
         if update_data.services is not None and "bio" not in basic_updates:
             profile = await asyncio.to_thread(self.profile_repository.find_one_by, user_id=user_id)
             missing_bio = not getattr(profile, "bio", None) or not str(profile.bio).strip()
+            try:
+                context.user_record = await asyncio.to_thread(
+                    self.user_repository.get_by_id, user_id
+                )
+            except Exception:
+                logger.debug("Non-fatal error loading user for bio generation", exc_info=True)
             if missing_bio:
                 try:
-                    user_record = await asyncio.to_thread(self.user_repository.get_by_id, user_id)
+                    user_record = context.user_record
                     if user_record and getattr(user_record, "zip_code", None):
                         geocoded = await _get_provider().geocode(user_record.zip_code)
                         if geocoded and getattr(geocoded, "city", None):
@@ -718,6 +729,7 @@ class InstructorService(BaseService):
                     basic_updates["bio"] = self._build_auto_bio(
                         user_id,
                         update_data.services,
+                        user_record=prepared_context.user_record if prepared_context else None,
                         city=prepared_context.bio_city if prepared_context else None,
                     )
 
@@ -1580,7 +1592,10 @@ class InstructorService(BaseService):
                 {
                     "id": profile.user.id,
                     "first_name": profile.user.first_name,
-                    "last_initial": profile.user.last_name[0] if profile.user.last_name else "",
+                    "last_initial": format_last_initial(
+                        profile.user.last_name,
+                        with_period=True,
+                    ),
                     # No email or full last_name for privacy protection
                 }
                 if hasattr(profile, "user") and profile.user

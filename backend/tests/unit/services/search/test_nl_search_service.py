@@ -87,7 +87,7 @@ def sample_instructor_results() -> List[NLSearchResultItem]:
             instructor=InstructorSummary(
                 id="usr_001",
                 first_name="John",
-                last_initial="D",
+                last_initial="D.",
                 profile_picture_url="https://assets.instainstru.com/photo1.jpg",
                 bio_snippet="Expert piano teacher with 10 years experience",
                 verified=True,
@@ -112,7 +112,7 @@ def sample_instructor_results() -> List[NLSearchResultItem]:
             instructor=InstructorSummary(
                 id="usr_002",
                 first_name="Jane",
-                last_initial="S",
+                last_initial="S.",
                 profile_picture_url=None,
                 bio_snippet="Music theory and keyboard specialist",
                 verified=False,
@@ -142,7 +142,7 @@ def sample_raw_db_results() -> List[Dict[str, Any]]:
         {
             "instructor_id": "usr_001",
             "first_name": "John",
-            "last_initial": "D",
+            "last_initial": "D.",
             "bio_snippet": "Expert piano teacher",
             "years_experience": 10,
             "profile_picture_key": "photos/photo1.jpg",
@@ -166,7 +166,7 @@ def sample_raw_db_results() -> List[Dict[str, Any]]:
         {
             "instructor_id": "usr_002",
             "first_name": "Jane",
-            "last_initial": "S",
+            "last_initial": "S.",
             "bio_snippet": "Music theory specialist",
             "years_experience": 5,
             "profile_picture_key": None,
@@ -479,7 +479,7 @@ class TestTransformInstructorResults:
             {
                 "instructor_id": "usr_A",
                 "first_name": "Alice",
-                "last_initial": "A",
+                "last_initial": "A.",
                 "bio_snippet": "Jazz teacher",
                 "years_experience": 10,
                 "profile_picture_key": None,
@@ -511,7 +511,7 @@ class TestTransformInstructorResults:
             {
                 "instructor_id": "usr_B",
                 "first_name": "Bob",
-                "last_initial": "B",
+                "last_initial": "B.",
                 "bio_snippet": "Affordable jazz teacher",
                 "years_experience": 5,
                 "profile_picture_key": None,
@@ -610,7 +610,7 @@ class TestHydrateInstructorResults:
             {
                 "instructor_id": "usr_A",
                 "first_name": "Alice",
-                "last_initial": "A",
+                "last_initial": "A.",
                 "bio_snippet": "A bio",
                 "years_experience": 10,
                 "profile_picture_key": "photos/usr_A.jpg",
@@ -622,7 +622,7 @@ class TestHydrateInstructorResults:
             {
                 "instructor_id": "usr_B",
                 "first_name": "Bob",
-                "last_initial": "B",
+                "last_initial": "B.",
                 "bio_snippet": "B bio",
                 "years_experience": 5,
                 "profile_picture_key": None,

@@ -18,7 +18,7 @@ def test_search_results_include_teaching_locations(client: TestClient, monkeypat
         instructor = InstructorSummary(
             id="inst-1",
             first_name="Test",
-            last_initial="I",
+            last_initial="I.",
             profile_picture_url=None,
             bio_snippet=None,
             verified=False,

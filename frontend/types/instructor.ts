@@ -1,5 +1,7 @@
 // frontend/types/instructor.ts
 
+import { formatDisplayName } from '@/lib/format/displayName';
+
 /**
  * Instructor Type Definitions
  *
@@ -396,16 +398,20 @@ export function getInstructorDisplayName(instructor: unknown): string {
   if (inst?.['user'] && typeof inst['user'] === 'object') {
     const user = inst['user'] as Record<string, unknown>;
     if (user?.['first_name'] && user?.['last_initial']) {
-      const firstName = String(user['first_name']) || '';
-      const lastInitial = String(user['last_initial']) || '';
-      return lastInitial ? `${firstName} ${lastInitial}.` : firstName;
+      return formatDisplayName(
+        String(user['first_name']) || '',
+        String(user['last_initial']) || '',
+        'Instructor',
+      );
     }
   }
   // For InstructorBasic with direct fields
   if (inst?.['first_name'] && inst?.['last_initial']) {
-    const firstName = String(inst['first_name']) || '';
-    const lastInitial = String(inst['last_initial']) || '';
-    return lastInitial ? `${firstName} ${lastInitial}.` : firstName;
+    return formatDisplayName(
+      String(inst['first_name']) || '',
+      String(inst['last_initial']) || '',
+      'Instructor',
+    );
   }
   // Fallback
   if (inst?.['user_id']) {

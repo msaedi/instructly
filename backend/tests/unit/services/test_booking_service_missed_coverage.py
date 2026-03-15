@@ -950,7 +950,7 @@ class TestCreateBookingWithPaymentSetupReschedule:
         """Covers 800->804, 810->831: previous_booking found during reschedule."""
         mock_tz.DEFAULT_TIMEZONE = "America/New_York"
         mock_tz.get_lesson_timezone.return_value = "America/New_York"
-        mock_tz.local_to_utc.return_value = datetime(2026, 3, 15, 15, 0, tzinfo=timezone.utc)
+        mock_tz.local_to_utc.return_value = datetime(2030, 3, 15, 15, 0, tzinfo=timezone.utc)
 
         svc, created_booking = self._setup_svc_for_payment_setup()
 
@@ -976,7 +976,7 @@ class TestCreateBookingWithPaymentSetupReschedule:
         student = _fake_user()
         bd = MagicMock()
         bd.instructor_id = "01TESTINSTR00000000000001"
-        bd.booking_date = date(2026, 3, 15)
+        bd.booking_date = date(2030, 3, 15)
         bd.start_time = time(10, 0)
         bd.end_time = None
 
@@ -999,7 +999,7 @@ class TestCreateBookingWithPaymentSetupReschedule:
         """Covers 808->810: repository.update returns None."""
         mock_tz.DEFAULT_TIMEZONE = "America/New_York"
         mock_tz.get_lesson_timezone.return_value = "America/New_York"
-        mock_tz.local_to_utc.return_value = datetime(2026, 3, 15, 15, 0, tzinfo=timezone.utc)
+        mock_tz.local_to_utc.return_value = datetime(2030, 3, 15, 15, 0, tzinfo=timezone.utc)
 
         svc, created_booking = self._setup_svc_for_payment_setup()
 
@@ -1025,7 +1025,7 @@ class TestCreateBookingWithPaymentSetupReschedule:
         student = _fake_user()
         bd = MagicMock()
         bd.instructor_id = "01TESTINSTR00000000000001"
-        bd.booking_date = date(2026, 3, 15)
+        bd.booking_date = date(2030, 3, 15)
         bd.start_time = time(10, 0)
         bd.end_time = None
 
@@ -1048,7 +1048,7 @@ class TestCreateBookingWithPaymentSetupReschedule:
         """Covers lines 824-825: Exception during reschedule_count increment is swallowed."""
         mock_tz.DEFAULT_TIMEZONE = "America/New_York"
         mock_tz.get_lesson_timezone.return_value = "America/New_York"
-        mock_tz.local_to_utc.return_value = datetime(2026, 3, 15, 15, 0, tzinfo=timezone.utc)
+        mock_tz.local_to_utc.return_value = datetime(2030, 3, 15, 15, 0, tzinfo=timezone.utc)
 
         svc, created_booking = self._setup_svc_for_payment_setup()
 
@@ -1076,7 +1076,7 @@ class TestCreateBookingWithPaymentSetupReschedule:
         student = _fake_user()
         bd = MagicMock()
         bd.instructor_id = "01TESTINSTR00000000000001"
-        bd.booking_date = date(2026, 3, 15)
+        bd.booking_date = date(2030, 3, 15)
         bd.start_time = time(10, 0)
         bd.end_time = None
 
@@ -1649,7 +1649,7 @@ class TestCheckConflictsStudentBranch:
     def test_no_student_skips_student_conflict_check(self, mock_tz):
         mock_tz.DEFAULT_TIMEZONE = "America/New_York"
         mock_tz.get_lesson_timezone.return_value = "America/New_York"
-        mock_tz.local_to_utc.return_value = datetime(2026, 3, 15, 15, 0, tzinfo=timezone.utc)
+        mock_tz.local_to_utc.return_value = datetime(2030, 3, 15, 15, 0, tzinfo=timezone.utc)
         mock_tz.hours_until.return_value = 48.0
 
         svc = _make_service()
@@ -1662,7 +1662,7 @@ class TestCheckConflictsStudentBranch:
 
         bd = MagicMock()
         bd.instructor_id = "I1"
-        bd.booking_date = date(2026, 3, 15)
+        bd.booking_date = date(2030, 3, 15)
         bd.start_time = time(10, 0)
         bd.end_time = time(11, 0)
         bd.location_type = "in-person"

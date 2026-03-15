@@ -163,7 +163,7 @@ const mockInstructor = {
   user_id: 'inst-123',
   user: {
     first_name: 'John',
-    last_initial: 'D',
+    last_initial: 'D.',
   },
   services: [
     {

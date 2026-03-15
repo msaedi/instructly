@@ -602,7 +602,7 @@ class TestUserBasicPrivacy:
 
         privacy = UserBasicPrivacy.from_user(user)
         assert privacy.first_name == "John"
-        assert privacy.last_initial == "D"
+        assert privacy.last_initial == "D."
         # Email should NOT be exposed
         assert not hasattr(privacy, "email") or "email" not in privacy.model_dump()
 
@@ -691,7 +691,7 @@ class TestInstructorProfileResponseFromOrm:
         response = InstructorProfileResponse.from_orm(profile)
         assert response.id == profile.id
         assert response.user.first_name == "John"
-        assert response.user.last_initial == "D"
+        assert response.user.last_initial == "D."
         assert response.non_travel_buffer_minutes == 15
         assert response.travel_buffer_minutes == 60
         assert response.overnight_protection_enabled is True

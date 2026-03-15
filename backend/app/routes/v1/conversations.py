@@ -102,7 +102,7 @@ def _build_user_summary(user: User) -> UserSummary:
     return UserSummary(
         id=user.id,
         first_name=user.first_name or "",
-        last_initial=format_last_initial(getattr(user, "last_name", None)),
+        last_initial=format_last_initial(getattr(user, "last_name", None), with_period=True),
         profile_photo_url=getattr(user, "profile_photo_url", None),
     )
 

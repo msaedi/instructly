@@ -1,7 +1,7 @@
 // frontend/features/student/booking/hooks/useCreateBooking.ts
 import { useState } from 'react';
+import type { BookingCreate, BookingResponse } from '@/features/shared/api/types';
 import { createBookingImperative } from '@/src/api/services/bookings';
-import type { BookingCreate, BookingResponse } from '@/src/api/generated/instructly.schemas';
 import { logger } from '@/lib/logger';
 
 // Re-export types

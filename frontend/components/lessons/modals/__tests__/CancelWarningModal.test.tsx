@@ -44,7 +44,7 @@ const baseLesson = {
   end_time: '15:00:00',
   total_price: 60,
   service_name: 'Piano',
-  instructor: { first_name: 'Alex', last_initial: 'B', id: 'inst-1' },
+  instructor: { first_name: 'Alex', last_initial: 'B.', id: 'inst-1' },
 } as Booking;
 
 function renderModal(hoursUntil: number, window: 'free' | 'credit' | 'full' = 'free') {

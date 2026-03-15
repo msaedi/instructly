@@ -96,7 +96,7 @@ export function usePublicAvailability(instructorId: string, startDate?: Date) {
  *
  *   return (
  *     <div>
- *       <h2>{availability?.instructor_first_name} {availability?.instructor_last_initial}.'s Availability</h2>
+ *       <h2>{availability?.instructor_first_name} {availability?.instructor_last_initial}'s Availability</h2>
  *       {Object.entries(availability?.availability_by_date || {}).map(([date, dayInfo]) => (
  *         <div key={date}>
  *           <h3>{date}</h3>

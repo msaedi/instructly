@@ -4,7 +4,7 @@ import type {
   AdminAuditEntry,
   AdminAuditLogResponse,
   ListAdminAuditLogApiV1AdminAuditLogGetParams,
-} from '@/src/api/generated/instructly.schemas';
+} from '@/features/shared/api/types';
 import { listAdminAuditLogApiV1AdminAuditLogGet } from '@/src/api/generated/admin-bookings/admin-bookings';
 
 export type AuditAction = 'admin_refund' | 'payment_capture' | 'admin_cancel' | 'status_change';

@@ -82,7 +82,7 @@ const buildInstructor = (): Instructor => ({
   years_experience: 5,
   user: {
     first_name: 'Sarah',
-    last_initial: 'C',
+    last_initial: 'C.',
   },
   services: [
     {

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Set, Union
 from sqlalchemy.orm import Session
 
 from ..core.auth_cache import invalidate_cached_user_by_id_sync
-from ..core.enums import PermissionName
+from ..core.enums import PermissionName, RoleName
 from ..repositories.factory import RepositoryFactory
 from .base import BaseService
 from .permission_cache import (
@@ -155,7 +155,7 @@ class PermissionService(BaseService):
         # Try cache first
         cached = await get_cached_permissions(user_id)
         if cached is not None:
-            return cached
+            return set(cached)
 
         # Cache miss - query DB in thread pool to avoid blocking event loop
         # This is critical for SSE endpoints with many concurrent connections
@@ -302,13 +302,36 @@ class PermissionService(BaseService):
         if not user or not role:
             return False
 
-        # Check if user already has this role
-        if role in user.roles:
+        exclusive_role_name: str | None = None
+        if role.name == RoleName.INSTRUCTOR:
+            exclusive_role_name = RoleName.STUDENT
+        elif role.name == RoleName.STUDENT:
+            exclusive_role_name = RoleName.INSTRUCTOR
+
+        exclusive_role = (
+            self.rbac_repository.get_role_by_name(exclusive_role_name)
+            if exclusive_role_name is not None
+            else None
+        )
+
+        has_target_role = role in user.roles
+        has_exclusive_role = exclusive_role in user.roles if exclusive_role is not None else False
+
+        if has_target_role and not has_exclusive_role:
             return False
 
-        # Assign role
+        changed = False
         with self.transaction():
-            user.roles.append(role)
+            if has_exclusive_role and exclusive_role is not None:
+                user.roles.remove(exclusive_role)
+                changed = True
+
+            if role not in user.roles:
+                user.roles.append(role)
+                changed = True
+
+        if not changed:
+            return False
 
         # Clear cache for this user (best-effort, outside transaction)
         self._clear_user_cache(user_id)

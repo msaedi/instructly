@@ -26,7 +26,7 @@ describe('useAuth.helpers', () => {
     });
 
     it('uses first name and last initial when provided', () => {
-      expect(getUserInitials({ first_name: 'Alex', last_initial: 'Q' })).toBe('AQ');
+      expect(getUserInitials({ first_name: 'Alex', last_initial: 'Q.' })).toBe('AQ');
     });
 
     it('uses first name and last name initial when last_initial is missing', () => {

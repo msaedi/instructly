@@ -21,6 +21,7 @@ from ..core.constants import (
     MIN_BIO_LENGTH,
     MIN_SESSION_DURATION,
 )
+from ..utils.privacy import format_last_initial
 from ._strict_base import StrictModel, StrictRequestModel
 from .address import ServiceAreaNeighborhoodOut
 from .base import Money, StandardizedModel
@@ -384,7 +385,7 @@ class UserBasicPrivacy(StandardizedModel):
 
     id: str
     first_name: str
-    last_initial: str  # Only last initial, not full last_name
+    last_initial: str  # Only last initial (e.g., "S."), not full last_name
     # No email field for privacy protection
 
     model_config = ConfigDict(from_attributes=True)
@@ -404,7 +405,7 @@ class UserBasicPrivacy(StandardizedModel):
         return cls(
             id=user.id,
             first_name=user.first_name,
-            last_initial=user.last_name[0] if user.last_name else "",
+            last_initial=format_last_initial(user.last_name, with_period=True),
             # No email for privacy protection
         )
 
@@ -833,6 +834,9 @@ class InstructorProfilePublic(InstructorProfileBase):
 class InstructorProfileResponse(InstructorProfilePublic):
     """Private/self instructor profile response with internal identifiers."""
 
+    # Pydantic does not narrow inherited container field types cleanly here.
+    # The runtime schema is intentional: public routes use the parent model,
+    # while private/self routes use the richer teaching-location DTO below.
     preferred_teaching_locations: List[PreferredTeachingLocationOut] = Field(  # type: ignore[assignment]
         default_factory=list
     )

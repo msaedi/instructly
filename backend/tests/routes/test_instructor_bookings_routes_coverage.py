@@ -66,7 +66,7 @@ async def test_get_pending_completion_bookings(monkeypatch, test_instructor, tes
     )
     assert result.total == 1
     student_payload = result.items[0].student.model_dump()
-    expected_last_initial = test_booking.student.last_name[0] if test_booking.student.last_name else ""
+    expected_last_initial = f"{test_booking.student.last_name[0]}." if test_booking.student.last_name else ""
     assert student_payload["last_initial"] == expected_last_initial
     assert "email" not in student_payload
     assert "phone" not in student_payload
@@ -200,7 +200,7 @@ async def test_mark_lesson_complete_success(monkeypatch, test_instructor, test_b
     )
     assert result.id == test_booking.id
     student_payload = result.student.model_dump()
-    expected_last_initial = test_booking.student.last_name[0] if test_booking.student.last_name else ""
+    expected_last_initial = f"{test_booking.student.last_name[0]}." if test_booking.student.last_name else ""
     assert student_payload["last_initial"] == expected_last_initial
     assert "email" not in student_payload
     assert "phone" not in student_payload

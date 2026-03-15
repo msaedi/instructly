@@ -22,6 +22,7 @@ from app.repositories.referral_repository import ReferralRewardRepository
 from app.services.config_service import ConfigService
 from app.services.referral_service import ReferralService
 from app.services.referrals_config_service import get_effective_config
+from app.utils.privacy import format_last_initial
 from app.utils.url_validation import is_allowed_origin, origin_from_header
 
 router = APIRouter(tags=["instructor-referrals-v1"])
@@ -302,7 +303,7 @@ async def get_referred_instructors(
             ReferredInstructorInfo(
                 id=data["user_id"],
                 first_name=data["first_name"],
-                last_initial=last_name[:1],
+                last_initial=format_last_initial(last_name, with_period=True),
                 referred_at=data["referred_at"],
                 is_live=bool(data.get("is_live", False)),
                 went_live_at=data.get("went_live_at"),

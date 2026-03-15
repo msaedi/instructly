@@ -53,7 +53,7 @@ describe('LessonCard', () => {
     instructor: {
       id: '1',
       first_name: 'John',
-      last_initial: 'D',
+      last_initial: 'D.',
     },
   };
 

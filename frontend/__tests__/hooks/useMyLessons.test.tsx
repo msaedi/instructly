@@ -186,7 +186,7 @@ describe('useMyLessons hooks', () => {
         id: '01ABCDEF123456789012345678',
         booking_date: '2024-12-25',
         status: 'CONFIRMED',
-        instructor: { first_name: 'John', last_initial: 'D' },
+        instructor: { first_name: 'John', last_initial: 'D.' },
         service_name: 'Mathematics',
         total_price: 60,
       })
@@ -264,7 +264,7 @@ describe('useMyLessons hooks', () => {
 
       expect(result.current.data?.id).toBe('01ABCDEF123456789012345678');
       expect(result.current.data?.instructor?.first_name).toBe('John');
-      expect(result.current.data?.instructor?.last_initial).toBe('D');
+      expect(result.current.data?.instructor?.last_initial).toBe('D.');
     });
 
     it('handles invalid lesson ID', async () => {

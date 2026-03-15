@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { queryFn } from '@/lib/react-query/api';
 import { BookingListResponse } from '@/types/booking';
+import { formatDisplayName } from '@/lib/format/displayName';
 import { logger } from '@/lib/logger';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 
@@ -62,7 +63,11 @@ export function BookAgain({ onLoadComplete }: BookAgainProps) {
       if (booking.instructor && !instructorMap.has(booking.instructor.id)) {
         instructorMap.set(booking.instructor.id, {
           instructorId: booking.instructor.id,
-          instructorName: `${booking.instructor.first_name} ${booking.instructor.last_initial}.`,
+          instructorName: formatDisplayName(
+            booking.instructor.first_name,
+            booking.instructor.last_initial,
+            'Instructor',
+          ),
           serviceName: booking.service_name,
           serviceId: booking.instructor_service_id,
           hourlyRate: booking.hourly_rate,

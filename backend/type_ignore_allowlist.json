@@ -62,12 +62,6 @@
       "reason": "FastAPI's exported typing surface trips mypy on this import form in this environment."
     },
     {
-      "path": "app/schemas/booking.py",
-      "code": "assignment",
-      "match": "student: StudentInfoPublic",
-      "reason": "Pydantic response-model inheritance narrows BookingResponse.student for instructor-safe serialization."
-    },
-    {
       "path": "app/schemas/instructor.py",
       "code": "assignment",
       "match": "preferred_teaching_locations: List[PreferredTeachingLocationOut] = Field(",

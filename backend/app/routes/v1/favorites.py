@@ -35,6 +35,7 @@ from ...schemas.favorites import (
 from ...schemas.instructor import InstructorProfilePublic
 from ...services.cache_service import CacheService
 from ...services.favorites_service import FavoritesService
+from ...utils.privacy import format_last_initial
 
 logger = logging.getLogger(__name__)
 
@@ -168,7 +169,7 @@ async def get_favorites(
             fav_instructor = FavoritedInstructor(
                 id=instructor.id,
                 first_name=instructor.first_name,
-                last_initial=instructor.last_name[0] if instructor.last_name else "",
+                last_initial=format_last_initial(instructor.last_name, with_period=True),
                 is_active=instructor.is_active,
                 profile=(
                     InstructorProfilePublic.from_orm(instructor.instructor_profile)
