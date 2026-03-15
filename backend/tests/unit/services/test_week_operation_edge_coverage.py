@@ -1,14 +1,14 @@
 """
 Bug-hunting edge-case tests for week_operation_service.py targeting uncovered lines/branches.
 
-Covers lines: 377-388, 409->exit, 443->448, 445->443, 515->exit, 776
+Covers lines: 377-388, 409->exit, 443->448, 445->443, 515->exit
 """
 
 from __future__ import annotations
 
 from datetime import date, timedelta
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -278,42 +278,6 @@ class TestWriteCopyAuditDisabled:
             after={"a": 2},
         )
         svc.audit_repository.write.assert_called_once()
-
-
-# ---------------------------------------------------------------------------
-# L776: _warm_cache_for_affected_weeks — no cache_service
-# ---------------------------------------------------------------------------
-@pytest.mark.unit
-class TestWarmCacheForAffectedWeeksNoCache:
-    """Test _warm_cache_for_affected_weeks when cache_service is None."""
-
-    @pytest.mark.asyncio
-    async def test_no_cache_service_returns_early(self):
-        """L775-776: no cache_service => return immediately."""
-        svc = _make_service(cache_service=None)
-        # Should not raise
-        await svc._warm_cache_for_affected_weeks(
-            "I1", date(2026, 3, 16), date(2026, 3, 22)
-        )
-
-    @pytest.mark.asyncio
-    async def test_with_cache_service_warms(self):
-        """With cache_service, _warm_cache_for_affected_weeks calls warmer."""
-        mock_cache = MagicMock()
-        svc = _make_service(cache_service=mock_cache)
-
-        with patch("app.services.week_operation_service.CacheWarmingStrategy", create=True) as MockStrategy:
-            mock_warmer = AsyncMock()
-            MockStrategy.return_value = mock_warmer
-            # Patch the import inside the method
-            with patch(
-                "app.services.cache_strategies.CacheWarmingStrategy",
-                MockStrategy,
-                create=True,
-            ):
-                await svc._warm_cache_for_affected_weeks(
-                    "I1", date(2026, 3, 16), date(2026, 3, 22)
-                )
 
 
 # ---------------------------------------------------------------------------

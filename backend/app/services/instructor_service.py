@@ -566,6 +566,8 @@ class InstructorService(BaseService):
                 "User | None", self.user_repository.get_by_id(user_id)
             )
             first_name = getattr(resolved_user, "first_name", "") or ""
+            if not first_name:
+                first_name = "This instructor"
             resolved_city = city or "New York"
             skill_names: List[str] = []
             try:

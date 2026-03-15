@@ -704,15 +704,6 @@ class WeekOperationService(BaseService):
             "written_dates": unique_written_dates,
         }
 
-    def _extract_week_pattern_from_source(
-        self, instructor_id: str, from_week_start: date
-    ) -> Dict[str, List[Dict[str, Any]]]:
-        """Get source week availability and extract pattern."""
-        source_week: Dict[
-            str, List["TimeSlotResponse"]
-        ] = self.availability_service.get_week_availability(instructor_id, from_week_start)
-        return self._extract_week_pattern(source_week, from_week_start)
-
     def _get_date_range(self, start_date: date, end_date: date) -> List[date]:
         """Get all dates in a range."""
         all_dates: List[date] = []
@@ -721,41 +712,6 @@ class WeekOperationService(BaseService):
             all_dates.append(current_date)
             current_date += timedelta(days=1)
         return all_dates
-
-    async def _warm_cache_for_affected_weeks(
-        self, instructor_id: str, start_date: date, end_date: date
-    ) -> None:
-        """Warm cache for all weeks affected by pattern application."""
-        if not self.cache_service:
-            return
-
-        try:
-            from .cache_strategies import CacheWarmingStrategy
-
-            warmer = CacheWarmingStrategy(self.cache_service, self.db)
-
-            affected_weeks = self._get_affected_weeks(start_date, end_date)
-
-            for week_start in affected_weeks:
-                try:
-                    await warmer.warm_week(instructor_id, week_start)
-                except AttributeError:
-                    await warmer.warm_with_verification(
-                        instructor_id, week_start, expected_window_count=None
-                    )
-
-            self.logger.info(f"Warmed cache for {len(affected_weeks)} affected weeks")
-        except Exception as cache_error:  # pragma: no cover - defensive logging
-            self.logger.warning(
-                "Cache warming failed",
-                extra={
-                    "instructor_id": instructor_id,
-                    "start_date": start_date.isoformat(),
-                    "end_date": end_date.isoformat(),
-                    "error": str(cache_error),
-                },
-                exc_info=True,
-            )
 
     def _get_affected_weeks(self, start_date: date, end_date: date) -> Set[date]:
         """Get all week start dates affected by a date range."""
@@ -769,31 +725,6 @@ class WeekOperationService(BaseService):
             next_monday = week_start + timedelta(days=7)
             current = next_monday
         return affected_weeks
-
-    def _format_pattern_application_result(
-        self,
-        all_dates: List[date],
-        dates_with_windows: int,
-        created_count: int,
-        start_date: date,
-        end_date: date,
-    ) -> Dict[str, Any]:
-        """Format the result of pattern application."""
-        message = f"Successfully applied schedule to {len(all_dates)} days"
-        self.logger.info(f"Pattern application completed: {created_count} slots created")
-
-        weeks_affected = len(self._get_affected_weeks(start_date, end_date))
-
-        return {
-            "message": message,
-            "start_date": start_date.isoformat(),
-            "end_date": end_date.isoformat(),
-            "dates_processed": len(all_dates),
-            "dates_with_windows": dates_with_windows,
-            "windows_created": created_count,
-            "weeks_affected": weeks_affected,
-            "days_written": dates_with_windows,
-        }
 
     def _extract_week_pattern(
         self,
