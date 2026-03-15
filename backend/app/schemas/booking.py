@@ -29,6 +29,7 @@ from ..core.constants import MIN_SESSION_DURATION
 from ..domain.video_utils import JOIN_WINDOW_EARLY_MINUTES, compute_grace_minutes
 from ..models.booking import BookingStatus
 from ..schemas.base import STRICT_SCHEMAS, Money, StandardizedModel
+from ..utils.privacy import format_last_initial
 from ..utils.safe_cast import safe_float as _safe_float, safe_str as _safe_str
 from ._strict_base import StrictModel, StrictRequestModel
 from .common import LocationTypeLiteral
@@ -484,7 +485,7 @@ class StudentInfoPublic(StandardizedModel):
         return cls(
             id=user.id,
             first_name=user.first_name,
-            last_initial=user.last_name[0] if user.last_name else "",
+            last_initial=format_last_initial(getattr(user, "last_name", None)),
         )
 
 
@@ -512,7 +513,7 @@ class InstructorInfo(StandardizedModel):
         return cls(
             id=user.id,
             first_name=user.first_name,
-            last_initial=user.last_name[0] if user.last_name else "",
+            last_initial=format_last_initial(getattr(user, "last_name", None)),
         )
 
 
@@ -1085,8 +1086,8 @@ class UpcomingBookingResponse(StandardizedModel):
     """
     Simplified response for upcoming bookings widget.
 
-    Privacy-aware: instructor_last_name shows last initial for students,
-    full last name for instructors viewing their own bookings.
+    Privacy-aware: participant last-name fields expose initials only
+    except when users view their own identity.
     """
 
     id: str
@@ -1096,7 +1097,7 @@ class UpcomingBookingResponse(StandardizedModel):
     end_time: time
     service_name: str
     student_first_name: str
-    student_last_name: str
+    student_last_initial: str
     instructor_first_name: str
     instructor_last_name: str  # Last initial for students, full for instructors
     meeting_location: Optional[str]

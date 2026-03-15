@@ -700,7 +700,7 @@ class TestBookingRoutes:
 
             # Add the from_orm compatible attributes
             booking.student_first_name = booking.student.first_name
-            booking.student_last_name = booking.student.last_name
+            booking.student_last_initial = f"{booking.student.last_name[0]}."
             booking.instructor_first_name = booking.instructor.first_name
             booking.instructor_last_name = booking.instructor.last_name
 
@@ -721,8 +721,7 @@ class TestBookingRoutes:
         assert len(data["items"]) == 2
         assert data["items"][0]["service_name"] == "Service 1"
         assert data["items"][0]["student_first_name"] == "Test"
-        # Student viewing their own booking - sees full last name
-        assert data["items"][0]["student_last_name"] == "Student"
+        assert data["items"][0]["student_last_initial"] == "S."
         assert data["items"][0]["instructor_first_name"] == "Test"
         # Student viewing instructor's info - sees only initial
         assert data["items"][0]["instructor_last_name"] == "I"
@@ -772,10 +771,10 @@ class TestBookingRoutes:
         data = response.json()
         assert data["total"] == 2
         assert data["items"][0]["total_price"] == 42.5
-        assert data["items"][0]["student_last_name"] == "Student"
+        assert data["items"][0]["student_last_initial"] == "S."
         assert data["items"][0]["instructor_last_name"] == "I"
         assert data["items"][1]["total_price"] == 0.0
-        assert data["items"][1]["student_last_name"] == "L"
+        assert data["items"][1]["student_last_initial"] == "L."
 
     def test_get_booking_preview(self, client_with_mock_booking_service, auth_headers_student, mock_booking_service):
         """Test getting booking preview."""

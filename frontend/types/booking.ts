@@ -253,7 +253,7 @@ export interface UpcomingBooking {
   end_time: string;
   service_name: string;
   student_first_name: string;
-  student_last_name: string;  // Full if viewing own, initial if viewing others
+  student_last_initial: string;
   instructor_first_name: string;
   instructor_last_name: string;  // Full if viewing own, initial if viewing others
   meeting_location?: string;

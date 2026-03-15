@@ -35,6 +35,7 @@ from app.services.messaging.events import (
     build_typing_status_event,
 )
 from app.services.messaging.sse_stream import publish_to_user
+from app.utils.privacy import format_private_display_name
 
 logger = logging.getLogger(__name__)
 
@@ -79,9 +80,13 @@ def _get_sender_name_sync(db: Session, sender_id: str) -> Optional[str]:
     try:
         user_repo = RepositoryFactory.create_user_repository(db)
         sender = user_repo.get_by_id(sender_id)
-        if sender and sender.first_name:
-            return f"{sender.first_name} {sender.last_name or ''}".strip()
-        return getattr(sender, "first_name", None) if sender else None
+        if sender:
+            return format_private_display_name(
+                getattr(sender, "first_name", None),
+                getattr(sender, "last_name", None),
+                default="",
+            )
+        return None
     except Exception:
         return None
 

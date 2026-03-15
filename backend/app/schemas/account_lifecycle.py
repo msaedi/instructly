@@ -49,7 +49,7 @@ class FutureBookingInfo(BaseModel):
     start_time: str
     end_time: str
     student_first_name: str
-    student_last_name: str
+    student_last_initial: str
     service_name: str
 
 

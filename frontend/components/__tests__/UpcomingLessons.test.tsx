@@ -74,7 +74,7 @@ const createMockBooking = (overrides = {}) => ({
   instructor_first_name: 'Sarah',
   instructor_last_name: 'C',
   student_first_name: 'John',
-  student_last_name: 'D',
+  student_last_initial: 'D.',
   meeting_location: '123 Upper West Side Ave, New York',
   ...overrides,
 });
@@ -502,11 +502,11 @@ describe('UpcomingLessons', () => {
       });
     });
 
-    it('does not append a period when the student last name is already longer than one character', async () => {
+    it('renders the student last initial directly for instructor viewers', async () => {
       mockHasRole.mockImplementation((_user, role) => role === 'instructor');
       mockUseUpcomingBookings.mockReturnValue({
         data: {
-          items: [createMockBooking({ student_last_name: 'Lopez' })],
+          items: [createMockBooking({ student_last_initial: 'L.' })],
           total: 1,
         },
         isLoading: false,
@@ -516,7 +516,7 @@ describe('UpcomingLessons', () => {
       render(<UpcomingLessons />, { wrapper: createWrapper() });
 
       await waitFor(() => {
-        expect(screen.getByText('with John Lopez')).toBeInTheDocument();
+        expect(screen.getByText('with John L.')).toBeInTheDocument();
       });
     });
   });

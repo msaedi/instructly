@@ -6187,8 +6187,8 @@ export interface PaginatedResponseUnionBookingResponseInstructorBookingResponse 
 /**
  * Simplified response for upcoming bookings widget.
 
-Privacy-aware: instructor_last_name shows last initial for students,
-full last name for instructors viewing their own bookings.
+Privacy-aware: participant last-name fields expose initials only
+except when users view their own identity.
  */
 export interface UpcomingBookingResponse {
   booking_date: string;
@@ -6201,7 +6201,7 @@ export interface UpcomingBookingResponse {
   service_name: string;
   start_time: string;
   student_first_name: string;
-  student_last_name: string;
+  student_last_initial: string;
   total_price: number;
 }
 

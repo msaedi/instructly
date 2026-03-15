@@ -66,6 +66,7 @@ from ...schemas.booking import (
 from ...schemas.booking_responses import BookingPreviewResponse, SendRemindersResponse
 from ...schemas.pricing_preview import PricingPreviewOut
 from ...services.booking_service import BookingService
+from ...utils.privacy import format_last_initial
 from ...utils.safe_cast import safe_float as _safe_float, safe_str as _safe_str
 
 logger = logging.getLogger(__name__)
@@ -99,8 +100,9 @@ def _public_student_payload(student_payload: dict[str, Any]) -> dict[str, Any]:
     student = dict(student_payload)
     last_initial = student.get("last_initial")
     if not isinstance(last_initial, str):
-        last_name = student.get("last_name")
-        last_initial = last_name[0] if isinstance(last_name, str) and last_name else ""
+        last_initial = format_last_initial(
+            student.get("last_name") if isinstance(student.get("last_name"), str) else None
+        )
     student["last_initial"] = last_initial
     student.pop("last_name", None)
     student.pop("email", None)
@@ -109,9 +111,7 @@ def _public_student_payload(student_payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _format_last_initial(last_name: str | None) -> str:
-    if not isinstance(last_name, str) or not last_name:
-        return ""
-    return f"{last_name[0]}."
+    return format_last_initial(last_name, with_period=True)
 
 
 def _validate_booking_payload_for_user(
@@ -196,7 +196,6 @@ async def get_upcoming_bookings(
         for booking in bookings:
             if isinstance(booking, dict):
                 # Handle cached dictionary
-                is_student = current_user.id == booking.get("student_id")
                 is_instructor = current_user.id == booking.get("instructor_id")
 
                 student_last_name = (
@@ -232,11 +231,7 @@ async def get_upcoming_bookings(
                         student_first_name=booking.get("student", {}).get("first_name", "Unknown")
                         if booking.get("student")
                         else "Unknown",
-                        student_last_name=student_last_name
-                        if is_student
-                        else student_last_name[0]
-                        if student_last_name
-                        else "",
+                        student_last_initial=_format_last_initial(student_last_name),
                         instructor_first_name=booking.get("instructor", {}).get(
                             "first_name", "Unknown"
                         )
@@ -252,7 +247,6 @@ async def get_upcoming_bookings(
                 )
             else:
                 # Handle SQLAlchemy object
-                is_student = current_user.id == booking.student_id
                 is_instructor = current_user.id == booking.instructor_id
 
                 total_price_raw = getattr(booking, "total_price", 0)
@@ -277,10 +271,8 @@ async def get_upcoming_bookings(
                         student_first_name=booking.student.first_name
                         if booking.student
                         else "Unknown",
-                        student_last_name=booking.student.last_name
-                        if is_student and booking.student
-                        else booking.student.last_name[0]
-                        if booking.student and booking.student.last_name
+                        student_last_initial=_format_last_initial(booking.student.last_name)
+                        if booking.student
                         else "",
                         instructor_first_name=booking.instructor.first_name
                         if booking.instructor

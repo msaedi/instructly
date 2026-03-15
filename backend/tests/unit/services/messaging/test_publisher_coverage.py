@@ -130,7 +130,7 @@ def test_get_conversation_participants_sync_missing(monkeypatch):
     assert publisher._get_conversation_participants_sync(None, "conv") == []
 
 
-def test_get_sender_name_sync_builds_full_name(monkeypatch):
+def test_get_sender_name_sync_builds_privacy_safe_name(monkeypatch):
     class _UserRepo:
         def get_by_id(self, _sender_id):
             return SimpleNamespace(first_name="Ada", last_name="Lovelace")
@@ -138,7 +138,7 @@ def test_get_sender_name_sync_builds_full_name(monkeypatch):
     monkeypatch.setattr(
         publisher.RepositoryFactory, "create_user_repository", lambda _db: _UserRepo()
     )
-    assert publisher._get_sender_name_sync(None, "user-1") == "Ada Lovelace"
+    assert publisher._get_sender_name_sync(None, "user-1") == "Ada L."
 
 
 def test_get_sender_name_sync_empty_first_name(monkeypatch):

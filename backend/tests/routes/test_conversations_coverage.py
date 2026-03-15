@@ -161,6 +161,10 @@ def test_list_conversations_skips_missing_user_and_last_message(test_student, te
     assert len(response.conversations) == 1
     item = response.conversations[0]
     assert item.id == "conv_with"
+    assert item.other_user.first_name == test_student.first_name
+    assert item.other_user.last_initial == test_student.last_name[0]
+    assert not hasattr(item.other_user, "last_name")
+    assert not hasattr(item.other_user, "email")
     assert item.last_message is not None
     assert item.last_message.content.endswith("…")
     assert item.state == "archived"
@@ -322,6 +326,36 @@ async def test_send_typing_indicator_publish_error(monkeypatch, test_student):
 
 
 @pytest.mark.asyncio
+async def test_send_typing_indicator_uses_privacy_safe_name(monkeypatch, test_student):
+    published: dict[str, str] = {}
+
+    async def fake_to_thread(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    async def fake_publish(*_args, **kwargs):
+        published["user_name"] = kwargs["user_name"]
+
+    monkeypatch.setattr("asyncio.to_thread", fake_to_thread)
+    monkeypatch.setattr(
+        "app.routes.v1.conversations.publish_typing_status_direct",
+        fake_publish,
+    )
+
+    class StubService:
+        def get_typing_context(self, *_args, **_kwargs):
+            return DummyTypingContext(participant_ids=["u1", "u2"])
+
+    await conversations_routes.send_typing_indicator(
+        request=TypingRequest(is_typing=True),
+        conversation_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        current_user=test_student,
+        service=StubService(),
+    )
+
+    assert published["user_name"] == f"{test_student.first_name} {test_student.last_name[0]}."
+
+
+@pytest.mark.asyncio
 async def test_get_messages_builds_booking_details(monkeypatch, test_student):
     async def fake_to_thread(func, *args, **kwargs):
         return func(*args, **kwargs)
@@ -429,6 +463,46 @@ async def test_send_message_publish_error(monkeypatch, test_student):
         service=StubService(),
     )
     assert response.id == "msg1"
+
+
+@pytest.mark.asyncio
+async def test_send_message_publishes_privacy_safe_sender_name(monkeypatch, test_student):
+    published: dict[str, str] = {}
+
+    async def fake_to_thread(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    async def fake_publish(*_args, **kwargs):
+        published["sender_name"] = kwargs["sender_name"]
+
+    monkeypatch.setattr("asyncio.to_thread", fake_to_thread)
+    monkeypatch.setattr(
+        "app.routes.v1.conversations.publish_new_message_direct",
+        fake_publish,
+    )
+
+    message = SimpleNamespace(
+        id="msg1",
+        content="hello",
+        sender_id=test_student.id,
+        created_at=datetime.now(timezone.utc),
+        booking_id=None,
+        delivered_at=None,
+        message_type="user",
+    )
+
+    class StubService:
+        def send_message_with_context(self, *_args, **_kwargs):
+            return DummySendMessageResult(message=message, participant_ids=["u1", "u2"])
+
+    await conversations_routes.send_message(
+        request=SendMessageRequest(content="hello"),
+        conversation_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        current_user=test_student,
+        service=StubService(),
+    )
+
+    assert published["sender_name"] == f"{test_student.first_name} {test_student.last_name[0]}."
 
 
 @pytest.mark.asyncio

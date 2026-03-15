@@ -10438,7 +10438,7 @@ export type components = {
  service_name: string;
  start_time: string;
  student_first_name: string;
- student_last_name: string;
+ student_last_initial: string;
  total_price: number;
  };
  UpdateCalendarSettings: {

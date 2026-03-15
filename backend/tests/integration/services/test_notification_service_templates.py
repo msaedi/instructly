@@ -162,6 +162,54 @@ class TestBookingConfirmation:
         assert re.search(r'{%\s*.+?\s*%}', student_html) is None, "Found unrendered block token"
         assert re.search(r'{#\s*.+?\s*#}', student_html) is None, "Found unrendered comment token"
 
+    def test_instructor_facing_booking_templates_redact_student_last_name(
+        self, notification_service_with_mocked_email, test_booking
+    ):
+        """Instructor-facing booking emails should only show student first name + initial."""
+        expected_student_name = f"{test_booking.student.first_name} {test_booking.student.last_name[0]}."
+        full_student_name = f"{test_booking.student.first_name} {test_booking.student.last_name}"
+
+        def _find_email_html(recipient: str) -> str:
+            for call in notification_service_with_mocked_email.email_service.send_email.call_args_list:
+                if call.kwargs["to_email"] == recipient:
+                    return call.kwargs["html_content"]
+            raise AssertionError(f"Email to {recipient} was not sent")
+
+        notification_service_with_mocked_email.send_booking_confirmation(test_booking)
+        instructor_confirmation_html = _find_email_html(test_booking.instructor.email)
+        assert expected_student_name in instructor_confirmation_html
+        assert full_student_name not in instructor_confirmation_html
+
+        notification_service_with_mocked_email.email_service.send_email.reset_mock()
+        notification_service_with_mocked_email.send_cancellation_notification(
+            booking=test_booking, cancelled_by=test_booking.student, reason="Schedule conflict"
+        )
+        instructor_cancellation_html = _find_email_html(test_booking.instructor.email)
+        assert expected_student_name in instructor_cancellation_html
+        assert full_student_name not in instructor_cancellation_html
+
+        notification_service_with_mocked_email.email_service.send_email.reset_mock()
+        notification_service_with_mocked_email.send_cancellation_notification(
+            booking=test_booking, cancelled_by=test_booking.instructor, reason="Emergency"
+        )
+        instructor_confirmation_html = _find_email_html(test_booking.instructor.email)
+        assert expected_student_name in instructor_confirmation_html
+        assert full_student_name not in instructor_confirmation_html
+
+        notification_service_with_mocked_email.email_service.send_email.reset_mock()
+        notification_service_with_mocked_email._send_instructor_reminder(test_booking)
+        instructor_reminder_html = _find_email_html(test_booking.instructor.email)
+        assert expected_student_name in instructor_reminder_html
+        assert full_student_name not in instructor_reminder_html
+
+        notification_service_with_mocked_email.email_service.send_email.reset_mock()
+        notification_service_with_mocked_email._send_instructor_completion_notification(
+            test_booking
+        )
+        instructor_completed_html = _find_email_html(test_booking.instructor.email)
+        assert expected_student_name in instructor_completed_html
+        assert full_student_name not in instructor_completed_html
+
 
 class TestCancellationNotification:
     """Test cancellation notification functionality."""

@@ -64,6 +64,7 @@ from ..services.sms_templates import (
 from ..services.template_registry import TemplateRegistry
 from ..services.template_service import TemplateService
 from ..services.timezone_service import TimezoneService
+from ..utils.privacy import format_private_display_name
 from .notification_templates import NotificationTemplate, render_notification
 
 logger = logging.getLogger(__name__)
@@ -592,6 +593,11 @@ class NotificationService(BaseService):
         # Prepare template context
         context = {
             "booking": booking,
+            "student_display_name": format_private_display_name(
+                getattr(getattr(booking, "student", None), "first_name", None),
+                getattr(getattr(booking, "student", None), "last_name", None),
+                default="Student",
+            ),
             "formatted_date": formatted_date,
             "formatted_time": formatted_time,
             "subject": subject,
@@ -880,6 +886,11 @@ class NotificationService(BaseService):
         # Prepare template context with custom colors for instructor
         context = {
             "booking": booking,
+            "student_display_name": format_private_display_name(
+                getattr(getattr(booking, "student", None), "first_name", None),
+                getattr(getattr(booking, "student", None), "last_name", None),
+                default="Student",
+            ),
             "formatted_date": formatted_date,
             "formatted_time": formatted_time,
             "subject": subject,
@@ -966,6 +977,11 @@ class NotificationService(BaseService):
         # Prepare template context
         context = {
             "booking": booking,
+            "student_display_name": format_private_display_name(
+                getattr(getattr(booking, "student", None), "first_name", None),
+                getattr(getattr(booking, "student", None), "last_name", None),
+                default="Student",
+            ),
             "formatted_date": formatted_date,
             "formatted_time": formatted_time,
             "reason": reason,
@@ -1006,6 +1022,11 @@ class NotificationService(BaseService):
         # Prepare template context
         context = {
             "booking": booking,
+            "student_display_name": format_private_display_name(
+                getattr(getattr(booking, "student", None), "first_name", None),
+                getattr(getattr(booking, "student", None), "last_name", None),
+                default="Student",
+            ),
             "formatted_date": formatted_date,
             "formatted_time": formatted_time,
             "subject": subject,
@@ -1044,6 +1065,11 @@ class NotificationService(BaseService):
         # Prepare template context
         context = {
             "booking": booking,
+            "student_display_name": format_private_display_name(
+                getattr(getattr(booking, "student", None), "first_name", None),
+                getattr(getattr(booking, "student", None), "last_name", None),
+                default="Student",
+            ),
             "formatted_date": formatted_date,
             "formatted_time": formatted_time,
             "subject": subject,
@@ -1120,6 +1146,11 @@ class NotificationService(BaseService):
 
         context = {
             "booking": booking,
+            "student_display_name": format_private_display_name(
+                getattr(getattr(booking, "student", None), "first_name", None),
+                getattr(getattr(booking, "student", None), "last_name", None),
+                default="Student",
+            ),
             "formatted_date": formatted_date,
             "formatted_time": formatted_time,
             "subject": subject,
@@ -1155,6 +1186,11 @@ class NotificationService(BaseService):
 
         context = {
             "booking": booking,
+            "student_display_name": format_private_display_name(
+                getattr(getattr(booking, "student", None), "first_name", None),
+                getattr(getattr(booking, "student", None), "last_name", None),
+                default="Student",
+            ),
             "formatted_date": formatted_date,
             "formatted_time": formatted_time,
             "subject": subject,
@@ -1236,6 +1272,11 @@ class NotificationService(BaseService):
         # Prepare template context
         context = {
             "booking": booking,
+            "student_display_name": format_private_display_name(
+                getattr(getattr(booking, "student", None), "first_name", None),
+                getattr(getattr(booking, "student", None), "last_name", None),
+                default="Student",
+            ),
             "formatted_time": formatted_time,
             "subject": subject,
         }

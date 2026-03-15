@@ -126,7 +126,7 @@ export function UpcomingLessons() {
                       ? `${booking.instructor_first_name} ${booking.instructor_last_name}${booking.instructor_last_name.length === 1 ? '.' : ''}`
                       : 'Instructor'
                     : booking.student_first_name
-                      ? `${booking.student_first_name} ${booking.student_last_name}${booking.student_last_name.length === 1 ? '.' : ''}`
+                      ? `${booking.student_first_name} ${booking.student_last_initial}`
                       : 'Student'}
                 </div>
                 {getLocationArea(booking.meeting_location ?? undefined) && (

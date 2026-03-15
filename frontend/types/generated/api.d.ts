@@ -20901,8 +20901,8 @@ export type components = {
          * UpcomingBookingResponse
          * @description Simplified response for upcoming bookings widget.
          *
-         *     Privacy-aware: instructor_last_name shows last initial for students,
-         *     full last name for instructors viewing their own bookings.
+         *     Privacy-aware: participant last-name fields expose initials only
+         *     except when users view their own identity.
          */
         UpcomingBookingResponse: {
             /**
@@ -20934,8 +20934,8 @@ export type components = {
             start_time: string;
             /** Student First Name */
             student_first_name: string;
-            /** Student Last Name */
-            student_last_name: string;
+            /** Student Last Initial */
+            student_last_initial: string;
             /** Total Price */
             total_price: number;
         };
