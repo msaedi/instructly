@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { CancelWarningModal } from '@/components/lessons/modals/CancelWarningModal';
 import type { Booking } from '@/features/shared/api/types';

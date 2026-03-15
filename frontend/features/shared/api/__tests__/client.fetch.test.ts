@@ -1155,8 +1155,12 @@ describe('protectedApi booking edge cases', () => {
       headers: new Headers(),
     });
     global.fetch = fetchMock as unknown as typeof global.fetch;
+    const status = undefined;
 
-    await protectedApi.getBookings({ status: undefined, page: 2 });
+    await protectedApi.getBookings({
+      page: 2,
+      ...(status === undefined ? {} : { status }),
+    });
 
     const [url] = fetchMock.mock.calls[0];
     const requestUrl = new URL(url as string, window.location.origin);

@@ -132,8 +132,11 @@ describe('InstructorHeader', () => {
     });
 
     it('renders fallback when user object is missing', () => {
-      const instructor = createInstructor({ user: undefined });
-      renderWithProviders(<InstructorHeader instructor={instructor} />);
+      const instructor = createInstructor() as Omit<InstructorProfile, 'user'> & {
+        user?: InstructorProfile['user'];
+      };
+      delete instructor.user;
+      renderWithProviders(<InstructorHeader instructor={instructor as InstructorProfile} />);
       expect(screen.getByTestId('instructor-profile-name')).toHaveTextContent('Instructor #01K2TEST00000000000000001');
     });
 

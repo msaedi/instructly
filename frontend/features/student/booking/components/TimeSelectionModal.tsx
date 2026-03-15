@@ -122,37 +122,37 @@ export interface TimeSelectionModalProps {
     user: {
       first_name: string;
       last_initial: string;
-      has_profile_picture?: boolean;
-      profile_picture_version?: number;
-      timezone?: string;
+      has_profile_picture?: boolean | undefined;
+      profile_picture_version?: number | undefined;
+      timezone?: string | undefined;
     };
     services: Array<{
-      id?: string;
+      id?: string | undefined;
       duration_options: number[];
       min_hourly_rate: number;
       format_prices: Array<{ format: string; hourly_rate: number }>;
       skill: string;
-      location_types?: string[];
+      location_types?: string[] | undefined;
     }>;
   };
-  preSelectedDate?: string; // From search context (format: "YYYY-MM-DD")
-  preSelectedTime?: string; // Pre-selected time slot
-  initialDate?: string | Date | null;
-  initialTimeHHMM24?: string | null;
-  initialDurationMinutes?: number | null;
-  initialLocationType?: LocationType | null;
-  lockLocationType?: boolean;
+  preSelectedDate?: string | undefined; // From search context (format: "YYYY-MM-DD")
+  preSelectedTime?: string | undefined; // Pre-selected time slot
+  initialDate?: string | Date | null | undefined;
+  initialTimeHHMM24?: string | null | undefined;
+  initialDurationMinutes?: number | null | undefined;
+  initialLocationType?: LocationType | null | undefined;
+  lockLocationType?: boolean | undefined;
   onTimeSelected?: (selection: {
     date: string;
     time: string;
     duration: number;
     locationType: LocationType;
-    serviceId?: string;
+    serviceId?: string | undefined;
     hourlyRate: number;
   }) => void;
-  serviceId?: string; // Optional service ID from search context
-  bookingDraftId?: string;
-  appliedCreditCents?: number;
+  serviceId?: string | undefined; // Optional service ID from search context
+  bookingDraftId?: string | undefined;
+  appliedCreditCents?: number | undefined;
 }
 
 export default function TimeSelectionModal({

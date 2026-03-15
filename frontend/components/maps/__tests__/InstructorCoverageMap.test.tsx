@@ -79,7 +79,7 @@ jest.mock('react-leaflet', () => ({
 
 // Store control instances for testing
 const controlInstances: Array<{
-  onAdd?: (map: unknown) => HTMLElement;
+  onAdd: ((map: unknown) => HTMLElement) | undefined;
   remove: jest.Mock;
   position: string;
 }> = [];
@@ -87,6 +87,14 @@ const controlInstances: Array<{
 // Track created markers for testing
 const createdMarkers: Array<{ addTo: jest.Mock; remove: jest.Mock }> = [];
 const createdPinMarkers: Array<{ addTo: jest.Mock; remove: jest.Mock; bindPopup: jest.Mock }> = [];
+
+const restoreEnvVar = (key: string, value: string | undefined) => {
+  if (value === undefined) {
+    delete process.env[key];
+    return;
+  }
+  process.env[key] = value;
+};
 
 // Mock Leaflet with better control simulation
 jest.mock('leaflet', () => {
@@ -314,7 +322,7 @@ describe('InstructorCoverageMap', () => {
     const tileLayer = screen.getByTestId('tile-layer');
     expect(tileLayer.getAttribute('data-url')).toContain('cartocdn');
 
-    process.env['NEXT_PUBLIC_JAWG_TOKEN'] = originalEnv;
+    restoreEnvVar('NEXT_PUBLIC_JAWG_TOKEN', originalEnv);
   });
 
   it('handles tile error by switching to fallback URL', () => {
@@ -811,7 +819,7 @@ describe('InstructorCoverageMap', () => {
   });
 
   it('handles when featureCollection is undefined', () => {
-    render(<InstructorCoverageMap featureCollection={undefined} />);
+    render(<InstructorCoverageMap />);
 
     expect(screen.getByTestId('map-container')).toBeInTheDocument();
     expect(screen.queryByTestId('geojson-layer')).not.toBeInTheDocument();
@@ -954,7 +962,7 @@ describe('InstructorCoverageMap', () => {
 
     expect(screen.getByTestId('tile-layer')).toBeInTheDocument();
 
-    process.env['NEXT_PUBLIC_JAWG_TOKEN'] = originalEnv;
+    restoreEnvVar('NEXT_PUBLIC_JAWG_TOKEN', originalEnv);
   });
 
   it('handles JAWG token with light mode', () => {
@@ -972,7 +980,7 @@ describe('InstructorCoverageMap', () => {
 
     expect(screen.getByTestId('tile-layer')).toBeInTheDocument();
 
-    process.env['NEXT_PUBLIC_JAWG_TOKEN'] = originalEnv;
+    restoreEnvVar('NEXT_PUBLIC_JAWG_TOKEN', originalEnv);
   });
 
   it('handles missing matchMedia', () => {
@@ -1021,7 +1029,7 @@ describe('InstructorCoverageMap', () => {
     // Should still be using fallback (not switch back to Jawg)
     expect(screen.getByTestId('tile-layer').getAttribute('data-url')).toContain('cartocdn');
 
-    process.env['NEXT_PUBLIC_JAWG_TOKEN'] = originalEnv;
+    restoreEnvVar('NEXT_PUBLIC_JAWG_TOKEN', originalEnv);
   });
 
   describe('FitToCoverage', () => {

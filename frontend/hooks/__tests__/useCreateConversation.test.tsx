@@ -96,8 +96,8 @@ describe('useCreateConversation', () => {
     const { result } = renderHook(() => useCreateConversation(), { wrapper: Wrapper });
 
     await act(async () => {
-      // Call with initialMessage explicitly undefined via options
-      await result.current.createConversation('instr-4', { initialMessage: undefined });
+      // Call without initialMessage in options
+      await result.current.createConversation('instr-4', {});
     });
 
     // createConversation should be called with only instructorId (no initialMessage arg)

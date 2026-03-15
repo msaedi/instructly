@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import BookedSlotCell from '../BookedSlotCell';
 import type { BookedSlotPreview } from '@/types/booking';

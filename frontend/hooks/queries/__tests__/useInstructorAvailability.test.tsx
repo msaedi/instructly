@@ -179,7 +179,6 @@ describe('useInstructorAvailability', () => {
     mockedGetAvailability.mockResolvedValueOnce({
       status: 500,
       error: 'Server error',
-      data: undefined,
     });
 
     const { wrapper } = createWrapper();
@@ -195,7 +194,6 @@ describe('useInstructorAvailability', () => {
     mockedGetAvailability.mockResolvedValueOnce({
       status: 429,
       error: 'Rate limited',
-      data: undefined,
     });
 
     const { wrapper } = createWrapper();
@@ -225,7 +223,6 @@ describe('useInstructorAvailability', () => {
     mockedGetAvailability.mockResolvedValueOnce({
       status: 429,
       error: 'Rate limited',
-      data: undefined,
       ...({ retryAfterSeconds: 0.01 } as Record<string, unknown>),
     });
     // Retry call succeeds
@@ -255,14 +252,12 @@ describe('useInstructorAvailability', () => {
     mockedGetAvailability.mockResolvedValueOnce({
       status: 429,
       error: 'Rate limited',
-      data: undefined,
       ...({ retryAfterSeconds: 0.01 } as Record<string, unknown>),
     });
     // Retry call also fails
     mockedGetAvailability.mockResolvedValueOnce({
       status: 500,
       error: 'Server error on retry',
-      data: undefined,
     });
 
     const { wrapper } = createWrapper();

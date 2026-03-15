@@ -33,7 +33,7 @@ describe('EditProfileModal helpers', () => {
       ' Two ',
       (trimmed) => ({
         address: trimmed,
-        label: trimmed.split(' ')[0],
+        label: trimmed.split(' ')[0] ?? trimmed,
       }),
     );
 

@@ -1,6 +1,5 @@
 process.env.NEXT_PUBLIC_APP_ENV = 'preview';
 
-import * as React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BGCStep as RawBGCStep } from '@/components/instructor/BGCStep';

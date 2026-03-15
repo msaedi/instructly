@@ -285,7 +285,10 @@ describe('ImageCropModal', () => {
   });
 
   it('uses default viewport and output sizes', async () => {
-    render(<ImageCropModal {...defaultProps} viewportSize={undefined} outputSize={undefined} />);
+    const propsWithoutSizes = { ...defaultProps };
+    delete (propsWithoutSizes as { viewportSize?: number }).viewportSize;
+    delete (propsWithoutSizes as { outputSize?: number }).outputSize;
+    render(<ImageCropModal {...propsWithoutSizes} />);
 
     // Modal should render with default sizes
     expect(screen.getByRole('dialog')).toBeInTheDocument();

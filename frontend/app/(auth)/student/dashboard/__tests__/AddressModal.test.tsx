@@ -79,8 +79,8 @@ describe('AddressModal custom labels', () => {
     expect(endpoint).toBe('/api/v1/addresses/me');
     expect(options.method).toBe('POST');
     const body = JSON.parse(options.body || '{}') as Record<string, unknown>;
-    expect(body.label).toBe('other');
-    expect(body.custom_label).toBe('Studio');
+    expect(body['label']).toBe('other');
+    expect(body['custom_label']).toBe('Studio');
 
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
   });

@@ -53,8 +53,8 @@ async function globalSetup(_config: FullConfig) {
   await ensureDir(storageDir);
 
   const token = await readEnvToken(projectRoot);
-  const baseURL = (process.env.BASE_URL || process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3100').trim() || 'http://localhost:3100';
-  const resolvedSessionCookie = resolveSessionCookieName(baseURL, process.env.SESSION_COOKIE_NAME ?? null);
+  const baseURL = (process.env['BASE_URL'] || process.env['PLAYWRIGHT_BASE_URL'] || 'http://localhost:3100').trim() || 'http://localhost:3100';
+  const resolvedSessionCookie = resolveSessionCookieName(baseURL, process.env['SESSION_COOKIE_NAME'] ?? null);
   process.stdout.write(`[E2E] storage cookie policy: base=${baseURL} name=${resolvedSessionCookie}\n`);
   if (baseURL.startsWith('http://') && resolvedSessionCookie.startsWith('__Host-')) {
     throw new Error(`Cannot persist __Host-* session cookie on HTTP base URL: ${baseURL}`);

@@ -31,7 +31,6 @@ describe('displayServiceName', () => {
     const result = displayServiceName(
       {
         service_catalog_id: 'XYZ789',
-        service_catalog_name: undefined,
       },
       hydrate,
     );
@@ -43,7 +42,6 @@ describe('displayServiceName', () => {
     const result = displayServiceName(
       {
         service_catalog_id: '',
-        service_catalog_name: undefined,
       },
       hydrate,
     );

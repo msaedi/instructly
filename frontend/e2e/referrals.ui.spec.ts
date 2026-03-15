@@ -77,7 +77,7 @@ test.beforeEach(async ({ page, context }) => {
 
 test.describe('Referral surfaces', () => {
   test('rewards page share + copy works and passes axe smoke', async ({ page }) => {
-    const base = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3100';
+    const base = process.env['PLAYWRIGHT_BASE_URL'] || 'http://localhost:3100';
 
     await page.route('**/api/v1/referrals/me', async (route) => {
       if (route.request().method() === 'OPTIONS') {
@@ -108,10 +108,10 @@ test.describe('Referral surfaces', () => {
       });
     });
 
-    await bypassGateIfPresent(page, base, process.env.GATE_CODE);
+    await bypassGateIfPresent(page, base, process.env['GATE_CODE']);
 
-    const studentEmail = process.env.E2E_STUDENT_EMAIL || 'john.smith@example.com';
-    const studentPassword = process.env.E2E_STUDENT_PASSWORD || 'TestPassword123!';
+    const studentEmail = process.env['E2E_STUDENT_EMAIL'] || 'john.smith@example.com';
+    const studentPassword = process.env['E2E_STUDENT_PASSWORD'] || 'TestPassword123!';
 
     await page.route('**/api/v1/auth/login', async (route) => {
       if (route.request().method() === 'POST') {
@@ -246,8 +246,8 @@ test.describe('Referral surfaces', () => {
   });
 
   test('referral landing page renders and passes axe smoke', async ({ page }) => {
-    const base = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3100';
-    await bypassGateIfPresent(page, base, process.env.GATE_CODE);
+    const base = process.env['PLAYWRIGHT_BASE_URL'] || 'http://localhost:3100';
+    await bypassGateIfPresent(page, base, process.env['GATE_CODE']);
 
     await page.goto(`${base}/referral`, { waitUntil: 'domcontentloaded' });
     await expect(
@@ -260,8 +260,8 @@ test.describe('Referral surfaces', () => {
   });
 
   test('checkout panel enforces eligibility states', async ({ page }) => {
-    const base = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3100';
-    await bypassGateIfPresent(page, base, process.env.GATE_CODE);
+    const base = process.env['PLAYWRIGHT_BASE_URL'] || 'http://localhost:3100';
+    await bypassGateIfPresent(page, base, process.env['GATE_CODE']);
 
     await page.goto(`${base}/checkout?orderId=ORDER-PROMO&subtotalCents=9000&promo=1`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByText('Referral credit can’t be combined with other promotions.').first()).toBeVisible();

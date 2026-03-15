@@ -29,24 +29,24 @@ jest.mock('@/hooks/queries/useLessonRoom', () => ({
 
 jest.mock('@/components/lessons/video/PreLessonWaiting', () => ({
   PreLessonWaiting: (props: Record<string, unknown>) => (
-    <div data-testid="pre-lesson-waiting" data-join-error={props.joinError ?? ''}>
-      <button onClick={props.onJoin as () => void}>Join Lesson</button>
-      {props.joinError ? <span role="alert">{String(props.joinError)}</span> : null}
+    <div data-testid="pre-lesson-waiting" data-join-error={props['joinError'] ?? ''}>
+      <button onClick={props['onJoin'] as () => void}>Join Lesson</button>
+      {props['joinError'] ? <span role="alert">{String(props['joinError'])}</span> : null}
     </div>
   ),
 }));
 
 jest.mock('@/components/lessons/video/ActiveLesson', () => ({
   ActiveLesson: (props: Record<string, unknown>) => (
-    <div data-testid="active-lesson" data-fallback-path={String(props.fallbackPath ?? '')}>
-      <button onClick={props.onLeave as () => void}>Leave</button>
+    <div data-testid="active-lesson" data-fallback-path={String(props['fallbackPath'] ?? '')}>
+      <button onClick={props['onLeave'] as () => void}>Leave</button>
     </div>
   ),
 }));
 
 jest.mock('@/components/lessons/video/NotJoinable', () => ({
   NotJoinable: (props: Record<string, unknown>) => (
-    <div data-testid="not-joinable" data-reason={props.reason} />
+    <div data-testid="not-joinable" data-reason={props['reason']} />
   ),
 }));
 

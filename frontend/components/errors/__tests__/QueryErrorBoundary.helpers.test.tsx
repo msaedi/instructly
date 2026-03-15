@@ -8,17 +8,17 @@ class TestErrorBoundary extends React.Component<
   { children: React.ReactNode; onError?: (error: Error) => void },
   { error: Error | null }
 > {
-  state: { error: Error | null } = { error: null };
+  override state: { error: Error | null } = { error: null };
 
   static getDerivedStateFromError(error: Error) {
     return { error };
   }
 
-  componentDidCatch(error: Error) {
+  override componentDidCatch(error: Error) {
     this.props.onError?.(error);
   }
 
-  render() {
+  override render() {
     const { error } = this.state;
     if (error) {
       return <div role="alert">{error.message}</div>;

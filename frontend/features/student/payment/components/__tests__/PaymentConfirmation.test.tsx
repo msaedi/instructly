@@ -283,10 +283,10 @@ let latestTimeSelectionModalProps:
           location_types: string[];
         }>;
       };
-      serviceId?: string;
-      initialDate?: unknown;
-      initialTimeHHMM24?: string | null;
-      initialDurationMinutes?: number | null;
+      serviceId: string | undefined;
+      initialDate: unknown;
+      initialTimeHHMM24: string | null | undefined;
+      initialDurationMinutes: number | null | undefined;
     }
   | null = null;
 
@@ -9056,9 +9056,6 @@ describe('PaymentConfirmation', () => {
         location: '123 Main St, New York, NY 10001',
         address: {
           fullAddress: '123 Main St, New York, NY 10001',
-          lat: undefined,
-          lng: undefined,
-          placeId: undefined,
         },
       };
 

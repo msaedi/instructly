@@ -2,7 +2,6 @@
  * Tests for usePermissions hook and PermissionGate component
  */
 
-import React from 'react';
 import { renderHook, render, screen } from '@testing-library/react';
 import { usePermissions } from '../usePermissions';
 import { PermissionGate, withPermission } from '../usePermissions.helpers';

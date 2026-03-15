@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, fireEvent, waitFor, screen, act } from '@testing-library/react';
 import PaymentConfirmation from '../PaymentConfirmation';
 import { PaymentMethod, PAYMENT_STATUS, type PaymentStatus } from '../../types';
@@ -230,7 +229,7 @@ describe('Lesson Location toggle', () => {
 
     await flushConflicts();
     await waitFor(() => expect(onBookingUpdate).toHaveBeenCalled());
-    await waitFor(() => expect(latestBooking.metadata?.modality).toBe('remote'));
+    await waitFor(() => expect(latestBooking.metadata?.['modality']).toBe('remote'));
     if (!screen.queryByText(/How do you want to take this lesson/i)) {
       fireEvent.click(screen.getByText('Lesson Location'));
     }
@@ -293,7 +292,7 @@ describe('Lesson Location toggle', () => {
     await waitFor(() => expect(screen.getByTestId('addr-state')).toHaveValue('NY'));
     await waitFor(() => expect(screen.getByTestId('addr-zip')).toHaveValue('11201'));
 
-    await waitFor(() => expect(latestBooking.metadata?.modality).toBe('in_person'));
+    await waitFor(() => expect(latestBooking.metadata?.['modality']).toBe('in_person'));
     await waitFor(() =>
       expect(latestBooking.location).toBe('225 Cherry St, Brooklyn, NY 11201'),
     );
@@ -406,7 +405,7 @@ describe('Lesson Location toggle', () => {
     const addressInput = displayInput ?? getLessonAddressInput();
     await waitFor(() => expect(addressInput).not.toBeDisabled());
     await waitFor(() => expect(document.activeElement).toBe(addressInput));
-    expect(latestBooking.metadata?.modality).toBe('in_person');
+    expect(latestBooking.metadata?.['modality']).toBe('in_person');
   });
 
   it('shows multiple teaching locations when instructor location is selected', async () => {

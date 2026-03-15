@@ -13,13 +13,11 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["."],
-  "exclude": [
-    "type-tests/**",
-    ".next/**",
-    "e2e/**",
-    "**/__tests__/**",
-    "playwright-report/**",
-    "coverage/**"
+  "include": [
+    ".",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    ".next-test/types/**/*.ts",
+    ".next-test/dev/types/**/*.ts"
   ]
 }

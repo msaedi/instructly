@@ -3,7 +3,6 @@
  * Tests real-world scenarios of how different user types see different UI elements
  */
 
-import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import type { User } from '@/features/shared/hooks/useAuth';

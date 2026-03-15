@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import Calendar from '../Calendar';
 
@@ -363,7 +362,6 @@ describe('Calendar', () => {
           currentMonth={new Date('Invalid Date')}
           availableDates={[]}
           selectedDate={null}
-          preSelectedDate={undefined}
         />
       );
 

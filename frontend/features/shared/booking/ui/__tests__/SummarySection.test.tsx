@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import SummarySection from '../SummarySection';
 import type { PricingPreviewResponse } from '@/lib/api/pricing';

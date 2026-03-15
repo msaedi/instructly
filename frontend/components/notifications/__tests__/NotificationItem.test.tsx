@@ -1,7 +1,6 @@
 /**
  * @jest-environment jsdom
  */
-import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { NotificationItem as NotificationItemType } from '@/features/shared/api/notifications';
@@ -79,7 +78,7 @@ describe('NotificationItem', () => {
     it('does not render body if not provided', () => {
       render(
         <NotificationItem
-          notification={createNotification({ body: undefined })}
+          notification={createNotification({ body: null })}
           onRead={mockOnRead}
           onDelete={mockOnDelete}
         />

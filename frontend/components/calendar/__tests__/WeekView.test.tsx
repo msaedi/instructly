@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, screen } from '@testing-library/react';
 import WeekView from '../WeekView';
 import type { WeekBits, WeekDateInfo, DayOfWeek, WeekTags } from '@/types/availability';

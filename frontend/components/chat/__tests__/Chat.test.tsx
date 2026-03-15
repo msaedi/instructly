@@ -1,4 +1,3 @@
-import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Chat } from '../Chat';
@@ -9,6 +8,7 @@ import {
   reloadChatView,
   triggerChatReload,
 } from '../Chat.helpers';
+import type { LoosePartial } from '@/test-utils/types';
 import type { ConversationMessage } from '@/types/conversation';
 
 const mockUseConversationMessages = jest.fn();
@@ -75,7 +75,18 @@ const defaultHistoryResponse = (messages: ConversationMessage[] = []) => ({
   error: null,
 });
 
-const buildMessage = (id: string, overrides: Partial<ConversationMessage> = {}): ConversationMessage => ({
+type OptionalHandler<T extends (...args: never[]) => unknown> = T | undefined;
+
+type ChatSseHandlers = {
+  onMessage: OptionalHandler<(message: object, isMine: boolean) => void>;
+  onTyping: OptionalHandler<(userId: string, userName: string, isTyping: boolean) => void>;
+  onReadReceipt: OptionalHandler<(messageIds: string[], readerId: string) => void>;
+  onReaction: OptionalHandler<(messageId: string, emoji: string, action: string, userId: string) => void>;
+  onMessageEdited: OptionalHandler<(messageId: string, content: string, editorId: string) => void>;
+  onMessageDeleted: OptionalHandler<(messageId: string, deletedBy: string) => void>;
+};
+
+const buildMessage = (id: string, overrides: LoosePartial<ConversationMessage> = {}): ConversationMessage => ({
   id,
   conversation_id: baseProps.conversationId,
   content: overrides.content ?? 'Hello!',
@@ -657,6 +668,7 @@ describe('Chat SSE events', () => {
     sseHandlers = {};
 
     mockSubscribe = jest.fn((conversationId: string, handlers: Record<string, (...args: unknown[]) => void>) => {
+      void conversationId;
       sseHandlers = handlers;
       return jest.fn(); // unsubscribe
     });
@@ -705,14 +717,14 @@ describe('Chat SSE events', () => {
 
     // Simulate incoming message via SSE
     await waitFor(() => {
-      expect(sseHandlers.onMessage).toBeDefined();
+      expect(sseHandlers['onMessage']).toBeDefined();
     });
 
     fireEvent.click(document.body); // Trigger any pending effects
 
     // Note: Full SSE integration requires more complex setup
     // This test verifies the handlers are registered correctly
-    expect(sseHandlers.onMessage).toBeDefined();
+    expect(sseHandlers['onMessage']).toBeDefined();
   });
 });
 
@@ -833,19 +845,19 @@ describe('Chat scroll behavior', () => {
 describe('Chat SSE handler callbacks', () => {
   let queryClient: QueryClient;
   let mockSubscribe: jest.Mock;
-  let sseHandlers: {
-    onMessage?: (message: object, isMine: boolean) => void;
-    onTyping?: (userId: string, userName: string, isTyping: boolean) => void;
-    onReadReceipt?: (messageIds: string[], readerId: string) => void;
-    onReaction?: (messageId: string, emoji: string, action: string, userId: string) => void;
-    onMessageEdited?: (messageId: string, content: string, editorId: string) => void;
-    onMessageDeleted?: (messageId: string, deletedBy: string) => void;
-  };
+  let sseHandlers: ChatSseHandlers;
 
   beforeEach(() => {
     jest.clearAllMocks();
     queryClient = new QueryClient();
-    sseHandlers = {};
+    sseHandlers = {
+      onMessage: undefined,
+      onTyping: undefined,
+      onReadReceipt: undefined,
+      onReaction: undefined,
+      onMessageEdited: undefined,
+      onMessageDeleted: undefined,
+    };
 
     mockSubscribe = jest.fn((_conversationId: string, handlers: typeof sseHandlers) => {
       sseHandlers = handlers;
@@ -1228,19 +1240,19 @@ describe('Chat send button', () => {
 describe('Chat SSE state updates', () => {
   let queryClient: QueryClient;
   let mockSubscribe: jest.Mock;
-  let sseHandlers: {
-    onMessage?: (message: object, isMine: boolean) => void;
-    onTyping?: (userId: string, userName: string, isTyping: boolean) => void;
-    onReadReceipt?: (messageIds: string[], readerId: string) => void;
-    onReaction?: (messageId: string, emoji: string, action: string, userId: string) => void;
-    onMessageEdited?: (messageId: string, content: string, editorId: string) => void;
-    onMessageDeleted?: (messageId: string, deletedBy: string) => void;
-  };
+  let sseHandlers: ChatSseHandlers;
 
   beforeEach(() => {
     jest.clearAllMocks();
     queryClient = new QueryClient();
-    sseHandlers = {};
+    sseHandlers = {
+      onMessage: undefined,
+      onTyping: undefined,
+      onReadReceipt: undefined,
+      onReaction: undefined,
+      onMessageEdited: undefined,
+      onMessageDeleted: undefined,
+    };
 
     mockSubscribe = jest.fn((_conversationId: string, handlers: typeof sseHandlers) => {
       sseHandlers = handlers;
@@ -1554,13 +1566,13 @@ describe('Chat reaction display with deltas', () => {
   let queryClient: QueryClient;
   let mockSubscribe: jest.Mock;
   let sseHandlers: {
-    onReaction?: (messageId: string, emoji: string, action: string, userId: string) => void;
+    onReaction: OptionalHandler<(messageId: string, emoji: string, action: string, userId: string) => void>;
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
     queryClient = new QueryClient();
-    sseHandlers = {};
+    sseHandlers = { onReaction: undefined };
 
     mockSubscribe = jest.fn((_conversationId: string, handlers: typeof sseHandlers) => {
       sseHandlers = handlers;
@@ -1860,14 +1872,14 @@ describe('Chat local reaction state handling', () => {
 describe('Chat edit message not in realtime', () => {
   let queryClient: QueryClient;
   let sseHandlers: {
-    onMessageEdited?: (messageId: string, content: string, editorId: string) => void;
-    onMessageDeleted?: (messageId: string, deletedBy: string) => void;
+    onMessageEdited: OptionalHandler<(messageId: string, content: string, editorId: string) => void>;
+    onMessageDeleted: OptionalHandler<(messageId: string, deletedBy: string) => void>;
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
     queryClient = new QueryClient();
-    sseHandlers = {};
+    sseHandlers = { onMessageEdited: undefined, onMessageDeleted: undefined };
 
     const mockSubscribe = jest.fn((_conversationId: string, handlers: typeof sseHandlers) => {
       sseHandlers = handlers;
@@ -1990,7 +2002,7 @@ describe('Chat send message success path', () => {
 
   it('handles send message when mutation returns existing message ID (updates existing)', async () => {
     // First, add a message to realtime via SSE
-    const sseHandlers: { onMessage?: (message: object, isMine: boolean) => void } = {};
+    const sseHandlers: { onMessage: OptionalHandler<(message: object, isMine: boolean) => void> } = { onMessage: undefined };
     const mockSubscribe = jest.fn((_conversationId: string, handlers: typeof sseHandlers) => {
       sseHandlers.onMessage = handlers.onMessage;
       return jest.fn();
@@ -2119,7 +2131,9 @@ describe('Chat coverage improvement tests', () => {
   });
 
   it('handles SSE onMessage that updates an existing message with delivered_at', async () => {
-    const sseHandlers: { onMessage?: (message: object, isMine: boolean) => void } = {};
+    const sseHandlers: { onMessage: OptionalHandler<(message: object, isMine: boolean) => void> } = {
+      onMessage: undefined,
+    };
     const mockSubscribe = jest.fn((_conversationId: string, handlers: typeof sseHandlers) => {
       sseHandlers.onMessage = handlers.onMessage;
       return jest.fn();
@@ -2389,7 +2403,7 @@ describe('Chat coverage improvement tests', () => {
   });
 
   it('handles SSE onReaction for adding a new reaction', async () => {
-    const sseHandlers: { onReaction?: (reaction: object) => void } = {};
+    const sseHandlers: { onReaction: OptionalHandler<(reaction: object) => void> } = { onReaction: undefined };
     const mockSubscribe = jest.fn((_conversationId: string, handlers: typeof sseHandlers) => {
       sseHandlers.onReaction = handlers.onReaction;
       return jest.fn();
@@ -2432,7 +2446,9 @@ describe('Chat coverage improvement tests', () => {
   });
 
   it('handles SSE onReaction for removing a reaction', async () => {
-    const sseHandlers: { onReaction?: (reaction: object) => void } = {};
+    const sseHandlers: { onReaction: OptionalHandler<(reaction: object) => void> } = {
+      onReaction: undefined,
+    };
     const mockSubscribe = jest.fn((_conversationId: string, handlers: typeof sseHandlers) => {
       sseHandlers.onReaction = handlers.onReaction;
       return jest.fn();
@@ -2477,7 +2493,7 @@ describe('Chat coverage improvement tests', () => {
   });
 
   it('handles SSE onMessageEdited event', async () => {
-    const sseHandlers: { onMessageEdited?: (data: object) => void } = {};
+    const sseHandlers: { onMessageEdited: OptionalHandler<(data: object) => void> } = { onMessageEdited: undefined };
     const mockSubscribe = jest.fn((_conversationId: string, handlers: typeof sseHandlers) => {
       sseHandlers.onMessageEdited = handlers.onMessageEdited;
       return jest.fn();
@@ -2518,7 +2534,7 @@ describe('Chat coverage improvement tests', () => {
   });
 
   it('handles SSE onMessageDeleted event', async () => {
-    const sseHandlers: { onMessageDeleted?: (data: object) => void } = {};
+    const sseHandlers: { onMessageDeleted: OptionalHandler<(data: object) => void> } = { onMessageDeleted: undefined };
     const mockSubscribe = jest.fn((_conversationId: string, handlers: typeof sseHandlers) => {
       sseHandlers.onMessageDeleted = handlers.onMessageDeleted;
       return jest.fn();
@@ -2557,7 +2573,9 @@ describe('Chat coverage improvement tests', () => {
   });
 
   it('returns prev state when handleEditMessage is called for non-existent message', async () => {
-    const sseHandlers: { onMessageEdited?: (data: object) => void } = {};
+    const sseHandlers: { onMessageEdited: OptionalHandler<(data: object) => void> } = {
+      onMessageEdited: undefined,
+    };
     const mockSubscribe = jest.fn((_conversationId: string, handlers: typeof sseHandlers) => {
       sseHandlers.onMessageEdited = handlers.onMessageEdited;
       return jest.fn();
@@ -2592,7 +2610,9 @@ describe('Chat coverage improvement tests', () => {
   });
 
   it('returns prev state when handleDeleteMessage is called for non-existent message', async () => {
-    const sseHandlers: { onMessageDeleted?: (data: object) => void } = {};
+    const sseHandlers: { onMessageDeleted: OptionalHandler<(data: object) => void> } = {
+      onMessageDeleted: undefined,
+    };
     const mockSubscribe = jest.fn((_conversationId: string, handlers: typeof sseHandlers) => {
       sseHandlers.onMessageDeleted = handlers.onMessageDeleted;
       return jest.fn();
@@ -2625,7 +2645,7 @@ describe('Chat coverage improvement tests', () => {
   });
 
   it('handles SSE onReadReceipt event', async () => {
-    const sseHandlers: { onReadReceipt?: (data: object) => void } = {};
+    const sseHandlers: { onReadReceipt: OptionalHandler<(data: object) => void> } = { onReadReceipt: undefined };
     const mockSubscribe = jest.fn((_conversationId: string, handlers: typeof sseHandlers) => {
       sseHandlers.onReadReceipt = handlers.onReadReceipt;
       return jest.fn();
@@ -2735,12 +2755,12 @@ describe('Chat read timestamp formatting (line 670)', () => {
 
 describe('Chat reaction delta handling (lines 679-680, 683)', () => {
   let queryClient: QueryClient;
-  let sseHandlers: { onReaction?: (data: object) => void };
+  let sseHandlers: { onReaction: OptionalHandler<(data: object) => void> };
 
   beforeEach(() => {
     jest.clearAllMocks();
     queryClient = new QueryClient();
-    sseHandlers = {};
+    sseHandlers = { onReaction: undefined };
 
     const mockSubscribe = jest.fn((_conversationId: string, handlers: typeof sseHandlers) => {
       sseHandlers.onReaction = handlers.onReaction;
@@ -3074,12 +3094,12 @@ describe('Chat message editing and deletion callbacks (lines 858-884)', () => {
 
 describe('Chat typing indicator', () => {
   let queryClient: QueryClient;
-  let sseHandlers: { onTyping?: (data: object) => void };
+  let sseHandlers: { onTyping: OptionalHandler<(data: object) => void> };
 
   beforeEach(() => {
     jest.clearAllMocks();
     queryClient = new QueryClient();
-    sseHandlers = {};
+    sseHandlers = { onTyping: undefined };
 
     const mockSubscribe = jest.fn((_conversationId: string, handlers: typeof sseHandlers) => {
       sseHandlers.onTyping = handlers.onTyping;
@@ -3765,7 +3785,8 @@ describe('Chat send without bookingId', () => {
       isPending: false,
     });
 
-    const propsWithoutBooking = { ...baseProps, bookingId: undefined };
+    const propsWithoutBooking = { ...baseProps };
+    delete (propsWithoutBooking as { bookingId?: string }).bookingId;
 
     const { container } = render(
       <QueryClientProvider client={queryClient}>
@@ -3871,7 +3892,9 @@ describe('Chat inline onEdit callback (lines 846-852)', () => {
 
     // Add a message via SSE so it exists in realtime, then ensure the onEdit guard
     // cannot find a different message ID
-    const sseHandlers: { onMessage?: (msg: object, isMine: boolean) => void } = {};
+    const sseHandlers: { onMessage: OptionalHandler<(msg: object, isMine: boolean) => void> } = {
+      onMessage: undefined,
+    };
     const mockSubscribe = jest.fn((_conversationId: string, handlers: typeof sseHandlers) => {
       sseHandlers.onMessage = handlers.onMessage;
       return jest.fn();
@@ -4339,12 +4362,12 @@ describe('Chat canEditMessage enforcement', () => {
 
 describe('Chat SSE message deduplication', () => {
   let queryClient: QueryClient;
-  let sseHandlers: { onMessage?: (msg: object, isMine: boolean) => void };
+  let sseHandlers: { onMessage: OptionalHandler<(msg: object, isMine: boolean) => void> };
 
   beforeEach(() => {
     jest.clearAllMocks();
     queryClient = new QueryClient();
-    sseHandlers = {};
+    sseHandlers = { onMessage: undefined };
 
     const mockSubscribe = jest.fn((_conversationId: string, handlers: typeof sseHandlers) => {
       sseHandlers.onMessage = handlers.onMessage;
@@ -4688,7 +4711,9 @@ describe('Chat onDelete for realtime messages (lines 857-866)', () => {
     mockUseDeleteMessage.mockReturnValue({ mutateAsync: deleteMutateAsync });
 
     // Capture SSE handlers
-    const sseHandlers: { onMessage?: (msg: object, isMine: boolean) => void } = {};
+    const sseHandlers: { onMessage: OptionalHandler<(msg: object, isMine: boolean) => void> } = {
+      onMessage: undefined,
+    };
     const mockSubscribe = jest.fn((_conversationId: string, handlers: typeof sseHandlers) => {
       sseHandlers.onMessage = handlers.onMessage;
       return jest.fn();
@@ -5481,7 +5506,7 @@ describe('Chat uncovered branch coverage', () => {
       is_deleted: false,
       delivered_at: null,
       read_by: [],
-      reactions: undefined as unknown as ConversationMessage['reactions'],
+      ...{},
     };
 
     mockUseConversationMessages.mockImplementation(() => defaultHistoryResponse([msgWithUndefinedReactions]));
@@ -5500,14 +5525,14 @@ describe('Chat uncovered branch coverage', () => {
 describe('Chat typing indicator display (line 905)', () => {
   let queryClient: QueryClient;
   let sseHandlers: {
-    onTyping?: (userId: string, userName: string, isTyping: boolean) => void;
+    onTyping: OptionalHandler<(userId: string, userName: string, isTyping: boolean) => void>;
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
     queryClient = new QueryClient();
-    sseHandlers = {};
+    sseHandlers = { onTyping: undefined };
 
     const mockSubscribe = jest.fn((_conversationId: string, handlers: typeof sseHandlers) => {
       sseHandlers = handlers;

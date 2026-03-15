@@ -514,8 +514,11 @@ describe('useWeekSchedule', () => {
     it('syncs with selectedWeekStart prop', async () => {
       const selectedDate = new Date('2030-02-04');
       const { result, rerender } = renderHook(
-        ({ selectedWeekStart }) => useWeekSchedule({ selectedWeekStart }),
-        { initialProps: { selectedWeekStart: undefined as Date | undefined } }
+        ({ selectedWeekStart }: { selectedWeekStart?: Date }) =>
+          useWeekSchedule(
+            selectedWeekStart === undefined ? {} : { selectedWeekStart }
+          ),
+        { initialProps: {} }
       );
 
       await act(async () => {

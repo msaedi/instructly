@@ -35,7 +35,11 @@ jest.mock('@/hooks/queries/usePaymentMethods', () => ({
 }));
 
 let latestDeleteModalProps:
-  | { isOpen: boolean; onConfirm: () => Promise<void>; paymentMethod?: { id?: string } }
+  | {
+      isOpen: boolean;
+      onConfirm: () => Promise<void>;
+      paymentMethod: { id?: string } | undefined;
+    }
   | null = null;
 
 jest.mock('@/components/modals/DeletePaymentMethodModal', () => ({

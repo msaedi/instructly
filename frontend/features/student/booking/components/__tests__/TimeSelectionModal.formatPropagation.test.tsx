@@ -461,7 +461,7 @@ describe('TimeSelectionModal format propagation', () => {
       hourlyRate?: number;
     };
 
-    expect(stored.metadata?.location_type).toBe('student_location');
+    expect(stored.metadata?.['location_type']).toBe('student_location');
     expect(stored.hourlyRate).toBe(95);
     expect(onClose).toHaveBeenCalled();
     await waitFor(() => {

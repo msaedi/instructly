@@ -278,9 +278,14 @@ describe('useInstructorBookings', () => {
 
   it('omits excludeFutureConfirmed from params when undefined', () => {
     listMock.mockReturnValue(baseResult);
+    const excludeFutureConfirmed = undefined;
 
     renderHook(() =>
-      useInstructorBookings({ status: 'PENDING', upcoming: true, excludeFutureConfirmed: undefined })
+      useInstructorBookings({
+        status: 'PENDING',
+        upcoming: true,
+        ...(excludeFutureConfirmed === undefined ? {} : { excludeFutureConfirmed }),
+      })
     );
 
     const listParams = listMock.mock.calls[0]?.[0] as Record<string, unknown> | undefined;

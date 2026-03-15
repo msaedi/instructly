@@ -1,4 +1,3 @@
-import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -57,7 +56,7 @@ jest.mock('next/dynamic', () => (loadFn: () => Promise<unknown>) => {
       return <div data-testid="mock-week-view" />;
     }
     if ('open' in props && 'onOverwrite' in props) {
-      return props.open ? <div data-testid="mock-conflict-modal" role="dialog" /> : null;
+      return props['open'] ? <div data-testid="mock-conflict-modal" role="dialog" /> : null;
     }
     return <div data-testid="mock-dynamic-component" />;
   };

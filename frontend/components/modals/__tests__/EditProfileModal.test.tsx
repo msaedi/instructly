@@ -6666,8 +6666,6 @@ describe('EditProfileModal', () => {
         <EditProfileModal
           {...defaultProps}
           variant="areas"
-          preferredTeaching={undefined}
-          preferredPublic={undefined}
           selectedServiceAreas={[]}
         />,
         { wrapper: createWrapper() }

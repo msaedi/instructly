@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { usePricingFloors } from '@/lib/pricing/usePricingFloors';
 import { evaluatePriceFloorViolations, formatCents } from '@/lib/pricing/priceFloors';
 

@@ -81,7 +81,7 @@ describe('CancelBookingModal', () => {
   });
 
   it('displays unknown instructor when instructor is missing', () => {
-    const bookingWithoutInstructor = { ...mockBooking, instructor: undefined };
+    const { instructor: _instructor, ...bookingWithoutInstructor } = mockBooking;
     render(
       <CancelBookingModal {...defaultProps} booking={bookingWithoutInstructor} />
     );

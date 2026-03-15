@@ -69,8 +69,8 @@ describe('MoreFiltersModal', () => {
 
   it('skips taxonomy debug logging in production mode', () => {
     const env = process.env as Record<string, string | undefined>;
-    const originalEnv = env.NODE_ENV;
-    env.NODE_ENV = 'production';
+    const originalEnv = env['NODE_ENV'];
+    env['NODE_ENV'] = 'production';
 
     try {
       render(
@@ -85,7 +85,7 @@ describe('MoreFiltersModal', () => {
 
       expect(screen.getByRole('dialog', { name: /more filters/i })).toBeInTheDocument();
     } finally {
-      env.NODE_ENV = originalEnv;
+      env['NODE_ENV'] = originalEnv;
     }
   });
 

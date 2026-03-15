@@ -95,7 +95,7 @@ describe('creditStorage helpers', () => {
   it('no-ops when window is undefined', () => {
     const originalWindow = globalThis.window;
 
-    (globalThis as { window?: Window }).window = undefined;
+    (globalThis as { window: Window | undefined }).window = undefined;
 
     expect(readStoredCreditDecision('insta:credits:last:none')).toBeNull();
     expect(() =>
@@ -106,7 +106,7 @@ describe('creditStorage helpers', () => {
     ).not.toThrow();
     expect(() => removeStoredCreditDecision('insta:credits:last:none')).not.toThrow();
 
-    (globalThis as { window?: Window }).window = originalWindow;
+    (globalThis as { window: Window | undefined }).window = originalWindow;
   });
 
   it('survives sessionStorage.getItem throwing (quota exceeded / disabled)', () => {

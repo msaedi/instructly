@@ -1,4 +1,3 @@
-import React from 'react';
 import { screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { ApiProblemError } from '@/lib/api/fetch';
 import { fetchPricingPreview, fetchPricingPreviewQuote } from '@/lib/api/pricing';

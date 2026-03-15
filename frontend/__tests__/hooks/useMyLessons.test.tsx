@@ -518,6 +518,7 @@ describe('useMyLessons hooks', () => {
 
     it('calls onSuccess callback after completion', async () => {
       const mockMutate = jest.fn((params, options) => {
+        void params;
         // Simulate async completion
         Promise.resolve().then(() => {
           options?.onSuccess?.({ id: '01ABCDEF123456789012345678' });

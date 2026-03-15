@@ -341,7 +341,7 @@ describe('InstructorInfo', () => {
 
   describe('edge cases and bug hunting', () => {
     it('handles instructor with missing first_name', () => {
-      const noFirstName = { ...mockInstructor, first_name: undefined };
+      const { first_name: _firstName, ...noFirstName } = mockInstructor;
 
       renderWithQueryClient(<InstructorInfo instructor={noFirstName} onChat={mockOnChat} />);
 
@@ -350,7 +350,7 @@ describe('InstructorInfo', () => {
     });
 
     it('handles instructor with missing last_initial', () => {
-      const noLastInitial = { ...mockInstructor, last_initial: undefined };
+      const { last_initial: _lastInitial, ...noLastInitial } = mockInstructor;
 
       renderWithQueryClient(<InstructorInfo instructor={noLastInitial} onChat={mockOnChat} />);
 

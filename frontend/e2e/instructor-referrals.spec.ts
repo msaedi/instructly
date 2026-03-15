@@ -25,7 +25,7 @@ test.beforeAll(({}, workerInfo) => {
   );
 });
 
-test.skip(Boolean(process.env.CI) && !process.env.CI_LOCAL_E2E, 'local-only smoke; opt-in via CI_LOCAL_E2E=1');
+test.skip(Boolean(process.env.CI) && !process.env['CI_LOCAL_E2E'], 'local-only smoke; opt-in via CI_LOCAL_E2E=1');
 
 test.beforeEach(async ({ page, context }) => {
   await context.addInitScript(() => {
@@ -90,7 +90,7 @@ test.beforeEach(async ({ page, context }) => {
   await mockDashboardApis(page);
 });
 
-const DEFAULT_BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3100';
+const DEFAULT_BASE_URL = process.env['PLAYWRIGHT_BASE_URL'] || 'http://localhost:3100';
 
 const instructorUser = {
   id: 'inst-user-1',
@@ -263,7 +263,7 @@ async function mockDashboardApis(
 
 test.describe('Instructor Referrals', () => {
   test('shows referrals panel with sidebar and stats', async ({ page }) => {
-    await bypassGateIfPresent(page, DEFAULT_BASE_URL, process.env.GATE_CODE);
+    await bypassGateIfPresent(page, DEFAULT_BASE_URL, process.env['GATE_CODE']);
     await page.goto(`${DEFAULT_BASE_URL}/instructor/dashboard?panel=referrals`);
 
     await expect(page.getByRole('heading', { name: 'Referrals' })).toBeVisible();
@@ -286,7 +286,7 @@ test.describe('Instructor Referrals', () => {
   });
 
   test('copy button updates state and clipboard', async ({ page }) => {
-    await bypassGateIfPresent(page, DEFAULT_BASE_URL, process.env.GATE_CODE);
+    await bypassGateIfPresent(page, DEFAULT_BASE_URL, process.env['GATE_CODE']);
     await page.goto(`${DEFAULT_BASE_URL}/instructor/dashboard?panel=referrals`);
 
     const copyButton = page.getByRole('button', { name: /copy link/i });
@@ -305,7 +305,7 @@ test.describe('Instructor Referral Popup', () => {
       localStorage.removeItem('instructor_referral_popup_dismissed');
     });
 
-    await bypassGateIfPresent(page, DEFAULT_BASE_URL, process.env.GATE_CODE);
+    await bypassGateIfPresent(page, DEFAULT_BASE_URL, process.env['GATE_CODE']);
     await page.goto(`${DEFAULT_BASE_URL}/instructor/dashboard`);
 
     const popup = page.getByRole('dialog');
@@ -326,7 +326,7 @@ test.describe('Instructor Referral Popup', () => {
       localStorage.removeItem('instructor_referral_popup_dismissed');
     });
 
-    await bypassGateIfPresent(page, DEFAULT_BASE_URL, process.env.GATE_CODE);
+    await bypassGateIfPresent(page, DEFAULT_BASE_URL, process.env['GATE_CODE']);
     await page.goto(`${DEFAULT_BASE_URL}/instructor/dashboard`);
 
     const popup = page.getByRole('dialog');

@@ -1,6 +1,6 @@
-import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { BookingCard } from '../BookingCard';
+import type { LoosePartial } from '@/test-utils/types';
 import type { Booking, BookingStatus } from '@/types/booking';
 
 jest.mock('@/lib/logger', () => ({
@@ -21,7 +21,7 @@ jest.mock('@/lib/timezone/formatBookingTime', () => ({
   formatBookingTimeRange: jest.fn(() => '10:00 AM - 11:00 AM'),
 }));
 
-const createMockBooking = (overrides: Partial<Booking> = {}): Booking => ({
+const createMockBooking = (overrides: LoosePartial<Booking> = {}): Booking => ({
   id: '01K2GY3VEVJWKZDVH5HMNXEVRD',
   student_id: '01K2GY3VEVJWKZDVH5STUDENT1',
   instructor_id: '01K2GY3VEVJWKZDVH5INSTRUC1',
@@ -47,7 +47,7 @@ const createMockBooking = (overrides: Partial<Booking> = {}): Booking => ({
   },
   created_at: '2024-01-10T10:00:00Z',
   updated_at: '2024-01-10T10:00:00Z',
-  ...overrides,
+  ...(overrides as Partial<Booking>),
 });
 
 describe('BookingCard', () => {

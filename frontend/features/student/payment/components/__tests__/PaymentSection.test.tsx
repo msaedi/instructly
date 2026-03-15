@@ -30,7 +30,7 @@ jest.mock('../../hooks/usePaymentFlow', () => ({
 jest.mock('../../hooks/usePricingPreview', () => ({
   usePricingPreviewController: jest.fn(),
   PricingPreviewContext: {
-    Provider: ({ children, _value }: { children: ReactNode; _value?: unknown }) => (
+    Provider: ({ children }: { children: ReactNode; _value?: unknown }) => (
       <div data-testid="pricing-preview-context">{children}</div>
     ),
   },
@@ -82,11 +82,16 @@ jest.mock('../PaymentMethodSelection', () => {
 
 let latestPaymentConfirmationProps:
   | {
-      booking: BookingPayment & { metadata?: Record<string, unknown> };
+      booking: BookingWithMetadata;
       paymentMethod: PaymentMethod;
-      creditEarliestExpiry?: string | null;
+      creditEarliestExpiry?: string | null | undefined;
     }
   | null = null;
+
+type BookingWithMetadata = BookingPayment & {
+  metadata?: Record<string, unknown>;
+  serviceId?: string;
+};
 
 let latestPaymentProcessingProps:
   | {
@@ -116,9 +121,9 @@ jest.mock('../PaymentConfirmation', () => {
     onCreditsAccordionToggle,
     onClearFloorViolation,
   }: {
-    booking: BookingPayment & { metadata?: Record<string, unknown> };
+    booking: BookingWithMetadata;
     paymentMethod: PaymentMethod;
-    creditEarliestExpiry?: string | null;
+    creditEarliestExpiry?: string | null | undefined;
     onConfirm: () => void;
     onBack: () => void;
     onCreditToggle?: () => void;
@@ -255,7 +260,7 @@ const createWrapper = () => {
   return Wrapper;
 };
 
-const mockBookingData: BookingPayment & { metadata?: Record<string, unknown> } = {
+const mockBookingData: BookingWithMetadata = {
   bookingId: 'booking-123',
   instructorId: 'instructor-456',
   instructorName: 'John D.',
@@ -678,10 +683,7 @@ describe('PaymentSection', () => {
 
   describe('booking data', () => {
     it('handles booking data without metadata', async () => {
-      const bookingWithoutMetadata = {
-        ...mockBookingData,
-        metadata: undefined,
-      };
+      const { metadata: _metadata, ...bookingWithoutMetadata } = mockBookingData;
 
       render(
         <PaymentSection {...defaultProps} bookingData={bookingWithoutMetadata} />,
@@ -694,10 +696,10 @@ describe('PaymentSection', () => {
     });
 
     it('handles booking data with serviceId prop', async () => {
+      const { metadata: _metadata, ...bookingWithServiceIdBase } = mockBookingData;
       const bookingWithServiceId = {
-        ...mockBookingData,
+        ...bookingWithServiceIdBase,
         serviceId: 'service-direct',
-        metadata: undefined,
       };
 
       render(
@@ -4350,10 +4352,7 @@ describe('PaymentSection', () => {
 
   describe('booking data with null metadata', () => {
     it('handles booking without metadata property', async () => {
-      const noMetaBooking = {
-        ...mockBookingData,
-        metadata: undefined,
-      };
+      const { metadata: _metadata, ...noMetaBooking } = mockBookingData;
 
       render(
         <PaymentSection {...defaultProps} bookingData={noMetaBooking} />,
@@ -4368,9 +4367,9 @@ describe('PaymentSection', () => {
 
   describe('booking data without serviceId', () => {
     it('handles booking with no serviceId in metadata or props', async () => {
+      const { serviceId: _serviceId, ...noServiceIdBookingBase } = mockBookingData;
       const noServiceIdBooking = {
-        ...mockBookingData,
-        serviceId: undefined,
+        ...noServiceIdBookingBase,
         metadata: {},
       };
 
@@ -4647,9 +4646,9 @@ describe('PaymentSection', () => {
 
     it('falls back to sessionStorage serviceId when metadata and bookingData.serviceId are missing', async () => {
       sessionStorage.setItem('serviceId', 'session-svc-001');
+      const { serviceId: _serviceId, ...bookingNoSvcBase } = mockBookingData;
       const bookingNoSvc = {
-        ...mockBookingData,
-        serviceId: undefined,
+        ...bookingNoSvcBase,
         metadata: {},
       };
 
@@ -4665,9 +4664,9 @@ describe('PaymentSection', () => {
 
     it('ignores empty string in sessionStorage serviceId', async () => {
       sessionStorage.setItem('serviceId', '   ');
+      const { serviceId: _serviceId, ...bookingNoSvcBase } = mockBookingData;
       const bookingNoSvc = {
-        ...mockBookingData,
-        serviceId: undefined,
+        ...bookingNoSvcBase,
         metadata: {},
       };
 
@@ -10610,10 +10609,10 @@ describe('PaymentSection', () => {
       });
 
       // No serviceId → quoteSelection will be null
+      const { serviceId: _serviceId, ...noServiceBookingBase } = mockBookingData;
       const noServiceBooking = {
-        ...mockBookingData,
+        ...noServiceBookingBase,
         metadata: {},
-        serviceId: undefined,
       };
       // Clear sessionStorage serviceId to ensure fallback fails
       window.sessionStorage.removeItem('serviceId');

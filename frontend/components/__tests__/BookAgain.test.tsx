@@ -426,7 +426,6 @@ describe('BookAgain', () => {
       const bookingsWithoutInstructor = [
         {
           id: '01K2GY3VEVJWKZDVH5BOOKING1',
-          instructor: undefined,
           service_name: 'Piano Lesson',
           instructor_service_id: '01K2GY3VEVJWKZDVH5SERVICE1',
           hourly_rate: 60,

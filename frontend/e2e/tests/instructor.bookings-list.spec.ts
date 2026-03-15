@@ -98,7 +98,7 @@ test.describe('[instructor] bookings list', () => {
       await route.continue();
     });
 
-    const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3100';
+    const baseURL = process.env['PLAYWRIGHT_BASE_URL'] || 'http://localhost:3100';
     await page.goto(`${baseURL}/instructor/bookings`);
 
     await upcomingRequest;

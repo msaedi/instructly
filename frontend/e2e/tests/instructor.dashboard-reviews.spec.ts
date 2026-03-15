@@ -109,7 +109,7 @@ async function mockDashboardApis(page: Page) {
 test.describe('[instructor] dashboard reviews snapshot', () => {
   test('renders average rating and count', async ({ page }) => {
     await mockDashboardApis(page);
-    const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3100';
+    const baseURL = process.env['PLAYWRIGHT_BASE_URL'] || 'http://localhost:3100';
 
     await page.goto(`${baseURL}/instructor/dashboard`);
 
