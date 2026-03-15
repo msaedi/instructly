@@ -98,7 +98,7 @@ When reporting task completion, include:
 ### Frontend
 - Tests: [count] passed across [count] suites
 - Lint: [clean / N errors]
-- TypeScript strict: [0 errors / N errors]
+- TypeScript strict-all: [0 errors / N errors]
 - Type coverage: [percentage] ([identifiers]/[total])
 - npm audit: [0 vulnerabilities / details]
 
