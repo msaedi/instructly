@@ -63,6 +63,8 @@ DEFAULT_BOOKING_RULES_CONFIG: Dict[str, Any] = BookingRulesConfig(
 class ConfigService(BaseService):
     """Business logic for reading/writing platform configuration."""
 
+    _PRICING_CACHE_TTL_SECONDS: ClassVar[float] = 60.0
+    _pricing_cache: ClassVar[tuple[Dict[str, Any], datetime | None, float] | None] = None
     _BOOKING_RULES_CACHE_TTL_SECONDS: ClassVar[float] = 60.0
     _booking_rules_cache: ClassVar[tuple[Dict[str, Any], datetime | None, float] | None] = None
 
@@ -74,6 +76,11 @@ class ConfigService(BaseService):
     def _clear_booking_rules_cache(cls) -> None:
         """Clear the in-memory booking rules cache."""
         cls._booking_rules_cache = None
+
+    @classmethod
+    def _clear_pricing_cache(cls) -> None:
+        """Clear the in-memory pricing cache."""
+        cls._pricing_cache = None
 
     @staticmethod
     def _get_booking_rules_int(config: Dict[str, Any], key: str) -> int:
@@ -123,10 +130,21 @@ class ConfigService(BaseService):
 
     @BaseService.measure_operation("get_pricing_config")
     def get_pricing_config(self) -> Tuple[Dict[str, Any], datetime | None]:
+        cached = type(self)._pricing_cache
+        fetched_at = time.monotonic()
+        if cached and fetched_at - cached[2] < type(self)._PRICING_CACHE_TTL_SECONDS:
+            return deepcopy(cached[0]), cached[1]
+
         record = self.repo.get_by_key("pricing")
         if record is None or not record.value_json:
-            return deepcopy(DEFAULT_PRICING_CONFIG), None
-        return deepcopy(record.value_json), record.updated_at
+            resolved = deepcopy(DEFAULT_PRICING_CONFIG)
+            updated_at = None
+        else:
+            resolved = PricingConfig(**record.value_json).model_dump()
+            updated_at = record.updated_at
+
+        type(self)._pricing_cache = (deepcopy(resolved), updated_at, fetched_at)
+        return deepcopy(resolved), updated_at
 
     @BaseService.measure_operation("get_booking_rules_config")
     def get_booking_rules_config(self) -> Tuple[Dict[str, Any], datetime | None]:
@@ -152,7 +170,9 @@ class ConfigService(BaseService):
         now = datetime.now(timezone.utc)
         with self.transaction():
             record = self.repo.upsert(key="pricing", value=validated, updated_at=now)
-        return deepcopy(record.value_json), record.updated_at or now
+        updated_at = record.updated_at or now
+        type(self)._pricing_cache = (deepcopy(validated), updated_at, time.monotonic())
+        return deepcopy(validated), updated_at
 
     @BaseService.measure_operation("get_advance_notice_minutes")
     def get_advance_notice_minutes(self, location_type: str | None = None) -> int:

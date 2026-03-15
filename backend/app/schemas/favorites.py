@@ -38,12 +38,11 @@ class FavoriteResponse(StrictModel):
 
 
 class FavoritedInstructor(BaseModel):
-    """Instructor with favorite metadata."""
+    """Privacy-safe instructor with favorite metadata."""
 
     id: str = Field(..., description="Instructor user ID (ULID)")
-    email: str = Field(..., description="Instructor email")
     first_name: str = Field(..., description="Instructor first name")
-    last_name: str = Field(..., description="Instructor last name")
+    last_initial: str = Field(..., description="Instructor last initial")
     profile: Optional[InstructorProfilePublic] = Field(
         None, description="Instructor profile details"
     )
@@ -55,9 +54,8 @@ class FavoritedInstructor(BaseModel):
         json_schema_extra={
             "example": {
                 "id": "01K2K8CVN3A55280PFKJD9YHKV",
-                "email": "john.doe@example.com",
                 "first_name": "John",
-                "last_name": "Doe",
+                "last_initial": "D",
                 "profile": {
                     "bio": "Experienced piano teacher",
                     "years_experience": 10,
@@ -83,9 +81,8 @@ class FavoritesList(BaseModel):
                 "favorites": [
                     {
                         "id": "01K2K8CVN3A55280PFKJD9YHKV",
-                        "email": "john.doe@example.com",
                         "first_name": "John",
-                        "last_name": "Doe",
+                        "last_initial": "D",
                         "profile": {
                             "bio": "Experienced piano teacher",
                             "years_experience": 10,

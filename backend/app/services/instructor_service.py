@@ -911,10 +911,9 @@ class InstructorService(BaseService):
                 code="name_mismatch_block",
             )
 
-        config_service = ConfigService(self.db)
         pricing_service = PricingService(self.db)
         stripe_service = StripeService(
-            self.db, config_service=config_service, pricing_service=pricing_service
+            self.db, config_service=self.config_service, pricing_service=pricing_service
         )
         connect_status = (
             stripe_service.check_account_status(profile.id)

@@ -605,7 +605,7 @@ function StudentDashboardContent() {
                       {favoritesData!.favorites.map((fav) => {
                         const name = fav.profile?.user
                           ? `${fav.profile.user.first_name} ${fav.profile.user.last_initial ? fav.profile.user.last_initial + '.' : ''}`
-                          : `${fav.first_name}${fav.last_name ? ' ' + fav.last_name.charAt(0) + '.' : ''}`;
+                          : `${fav.first_name}${fav.last_initial ? ` ${fav.last_initial}.` : ''}`;
                         const services = fav.profile?.services || [];
                         const uniqueServices = Array.from(
                           new Set(
@@ -639,8 +639,9 @@ function StudentDashboardContent() {
                                     ...((fav.first_name || fav.profile?.user?.first_name) && {
                                       first_name: fav.first_name || fav.profile?.user?.first_name || ''
                                     }),
-                                    ...(fav.last_name && { last_name: fav.last_name }),
-                                    ...(fav.email && { email: fav.email }),
+                                    ...((fav.last_initial || fav.profile?.user?.last_initial) && {
+                                      last_initial: fav.last_initial || fav.profile?.user?.last_initial || ''
+                                    }),
                                     // Keep avatar glyph fallback; do not pass non-existent fields from minimal API
                                   }}
                                   size={48}

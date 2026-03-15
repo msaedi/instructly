@@ -809,7 +809,7 @@ class TestBookingRoutes:
         data = response.json()
         assert data["booking_id"] == booking_id
         assert data["student_first_name"] == "Test"
-        assert data["student_last_name"] == "Student"
+        assert data["student_last_initial"] == "S."
 
     def test_update_booking(self, client_with_mock_booking_service, auth_headers_instructor, mock_booking_service):
         """Test updating booking details."""

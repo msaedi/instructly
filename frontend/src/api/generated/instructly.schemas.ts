@@ -2234,7 +2234,7 @@ export interface BookingPreviewResponse {
   start_time: string;
   status: string;
   student_first_name: string;
-  student_last_name: string;
+  student_last_initial: string;
   student_note: string | null;
   total_price: number;
 }
@@ -3789,11 +3789,9 @@ export interface InstructorProfilePublic {
 }
 
 /**
- * Instructor with favorite metadata.
+ * Privacy-safe instructor with favorite metadata.
  */
 export interface FavoritedInstructor {
-  /** Instructor email */
-  email: string;
   /** When this instructor was favorited */
   favorited_at?: string | null;
   /** Instructor first name */
@@ -3802,8 +3800,8 @@ export interface FavoritedInstructor {
   id: string;
   /** Whether the instructor is active */
   is_active?: boolean;
-  /** Instructor last name */
-  last_name: string;
+  /** Instructor last initial */
+  last_initial: string;
   /** Instructor profile details */
   profile?: InstructorProfilePublic | null;
 }

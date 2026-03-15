@@ -87,7 +87,7 @@ async def add_favorite(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         raise_503_if_pool_exhaustion(e)
-        logger.error(f"Error adding favorite: {str(e)}")
+        logger.error("Error adding favorite: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to add favorite"
         )
@@ -130,7 +130,7 @@ async def remove_favorite(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         raise_503_if_pool_exhaustion(e)
-        logger.error(f"Error removing favorite: {str(e)}")
+        logger.error("Error removing favorite: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to remove favorite"
         )
@@ -167,9 +167,8 @@ async def get_favorites(
             # Build favorited instructor response
             fav_instructor = FavoritedInstructor(
                 id=instructor.id,
-                email=instructor.email,
                 first_name=instructor.first_name,
-                last_name=instructor.last_name,
+                last_initial=instructor.last_name[0] if instructor.last_name else "",
                 is_active=instructor.is_active,
                 profile=(
                     InstructorProfilePublic.from_orm(instructor.instructor_profile)
@@ -183,7 +182,7 @@ async def get_favorites(
 
     except Exception as e:
         raise_503_if_pool_exhaustion(e)
-        logger.error(f"Error getting favorites: {str(e)}")
+        logger.error("Error getting favorites: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to get favorites"
         )
@@ -221,7 +220,7 @@ async def check_favorite_status(
 
     except Exception as e:
         raise_503_if_pool_exhaustion(e)
-        logger.error(f"Error checking favorite status: {str(e)}")
+        logger.error("Error checking favorite status: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to check favorite status",

@@ -20,7 +20,7 @@ class BookingPreviewResponse(StrictModel):
 
     booking_id: str
     student_first_name: str
-    student_last_name: str
+    student_last_initial: str
     instructor_first_name: str
     instructor_last_name: str  # Shows last initial for students, full for instructors
     service_name: str

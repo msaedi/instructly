@@ -10702,8 +10702,8 @@ export type components = {
             status: string;
             /** Student First Name */
             student_first_name: string;
-            /** Student Last Name */
-            student_last_name: string;
+            /** Student Last Initial */
+            student_last_initial: string;
             /** Student Note */
             student_note: string | null;
             /** Total Price */
@@ -12813,14 +12813,9 @@ export type components = {
         };
         /**
          * FavoritedInstructor
-         * @description Instructor with favorite metadata.
+         * @description Privacy-safe instructor with favorite metadata.
          */
         FavoritedInstructor: {
-            /**
-             * Email
-             * @description Instructor email
-             */
-            email: string;
             /**
              * Favorited At
              * @description When this instructor was favorited
@@ -12843,10 +12838,10 @@ export type components = {
              */
             is_active: boolean;
             /**
-             * Last Name
-             * @description Instructor last name
+             * Last Initial
+             * @description Instructor last initial
              */
-            last_name: string;
+            last_initial: string;
             /** @description Instructor profile details */
             profile?: components["schemas"]["InstructorProfilePublic"] | null;
         };

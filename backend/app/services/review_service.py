@@ -94,6 +94,7 @@ class ReviewService(BaseService):
         cache: Optional[CacheInvalidationProtocol] = None,
         config: RatingsConfig = DEFAULT_RATINGS_CONFIG,
         notification_service: Optional[NotificationService] = None,
+        config_service: Optional[ConfigService] = None,
     ) -> None:
         super().__init__(db, cache)
         self.repository: ReviewRepository = ReviewRepository(db)
@@ -105,6 +106,7 @@ class ReviewService(BaseService):
         )
         self.config = config
         self.notification_service = notification_service
+        self.config_service = config_service or ConfigService(db)
 
     def _resolve_instructor_user_id(self, instructor_id: str) -> str:
         """
@@ -310,11 +312,10 @@ class ReviewService(BaseService):
                 tip_record = None
 
             try:
-                config_service = ConfigService(self.db)
                 pricing_service = PricingService(self.db)
                 stripe_service = StripeService(
                     self.db,
-                    config_service=config_service,
+                    config_service=self.config_service,
                     pricing_service=pricing_service,
                 )
                 customer = stripe_service.get_or_create_customer(student_id)

@@ -58,12 +58,13 @@ PAYMENT_CAPTURE_EVENT_TYPES = {"payment_captured"}
 class AdminBookingService(BaseService):
     """Admin booking query and workflow helpers."""
 
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session, config_service: Optional[ConfigService] = None) -> None:
         super().__init__(db)
         self.booking_repo = RepositoryFactory.create_booking_repository(db)
         self.payment_repo = RepositoryFactory.create_payment_repository(db)
         self.audit_repo = RepositoryFactory.create_audit_repository(db)
         self.user_repo = RepositoryFactory.create_user_repository(db)
+        self.config_service = config_service or ConfigService(db)
 
     @BaseService.measure_operation("admin_bookings.list")
     def list_bookings(
@@ -708,7 +709,7 @@ class AdminBookingService(BaseService):
     ) -> dict[str, Any]:
         stripe_service = StripeService(
             self.db,
-            config_service=ConfigService(self.db),
+            config_service=self.config_service,
             pricing_service=PricingService(self.db),
         )
         pd = booking.payment_detail

@@ -466,9 +466,10 @@ class TestFavoritesAPI:
         # Verify instructor data
         for fav in data["favorites"]:
             assert "id" in fav
-            assert "email" in fav
             assert "first_name" in fav
-            assert "last_name" in fav
+            assert "last_initial" in fav
+            assert "email" not in fav
+            assert "last_name" not in fav
 
     def test_check_favorite_status_endpoint(self, client, auth_headers_student, test_instructor):
         """Test GET /api/v1/favorites/check/{instructor_id}."""

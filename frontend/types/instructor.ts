@@ -350,14 +350,11 @@ export interface FavoritedInstructor {
   /** Instructor user ID (ULID string) */
   id: string;
 
-  /** Instructor email */
-  email: string;
-
   /** Instructor first name */
   first_name: string;
 
-  /** Instructor last name */
-  last_name: string;
+  /** Instructor last initial */
+  last_initial: string;
 
   /** Whether the instructor is active */
   is_active: boolean;

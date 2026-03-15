@@ -229,7 +229,7 @@ export interface BookedSlotsResponse {
 export interface BookingPreview {
   booking_id: string;
   student_first_name: string;
-  student_last_name: string;  // Full if viewing own, initial if viewing others
+  student_last_initial: string;
   instructor_first_name: string;
   instructor_last_name: string;  // Full if viewing own, initial if viewing others
   service_name: string;

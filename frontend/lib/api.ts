@@ -362,10 +362,10 @@ export async function fetchBookingPreview(bookingId: string): Promise<BookingPre
     }
 
     const preview: BookingPreview = (await response.json()) as BookingPreview;
-    logger.debug('Booking preview fetched successfully', {
-      bookingId,
-      hasStudentInfo: !!(preview.student_first_name && preview.student_last_name),
-    });
+      logger.debug('Booking preview fetched successfully', {
+        bookingId,
+        hasStudentInfo: !!(preview.student_first_name && preview.student_last_initial),
+      });
 
     return preview;
   } catch (error) {

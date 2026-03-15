@@ -51,7 +51,7 @@ def mock_notification_service():
 @pytest.fixture
 def review_service(mock_db, mock_cache, mock_notification_service):
     """Create ReviewService with mocked dependencies."""
-    with patch.object(ReviewService, "__init__", lambda self, db, cache=None, config=None, notification_service=None: None):
+    with patch.object(ReviewService, "__init__", lambda self, *args, **kwargs: None):
         service = ReviewService.__new__(ReviewService)
         service.db = mock_db
         service.cache = mock_cache
@@ -62,6 +62,7 @@ def review_service(mock_db, mock_cache, mock_notification_service):
         service.tip_repository = MagicMock()
         service.booking_repository = MagicMock()
         service.instructor_profile_repository = MagicMock()
+        service.config_service = MagicMock()
         service.config = MagicMock()
         service.config.min_reviews_to_display = 3
         service.config.prior_mean = 4.0
@@ -1080,7 +1081,7 @@ class TestSubmitReviewWithTipProcessing:
         tip_record.stripe_payment_intent_id = "pi_old"
         review_service.tip_repository.get_by_review_id.return_value = tip_record
 
-        with patch("app.services.review_service.ConfigService", side_effect=Exception("config error")):
+        with patch("app.services.review_service.PricingService", side_effect=Exception("config error")):
             result = review_service.submit_review_with_tip(
                 student_id="student-1",
                 booking_id="booking-1",
@@ -1102,7 +1103,7 @@ class TestSubmitReviewWithTipProcessing:
             "update failed too"
         )
 
-        with patch("app.services.review_service.ConfigService", side_effect=Exception("config error")):
+        with patch("app.services.review_service.PricingService", side_effect=Exception("config error")):
             result = review_service.submit_review_with_tip(
                 student_id="student-1",
                 booking_id="booking-1",
@@ -1279,7 +1280,7 @@ class TestSubmitReviewWithTipProcessing:
         self._setup_submit_review(review_service)
         review_service.tip_repository.get_by_review_id.side_effect = Exception("not found")
 
-        with patch("app.services.review_service.ConfigService", side_effect=Exception("boom")):
+        with patch("app.services.review_service.PricingService", side_effect=Exception("boom")):
             result = review_service.submit_review_with_tip(
                 student_id="student-1",
                 booking_id="booking-1",

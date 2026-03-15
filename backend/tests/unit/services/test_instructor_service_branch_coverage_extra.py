@@ -24,6 +24,7 @@ def _service() -> InstructorService:
     service.db = MagicMock()
     service.transaction = MagicMock(return_value=_tx_ctx())
     service.cache_service = MagicMock()
+    service.config_service = MagicMock()
     service.profile_repository = MagicMock()
     service.service_repository = MagicMock()
     return service

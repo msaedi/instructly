@@ -10,6 +10,7 @@ interface Props {
     id: string;
     first_name?: string;
     last_name?: string;
+    last_initial?: string;
     email?: string;
     has_profile_picture?: boolean;
     profile_picture_version?: number;

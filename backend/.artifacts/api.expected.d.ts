@@ -6848,7 +6848,7 @@ export type components = {
  start_time: string;
  status: string;
  student_first_name: string;
- student_last_name: string;
+ student_last_initial: string;
  student_note: string | null;
  total_price: number;
  };
@@ -7608,12 +7608,11 @@ export type components = {
  is_favorited: boolean;
  };
  FavoritedInstructor: {
- email: string;
  favorited_at?: string | null;
  first_name: string;
  id: string;
  is_active: boolean;
- last_name: string;
+ last_initial: string;
  profile?: components["schemas"]["InstructorProfilePublic"] | null;
  };
  FavoritesList: {

@@ -108,6 +108,12 @@ def _public_student_payload(student_payload: dict[str, Any]) -> dict[str, Any]:
     return student
 
 
+def _format_last_initial(last_name: str | None) -> str:
+    if not isinstance(last_name, str) or not last_name:
+        return ""
+    return f"{last_name[0]}."
+
+
 def _validate_booking_payload_for_user(
     payload: dict[str, Any], current_user: User
 ) -> BookingRouteResponse:
@@ -581,7 +587,7 @@ async def get_booking_preview(
         return BookingPreviewResponse(
             booking_id=booking.id,
             student_first_name=booking.student.first_name,
-            student_last_name=booking.student.last_name,
+            student_last_initial=_format_last_initial(booking.student.last_name),
             instructor_first_name=booking.instructor.first_name,
             instructor_last_name=booking.instructor.last_name
             if is_instructor

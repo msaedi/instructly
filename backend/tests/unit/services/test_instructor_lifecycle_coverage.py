@@ -235,42 +235,36 @@ class TestFoundingCapConfigExceptions:
     def test_handles_type_error_in_founding_cap(self, db, test_instructor):
         """Line 167-168: Should handle TypeError (None value)."""
         service = InstructorLifecycleService(db)
+        service.config_service = MagicMock()
+        service.config_service.get_pricing_config.return_value = (
+            {"founding_instructor_cap": None},  # None causes TypeError
+            datetime.now(timezone.utc),
+        )
 
-        with patch("app.services.instructor_lifecycle_service.ConfigService") as MockConfigService:
-            mock_config = MagicMock()
-            mock_config.get_pricing_config.return_value = (
-                {"founding_instructor_cap": None},  # None causes TypeError
-                datetime.now(timezone.utc),
-            )
-            MockConfigService.return_value = mock_config
+        with patch("app.services.instructor_lifecycle_service.InstructorProfileRepository") as MockRepo:
+            mock_repo = MagicMock()
+            mock_repo.count_founding_instructors.return_value = 0
+            MockRepo.return_value = mock_repo
 
-            with patch("app.services.instructor_lifecycle_service.InstructorProfileRepository") as MockRepo:
-                mock_repo = MagicMock()
-                mock_repo.count_founding_instructors.return_value = 0
-                MockRepo.return_value = mock_repo
-
-                summary = service.get_funnel_summary()
-                assert summary["founding_cap"]["cap"] == 100  # Default
+            summary = service.get_funnel_summary()
+            assert summary["founding_cap"]["cap"] == 100  # Default
 
     def test_handles_value_error_in_founding_cap(self, db, test_instructor):
         """Line 167-168: Should handle ValueError (non-numeric string)."""
         service = InstructorLifecycleService(db)
+        service.config_service = MagicMock()
+        service.config_service.get_pricing_config.return_value = (
+            {"founding_instructor_cap": "not_a_number"},  # String causes ValueError
+            datetime.now(timezone.utc),
+        )
 
-        with patch("app.services.instructor_lifecycle_service.ConfigService") as MockConfigService:
-            mock_config = MagicMock()
-            mock_config.get_pricing_config.return_value = (
-                {"founding_instructor_cap": "not_a_number"},  # String causes ValueError
-                datetime.now(timezone.utc),
-            )
-            MockConfigService.return_value = mock_config
+        with patch("app.services.instructor_lifecycle_service.InstructorProfileRepository") as MockRepo:
+            mock_repo = MagicMock()
+            mock_repo.count_founding_instructors.return_value = 0
+            MockRepo.return_value = mock_repo
 
-            with patch("app.services.instructor_lifecycle_service.InstructorProfileRepository") as MockRepo:
-                mock_repo = MagicMock()
-                mock_repo.count_founding_instructors.return_value = 0
-                MockRepo.return_value = mock_repo
-
-                summary = service.get_funnel_summary()
-                assert summary["founding_cap"]["cap"] == 100  # Default
+            summary = service.get_funnel_summary()
+            assert summary["founding_cap"]["cap"] == 100  # Default
 
 
 class TestStuckInstructorsNoStage:
