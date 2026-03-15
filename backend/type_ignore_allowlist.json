@@ -1,0 +1,83 @@
+{
+  "description": "Approved production # type: ignore entries in backend/app. Keep this list small and documented.",
+  "entries": [
+    {
+      "path": "app/core/config.py",
+      "code": "assignment",
+      "match": "defaults to ellipsis outside CI; SecretStr default provided for CI runs",
+      "reason": "Pydantic SecretStr field uses an Ellipsis default outside CI, which mypy treats as an incompatible assignment."
+    },
+    {
+      "path": "app/core/privacy_auditor.py",
+      "code": "import-untyped",
+      "match": "import yaml",
+      "reason": "PyYAML does not provide typed imports in this environment."
+    },
+    {
+      "path": "app/models/availability_day.py",
+      "code": "misc",
+      "match": "class _ZeroedFormatTagsDefault(ClauseElement):",
+      "reason": "SQLAlchemy custom ClauseElement subclasses are not fully typed by mypy."
+    },
+    {
+      "path": "app/models/availability_day.py",
+      "code": null,
+      "match": "@compiles(_ZeroedFormatTagsDefault, \"sqlite\")",
+      "reason": "SQLAlchemy compiler decorators are dynamically typed and require a local mypy escape hatch."
+    },
+    {
+      "path": "app/models/availability_day.py",
+      "code": null,
+      "match": "@compiles(_ZeroedFormatTagsDefault, \"postgresql\")",
+      "reason": "SQLAlchemy compiler decorators are dynamically typed and require a local mypy escape hatch."
+    },
+    {
+      "path": "app/models/types.py",
+      "code": "misc",
+      "match": "class ArrayType(TypeDecorator[Any]):",
+      "reason": "SQLAlchemy TypeDecorator generic inheritance is not modeled cleanly enough for this custom cross-dialect type."
+    },
+    {
+      "path": "app/models/types.py",
+      "code": "misc",
+      "match": "class IntegerArrayType(TypeDecorator[Any]):",
+      "reason": "SQLAlchemy TypeDecorator generic inheritance is not modeled cleanly enough for this custom cross-dialect type."
+    },
+    {
+      "path": "app/models/types.py",
+      "code": "misc",
+      "match": "class StringArrayType(TypeDecorator[Any]):",
+      "reason": "SQLAlchemy TypeDecorator generic inheritance is not modeled cleanly enough for this custom cross-dialect type."
+    },
+    {
+      "path": "app/repositories/referral_repository.py",
+      "code": "override",
+      "match": "def create(",
+      "reason": "This repository intentionally narrows BaseRepository.create(**kwargs) to a typed keyword-only signature."
+    },
+    {
+      "path": "app/routes/v1/uploads.py",
+      "code": "attr-defined",
+      "match": "from fastapi import (",
+      "reason": "FastAPI's exported typing surface trips mypy on this import form in this environment."
+    },
+    {
+      "path": "app/schemas/booking.py",
+      "code": "assignment",
+      "match": "student: StudentInfoPublic",
+      "reason": "Pydantic response-model inheritance narrows BookingResponse.student for instructor-safe serialization."
+    },
+    {
+      "path": "app/schemas/instructor.py",
+      "code": "assignment",
+      "match": "preferred_teaching_locations: List[PreferredTeachingLocationOut] = Field(",
+      "reason": "Pydantic response-model inheritance widens the public teaching-location field for private/self responses."
+    },
+    {
+      "path": "app/utils/strict_router.py",
+      "code": "assignment",
+      "match": "response_model: Type[BaseModel] | None = _MISSING,",
+      "reason": "StrictAPIRouter uses a sentinel default to detect omitted response_model values at import time."
+    }
+  ]
+}

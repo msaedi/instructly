@@ -258,6 +258,14 @@ repos:
         description: Routes must delegate all DB operations to service layer
 
       # Type safety guardrails (Phase 3)
+      - id: audit-production-type-ignores
+        name: Backend production type-ignore audit
+        entry: bash -c 'cd backend && python scripts/audit_production_type_ignores.py --ci'
+        language: system
+        pass_filenames: false
+        files: ^backend/app/.*\.py$
+        description: Prevent new production # type: ignore entries without an explicit allowlist reason
+
       - id: audit-untyped-dicts
         name: Backend Dict[str,Any] audit
         entry: bash -c 'cd backend && ./scripts/audit-untyped-dicts.sh --ci'
