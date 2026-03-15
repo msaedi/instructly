@@ -129,8 +129,7 @@ class TestSchemaPrivacyProtection:
         profile.user_id = instructor_id
         profile.bio = "Experienced yoga instructor"
         profile.years_experience = 5
-        profile.min_advance_booking_hours = 2
-        profile.buffer_time_minutes = 15
+        profile.non_travel_buffer_minutes = 15
         profile.created_at = datetime.now()
         profile.updated_at = None
         profile.services = []

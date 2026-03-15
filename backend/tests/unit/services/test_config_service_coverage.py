@@ -8,7 +8,17 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.services.config_service import DEFAULT_PRICING_CONFIG, ConfigService
+from app.services.config_service import (
+    DEFAULT_BOOKING_RULES_CONFIG,
+    DEFAULT_PRICING_CONFIG,
+    ConfigService,
+)
+
+ORIGINAL_GET_ADVANCE_NOTICE_MINUTES = ConfigService.get_advance_notice_minutes
+ORIGINAL_GET_OVERNIGHT_EARLIEST_HOUR = ConfigService.get_overnight_earliest_hour
+ORIGINAL_GET_OVERNIGHT_WINDOW_HOURS = ConfigService.get_overnight_window_hours
+ORIGINAL_IS_IN_OVERNIGHT_WINDOW = ConfigService.is_in_overnight_window
+ORIGINAL_GET_DEFAULT_BUFFER_MINUTES = ConfigService.get_default_buffer_minutes
 
 
 class TestConfigServiceInit:
@@ -68,7 +78,8 @@ class TestConfigServiceGetPricingConfig:
     def test_get_pricing_config_returns_stored_config(self) -> None:
         """Line 31: Returns stored config when record exists."""
         db = MagicMock()
-        stored_config = {"commission_rate": 0.15, "platform_fee": 2.50}
+        stored_config = deepcopy(DEFAULT_PRICING_CONFIG)
+        stored_config["student_fee_pct"] = 0.15
         record_time = datetime.now(timezone.utc)
 
         with patch("app.services.config_service.PlatformConfigRepository") as mock_repo_class:
@@ -95,7 +106,7 @@ class TestConfigServiceSetPricingConfig:
 
         # Create a valid pricing config payload
         payload = deepcopy(DEFAULT_PRICING_CONFIG)
-        payload["commission_rate"] = 0.12
+        payload["student_fee_pct"] = 0.12
 
         record_time = datetime.now(timezone.utc)
 
@@ -177,3 +188,205 @@ class TestConfigServiceTransactions:
                 service.set_pricing_config(payload)
 
             db.rollback.assert_called_once()
+
+
+class TestConfigServiceBookingRules:
+    """Tests for booking rules config support."""
+
+    def test_get_booking_rules_config_returns_default_when_no_record(self) -> None:
+        db = MagicMock()
+
+        with patch("app.services.config_service.PlatformConfigRepository") as mock_repo_class:
+            mock_repo = MagicMock()
+            mock_repo.get_by_key.return_value = None
+            mock_repo_class.return_value = mock_repo
+
+            service = ConfigService(db)
+            config, updated_at = service.get_booking_rules_config()
+
+            mock_repo.get_by_key.assert_called_once_with("booking_rules")
+            assert config == DEFAULT_BOOKING_RULES_CONFIG
+            assert updated_at is None
+
+    def test_get_booking_rules_config_returns_stored_config(self) -> None:
+        db = MagicMock()
+        stored_config = deepcopy(DEFAULT_BOOKING_RULES_CONFIG)
+        stored_config["advance_notice_travel_minutes"] = 240
+        record_time = datetime.now(timezone.utc)
+
+        with patch("app.services.config_service.PlatformConfigRepository") as mock_repo_class:
+            mock_repo = MagicMock()
+            mock_record = MagicMock()
+            mock_record.value_json = stored_config
+            mock_record.updated_at = record_time
+            mock_repo.get_by_key.return_value = mock_record
+            mock_repo_class.return_value = mock_repo
+
+            service = ConfigService(db)
+            config, updated_at = service.get_booking_rules_config()
+
+            assert config == stored_config
+            assert updated_at == record_time
+
+    @pytest.mark.parametrize(
+        ("location_type", "expected_minutes"),
+        [
+            ("online", 60),
+            ("instructor_location", 60),
+            ("student_location", 180),
+            ("neutral_location", 180),
+            (None, 60),
+        ],
+    )
+    def test_get_advance_notice_minutes_uses_location_mapping(
+        self, location_type: str | None, expected_minutes: int
+    ) -> None:
+        db = MagicMock()
+
+        with patch.object(
+            ConfigService,
+            "get_booking_rules_config",
+            return_value=(deepcopy(DEFAULT_BOOKING_RULES_CONFIG), None),
+        ), patch.object(
+            ConfigService,
+            "get_advance_notice_minutes",
+            ORIGINAL_GET_ADVANCE_NOTICE_MINUTES,
+        ):
+            service = ConfigService(db)
+            assert service.get_advance_notice_minutes(location_type) == expected_minutes
+
+    @pytest.mark.parametrize(
+        ("location_type", "expected_minutes"),
+        [
+            ("online", 15),
+            ("instructor_location", 15),
+            ("student_location", 60),
+            ("neutral_location", 60),
+            (None, 15),
+        ],
+    )
+    def test_get_default_buffer_minutes_uses_location_mapping(
+        self, location_type: str | None, expected_minutes: int
+    ) -> None:
+        db = MagicMock()
+
+        with patch.object(
+            ConfigService,
+            "get_booking_rules_config",
+            return_value=(deepcopy(DEFAULT_BOOKING_RULES_CONFIG), None),
+        ), patch.object(
+            ConfigService,
+            "get_default_buffer_minutes",
+            ORIGINAL_GET_DEFAULT_BUFFER_MINUTES,
+        ):
+            service = ConfigService(db)
+            assert service.get_default_buffer_minutes(location_type) == expected_minutes
+
+    def test_booking_rule_accessors_fall_back_to_defaults_for_none_values(self) -> None:
+        db = MagicMock()
+        config_with_nones = deepcopy(DEFAULT_BOOKING_RULES_CONFIG)
+        config_with_nones.update(
+            {
+                "advance_notice_online_minutes": None,
+                "default_non_travel_buffer_minutes": None,
+                "overnight_online_earliest_hour": None,
+                "overnight_protection_window_start_hour": None,
+                "overnight_protection_window_end_hour": None,
+            }
+        )
+
+        with patch.object(
+            ConfigService,
+            "get_booking_rules_config",
+            return_value=(config_with_nones, None),
+        ), patch.object(
+            ConfigService,
+            "get_advance_notice_minutes",
+            ORIGINAL_GET_ADVANCE_NOTICE_MINUTES,
+        ), patch.object(
+            ConfigService,
+            "get_default_buffer_minutes",
+            ORIGINAL_GET_DEFAULT_BUFFER_MINUTES,
+        ), patch.object(
+            ConfigService,
+            "get_overnight_earliest_hour",
+            ORIGINAL_GET_OVERNIGHT_EARLIEST_HOUR,
+        ), patch.object(
+            ConfigService,
+            "get_overnight_window_hours",
+            ORIGINAL_GET_OVERNIGHT_WINDOW_HOURS,
+        ):
+            service = ConfigService(db)
+            assert (
+                service.get_advance_notice_minutes("online")
+                == DEFAULT_BOOKING_RULES_CONFIG["advance_notice_online_minutes"]
+            )
+            assert (
+                service.get_default_buffer_minutes("online")
+                == DEFAULT_BOOKING_RULES_CONFIG["default_non_travel_buffer_minutes"]
+            )
+            assert (
+                service.get_overnight_earliest_hour("online")
+                == DEFAULT_BOOKING_RULES_CONFIG["overnight_online_earliest_hour"]
+            )
+            assert service.get_overnight_window_hours() == (
+                DEFAULT_BOOKING_RULES_CONFIG["overnight_protection_window_start_hour"],
+                DEFAULT_BOOKING_RULES_CONFIG["overnight_protection_window_end_hour"],
+            )
+
+    @pytest.mark.parametrize(
+        ("location_type", "expected_hour"),
+        [
+            ("online", 9),
+            ("instructor_location", 9),
+            ("student_location", 11),
+            ("neutral_location", 11),
+            (None, 9),
+        ],
+    )
+    def test_get_overnight_earliest_hour_uses_location_mapping(
+        self, location_type: str | None, expected_hour: int
+    ) -> None:
+        db = MagicMock()
+
+        with patch.object(
+            ConfigService,
+            "get_booking_rules_config",
+            return_value=(deepcopy(DEFAULT_BOOKING_RULES_CONFIG), None),
+        ), patch.object(
+            ConfigService,
+            "get_overnight_earliest_hour",
+            ORIGINAL_GET_OVERNIGHT_EARLIEST_HOUR,
+        ):
+            service = ConfigService(db)
+            assert service.get_overnight_earliest_hour(location_type) == expected_hour
+
+    @pytest.mark.parametrize(
+        ("target", "expected"),
+        [
+            (datetime(2030, 1, 1, 19, 59, tzinfo=timezone.utc), False),
+            (datetime(2030, 1, 1, 20, 0, tzinfo=timezone.utc), True),
+            (datetime(2030, 1, 2, 7, 59, tzinfo=timezone.utc), True),
+            (datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), False),
+        ],
+    )
+    def test_is_in_overnight_window_uses_wrapping_hours(
+        self, target: datetime, expected: bool
+    ) -> None:
+        db = MagicMock()
+
+        with patch.object(
+            ConfigService,
+            "get_overnight_window_hours",
+            ORIGINAL_GET_OVERNIGHT_WINDOW_HOURS,
+        ), patch.object(
+            ConfigService,
+            "get_booking_rules_config",
+            return_value=(deepcopy(DEFAULT_BOOKING_RULES_CONFIG), None),
+        ), patch.object(
+            ConfigService,
+            "is_in_overnight_window",
+            ORIGINAL_IS_IN_OVERNIGHT_WINDOW,
+        ):
+            service = ConfigService(db)
+            assert service.is_in_overnight_window(target) is expected

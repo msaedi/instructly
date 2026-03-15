@@ -845,11 +845,11 @@ class TestSearchPipeline:
             )
 
         assert mock_post.call_args.args[1].skill_level is None
-        assert mock_post.call_args.args[8] == {
+        assert mock_post.call_args.kwargs["taxonomy_filter_selections"] == {
             "goal": ["enrichment"],
             "skill_level": ["advanced", "intermediate"],
         }
-        assert mock_post.call_args.args[9] == "sub-1"
+        assert mock_post.call_args.kwargs["subcategory_id"] == "sub-1"
         assert mock_search_cache.get_cached_response.await_args.kwargs["filters"]["taxonomy"][
             "skill_level"
         ] == ["advanced", "intermediate"]
@@ -924,7 +924,9 @@ class TestSearchPipeline:
             await service.search("piano", explicit_skill_levels=["advanced"])
 
         assert mock_post.call_args.args[1].skill_level == "advanced"
-        assert mock_post.call_args.args[8] == {"skill_level": ["advanced"]}
+        assert mock_post.call_args.kwargs["taxonomy_filter_selections"] == {
+            "skill_level": ["advanced"]
+        }
 
     @pytest.mark.asyncio
     async def test_falls_back_to_text_only_when_embedding_unavailable(

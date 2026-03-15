@@ -89,7 +89,7 @@ run_frontend() {
 
     # 1. Tests
     echo "→ Running jest..."
-    if TEST_OUTPUT=$(npm test -- --no-coverage 2>&1); then
+    if TEST_OUTPUT=$(npm test -- --coverage 2>&1); then
         SUMMARY=$(echo "$TEST_OUTPUT" | grep -E "Tests:|Test Suites:" | tail -2)
         record "Frontend tests" "PASS" "$SUMMARY"
     else
@@ -102,7 +102,7 @@ run_frontend() {
     if LINT_OUTPUT=$(npm run lint 2>&1); then
         record "ESLint" "PASS" "clean"
     else
-        record "ESLint" "FAIL" "lint errors found"
+        record "ESLint" "FAIL" "lint errors or warnings found"
     fi
 
     # 3. TypeScript (all levels)

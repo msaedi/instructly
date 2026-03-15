@@ -6,16 +6,23 @@ Applies price, location, and availability filters to candidates.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from datetime import date, time
+from datetime import date, datetime, time, timedelta
 import logging
 import os
 import time as time_module
 from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
+from sqlalchemy.orm import Session
+
 from app.database import get_db_session
 from app.repositories.filter_repository import FilterRepository
+from app.services.base import BaseService
+from app.services.config_service import ConfigService
 from app.services.search.location_resolver import LocationResolver, ResolvedLocation
 from app.services.search.retriever import ServiceCandidate
+from app.services.timezone_service import TimezoneService
+from app.utils.bitset import windows_from_bits
+from app.utils.time_helpers import string_to_time
 
 if TYPE_CHECKING:
     from app.services.search.query_parser import ParsedQuery
@@ -126,7 +133,7 @@ class FilterResult:
     filter_stats: Dict[str, int] = field(default_factory=dict)
 
 
-class FilterService:
+class FilterService(BaseService):
     """
     Service for applying constraint filters to search candidates.
 
@@ -145,7 +152,9 @@ class FilterService:
         repository: Optional[FilterRepository] = None,
         location_resolver: Optional[LocationResolver] = None,
         region_code: str = "nyc",
+        db: object | None = None,
     ) -> None:
+        super().__init__(cast(Session, db or getattr(repository, "db", None)))
         self._region_code = region_code
         self._repository_override = repository
         self._location_resolver_override = location_resolver
@@ -154,6 +163,7 @@ class FilterService:
         self.repository: FilterRepository = repository or cast(FilterRepository, None)
         self.location_resolver: LocationResolver = location_resolver or cast(LocationResolver, None)
 
+    @BaseService.measure_operation("filter_candidates")
     async def filter_candidates(
         self,
         candidates: List[ServiceCandidate],
@@ -162,6 +172,7 @@ class FilterService:
         default_duration: int = 60,
         *,
         location_resolution: Optional[ResolvedLocation] = None,
+        requester_timezone: str | None = None,
     ) -> FilterResult:
         """
         Apply all constraint filters to candidates.
@@ -197,11 +208,13 @@ class FilterService:
                 user_location,
                 default_duration,
                 location_resolution=location_resolution,
+                requester_timezone=requester_timezone,
             )
 
         import asyncio
 
         with get_db_session() as db:
+            self.db = db
             self.repository = self._repository_override or FilterRepository(db)
             self.location_resolver = self._location_resolver_override or LocationResolver(
                 db, region_code=self._region_code
@@ -226,8 +239,10 @@ class FilterService:
                 user_location,
                 default_duration,
                 location_resolution=location_resolution,
+                requester_timezone=requester_timezone,
             )
 
+    @BaseService.measure_operation("filter_candidates_sync")
     def filter_candidates_sync(
         self,
         candidates: List[ServiceCandidate],
@@ -236,6 +251,7 @@ class FilterService:
         default_duration: int = 60,
         *,
         location_resolution: Optional[ResolvedLocation] = None,
+        requester_timezone: str | None = None,
     ) -> FilterResult:
         """
         Sync filtering variant for use inside batched DB bursts.
@@ -266,6 +282,7 @@ class FilterService:
             user_location,
             default_duration,
             location_resolution=location_resolution,
+            requester_timezone=requester_timezone,
         )
 
     def _filter_candidates_core(
@@ -276,6 +293,7 @@ class FilterService:
         default_duration: int,
         *,
         location_resolution: Optional[ResolvedLocation],
+        requester_timezone: str | None = None,
     ) -> FilterResult:
         perf_start = time_module.perf_counter()
         perf: Dict[str, int] = {}
@@ -388,7 +406,12 @@ class FilterService:
 
         availability_start = time_module.perf_counter()
         if parsed_query.date or parsed_query.date_range_start or parsed_query.time_after:
-            working = self._filter_availability(working, parsed_query, default_duration)
+            working = self._filter_availability(
+                working,
+                parsed_query,
+                default_duration,
+                requester_timezone=requester_timezone,
+            )
             filters_applied.append("availability")
             filter_stats["after_availability"] = len(working)
         perf["availability_ms"] = int((time_module.perf_counter() - availability_start) * 1000)
@@ -427,6 +450,7 @@ class FilterService:
                 duration_minutes=default_duration,
                 strict_service_ids={c.service_id for c in working},
                 filter_stats=filter_stats,
+                requester_timezone=requester_timezone,
             )
             soft_filtering_used = bool(relaxed_constraints)
             if soft_filtering_used:
@@ -632,11 +656,19 @@ class FilterService:
                 c.passed_location = False
         return filtered
 
+    @staticmethod
+    def _build_rolling_search_dates(requester_timezone: str | None) -> List[date]:
+        tz = TimezoneService.get_timezone(requester_timezone)
+        today = datetime.now(tz).date()
+        return [today + timedelta(days=i) for i in range(7)]
+
     def _filter_availability(
         self,
         candidates: List[FilteredCandidate],
         parsed_query: "ParsedQuery",
         duration_minutes: int,
+        *,
+        requester_timezone: str | None = None,
     ) -> List[FilteredCandidate]:
         """Apply availability filter using bitmap check."""
         if not candidates:
@@ -666,7 +698,7 @@ class FilterService:
                 # No specific weekend, check next 7 days
                 availability_map = self.repository.filter_by_availability(
                     instructor_ids,
-                    target_date=None,
+                    dates_to_check=self._build_rolling_search_dates(requester_timezone),
                     time_after=time_after,
                     time_before=time_before,
                     duration_minutes=duration_minutes,
@@ -675,20 +707,29 @@ class FilterService:
             # Single date
             availability_map = self.repository.filter_by_availability(
                 instructor_ids,
-                target_date,
-                time_after,
-                time_before,
-                duration_minutes,
+                target_date=target_date,
+                time_after=time_after,
+                time_before=time_before,
+                duration_minutes=duration_minutes,
             )
         else:
             # No date specified - check next 7 days
             availability_map = self.repository.filter_by_availability(
                 instructor_ids,
-                target_date=None,
+                dates_to_check=self._build_rolling_search_dates(requester_timezone),
                 time_after=time_after,
                 time_before=time_before,
                 duration_minutes=duration_minutes,
             )
+        availability_map = self._refine_buffered_availability_map(
+            availability_map,
+            instructor_ids=instructor_ids,
+            parsed_query=parsed_query,
+            time_after=time_after,
+            time_before=time_before,
+            duration_minutes=duration_minutes,
+            requester_timezone=requester_timezone,
+        )
 
         filtered = []
         for c in candidates:
@@ -702,6 +743,123 @@ class FilterService:
                 c.passed_availability = False
 
         return filtered
+
+    @staticmethod
+    def _search_requested_location_type(parsed_query: "ParsedQuery") -> str:
+        return "online" if parsed_query.lesson_type == "online" else "student_location"
+
+    def _refine_buffered_availability_map(
+        self,
+        availability_map: Dict[str, List[date]],
+        *,
+        instructor_ids: List[str],
+        parsed_query: "ParsedQuery",
+        time_after: time | None,
+        time_before: time | None,
+        duration_minutes: int,
+        requester_timezone: str | None = None,
+    ) -> Dict[str, List[date]]:
+        if not availability_map:
+            return availability_map
+
+        dates_to_check = sorted(
+            {available_date for dates in availability_map.values() for available_date in dates}
+        )
+        if not dates_to_check:
+            return availability_map
+
+        context_getter = getattr(self.repository, "get_buffered_availability_context", None)
+        if not callable(context_getter):
+            return availability_map
+
+        context = context_getter(instructor_ids, dates_to_check)
+        if not isinstance(context, dict):
+            return availability_map
+
+        bits_by_key = context.get("bits_by_key")
+        format_tags_by_key = context.get("format_tags_by_key")
+        bookings_by_key = context.get("bookings_by_key")
+        profiles_by_instructor = context.get("profiles_by_instructor")
+        timezones_by_instructor = context.get("timezones_by_instructor")
+        if not isinstance(bits_by_key, dict):
+            return availability_map
+        if not isinstance(format_tags_by_key, dict):
+            format_tags_by_key = {}
+        if not isinstance(bookings_by_key, dict):
+            bookings_by_key = {}
+        if not isinstance(profiles_by_instructor, dict):
+            profiles_by_instructor = {}
+        if not isinstance(timezones_by_instructor, dict):
+            timezones_by_instructor = {}
+
+        from app.services.availability_service import AvailabilityService
+
+        requested_location_type = self._search_requested_location_type(parsed_query)
+        repository_db = getattr(self.repository, "db", None)
+        default_non_travel_buffer_minutes = 15
+        default_travel_buffer_minutes = 60
+        if repository_db is not None:
+            config_service = ConfigService(repository_db)
+            default_non_travel_buffer_minutes = config_service.get_default_buffer_minutes("online")
+            default_travel_buffer_minutes = config_service.get_default_buffer_minutes(
+                "student_location"
+            )
+
+        refined: Dict[str, List[date]] = {}
+        for instructor_id, available_dates in availability_map.items():
+            kept_dates: List[date] = []
+            profile = profiles_by_instructor.get(instructor_id)
+            instructor_today: date | None = None
+            if (
+                parsed_query.date is None
+                and parsed_query.date_range_start is None
+                and parsed_query.date_range_end is None
+            ):
+                instructor_timezone = timezones_by_instructor.get(instructor_id)
+                if isinstance(instructor_timezone, str) and instructor_timezone:
+                    instructor_today = datetime.now(
+                        TimezoneService.get_timezone(instructor_timezone)
+                    ).date()
+            (
+                non_travel_buffer_minutes,
+                travel_buffer_minutes,
+            ) = AvailabilityService._resolve_buffer_profile_values(
+                profile,
+                default_non_travel_buffer_minutes=default_non_travel_buffer_minutes,
+                default_travel_buffer_minutes=default_travel_buffer_minutes,
+            )
+            for available_date in available_dates:
+                if instructor_today is not None and available_date < instructor_today:
+                    continue
+                bits = bits_by_key.get((instructor_id, available_date))
+                if bits is None:
+                    continue
+                base_windows = [
+                    (string_to_time(start_str), string_to_time(end_str))
+                    for start_str, end_str in windows_from_bits(bits)
+                ]
+                remaining_windows = AvailabilityService._subtract_buffered_bookings_from_windows(
+                    base_windows,
+                    bookings_by_key.get((instructor_id, available_date), []),
+                    requested_location_type=requested_location_type,
+                    non_travel_buffer_minutes=non_travel_buffer_minutes,
+                    travel_buffer_minutes=travel_buffer_minutes,
+                )
+                remaining_windows = AvailabilityService._filter_windows_by_format_tags(
+                    remaining_windows,
+                    format_tags_by_key.get((instructor_id, available_date)),
+                    requested_location_type=requested_location_type,
+                )
+                if AvailabilityService._windows_support_booking_request(
+                    remaining_windows,
+                    time_after=time_after,
+                    time_before=time_before,
+                    duration_minutes=duration_minutes,
+                ):
+                    kept_dates.append(available_date)
+            if kept_dates:
+                refined[instructor_id] = kept_dates
+        return refined
 
     def _parse_time(self, time_str: Optional[str]) -> Optional[time]:
         """Parse time string (HH:MM) to time object."""
@@ -723,6 +881,8 @@ class FilterService:
         duration_minutes: int,
         strict_service_ids: set[str],
         filter_stats: Dict[str, int],
+        *,
+        requester_timezone: str | None = None,
     ) -> tuple[List[FilteredCandidate], List[str]]:
         """
         Progressively relax constraints until we reach a minimum result threshold.
@@ -866,7 +1026,12 @@ class FilterService:
             )
 
             if enforce_availability or _has_availability_constraint(query):
-                working = self._filter_availability(working, query, duration_minutes)
+                working = self._filter_availability(
+                    working,
+                    query,
+                    duration_minutes,
+                    requester_timezone=requester_timezone,
+                )
 
             return working
 

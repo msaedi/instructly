@@ -12,6 +12,7 @@ UPDATED FOR WORK STREAM #11: Time-based booking (no slot IDs).
 import asyncio
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -24,10 +25,10 @@ from app.core.exceptions import (
     ValidationException,
 )
 from app.core.ulid_helper import generate_ulid
-from app.events import BookingCancelled, BookingCreated, BookingReminder
+from app.events import BookingCreated, BookingReminder
 
 # AvailabilitySlot removed - bitmap-only storage now
-from app.models.booking import Booking, BookingStatus
+from app.models.booking import Booking, BookingStatus, PaymentStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
@@ -35,7 +36,7 @@ from app.repositories.availability_day_repository import AvailabilityDayReposito
 from app.repositories.booking_repository import BookingRepository
 from app.schemas.booking import BookingCreate, BookingUpdate
 from app.services.booking_service import BookingService
-from app.utils.bitset import bits_from_windows
+from app.utils.bitset import bits_from_windows, new_empty_tags
 
 REAL_DATETIME = datetime
 
@@ -68,6 +69,8 @@ class TestBookingServiceUnit:
         repository.get_bookings_by_time_range.return_value = []  # No existing bookings
         repository.create.return_value = Mock(spec=Booking, id=generate_ulid())
         repository.get_booking_with_details.return_value = None
+        repository.get_booking_for_participant_for_update.return_value = None
+        repository.get_by_id_for_update.return_value = None
         repository.update.return_value = None
         repository.get_student_bookings.return_value = []
         repository.get_instructor_bookings.return_value = []
@@ -85,6 +88,7 @@ class TestBookingServiceUnit:
         repository = Mock()
         repository.get_slots_by_date.return_value = []
         repository.get_day_bits.return_value = b"\xff" * 36  # 288 five-minute slots
+        repository.get_day_bitmaps.return_value = (b"\xff" * 36, new_empty_tags())
         return repository
 
     @pytest.fixture
@@ -102,6 +106,11 @@ class TestBookingServiceUnit:
         # Mock conflict checker repository
         mock_conflict_checker_repo = Mock()
         service.conflict_checker_repository = mock_conflict_checker_repo
+        service.conflict_checker = Mock()
+        service.conflict_checker.check_time_conflicts.return_value = False
+        service.conflict_checker.check_student_time_conflicts.return_value = False
+        service.conflict_checker.check_booking_conflicts.return_value = []
+        service.conflict_checker.check_student_booking_conflicts.return_value = []
         service.event_outbox_repository = Mock()
 
         service_area_repo = Mock()
@@ -122,9 +131,13 @@ class TestBookingServiceUnit:
         student.roles = [mock_student_role]
         student.id = generate_ulid()
         student.email = "student@example.com"
-        student.first_name = ("Test",)
-        _last_name = "Student"
+        student.first_name = "Test"
+        student.last_name = "Student"
         student.timezone = "America/New_York"
+        student.account_locked = False
+        student.account_restricted = False
+        student.credit_balance_frozen = False
+        student.credit_balance_cents = 0
         return student
 
     @pytest.fixture
@@ -139,8 +152,8 @@ class TestBookingServiceUnit:
         instructor.roles = [mock_instructor_role]
         instructor.id = generate_ulid()
         instructor.email = "instructor@example.com"
-        instructor.first_name = ("Test",)
-        _last_name = "Instructor"
+        instructor.first_name = "Test"
+        instructor.last_name = "Instructor"
         instructor.account_status = "active"
         instructor.timezone = "America/New_York"
         return instructor
@@ -158,6 +171,13 @@ class TestBookingServiceUnit:
         service.is_active = True
         service.duration_options = [30, 60, 90]
         service.instructor_profile_id = generate_ulid()
+        service.hourly_rate_for_location_type.return_value = 50.0
+        service.price_for_booking.side_effect = (
+            lambda duration_minutes, _location_type="online": Decimal(duration_minutes)
+            / Decimal(60)
+            * Decimal("50.00")
+        )
+        service.format_for_booking_location_type.return_value = SimpleNamespace()
         return service
 
     @pytest.fixture
@@ -166,7 +186,8 @@ class TestBookingServiceUnit:
         profile = Mock(spec=InstructorProfile)
         profile.id = generate_ulid()
         profile.user_id = generate_ulid()  # Same as mock_instructor.id
-        profile.min_advance_booking_hours = 24
+        profile.non_travel_buffer_minutes = 15
+        profile.travel_buffer_minutes = 60
         neighborhood = Mock()
         neighborhood.parent_region = "Manhattan"
         area = Mock()
@@ -193,14 +214,28 @@ class TestBookingServiceUnit:
         booking.booking_date = date.today() + timedelta(days=2)
         booking.start_time = time(14, 0)
         booking.end_time = time(15, 0)
+        booking.booking_start_utc = datetime.combine(
+            booking.booking_date, booking.start_time, tzinfo=timezone.utc
+        )
+        booking.booking_end_utc = datetime.combine(
+            booking.booking_date, booking.end_time, tzinfo=timezone.utc
+        )
         booking.status = BookingStatus.CONFIRMED
         booking.total_price = Decimal("50.00")
+        booking.hourly_rate = Decimal("50.00")
         booking.duration_minutes = 60
         booking.is_cancellable = True
         booking.is_upcoming = True
+        booking.has_locked_funds = False
+        booking.rescheduled_from_booking_id = None
         booking.cancelled_at = None
         booking.cancelled_by_id = None
         booking.cancellation_reason = None
+        booking.payment_detail = SimpleNamespace(
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            payment_intent_id="pi_test",
+            payment_method_id="pm_test",
+        )
 
         # Mock relationships
         booking.student = mock_student
@@ -265,8 +300,6 @@ class TestBookingServiceUnit:
         )
 
         # Mock repository responses
-        booking_service.repository.check_time_conflict.return_value = False  # No conflicts
-
         # Mock the conflict checker repository methods
         booking_service.conflict_checker_repository.get_active_service.return_value = mock_service
         booking_service.conflict_checker_repository.get_instructor_profile.return_value = mock_instructor_profile
@@ -296,7 +329,7 @@ class TestBookingServiceUnit:
 
         # Assertions
         assert result == mock_booking
-        booking_service.repository.check_time_conflict.assert_called_once()
+        booking_service.conflict_checker.check_booking_conflicts.assert_called_once()
         booking_service.repository.create.assert_called_once()
         booking_service.event_publisher.publish.assert_called_once()
         published_event = booking_service.event_publisher.publish.call_args[0][0]
@@ -332,9 +365,6 @@ class TestBookingServiceUnit:
             end_time=time(15, 0),
         )
 
-        # Mock repository responses
-        booking_service.repository.check_time_conflict.return_value = False
-
         # Mock service not found (inactive)
         booking_service.conflict_checker_repository.get_active_service.return_value = None
 
@@ -368,15 +398,14 @@ class TestBookingServiceUnit:
         mock_instructor_profile,
         monkeypatch: pytest.MonkeyPatch,
     ):
-        mock_instructor_profile.min_advance_booking_hours = 1
         if not hasattr(mock_instructor_profile, "user") or mock_instructor_profile.user is None:
             mock_instructor_profile.user = Mock()
         mock_instructor_profile.user.timezone = "America/New_York"
 
         self._freeze_time(monkeypatch, datetime(2025, 11, 23, 1, 51, 46, tzinfo=timezone.utc))
 
-        booking_service.repository.check_time_conflict.return_value = False
-        booking_service.repository.check_student_time_conflict.return_value = []
+        booking_service.conflict_checker.check_booking_conflicts.return_value = []
+        booking_service.conflict_checker.check_student_booking_conflicts.return_value = []
 
         first_booking = BookingCreate(
             instructor_id=mock_instructor_profile.user_id,
@@ -419,7 +448,6 @@ class TestBookingServiceUnit:
         mock_instructor_profile,
         monkeypatch: pytest.MonkeyPatch,
     ):
-        mock_instructor_profile.min_advance_booking_hours = 1
         if not hasattr(mock_instructor_profile, "user") or mock_instructor_profile.user is None:
             mock_instructor_profile.user = Mock()
         mock_instructor_profile.user.timezone = "America/New_York"
@@ -434,9 +462,16 @@ class TestBookingServiceUnit:
             end_time=time(21, 30),
             selected_duration=30,
         )
+        booking_service._get_advance_notice_minutes = Mock(return_value=60)
+        booking_service._resolve_booking_times_utc = Mock(
+            return_value=(
+                datetime(2025, 11, 23, 2, 0, tzinfo=timezone.utc),
+                datetime(2025, 11, 23, 2, 30, tzinfo=timezone.utc),
+            )
+        )
 
         with pytest.raises(
-            BusinessRuleException, match="Bookings must be made at least 1 hours in advance"
+            BusinessRuleException, match="Bookings must be made at least 1 hour in advance"
         ):
             await asyncio.to_thread(booking_service._check_conflicts_and_rules,
                 too_close_booking,
@@ -465,14 +500,14 @@ class TestBookingServiceUnit:
             end_time=time(15, 0),
         )
 
-        # Mock repository responses
-        booking_service.repository.check_time_conflict.return_value = True  # Has conflicts!
-
         # Mock the conflict checker repository methods
         booking_service.conflict_checker_repository.get_active_service.return_value = mock_service
         booking_service.conflict_checker_repository.get_instructor_profile.return_value = mock_instructor_profile
         booking_service.conflict_checker_repository.get_bookings_for_conflict_check.return_value = []
         booking_service.conflict_checker_repository.get_blackout_date.return_value = None
+        booking_service.conflict_checker.check_booking_conflicts.return_value = [
+            {"booking_id": generate_ulid()}
+        ]
 
         # Mock the _validate_booking_prerequisites to bypass instructor status check
         booking_service._validate_booking_prerequisites = MagicMock(
@@ -486,7 +521,13 @@ class TestBookingServiceUnit:
 
     @pytest.mark.asyncio
     async def test_create_booking_minimum_advance_hours(
-        self, booking_service, mock_student, mock_service, mock_instructor_profile, mock_instructor
+        self,
+        booking_service,
+        mock_student,
+        mock_service,
+        mock_instructor_profile,
+        mock_instructor,
+        monkeypatch: pytest.MonkeyPatch,
     ):
         """Test minimum advance booking hours validation."""
         # Set booking to be too soon
@@ -500,14 +541,20 @@ class TestBookingServiceUnit:
             end_time=time(11, 0),  # 11:00 AM
         )
 
-        # Mock repository responses
-        booking_service.repository.check_time_conflict.return_value = False
-
         # Mock the conflict checker repository methods
         booking_service.conflict_checker_repository.get_active_service.return_value = mock_service
         booking_service.conflict_checker_repository.get_instructor_profile.return_value = mock_instructor_profile
         booking_service.conflict_checker_repository.get_bookings_for_conflict_check.return_value = []
         booking_service.conflict_checker_repository.get_blackout_date.return_value = None
+        booking_service._get_advance_notice_minutes = Mock(return_value=24 * 60)
+        fixed_now = datetime(2030, 1, 1, 12, 0, tzinfo=timezone.utc)
+        self._freeze_time(monkeypatch, fixed_now)
+        booking_service._resolve_booking_times_utc = Mock(
+            return_value=(
+                fixed_now + timedelta(hours=23),
+                fixed_now + timedelta(hours=24),
+            )
+        )
 
         # Mock the _validate_booking_prerequisites to bypass instructor status check
         booking_service._validate_booking_prerequisites = MagicMock(
@@ -548,7 +595,6 @@ class TestBookingServiceUnit:
             selected_duration=30,
         )
 
-        booking_service.repository.check_time_conflict.return_value = False
         booking_service._validate_booking_prerequisites = MagicMock(
             return_value=(mock_service, mock_instructor_profile)
         )
@@ -566,13 +612,7 @@ class TestBookingServiceUnit:
         )
 
         assert result is fake_booking
-        booking_service.repository.check_time_conflict.assert_called_once_with(
-            instructor_id=instructor_id,
-            booking_date=target_day,
-            start_time=time(9, 30),
-            end_time=time(10, 0),
-            exclude_booking_id=None,
-        )
+        booking_service.conflict_checker.check_booking_conflicts.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_create_booking_respects_availability_bits_rejects_outside(
@@ -603,7 +643,6 @@ class TestBookingServiceUnit:
             selected_duration=60,
         )
 
-        booking_service.repository.check_time_conflict.return_value = False
         booking_service._validate_booking_prerequisites = MagicMock(
             return_value=(mock_service, mock_instructor_profile)
         )
@@ -620,18 +659,22 @@ class TestBookingServiceUnit:
                 mock_student, booking_data, selected_duration=booking_data.selected_duration
             )
 
-        booking_service.repository.check_time_conflict.assert_not_called()
+        booking_service.conflict_checker.check_booking_conflicts.assert_not_called()
         mocked_create.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_cancel_booking_success(self, booking_service, mock_student, mock_booking):
         """Test successful booking cancellation by student."""
         # Mock the booking retrieval
+        booking_service.repository.get_booking_for_participant_for_update.return_value = mock_booking
+        booking_service.repository.get_by_id_for_update.return_value = mock_booking
         booking_service.repository.get_booking_with_details.return_value = mock_booking
 
         with patch("app.repositories.payment_repository.PaymentRepository") as payment_repo_cls, patch(
-            "app.services.stripe_service.StripeService"
-        ) as stripe_service_cls, patch.object(booking_service, "_invalidate_booking_caches"):
+            "app.services.booking_service.StripeService"
+        ) as stripe_service_cls, patch.object(
+            booking_service, "_post_cancellation_actions"
+        ) as post_actions_mock:
             payment_repo_cls.return_value.create_payment_event.return_value = None
             stripe_instance = stripe_service_cls.return_value
             stripe_instance.cancel_payment_intent.return_value = None
@@ -643,15 +686,12 @@ class TestBookingServiceUnit:
 
         # Assertions
         mock_booking.cancel.assert_called_once_with(mock_student.id, "Schedule conflict")
-        booking_service.event_publisher.publish.assert_called_once()
-        cancel_event = booking_service.event_publisher.publish.call_args[0][0]
-        assert isinstance(cancel_event, BookingCancelled)
-        assert cancel_event.booking_id == mock_booking.id
+        post_actions_mock.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_cancel_booking_not_found(self, booking_service):
         """Test cancellation fails when booking not found."""
-        booking_service.repository.get_booking_with_details.return_value = None
+        booking_service.repository.get_booking_for_participant_for_update.return_value = None
 
         with pytest.raises(NotFoundException, match="Booking not found"):
             await asyncio.to_thread(booking_service.cancel_booking, 1, Mock())
@@ -662,9 +702,9 @@ class TestBookingServiceUnit:
         unauthorized_user = Mock(spec=User)
         unauthorized_user.id = 999
 
-        booking_service.repository.get_booking_with_details.return_value = mock_booking
+        booking_service.repository.get_booking_for_participant_for_update.return_value = None
 
-        with pytest.raises(ValidationException, match="You don't have permission to cancel this booking"):
+        with pytest.raises(NotFoundException, match="Booking not found"):
             await asyncio.to_thread(booking_service.cancel_booking, 1, unauthorized_user)
 
     @pytest.mark.asyncio
@@ -673,7 +713,7 @@ class TestBookingServiceUnit:
         mock_booking.is_cancellable = False
         mock_booking.status = BookingStatus.COMPLETED
 
-        booking_service.repository.get_booking_with_details.return_value = mock_booking
+        booking_service.repository.get_booking_for_participant_for_update.return_value = mock_booking
 
         with pytest.raises(BusinessRuleException, match="Booking cannot be cancelled"):
             await asyncio.to_thread(booking_service.cancel_booking, 1, mock_student)
@@ -823,8 +863,8 @@ class TestBookingServiceUnit:
         self._freeze_time(monkeypatch, now)
 
         mock_payment_repo = Mock()
-        with patch("app.services.booking_service.PaymentRepository", return_value=mock_payment_repo), patch(
-            "app.services.booking_service.BadgeAwardService"
+        with patch("app.repositories.payment_repository.PaymentRepository", return_value=mock_payment_repo), patch(
+            "app.services.badge_award_service.BadgeAwardService"
         ):
             booking_service.instructor_mark_complete(booking.id, mock_instructor)
 
@@ -901,8 +941,10 @@ class TestBookingServiceUnit:
     def test_calculate_pricing_standard(self, booking_service):
         """Test pricing calculation for standard booking."""
         service = Mock()
-        service.hourly_rate = 50.0
-        service.duration_options = [60, 90]
+        service.hourly_rate_for_location_type.return_value = 50.0
+        service.price_for_booking.return_value = Decimal("75.00")
+        service.hourly_rate_for_location_type.return_value = 50.0
+        service.price_for_booking.return_value = Decimal("75.00")
 
         # Calculate for 1.5 hours
         start_time = time(14, 0)
@@ -918,8 +960,10 @@ class TestBookingServiceUnit:
     def test_calculate_pricing_with_selected_duration(self, booking_service):
         """Test pricing calculation with selected duration."""
         service = Mock()
-        service.hourly_rate = 60.0
-        service.duration_options = [30, 45, 60]  # Multiple duration options
+        service.hourly_rate_for_location_type.return_value = 60.0
+        service.price_for_booking.return_value = Decimal("45.00")
+        service.hourly_rate_for_location_type.return_value = 60.0
+        service.price_for_booking.return_value = Decimal("45.00")
 
         # Selected duration is 45 minutes
         start_time = time(14, 0)

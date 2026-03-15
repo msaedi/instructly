@@ -22,6 +22,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.booking import Booking
+from tests.utils.availability_builders import build_week_payload_from_slots
 
 
 @pytest.fixture(autouse=True)
@@ -46,7 +47,6 @@ def _zero_min_advance_for_new_api(db: Session, test_instructor_with_availability
         .first()
     )
     if profile:
-        profile.min_advance_booking_hours = 0
         db.add(profile)
         db.commit()
 
@@ -148,6 +148,7 @@ class TestBookingRoutesNewFormat:
                 "booking_date": tomorrow.isoformat(),
                 "start_time": "09:00",
                 "end_time": "10:00",
+                "location_type": "online",
             },
             headers=auth_headers_student,
         )
@@ -208,17 +209,16 @@ class TestAvailabilityRoutesCleanResponses:
         if monday <= date.today():
             monday = monday + timedelta(days=7)  # Ensure it's a future Monday
 
-        week_payload = {
-            "week_start": monday.isoformat(),
-            "clear_existing": True,
-            "schedule": [
+        week_payload = build_week_payload_from_slots(
+            monday,
+            [
                 {
                     "date": monday.isoformat(),
                     "start_time": "09:30:00",
                     "end_time": "10:30:00",
                 }
             ],
-        }
+        )
 
         # Update availability using bitmap /week endpoint
         update_response = client.post(
@@ -247,17 +247,16 @@ class TestAvailabilityRoutesCleanResponses:
         if monday <= date.today():
             monday = monday + timedelta(days=7)  # Ensure it's a future Monday
 
-        week_payload = {
-            "week_start": monday.isoformat(),
-            "clear_existing": True,
-            "schedule": [
+        week_payload = build_week_payload_from_slots(
+            monday,
+            [
                 {
                     "date": monday.isoformat(),
                     "start_time": "09:00:00",
                     "end_time": "10:00:00",
                 }
             ],
-        }
+        )
 
         # Add legacy field to simulate old clients
         bad_payload = dict(week_payload)
@@ -378,6 +377,7 @@ def test_full_booking_flow_clean_architecture(
             "booking_date": future_date.isoformat(),
             "start_time": "10:00",
             "end_time": "11:00",
+            "location_type": "online",
         },
         headers=auth_headers_student,
     )

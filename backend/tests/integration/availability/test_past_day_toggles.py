@@ -9,6 +9,10 @@ from datetime import date, timedelta, timezone
 from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
+from tests.utils.availability_builders import (
+    build_week_payload_from_slots,
+    decode_week_response_to_windows,
+)
 
 from app.models import AvailabilityDay, User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
@@ -63,10 +67,9 @@ class TestPastDayEditsPersistWhenAllowPastTrue:
         db.commit()
 
         # POST /week containing a past date and a future date
-        payload = {
-            "week_start": week_start.isoformat(),
-            "clear_existing": True,
-            "schedule": [
+        payload = build_week_payload_from_slots(
+            week_start,
+            [
                 {
                     "date": past_day.isoformat(),
                     "start_time": "08:00:00",
@@ -78,7 +81,7 @@ class TestPastDayEditsPersistWhenAllowPastTrue:
                     "end_time": "17:00:00",
                 },
             ],
-        }
+        )
 
         resp = bitmap_client_allow_past.post(
             "/api/v1/instructors/availability/week",
@@ -96,7 +99,7 @@ class TestPastDayEditsPersistWhenAllowPastTrue:
             headers=auth_headers_instructor,
         )
         assert get_resp.status_code == 200
-        body = get_resp.json()
+        body = decode_week_response_to_windows(get_resp.json())
         assert body[past_day.isoformat()] == [{"start_time": "08:00:00", "end_time": "09:00:00"}]
         assert body[future_day.isoformat()] == [{"start_time": "16:00:00", "end_time": "17:00:00"}]
 
@@ -143,10 +146,9 @@ class TestPastDayEditsIgnoredWhenAllowPastFalse:
         initial_past_bits = initial_bits.get(past_day)
 
         # POST /week mixed past+future → 200
-        payload = {
-            "week_start": week_start.isoformat(),
-            "clear_existing": True,
-            "schedule": [
+        payload = build_week_payload_from_slots(
+            week_start,
+            [
                 {
                     "date": past_day.isoformat(),
                     "start_time": "08:00:00",
@@ -158,7 +160,7 @@ class TestPastDayEditsIgnoredWhenAllowPastFalse:
                     "end_time": "17:00:00",
                 },
             ],
-        }
+        )
 
         resp = bitmap_client_disallow_past.post(
             "/api/v1/instructors/availability/week",
@@ -176,7 +178,7 @@ class TestPastDayEditsIgnoredWhenAllowPastFalse:
             headers=auth_headers_instructor,
         )
         assert get_resp.status_code == 200
-        body = get_resp.json()
+        body = decode_week_response_to_windows(get_resp.json())
 
         # Past day should be empty (or unchanged if there was initial data)
         assert body.get(past_day.isoformat(), []) == []

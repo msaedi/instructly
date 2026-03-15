@@ -154,6 +154,18 @@ export interface InstructorProfile {
   /** Timestamp for completed background check */
   bgc_completed_at?: string | null;
 
+  /** Buffer between non-travel lessons in minutes */
+  non_travel_buffer_minutes?: number;
+
+  /** Buffer after travel lessons in minutes */
+  travel_buffer_minutes?: number;
+
+  /** Whether overnight early-morning booking protection is enabled */
+  overnight_protection_enabled?: boolean;
+
+  /** Timestamp when the instructor dismissed the first calendar-settings popup */
+  calendar_settings_acknowledged_at?: string | null;
+
   /** Date when instructor joined */
   created_at?: string;
 

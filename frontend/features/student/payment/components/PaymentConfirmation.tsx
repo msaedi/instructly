@@ -2654,6 +2654,8 @@ function PaymentConfirmationInner({
               ? booking.duration
               : null
           }
+          initialLocationType={locationType}
+          lockLocationType
           {...(sessionStorage.getItem('serviceId') && { serviceId: sessionStorage.getItem('serviceId')! })}
           bookingDraftId={booking.bookingId}
           appliedCreditCents={derivedAppliedCreditCents}

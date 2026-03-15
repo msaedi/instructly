@@ -1,13 +1,21 @@
 // frontend/components/calendar/WeekView.tsx
 
-import type { WeekBits, WeekDateInfo } from '@/types/availability';
+import type { WeekBits, WeekDateInfo, WeekTags } from '@/types/availability';
+import type {
+  AvailabilityPaintMode,
+  EditableFormatTag,
+} from '@/components/availability/calendarSettings';
 import type { BookedSlotPreview } from '@/types/booking';
 import InteractiveGrid from '@/components/availability/InteractiveGrid';
 
 interface WeekViewProps {
   weekDates: WeekDateInfo[];
   weekBits: WeekBits;
+  weekTags?: WeekTags;
   onBitsChange: (next: WeekBits | ((prev: WeekBits) => WeekBits)) => void;
+  onTagsChange?: (next: WeekTags | ((prev: WeekTags) => WeekTags)) => void;
+  availableTagOptions?: EditableFormatTag[];
+  paintMode?: AvailabilityPaintMode;
   bookedSlots?: BookedSlotPreview[];
   startHour?: number;
   endHour?: number;
@@ -21,7 +29,11 @@ interface WeekViewProps {
 const WeekView = ({
   weekDates,
   weekBits,
+  weekTags,
   onBitsChange,
+  onTagsChange,
+  availableTagOptions,
+  paintMode,
   bookedSlots,
   startHour,
   endHour,
@@ -35,7 +47,11 @@ const WeekView = ({
     <InteractiveGrid
       weekDates={weekDates}
       weekBits={weekBits}
+      {...(weekTags ? { weekTags } : {})}
       onBitsChange={onBitsChange}
+      {...(onTagsChange ? { onTagsChange } : {})}
+      {...(availableTagOptions ? { availableTagOptions } : {})}
+      {...(paintMode !== undefined ? { paintMode } : {})}
       {...(bookedSlots ? { bookedSlots } : {})}
       {...(startHour !== undefined ? { startHour } : {})}
       {...(endHour !== undefined ? { endHour } : {})}

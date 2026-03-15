@@ -35,8 +35,9 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
           ntacode: n.code,
         })),
         years_experience: 5,
-        min_advance_booking_hours: 2,
-        buffer_time_minutes: 15,
+        non_travel_buffer_minutes: 15,
+        travel_buffer_minutes: 60,
+        overnight_protection_enabled: true,
         user: { roles: ['instructor'] },
       });
       return;
@@ -54,8 +55,9 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
           ntacode: n.code,
         })),
         years_experience: 5,
-        min_advance_booking_hours: 2,
-        buffer_time_minutes: 15,
+        non_travel_buffer_minutes: 15,
+        travel_buffer_minutes: 60,
+        overnight_protection_enabled: true,
       });
       return;
     }

@@ -9,7 +9,7 @@ from tests._utils.bitmap_avail import seed_day
 from tests.conftest import _ensure_region_boundary, add_service_area
 
 from app.models.service_catalog import InstructorService
-from app.repositories.filter_repository import FilterRepository, _get_today_nyc
+from app.repositories.filter_repository import FilterRepository
 
 
 def _boundary_expects_multipolygon(db) -> bool:
@@ -181,16 +181,23 @@ def test_availability_filters(db, test_instructor):
 
 def test_availability_default_dates_and_empty_inputs(db, test_instructor):
     repo = FilterRepository(db)
-    today = _get_today_nyc()
+    today = date.today()
     seed_day(db, test_instructor.id, today, [("08:00", "09:00")])
     db.commit()
 
-    default_dates = repo.filter_by_availability([test_instructor.id])
+    default_dates = repo.filter_by_availability([test_instructor.id], dates_to_check=[today])
     assert test_instructor.id in default_dates
 
     assert repo.filter_by_availability([]) == {}
     assert repo.batch_check_availability([], today) == []
     assert repo.check_weekend_availability([], today, today + timedelta(days=1)) == {}
+
+
+def test_filter_by_availability_requires_explicit_dates_when_target_date_missing(db):
+    repo = FilterRepository(db)
+
+    with pytest.raises(ValueError, match="dates_to_check is required"):
+        repo.filter_by_availability(["inst-1"])
 
 
 def test_filter_by_lesson_type(db, test_instructor):

@@ -14,6 +14,8 @@ from typing import Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .common import LocationTypeLiteral
+
 
 class PublicAvailabilitySummaryEntry(BaseModel):
     """Summary of availability for a single date."""
@@ -122,7 +124,7 @@ class PublicInstructorAvailability(BaseModel):
         # Exclude None values from serialization to keep responses clean
         json_schema_extra={
             "example": {
-                "instructor_id": 123,
+                "instructor_id": "01HQXYZ0000000000000000000",
                 "instructor_first_name": "Sarah",
                 "instructor_last_initial": "C",
                 "availability_by_date": {
@@ -149,6 +151,10 @@ class PublicAvailabilityQuery(BaseModel):
     start_date: date = Field(description="Start date for availability query")
     end_date: Optional[date] = Field(
         None, description="End date for availability query (defaults to 30 days from start)"
+    )
+    location_type: Optional[LocationTypeLiteral] = Field(
+        None,
+        description="Optional booking format for format-aware advance notice filtering",
     )
 
     @property
@@ -192,7 +198,7 @@ class PublicAvailabilitySummary(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "instructor_id": 123,
+                "instructor_id": "01HQXYZ0000000000000000000",
                 "instructor_first_name": "Sarah",
                 "instructor_last_initial": "C",
                 "availability_summary": {

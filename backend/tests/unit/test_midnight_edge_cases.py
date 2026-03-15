@@ -22,8 +22,8 @@ except ModuleNotFoundError:  # pragma: no cover
 
 def _configure_profile(db: Session, instructor_id: str) -> InstructorProfile:
     profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor_id).one()
-    profile.min_advance_booking_hours = 0
-    profile.buffer_time_minutes = 0
+    profile.non_travel_buffer_minutes = 0
+    profile.travel_buffer_minutes = 0
     db.flush()
     return profile
 

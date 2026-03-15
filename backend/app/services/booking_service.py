@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
+import hashlib
 import logging
 import os
 from types import SimpleNamespace
@@ -57,13 +58,15 @@ from ..repositories.factory import RepositoryFactory
 from ..repositories.filter_repository import FilterRepository
 from ..repositories.job_repository import JobRepository
 from ..schemas.booking import BookingCreate, BookingUpdate
+from ..utils.bitset import get_slot_tag, is_tag_compatible, new_empty_tags
 from ..utils.time_helpers import string_to_time
 from ..utils.time_utils import time_to_minutes
 from .audit_redaction import redact
 from .audit_service import AuditService
 from .base import BaseService
 from .cache_service import CacheService, CacheServiceSyncAdapter
-from .config_service import ConfigService
+from .config_service import ConfigService, is_instructor_travel_format, normalize_location_type
+from .conflict_checker import ConflictChecker
 from .notification_service import NotificationService
 from .notification_templates import (
     INSTRUCTOR_BOOKING_CANCELLED,
@@ -126,6 +129,7 @@ class BookingService(BaseService):
     availability_repository: "AvailabilityRepository"
     conflict_checker_repository: "ConflictCheckerRepository"
     cache_service: Optional[CacheServiceSyncAdapter]
+    config_service: ConfigService
     notification_service: NotificationService
     event_outbox_repository: "EventOutboxRepository"
     audit_repository: "AuditRepository"
@@ -140,6 +144,24 @@ class BookingService(BaseService):
         message = str(exc).lower()
         return "deadlock detected" in message
 
+    @staticmethod
+    def _booking_create_lock_key(instructor_id: str, booking_date: date) -> int:
+        payload = f"{instructor_id}:{booking_date.isoformat()}".encode("utf-8")
+        digest = hashlib.sha256(payload).digest()
+        return int.from_bytes(digest[:8], byteorder="big", signed=True)
+
+    def _acquire_booking_create_advisory_lock(self, instructor_id: str, booking_date: date) -> None:
+        acquire_lock = getattr(self.repository, "acquire_transaction_advisory_lock", None)
+        if not callable(acquire_lock):
+            return
+
+        acquire_lock(
+            self._booking_create_lock_key(
+                instructor_id,
+                booking_date,
+            )
+        )
+
     def __init__(
         self,
         db: Session,
@@ -149,6 +171,7 @@ class BookingService(BaseService):
         conflict_checker_repository: Optional["ConflictCheckerRepository"] = None,
         cache_service: Optional[CacheService | CacheServiceSyncAdapter] = None,
         system_message_service: Optional[SystemMessageService] = None,
+        config_service: Optional[ConfigService] = None,
     ):
         """
         Initialize booking service.
@@ -161,6 +184,7 @@ class BookingService(BaseService):
             conflict_checker_repository: Optional ConflictCheckerRepository instance
             cache_service: Optional cache service for invalidation
             system_message_service: Optional system message service for conversation messages
+            config_service: Optional config service for booking rules and pricing config
         """
         cache_impl = cache_service
         cache_adapter: Optional[CacheServiceSyncAdapter] = None
@@ -169,6 +193,7 @@ class BookingService(BaseService):
         elif isinstance(cache_impl, CacheService):
             cache_adapter = CacheServiceSyncAdapter(cache_impl)
         super().__init__(db, cache=cache_adapter)
+        self.config_service = config_service or ConfigService(db)
         self.notification_service = notification_service or NotificationService(db, cache_adapter)
         self.event_publisher = event_publisher or EventPublisher(JobRepository(db))
         self.system_message_service = system_message_service or SystemMessageService(db)
@@ -182,6 +207,11 @@ class BookingService(BaseService):
         self.availability_repository = RepositoryFactory.create_availability_repository(db)
         self.conflict_checker_repository = (
             conflict_checker_repository or RepositoryFactory.create_conflict_checker_repository(db)
+        )
+        self.conflict_checker = ConflictChecker(
+            db,
+            repository=self.conflict_checker_repository,
+            config_service=self.config_service,
         )
         self.cache_service = cache_adapter
         self.service_area_repository = RepositoryFactory.create_instructor_service_area_repository(
@@ -513,6 +543,47 @@ class BookingService(BaseService):
                 return False
         return True
 
+    def _get_day_bitmaps(self, instructor_id: str, day: date) -> tuple[bytes, bytes]:
+        """Return (bits, format_tags) for a day, defaulting tags to all-zero."""
+        repo = getattr(self, "availability_repository", None)
+        if repo is None or (
+            not hasattr(repo, "get_day_bitmaps") and not hasattr(repo, "get_day_bits")
+        ):
+            repo = AvailabilityDayRepository(self.db)
+
+        if hasattr(repo, "get_day_bitmaps"):
+            bitmaps = repo.get_day_bitmaps(instructor_id, day)
+            if bitmaps is not None:
+                return cast(tuple[bytes, bytes], bitmaps)
+
+        bits = repo.get_day_bits(instructor_id, day) if hasattr(repo, "get_day_bits") else None
+        return (bits or b"", new_empty_tags())
+
+    def _get_bitmap_availability_error(
+        self,
+        instructor_id: str,
+        day: date,
+        start_index: int,
+        end_index: int,
+        *,
+        location_type: str | None,
+    ) -> str | None:
+        """Return a user-facing availability error when bits or tags reject the request."""
+        bits, format_tags = self._get_day_bitmaps(instructor_id, day)
+        for idx in range(start_index, end_index):
+            byte_i = idx // 8
+            bit_mask = 1 << (idx % 8)
+            if byte_i >= len(bits) or (bits[byte_i] & bit_mask) == 0:
+                return "Requested time is not available"
+
+        normalized_location_type = normalize_location_type(location_type)
+        for idx in range(start_index, end_index):
+            tag = get_slot_tag(format_tags, idx)
+            if not is_tag_compatible(tag, normalized_location_type):
+                return "This time slot is not available for the selected lesson format"
+
+        return None
+
     def _validate_against_availability_bits(
         self,
         booking_data: BookingCreate,
@@ -545,10 +616,20 @@ class BookingService(BaseService):
             raise BusinessRuleException("Requested time is not available")
 
         local_day = self._resolve_local_booking_day(booking_data, instructor_profile)
-        if not self._check_bits_coverage(
-            booking_data.instructor_id, local_day, start_index, end_index
-        ):
-            raise BusinessRuleException("Requested time is not available")
+        error_message = self._get_bitmap_availability_error(
+            booking_data.instructor_id,
+            local_day,
+            start_index,
+            end_index,
+            location_type=booking_data.location_type,
+        )
+        if error_message:
+            error_code = (
+                "FORMAT_TAG_INCOMPATIBLE"
+                if error_message == "This time slot is not available for the selected lesson format"
+                else None
+            )
+            raise BusinessRuleException(error_message, code=error_code)
 
     def _build_conflict_details(
         self, booking_data: BookingCreate, student_id: Optional[str]
@@ -667,13 +748,15 @@ class BookingService(BaseService):
         # 4. Ensure requested interval fits published availability (bitmap V2)
         self._validate_against_availability_bits(booking_data, instructor_profile)
 
-        # 5. Check conflicts and apply business rules
-        self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
-
-        # 6. Create the booking with transaction
+        # 5. Create the booking with transaction-scoped conflict protection
         transactional_repo = cast(Any, self.repository)
         try:
             with transactional_repo.transaction():
+                self._acquire_booking_create_advisory_lock(
+                    booking_data.instructor_id,
+                    booking_data.booking_date,
+                )
+                self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
                 booking = self._create_booking_record(
                     student, booking_data, service, instructor_profile, selected_duration
                 )
@@ -766,13 +849,15 @@ class BookingService(BaseService):
         # 4. Ensure requested interval fits published availability (bitmap V2)
         self._validate_against_availability_bits(booking_data, instructor_profile)
 
-        # 5. Check conflicts and apply business rules
-        self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
-
-        # 6. Create booking with PENDING status initially
+        # 5. Create booking with PENDING status initially and transaction-scoped conflict protection
         transactional_repo = cast(Any, self.repository)
         try:
             with transactional_repo.transaction():
+                self._acquire_booking_create_advisory_lock(
+                    booking_data.instructor_id,
+                    booking_data.booking_date,
+                )
+                self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
                 booking = self._create_booking_record(
                     student, booking_data, service, instructor_profile, selected_duration
                 )
@@ -861,7 +946,7 @@ class BookingService(BaseService):
         # ========== Phase 2: Stripe SetupIntent (NO transaction) ==========
         stripe_service = StripeService(
             self.db,
-            config_service=ConfigService(self.db),
+            config_service=self.config_service,
             pricing_service=PricingService(self.db),
         )
 
@@ -992,14 +1077,16 @@ class BookingService(BaseService):
         # 4. Ensure requested interval fits published availability (bitmap V2)
         self._validate_against_availability_bits(booking_data, instructor_profile)
 
-        # 5. Check conflicts and apply business rules
-        self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
-
-        # 6. Create the booking with transaction
+        # 5. Create the booking with transaction-scoped conflict protection
         transactional_repo = cast(Any, self.repository)
         old_booking: Optional[Booking] = None
         try:
             with transactional_repo.transaction():
+                self._acquire_booking_create_advisory_lock(
+                    booking_data.instructor_id,
+                    booking_data.booking_date,
+                )
+                self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
                 booking = self._create_booking_record(
                     student, booking_data, service, instructor_profile, selected_duration
                 )
@@ -1152,13 +1239,16 @@ class BookingService(BaseService):
         # 4. Ensure requested interval fits published availability (bitmap V2)
         self._validate_against_availability_bits(booking_data, instructor_profile)
 
-        # 5. Check conflicts and apply business rules
-        self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
-
+        # 5. Create booking with transaction-scoped conflict protection
         transactional_repo = cast(Any, self.repository)
         old_booking: Optional[Booking] = None
         try:
             with transactional_repo.transaction():
+                self._acquire_booking_create_advisory_lock(
+                    booking_data.instructor_id,
+                    booking_data.booking_date,
+                )
+                self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
                 booking = self._create_booking_record(
                     student, booking_data, service, instructor_profile, selected_duration
                 )
@@ -1303,7 +1393,7 @@ class BookingService(BaseService):
         if save_payment_method:
             stripe_service = StripeService(
                 self.db,
-                config_service=ConfigService(self.db),
+                config_service=self.config_service,
                 pricing_service=PricingService(self.db),
             )
             stripe_service.save_payment_method(
@@ -1429,11 +1519,11 @@ class BookingService(BaseService):
                 auth_result = _process_authorization_for_booking(
                     booking.id, immediate_auth_hours_until or 0.0
                 )
-                if not auth_result.get("success"):
+                if not auth_result or not auth_result.get("success"):
                     logger.warning(
                         "Immediate auth failed for gaming reschedule booking %s: %s",
                         booking.id,
-                        auth_result.get("error"),
+                        auth_result.get("error") if auth_result else "unknown error",
                     )
             except Exception as exc:
                 logger.error(
@@ -1550,7 +1640,7 @@ class BookingService(BaseService):
 
         stripe_service = StripeService(
             self.db,
-            config_service=ConfigService(self.db),
+            config_service=self.config_service,
             pricing_service=PricingService(self.db),
         )
 
@@ -1816,7 +1906,7 @@ class BookingService(BaseService):
         else:
             stripe_service = StripeService(
                 self.db,
-                config_service=ConfigService(self.db),
+                config_service=self.config_service,
                 pricing_service=PricingService(self.db),
             )
             stripe_results = self._execute_cancellation_stripe_calls(cancel_ctx, stripe_service)
@@ -2087,7 +2177,7 @@ class BookingService(BaseService):
         # Phase 2: Stripe calls (no transaction)
         stripe_service = StripeService(
             self.db,
-            config_service=ConfigService(self.db),
+            config_service=self.config_service,
             pricing_service=PricingService(self.db),
         )
 
@@ -2208,7 +2298,7 @@ class BookingService(BaseService):
 
         stripe_service = StripeService(
             self.db,
-            config_service=ConfigService(self.db),
+            config_service=self.config_service,
             pricing_service=PricingService(self.db),
         )
 
@@ -4410,7 +4500,7 @@ class BookingService(BaseService):
                 else:
                     stripe_service = StripeService(
                         self.db,
-                        config_service=ConfigService(self.db),
+                        config_service=self.config_service,
                         pricing_service=PricingService(self.db),
                     )
                     stripe_result = self._refund_for_instructor_no_show(
@@ -4427,7 +4517,7 @@ class BookingService(BaseService):
                 else:
                     stripe_service = StripeService(
                         self.db,
-                        config_service=ConfigService(self.db),
+                        config_service=self.config_service,
                         pricing_service=PricingService(self.db),
                     )
                     stripe_result = self._refund_for_instructor_no_show(
@@ -4444,7 +4534,7 @@ class BookingService(BaseService):
                 else:
                     stripe_service = StripeService(
                         self.db,
-                        config_service=ConfigService(self.db),
+                        config_service=self.config_service,
                         pricing_service=PricingService(self.db),
                     )
                     stripe_result = self._payout_for_student_no_show(
@@ -4464,7 +4554,7 @@ class BookingService(BaseService):
             else:
                 stripe_service = StripeService(
                     self.db,
-                    config_service=ConfigService(self.db),
+                    config_service=self.config_service,
                     pricing_service=PricingService(self.db),
                 )
                 stripe_result = self._payout_for_student_no_show(
@@ -4832,6 +4922,11 @@ class BookingService(BaseService):
         service_id: Optional[str] = None,
         instructor_service_id: Optional[str] = None,
         exclude_booking_id: Optional[str] = None,
+        location_type: Optional[str] = None,
+        student_id: Optional[str] = None,
+        selected_duration: Optional[int] = None,
+        location_lat: Optional[float] = None,
+        location_lng: Optional[float] = None,
     ) -> Dict[str, Any]:
         """
         Check if a time range is available for booking.
@@ -4854,21 +4949,11 @@ class BookingService(BaseService):
                 "reason": f"Start time must be on a {BOOKING_START_STEP_MINUTES}-minute boundary",
             }
 
-        # Check for conflicts
-        has_conflict = self.repository.check_time_conflict(
-            instructor_id=instructor_id,
-            booking_date=booking_date,
-            start_time=start_time,
-            end_time=end_time,
-            exclude_booking_id=exclude_booking_id,
-        )
-
-        if has_conflict:
-            return {"available": False, "reason": "Time slot has conflicts with existing bookings"}
-
         resolved_service_id = service_id or instructor_service_id
         if not resolved_service_id:
             return {"available": False, "reason": "Service not found or no longer available"}
+
+        normalized_location_type = normalize_location_type(location_type)
 
         # Get service and instructor profile using repositories
         service = self.conflict_checker_repository.get_active_service(resolved_service_id)
@@ -4883,12 +4968,49 @@ class BookingService(BaseService):
                 "reason": "Instructor profile not found",
             }
 
+        try:
+            self._validate_location_capability(service, normalized_location_type)
+        except ValidationException as exc:
+            return {
+                "available": False,
+                "reason": str(exc),
+            }
+
+        try:
+            self._validate_selected_duration_for_service(
+                service=service,
+                booking_date=booking_date,
+                start_time=start_time,
+                end_time=end_time,
+                selected_duration=selected_duration,
+            )
+        except ValidationException as exc:
+            return {
+                "available": False,
+                "reason": str(exc),
+            }
+
+        try:
+            self._validate_service_area_for_availability_check(
+                instructor_id=instructor_id,
+                service=service,
+                location_type=normalized_location_type,
+                location_lat=location_lat,
+                location_lng=location_lng,
+            )
+        except ValidationException as exc:
+            return {
+                "available": False,
+                "reason": str(exc),
+            }
+
         # Check minimum advance booking using UTC.
-        min_advance_hours = getattr(instructor_profile, "min_advance_booking_hours", 0) or 0
+        min_advance_minutes = self._get_advance_notice_minutes(normalized_location_type)
         now_utc = datetime.now(timezone.utc)
+        instructor_tz = self._resolve_instructor_timezone(instructor_profile)
         lesson_tz = TimezoneService.get_lesson_timezone(
-            self._resolve_instructor_timezone(instructor_profile),
-            is_online=False,
+            instructor_tz,
+            is_online=normalized_location_type == "online",
         )
         try:
             booking_start_utc, _ = self._resolve_booking_times_utc(
@@ -4901,8 +5023,8 @@ class BookingService(BaseService):
             return {"available": False, "reason": str(exc)}
 
         # For >=24 hour min advance, use date-level granularity to avoid HH:MM boundary flakiness
-        if min_advance_hours >= 24:
-            min_booking_dt = now_utc + timedelta(hours=min_advance_hours)
+        if min_advance_minutes >= 24 * 60:
+            min_booking_dt = now_utc + timedelta(minutes=min_advance_minutes)
             min_date_only = min_booking_dt.date()
 
             if booking_start_utc.date() < min_date_only or (
@@ -4911,17 +5033,63 @@ class BookingService(BaseService):
             ):
                 return {
                     "available": False,
-                    "reason": f"Must book at least {min_advance_hours} hours in advance",
-                    "min_advance_hours": min_advance_hours,
+                    "reason": (
+                        f"Must book at least {self._format_advance_notice(min_advance_minutes)} "
+                        "in advance"
+                    ),
+                    "min_advance_minutes": min_advance_minutes,
                 }
         else:
             # For <24 hour min advance, do precise time comparison
-            hours_until = TimezoneService.hours_until(booking_start_utc)
-            if hours_until < min_advance_hours:
+            minutes_until = (booking_start_utc - now_utc).total_seconds() / 60
+            if minutes_until < min_advance_minutes:
                 return {
                     "available": False,
-                    "reason": f"Must book at least {min_advance_hours} hours in advance",
-                    "min_advance_hours": min_advance_hours,
+                    "reason": (
+                        f"Must book at least {self._format_advance_notice(min_advance_minutes)} "
+                        "in advance"
+                    ),
+                    "min_advance_minutes": min_advance_minutes,
+                }
+
+        booking_time_local = TimezoneService.utc_to_local(now_utc, instructor_tz)
+        lesson_start_local = TimezoneService.utc_to_local(booking_start_utc, instructor_tz)
+        try:
+            self._check_overnight_protection(
+                booking_time_local,
+                lesson_start_local,
+                normalized_location_type,
+                instructor_profile,
+            )
+        except BusinessRuleException as exc:
+            return {"available": False, "reason": str(exc)}
+
+        has_conflict = self.conflict_checker.check_time_conflicts(
+            instructor_id=instructor_id,
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            new_location_type=normalized_location_type,
+            exclude_booking_id=exclude_booking_id,
+            instructor_profile=instructor_profile,
+        )
+        if has_conflict:
+            return {"available": False, "reason": "Time slot has conflicts with existing bookings"}
+
+        if student_id:
+            has_student_conflict = self.conflict_checker.check_student_time_conflicts(
+                student_id=student_id,
+                booking_date=booking_date,
+                start_time=start_time,
+                end_time=end_time,
+                new_location_type=normalized_location_type,
+                exclude_booking_id=exclude_booking_id,
+                instructor_profile=instructor_profile,
+            )
+            if has_student_conflict:
+                return {
+                    "available": False,
+                    "reason": "Time slot conflicts with one of your existing bookings",
                 }
 
         # Verify bitmap availability covers the requested range
@@ -4936,10 +5104,17 @@ class BookingService(BaseService):
         ):
             return {"available": False, "reason": "Requested time is not available"}
 
-        if not self._check_bits_coverage(instructor_id, booking_date, start_index, end_index):
+        error_message = self._get_bitmap_availability_error(
+            instructor_id,
+            booking_date,
+            start_index,
+            end_index,
+            location_type=normalized_location_type,
+        )
+        if error_message:
             return {
                 "available": False,
-                "reason": "Requested time is not available",
+                "reason": error_message,
             }
 
         return {
@@ -5071,6 +5246,55 @@ class BookingService(BaseService):
         offers_travel = bool(getattr(service, "offers_travel", False))
         return (not offers_at_location) and offers_travel
 
+    def _get_advance_notice_minutes(self, location_type: Optional[str] = None) -> int:
+        """Resolve advance-notice minutes from platform configuration."""
+        return int(self.config_service.get_advance_notice_minutes(location_type))
+
+    def _get_overnight_earliest_hour(self, location_type: Optional[str] = None) -> int:
+        """Resolve the earliest locally-bookable hour during overnight protection."""
+        return int(self.config_service.get_overnight_earliest_hour(location_type))
+
+    def _is_in_overnight_window(self, booking_time_local: datetime) -> bool:
+        """Return whether the request is being made inside the overnight booking window."""
+        return bool(self.config_service.is_in_overnight_window(booking_time_local))
+
+    @staticmethod
+    def _format_advance_notice(minutes: int) -> str:
+        """Human-readable advance-notice text for validation messages."""
+        if minutes % 60 == 0:
+            hours = minutes // 60
+            suffix = "" if hours == 1 else "s"
+            return f"{hours} hour{suffix}"
+        suffix = "" if minutes == 1 else "s"
+        return f"{minutes} minute{suffix}"
+
+    def _check_overnight_protection(
+        self,
+        booking_time_local: datetime,
+        lesson_start_local: datetime,
+        location_type: str,
+        instructor_profile: InstructorProfile,
+    ) -> None:
+        """Block protected early-morning lessons when booked overnight."""
+        if not bool(getattr(instructor_profile, "overnight_protection_enabled", True)):
+            return
+
+        normalized_location_type = normalize_location_type(location_type)
+        if not self._is_in_overnight_window(booking_time_local):
+            return
+
+        earliest_hour = self._get_overnight_earliest_hour(normalized_location_type)
+        if 0 <= lesson_start_local.hour < earliest_hour:
+            lesson_descriptor = (
+                "travel lessons"
+                if is_instructor_travel_format(normalized_location_type)
+                else "lessons"
+            )
+            raise BusinessRuleException(
+                f"Early morning {lesson_descriptor} cannot be booked overnight",
+                code="OVERNIGHT_PROTECTION",
+            )
+
     def _validate_service_area(
         self,
         booking_data: BookingCreate,
@@ -5105,6 +5329,75 @@ class BookingService(BaseService):
                 "Please choose a different location or select a different instructor.",
                 code="OUTSIDE_SERVICE_AREA",
             )
+
+    def _validate_service_area_for_availability_check(
+        self,
+        *,
+        instructor_id: str,
+        service: InstructorService,
+        location_type: Optional[str],
+        location_lat: Optional[float],
+        location_lng: Optional[float],
+    ) -> None:
+        """Apply service-area validation parity for availability checks when coordinates exist."""
+        normalized_location_type = normalize_location_type(location_type)
+        if normalized_location_type == "student_location":
+            pass
+        elif normalized_location_type == "neutral_location":
+            if not self._neutral_location_uses_service_area(service):
+                return
+        else:
+            return
+
+        if location_lat is None or location_lng is None:
+            return
+
+        is_covered = self.filter_repository.is_location_in_service_area(
+            instructor_id=instructor_id,
+            lat=float(location_lat),
+            lng=float(location_lng),
+        )
+        if not is_covered:
+            raise ValidationException(
+                "This location is outside the instructor's service area. "
+                "Please choose a different location or select a different instructor.",
+                code="OUTSIDE_SERVICE_AREA",
+            )
+
+    def _validate_selected_duration_for_service(
+        self,
+        *,
+        service: InstructorService,
+        booking_date: date,
+        start_time: time,
+        end_time: time,
+        selected_duration: Optional[int],
+    ) -> None:
+        """Validate optional duration input so availability preflights match booking creation."""
+        if selected_duration is None:
+            return
+
+        self._validate_min_session_duration_floor(selected_duration)
+
+        raw_duration_options = getattr(service, "duration_options", None)
+        duration_options = (
+            list(raw_duration_options)
+            if isinstance(raw_duration_options, (list, tuple, set))
+            else []
+        )
+
+        if selected_duration not in duration_options:
+            raise ValidationException(
+                f"Invalid duration {selected_duration}. Available options: {duration_options}"
+            )
+
+        calculated_end_time = self._calculate_and_validate_end_time(
+            booking_date,
+            start_time,
+            selected_duration,
+        )
+        if calculated_end_time != end_time:
+            raise ValidationException("Selected duration does not match the requested time range")
 
     def _validate_location_capability(
         self, service: InstructorService, location_type: Optional[str]
@@ -5177,7 +5470,9 @@ class BookingService(BaseService):
         if booking_data.end_time is None:
             raise ValidationException("End time must be specified before conflict checks")
 
-        self._validate_location_capability(service, booking_data.location_type)
+        normalized_location_type = normalize_location_type(booking_data.location_type)
+
+        self._validate_location_capability(service, normalized_location_type)
         self._validate_service_area(booking_data, booking_data.instructor_id, service)
 
         lesson_tz = self._resolve_lesson_timezone(booking_data, instructor_profile)
@@ -5188,12 +5483,49 @@ class BookingService(BaseService):
             lesson_tz,
         )
 
-        existing_conflicts = self.repository.check_time_conflict(
+        # Check minimum advance booking time (UTC)
+        # For >=24 hour advance notice, enforce on date granularity to avoid HH:MM boundary flakiness
+        min_advance_minutes = self._get_advance_notice_minutes(normalized_location_type)
+        now_utc = datetime.now(timezone.utc)
+
+        if min_advance_minutes >= 24 * 60:
+            min_booking_dt = now_utc + timedelta(minutes=min_advance_minutes)
+            min_date_only = min_booking_dt.date()
+
+            if booking_start_utc.date() < min_date_only or (
+                booking_start_utc.date() == min_date_only
+                and booking_start_utc.time() < min_booking_dt.time()
+            ):
+                raise BusinessRuleException(
+                    "Bookings must be made at least "
+                    f"{self._format_advance_notice(min_advance_minutes)} in advance"
+                )
+        else:
+            minutes_until = (booking_start_utc - now_utc).total_seconds() / 60
+            if minutes_until < min_advance_minutes:
+                raise BusinessRuleException(
+                    "Bookings must be made at least "
+                    f"{self._format_advance_notice(min_advance_minutes)} in advance"
+                )
+
+        instructor_tz = self._resolve_instructor_timezone(instructor_profile)
+        booking_time_local = TimezoneService.utc_to_local(now_utc, instructor_tz)
+        lesson_start_local = TimezoneService.utc_to_local(booking_start_utc, instructor_tz)
+        self._check_overnight_protection(
+            booking_time_local,
+            lesson_start_local,
+            normalized_location_type,
+            instructor_profile,
+        )
+
+        existing_conflicts = self.conflict_checker.check_booking_conflicts(
             instructor_id=booking_data.instructor_id,
-            booking_date=booking_data.booking_date,
+            check_date=booking_data.booking_date,
             start_time=booking_data.start_time,
             end_time=booking_data.end_time,
+            new_location_type=normalized_location_type,
             exclude_booking_id=exclude_booking_id,
+            instructor_profile=instructor_profile,
         )
 
         if existing_conflicts:
@@ -5208,12 +5540,14 @@ class BookingService(BaseService):
 
         # Check for student time conflicts
         if student:
-            student_conflicts = self.repository.check_student_time_conflict(
+            student_conflicts = self.conflict_checker.check_student_booking_conflicts(
                 student_id=student.id,
-                booking_date=booking_data.booking_date,
+                check_date=booking_data.booking_date,
                 start_time=booking_data.start_time,
                 end_time=booking_data.end_time,
+                new_location_type=normalized_location_type,
                 exclude_booking_id=exclude_booking_id,
+                instructor_profile=instructor_profile,
             )
 
             if student_conflicts:
@@ -5222,29 +5556,6 @@ class BookingService(BaseService):
                 raise BookingConflictException(
                     message=STUDENT_CONFLICT_MESSAGE,
                     details=conflict_details,
-                )
-
-        # Check minimum advance booking time (UTC)
-        # For instructors with >=24 hour min advance, enforce on date granularity to avoid HH:MM boundary flakiness
-        min_advance_hours = getattr(instructor_profile, "min_advance_booking_hours", 0) or 0
-        now_utc = datetime.now(timezone.utc)
-
-        if min_advance_hours >= 24:
-            min_booking_dt = now_utc + timedelta(hours=min_advance_hours)
-            min_date_only = min_booking_dt.date()
-
-            if booking_start_utc.date() < min_date_only or (
-                booking_start_utc.date() == min_date_only
-                and booking_start_utc.time() < min_booking_dt.time()
-            ):
-                raise BusinessRuleException(
-                    f"Bookings must be made at least {min_advance_hours} hours in advance"
-                )
-        else:
-            hours_until = TimezoneService.hours_until(booking_start_utc)
-            if hours_until < min_advance_hours:
-                raise BusinessRuleException(
-                    f"Bookings must be made at least {min_advance_hours} hours in advance"
                 )
 
     def _create_booking_record(
@@ -5867,7 +6178,6 @@ class BookingService(BaseService):
         """
         from ..repositories.factory import RepositoryFactory
         from ..repositories.review_repository import ReviewTipRepository
-        from ..services.config_service import ConfigService
         from ..services.payment_summary_service import build_student_payment_summary
 
         booking = self.get_booking_for_user(booking_id, user)
@@ -5876,8 +6186,7 @@ class BookingService(BaseService):
 
         payment_summary: Optional[PaymentSummary] = None
         if booking.student_id == user.id:
-            config_service = ConfigService(self.db)
-            pricing_config, _ = config_service.get_pricing_config()
+            pricing_config, _ = self.config_service.get_pricing_config()
             payment_repo = RepositoryFactory.create_payment_repository(self.db)
             tip_repo = ReviewTipRepository(self.db)
             payment_summary = build_student_payment_summary(
@@ -5896,6 +6205,7 @@ class BookingService(BaseService):
         booking_date: "date",
         start_time: "time",
         end_time: "time",
+        location_type: Optional[str] = None,
         exclude_booking_id: Optional[str] = None,
     ) -> bool:
         """
@@ -5912,12 +6222,21 @@ class BookingService(BaseService):
             True if there's a conflict, False otherwise
         """
         try:
-            conflicting = self.repository.check_student_time_conflict(
+            profile = None
+            if exclude_booking_id:
+                existing_booking = self.repository.get_by_id(exclude_booking_id)
+                if existing_booking is not None:
+                    profile = self.conflict_checker_repository.get_instructor_profile(
+                        existing_booking.instructor_id
+                    )
+            conflicting = self.conflict_checker.check_student_time_conflicts(
                 student_id=student_id,
                 booking_date=booking_date,
                 start_time=start_time,
                 end_time=end_time,
+                new_location_type=location_type,
                 exclude_booking_id=exclude_booking_id,
+                instructor_profile=profile,
             )
             return bool(conflicting)
         except Exception:
@@ -5980,15 +6299,10 @@ class BookingService(BaseService):
         Returns:
             Tuple of (has_valid_method, stripe_payment_method_id)
         """
-        from ..services.config_service import ConfigService as _ConfigService
-        from ..services.pricing_service import PricingService as _PricingService
-        from ..services.stripe_service import StripeService as _StripeService
-
-        config_service = _ConfigService(self.db)
-        pricing_service = _PricingService(self.db)
-        stripe_service = _StripeService(
+        pricing_service = PricingService(self.db)
+        stripe_service = StripeService(
             self.db,
-            config_service=config_service,
+            config_service=self.config_service,
             pricing_service=pricing_service,
         )
 

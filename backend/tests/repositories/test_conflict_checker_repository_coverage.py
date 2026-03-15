@@ -8,7 +8,8 @@ from sqlalchemy import inspect as sa_inspect
 
 from app.core.exceptions import RepositoryException
 from app.models.availability import BlackoutDate
-from app.models.booking import BookingStatus
+from app.models.booking import BookingStatus, PaymentStatus
+from app.models.booking_payment import BookingPayment
 from app.models.service_catalog import InstructorService
 from app.repositories.conflict_checker_repository import ConflictCheckerRepository
 
@@ -84,6 +85,99 @@ class TestConflictCheckerRepositoryCoverage:
             test_instructor_with_availability.id, [tomorrow]
         )
         assert week_bookings
+
+    def test_conflict_queries_include_pending_bookings(
+        self, db, test_student, test_instructor_with_availability
+    ):
+        repo = ConflictCheckerRepository(db)
+        tomorrow = datetime.now(timezone.utc).date() + timedelta(days=2)
+
+        profile = (
+            db.query(InstructorService)
+            .filter(InstructorService.instructor_profile_id.isnot(None))
+            .first()
+        )
+        service_id = profile.id if profile else None
+        if service_id is None:
+            pytest.skip("No instructor service available for conflict tests")
+
+        pending_booking = create_booking_pg_safe(
+            db,
+            student_id=test_student.id,
+            instructor_id=test_instructor_with_availability.id,
+            instructor_service_id=service_id,
+            booking_date=tomorrow,
+            start_time=time(13, 0),
+            end_time=time(14, 0),
+            status=BookingStatus.PENDING,
+            service_name="Pending Test",
+            hourly_rate=50.0,
+            total_price=50.0,
+            duration_minutes=60,
+            meeting_location="Test",
+            service_area="Manhattan",
+        )
+        db.commit()
+
+        instructor_conflicts = repo.get_bookings_for_conflict_check(
+            test_instructor_with_availability.id, tomorrow
+        )
+        student_conflicts = repo.get_student_bookings_for_conflict_check(
+            test_student.id, tomorrow
+        )
+
+        assert any(booking.id == pending_booking.id for booking in instructor_conflicts)
+        assert any(booking.id == pending_booking.id for booking in student_conflicts)
+
+    def test_conflict_queries_exclude_pending_auth_failures(
+        self, db, test_student, test_instructor_with_availability
+    ):
+        repo = ConflictCheckerRepository(db)
+        tomorrow = datetime.now(timezone.utc).date() + timedelta(days=3)
+
+        profile = (
+            db.query(InstructorService)
+            .filter(InstructorService.instructor_profile_id.isnot(None))
+            .first()
+        )
+        service_id = profile.id if profile else None
+        if service_id is None:
+            pytest.skip("No instructor service available for conflict tests")
+
+        pending_booking = create_booking_pg_safe(
+            db,
+            student_id=test_student.id,
+            instructor_id=test_instructor_with_availability.id,
+            instructor_service_id=service_id,
+            booking_date=tomorrow,
+            start_time=time(15, 0),
+            end_time=time(16, 0),
+            status=BookingStatus.PENDING,
+            service_name="Pending Auth Failure",
+            hourly_rate=50.0,
+            total_price=50.0,
+            duration_minutes=60,
+            meeting_location="Test",
+            service_area="Manhattan",
+        )
+        db.add(
+            BookingPayment(
+                booking_id=pending_booking.id,
+                payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+                auth_failure_count=1,
+            )
+        )
+        db.commit()
+
+        instructor_conflicts = repo.get_bookings_for_conflict_check(
+            test_instructor_with_availability.id, tomorrow
+        )
+        student_conflicts = repo.get_student_bookings_for_conflict_check(
+            test_student.id, tomorrow
+        )
+
+        assert all(booking.id != pending_booking.id for booking in instructor_conflicts)
+        assert all(booking.id != pending_booking.id for booking in student_conflicts)
 
     def test_blackout_profile_and_service(self, db, test_instructor_with_availability, test_booking):
         repo = ConflictCheckerRepository(db)

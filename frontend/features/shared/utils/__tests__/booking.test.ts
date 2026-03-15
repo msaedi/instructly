@@ -104,6 +104,7 @@ describe('booking intent helpers', () => {
         date: '2025-01-02',
         time: '12:00',
         duration: 45,
+        locationType: 'student_location',
         skipModal: true,
       });
 
@@ -111,6 +112,7 @@ describe('booking intent helpers', () => {
       const storedValue = store.bookingIntent as string;
       const stored = JSON.parse(storedValue) as Record<string, unknown>;
       expect(stored.skipModal).toBe(true);
+      expect(stored.locationType).toBe('student_location');
     });
 
     it('does not persist data when storage throws', () => {

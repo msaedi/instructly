@@ -23,7 +23,7 @@ from decimal import Decimal
 import logging
 from typing import Any, Dict, List, Optional, Sequence, Tuple, cast
 
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, func, or_, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Query, Session, aliased, joinedload, selectinload
 
@@ -79,6 +79,26 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             if isinstance(exc.__cause__, IntegrityError):
                 raise exc.__cause__
             raise
+
+    def acquire_transaction_advisory_lock(self, lock_key: int) -> None:
+        """Acquire a transaction-scoped advisory lock when running on PostgreSQL."""
+        get_bind = getattr(self.db, "get_bind", None)
+        if not callable(get_bind):
+            return
+
+        try:
+            bind = get_bind()
+        except Exception:
+            return
+
+        dialect_name = getattr(getattr(bind, "dialect", None), "name", None)
+        if dialect_name != "postgresql":
+            return
+
+        self.db.execute(
+            text("SELECT pg_advisory_xact_lock(:lock_key)"),
+            {"lock_key": lock_key},
+        )
 
     def get_dispute_by_booking_id(self, booking_id: str) -> Optional[BookingDispute]:
         """Return dispute satellite row for a booking, if present."""

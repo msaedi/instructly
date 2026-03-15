@@ -9,20 +9,16 @@ Adapted to actual InstaInstru schema:
 """
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, time
 from typing import Dict, List, Optional
 
-import pytz
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-# NYC timezone for availability calculations (platform default)
-NYC_TZ = pytz.timezone("America/New_York")
-
-
-def _get_today_nyc() -> date:
-    """Get today's date in NYC timezone."""
-    return datetime.now(NYC_TZ).date()
+from app.models.availability_day import AvailabilityDay
+from app.models.booking import Booking, BookingStatus
+from app.models.instructor import InstructorProfile
+from app.models.user import User
 
 
 class FilterRepository:
@@ -355,6 +351,8 @@ class FilterRepository:
         self,
         instructor_ids: List[str],
         target_date: Optional[date] = None,
+        *,
+        dates_to_check: Optional[List[date]] = None,
         time_after: Optional[time] = None,
         time_before: Optional[time] = None,
         duration_minutes: int = 60,
@@ -380,10 +378,12 @@ class FilterRepository:
 
         if target_date:
             dates_to_check = [target_date]
+        elif dates_to_check is not None:
+            dates_to_check = list(dict.fromkeys(dates_to_check))
+            if not dates_to_check:
+                return {}
         else:
-            # Check next 7 days using NYC timezone
-            today = _get_today_nyc()
-            dates_to_check = [today + timedelta(days=i) for i in range(7)]
+            raise ValueError("dates_to_check is required when target_date is None")
 
         # Single batched query for all instructors and all dates
         query = text(
@@ -536,6 +536,88 @@ class FilterRepository:
             results[instructor_id].append(day_date)
 
         return results
+
+    def get_buffered_availability_context(
+        self, instructor_ids: List[str], dates: List[date]
+    ) -> Dict[str, object]:
+        """Load bitmap windows, bookings, and instructor buffers for Python-side refinement."""
+        if not instructor_ids or not dates:
+            return {
+                "bits_by_key": {},
+                "format_tags_by_key": {},
+                "bookings_by_key": {},
+                "profiles_by_instructor": {},
+                "timezones_by_instructor": {},
+            }
+
+        availability_rows = (
+            self.db.query(
+                AvailabilityDay.instructor_id,
+                AvailabilityDay.day_date,
+                AvailabilityDay.bits,
+                AvailabilityDay.format_tags,
+            )
+            .filter(
+                AvailabilityDay.instructor_id.in_(instructor_ids),
+                AvailabilityDay.day_date.in_(dates),
+                AvailabilityDay.bits.isnot(None),
+            )
+            .all()
+        )
+        bits_by_key = {
+            (row.instructor_id, row.day_date): row.bits
+            for row in availability_rows
+            if row.bits is not None
+        }
+        format_tags_by_key = {
+            (row.instructor_id, row.day_date): row.format_tags
+            for row in availability_rows
+            if row.format_tags is not None
+        }
+
+        booking_rows = (
+            self.db.query(Booking)
+            .filter(
+                Booking.instructor_id.in_(instructor_ids),
+                Booking.booking_date.in_(dates),
+                Booking.status.in_(
+                    [
+                        BookingStatus.PENDING,
+                        BookingStatus.CONFIRMED,
+                        BookingStatus.COMPLETED,
+                    ]
+                ),
+            )
+            .order_by(Booking.instructor_id, Booking.booking_date, Booking.start_time)
+            .all()
+        )
+        bookings_by_key: Dict[tuple[str, date], List[Booking]] = {}
+        for booking in booking_rows:
+            bookings_by_key.setdefault((booking.instructor_id, booking.booking_date), []).append(
+                booking
+            )
+
+        profiles = (
+            self.db.query(InstructorProfile)
+            .filter(InstructorProfile.user_id.in_(instructor_ids))
+            .all()
+        )
+        profiles_by_instructor = {profile.user_id: profile for profile in profiles}
+
+        timezones_by_instructor = {
+            row.id: row.timezone
+            for row in self.db.query(User.id, User.timezone)
+            .filter(User.id.in_(instructor_ids))
+            .all()
+        }
+
+        return {
+            "bits_by_key": bits_by_key,
+            "format_tags_by_key": format_tags_by_key,
+            "bookings_by_key": bookings_by_key,
+            "profiles_by_instructor": profiles_by_instructor,
+            "timezones_by_instructor": timezones_by_instructor,
+        }
 
     # =========================================================================
     # Lesson Type Filtering (Online/In-Person)

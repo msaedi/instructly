@@ -5,9 +5,8 @@ import { useEffect, useMemo, useState, useRef, useCallback, forwardRef, useImper
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
-import { User as UserIcon, Settings as SettingsIcon, BookOpen, ChevronDown, Info, Camera } from 'lucide-react';
+import { User as UserIcon, BookOpen, ChevronDown, Camera } from 'lucide-react';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
-import * as Tooltip from '@radix-ui/react-tooltip';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { withApiBase } from '@/lib/apiBase';
 import { extractApiErrorCode, extractApiErrorMessage } from '@/lib/apiErrors';
@@ -46,8 +45,6 @@ function buildInstructorProfilePayload(profile: ProfileFormState): InstructorUpd
   return {
     bio: profile.bio.trim(),
     years_experience: Number(profile.years_experience) || 1,
-    min_advance_booking_hours: profile.min_advance_booking_hours ?? 2,
-    buffer_time_minutes: Math.round((profile.buffer_time_hours ?? 0) * 60),
   };
 }
 
@@ -187,7 +184,6 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   const [openDetails, setOpenDetails] = useState(shouldDefaultExpand);
   const [openServiceAreas, setOpenServiceAreas] = useState(shouldDefaultExpand);
   const [openPreferredLocations, setOpenPreferredLocations] = useState(shouldDefaultExpand);
-  const [openPreferences, setOpenPreferences] = useState(false);
   const [openSkills, setOpenSkills] = useState(false);
 
   // Derive profile picture status from instructor profile hook (avoids duplicate API call)
@@ -316,8 +312,6 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
                 }),
           service_area_neighborhoods: neighborhoods,
           years_experience: (data['years_experience'] as number) ?? 0,
-          min_advance_booking_hours: (data['min_advance_booking_hours'] as number) ?? 2,
-          buffer_time_hours: Math.max(0, Math.min(24, Number(((data['buffer_time_minutes'] as number) ?? 0) / 60))),
         });
 
         const teachingFromApi = Array.isArray(data?.['preferred_teaching_locations'])
@@ -916,7 +910,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
           id={embedded ? 'profile-first-card' : undefined}
           icon={UserIcon}
           title="Instructor profile"
-          subtitle="Update your story, teaching services, and booking preferences so students know what to expect."
+          subtitle="Update your story and teaching services so students know what to expect."
         />
       )}
 
@@ -1035,105 +1029,6 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
             neutralPlaces={neutralPlaces}
             setNeutralPlaces={setNeutralPlaces}
           />
-        )}
-
-        {!isOnboarding && (
-          <>
-            {/* Mobile divider before Booking Preferences */}
-            <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
-
-            {/* Experience Settings Section */}
-            <div className="p-4 sm:p-6 insta-surface-card">
-              <button
-                type="button"
-                className={`insta-dashboard-accordion-trigger ${openPreferences ? 'mb-4' : ''}`}
-                onClick={() => setOpenPreferences((v) => !v)}
-                aria-expanded={openPreferences}
-              >
-                <div className="insta-dashboard-accordion-leading">
-                  <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                    <SettingsIcon className="w-6 h-6 text-[#7E22CE]" />
-                  </div>
-                  <div className="flex flex-col text-left">
-                    <span className="insta-dashboard-accordion-title">Booking Preferences</span>
-                    <span className="insta-dashboard-accordion-subtitle">Fine-tune lead time, buffers, and other scheduling requirements.</span>
-                  </div>
-                </div>
-                <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openPreferences ? 'rotate-180' : ''}`} />
-              </button>
-              {openPreferences && (
-                <>
-                  <p className="text-gray-600 dark:text-gray-400 mt-1 mb-3">Control availability and booking preferences</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">Advance Notice (business hours)</label>
-                        <Tooltip.Provider delayDuration={150} skipDelayDuration={0}>
-                          <Tooltip.Root>
-                            <Tooltip.Trigger asChild>
-                              <span tabIndex={0} className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-50 text-[#7E22CE] focus:outline-none">
-                                <Info className="w-3.5 h-3.5" aria-hidden="true" />
-                              </span>
-                            </Tooltip.Trigger>
-                            <Tooltip.Content side="top" sideOffset={6} className="rounded-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-2 py-1 text-xs text-gray-900 dark:text-gray-100 shadow-sm select-none max-w-xs">
-                              The minimum time required between booking and the start of a lesson. For example, if set to 2 hours, students can’t book a session that starts in less than 2 hours from now.
-                              <Tooltip.Arrow className="fill-gray-200" />
-                            </Tooltip.Content>
-                          </Tooltip.Root>
-                        </Tooltip.Provider>
-                      </div>
-                      <input
-                        type="number"
-                        min={1}
-                        max={24}
-                        step={1}
-                        inputMode="numeric"
-                        value={profile.min_advance_booking_hours ?? 2}
-                        onKeyDown={(e) => { if ([".", ",", "e", "E", "+", "-"].includes(e.key)) { e.preventDefault(); } }}
-                        onChange={(e) => {
-                          const n = Math.max(1, Math.min(24, parseInt(e.target.value || '0', 10)));
-                          setProfile((p) => ({ ...p, min_advance_booking_hours: isNaN(n) ? 1 : n }));
-                        }}
-                        className="w-full rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 no-spinner"
-                      />
-                    </div>
-                    <div className="bg-white dark:bg-gray-800 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">Buffer Time (hours)</label>
-                        <Tooltip.Provider delayDuration={150} skipDelayDuration={0}>
-                          <Tooltip.Root>
-                            <Tooltip.Trigger asChild>
-                              <span tabIndex={0} className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-50 text-[#7E22CE] focus:outline-none">
-                                <Info className="w-3.5 h-3.5" aria-hidden="true" />
-                              </span>
-                            </Tooltip.Trigger>
-                            <Tooltip.Content side="top" sideOffset={6} className="rounded-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-2 py-1 text-xs text-gray-900 dark:text-gray-100 shadow-sm select-none max-w-xs">
-                              The minimum gap between two sessions. For example, if set to 15 minutes, and someone books 9:00–10:00, the next session will be bookable starting at 10:15.
-                              <Tooltip.Arrow className="fill-gray-200" />
-                            </Tooltip.Content>
-                          </Tooltip.Root>
-                        </Tooltip.Provider>
-                      </div>
-                      <input
-                        type="number"
-                        min={0}
-                        max={24}
-                        step={0.5}
-                        inputMode="decimal"
-                        value={profile.buffer_time_hours ?? 0}
-                        onChange={(e) => {
-                          const raw = parseFloat(e.target.value || '0');
-                          const n = Math.max(0, Math.min(24, isNaN(raw) ? 0 : raw));
-                          setProfile((p) => ({ ...p, buffer_time_hours: n }));
-                        }}
-                        className="w-full rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500"
-                      />
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </>
         )}
 
         {showInlineActions && (

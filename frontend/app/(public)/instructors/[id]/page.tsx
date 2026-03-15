@@ -30,6 +30,7 @@ import type { InstructorService } from '@/types/instructor';
 import { at } from '@/lib/ts/safe';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { WhereTheyTeach } from '@/components/instructor/WhereTheyTeach';
+import type { LocationType } from '@/types/booking';
 
 import { storeBookingIntent, getBookingIntent, clearBookingIntent } from '@/features/shared/utils/booking';
 
@@ -162,12 +163,24 @@ function InstructorProfileContent() {
     if (typeof window === 'undefined') {
       return;
     }
+    const restoredService = instructor?.services.find(
+      (service) => String(service.id) === initialRestore.bookingIntent?.serviceId,
+    );
     bookingModal.openBookingModal({
       date: initialRestore.bookingIntent.date,
       time: initialRestore.bookingIntent.time,
       duration: initialRestore.bookingIntent.duration,
+      ...(restoredService ? { service: restoredService } : {}),
+      ...(initialRestore.bookingIntent.locationType
+        ? { locationType: initialRestore.bookingIntent.locationType }
+        : {}),
     });
-  }, [bookingModal, initialRestore.bookingIntent, initialRestore.openModalFromIntent]);
+  }, [
+    bookingModal,
+    initialRestore.bookingIntent,
+    initialRestore.openModalFromIntent,
+    instructor?.services,
+  ]);
   const services = Array.isArray(instructor?.services) ? instructor.services : [];
   const offersTravel = services.some(svc =>
     (svc.format_prices ?? []).some(fp => fp.format === 'student_location')
@@ -226,105 +239,22 @@ function InstructorProfileContent() {
     const selectedService: InstructorService | undefined = service || instructor?.services[0]; // Use provided service or default to first
     const duration = serviceDuration || 60; // Use provided duration or default
 
-    // Always open the booking modal to select a time; authentication is handled after selection
-    if (!activeSelectedSlot || !hasUserSelectedSlot) {
-      const modalOptions: {
-        date?: string;
-        time?: string;
-        duration?: number;
-        service?: unknown;
-      } = {
-        date: '',
-        time: '',
-        duration,
-      };
+    const modalOptions: {
+      date?: string;
+      time?: string;
+      duration?: number;
+      service?: unknown;
+    } = {
+      date: activeSelectedSlot && hasUserSelectedSlot ? activeSelectedSlot.date : '',
+      time: activeSelectedSlot && hasUserSelectedSlot ? activeSelectedSlot.time : '',
+      duration,
+    };
 
-      if (selectedService) {
-        modalOptions.service = selectedService;
-      }
-
-      bookingModal.openBookingModal(modalOptions);
-      return;
+    if (selectedService) {
+      modalOptions.service = selectedService;
     }
 
-    if (activeSelectedSlot && selectedService && instructor) {
-      const bookingDate = new Date(activeSelectedSlot.date + 'T' + activeSelectedSlot.time);
-      const hourlyRate = selectedService.min_hourly_rate ?? 0;
-      const totalPrice = hourlyRate * (duration / 60);
-      const basePrice = totalPrice;
-      const totalAmount = basePrice;
-      const bookingType = determineBookingType(bookingDate);
-
-      const paymentBookingData: BookingPayment = {
-        bookingId: '',
-        instructorId: String(instructor.user_id),
-        instructorName: instructor.user ? `${instructor.user.first_name} ${instructor.user.last_initial ? instructor.user.last_initial + '.' : ''}`.trim() : `Instructor #${instructor.user_id}`,
-        lessonType: getString(selectedService, 'skill', ''),
-        date: bookingDate,
-        startTime: activeSelectedSlot.time,
-        endTime: calculateEndTime(activeSelectedSlot.time, duration),
-        duration,
-        location: '', // Let user enter their address on confirmation page
-        basePrice,
-        totalAmount,
-        bookingType,
-        paymentStatus: PAYMENT_STATUS.SCHEDULED,
-        ...(bookingType === BookingType.STANDARD && {
-          freeCancellationUntil: new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
-        }),
-      };
-
-      // Store booking data for payment page
-      sessionStorage.setItem('bookingData', JSON.stringify(paymentBookingData));
-      sessionStorage.setItem('serviceId', String(selectedService.id));
-      try {
-        sessionStorage.setItem('selectedSlot', JSON.stringify({
-          date: activeSelectedSlot.date,
-          time: activeSelectedSlot.time,
-          duration,
-          instructorId: instructor.user_id,
-        }));
-      } catch {}
-
-      // Use navigation state manager to track booking flow properly
-      navigationStateManager.saveBookingFlow({
-        date: activeSelectedSlot.date,
-        time: activeSelectedSlot.time,
-        duration,
-        instructorId
-        // availableDuration will be recalculated on restore
-      }, 'profile');
-
-      if (!isAuthenticated) {
-        // User not authenticated - store booking intent and redirect to login
-        const bookingIntent: {
-          instructorId: string;
-          serviceId?: string;
-          date: string;
-          time: string;
-          duration: number;
-          skipModal?: boolean;
-        } = {
-          instructorId: instructor.user_id,
-          date: activeSelectedSlot.date,
-          time: activeSelectedSlot.time,
-          duration,
-          skipModal: true,
-        };
-
-        const serviceId = getString(selectedService, 'id');
-        if (serviceId) {
-          bookingIntent.serviceId = serviceId;
-        }
-
-        storeBookingIntent(bookingIntent);
-        const returnUrl = `/student/booking/confirm`;
-        nextRouter.replace(`/login?redirect=${encodeURIComponent(returnUrl)}`);
-      } else {
-        // Authenticated - go directly to payment page
-        nextRouter.push('/student/booking/confirm');
-      }
-    }
+    bookingModal.openBookingModal(modalOptions);
   };
 
   const autoSelectedSlot: SelectedSlot | null = (() => {
@@ -542,6 +472,10 @@ function InstructorProfileContent() {
               duration_options: s.duration_options || [60],
             }))
           }}
+          {...(typeof (bookingModal.selectedService as { id?: string } | undefined)?.id === 'string'
+            ? { serviceId: (bookingModal.selectedService as { id: string }).id }
+            : {})}
+          {...(bookingModal.selectedLocationType ? { initialLocationType: bookingModal.selectedLocationType } : {})}
           preSelectedDate={bookingModal.selectedDate || ''}
           preSelectedTime={bookingModal.selectedTime || ''}
           onTimeSelected={(selection) => {
@@ -556,17 +490,27 @@ function InstructorProfileContent() {
             bookingModal.closeBookingModal();
 
             // Automatically proceed to booking confirmation page with the selected time
-            const selectedService = instructor?.services[0]; // Use first service as default
+            const selectedService = instructor?.services.find(
+              (service) => String(service.id) === selection.serviceId,
+            ) || instructor?.services[0];
             if (selectedService) {
               // Create booking data directly since we have all the info
               const bookingDate = new Date(newSlot.date + 'T' + newSlot.time);
-              const hourlyRate = selectedService.min_hourly_rate ?? 0;
+              const hourlyRate = selection.hourlyRate || selectedService.min_hourly_rate || 0;
               const totalPrice = hourlyRate * (newSlot.duration / 60);
               const basePrice = totalPrice;
               const totalAmount = basePrice;
               const bookingType = determineBookingType(bookingDate);
+              const locationLabel =
+                selection.locationType === 'online'
+                  ? 'Online'
+                  : selection.locationType === 'instructor_location'
+                    ? "Instructor's location"
+                    : selection.locationType === 'neutral_location'
+                      ? 'Agreed public location'
+                      : 'Student provided address';
 
-              const paymentBookingData: BookingPayment = {
+              const paymentBookingData: BookingPayment & { metadata?: Record<string, unknown> } = {
                 bookingId: '',
                 instructorId: String(instructor.user_id),
                 instructorName: instructor.user ? `${instructor.user.first_name} ${instructor.user.last_initial ? instructor.user.last_initial + '.' : ''}`.trim() : `Instructor #${instructor.user_id}`,
@@ -575,11 +519,15 @@ function InstructorProfileContent() {
                 startTime: newSlot.time,
                 endTime: calculateEndTime(newSlot.time, newSlot.duration),
                 duration: newSlot.duration,
-                location: '', // Let user enter their address on confirmation page
+                location: locationLabel,
                 basePrice,
                 totalAmount,
                 bookingType,
                 paymentStatus: PAYMENT_STATUS.SCHEDULED,
+                metadata: {
+                  location_type: selection.locationType,
+                  modality: selection.locationType === 'online' ? 'online' : 'in_person',
+                },
                 ...(bookingType === BookingType.STANDARD && {
                   freeCancellationUntil: new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
                 }),
@@ -608,6 +556,7 @@ function InstructorProfileContent() {
                 const bookingIntent2: {
                   instructorId: string;
                   serviceId?: string;
+                  locationType?: LocationType;
                   date: string;
                   time: string;
                   duration: number;
@@ -617,10 +566,11 @@ function InstructorProfileContent() {
                   date: newSlot.date,
                   time: newSlot.time,
                   duration: newSlot.duration,
+                  locationType: selection.locationType,
                   skipModal: true,
                 };
 
-                const serviceId2 = getString(selectedService, 'id');
+                const serviceId2 = selection.serviceId || getString(selectedService, 'id');
                 if (serviceId2) {
                   bookingIntent2.serviceId = serviceId2;
                 }

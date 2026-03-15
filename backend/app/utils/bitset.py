@@ -3,14 +3,24 @@ from __future__ import annotations
 from typing import List, Tuple
 
 from app.core.constants import (
+    BITS_PER_TAG as BITS_PER_TAG,
     BYTES_PER_DAY as BYTES_PER_DAY,
     MINUTES_PER_SLOT as MINUTES_PER_SLOT,
     SLOTS_PER_DAY as SLOTS_PER_DAY,
+    TAG_BYTES_PER_DAY as TAG_BYTES_PER_DAY,
+    TAG_NO_TRAVEL as TAG_NO_TRAVEL,
+    TAG_NONE as TAG_NONE,
+    TAG_ONLINE_ONLY as TAG_ONLINE_ONLY,
+    TAG_RESERVED as TAG_RESERVED,
 )
 
 
 def new_empty_bits() -> bytes:
     return bytes(BYTES_PER_DAY)
+
+
+def new_empty_tags() -> bytes:
+    return bytes(TAG_BYTES_PER_DAY)
 
 
 def pack_indexes(indexes: List[int]) -> bytes:
@@ -51,6 +61,73 @@ def toggle_index(bits: bytes, idx: int, value: bool) -> bytes:
     else:
         b[byte_i] &= ~(1 << bit_i)
     return bytes(b)
+
+
+def get_slot_tag(tags: bytes, slot: int) -> int:
+    if len(tags) != TAG_BYTES_PER_DAY:
+        raise ValueError(f"tags length must be {TAG_BYTES_PER_DAY}")
+    if not (0 <= slot < SLOTS_PER_DAY):
+        raise ValueError("slot out of range")
+    bit_offset = slot * BITS_PER_TAG
+    byte_idx = bit_offset // 8
+    bit_pos = bit_offset % 8
+    return (tags[byte_idx] >> bit_pos) & 0b11
+
+
+def set_slot_tag(tags: bytes, slot: int, tag: int) -> bytes:
+    if len(tags) != TAG_BYTES_PER_DAY:
+        raise ValueError(f"tags length must be {TAG_BYTES_PER_DAY}")
+    if not (0 <= slot < SLOTS_PER_DAY):
+        raise ValueError("slot out of range")
+    if not (TAG_NONE <= tag <= TAG_RESERVED):
+        raise ValueError("tag must be 0-3")
+    bit_offset = slot * BITS_PER_TAG
+    byte_idx = bit_offset // 8
+    bit_pos = bit_offset % 8
+    b = bytearray(tags)
+    b[byte_idx] &= ~(0b11 << bit_pos)
+    b[byte_idx] |= (tag & 0b11) << bit_pos
+    return bytes(b)
+
+
+def set_range_tag(tags: bytes, start_slot: int, count: int, tag: int) -> bytes:
+    if len(tags) != TAG_BYTES_PER_DAY:
+        raise ValueError(f"tags length must be {TAG_BYTES_PER_DAY}")
+    if count <= 0:
+        raise ValueError("count must be greater than 0")
+    if start_slot < 0 or start_slot + count > SLOTS_PER_DAY:
+        raise ValueError("range out of bounds")
+    if not (TAG_NONE <= tag <= TAG_RESERVED):
+        raise ValueError("tag must be 0-3")
+    result = bytearray(tags)
+    for i in range(count):
+        slot = start_slot + i
+        bit_offset = slot * BITS_PER_TAG
+        byte_idx = bit_offset // 8
+        bit_pos = bit_offset % 8
+        result[byte_idx] &= ~(0b11 << bit_pos)
+        result[byte_idx] |= (tag & 0b11) << bit_pos
+    return bytes(result)
+
+
+def get_range_tag(tags: bytes, start_slot: int, count: int) -> int | None:
+    if count <= 0:
+        raise ValueError("count must be greater than 0")
+    first = get_slot_tag(tags, start_slot)
+    for i in range(1, count):
+        if get_slot_tag(tags, start_slot + i) != first:
+            return None
+    return first
+
+
+def is_tag_compatible(tag: int, location_type: str) -> bool:
+    if tag == TAG_NONE:
+        return True
+    if tag == TAG_ONLINE_ONLY:
+        return location_type == "online"
+    if tag == TAG_NO_TRAVEL:
+        return location_type in {"online", "instructor_location"}
+    return False  # TAG_RESERVED (3) intentionally blocks all formats
 
 
 def windows_from_bits(bits: bytes) -> List[Tuple[str, str]]:

@@ -30,7 +30,7 @@ from app.services.cache_service import CacheService
 from app.services.cache_strategies import CacheWarmingStrategy
 from app.services.conflict_checker import ConflictChecker
 from app.services.week_operation_service import WeekOperationService
-from app.utils.bitset import bits_from_windows, new_empty_bits
+from app.utils.bitset import bits_from_windows, new_empty_bits, new_empty_tags, set_range_tag
 
 try:  # pragma: no cover - fallback for direct backend pytest runs
     from backend.tests.utils.booking_timezone import booking_timezone_fields
@@ -51,6 +51,8 @@ def _seed_windows(
     db: Session,
     instructor_id: str,
     windows_by_day: dict[date, list[tuple[str | time, str | time]]],
+    *,
+    tags_by_day: dict[date, bytes] | None = None,
 ) -> None:
     if not windows_by_day:
         return
@@ -63,9 +65,15 @@ def _seed_windows(
         grouped[monday].append((day, normalized))
 
     for monday, entries in grouped.items():
-        items: list[tuple[date, bytes]] = []
+        items: list[tuple[date, bytes, bytes]] = []
         for day, normalized in entries:
-            items.append((day, bits_from_windows(normalized) if normalized else bits_from_windows([])))
+            items.append(
+                (
+                    day,
+                    bits_from_windows(normalized) if normalized else bits_from_windows([]),
+                    (tags_by_day or {}).get(day, new_empty_tags()),
+                )
+            )
         repo.upsert_week(instructor_id, items)
     db.commit()
 
@@ -338,6 +346,38 @@ class TestWeekOperationComplexPatterns:
         # Should handle month boundary correctly
         dates_processed = result.get("dates_processed", result.get("days_written"))
         assert dates_processed >= 1
+
+    @pytest.mark.asyncio
+    async def test_apply_pattern_preserves_format_tags(
+        self, db: Session, test_instructor: User
+    ) -> None:
+        service = WeekOperationService(db)
+        repo = AvailabilityDayRepository(db)
+        instructor_id = test_instructor.id
+
+        pattern_week = date.today() + timedelta(days=14)
+        pattern_week = pattern_week - timedelta(days=pattern_week.weekday())
+        target_date = pattern_week + timedelta(days=14)
+        target_week = target_date - timedelta(days=target_date.weekday())
+        target_day = target_week + timedelta(days=2)
+        pattern_day = pattern_week + timedelta(days=2)
+
+        source_tags = set_range_tag(new_empty_tags(), 108, 12, 2)
+        _seed_windows(
+            db,
+            instructor_id,
+            {pattern_day: [("09:00:00", "10:00:00")]},
+            tags_by_day={pattern_day: source_tags},
+        )
+
+        result = await service.apply_pattern_to_date_range(
+            instructor_id, pattern_week, target_day, target_day
+        )
+
+        assert result["days_written"] >= 1
+        copied = repo.get_day_bitmaps(instructor_id, target_day)
+        assert copied is not None
+        assert copied[1] == source_tags
         assert result["windows_created"] > 0
 
 

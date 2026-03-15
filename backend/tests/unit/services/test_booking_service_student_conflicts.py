@@ -18,6 +18,7 @@ from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
 from app.schemas.booking import BookingCreate
 from app.services.booking_service import BookingService
+from app.utils.bitset import new_empty_tags
 
 
 @pytest.fixture(autouse=True)
@@ -122,6 +123,7 @@ class TestStudentConflictValidation:
         """Create a mock availability repository."""
         repo = Mock()
         repo.get_day_bits = Mock(return_value=b"\xff" * 36)
+        repo.get_day_bitmaps = Mock(return_value=(b"\xff" * 36, new_empty_tags()))
         return repo
 
     @pytest.fixture
@@ -145,7 +147,6 @@ class TestStudentConflictValidation:
         # Mock instructor profile
         profile = Mock(spec=InstructorProfile)
         profile.id = generate_ulid()
-        profile.min_advance_booking_hours = 1
         neighborhood = Mock()
         neighborhood.parent_region = "Manhattan"
         area = Mock()
@@ -200,6 +201,17 @@ class TestStudentConflictValidation:
         service.invalidate_cache = Mock()
         service.log_operation = Mock()
         service.event_outbox_repository = Mock()
+        service.conflict_checker = Mock()
+        service.conflict_checker.check_time_conflicts.return_value = False
+        service.conflict_checker.check_student_time_conflicts.return_value = False
+        service.conflict_checker.check_booking_conflicts.return_value = []
+        service.conflict_checker.check_student_booking_conflicts.return_value = []
+        service._write_booking_audit = Mock()
+        service._enqueue_booking_outbox_event = Mock()
+        service._handle_post_booking_tasks = Mock()
+        service.notification_service = Mock()
+        service.system_message_service = Mock()
+        service.event_publisher = Mock()
 
         service_area_repo = Mock()
         service_area_repo.list_for_instructor.return_value = []
@@ -220,7 +232,9 @@ class TestStudentConflictValidation:
             end_time=time(16, 0),
         )
 
-        mock_repository.check_student_time_conflict.return_value = [existing_booking]
+        booking_service.conflict_checker.check_student_booking_conflicts.return_value = [
+            existing_booking
+        ]
 
         # Attempt to book 3:30-4:30 PM (overlaps)
         booking_data = BookingCreate(
@@ -252,13 +266,7 @@ class TestStudentConflictValidation:
         assert str(exc_info.value) == "Student already has a booking that overlaps this time"
 
         # Verify student conflict check was called
-        mock_repository.check_student_time_conflict.assert_called_once_with(
-            student_id=student.id,
-            booking_date=booking_data.booking_date,
-            start_time=booking_data.start_time,
-            end_time=booking_data.end_time,
-            exclude_booking_id=None,
-        )
+        booking_service.conflict_checker.check_student_booking_conflicts.assert_called_once()
 
     def test_student_can_book_adjacent_times(self, booking_service, student, instructor, mock_repository):
         """Test that a student can book adjacent non-overlapping sessions."""
@@ -275,7 +283,7 @@ class TestStudentConflictValidation:
         )
 
         # For adjacent booking (4:00-5:00 PM), no conflicts should be returned
-        mock_repository.check_student_time_conflict.return_value = []
+        booking_service.conflict_checker.check_student_booking_conflicts.return_value = []
 
         # Create new booking
         new_booking = Mock(spec=Booking)
@@ -311,7 +319,6 @@ class TestStudentConflictValidation:
         service.catalog_entry = Mock(name="Test Service")
         service.session_price = Mock(return_value=50.0)
         profile = Mock()
-        profile.min_advance_booking_hours = 0
         neighborhood = Mock()
         neighborhood.parent_region = "Manhattan"
         area = Mock()
@@ -352,7 +359,7 @@ class TestStudentConflictValidation:
         student2.id = 2
 
         # No conflicts for either student
-        mock_repository.check_student_time_conflict.return_value = []
+        booking_service.conflict_checker.check_student_booking_conflicts.return_value = []
 
         # Mock the prerequisites validation to bypass instructor status check
         service = Mock()
@@ -361,7 +368,6 @@ class TestStudentConflictValidation:
         service.catalog_entry = Mock(name="Test Service")
         service.session_price = Mock(return_value=50.0)
         profile = Mock()
-        profile.min_advance_booking_hours = 0
         neighborhood = Mock()
         neighborhood.parent_region = "Manhattan"
         area = Mock()
@@ -413,7 +419,9 @@ class TestStudentConflictValidation:
         assert result1.id == 101
 
         # After first booking, instructor has conflict but student2 doesn't
-        mock_repository.check_time_conflict.return_value = True
+        booking_service.conflict_checker.check_booking_conflicts.return_value = [
+            {"booking_id": generate_ulid()}
+        ]
 
         # Student 2 tries to book 3:30-4:30 PM (overlapping) - should fail due to instructor conflict
         booking_data2 = BookingCreate(
@@ -450,7 +458,9 @@ class TestStudentConflictValidation:
             end_time=time(16, 0),
         )
 
-        mock_repository.check_student_time_conflict.return_value = [existing_booking]
+        booking_service.conflict_checker.check_student_booking_conflicts.return_value = [
+            existing_booking
+        ]
 
         # Mock the prerequisites validation to bypass instructor status check
         service = Mock()
@@ -483,7 +493,7 @@ class TestStudentConflictValidation:
     ):
         """Test that cancelled bookings are not considered as conflicts."""
         # No conflicts returned (repository should filter out cancelled bookings)
-        mock_repository.check_student_time_conflict.return_value = []
+        booking_service.conflict_checker.check_student_booking_conflicts.return_value = []
 
         # Mock the prerequisites validation to bypass instructor status check
         service = Mock()
@@ -492,7 +502,6 @@ class TestStudentConflictValidation:
         service.catalog_entry = Mock(name="Test Service")
         service.session_price = Mock(return_value=50.0)
         profile = Mock()
-        profile.min_advance_booking_hours = 0
         neighborhood = Mock()
         neighborhood.parent_region = "Manhattan"
         area = Mock()

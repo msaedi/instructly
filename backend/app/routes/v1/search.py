@@ -246,6 +246,7 @@ async def nl_search(
             query=q,
             user_location=user_location,
             limit=limit,
+            requester_timezone=current_user.timezone if current_user else None,
             explicit_skill_levels=skill_levels or None,
             subcategory_id=subcategory_id,
             taxonomy_filter_selections=taxonomy_filter_selections or None,

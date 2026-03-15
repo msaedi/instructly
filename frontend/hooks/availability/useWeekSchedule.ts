@@ -4,13 +4,13 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 
 import type {
   WeekBits,
+  WeekTags,
   WeekSchedule,
   ExistingSlot,
   WeekDateInfo,
   AvailabilityMessage,
-  TimeSlot,
 } from '@/types/availability';
-import type { DayBits } from '@/lib/calendar/bitset';
+import type { DayBits, DayTags } from '@/lib/calendar/bitset';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import {
   getCurrentWeekStart,
@@ -19,14 +19,17 @@ import {
   getPreviousMonday,
   getNextMonday,
 } from '@/lib/availability/dateHelpers';
-import { fromWindows, newEmptyBits, toWindows } from '@/lib/calendar/bitset';
+import { fromWindows, newEmptyBits, newEmptyTags, toWindows, BYTES_PER_DAY, TAG_BYTES_PER_DAY } from '@/lib/calendar/bitset';
+import { decodeBase64ToUint8Array } from '@/lib/calendar/bitmapBase64';
 import { logger } from '@/lib/logger';
 import { isRecord, isUnknownArray } from '@/lib/typesafe';
-import type { ApiErrorResponse, WeekAvailabilityResponse } from '@/features/shared/api/types';
+import type { ApiErrorResponse, WeekBitmapResponse } from '@/features/shared/api/types';
 
 type WeekBitsSetter = WeekBits | ((prev: WeekBits) => WeekBits);
+type WeekTagsSetter = WeekTags | ((prev: WeekTags) => WeekTags);
 
 const ZERO_DAY: DayBits = newEmptyBits();
+const ZERO_TAGS: DayTags = newEmptyTags();
 
 function cloneDayBits(bits: DayBits): DayBits {
   return bits.slice();
@@ -36,6 +39,18 @@ function cloneWeekBits(source: WeekBits): WeekBits {
   const next: WeekBits = {};
   Object.entries(source).forEach(([date, bits]) => {
     next[date] = cloneDayBits(bits);
+  });
+  return next;
+}
+
+function cloneDayTags(tags: DayTags): DayTags {
+  return tags.slice();
+}
+
+function cloneWeekTags(source: WeekTags): WeekTags {
+  const next: WeekTags = {};
+  Object.entries(source).forEach(([date, tags]) => {
+    next[date] = cloneDayTags(tags);
   });
   return next;
 }
@@ -89,6 +104,23 @@ function weekBitsEqual(a: WeekBits, b: WeekBits): boolean {
   return true;
 }
 
+function dayTagsEqual(a?: DayTags, b?: DayTags): boolean {
+  for (let i = 0; i < ZERO_TAGS.length; i += 1) {
+    const av = a ? a[i] ?? 0 : 0;
+    const bv = b ? b[i] ?? 0 : 0;
+    if (av !== bv) return false;
+  }
+  return true;
+}
+
+function weekTagsEqual(a: WeekTags, b: WeekTags): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const key of keys) {
+    if (!dayTagsEqual(a[key], b[key])) return false;
+  }
+  return true;
+}
+
 function scheduleToBits(schedule: WeekSchedule): WeekBits {
   const next: WeekBits = {};
   Object.entries(schedule).forEach(([date, windows]) => {
@@ -117,6 +149,8 @@ export interface UseWeekScheduleReturn {
   currentWeekStart: Date;
   weekBits: WeekBits;
   savedWeekBits: WeekBits;
+  weekTags: WeekTags;
+  savedWeekTags: WeekTags;
   weekSchedule: WeekSchedule;
   savedWeekSchedule: WeekSchedule;
   hasUnsavedChanges: boolean;
@@ -128,6 +162,8 @@ export interface UseWeekScheduleReturn {
   navigateWeek: (direction: 'prev' | 'next') => void;
   setWeekBits: (next: WeekBitsSetter) => void;
   setSavedWeekBits: (next: WeekBitsSetter) => void;
+  setWeekTags: (next: WeekTagsSetter) => void;
+  setSavedWeekTags: (next: WeekTagsSetter) => void;
   setWeekSchedule: (schedule: WeekSchedule | ((prev: WeekSchedule) => WeekSchedule)) => void;
   setMessage: (message: AvailabilityMessage | null) => void;
   refreshSchedule: () => Promise<void>;
@@ -167,6 +203,8 @@ export function useWeekSchedule(
 
   const [weekBitsState, setWeekBitsState] = useState<WeekBits>({});
   const [savedWeekBitsState, setSavedWeekBitsState] = useState<WeekBits>({});
+  const [weekTagsState, setWeekTagsState] = useState<WeekTags>({});
+  const [savedWeekTagsState, setSavedWeekTagsState] = useState<WeekTags>({});
   const [existingSlots, setExistingSlots] = useState<ExistingSlot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<AvailabilityMessage | null>(null);
@@ -200,8 +238,8 @@ export function useWeekSchedule(
   );
 
   const hasUnsavedChanges = useMemo(
-    () => !weekBitsEqual(weekBitsState, savedWeekBitsState),
-    [weekBitsState, savedWeekBitsState]
+    () => !weekBitsEqual(weekBitsState, savedWeekBitsState) || !weekTagsEqual(weekTagsState, savedWeekTagsState),
+    [weekBitsState, savedWeekBitsState, weekTagsState, savedWeekTagsState]
   );
 
   const currentWeekDisplay = useMemo(() => {
@@ -237,6 +275,20 @@ export function useWeekSchedule(
     setSavedWeekBitsState((prev) => {
       const resolved = typeof next === 'function' ? (next as (p: WeekBits) => WeekBits)(prev) : next;
       return cloneWeekBits(resolved);
+    });
+  }, []);
+
+  const setWeekTags = useCallback((next: WeekTagsSetter) => {
+    setWeekTagsState((prev) => {
+      const resolved = typeof next === 'function' ? (next as (p: WeekTags) => WeekTags)(prev) : next;
+      return cloneWeekTags(resolved);
+    });
+  }, []);
+
+  const setSavedWeekTags = useCallback((next: WeekTagsSetter) => {
+    setSavedWeekTagsState((prev) => {
+      const resolved = typeof next === 'function' ? (next as (p: WeekTags) => WeekTags)(prev) : next;
+      return cloneWeekTags(resolved);
     });
   }, []);
 
@@ -295,19 +347,16 @@ export function useWeekSchedule(
         return;
       }
 
-      const data = (await response.json()) as WeekAvailabilityResponse;
+      const data = (await response.json()) as WeekBitmapResponse;
       const headerEtag = response.headers.get('ETag') || undefined;
       const headerLastModified = response.headers.get('Last-Modified') || undefined;
       const allowPastHeader = response.headers.get('X-Allow-Past');
-
-      const cleaned: WeekSchedule = {};
-      Object.entries(data as Record<string, TimeSlot[] | undefined>).forEach(([date, slots]) => {
-        if (slots && Array.isArray(slots) && slots.length > 0) {
-          cleaned[date] = slots;
-        }
-      });
-
-      const nextBits = scheduleToBits(cleaned);
+      const nextBits: WeekBits = {};
+      const nextTags: WeekTags = {};
+      for (const day of data.days ?? []) {
+        nextBits[day.date] = decodeBase64ToUint8Array(day.bits, BYTES_PER_DAY);
+        nextTags[day.date] = decodeBase64ToUint8Array(day.format_tags, TAG_BYTES_PER_DAY);
+      }
 
       logger.info('Week schedule loaded successfully', {
         weekStart: mondayDate,
@@ -316,7 +365,9 @@ export function useWeekSchedule(
 
       setWeekBits(nextBits);
       setSavedWeekBits(nextBits);
-      setVersion(headerEtag || undefined);
+      setWeekTags(nextTags);
+      setSavedWeekTags(nextTags);
+      setVersion(headerEtag || data.version || undefined);
       setLastModified(headerLastModified);
       if (allowPastHeader !== null) {
         const normalized = allowPastHeader.trim().toLowerCase();
@@ -336,7 +387,15 @@ export function useWeekSchedule(
       logger.timeEnd('fetchWeekSchedule');
       setIsLoading(false);
     }
-  }, [currentWeekStart, setWeekBits, setSavedWeekBits, setVersion, setAllowPastEdits]);
+  }, [
+    currentWeekStart,
+    setWeekBits,
+    setSavedWeekBits,
+    setWeekTags,
+    setSavedWeekTags,
+    setVersion,
+    setAllowPastEdits,
+  ]);
 
   const updateWeekStart = useCallback(
     (next: Date) => {
@@ -382,14 +441,25 @@ export function useWeekSchedule(
 
     setWeekBits({});
     setSavedWeekBits({});
+    setWeekTags({});
+    setSavedWeekTags({});
     setExistingSlots([]);
     void fetchWeekSchedule();
-  }, [currentWeekStart, fetchWeekSchedule, setWeekBits, setSavedWeekBits]);
+  }, [
+    currentWeekStart,
+    fetchWeekSchedule,
+    setWeekBits,
+    setSavedWeekBits,
+    setWeekTags,
+    setSavedWeekTags,
+  ]);
 
   return {
     currentWeekStart,
     weekBits: weekBitsState,
     savedWeekBits: savedWeekBitsState,
+    weekTags: weekTagsState,
+    savedWeekTags: savedWeekTagsState,
     weekSchedule,
     savedWeekSchedule,
     hasUnsavedChanges,
@@ -400,6 +470,8 @@ export function useWeekSchedule(
     navigateWeek,
     setWeekBits,
     setSavedWeekBits,
+    setWeekTags,
+    setSavedWeekTags,
     setWeekSchedule,
     setMessage,
     refreshSchedule,

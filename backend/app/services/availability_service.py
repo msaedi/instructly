@@ -48,7 +48,10 @@ from ..monitoring.availability_perf import (
     availability_perf_span,
     estimate_payload_size_bytes,
 )
-from ..repositories.availability_day_repository import AvailabilityDayRepository
+from ..repositories.availability_day_repository import (
+    AvailabilityDayRepository,
+    normalize_format_tags,
+)
 from ..repositories.factory import RepositoryFactory
 from ..schemas.availability_window import (
     BlackoutDateCreate,
@@ -58,15 +61,20 @@ from ..schemas.availability_window import (
 )
 from ..utils.bitset import (
     bits_from_windows,
+    get_slot_tag,
+    is_tag_compatible,
+    new_empty_tags,
     new_empty_bits,
     pack_indexes,
     unpack_indexes,
     windows_from_bits,
 )
+from ..utils.bitmap_base64 import encode_bitmap_bytes
 from ..utils.time_helpers import string_to_time, time_to_string
 from ..utils.time_utils import time_to_minutes
 from .audit_redaction import redact
 from .base import BaseService
+from .config_service import ConfigService, is_instructor_travel_format, normalize_location_type
 from .search.cache_invalidation import invalidate_on_availability_change
 
 # TYPE_CHECKING import to avoid circular dependencies
@@ -155,6 +163,26 @@ class SaveWeekBitsResult(NamedTuple):
     edited_dates: List[str]
 
 
+class DayBitmaps(NamedTuple):
+    bits: bytes
+    format_tags: bytes
+
+
+class SaveWeekBitmapsResult(NamedTuple):
+    rows_written: int
+    days_written: int
+    weeks_affected: int
+    windows_created: int
+    skipped_past_window: int
+    skipped_past_forbidden: int
+    bitmaps_by_day: Dict[date, DayBitmaps]
+    version: str
+    written_dates: List[date]
+    skipped_dates: List[date]
+    past_written_dates: List[date]
+    edited_dates: List[str]
+
+
 class AvailabilityService(BaseService):
     """
     Service layer for availability operations.
@@ -171,10 +199,12 @@ class AvailabilityService(BaseService):
         repository: Optional["AvailabilityRepository"] = None,
         bulk_repository: Optional["BulkOperationRepository"] = None,
         conflict_repository: Optional["ConflictCheckerRepository"] = None,
+        config_service: Optional[ConfigService] = None,
     ):
         """Initialize availability service with optional cache and repositories."""
         super().__init__(db, cache=cache_service)
         self.cache_service = cache_service
+        self.config_service = config_service or ConfigService(db)
 
         # Initialize repositories
         self.repository = repository or RepositoryFactory.create_availability_repository(db)
@@ -184,6 +214,7 @@ class AvailabilityService(BaseService):
         self.conflict_repository = (
             conflict_repository or RepositoryFactory.create_conflict_checker_repository(db)
         )
+        self._bitmap_repository = AvailabilityDayRepository(db)
         self.instructor_repository = RepositoryFactory.create_instructor_profile_repository(db)
         self.event_outbox_repository = RepositoryFactory.create_event_outbox_repository(db)
         self.booking_repository = RepositoryFactory.create_booking_repository(db)
@@ -192,7 +223,11 @@ class AvailabilityService(BaseService):
     # ----- V2 (bitmaps) helpers -----
 
     def _bitmap_repo(self) -> AvailabilityDayRepository:
-        return AvailabilityDayRepository(self.db)
+        repo = getattr(self, "_bitmap_repository", None)
+        if repo is None:
+            repo = AvailabilityDayRepository(self.db)
+            self._bitmap_repository = repo
+        return cast(AvailabilityDayRepository, repo)
 
     @BaseService.measure_operation("get_week_bits")
     def get_week_bits(
@@ -243,6 +278,29 @@ class AvailabilityService(BaseService):
 
         return bits_by_day
 
+    @BaseService.measure_operation("get_week_bitmaps")
+    def get_week_bitmaps(
+        self, instructor_id: str, week_start: date, *, use_cache: bool = False
+    ) -> Dict[date, DayBitmaps]:
+        """Return dict of day -> (bits, format_tags), ensuring all 7 days are present."""
+        monday = week_start - timedelta(days=week_start.weekday())
+        if use_cache:
+            logger.debug(
+                "Week bitmap pair cache is not enabled; falling back to direct repository fetch",
+                extra={"instructor_id": instructor_id, "week_start": monday.isoformat()},
+            )
+
+        repo = self._bitmap_repo()
+        rows = repo.get_week_rows(instructor_id, monday)
+        existing = {
+            row.day_date: DayBitmaps(row.bits, row.format_tags or new_empty_tags()) for row in rows
+        }
+        bitmaps_by_day: Dict[date, DayBitmaps] = {}
+        for offset in range(7):
+            day = monday + timedelta(days=offset)
+            bitmaps_by_day[day] = existing.get(day, DayBitmaps(new_empty_bits(), new_empty_tags()))
+        return bitmaps_by_day
+
     @BaseService.measure_operation("compute_week_version_bits")
     def compute_week_version_bits(self, bits_by_day: Dict[date, bytes]) -> str:
         """Stable SHA1 of concatenated 7×bits ordered chronologically."""
@@ -253,6 +311,26 @@ class AvailabilityService(BaseService):
             monday = anchor - timedelta(days=anchor.weekday())
             ordered_days = [monday + timedelta(days=i) for i in range(7)]
             concat = b"".join(bits_by_day.get(day, new_empty_bits()) for day in ordered_days)
+        return hashlib.sha1(concat, usedforsecurity=False).hexdigest()
+
+    @BaseService.measure_operation("compute_week_version_bitmaps")
+    def compute_week_version_bitmaps(self, bitmaps_by_day: Dict[date, DayBitmaps]) -> str:
+        """Stable SHA1 of concatenated 7×(bits + format_tags) ordered chronologically."""
+        if not bitmaps_by_day:
+            concat = (new_empty_bits() + new_empty_tags()) * 7
+        else:
+            anchor = min(bitmaps_by_day.keys())
+            monday = anchor - timedelta(days=anchor.weekday())
+            ordered_days = [monday + timedelta(days=i) for i in range(7)]
+            concat = b"".join(
+                (
+                    bitmaps_by_day.get(day, DayBitmaps(new_empty_bits(), new_empty_tags())).bits
+                    + bitmaps_by_day.get(
+                        day, DayBitmaps(new_empty_bits(), new_empty_tags())
+                    ).format_tags
+                )
+                for day in ordered_days
+            )
         return hashlib.sha1(concat, usedforsecurity=False).hexdigest()
 
     @BaseService.measure_operation("get_week_bitmap_last_modified")
@@ -273,6 +351,33 @@ class AvailabilityService(BaseService):
                 latest = dt
         return latest
 
+    @staticmethod
+    def _normalize_week_windows_for_bits_save(
+        raw_windows: Iterable[Tuple[str | time, str | time]],
+    ) -> List[Tuple[str, str]]:
+        normalized: List[Tuple[str, str]] = []
+
+        def _coerce_time(value: str | time) -> Tuple[time, bool]:
+            if isinstance(value, time):
+                return value, False
+            value_str = str(value)
+            is_midnight = value_str in {"24:00", "24:00:00"}
+            coerced = string_to_time(value_str)
+            return coerced, is_midnight
+
+        for start_raw, end_raw in raw_windows:
+            start_obj, _ = _coerce_time(start_raw)
+            end_obj, end_is_midnight = _coerce_time(end_raw)
+            start_val = start_obj.strftime("%H:%M:%S")
+            if end_is_midnight or (
+                end_obj == time(0, 0) and start_obj != time(0, 0) and start_obj > end_obj
+            ):
+                end_val = "24:00:00"
+            else:
+                end_val = end_obj.strftime("%H:%M:%S")
+            normalized.append((start_val, end_val))
+        return normalized
+
     @BaseService.measure_operation("save_week_bits")
     def save_week_bits(
         self,
@@ -285,20 +390,80 @@ class AvailabilityService(BaseService):
         *,
         actor: Any | None = None,
     ) -> SaveWeekBitsResult:
-        """
-        Persist week availability using bitmap storage.
-
-        Returns:
-            SaveWeekBitsResult with persistence metadata.
-        """
+        """Persist week availability using bitmap storage via the bitmap-native save path."""
         monday = week_start - timedelta(days=week_start.weekday())
         days_this_week = [monday + timedelta(days=i) for i in range(7)]
-        current_raw = self.get_week_bits(instructor_id, monday, use_cache=False)
-        current_map: Dict[date, bytes] = {
-            day: current_raw.get(day, new_empty_bits()) for day in days_this_week
+        current_bitmaps = self.get_week_bitmaps(instructor_id, monday, use_cache=False)
+        requested_bitmaps: Dict[date, DayBitmaps] = {}
+        force_write_dates: set[date] = set()
+
+        for day in days_this_week:
+            existing = current_bitmaps.get(day, DayBitmaps(new_empty_bits(), new_empty_tags()))
+            if day in windows_by_day:
+                normalized_windows = self._normalize_week_windows_for_bits_save(windows_by_day[day])
+                desired_bits = (
+                    bits_from_windows(normalized_windows)
+                    if normalized_windows
+                    else new_empty_bits()
+                )
+                requested_bitmaps[day] = DayBitmaps(desired_bits, existing.format_tags)
+                if clear_existing and normalized_windows:
+                    force_write_dates.add(day)
+            elif clear_existing:
+                requested_bitmaps[day] = DayBitmaps(new_empty_bits(), existing.format_tags)
+
+        bitmap_result = self._save_week_bitmaps_internal(
+            instructor_id=instructor_id,
+            week_start=week_start,
+            bitmaps_by_day=requested_bitmaps,
+            base_version=base_version,
+            override=override,
+            clear_existing=clear_existing,
+            actor=actor,
+            current_map=current_bitmaps,
+            force_write_dates=force_write_dates,
+        )
+
+        return SaveWeekBitsResult(
+            rows_written=bitmap_result.rows_written,
+            days_written=bitmap_result.days_written,
+            weeks_affected=bitmap_result.weeks_affected,
+            windows_created=bitmap_result.windows_created,
+            skipped_past_window=bitmap_result.skipped_past_window,
+            skipped_past_forbidden=bitmap_result.skipped_past_forbidden,
+            bits_by_day={
+                day: bitmaps.bits for day, bitmaps in bitmap_result.bitmaps_by_day.items()
+            },
+            version=bitmap_result.version,
+            written_dates=bitmap_result.written_dates,
+            skipped_dates=bitmap_result.skipped_dates,
+            past_written_dates=bitmap_result.past_written_dates,
+            edited_dates=bitmap_result.edited_dates,
+        )
+
+    def _save_week_bitmaps_internal(
+        self,
+        instructor_id: str,
+        week_start: date,
+        bitmaps_by_day: Dict[date, DayBitmaps],
+        base_version: Optional[str],
+        override: bool,
+        clear_existing: bool,
+        *,
+        actor: Any | None = None,
+        current_map: Dict[date, DayBitmaps] | None = None,
+        force_write_dates: set[date] | None = None,
+    ) -> SaveWeekBitmapsResult:
+        """Persist week availability using bitmap-native bits + format tags."""
+        monday = week_start - timedelta(days=week_start.weekday())
+        days_this_week = [monday + timedelta(days=i) for i in range(7)]
+        current_raw = current_map or self.get_week_bitmaps(instructor_id, monday, use_cache=False)
+        normalized_current_map: Dict[date, DayBitmaps] = {
+            day: current_raw.get(day, DayBitmaps(new_empty_bits(), new_empty_tags()))
+            for day in days_this_week
         }
         allow_past = os.getenv("AVAILABILITY_ALLOW_PAST", "true").lower() in {"1", "true", "yes"}
-        server_version = self.compute_week_version_bits(current_map)
+        server_version = self.compute_week_version_bitmaps(normalized_current_map)
         if base_version and base_version != server_version and not override:
             raise ConflictException("Week has changed; please refresh and retry")
 
@@ -308,32 +473,6 @@ class AvailabilityService(BaseService):
         past_cutoff: Optional[date] = (
             instructor_today - timedelta(days=window_days) if window_days > 0 else None
         )
-
-        def _normalize_windows(
-            raw: Iterable[Tuple[str | time, str | time]],
-        ) -> List[Tuple[str, str]]:
-            normalized: List[Tuple[str, str]] = []
-
-            def _coerce_time(value: str | time) -> Tuple[time, bool]:
-                if isinstance(value, time):
-                    return value, False
-                value_str = str(value)
-                is_midnight = value_str in {"24:00", "24:00:00"}
-                coerced = string_to_time(value_str)
-                return coerced, is_midnight
-
-            for start_raw, end_raw in raw:
-                start_obj, _ = _coerce_time(start_raw)
-                end_obj, end_is_midnight = _coerce_time(end_raw)
-                start_val = start_obj.strftime("%H:%M:%S")
-                if end_is_midnight or (
-                    end_obj == time(0, 0) and start_obj != time(0, 0) and start_obj > end_obj
-                ):
-                    end_val = "24:00:00"
-                else:
-                    end_val = end_obj.strftime("%H:%M:%S")
-                normalized.append((start_val, end_val))
-            return normalized
 
         now_minutes: Optional[int] = None
 
@@ -353,8 +492,8 @@ class AvailabilityService(BaseService):
                 return bits
             return pack_indexes(filtered)
 
-        updates: List[Tuple[date, bytes]] = []
-        target_map: Dict[date, bytes] = dict(current_map)
+        updates: List[Tuple[date, bytes, bytes]] = []
+        target_map: Dict[date, DayBitmaps] = dict(normalized_current_map)
         changed_dates_set: set[date] = set()
         past_written_dates_set: set[date] = set()
         skipped_window_dates: set[date] = set()
@@ -362,27 +501,27 @@ class AvailabilityService(BaseService):
         windows_created_count = 0
 
         for day in days_this_week:
-            existing_bits = current_map[day]
-            provided_windows = day in windows_by_day
-            normalized_windows: List[Tuple[str, str]] = []
-            if provided_windows:
-                normalized_windows = _normalize_windows(windows_by_day[day])
-                desired_bits = (
-                    bits_from_windows(normalized_windows)
-                    if normalized_windows
-                    else new_empty_bits()
-                )
+            existing = normalized_current_map[day]
+            provided = day in bitmaps_by_day
+            if provided:
+                desired_bits = bitmaps_by_day[day].bits
+                desired_tags = bitmaps_by_day[day].format_tags
             elif clear_existing:
                 desired_bits = new_empty_bits()
+                desired_tags = new_empty_tags()
             else:
-                desired_bits = existing_bits
+                desired_bits = existing.bits
+                desired_tags = existing.format_tags
 
             if not allow_past and day == instructor_today:
                 desired_bits = _apply_same_day_cutoff(desired_bits, day)
+            desired_tags = normalize_format_tags(desired_bits, desired_tags)
 
-            has_explicit_windows = provided_windows and bool(normalized_windows)
-            explicit_rewrite = clear_existing and has_explicit_windows
-            if desired_bits == existing_bits and not explicit_rewrite:
+            if (
+                desired_bits == existing.bits
+                and desired_tags == existing.format_tags
+                and day not in (force_write_dates or set())
+            ):
                 continue
 
             if not allow_past and day < instructor_today:
@@ -393,22 +532,26 @@ class AvailabilityService(BaseService):
                 skipped_window_dates.add(day)
                 continue
 
-            target_map[day] = desired_bits
-            updates.append((day, desired_bits))
+            target_map[day] = DayBitmaps(desired_bits, desired_tags)
+            updates.append((day, desired_bits, desired_tags))
             changed_dates_set.add(day)
             if day < instructor_today:
                 past_written_dates_set.add(day)
 
-            old_windows = windows_from_bits(existing_bits)
+            old_windows = windows_from_bits(existing.bits)
             new_windows = windows_from_bits(desired_bits)
             if len(new_windows) > len(old_windows):
                 windows_created_count += len(new_windows) - len(old_windows)
 
             if perf_debug:
-                old_crc = hashlib.sha1(existing_bits, usedforsecurity=False).hexdigest()
-                new_crc = hashlib.sha1(desired_bits, usedforsecurity=False).hexdigest()
+                old_crc = hashlib.sha1(
+                    existing.bits + existing.format_tags, usedforsecurity=False
+                ).hexdigest()
+                new_crc = hashlib.sha1(
+                    desired_bits + desired_tags, usedforsecurity=False
+                ).hexdigest()
                 logger.debug(
-                    "bitmap_write day=%s changed=%s old_crc=%s new_crc=%s override=%s allow_past=%s",
+                    "bitmap_pair_write day=%s changed=%s old_crc=%s new_crc=%s override=%s allow_past=%s",
                     day.isoformat(),
                     "true",
                     old_crc,
@@ -421,14 +564,14 @@ class AvailabilityService(BaseService):
         skipped_forbidden_list = sorted(skipped_forbidden_dates)
 
         if not updates:
-            return SaveWeekBitsResult(
+            return SaveWeekBitmapsResult(
                 rows_written=0,
                 days_written=0,
                 weeks_affected=0,
                 windows_created=0,
                 skipped_past_window=len(skipped_window_list),
                 skipped_past_forbidden=len(skipped_forbidden_list),
-                bits_by_day=current_map,
+                bitmaps_by_day=normalized_current_map,
                 version=server_version,
                 written_dates=[],
                 skipped_dates=skipped_window_list,
@@ -436,7 +579,6 @@ class AvailabilityService(BaseService):
                 edited_dates=[],
             )
 
-        # All DB operations inside transaction block - commit happens when block exits
         with self.transaction():
             repo = self._bitmap_repo()
             rows_written = repo.upsert_week(instructor_id, updates)
@@ -446,36 +588,60 @@ class AvailabilityService(BaseService):
             )
 
             def _windows_payload(
-                bits_map: Dict[date, bytes], target_dates: List[date]
+                bitmap_map: Dict[date, DayBitmaps], target_dates: List[date]
             ) -> dict[str, Any]:
                 result: dict[str, Any] = {}
                 for target in target_dates:
                     result[target.isoformat()] = [
                         {"start_time": start, "end_time": end}
-                        for start, end in windows_from_bits(bits_map.get(target, new_empty_bits()))
+                        for start, end in windows_from_bits(
+                            bitmap_map.get(
+                                target, DayBitmaps(new_empty_bits(), new_empty_tags())
+                            ).bits
+                        )
                     ]
+                return result
+
+            def _tags_payload(
+                bitmap_map: Dict[date, DayBitmaps], target_dates: List[date]
+            ) -> dict[str, str]:
+                result: dict[str, str] = {}
+                for target in target_dates:
+                    result[target.isoformat()] = encode_bitmap_bytes(
+                        bitmap_map.get(
+                            target, DayBitmaps(new_empty_bits(), new_empty_tags())
+                        ).format_tags
+                    )
                 return result
 
             if audit_dates and AUDIT_ENABLED:
 
                 def _window_counts(
-                    bits_map: Dict[date, bytes], target_dates: List[date]
+                    bitmap_map: Dict[date, DayBitmaps], target_dates: List[date]
                 ) -> dict[str, int]:
                     counts: dict[str, int] = {}
                     for target in target_dates:
                         counts[target.isoformat()] = len(
-                            windows_from_bits(bits_map.get(target, new_empty_bits()))
+                            windows_from_bits(
+                                bitmap_map.get(
+                                    target, DayBitmaps(new_empty_bits(), new_empty_tags())
+                                ).bits
+                            )
                         )
                     return counts
 
                 before_payload = {
                     "week_start": week_start.isoformat(),
-                    "windows": _windows_payload(current_map, audit_dates),
+                    "windows": _windows_payload(normalized_current_map, audit_dates),
+                    "format_tags": _tags_payload(normalized_current_map, audit_dates),
                 }
-                before_payload["window_counts"] = _window_counts(current_map, audit_dates)
+                before_payload["window_counts"] = _window_counts(
+                    normalized_current_map, audit_dates
+                )
                 after_payload = {
                     "week_start": week_start.isoformat(),
                     "windows": _windows_payload(target_map, audit_dates),
+                    "format_tags": _tags_payload(target_map, audit_dates),
                     "edited_dates": [d.isoformat() for d in sorted(changed_dates_set)],
                     "skipped_dates": [d.isoformat() for d in skipped_window_list],
                     "skipped_forbidden_dates": [d.isoformat() for d in skipped_forbidden_list],
@@ -498,7 +664,7 @@ class AvailabilityService(BaseService):
                     )
                 except Exception as audit_err:
                     logger.warning(
-                        "Audit write failed for bitmap save_week_bits",
+                        "Audit write failed for bitmap save_week_bitmaps",
                         extra={
                             "instructor_id": instructor_id,
                             "week_start": week_start.isoformat(),
@@ -525,7 +691,7 @@ class AvailabilityService(BaseService):
                     )
                 except Exception as enqueue_err:
                     logger.warning(
-                        "Outbox enqueue failed for bitmap save_week_bits",
+                        "Outbox enqueue failed for bitmap save_week_bitmaps",
                         extra={
                             "instructor_id": instructor_id,
                             "week_start": week_start.isoformat(),
@@ -533,13 +699,13 @@ class AvailabilityService(BaseService):
                         },
                     )
 
-        # Transaction committed - DB changes now visible to all connections
-        # Safe to update/invalidate caches
-
         after_map = dict(target_map)
         if self.cache_service:
             try:
-                week_map_after, _ = self._week_map_from_bits(after_map, include_snapshots=False)
+                week_map_after, _ = self._week_map_from_bits(
+                    {day: bitmaps.bits for day, bitmaps in after_map.items()},
+                    include_snapshots=False,
+                )
                 self._persist_week_cache(
                     instructor_id=instructor_id,
                     week_start=monday,
@@ -548,31 +714,51 @@ class AvailabilityService(BaseService):
             except Exception as cache_error:
                 logger.warning(f"Cache update error after bitmap save: {cache_error}")
 
-        new_version = self.compute_week_version_bits(after_map)
+        new_version = self.compute_week_version_bitmaps(after_map)
         changed_dates = sorted(changed_dates_set)
         past_written_dates = sorted(past_written_dates_set)
         edited_date_strings = [d.isoformat() for d in changed_dates]
 
-        # Invalidate availability caches (public_availability:*, week:*, etc.)
         if changed_dates:
             self._invalidate_availability_caches(instructor_id, changed_dates)
 
-        # Invalidate search cache (fire-and-forget via asyncio.create_task)
         invalidate_on_availability_change(instructor_id)
 
-        return SaveWeekBitsResult(
+        return SaveWeekBitmapsResult(
             rows_written=rows_written,
             days_written=len(changed_dates),
             weeks_affected=1,
             windows_created=windows_created_count,
             skipped_past_window=len(skipped_window_list),
             skipped_past_forbidden=len(skipped_forbidden_list),
-            bits_by_day=after_map,
+            bitmaps_by_day=after_map,
             version=new_version,
             written_dates=changed_dates,
             skipped_dates=skipped_window_list,
             past_written_dates=past_written_dates,
             edited_dates=edited_date_strings,
+        )
+
+    @BaseService.measure_operation("save_week_bitmaps")
+    def save_week_bitmaps(
+        self,
+        instructor_id: str,
+        week_start: date,
+        bitmaps_by_day: Dict[date, DayBitmaps],
+        base_version: Optional[str],
+        override: bool,
+        clear_existing: bool,
+        *,
+        actor: Any | None = None,
+    ) -> SaveWeekBitmapsResult:
+        return self._save_week_bitmaps_internal(
+            instructor_id=instructor_id,
+            week_start=week_start,
+            bitmaps_by_day=bitmaps_by_day,
+            base_version=base_version,
+            override=override,
+            clear_existing=clear_existing,
+            actor=actor,
         )
 
     def _enqueue_week_save_event(
@@ -827,10 +1013,10 @@ class AvailabilityService(BaseService):
         end_date: date,
         windows: Optional[list[tuple[date, time, time]]] = None,
     ) -> str:
-        """Compute a deterministic week version using bitmap contents only."""
+        """Compute a deterministic week version using bits and format tags."""
         week_start = start_date - timedelta(days=start_date.weekday())
-        bits_by_day = self.get_week_bits(instructor_id, week_start)
-        return self.compute_week_version_bits(bits_by_day)
+        bitmaps_by_day = self.get_week_bitmaps(instructor_id, week_start)
+        return self.compute_week_version_bitmaps(bitmaps_by_day)
 
     @BaseService.measure_operation("get_week_last_modified")
     def get_week_last_modified(
@@ -1701,6 +1887,248 @@ class AvailabilityService(BaseService):
             current_date += timedelta(days=1)
         return windows
 
+    @staticmethod
+    def _coerce_buffer_minutes(value: object, default: int) -> int:
+        if isinstance(value, bool):
+            return default
+        if isinstance(value, int):
+            return max(0, value)
+        if isinstance(value, float):
+            return max(0, int(value))
+        if isinstance(value, str):
+            try:
+                return max(0, int(value))
+            except ValueError:
+                return default
+        return default
+
+    @staticmethod
+    def _minutes_to_time(minute_value: int) -> time:
+        if minute_value >= 24 * 60:
+            return time(0, 0)
+        clamped = max(0, minute_value)
+        return time(clamped // 60, clamped % 60)
+
+    @classmethod
+    def _merge_time_intervals(cls, intervals: list[tuple[time, time]]) -> list[tuple[time, time]]:
+        if not intervals:
+            return []
+        minute_ranges = sorted(
+            [
+                (
+                    time_to_minutes(start, is_end_time=False),
+                    time_to_minutes(end, is_end_time=True),
+                )
+                for start, end in intervals
+            ],
+            key=lambda interval: interval[0],
+        )
+        merged: list[tuple[int, int]] = []
+        current_start, current_end = minute_ranges[0]
+        for start_minute, end_minute in minute_ranges[1:]:
+            if start_minute <= current_end:
+                current_end = max(current_end, end_minute)
+            else:
+                merged.append((current_start, current_end))
+                current_start, current_end = start_minute, end_minute
+        merged.append((current_start, current_end))
+        return [
+            (cls._minutes_to_time(start_minute), cls._minutes_to_time(end_minute))
+            for start_minute, end_minute in merged
+        ]
+
+    @classmethod
+    def _subtract_time_intervals(
+        cls, bases: list[tuple[time, time]], cuts: list[tuple[time, time]]
+    ) -> list[tuple[time, time]]:
+        if not bases:
+            return []
+        if not cuts:
+            return cls._merge_time_intervals(bases)
+        cut_ranges = [
+            (
+                time_to_minutes(start, is_end_time=False),
+                time_to_minutes(end, is_end_time=True),
+            )
+            for start, end in cls._merge_time_intervals(cuts)
+        ]
+        out: list[tuple[time, time]] = []
+        for base_start, base_end in bases:
+            segments = [
+                (
+                    time_to_minutes(base_start, is_end_time=False),
+                    time_to_minutes(base_end, is_end_time=True),
+                )
+            ]
+            for cut_start, cut_end in cut_ranges:
+                next_segments: list[tuple[int, int]] = []
+                for segment_start, segment_end in segments:
+                    if segment_end <= cut_start or segment_start >= cut_end:
+                        next_segments.append((segment_start, segment_end))
+                    else:
+                        if segment_start < cut_start:
+                            next_segments.append((segment_start, max(segment_start, cut_start)))
+                        if segment_end > cut_end:
+                            next_segments.append((min(segment_end, cut_end), segment_end))
+                segments = [segment for segment in next_segments if segment[1] > segment[0]]
+                if not segments:
+                    break
+            for segment_start, segment_end in segments:
+                out.append(
+                    (
+                        cls._minutes_to_time(segment_start),
+                        cls._minutes_to_time(segment_end),
+                    )
+                )
+        return cls._merge_time_intervals(out)
+
+    @classmethod
+    def _resolve_buffer_profile_values(
+        cls,
+        instructor_profile: object | None,
+        *,
+        default_non_travel_buffer_minutes: int,
+        default_travel_buffer_minutes: int,
+    ) -> tuple[int, int]:
+        if instructor_profile is None:
+            return (
+                cls._coerce_buffer_minutes(
+                    default_non_travel_buffer_minutes, default_non_travel_buffer_minutes
+                ),
+                cls._coerce_buffer_minutes(
+                    default_travel_buffer_minutes, default_travel_buffer_minutes
+                ),
+            )
+        return (
+            cls._coerce_buffer_minutes(
+                getattr(instructor_profile, "non_travel_buffer_minutes", None),
+                default_non_travel_buffer_minutes,
+            ),
+            cls._coerce_buffer_minutes(
+                getattr(instructor_profile, "travel_buffer_minutes", None),
+                default_travel_buffer_minutes,
+            ),
+        )
+
+    @classmethod
+    def _subtract_buffered_bookings_from_windows(
+        cls,
+        bases: list[tuple[time, time]],
+        bookings: Iterable[object],
+        *,
+        requested_location_type: str | None,
+        non_travel_buffer_minutes: int,
+        travel_buffer_minutes: int,
+    ) -> list[tuple[time, time]]:
+        if not bases:
+            return []
+        normalized_requested_location = normalize_location_type(requested_location_type)
+        cuts: list[tuple[time, time]] = []
+        for booking in bookings:
+            start_time = getattr(booking, "start_time", None)
+            end_time = getattr(booking, "end_time", None)
+            if not isinstance(start_time, time) or not isinstance(end_time, time):
+                continue
+            existing_location_type = getattr(booking, "location_type", None)
+            buffer_minutes = (
+                travel_buffer_minutes
+                if (
+                    is_instructor_travel_format(existing_location_type)
+                    or is_instructor_travel_format(normalized_requested_location)
+                )
+                else non_travel_buffer_minutes
+            )
+            start_minute = max(
+                0,
+                time_to_minutes(start_time, is_end_time=False) - max(0, buffer_minutes),
+            )
+            end_minute = min(
+                24 * 60,
+                time_to_minutes(end_time, is_end_time=True) + max(0, buffer_minutes),
+            )
+            if end_minute <= start_minute:
+                continue
+            cuts.append(
+                (
+                    cls._minutes_to_time(start_minute),
+                    cls._minutes_to_time(end_minute),
+                )
+            )
+        return cls._subtract_time_intervals(bases, cuts)
+
+    @staticmethod
+    def _windows_support_booking_request(
+        windows: Iterable[tuple[time, time]],
+        *,
+        time_after: time | None = None,
+        time_before: time | None = None,
+        duration_minutes: int = 60,
+    ) -> bool:
+        earliest_start_minute = (
+            time_to_minutes(time_after, is_end_time=False) if time_after is not None else 0
+        )
+        latest_end_minute = (
+            time_to_minutes(time_before, is_end_time=True) if time_before is not None else 24 * 60
+        )
+        required_minutes = max(0, int(duration_minutes))
+        for start_time, end_time in windows:
+            start_minute = max(
+                time_to_minutes(start_time, is_end_time=False), earliest_start_minute
+            )
+            end_minute = min(time_to_minutes(end_time, is_end_time=True), latest_end_minute)
+            if end_minute - start_minute >= required_minutes:
+                return True
+        return False
+
+    @classmethod
+    def _filter_windows_by_format_tags(
+        cls,
+        windows: list[tuple[time, time]],
+        format_tags: bytes | None,
+        *,
+        requested_location_type: str | None,
+    ) -> list[tuple[time, time]]:
+        if not windows:
+            return []
+
+        tags = format_tags or new_empty_tags()
+        normalized_requested_location = normalize_location_type(requested_location_type)
+        filtered: list[tuple[time, time]] = []
+
+        for start_time, end_time in windows:
+            start_minute = time_to_minutes(start_time, is_end_time=False)
+            end_minute = time_to_minutes(end_time, is_end_time=True)
+            start_slot = start_minute // MINUTES_PER_SLOT
+            end_slot = end_minute // MINUTES_PER_SLOT
+            compatible_run_start: int | None = None
+
+            for slot in range(start_slot, end_slot):
+                tag = get_slot_tag(tags, slot)
+                compatible = is_tag_compatible(tag, normalized_requested_location)
+                if compatible:
+                    if compatible_run_start is None:
+                        compatible_run_start = slot
+                    continue
+
+                if compatible_run_start is not None and slot > compatible_run_start:
+                    filtered.append(
+                        (
+                            cls._minutes_to_time(compatible_run_start * MINUTES_PER_SLOT),
+                            cls._minutes_to_time(slot * MINUTES_PER_SLOT),
+                        )
+                    )
+                    compatible_run_start = None
+
+            if compatible_run_start is not None and end_slot > compatible_run_start:
+                filtered.append(
+                    (
+                        cls._minutes_to_time(compatible_run_start * MINUTES_PER_SLOT),
+                        cls._minutes_to_time(end_slot * MINUTES_PER_SLOT),
+                    )
+                )
+
+        return filtered
+
     @BaseService.measure_operation("compute_public_availability")
     def compute_public_availability(
         self,
@@ -1708,6 +2136,7 @@ class AvailabilityService(BaseService):
         start_date: date,
         end_date: date,
         *,
+        requested_location_type: str | None = None,
         apply_min_advance: bool = True,
     ) -> dict[str, list[tuple[time, time]]]:
         """
@@ -1715,18 +2144,28 @@ class AvailabilityService(BaseService):
 
         Returns dict: { 'YYYY-MM-DD': [(start_time, end_time), ...] }
         """
-        slot_minutes = MINUTES_PER_SLOT
+        effective_requested_location_type = requested_location_type or "student_location"
         profile = self.instructor_repository.get_by_user_id(instructor_id)
-        min_advance_hours = (
-            int(getattr(profile, "min_advance_booking_hours", 0) or 0) if apply_min_advance else 0
+        min_advance_minutes = (
+            self.config_service.get_advance_notice_minutes(effective_requested_location_type)
+            if apply_min_advance
+            else 0
         )
-        buffer_minutes = int(getattr(profile, "buffer_time_minutes", 0) or 0)
+        default_non_travel_buffer_minutes = self.config_service.get_default_buffer_minutes("online")
+        default_travel_buffer_minutes = self.config_service.get_default_buffer_minutes(
+            "student_location"
+        )
+        non_travel_buffer_minutes, travel_buffer_minutes = self._resolve_buffer_profile_values(
+            profile,
+            default_non_travel_buffer_minutes=default_non_travel_buffer_minutes,
+            default_travel_buffer_minutes=default_travel_buffer_minutes,
+        )
         earliest_allowed_local: Optional[datetime] = None
         earliest_allowed_date: Optional[date] = None
         earliest_allowed_minutes: Optional[int] = None
-        if min_advance_hours > 0:
+        if min_advance_minutes > 0:
             earliest_allowed_local = get_user_now_by_id(instructor_id, self.db) + timedelta(
-                hours=min_advance_hours
+                minutes=min_advance_minutes
             )
             earliest_allowed_local = earliest_allowed_local.replace(second=0, microsecond=0)
             minutes_since_midnight = time_to_minutes(
@@ -1748,10 +2187,13 @@ class AvailabilityService(BaseService):
         # Fetch availability windows from bitmap
         bitmap_repo = self._bitmap_repo()
         by_date: dict[date, list[tuple[time, time]]] = {}
+        tags_by_date: dict[date, bytes] = {}
         current_date = start_date
         while current_date <= end_date:
-            bits = bitmap_repo.get_day_bits(instructor_id, current_date)
-            if bits:
+            day_bitmaps = bitmap_repo.get_day_bitmaps(instructor_id, current_date)
+            if day_bitmaps:
+                bits, format_tags = day_bitmaps
+                tags_by_date[current_date] = format_tags
                 windows_str: list[tuple[str, str]] = windows_from_bits(bits)
                 # Convert to time objects for return type
                 windows_time: list[tuple[time, time]] = [
@@ -1764,81 +2206,6 @@ class AvailabilityService(BaseService):
                 by_date[current_date] = windows_time
             current_date += timedelta(days=1)
 
-        # Helpers
-        from datetime import time as dtime
-
-        def merge_intervals(intervals: list[tuple[time, time]]) -> list[tuple[time, time]]:
-            if not intervals:
-                return []
-            mins = sorted(
-                [
-                    (
-                        time_to_minutes(a, is_end_time=False),
-                        time_to_minutes(b, is_end_time=True),
-                    )
-                    for a, b in intervals
-                ],
-                key=lambda x: x[0],
-            )
-            merged = []
-            cs, ce = mins[0]
-            for s, e in mins[1:]:
-                if s <= ce:
-                    ce = max(ce, e)
-                else:
-                    merged.append((cs, ce))
-                    cs, ce = s, e
-            merged.append((cs, ce))
-            return [(minutes_to_time(m), minutes_to_time(n)) for m, n in merged]
-
-        def subtract(
-            bases: list[tuple[time, time]], cuts: list[tuple[time, time]]
-        ) -> list[tuple[time, time]]:
-            if not bases:
-                return []
-            if not cuts:
-                return merge_intervals(bases)
-            cutm = [
-                (time_to_minutes(a, is_end_time=False), time_to_minutes(b, is_end_time=True))
-                for a, b in merge_intervals(cuts)
-            ]
-            out = []
-            for bs, be in bases:
-                segs = [
-                    (time_to_minutes(bs, is_end_time=False), time_to_minutes(be, is_end_time=True))
-                ]
-                for cs, ce in cutm:
-                    new = []
-                    for s, e in segs:
-                        if e <= cs or s >= ce:
-                            new.append((s, e))
-                        else:
-                            if s < cs:
-                                new.append((s, max(s, cs)))
-                            if e > ce:
-                                new.append((min(e, ce), e))
-                    segs = [p for p in new if p[1] > p[0]]
-                    if not segs:
-                        break
-                for s, e in segs:
-                    out.append((minutes_to_time(s), minutes_to_time(e)))
-            return merge_intervals(out)
-
-        def minutes_to_time(minute_value: int) -> time:
-            if minute_value >= 24 * 60:
-                return dtime(0, 0)
-            clamped = max(0, minute_value)
-            return dtime(clamped // 60, clamped % 60)
-
-        def expand_booking_interval(start: time, end: time) -> tuple[time, time]:
-            if buffer_minutes <= 0:
-                return start, end
-            start_min = max(0, time_to_minutes(start, is_end_time=False) - buffer_minutes)
-            end_min = min(24 * 60, time_to_minutes(end, is_end_time=True) + buffer_minutes)
-            if end_min <= start_min:
-                end_min = min(24 * 60, start_min + slot_minutes)
-            return minutes_to_time(start_min), minutes_to_time(end_min)
-
         def trim_intervals_for_min_start(
             intervals: list[tuple[time, time]], min_start_minutes: int
         ) -> list[tuple[time, time]]:
@@ -1850,11 +2217,11 @@ class AvailabilityService(BaseService):
                 if start_min < min_start_minutes:
                     start_min = min_start_minutes
 
-                new_start = minutes_to_time(start_min)
+                new_start = self._minutes_to_time(start_min)
                 if end_min >= 24 * 60:
-                    new_end = dtime(0, 0)
+                    new_end = time(0, 0)
                 else:
-                    new_end = minutes_to_time(end_min)
+                    new_end = self._minutes_to_time(end_min)
                 trimmed.append((new_start, new_end))
             return trimmed
 
@@ -1862,15 +2229,20 @@ class AvailabilityService(BaseService):
         result: dict[str, list[tuple[time, time]]] = {}
         cur = start_date
         while cur <= end_date:
-            bases = merge_intervals(by_date.get(cur, []))
+            bases = self._merge_time_intervals(by_date.get(cur, []))
             booked_rows = self.conflict_repository.get_bookings_for_date(instructor_id, cur)
-            booked = [
-                expand_booking_interval(b.start_time, b.end_time)
-                for b in booked_rows
-                if b.start_time and b.end_time
-            ]
-
-            remaining = subtract(bases, booked)
+            remaining = self._subtract_buffered_bookings_from_windows(
+                bases,
+                booked_rows,
+                requested_location_type=effective_requested_location_type,
+                non_travel_buffer_minutes=non_travel_buffer_minutes,
+                travel_buffer_minutes=travel_buffer_minutes,
+            )
+            remaining = self._filter_windows_by_format_tags(
+                remaining,
+                tags_by_date.get(cur),
+                requested_location_type=effective_requested_location_type,
+            )
 
             if earliest_allowed_date:
                 if cur < earliest_allowed_date:

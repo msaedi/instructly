@@ -29,7 +29,7 @@ Router Endpoints:
 """
 
 import asyncio
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from email.utils import format_datetime
 import logging
 from typing import Any, Callable, Dict, List, Optional, TypeVar, cast
@@ -44,10 +44,8 @@ from ...api.dependencies.services import (
     get_presentation_service,
     get_week_operation_service,
 )
-from ...core.config import settings
-from ...core.constants import ERROR_INSTRUCTOR_ONLY
+from ...core.constants import BYTES_PER_DAY, ERROR_INSTRUCTOR_ONLY, TAG_BYTES_PER_DAY
 from ...core.exceptions import ConflictException, DomainException
-from ...core.timezone_utils import get_user_today_by_id
 from ...middleware.perf_counters import note_cache_miss
 from ...models.user import User
 from ...monitoring.availability_perf import (
@@ -61,9 +59,10 @@ from ...schemas.availability_responses import (
     ApplyToDateRangeResponse,
     BookedSlotsResponse,
     CopyWeekResponse,
+    DayBitmapResponse,
     DeleteBlackoutResponse,
-    WeekAvailabilityResponse,
     WeekAvailabilityUpdateResponse,
+    WeekBitmapResponse,
 )
 from ...schemas.availability_window import (
     ApplyToDateRangeRequest,
@@ -72,18 +71,21 @@ from ...schemas.availability_window import (
     BlackoutDateResponse,
     CopyWeekRequest,
     SpecificDateAvailabilityCreate,
-    TimeRange,
     ValidateWeekRequest,
-    WeekSpecificScheduleCreate,
+    WeekBitmapSaveRequest,
     WeekValidationResponse,
 )
-from ...services.availability_service import ALLOW_PAST as SERVICE_ALLOW_PAST, AvailabilityService
+from ...services.availability_service import (
+    ALLOW_PAST as SERVICE_ALLOW_PAST,
+    AvailabilityService,
+    DayBitmaps,
+)
 from ...services.bulk_operation_service import BulkOperationService
 from ...services.conflict_checker import ConflictChecker
 from ...services.presentation_service import PresentationService
 from ...services.week_operation_service import WeekOperationService
-from ...utils.bitset import windows_from_bits
-from ...utils.time_helpers import string_to_time
+from ...utils.bitmap_base64 import decode_bitmap_bytes, encode_bitmap_bytes
+from ...utils.bitset import new_empty_tags
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -123,7 +125,7 @@ def verify_instructor(current_user: User) -> User:
     """Verify the current user is an instructor."""
     if not current_user.is_instructor:
         logger.warning(
-            f"Non-instructor user {current_user.email} attempted to access instructor-only endpoint"
+            f"Non-instructor user {current_user.id} attempted to access instructor-only endpoint"
         )
         raise HTTPException(status_code=403, detail=ERROR_INSTRUCTOR_ONLY)
     return current_user
@@ -131,7 +133,7 @@ def verify_instructor(current_user: User) -> User:
 
 @router.get(
     "/week",
-    response_model=WeekAvailabilityResponse,
+    response_model=WeekBitmapResponse,
     dependencies=[Depends(require_beta_access("instructor"))],
     responses={
         401: {"description": "Not authenticated"},
@@ -143,7 +145,7 @@ def get_week_availability(
     start_date: date = Query(..., description="Monday of the week"),
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
-) -> WeekAvailabilityResponse:
+) -> WeekBitmapResponse:
     """
     Get availability for a specific week.
 
@@ -158,34 +160,23 @@ def get_week_availability(
         payload_size_bytes=0,
     ):
         try:
-            bits_by_day = availability_service.get_week_bits(current_user.id, start_date)
-            version = availability_service.compute_week_version_bits(bits_by_day)
+            bitmaps_by_day = availability_service.get_week_bitmaps(current_user.id, start_date)
+            version = availability_service.compute_week_version_bitmaps(bitmaps_by_day)
             last_mod = availability_service.get_week_bitmap_last_modified(
                 current_user.id, start_date
             )
             _set_bitmap_headers(response, version, last_mod, allow_past=ALLOW_PAST)
             note_cache_miss(f"availability:bitmap:{current_user.id}:{start_date.isoformat()}")
 
-            payload: Dict[str, List[TimeRange]] = {}
-            for day, bits in bits_by_day.items():
-                windows = windows_from_bits(bits)
-                if not windows:
-                    continue
-                payload[day.isoformat()] = [
-                    TimeRange(
-                        start_time=string_to_time(start),
-                        end_time=string_to_time(end),
-                    )
-                    for start, end in windows
-                ]
-            if settings.include_empty_days_in_tests:
-                monday_anchor = min(bits_by_day.keys()) if bits_by_day else start_date
-                monday_anchor = monday_anchor - timedelta(days=monday_anchor.weekday())
-                for offset in range(7):
-                    day_key = (monday_anchor + timedelta(days=offset)).isoformat()
-                    payload.setdefault(day_key, [])
-                payload = dict(sorted(payload.items()))
-            return WeekAvailabilityResponse(payload)
+            days = [
+                DayBitmapResponse(
+                    date=day.isoformat(),
+                    bits=encode_bitmap_bytes(day_bitmaps.bits),
+                    format_tags=encode_bitmap_bytes(day_bitmaps.format_tags),
+                )
+                for day, day_bitmaps in sorted(bitmaps_by_day.items())
+            ]
+            return WeekBitmapResponse(days=days, version=version)
         except DomainException as e:
             raise e.to_http_exception()
         except Exception as e:
@@ -207,7 +198,7 @@ def get_week_availability(
 def save_week_availability(
     request: Request,
     response: Response,
-    payload: WeekSpecificScheduleCreate = Body(...),
+    payload: WeekBitmapSaveRequest = Body(...),
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
     override: bool = Query(
@@ -230,32 +221,7 @@ def save_week_availability(
         payload_size_bytes=payload_size,
     ):
         # Determine Monday/week_end prior to persistence for use in exception handling
-        schedule_dates: List[date] = []
-        monday: date
-        if payload.week_start:
-            monday = payload.week_start
-        else:
-            for item in payload.schedule:
-                raw_date = item.date
-                if raw_date is None:
-                    continue
-                try:
-                    parsed_date = (
-                        raw_date
-                        if isinstance(raw_date, date)
-                        else date.fromisoformat(str(raw_date))
-                    )
-                except Exception:
-                    logger.debug("Non-fatal error ignored", exc_info=True)
-                    continue
-                schedule_dates.append(parsed_date)
-
-            reference_date = (
-                min(schedule_dates)
-                if schedule_dates
-                else get_user_today_by_id(current_user.id, availability_service.db)
-            )
-            monday = reference_date - timedelta(days=reference_date.weekday())
+        monday = payload.week_start
         week_end = monday + timedelta(days=6)
 
         server_version: Optional[str] = None
@@ -272,43 +238,32 @@ def save_week_availability(
                 payload.version = client_version
             payload.override = override_requested
 
-            windows_by_day: Dict[date, List[tuple[str, str]]] = {}
-            for item in payload.schedule:
-                raw_date = item.date
-                if isinstance(raw_date, date):
-                    slot_date = raw_date
-                else:
-                    slot_date = date.fromisoformat(str(raw_date))
-
-                raw_start = item.start_time
-                if isinstance(raw_start, time):
-                    start_str = raw_start.strftime("%H:%M:%S")
-                else:
-                    start_str = string_to_time(str(raw_start)).strftime("%H:%M:%S")
-
-                raw_end = item.end_time
-                if isinstance(raw_end, time):
-                    end_str = raw_end.strftime("%H:%M:%S")
-                else:
-                    end_str = string_to_time(str(raw_end)).strftime("%H:%M:%S")
-
-                windows_by_day.setdefault(slot_date, []).append((start_str, end_str))
+            bitmaps_by_day: Dict[date, DayBitmaps] = {}
+            for item in payload.days:
+                slot_date = date.fromisoformat(item.date)
+                bits = decode_bitmap_bytes(item.bits, BYTES_PER_DAY)
+                format_tags = (
+                    decode_bitmap_bytes(item.format_tags, TAG_BYTES_PER_DAY)
+                    if item.format_tags is not None
+                    else new_empty_tags()
+                )
+                bitmaps_by_day[slot_date] = DayBitmaps(bits=bits, format_tags=format_tags)
 
             try:
-                save_result = availability_service.save_week_bits(
+                save_result = availability_service.save_week_bitmaps(
                     instructor_id=current_user.id,
                     week_start=monday,
-                    windows_by_day=windows_by_day,
+                    bitmaps_by_day=bitmaps_by_day,
                     base_version=client_version,
                     override=override_requested,
                     clear_existing=bool(payload.clear_existing),
                     actor=current_user,
                 )
             except ConflictException:
-                server_bits = availability_service.get_week_bits(
+                server_bitmaps = availability_service.get_week_bitmaps(
                     current_user.id, monday, use_cache=False
                 )
-                server_version = availability_service.compute_week_version_bits(server_bits)
+                server_version = availability_service.compute_week_version_bitmaps(server_bitmaps)
                 raise HTTPException(
                     status_code=409,
                     detail={"error": "version_conflict", "current_version": server_version},

@@ -235,5 +235,29 @@ describe('Select component — branch coverage', () => {
       const trigger = screen.getByRole('combobox');
       expect(trigger.className).toContain('custom-trigger');
     });
+
+    it('includes dark-mode item state classes for highlighted, checked, and disabled options', async () => {
+      render(
+        <Select defaultOpen value="a">
+          <SelectTrigger>
+            <SelectValue placeholder="Choose" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="a">Alpha</SelectItem>
+            <SelectItem value="b" disabled>
+              Beta
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      );
+
+      const selectedItem = await screen.findByRole('option', { name: 'Alpha' });
+      const disabledItem = await screen.findByRole('option', { name: 'Beta' });
+
+      expect(selectedItem.className).toContain('dark:data-[highlighted]:bg-gray-700');
+      expect(selectedItem.className).toContain('dark:data-[state=checked]:bg-purple-500/20');
+      expect(disabledItem.className).toContain('data-[disabled]:bg-transparent');
+      expect(disabledItem.className).toContain('dark:data-[disabled]:text-gray-500');
+    });
   });
 });

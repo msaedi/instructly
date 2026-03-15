@@ -10,6 +10,10 @@ from datetime import date, time, timedelta
 from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
+from tests.utils.availability_builders import (
+    build_week_payload_from_slots,
+    decode_week_response_to_windows,
+)
 
 from app.models import Booking, BookingStatus, User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
@@ -65,22 +69,21 @@ class TestSaveWeekSucceedsEvenWithOverlappingBookings:
         db.commit()
 
         # Save a week that includes Tue 10:00-11:00 availability
-        payload = {
-            "week_start": week_start.isoformat(),
-            "clear_existing": True,
-            "schedule": [
+        payload = build_week_payload_from_slots(
+            week_start,
+            [
                 {
                     "date": tuesday.isoformat(),
                     "start_time": "10:00:00",
                     "end_time": "11:00:00",
                 },
                 {
-                    "date": (week_start + timedelta(days=3)).isoformat(),  # Thursday
+                    "date": (week_start + timedelta(days=3)).isoformat(),
                     "start_time": "14:00:00",
                     "end_time": "15:00:00",
                 },
             ],
-        }
+        )
 
         resp = bitmap_client.post(
             "/api/v1/instructors/availability/week",
@@ -98,7 +101,7 @@ class TestSaveWeekSucceedsEvenWithOverlappingBookings:
             headers=auth_headers_instructor,
         )
         assert get_resp.status_code == 200
-        body = get_resp.json()
+        body = decode_week_response_to_windows(get_resp.json())
 
         # Tuesday should show the availability window
         assert body[tuesday.isoformat()] == [{"start_time": "10:00:00", "end_time": "11:00:00"}]

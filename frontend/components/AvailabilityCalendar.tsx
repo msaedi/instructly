@@ -9,6 +9,7 @@ import { Instructor } from '@/features/student/booking/types';
 import { getBookingIntent, clearBookingIntent } from '@/features/shared/utils/booking';
 import { at } from '@/lib/ts/safe';
 import { useInstructorAvailability } from '@/hooks/queries/useInstructorAvailability';
+import type { LocationType } from '@/types/booking';
 import {
   buildAvailabilityDays,
   formatAvailabilityTime,
@@ -69,6 +70,9 @@ export default function AvailabilityCalendar({
   const [preSelectedServiceId, setPreSelectedServiceId] = useState<string | undefined>(() =>
     shouldRestoreIntent ? bookingIntent?.serviceId : undefined
   );
+  const [preSelectedLocationType, setPreSelectedLocationType] = useState<LocationType | undefined>(() =>
+    shouldRestoreIntent ? bookingIntent?.locationType : undefined
+  );
   const [shouldOpenModalFromIntent, setShouldOpenModalFromIntent] = useState(shouldRestoreIntent);
 
   // Handle time slot selection - opens TimeSelectionModal with pre-selected values
@@ -94,6 +98,7 @@ export default function AvailabilityCalendar({
     setPreSelectedDate(undefined);
     setPreSelectedTime(undefined);
     setPreSelectedServiceId(undefined);
+    setPreSelectedLocationType(undefined);
     setShouldOpenModalFromIntent(false);
   };
 
@@ -336,6 +341,7 @@ export default function AvailabilityCalendar({
         {...(preSelectedDate && { preSelectedDate })}
         {...(preSelectedTime && { preSelectedTime })}
         {...(preSelectedServiceId && { serviceId: preSelectedServiceId })}
+        {...(preSelectedLocationType && { initialLocationType: preSelectedLocationType })}
         // Don't pass onTimeSelected - let TimeSelectionModal handle navigation
       />
     </div>

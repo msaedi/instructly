@@ -38,9 +38,9 @@ import type {
   SaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostParams,
   SpecificDateAvailabilityCreate,
   ValidateWeekRequest,
-  WeekAvailabilityResponse,
   WeekAvailabilityUpdateResponse,
-  WeekSpecificScheduleCreate,
+  WeekBitmapResponse,
+  WeekBitmapSaveRequest,
   WeekValidationResponse,
 } from '../instructly.schemas';
 
@@ -933,8 +933,8 @@ export const getGetWeekAvailabilityApiV1InstructorsAvailabilityWeekGetUrl = (
 export const getWeekAvailabilityApiV1InstructorsAvailabilityWeekGet = async (
   params: GetWeekAvailabilityApiV1InstructorsAvailabilityWeekGetParams,
   options?: RequestInit
-): Promise<WeekAvailabilityResponse> => {
-  return customFetch<WeekAvailabilityResponse>(
+): Promise<WeekBitmapResponse> => {
+  return customFetch<WeekBitmapResponse>(
     getGetWeekAvailabilityApiV1InstructorsAvailabilityWeekGetUrl(params),
     {
       ...options,
@@ -1114,7 +1114,7 @@ export const getSaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostUrl = (
 };
 
 export const saveWeekAvailabilityApiV1InstructorsAvailabilityWeekPost = async (
-  weekSpecificScheduleCreate: WeekSpecificScheduleCreate,
+  weekBitmapSaveRequest: WeekBitmapSaveRequest,
   params?: SaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostParams,
   options?: RequestInit
 ): Promise<WeekAvailabilityUpdateResponse> => {
@@ -1124,7 +1124,7 @@ export const saveWeekAvailabilityApiV1InstructorsAvailabilityWeekPost = async (
       ...options,
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...options?.headers },
-      body: JSON.stringify(weekSpecificScheduleCreate),
+      body: JSON.stringify(weekBitmapSaveRequest),
     }
   );
 };
@@ -1137,7 +1137,7 @@ export const getSaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostMutation
     Awaited<ReturnType<typeof saveWeekAvailabilityApiV1InstructorsAvailabilityWeekPost>>,
     TError,
     {
-      data: WeekSpecificScheduleCreate;
+      data: WeekBitmapSaveRequest;
       params?: SaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostParams;
     },
     TContext
@@ -1147,7 +1147,7 @@ export const getSaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostMutation
   Awaited<ReturnType<typeof saveWeekAvailabilityApiV1InstructorsAvailabilityWeekPost>>,
   TError,
   {
-    data: WeekSpecificScheduleCreate;
+    data: WeekBitmapSaveRequest;
     params?: SaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostParams;
   },
   TContext
@@ -1162,7 +1162,7 @@ export const getSaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostMutation
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof saveWeekAvailabilityApiV1InstructorsAvailabilityWeekPost>>,
     {
-      data: WeekSpecificScheduleCreate;
+      data: WeekBitmapSaveRequest;
       params?: SaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostParams;
     }
   > = (props) => {
@@ -1178,7 +1178,7 @@ export type SaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostMutationResu
   Awaited<ReturnType<typeof saveWeekAvailabilityApiV1InstructorsAvailabilityWeekPost>>
 >;
 export type SaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostMutationBody =
-  WeekSpecificScheduleCreate;
+  WeekBitmapSaveRequest;
 export type SaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostMutationError =
   ErrorType<void | HTTPValidationError>;
 
@@ -1194,7 +1194,7 @@ export const useSaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPost = <
       Awaited<ReturnType<typeof saveWeekAvailabilityApiV1InstructorsAvailabilityWeekPost>>,
       TError,
       {
-        data: WeekSpecificScheduleCreate;
+        data: WeekBitmapSaveRequest;
         params?: SaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostParams;
       },
       TContext
@@ -1206,7 +1206,7 @@ export const useSaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPost = <
   Awaited<ReturnType<typeof saveWeekAvailabilityApiV1InstructorsAvailabilityWeekPost>>,
   TError,
   {
-    data: WeekSpecificScheduleCreate;
+    data: WeekBitmapSaveRequest;
     params?: SaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostParams;
   },
   TContext

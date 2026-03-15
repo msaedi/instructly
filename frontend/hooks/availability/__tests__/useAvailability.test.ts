@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { useAvailability } from '../useAvailability';
-import type { WeekBits, WeekSchedule } from '@/types/availability';
+import type { WeekBits, WeekSchedule, WeekTags } from '@/types/availability';
 
 // Type for operation results
 type OperationResult = { success: boolean; message: string } | undefined;
@@ -31,6 +31,8 @@ const createMockWeekScheduleState = () => ({
   currentWeekStart: new Date('2025-01-13'),
   weekBits: {} as WeekBits,
   savedWeekBits: {} as WeekBits,
+  weekTags: {} as WeekTags,
+  savedWeekTags: {} as WeekTags,
   weekSchedule: {} as WeekSchedule,
   savedWeekSchedule: {} as WeekSchedule,
   hasUnsavedChanges: false,
@@ -48,6 +50,8 @@ const createMockWeekScheduleState = () => ({
   navigateWeek: jest.fn(),
   setWeekBits: jest.fn(),
   setSavedWeekBits: jest.fn(),
+  setWeekTags: jest.fn(),
+  setSavedWeekTags: jest.fn(),
   setMessage: jest.fn(),
   refreshSchedule: jest.fn().mockResolvedValue(undefined),
   goToCurrentWeek: jest.fn(),
@@ -75,7 +79,7 @@ jest.mock('@/lib/availability/dateHelpers', () => ({
 // Mock bitset helpers
 jest.mock('@/lib/calendar/bitset', () => ({
   fromWindows: jest.fn(() => new Uint8Array(36)),
-  toWindows: jest.fn(() => []),
+  newEmptyTags: jest.fn(() => new Uint8Array(72)),
 }));
 
 const { fetchWithAuth } = jest.requireMock('@/lib/api');
@@ -1759,10 +1763,9 @@ describe('useAvailability', () => {
 
       const body = JSON.parse(
         (fetchWithAuth.mock.calls[0] as [string, { body: string }])[1].body
-      ) as { schedule: Array<{ date: string }> };
+      ) as { days: Array<{ date: string }> };
 
-      // Only '2025-01-15' should have entries since '2025-01-16' has undefined slots
-      expect(body.schedule.every((s) => s.date === '2025-01-15')).toBe(true);
+      expect(body.days.every((day) => day.date === '2025-01-15')).toBe(true);
     });
   });
 
@@ -1841,11 +1844,10 @@ describe('useAvailability', () => {
   });
 
   describe('saveWeek with scheduleOverride triggers scheduleToBits', () => {
-    it('converts schedule override to bits and back', async () => {
-      const { fromWindows, toWindows } = jest.requireMock('@/lib/calendar/bitset');
+    it('converts schedule override to bits and sends bitmap days payload', async () => {
+      const { fromWindows } = jest.requireMock('@/lib/calendar/bitset');
       const mockBits = new Uint8Array([1, 2, 3, 4, 5, 6]);
       fromWindows.mockReturnValue(mockBits);
-      toWindows.mockReturnValue([{ start_time: '09:00', end_time: '17:00' }]);
 
       fetchWithAuth.mockResolvedValueOnce({
         ok: true,
@@ -1868,10 +1870,17 @@ describe('useAvailability', () => {
 
       // fromWindows should be called to convert schedule to bits
       expect(fromWindows).toHaveBeenCalledWith([{ start_time: '09:00', end_time: '17:00' }]);
+      const body = JSON.parse(
+        (fetchWithAuth.mock.calls[0] as [string, { body: string }])[1].body
+      ) as { days: Array<{ date: string; bits: string; format_tags: string }> };
+      expect(body.days).toHaveLength(1);
+      expect(body.days[0]?.date).toBe('2025-01-15');
+      expect(typeof body.days[0]?.bits).toBe('string');
+      expect(typeof body.days[0]?.format_tags).toBe('string');
       expect(fetchWithAuth).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
-          body: expect.stringContaining('"date":"2025-01-15"'),
+          body: expect.stringContaining('"days"'),
         })
       );
     });
@@ -1899,67 +1908,25 @@ describe('useAvailability', () => {
 
       const body = JSON.parse(
         (fetchWithAuth.mock.calls[0] as [string, { body: string }])[1].body
-      ) as { schedule: Array<{ date: string }> };
+      ) as { days: Array<{ date: string }> };
 
-      // Only the date with actual slots should be in the schedule
-      expect(body.schedule).toHaveLength(1);
-      expect(body.schedule[0]?.date).toBe('2025-01-15');
+      expect(body.days).toHaveLength(1);
+      expect(body.days[0]?.date).toBe('2025-01-15');
     });
   });
 
-  describe('bitsRecordToSchedule', () => {
-    it('excludes days where toWindows returns empty array from the schedule', async () => {
-      const { toWindows } = jest.requireMock<{ toWindows: jest.Mock }>('@/lib/calendar/bitset');
-      // Day 1 has windows, Day 2 has bits set but toWindows returns [] (bug-hunting edge case)
+  describe('bitmap days payload', () => {
+    it('includes all days present in the current bitmap state', async () => {
       const bitsDay1 = new Uint8Array([0b00000011, 0, 0, 0, 0, 0]);
       const bitsDay2 = new Uint8Array([0b11000000, 0, 0, 0, 0, 0]);
       mockWeekScheduleState.weekBits = {
         '2025-01-13': bitsDay1,
         '2025-01-14': bitsDay2,
       } as unknown as WeekBits;
-
-      // toWindows returns slots for first call, empty for second
-      toWindows
-        .mockReturnValueOnce([{ start_time: '09:00', end_time: '10:00' }])
-        .mockReturnValueOnce([]);
-
-      fetchWithAuth.mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        headers: { get: () => null },
-        clone: () => ({
-          json: () => Promise.resolve({ message: 'Saved' }),
-        }),
-      });
-
-      const { result } = renderHook(() => useAvailability());
-
-      await act(async () => {
-        await result.current.saveWeek();
-      });
-
-      const body = JSON.parse(
-        (fetchWithAuth.mock.calls[0] as [string, { body: string }])[1].body
-      ) as { schedule: Array<{ date: string }> };
-
-      // Only day 1 should appear because day 2 had empty windows from toWindows
-      expect(body.schedule).toHaveLength(1);
-      expect(body.schedule[0]?.date).toBe('2025-01-13');
-    });
-
-    it('includes all days that have non-empty windows from toWindows', async () => {
-      const { toWindows } = jest.requireMock<{ toWindows: jest.Mock }>('@/lib/calendar/bitset');
-      const bits = new Uint8Array([0b00000001, 0, 0, 0, 0, 0]);
-      mockWeekScheduleState.weekBits = {
-        '2025-01-13': bits,
-        '2025-01-14': bits,
-        '2025-01-15': bits,
-      } as unknown as WeekBits;
-
-      toWindows
-        .mockReturnValueOnce([{ start_time: '08:00', end_time: '08:30' }])
-        .mockReturnValueOnce([{ start_time: '09:00', end_time: '09:30' }])
-        .mockReturnValueOnce([{ start_time: '10:00', end_time: '10:30' }]);
+      mockWeekScheduleState.weekTags = {
+        '2025-01-13': new Uint8Array(72),
+        '2025-01-14': new Uint8Array(72),
+      } as unknown as WeekTags;
 
       fetchWithAuth.mockResolvedValueOnce({
         ok: true,
@@ -1978,14 +1945,17 @@ describe('useAvailability', () => {
 
       const body = JSON.parse(
         (fetchWithAuth.mock.calls[0] as [string, { body: string }])[1].body
-      ) as { schedule: Array<{ date: string }> };
+      ) as { days: Array<{ date: string; bits: string; format_tags: string }> };
 
-      expect(body.schedule).toHaveLength(3);
+      expect(body.days).toHaveLength(2);
+      expect(body.days.map((day) => day.date)).toEqual(['2025-01-13', '2025-01-14']);
+      expect(typeof body.days[0]?.bits).toBe('string');
+      expect(typeof body.days[0]?.format_tags).toBe('string');
     });
   });
 
-  describe('saveWeek schedule sorting', () => {
-    it('sorts schedule entries by date then start_time then end_time', async () => {
+  describe('saveWeek bitmap day sorting', () => {
+    it('sorts day payloads by date', async () => {
       fetchWithAuth.mockResolvedValueOnce({
         ok: true,
         status: 200,
@@ -2011,17 +1981,13 @@ describe('useAvailability', () => {
 
       const body = JSON.parse(
         (fetchWithAuth.mock.calls[0] as [string, { body: string }])[1].body
-      ) as { schedule: Array<{ date: string; start_time: string; end_time: string }> };
+      ) as { days: Array<{ date: string }> };
 
-      // Should be sorted: first by date, then by start_time
-      expect(body.schedule[0]?.date).toBe('2025-01-15');
-      expect(body.schedule[0]?.start_time).toBe('09:00');
-      expect(body.schedule[1]?.date).toBe('2025-01-15');
-      expect(body.schedule[1]?.start_time).toBe('10:00');
-      expect(body.schedule[2]?.date).toBe('2025-01-16');
+      expect(body.days[0]?.date).toBe('2025-01-15');
+      expect(body.days[1]?.date).toBe('2025-01-16');
     });
 
-    it('breaks ties on end_time when date and start_time are identical', async () => {
+    it('encodes sorted bitmap days for same-date multi-window schedules', async () => {
       fetchWithAuth.mockResolvedValueOnce({
         ok: true,
         status: 200,
@@ -2047,11 +2013,11 @@ describe('useAvailability', () => {
 
       const body = JSON.parse(
         (fetchWithAuth.mock.calls[0] as [string, { body: string }])[1].body
-      ) as { schedule: Array<{ date: string; start_time: string; end_time: string }> };
+      ) as { days: Array<{ date: string; bits: string; format_tags: string }> };
 
-      // end_time '10:00' should sort before '11:00' via localeCompare
-      expect(body.schedule[0]?.end_time).toBe('10:00');
-      expect(body.schedule[1]?.end_time).toBe('11:00');
+      expect(body.days).toHaveLength(1);
+      expect(body.days[0]?.date).toBe('2025-01-15');
+      expect(typeof body.days[0]?.bits).toBe('string');
     });
 
     it('handles schedule with entries across many dates in reverse order', async () => {
@@ -2079,11 +2045,11 @@ describe('useAvailability', () => {
 
       const body = JSON.parse(
         (fetchWithAuth.mock.calls[0] as [string, { body: string }])[1].body
-      ) as { schedule: Array<{ date: string }> };
+      ) as { days: Array<{ date: string }> };
 
-      expect(body.schedule[0]?.date).toBe('2025-01-13');
-      expect(body.schedule[1]?.date).toBe('2025-01-17');
-      expect(body.schedule[2]?.date).toBe('2025-01-19');
+      expect(body.days[0]?.date).toBe('2025-01-13');
+      expect(body.days[1]?.date).toBe('2025-01-17');
+      expect(body.days[2]?.date).toBe('2025-01-19');
     });
   });
 

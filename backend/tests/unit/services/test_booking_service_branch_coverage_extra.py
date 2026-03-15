@@ -17,13 +17,15 @@ def _service() -> BookingService:
     service = BookingService.__new__(BookingService)
     service.repository = MagicMock()
     service.db = MagicMock()
+    service.conflict_checker = MagicMock()
+    service.conflict_checker_repository = MagicMock()
     return service
 
 
 def test_check_student_time_conflict_returns_bool_and_handles_exceptions():
     service = _service()
 
-    service.repository.check_student_time_conflict.return_value = ["conflict"]
+    service.conflict_checker.check_student_time_conflicts.return_value = ["conflict"]
     assert (
         service.check_student_time_conflict(
             student_id="student-1",
@@ -34,7 +36,7 @@ def test_check_student_time_conflict_returns_bool_and_handles_exceptions():
         is True
     )
 
-    service.repository.check_student_time_conflict.side_effect = RuntimeError("boom")
+    service.conflict_checker.check_student_time_conflicts.side_effect = RuntimeError("boom")
     assert (
         service.check_student_time_conflict(
             student_id="student-1",

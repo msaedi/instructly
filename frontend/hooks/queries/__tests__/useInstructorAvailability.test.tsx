@@ -75,7 +75,9 @@ describe('useInstructorAvailability', () => {
     // Query key now includes daysAhead (default: 7)
     const cached = queryClient
       .getQueryCache()
-      .find({ queryKey: [...queryKeys.availability.week('inst-1', '2025-01-12'), 7] });
+      .find({
+        queryKey: [...queryKeys.availability.week('inst-1', '2025-01-12'), 7, 'conservative'],
+      });
     expect(cached).toBeTruthy();
   });
 
@@ -133,7 +135,30 @@ describe('useInstructorAvailability', () => {
     // Query key should include daysAhead: 14
     const cached = queryClient
       .getQueryCache()
-      .find({ queryKey: [...queryKeys.availability.week('inst-1', '2025-01-10'), 14] });
+      .find({
+        queryKey: [...queryKeys.availability.week('inst-1', '2025-01-10'), 14, 'conservative'],
+      });
+    expect(cached).toBeTruthy();
+  });
+
+  it('passes location_type through the request and query key', async () => {
+    const { wrapper, queryClient } = createWrapper();
+
+    renderHook(() => useInstructorAvailability('inst-1', '2025-01-10', 7, 'online'), {
+      wrapper,
+    });
+
+    await waitFor(() =>
+      expect(mockedGetAvailability).toHaveBeenCalledWith('inst-1', {
+        start_date: '2025-01-10',
+        end_date: '2025-01-16',
+        location_type: 'online',
+      })
+    );
+
+    const cached = queryClient
+      .getQueryCache()
+      .find({ queryKey: [...queryKeys.availability.week('inst-1', '2025-01-10'), 7, 'online'] });
     expect(cached).toBeTruthy();
   });
 

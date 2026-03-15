@@ -3,7 +3,7 @@ import React from 'react';
 import { formatDateForAPI } from '@/lib/availability/dateHelpers';
 import { API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
 import { fromWindows, toWindows } from '@/lib/calendar/bitset';
-import type { WeekBits, WeekSchedule } from '@/types/availability';
+import type { WeekBits, WeekSchedule, WeekTags } from '@/types/availability';
 import { useWeekSchedule } from '@/hooks/availability/useWeekSchedule';
 import { useAvailability } from '@/hooks/availability/useAvailability';
 import { toast } from 'sonner';
@@ -34,6 +34,7 @@ let setWeekBitsSpy: jest.Mock;
 let setSavedWeekBitsSpy: jest.Mock;
 let refreshScheduleSpy: jest.Mock;
 let nextWeekBits: WeekBits;
+const EMPTY_WEEK_TAGS: WeekTags = {};
 
 const SAMPLE_WINDOWS: WeekSchedule = {
   '2025-10-27': [
@@ -101,6 +102,8 @@ beforeEach(() => {
     currentWeekStart: INITIAL_WEEK_START,
     weekBits: INITIAL_WEEK_BITS,
     savedWeekBits: INITIAL_WEEK_BITS,
+    weekTags: EMPTY_WEEK_TAGS,
+    savedWeekTags: EMPTY_WEEK_TAGS,
     weekSchedule: SAMPLE_WINDOWS,
     savedWeekSchedule: SAMPLE_WINDOWS,
     hasUnsavedChanges: false,
@@ -119,6 +122,8 @@ beforeEach(() => {
     navigateWeek: jest.fn(),
     setWeekBits: setWeekBitsSpy,
     setSavedWeekBits: setSavedWeekBitsSpy,
+    setWeekTags: jest.fn(),
+    setSavedWeekTags: jest.fn(),
     setWeekSchedule: jest.fn(),
     setMessage: setMessageMock,
     refreshSchedule: refreshScheduleSpy,

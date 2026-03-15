@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -13,6 +14,7 @@ from app.services.search.filter_service import (
 from app.services.search.location_resolver import ResolvedLocation
 from app.services.search.query_parser import ParsedQuery
 from app.services.search.retriever import ServiceCandidate
+from app.utils.bitset import bits_from_windows, new_empty_tags, set_range_tag
 
 
 def _candidate(idx: int, price: int = 50) -> ServiceCandidate:
@@ -241,6 +243,241 @@ def test_filter_availability_weekend_without_range_uses_next_week(repository: Mo
     repository.filter_by_availability.assert_called_once()
 
 
+def test_filter_availability_refines_online_results_with_non_travel_buffer(repository: Mock) -> None:
+    service = FilterService(repository=repository, location_resolver=Mock(), region_code="nyc")
+    target_day = date.today()
+    repository.filter_by_availability.return_value = {"inst_1": [target_day]}
+    repository.get_buffered_availability_context.return_value = {
+        "bits_by_key": {
+            ("inst_1", target_day): bits_from_windows([("15:00", "17:00")]),
+        },
+        "bookings_by_key": {
+            ("inst_1", target_day): [
+                SimpleNamespace(
+                    start_time=filter_service_module.time(15, 0),
+                    end_time=filter_service_module.time(16, 0),
+                    location_type="online",
+                )
+            ],
+        },
+        "profiles_by_instructor": {
+            "inst_1": SimpleNamespace(non_travel_buffer_minutes=15, travel_buffer_minutes=60)
+        },
+    }
+
+    candidates = [
+        filter_service_module.FilteredCandidate(
+            service_id="svc_1",
+            service_catalog_id="cat_1",
+            instructor_id="inst_1",
+            hybrid_score=0.5,
+            name="Service",
+            description=None,
+            min_hourly_rate=50,
+        )
+    ]
+
+    query = _base_query(lesson_type="online")
+
+    result = service._filter_availability(candidates, query, 45)
+
+    assert len(result) == 1
+    assert result[0].available_dates == [target_day]
+
+
+def test_filter_availability_drops_candidate_when_conservative_travel_buffer_removes_slot(
+    repository: Mock,
+) -> None:
+    service = FilterService(repository=repository, location_resolver=Mock(), region_code="nyc")
+    target_day = date.today()
+    repository.filter_by_availability.return_value = {"inst_1": [target_day]}
+    repository.get_buffered_availability_context.return_value = {
+        "bits_by_key": {
+            ("inst_1", target_day): bits_from_windows([("15:00", "17:00")]),
+        },
+        "bookings_by_key": {
+            ("inst_1", target_day): [
+                SimpleNamespace(
+                    start_time=filter_service_module.time(15, 0),
+                    end_time=filter_service_module.time(16, 0),
+                    location_type="online",
+                )
+            ],
+        },
+        "profiles_by_instructor": {
+            "inst_1": SimpleNamespace(non_travel_buffer_minutes=15, travel_buffer_minutes=60)
+        },
+    }
+
+    candidates = [
+        filter_service_module.FilteredCandidate(
+            service_id="svc_1",
+            service_catalog_id="cat_1",
+            instructor_id="inst_1",
+            hybrid_score=0.5,
+            name="Service",
+            description=None,
+            min_hourly_rate=50,
+        )
+    ]
+
+    query = _base_query(lesson_type="in_person")
+
+    result = service._filter_availability(candidates, query, 45)
+
+    assert result == []
+
+
+def test_filter_availability_drops_slot_before_existing_booking_when_travel_buffer_applies(
+    repository: Mock,
+) -> None:
+    service = FilterService(repository=repository, location_resolver=Mock(), region_code="nyc")
+    target_day = date.today()
+    repository.filter_by_availability.return_value = {"inst_1": [target_day]}
+    repository.get_buffered_availability_context.return_value = {
+        "bits_by_key": {
+            ("inst_1", target_day): bits_from_windows([("14:00", "15:00")]),
+        },
+        "bookings_by_key": {
+            ("inst_1", target_day): [
+                SimpleNamespace(
+                    start_time=filter_service_module.time(15, 0),
+                    end_time=filter_service_module.time(16, 0),
+                    location_type="online",
+                )
+            ],
+        },
+        "profiles_by_instructor": {
+            "inst_1": SimpleNamespace(non_travel_buffer_minutes=15, travel_buffer_minutes=60)
+        },
+    }
+
+    candidates = [
+        filter_service_module.FilteredCandidate(
+            service_id="svc_1",
+            service_catalog_id="cat_1",
+            instructor_id="inst_1",
+            hybrid_score=0.5,
+            name="Service",
+            description=None,
+            min_hourly_rate=50,
+        )
+    ]
+
+    result = service._filter_availability(candidates, _base_query(lesson_type="in_person"), 60)
+
+    assert result == []
+
+
+def test_filter_availability_drops_in_person_candidate_when_slots_are_online_only(
+    repository: Mock,
+) -> None:
+    service = FilterService(repository=repository, location_resolver=Mock(), region_code="nyc")
+    target_day = date.today()
+    repository.filter_by_availability.return_value = {"inst_1": [target_day]}
+    repository.get_buffered_availability_context.return_value = {
+        "bits_by_key": {
+            ("inst_1", target_day): bits_from_windows([("15:00", "17:00")]),
+        },
+        "format_tags_by_key": {
+            ("inst_1", target_day): set_range_tag(new_empty_tags(), 180, 24, 1),
+        },
+        "bookings_by_key": {("inst_1", target_day): []},
+        "profiles_by_instructor": {
+            "inst_1": SimpleNamespace(non_travel_buffer_minutes=15, travel_buffer_minutes=60)
+        },
+    }
+
+    candidates = [
+        filter_service_module.FilteredCandidate(
+            service_id="svc_1",
+            service_catalog_id="cat_1",
+            instructor_id="inst_1",
+            hybrid_score=0.5,
+            name="Service",
+            description=None,
+            min_hourly_rate=50,
+        )
+    ]
+
+    result = service._filter_availability(candidates, _base_query(lesson_type="in_person"), 45)
+
+    assert result == []
+
+
+def test_filter_availability_keeps_online_candidate_when_online_only_tags_match(
+    repository: Mock,
+) -> None:
+    service = FilterService(repository=repository, location_resolver=Mock(), region_code="nyc")
+    target_day = date.today()
+    repository.filter_by_availability.return_value = {"inst_1": [target_day]}
+    repository.get_buffered_availability_context.return_value = {
+        "bits_by_key": {
+            ("inst_1", target_day): bits_from_windows([("15:00", "17:00")]),
+        },
+        "format_tags_by_key": {
+            ("inst_1", target_day): set_range_tag(new_empty_tags(), 180, 24, 1),
+        },
+        "bookings_by_key": {("inst_1", target_day): []},
+        "profiles_by_instructor": {
+            "inst_1": SimpleNamespace(non_travel_buffer_minutes=15, travel_buffer_minutes=60)
+        },
+    }
+
+    candidates = [
+        filter_service_module.FilteredCandidate(
+            service_id="svc_1",
+            service_catalog_id="cat_1",
+            instructor_id="inst_1",
+            hybrid_score=0.5,
+            name="Service",
+            description=None,
+            min_hourly_rate=50,
+        )
+    ]
+
+    result = service._filter_availability(candidates, _base_query(lesson_type="online"), 45)
+
+    assert len(result) == 1
+    assert result[0].available_dates == [target_day]
+
+
+def test_filter_availability_conservative_any_search_requires_untagged_slots(
+    repository: Mock,
+) -> None:
+    service = FilterService(repository=repository, location_resolver=Mock(), region_code="nyc")
+    target_day = date.today()
+    repository.filter_by_availability.return_value = {"inst_1": [target_day]}
+    repository.get_buffered_availability_context.return_value = {
+        "bits_by_key": {
+            ("inst_1", target_day): bits_from_windows([("15:00", "17:00")]),
+        },
+        "format_tags_by_key": {
+            ("inst_1", target_day): set_range_tag(new_empty_tags(), 180, 24, 2),
+        },
+        "bookings_by_key": {("inst_1", target_day): []},
+        "profiles_by_instructor": {
+            "inst_1": SimpleNamespace(non_travel_buffer_minutes=15, travel_buffer_minutes=60)
+        },
+    }
+
+    candidates = [
+        filter_service_module.FilteredCandidate(
+            service_id="svc_1",
+            service_catalog_id="cat_1",
+            instructor_id="inst_1",
+            hybrid_score=0.5,
+            name="Service",
+            description=None,
+            min_hourly_rate=50,
+        )
+    ]
+
+    result = service._filter_availability(candidates, _base_query(), 45)
+
+    assert result == []
+
+
 def test_apply_soft_filtering_returns_early_with_enough_results(repository: Mock) -> None:
     resolver = Mock()
     resolver.region_code = "nyc"
@@ -271,7 +508,15 @@ def test_apply_soft_filtering_time_relax_returns_early(repository: Mock) -> None
 
     candidates = [_candidate(i) for i in range(6)]
 
-    def availability_side_effect(instructor_ids, target_date, time_after, time_before, duration_minutes):
+    def availability_side_effect(
+        instructor_ids,
+        target_date=None,
+        time_after=None,
+        time_before=None,
+        duration_minutes=60,
+        *,
+        dates_to_check=None,
+    ):
         if time_after:
             return {"inst_0": [date.today()], "inst_1": [date.today()]}
         return {iid: [date.today()] for iid in instructor_ids}
@@ -301,7 +546,15 @@ def test_apply_soft_filtering_effective_constraints(repository: Mock) -> None:
 
     candidates = [_candidate(i) for i in range(3)]
 
-    def availability_side_effect(instructor_ids, target_date, time_after, time_before, duration_minutes):
+    def availability_side_effect(
+        instructor_ids,
+        target_date=None,
+        time_after=None,
+        time_before=None,
+        duration_minutes=60,
+        *,
+        dates_to_check=None,
+    ):
         # Tight constraints -> fewer instructors
         if time_after or target_date:
             return {"inst_0": [date.today()]}

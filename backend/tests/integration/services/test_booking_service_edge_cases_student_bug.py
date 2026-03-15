@@ -91,8 +91,7 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session, cata
 
     profile1 = InstructorProfile(
         user_id=instructor1.id,
-        min_advance_booking_hours=1,
-    )
+        )
     db.add(profile1)
     db.flush()
     add_service_areas_for_boroughs(db, user=instructor1, boroughs=["Manhattan"])
@@ -139,8 +138,7 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session, cata
 
     profile2 = InstructorProfile(
         user_id=instructor2.id,
-        min_advance_booking_hours=1,
-    )
+        )
     db.add(profile2)
     db.flush()
     add_service_areas_for_boroughs(db, user=instructor2, boroughs=["Brooklyn"])

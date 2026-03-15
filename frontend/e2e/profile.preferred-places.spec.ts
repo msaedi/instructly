@@ -74,8 +74,9 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
             },
           ],
           years_experience: 5,
-          min_advance_booking_hours: 2,
-          buffer_time_minutes: 0,
+          non_travel_buffer_minutes: 15,
+          travel_buffer_minutes: 60,
+          overnight_protection_enabled: true,
           preferred_teaching_locations: state.preferredTeaching,
           preferred_public_spaces: state.preferredPublic,
           user: {
@@ -130,8 +131,9 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
             },
           ],
           years_experience: data?.years_experience ?? 5,
-          min_advance_booking_hours: data?.min_advance_booking_hours ?? 2,
-          buffer_time_minutes: data?.buffer_time_minutes ?? 0,
+          non_travel_buffer_minutes: data?.non_travel_buffer_minutes ?? 15,
+          travel_buffer_minutes: data?.travel_buffer_minutes ?? 60,
+          overnight_protection_enabled: data?.overnight_protection_enabled ?? true,
           preferred_teaching_locations: state.preferredTeaching,
           preferred_public_spaces: state.preferredPublic,
         });
@@ -241,8 +243,9 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
         const payload = {
           bio: 'E2E seed biography for preferred places smoke test.',
           years_experience: 5,
-          min_advance_booking_hours: 2,
-          buffer_time_minutes: 0,
+          non_travel_buffer_minutes: 15,
+          travel_buffer_minutes: 60,
+          overnight_protection_enabled: true,
           preferred_teaching_locations: [],
           preferred_public_spaces: [],
         };

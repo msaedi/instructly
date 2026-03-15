@@ -88,8 +88,10 @@ def _make_service(
 def test_service_helpers_and_to_dict() -> None:
     instructor = InstructorProfile(
         user_id="user-1",
-        min_advance_booking_hours=24,
         created_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        non_travel_buffer_minutes=15,
+        travel_buffer_minutes=60,
+        overnight_protection_enabled=True,
     )
     active_service = _make_service(service_id="svc-active", active=True)
     inactive_service = _make_service(service_id="svc-inactive", active=False)
@@ -103,13 +105,17 @@ def test_service_helpers_and_to_dict() -> None:
     assert instructor.offers_service("missing") is False
     assert instructor.get_service_by_catalog_id("svc-active") is active_service
     assert instructor.get_service_by_catalog_id("missing") is None
-    assert instructor.can_accept_booking_at(24) is True
-    assert instructor.can_accept_booking_at(10) is False
+    assert instructor.can_accept_booking_at(1) is True
+    assert instructor.can_accept_booking_at(0) is False
 
     data = instructor.to_dict(include_services=True)
     assert data["active_services_count"] == 1
     assert data["total_services"] == 2
     assert len(data["services"]) == 1
+    assert data["non_travel_buffer_minutes"] == 15
+    assert data["travel_buffer_minutes"] == 60
+    assert data["overnight_protection_enabled"] is True
+    assert data["calendar_settings_acknowledged_at"] is None
 
     no_services = instructor.to_dict(include_services=False)
     assert "services" not in no_services

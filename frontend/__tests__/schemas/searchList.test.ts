@@ -18,8 +18,9 @@ describe('search list schema', () => {
             },
           ],
           years_experience: 1,
-          min_advance_booking_hours: 0,
-          buffer_time_minutes: 0,
+          non_travel_buffer_minutes: 15,
+          travel_buffer_minutes: 60,
+          overnight_protection_enabled: true,
           created_at: new Date().toISOString(),
           user: { id: '01H', first_name: 'A', last_initial: 'B' },
           services: [

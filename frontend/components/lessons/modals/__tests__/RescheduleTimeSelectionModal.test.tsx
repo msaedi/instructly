@@ -408,6 +408,29 @@ describe('RescheduleTimeSelectionModal', () => {
       });
     });
 
+    it('passes the existing lesson location_type when fetching availability', async () => {
+      render(
+        <RescheduleTimeSelectionModal
+          {...defaultProps}
+          currentLesson={{
+            date: '2025-01-20',
+            time: '10:00',
+            service: 'Piano',
+            location_type: 'neutral_location',
+          }}
+        />
+      );
+
+      await waitFor(() => {
+        expect(getInstructorAvailabilityMock).toHaveBeenCalledWith(
+          'inst-123',
+          expect.objectContaining({
+            location_type: 'neutral_location',
+          })
+        );
+      });
+    });
+
     it('shows calendar with available dates after loading', async () => {
       render(<RescheduleTimeSelectionModal {...defaultProps} />);
 

@@ -10,6 +10,7 @@ except ModuleNotFoundError:  # pragma: no cover
 from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
+from tests.utils.availability_builders import build_week_payload_from_slots
 
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService
@@ -74,17 +75,16 @@ def test_bookings_respect_bitmap_availability_windows(
     week_start = _next_monday(date.today())
     target_day = week_start + timedelta(days=2)
 
-    availability_body = {
-        "week_start": week_start.isoformat(),
-        "clear_existing": True,
-        "schedule": [
+    availability_body = build_week_payload_from_slots(
+        week_start,
+        [
             {
                 "date": target_day.isoformat(),
                 "start_time": "09:00:00",
                 "end_time": "11:00:00",
             },
         ],
-    }
+    )
 
     resp = bitmap_booking_client.post(
         "/api/v1/instructors/availability/week",

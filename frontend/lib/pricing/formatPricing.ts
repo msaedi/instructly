@@ -5,6 +5,9 @@ import type {
 
 /** The three lesson formats the backend accepts. */
 export type ServiceFormat = 'student_location' | 'instructor_location' | 'online';
+export type PublicAvailabilityLocationType =
+  | ServiceFormat
+  | 'neutral_location';
 
 /**
  * UI state for per-format pricing.
@@ -142,6 +145,20 @@ export function lessonTypeToFormats(lessonType: string): ServiceFormat[] {
   if (lessonType === 'travels') return ['student_location'];
   if (lessonType === 'studio') return ['instructor_location'];
   return ['student_location', 'online', 'instructor_location'];
+}
+
+/**
+ * Map a search lesson-type filter to the exact location_type used by
+ * the public availability API. In-person and unknown filters stay
+ * conservative by using the travel path.
+ */
+export function lessonTypeToAvailabilityLocationType(
+  lessonType?: string | null,
+): PublicAvailabilityLocationType {
+  if (lessonType === 'online') return 'online';
+  if (lessonType === 'studio') return 'instructor_location';
+  if (lessonType === 'travels') return 'student_location';
+  return 'student_location';
 }
 
 type ContextualPrice = {

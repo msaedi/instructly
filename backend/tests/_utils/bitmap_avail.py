@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.models.availability_day import AvailabilityDay
 from app.repositories.availability_day_repository import AvailabilityDayRepository
-from app.utils.bitset import bits_from_windows, windows_from_bits
+from app.utils.bitset import bits_from_windows, new_empty_tags, windows_from_bits
 
 
 def seed_day(
@@ -20,6 +20,8 @@ def seed_day(
     instructor_id: str,
     target_date: date,
     windows: List[Tuple[str, str]],
+    *,
+    format_tags: bytes | None = None,
 ) -> None:
     """
     Create or update availability for a single day using bitmap storage.
@@ -32,7 +34,7 @@ def seed_day(
     """
     repo = AvailabilityDayRepository(db)
     bits = bits_from_windows(windows)
-    repo.upsert_week(instructor_id, [(target_date, bits)])
+    repo.upsert_week(instructor_id, [(target_date, bits, format_tags or new_empty_tags())])
     db.flush()
 
 
@@ -41,6 +43,8 @@ def seed_week(
     instructor_id: str,
     monday: date,
     week_map: Dict[str, List[Tuple[str, str]]],
+    *,
+    format_tags_by_date: Dict[str, bytes] | None = None,
 ) -> None:
     """
     Create or update availability for a week using bitmap storage.
@@ -58,7 +62,8 @@ def seed_week(
     for date_str, windows in week_map.items():
         target_date = date.fromisoformat(date_str)
         bits = bits_from_windows(windows)
-        items.append((target_date, bits))
+        tags = (format_tags_by_date or {}).get(date_str, new_empty_tags())
+        items.append((target_date, bits, tags))
 
     if items:
         repo.upsert_week(instructor_id, items)

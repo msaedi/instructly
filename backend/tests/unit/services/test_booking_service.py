@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import date, datetime, time, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
@@ -13,9 +14,12 @@ from app.core.ulid_helper import generate_ulid
 from app.models.booking import BookingStatus, PaymentStatus
 from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.services.booking_service import BookingService
-from app.utils.bitset import bits_from_windows
+from app.services.config_service import DEFAULT_BOOKING_RULES_CONFIG, ConfigService
+from app.utils.bitset import bits_from_windows, new_empty_tags, set_range_tag
 
 REAL_DATETIME = datetime
+ORIGINAL_GET_OVERNIGHT_EARLIEST_HOUR = ConfigService.get_overnight_earliest_hour
+ORIGINAL_IS_IN_OVERNIGHT_WINDOW = ConfigService.is_in_overnight_window
 
 
 def _transaction_cm() -> MagicMock:
@@ -40,6 +44,35 @@ def _freeze_time(monkeypatch: pytest.MonkeyPatch, target: datetime) -> None:
             return REAL_DATETIME.combine(*args, **kwargs)
 
     monkeypatch.setattr("app.services.booking_service.datetime", _FixedDateTime)
+
+
+def _enable_default_overnight_rules(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        ConfigService,
+        "get_booking_rules_config",
+        lambda self: (deepcopy(DEFAULT_BOOKING_RULES_CONFIG), None),
+    )
+    monkeypatch.setattr(
+        ConfigService,
+        "get_overnight_earliest_hour",
+        ORIGINAL_GET_OVERNIGHT_EARLIEST_HOUR,
+    )
+    monkeypatch.setattr(
+        ConfigService,
+        "is_in_overnight_window",
+        ORIGINAL_IS_IN_OVERNIGHT_WINDOW,
+    )
+
+
+def _active_service(**overrides: object) -> SimpleNamespace:
+    payload = {
+        "offers_online": True,
+        "offers_travel": True,
+        "offers_at_location": True,
+        "duration_options": [30, 60, 90],
+    }
+    payload.update(overrides)
+    return SimpleNamespace(**payload)
 
 
 def make_booking(**overrides: object) -> SimpleNamespace:
@@ -126,13 +159,34 @@ def booking_service(mock_db: MagicMock, mock_repository: MagicMock) -> BookingSe
     service.transaction = MagicMock(return_value=_transaction_cm())
     service.cache_service = MagicMock()
     service.service_area_repository = MagicMock()
+    service.conflict_checker = MagicMock()
+    service.conflict_checker.check_time_conflicts.return_value = False
+    service.conflict_checker.check_student_time_conflicts.return_value = False
+    service.conflict_checker.check_booking_conflicts.return_value = []
+    service.conflict_checker.check_student_booking_conflicts.return_value = []
+    full_day_bits = bits_from_windows([("00:00:00", "24:00:00")])
+    service.availability_repository = MagicMock()
+    service.availability_repository.get_day_bitmaps.return_value = (full_day_bits, new_empty_tags())
+    service.availability_repository.get_day_bits.return_value = full_day_bits
+    service.filter_repository = MagicMock()
+    service.filter_repository.is_location_in_service_area.return_value = True
     return service
 
 
 # --- check_availability ---
 
 def test_check_availability_conflict_returns_unavailable(booking_service: BookingService) -> None:
-    booking_service.repository.check_time_conflict.return_value = True
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
+        user=SimpleNamespace(timezone="UTC"),
+    )
+    booking_service.conflict_checker.check_time_conflicts.return_value = True
+    booking_service._resolve_booking_times_utc = Mock(
+        return_value=(
+            datetime(2030, 1, 1, 10, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 1, 11, 0, tzinfo=timezone.utc),
+        )
+    )
 
     result = booking_service.check_availability(
         instructor_id=generate_ulid(),
@@ -166,7 +220,7 @@ def test_check_availability_missing_service_id_returns_unavailable(
 
 def test_check_availability_instructor_profile_missing(booking_service: BookingService) -> None:
     booking_service.repository.check_time_conflict.return_value = False
-    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
     booking_service.conflict_checker_repository.get_instructor_profile.return_value = None
 
     result = booking_service.check_availability(
@@ -181,13 +235,94 @@ def test_check_availability_instructor_profile_missing(booking_service: BookingS
     assert "profile" in result["reason"].lower()
 
 
+def test_check_availability_rejects_unsupported_location_capability(
+    booking_service: BookingService,
+) -> None:
+    booking_service.repository.check_time_conflict.return_value = False
+    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace(
+        offers_online=True,
+        offers_travel=False,
+        offers_at_location=False,
+    )
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
+        user=SimpleNamespace(timezone="UTC"),
+    )
+
+    result = booking_service.check_availability(
+        instructor_id=generate_ulid(),
+        booking_date=date(2030, 1, 1),
+        start_time=time(10, 0),
+        end_time=time(11, 0),
+        service_id=generate_ulid(),
+        location_type="student_location",
+    )
+
+    assert result["available"] is False
+    assert result["reason"] == "This instructor doesn't travel for this service"
+
+
+def test_check_availability_rejects_invalid_duration_before_preflight_passes(
+    booking_service: BookingService,
+) -> None:
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service(
+        duration_options=[30, 60]
+    )
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
+        user=SimpleNamespace(timezone="UTC"),
+    )
+
+    result = booking_service.check_availability(
+        instructor_id=generate_ulid(),
+        booking_date=date(2030, 1, 1),
+        start_time=time(10, 0),
+        end_time=time(10, 45),
+        service_id=generate_ulid(),
+        selected_duration=45,
+    )
+
+    assert result["available"] is False
+    assert result["reason"] == "Invalid duration 45. Available options: [30, 60]"
+
+
+def test_check_availability_rejects_outside_service_area_when_coordinates_provided(
+    booking_service: BookingService,
+) -> None:
+    instructor_id = generate_ulid()
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service(
+        offers_travel=True,
+        offers_at_location=False,
+    )
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
+        user=SimpleNamespace(timezone="UTC"),
+    )
+    booking_service.filter_repository.is_location_in_service_area.return_value = False
+
+    result = booking_service.check_availability(
+        instructor_id=instructor_id,
+        booking_date=date(2030, 1, 1),
+        start_time=time(10, 0),
+        end_time=time(11, 0),
+        service_id=generate_ulid(),
+        location_type="student_location",
+        location_lat=40.8448,
+        location_lng=-73.8648,
+    )
+
+    assert result["available"] is False
+    assert "outside the instructor's service area" in result["reason"]
+    booking_service.filter_repository.is_location_in_service_area.assert_called_once_with(
+        instructor_id=instructor_id,
+        lat=40.8448,
+        lng=-73.8648,
+    )
+
+
 def test_check_availability_booking_time_validation_error(
     booking_service: BookingService,
 ) -> None:
     booking_service.repository.check_time_conflict.return_value = False
-    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
     booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
-        min_advance_booking_hours=0,
         user=SimpleNamespace(timezone="UTC"),
     )
     booking_service._resolve_booking_times_utc = Mock(
@@ -208,11 +343,11 @@ def test_check_availability_booking_time_validation_error(
 
 def test_check_availability_min_advance_over_24(booking_service: BookingService, monkeypatch: pytest.MonkeyPatch) -> None:
     booking_service.repository.check_time_conflict.return_value = False
-    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
     booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
-        min_advance_booking_hours=24,
         user=SimpleNamespace(timezone="UTC"),
     )
+    booking_service._get_advance_notice_minutes = Mock(return_value=24 * 60)
 
     fixed_now = datetime(2030, 1, 1, 12, 0, tzinfo=timezone.utc)
     _freeze_time(monkeypatch, fixed_now)
@@ -231,35 +366,243 @@ def test_check_availability_min_advance_over_24(booking_service: BookingService,
     assert "at least 24" in result["reason"].lower()
 
 
-def test_check_availability_min_advance_under_24(booking_service: BookingService) -> None:
+def test_check_availability_min_advance_under_24(
+    booking_service: BookingService, monkeypatch: pytest.MonkeyPatch
+) -> None:
     booking_service.repository.check_time_conflict.return_value = False
-    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
     booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
-        min_advance_booking_hours=2,
         user=SimpleNamespace(timezone="UTC"),
     )
+    booking_service._get_advance_notice_minutes = Mock(return_value=120)
+    fixed_now = datetime(2030, 1, 1, 11, 0, tzinfo=timezone.utc)
+    _freeze_time(monkeypatch, fixed_now)
     booking_service._resolve_booking_times_utc = Mock(
-        return_value=(datetime(2030, 1, 1, 12, 0, tzinfo=timezone.utc), datetime(2030, 1, 1, 13, 0, tzinfo=timezone.utc))
+        return_value=(
+            datetime(2030, 1, 1, 12, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 1, 13, 0, tzinfo=timezone.utc),
+        )
     )
 
-    with patch("app.services.booking_service.TimezoneService.hours_until", return_value=1):
-        result = booking_service.check_availability(
-            instructor_id=generate_ulid(),
-            booking_date=date(2030, 1, 1),
-            start_time=time(10, 0),
-            end_time=time(11, 0),
-            service_id=generate_ulid(),
-        )
+    result = booking_service.check_availability(
+        instructor_id=generate_ulid(),
+        booking_date=date(2030, 1, 1),
+        start_time=time(10, 0),
+        end_time=time(11, 0),
+        service_id=generate_ulid(),
+    )
 
     assert result["available"] is False
     assert "at least 2" in result["reason"].lower()
 
 
+def test_check_availability_online_notice_rejects_45_minutes(
+    booking_service: BookingService, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
+        user=SimpleNamespace(timezone="UTC"),
+    )
+    booking_service._get_advance_notice_minutes = Mock(
+        side_effect=lambda location_type=None: 60 if location_type == "online" else 180
+    )
+    fixed_now = datetime(2030, 1, 1, 11, 0, tzinfo=timezone.utc)
+    _freeze_time(monkeypatch, fixed_now)
+    booking_service._resolve_booking_times_utc = Mock(
+        return_value=(
+            datetime(2030, 1, 1, 11, 45, tzinfo=timezone.utc),
+            datetime(2030, 1, 1, 12, 45, tzinfo=timezone.utc),
+        )
+    )
+
+    result = booking_service.check_availability(
+        instructor_id=generate_ulid(),
+        booking_date=date(2030, 1, 1),
+        start_time=time(11, 45),
+        end_time=time(12, 45),
+        service_id=generate_ulid(),
+        location_type="online",
+    )
+
+    assert result["available"] is False
+    assert "1 hour" in result["reason"].lower()
+
+
+def test_check_availability_travel_notice_rejects_2_hours_for_student_location(
+    booking_service: BookingService, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
+        user=SimpleNamespace(timezone="UTC"),
+    )
+    booking_service._get_advance_notice_minutes = Mock(
+        side_effect=lambda location_type=None: 60 if location_type == "online" else 180
+    )
+    fixed_now = datetime(2030, 1, 1, 11, 0, tzinfo=timezone.utc)
+    _freeze_time(monkeypatch, fixed_now)
+    booking_service._resolve_booking_times_utc = Mock(
+        return_value=(
+            datetime(2030, 1, 1, 13, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 1, 14, 0, tzinfo=timezone.utc),
+        )
+    )
+
+    result = booking_service.check_availability(
+        instructor_id=generate_ulid(),
+        booking_date=date(2030, 1, 1),
+        start_time=time(13, 0),
+        end_time=time(14, 0),
+        service_id=generate_ulid(),
+        location_type="student_location",
+    )
+
+    assert result["available"] is False
+    assert "3 hours" in result["reason"].lower()
+
+
+def test_check_availability_neutral_location_uses_travel_notice(
+    booking_service: BookingService, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
+        user=SimpleNamespace(timezone="UTC"),
+    )
+    booking_service._get_advance_notice_minutes = Mock(
+        side_effect=lambda location_type=None: 180 if location_type == "neutral_location" else 60
+    )
+    fixed_now = datetime(2030, 1, 1, 11, 0, tzinfo=timezone.utc)
+    _freeze_time(monkeypatch, fixed_now)
+    booking_service._resolve_booking_times_utc = Mock(
+        return_value=(
+            datetime(2030, 1, 1, 13, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 1, 14, 0, tzinfo=timezone.utc),
+        )
+    )
+
+    result = booking_service.check_availability(
+        instructor_id=generate_ulid(),
+        booking_date=date(2030, 1, 1),
+        start_time=time(13, 0),
+        end_time=time(14, 0),
+        service_id=generate_ulid(),
+        location_type="neutral_location",
+    )
+
+    assert result["available"] is False
+    assert "3 hours" in result["reason"].lower()
+
+
+def test_check_availability_student_conflict_returns_unavailable(booking_service: BookingService) -> None:
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
+        user=SimpleNamespace(timezone="UTC"),
+    )
+    booking_service._resolve_booking_times_utc = Mock(
+        return_value=(
+            datetime(2030, 1, 1, 10, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 1, 11, 0, tzinfo=timezone.utc),
+        )
+    )
+    booking_service.conflict_checker.check_student_time_conflicts.return_value = True
+
+    result = booking_service.check_availability(
+        instructor_id=generate_ulid(),
+        booking_date=date(2030, 1, 1),
+        start_time=time(10, 0),
+        end_time=time(11, 0),
+        service_id=generate_ulid(),
+        location_type="instructor_location",
+        student_id=generate_ulid(),
+    )
+
+    assert result["available"] is False
+    assert "existing bookings" in result["reason"].lower()
+
+
+@pytest.mark.parametrize(
+    ("location_type", "request_time", "lesson_start", "protection_enabled", "expected_available"),
+    [
+        ("online", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), True, False),
+        ("online", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 9, 0, tzinfo=timezone.utc), True, True),
+        ("student_location", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc), True, False),
+        ("student_location", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 11, 0, tzinfo=timezone.utc), True, True),
+        ("online", datetime(2030, 1, 1, 19, 59, tzinfo=timezone.utc), datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), True, True),
+        ("online", datetime(2030, 1, 1, 20, 1, tzinfo=timezone.utc), datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), True, False),
+        ("online", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), True, True),
+        ("online", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), False, True),
+    ],
+)
+def test_check_availability_uses_overnight_protection(
+    booking_service: BookingService,
+    monkeypatch: pytest.MonkeyPatch,
+    location_type: str,
+    request_time: datetime,
+    lesson_start: datetime,
+    protection_enabled: bool,
+    expected_available: bool,
+) -> None:
+    _enable_default_overnight_rules(monkeypatch)
+    _freeze_time(monkeypatch, request_time)
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
+        user=SimpleNamespace(timezone="UTC"),
+        overnight_protection_enabled=protection_enabled,
+    )
+    booking_service._get_advance_notice_minutes = Mock(return_value=0)
+    booking_service._resolve_booking_times_utc = Mock(
+        return_value=(lesson_start, lesson_start + timedelta(hours=1))
+    )
+    booking_service._check_bits_coverage = Mock(return_value=True)
+
+    result = booking_service.check_availability(
+        instructor_id=generate_ulid(),
+        booking_date=lesson_start.date(),
+        start_time=lesson_start.time().replace(second=0, microsecond=0),
+        end_time=(lesson_start + timedelta(hours=1)).time().replace(second=0, microsecond=0),
+        service_id=generate_ulid(),
+        location_type=location_type,
+    )
+
+    assert result["available"] is expected_available
+    if not expected_available:
+        assert "overnight" in result["reason"].lower()
+
+
+def test_check_availability_overnight_protection_uses_instructor_timezone(
+    booking_service: BookingService, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _enable_default_overnight_rules(monkeypatch)
+    fixed_now = datetime(2030, 1, 2, 3, 1, tzinfo=timezone.utc)
+    lesson_start = datetime(2030, 1, 2, 13, 0, tzinfo=timezone.utc)
+    _freeze_time(monkeypatch, fixed_now)
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
+        user=SimpleNamespace(timezone="America/New_York"),
+        overnight_protection_enabled=True,
+    )
+    booking_service._get_advance_notice_minutes = Mock(return_value=0)
+    booking_service._resolve_booking_times_utc = Mock(
+        return_value=(lesson_start, lesson_start + timedelta(hours=1))
+    )
+    booking_service._check_bits_coverage = Mock(return_value=True)
+
+    result = booking_service.check_availability(
+        instructor_id=generate_ulid(),
+        booking_date=date(2030, 1, 2),
+        start_time=time(8, 0),
+        end_time=time(9, 0),
+        service_id=generate_ulid(),
+        location_type="online",
+    )
+
+    assert result["available"] is False
+    assert "overnight" in result["reason"].lower()
+
+
 def test_check_availability_available_true(booking_service: BookingService) -> None:
     booking_service.repository.check_time_conflict.return_value = False
-    booking_service.conflict_checker_repository.get_active_service.return_value = SimpleNamespace()
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
     booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
-        min_advance_booking_hours=0,
         user=SimpleNamespace(timezone="UTC"),
     )
     booking_service._resolve_booking_times_utc = Mock(
@@ -277,6 +620,265 @@ def test_check_availability_available_true(booking_service: BookingService) -> N
 
     assert result["available"] is True
     assert result["time_info"]["date"] == "2030-01-01"
+
+
+@pytest.mark.parametrize(
+    ("location_type", "tagged_slots", "expected_available"),
+    [
+        ("online", set_range_tag(new_empty_tags(), 120, 12, 1), True),
+        ("student_location", set_range_tag(new_empty_tags(), 120, 12, 1), False),
+        ("instructor_location", set_range_tag(new_empty_tags(), 120, 12, 2), True),
+        ("neutral_location", set_range_tag(new_empty_tags(), 120, 12, 2), False),
+    ],
+)
+def test_check_availability_respects_format_tags(
+    booking_service: BookingService,
+    location_type: str,
+    tagged_slots: bytes,
+    expected_available: bool,
+) -> None:
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
+        user=SimpleNamespace(timezone="UTC"),
+    )
+    booking_service._get_advance_notice_minutes = Mock(return_value=0)
+    booking_service._resolve_booking_times_utc = Mock(
+        return_value=(
+            datetime(2030, 1, 1, 10, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 1, 11, 0, tzinfo=timezone.utc),
+        )
+    )
+    booking_service.availability_repository.get_day_bitmaps.return_value = (
+        bits_from_windows([("00:00:00", "24:00:00")]),
+        tagged_slots,
+    )
+
+    result = booking_service.check_availability(
+        instructor_id=generate_ulid(),
+        booking_date=date(2030, 1, 1),
+        start_time=time(10, 0),
+        end_time=time(11, 0),
+        service_id=generate_ulid(),
+        location_type=location_type,
+    )
+
+    assert result["available"] is expected_available
+    if not expected_available:
+        assert result["reason"] == "This time slot is not available for the selected lesson format"
+
+
+def test_check_availability_rejects_mixed_tagged_range(
+    booking_service: BookingService,
+) -> None:
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
+        user=SimpleNamespace(timezone="UTC"),
+    )
+    booking_service._get_advance_notice_minutes = Mock(return_value=0)
+    booking_service._resolve_booking_times_utc = Mock(
+        return_value=(
+            datetime(2030, 1, 1, 10, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 1, 11, 0, tzinfo=timezone.utc),
+        )
+    )
+    tagged_slots = set_range_tag(new_empty_tags(), 126, 6, 1)
+    booking_service.availability_repository.get_day_bitmaps.return_value = (
+        bits_from_windows([("00:00:00", "24:00:00")]),
+        tagged_slots,
+    )
+
+    result = booking_service.check_availability(
+        instructor_id=generate_ulid(),
+        booking_date=date(2030, 1, 1),
+        start_time=time(10, 0),
+        end_time=time(11, 0),
+        service_id=generate_ulid(),
+        location_type="student_location",
+    )
+
+    assert result["available"] is False
+    assert result["reason"] == "This time slot is not available for the selected lesson format"
+
+
+@pytest.mark.parametrize(
+    ("location_type", "minutes_until", "expected_available"),
+    [
+        ("online", 45, False),
+        ("online", 75, True),
+        ("student_location", 120, False),
+        ("student_location", 240, True),
+        ("neutral_location", 120, False),
+        ("instructor_location", 75, True),
+    ],
+)
+def test_check_availability_uses_format_aware_advance_notice(
+    booking_service: BookingService,
+    monkeypatch: pytest.MonkeyPatch,
+    location_type: str,
+    minutes_until: int,
+    expected_available: bool,
+) -> None:
+    fixed_now = datetime(2030, 1, 1, 10, 0, tzinfo=timezone.utc)
+    _freeze_time(monkeypatch, fixed_now)
+    booking_service.conflict_checker_repository.get_active_service.return_value = _active_service()
+    booking_service.conflict_checker_repository.get_instructor_profile.return_value = SimpleNamespace(
+        user=SimpleNamespace(timezone="UTC"),
+    )
+    booking_service._get_advance_notice_minutes = Mock(
+        side_effect=lambda requested_location_type: {
+            "online": 60,
+            "instructor_location": 60,
+            "student_location": 180,
+            "neutral_location": 180,
+        }[requested_location_type or "online"]
+    )
+    booking_start = fixed_now + timedelta(minutes=minutes_until)
+    booking_service._resolve_booking_times_utc = Mock(
+        return_value=(
+            booking_start,
+            booking_start + timedelta(hours=1),
+        )
+    )
+    booking_service._check_bits_coverage = Mock(return_value=True)
+
+    result = booking_service.check_availability(
+        instructor_id=generate_ulid(),
+        booking_date=booking_start.date(),
+        start_time=booking_start.time().replace(second=0, microsecond=0),
+        end_time=(booking_start + timedelta(hours=1)).time().replace(second=0, microsecond=0),
+        service_id=generate_ulid(),
+        location_type=location_type,
+    )
+
+    assert result["available"] is expected_available
+    if not expected_available:
+        assert "at least" in (result["reason"] or "").lower()
+
+
+@pytest.mark.parametrize(
+    ("location_type", "minutes_until", "should_raise"),
+    [
+        ("online", 45, True),
+        ("online", 75, False),
+        ("student_location", 120, True),
+        ("student_location", 240, False),
+        ("neutral_location", 120, True),
+        ("instructor_location", 75, False),
+    ],
+)
+def test_check_conflicts_and_rules_matches_format_aware_advance_notice(
+    booking_service: BookingService,
+    monkeypatch: pytest.MonkeyPatch,
+    location_type: str,
+    minutes_until: int,
+    should_raise: bool,
+) -> None:
+    fixed_now = datetime(2030, 1, 1, 10, 0, tzinfo=timezone.utc)
+    _freeze_time(monkeypatch, fixed_now)
+    booking_service._get_advance_notice_minutes = Mock(
+        side_effect=lambda requested_location_type: {
+            "online": 60,
+            "instructor_location": 60,
+            "student_location": 180,
+            "neutral_location": 180,
+        }[requested_location_type or "online"]
+    )
+    booking_start = fixed_now + timedelta(minutes=minutes_until)
+    booking_service._resolve_booking_times_utc = Mock(
+        return_value=(
+            booking_start,
+            booking_start + timedelta(hours=1),
+        )
+    )
+    booking_data = SimpleNamespace(
+        instructor_id=generate_ulid(),
+        booking_date=booking_start.date(),
+        start_time=booking_start.time().replace(second=0, microsecond=0),
+        end_time=(booking_start + timedelta(hours=1)).time().replace(second=0, microsecond=0),
+        location_type=location_type,
+        location_address=None,
+        location_lat=40.7128 if location_type == "student_location" else None,
+        location_lng=-74.0060 if location_type == "student_location" else None,
+        location_place_id=None,
+    )
+    service = SimpleNamespace(
+        offers_online=True,
+        offers_travel=True,
+        offers_at_location=True,
+    )
+    instructor_profile = SimpleNamespace(user=SimpleNamespace(timezone="UTC"))
+    student = SimpleNamespace(id=generate_ulid())
+
+    if should_raise:
+        with pytest.raises(BusinessRuleException):
+            booking_service._check_conflicts_and_rules(
+                booking_data, service, instructor_profile, student
+            )
+        return
+
+    booking_service._check_conflicts_and_rules(
+        booking_data, service, instructor_profile, student
+    )
+
+
+@pytest.mark.parametrize(
+    ("location_type", "request_time", "lesson_start", "protection_enabled", "should_raise"),
+    [
+        ("online", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), True, True),
+        ("online", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 9, 0, tzinfo=timezone.utc), True, False),
+        ("student_location", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc), True, True),
+        ("student_location", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 11, 0, tzinfo=timezone.utc), True, False),
+        ("online", datetime(2030, 1, 1, 22, 0, tzinfo=timezone.utc), datetime(2030, 1, 2, 8, 0, tzinfo=timezone.utc), False, False),
+    ],
+)
+def test_check_conflicts_and_rules_matches_overnight_protection(
+    booking_service: BookingService,
+    monkeypatch: pytest.MonkeyPatch,
+    location_type: str,
+    request_time: datetime,
+    lesson_start: datetime,
+    protection_enabled: bool,
+    should_raise: bool,
+) -> None:
+    _enable_default_overnight_rules(monkeypatch)
+    _freeze_time(monkeypatch, request_time)
+    booking_service._get_advance_notice_minutes = Mock(return_value=0)
+    booking_service._resolve_booking_times_utc = Mock(
+        return_value=(lesson_start, lesson_start + timedelta(hours=1))
+    )
+    booking_data = SimpleNamespace(
+        instructor_id=generate_ulid(),
+        booking_date=lesson_start.date(),
+        start_time=lesson_start.time().replace(second=0, microsecond=0),
+        end_time=(lesson_start + timedelta(hours=1)).time().replace(second=0, microsecond=0),
+        location_type=location_type,
+        location_address=None,
+        location_lat=40.7128 if location_type == "student_location" else None,
+        location_lng=-74.0060 if location_type == "student_location" else None,
+        location_place_id=None,
+    )
+    service = SimpleNamespace(
+        offers_online=True,
+        offers_travel=True,
+        offers_at_location=True,
+    )
+    instructor_profile = SimpleNamespace(
+        user=SimpleNamespace(timezone="UTC"),
+        overnight_protection_enabled=protection_enabled,
+    )
+    student = SimpleNamespace(id=generate_ulid())
+
+    if should_raise:
+        with pytest.raises(BusinessRuleException) as exc_info:
+            booking_service._check_conflicts_and_rules(
+                booking_data, service, instructor_profile, student
+            )
+        assert exc_info.value.code == "OVERNIGHT_PROTECTION"
+        return
+
+    booking_service._check_conflicts_and_rules(
+        booking_data, service, instructor_profile, student
+    )
 
 
 # --- location capability ---
@@ -331,12 +933,13 @@ def test_check_conflicts_and_rules_min_advance_over_24(
         location_type="online",
     )
     service = SimpleNamespace()
-    instructor_profile = SimpleNamespace(min_advance_booking_hours=24, user=SimpleNamespace(timezone="UTC"))
+    instructor_profile = SimpleNamespace(user=SimpleNamespace(timezone="UTC"))
     student = SimpleNamespace(id=generate_ulid())
 
     booking_service._validate_location_capability = Mock()
     booking_service._validate_service_area = Mock()
     booking_service._resolve_lesson_timezone = Mock(return_value="UTC")
+    booking_service._get_advance_notice_minutes = Mock(return_value=24 * 60)
 
     fixed_now = datetime(2030, 1, 1, 12, 0, tzinfo=timezone.utc)
     _freeze_time(monkeypatch, fixed_now)
@@ -349,7 +952,9 @@ def test_check_conflicts_and_rules_min_advance_over_24(
         )
 
 
-def test_check_conflicts_and_rules_min_advance_under_24(booking_service: BookingService) -> None:
+def test_check_conflicts_and_rules_min_advance_under_24(
+    booking_service: BookingService, monkeypatch: pytest.MonkeyPatch
+) -> None:
     booking_data = SimpleNamespace(
         instructor_id=generate_ulid(),
         booking_date=date(2030, 1, 1),
@@ -358,21 +963,26 @@ def test_check_conflicts_and_rules_min_advance_under_24(booking_service: Booking
         location_type="online",
     )
     service = SimpleNamespace()
-    instructor_profile = SimpleNamespace(min_advance_booking_hours=3, user=SimpleNamespace(timezone="UTC"))
+    instructor_profile = SimpleNamespace(user=SimpleNamespace(timezone="UTC"))
     student = SimpleNamespace(id=generate_ulid())
 
     booking_service._validate_location_capability = Mock()
     booking_service._validate_service_area = Mock()
     booking_service._resolve_lesson_timezone = Mock(return_value="UTC")
+    booking_service._get_advance_notice_minutes = Mock(return_value=120)
+    fixed_now = datetime(2030, 1, 1, 11, 0, tzinfo=timezone.utc)
+    _freeze_time(monkeypatch, fixed_now)
     booking_service._resolve_booking_times_utc = Mock(
-        return_value=(datetime(2030, 1, 1, 12, 0, tzinfo=timezone.utc), datetime(2030, 1, 1, 13, 0, tzinfo=timezone.utc))
+        return_value=(
+            datetime(2030, 1, 1, 12, 0, tzinfo=timezone.utc),
+            datetime(2030, 1, 1, 13, 0, tzinfo=timezone.utc),
+        )
     )
 
-    with patch("app.services.booking_service.TimezoneService.hours_until", return_value=1):
-        with pytest.raises(BusinessRuleException):
-            booking_service._check_conflicts_and_rules(
-                booking_data, service, instructor_profile, student
-            )
+    with pytest.raises(BusinessRuleException):
+        booking_service._check_conflicts_and_rules(
+            booking_data, service, instructor_profile, student
+        )
 
 
 # --- availability windows/opportunities ---
@@ -707,15 +1317,14 @@ def test_get_booking_with_payment_summary_student(booking_service: BookingServic
     booking = make_booking(student_id="student")
     booking_service.get_booking_for_user = Mock(return_value=booking)
     user = SimpleNamespace(id="student")
+    booking_service.config_service = MagicMock()
 
-    with patch("app.services.config_service.ConfigService") as config_cls, patch(
-        "app.repositories.factory.RepositoryFactory"
-    ) as repo_factory, patch(
+    with patch("app.repositories.factory.RepositoryFactory") as repo_factory, patch(
         "app.repositories.review_repository.ReviewTipRepository"
     ) as tip_repo_cls, patch(
         "app.services.payment_summary_service.build_student_payment_summary"
     ) as build_summary:
-        config_cls.return_value.get_pricing_config.return_value = ({"fees": True}, None)
+        booking_service.config_service.get_pricing_config.return_value = ({"fees": True}, None)
         repo_factory.create_payment_repository.return_value = MagicMock()
         tip_repo_cls.return_value = MagicMock()
         build_summary.return_value = {"summary": True}
@@ -723,6 +1332,51 @@ def test_get_booking_with_payment_summary_student(booking_service: BookingServic
         result = booking_service.get_booking_with_payment_summary(booking.id, user)
 
     assert result == (booking, {"summary": True})
+    booking_service.config_service.get_pricing_config.assert_called_once_with()
+
+
+def test_booking_rule_helpers_delegate_to_injected_config_service(
+    booking_service: BookingService,
+) -> None:
+    booking_service.config_service = MagicMock()
+    booking_service.config_service.get_advance_notice_minutes.return_value = 90
+    booking_service.config_service.get_overnight_earliest_hour.return_value = 11
+    now_local = datetime(2030, 1, 1, 22, 30)
+    booking_service.config_service.is_in_overnight_window.return_value = True
+
+    assert booking_service._get_advance_notice_minutes("student_location") == 90
+    assert booking_service._get_overnight_earliest_hour("student_location") == 11
+    assert booking_service._is_in_overnight_window(now_local) is True
+
+    booking_service.config_service.get_advance_notice_minutes.assert_called_once_with(
+        "student_location"
+    )
+    booking_service.config_service.get_overnight_earliest_hour.assert_called_once_with(
+        "student_location"
+    )
+    booking_service.config_service.is_in_overnight_window.assert_called_once_with(now_local)
+
+
+def test_validate_reschedule_payment_method_uses_injected_config_service(
+    booking_service: BookingService,
+) -> None:
+    booking_service.config_service = MagicMock()
+
+    with patch("app.services.booking_service.PricingService") as pricing_cls, patch(
+        "app.services.booking_service.StripeService"
+    ) as stripe_cls:
+        stripe_cls.return_value.payment_repository.get_default_payment_method.return_value = (
+            SimpleNamespace(stripe_payment_method_id="pm_123")
+        )
+
+        result = booking_service.validate_reschedule_payment_method(generate_ulid())
+
+    assert result == (True, "pm_123")
+    stripe_cls.assert_called_once_with(
+        booking_service.db,
+        config_service=booking_service.config_service,
+        pricing_service=pricing_cls.return_value,
+    )
 
 
 # --- misc helpers ---

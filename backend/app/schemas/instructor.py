@@ -389,10 +389,7 @@ class InstructorProfileBase(StandardizedModel):
     """
     Base schema for instructor profiles.
 
-    Note: Removed fields from old booking system:
-        - default_session_duration (moved to service level)
-        - buffer_time (will be in booking settings)
-        - minimum_advance_hours (will be in booking settings)
+    Booking settings are updated through dedicated calendar-settings endpoints.
     """
 
     bio: str = Field(
@@ -402,12 +399,6 @@ class InstructorProfileBase(StandardizedModel):
         description="Instructor biography/description",
     )
     years_experience: int = Field(..., ge=1, le=50, description="Years of teaching experience")
-    min_advance_booking_hours: int = Field(
-        default=2, ge=0, le=168, description="Minimum hours in advance for bookings"
-    )
-    buffer_time_minutes: int = Field(
-        default=0, ge=0, le=60, description="Buffer time between bookings"
-    )
 
     @field_validator("bio")
     def validate_bio(cls, v: str) -> str:
@@ -462,12 +453,6 @@ class InstructorProfileUpdate(StrictRequestModel):
     bio: Optional[str] = Field(None, min_length=MIN_BIO_LENGTH, max_length=MAX_BIO_LENGTH)
     years_experience: Optional[int] = Field(None, ge=1, le=50)
     services: Optional[List[ServiceCreate]] = Field(None, min_length=0, max_length=20)
-    min_advance_booking_hours: Optional[int] = Field(
-        None, ge=0, le=168, description="Minimum hours in advance for bookings"
-    )
-    buffer_time_minutes: Optional[int] = Field(
-        None, ge=0, le=60, description="Buffer time between bookings"
-    )
     preferred_teaching_locations: Optional[List[PreferredTeachingLocationIn]] = Field(default=None)
     preferred_public_spaces: Optional[List[PreferredPublicSpaceIn]] = Field(default=None)
 
@@ -499,6 +484,28 @@ class InstructorProfileUpdate(StrictRequestModel):
         return v
 
 
+class UpdateCalendarSettings(StrictRequestModel):
+    """Editable instructor calendar settings surfaced on the availability page."""
+
+    non_travel_buffer_minutes: Optional[int] = Field(None, ge=0, le=120)
+    travel_buffer_minutes: Optional[int] = Field(None, ge=15, le=120)
+    overnight_protection_enabled: Optional[bool] = None
+
+
+class CalendarSettingsResponse(StrictModel):
+    """Focused calendar settings payload for availability-page updates."""
+
+    non_travel_buffer_minutes: int = Field(default=15)
+    travel_buffer_minutes: int = Field(default=60)
+    overnight_protection_enabled: bool = Field(default=True)
+
+
+class CalendarSettingsAcknowledgeResponse(StrictModel):
+    """Acknowledgement timestamp returned after the first-save popup is dismissed."""
+
+    calendar_settings_acknowledged_at: datetime | None = None
+
+
 class InstructorProfileResponse(InstructorProfileBase):
     """
     Schema for instructor profile responses with privacy protection.
@@ -511,6 +518,10 @@ class InstructorProfileResponse(InstructorProfileBase):
     user_id: str
     created_at: datetime
     updated_at: Optional[datetime] = None
+    non_travel_buffer_minutes: int = Field(default=15)
+    travel_buffer_minutes: int = Field(default=60)
+    overnight_protection_enabled: bool = Field(default=True)
+    calendar_settings_acknowledged_at: Optional[datetime] = Field(default=None)
     user: UserBasicPrivacy  # Changed from UserBasic to protect privacy
     services: List[ServiceResponse]
     is_favorited: Optional[bool] = Field(
@@ -749,8 +760,14 @@ class InstructorProfileResponse(InstructorProfileBase):
             updated_at=instructor_profile.updated_at,
             bio=instructor_profile.bio,
             years_experience=instructor_profile.years_experience,
-            min_advance_booking_hours=instructor_profile.min_advance_booking_hours,
-            buffer_time_minutes=instructor_profile.buffer_time_minutes,
+            non_travel_buffer_minutes=getattr(instructor_profile, "non_travel_buffer_minutes", 15),
+            travel_buffer_minutes=getattr(instructor_profile, "travel_buffer_minutes", 60),
+            overnight_protection_enabled=getattr(
+                instructor_profile, "overnight_protection_enabled", True
+            ),
+            calendar_settings_acknowledged_at=getattr(
+                instructor_profile, "calendar_settings_acknowledged_at", None
+            ),
             user=UserBasicPrivacy.from_user(instructor_profile.user),
             services=services_data,
             is_favorited=getattr(instructor_profile, "is_favorited", None),

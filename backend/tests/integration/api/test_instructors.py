@@ -264,8 +264,7 @@ class TestInstructorRoutes:
         profile_data = {
             "bio": "I am an experienced music teacher with 10 years of experience.",
             "years_experience": 10,
-            "min_advance_booking_hours": 4,
-            "buffer_time_minutes": 15,
+            "non_travel_buffer_minutes": 15,
             "services": [
                 {
                     "skill": "Piano",
@@ -705,8 +704,7 @@ class TestInstructorRoutes:
         profile_data = {
             "bio": "I am an experienced teacher with many years of experience.",
             "years_experience": 8,
-            "min_advance_booking_hours": 3,
-            "buffer_time_minutes": 10,
+            "non_travel_buffer_minutes": 10,
             "services": [
                 {
                     "skill": "Mathematics",

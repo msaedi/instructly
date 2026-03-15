@@ -30,9 +30,6 @@ export interface Instructor {
   rating?: number;
   total_reviews?: number;
   verified?: boolean;
-  // Additional fields that might come from the API
-  min_advance_booking_hours?: number;
-  buffer_time_minutes?: number;
   created_at?: string;
   updated_at?: string;
   total_hours_taught?: number;

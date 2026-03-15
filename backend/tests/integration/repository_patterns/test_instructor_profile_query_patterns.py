@@ -172,8 +172,7 @@ def test_instructors_with_profiles(db: Session) -> List[User]:
             user_id=user.id,
             bio=data["bio"],
             years_experience=data["years_experience"],
-            min_advance_booking_hours=24,
-            buffer_time_minutes=15,
+            non_travel_buffer_minutes=15,
         )
         db.add(profile)
         db.flush()

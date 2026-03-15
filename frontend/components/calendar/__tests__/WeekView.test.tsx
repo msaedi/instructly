@@ -1,8 +1,9 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import WeekView from '../WeekView';
-import type { WeekBits, WeekDateInfo, DayOfWeek } from '@/types/availability';
+import type { WeekBits, WeekDateInfo, DayOfWeek, WeekTags } from '@/types/availability';
 import type { BookedSlotPreview, LocationType } from '@/types/booking';
+import { TAG_ONLINE_ONLY } from '@/lib/calendar/bitset';
 
 // Mock InteractiveGrid
 const mockInteractiveGrid = jest.fn();
@@ -18,6 +19,7 @@ jest.mock('@/components/availability/InteractiveGrid', () => {
 // Mock bitset
 jest.mock('@/lib/calendar/bitset', () => ({
   newEmptyBits: jest.fn(() => new Uint8Array(36)),
+  TAG_ONLINE_ONLY: 1,
 }));
 
 describe('WeekView', () => {
@@ -46,6 +48,10 @@ describe('WeekView', () => {
     friday: new Uint8Array(36),
     saturday: new Uint8Array(36),
     sunday: new Uint8Array(36),
+  };
+
+  const mockWeekTags: WeekTags = {
+    monday: new Uint8Array(72),
   };
 
   const defaultProps = {
@@ -87,6 +93,43 @@ describe('WeekView', () => {
     expect(mockInteractiveGrid).toHaveBeenCalledWith(
       expect.objectContaining({
         onBitsChange,
+      })
+    );
+  });
+
+  it('passes weekTags when provided', () => {
+    render(<WeekView {...defaultProps} weekTags={mockWeekTags} />);
+    expect(mockInteractiveGrid).toHaveBeenCalledWith(
+      expect.objectContaining({
+        weekTags: mockWeekTags,
+      })
+    );
+  });
+
+  it('passes onTagsChange when provided', () => {
+    const onTagsChange = jest.fn();
+    render(<WeekView {...defaultProps} onTagsChange={onTagsChange} />);
+    expect(mockInteractiveGrid).toHaveBeenCalledWith(
+      expect.objectContaining({
+        onTagsChange,
+      })
+    );
+  });
+
+  it('passes availableTagOptions when provided', () => {
+    render(<WeekView {...defaultProps} availableTagOptions={[TAG_ONLINE_ONLY]} />);
+    expect(mockInteractiveGrid).toHaveBeenCalledWith(
+      expect.objectContaining({
+        availableTagOptions: [TAG_ONLINE_ONLY],
+      })
+    );
+  });
+
+  it('passes paintMode when provided', () => {
+    render(<WeekView {...defaultProps} paintMode={TAG_ONLINE_ONLY} />);
+    expect(mockInteractiveGrid).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paintMode: TAG_ONLINE_ONLY,
       })
     );
   });
@@ -194,5 +237,9 @@ describe('WeekView', () => {
     expect(calledProps).not.toHaveProperty('activeDayIndex');
     expect(calledProps).not.toHaveProperty('onActiveDayChange');
     expect(calledProps).not.toHaveProperty('allowPastEditing');
+    expect(calledProps).not.toHaveProperty('weekTags');
+    expect(calledProps).not.toHaveProperty('onTagsChange');
+    expect(calledProps).not.toHaveProperty('availableTagOptions');
+    expect(calledProps).not.toHaveProperty('paintMode');
   });
 });

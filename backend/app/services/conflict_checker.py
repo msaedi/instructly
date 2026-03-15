@@ -14,15 +14,23 @@ without any reference to availability slots.
 
 from datetime import date, datetime, time, timedelta, timezone
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from sqlalchemy.orm import Session
 
 from ..core.timezone_utils import get_user_today_by_id
 from ..models.booking import BookingStatus
+from ..models.instructor import InstructorProfile
 from ..repositories import RepositoryFactory
 from ..repositories.conflict_checker_repository import ConflictCheckerRepository
+from ..utils.time_utils import time_to_minutes
 from .base import BaseService
+from .config_service import (
+    ConfigService,
+    is_instructor_travel_format,
+    is_student_travel_format,
+    normalize_location_type,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +44,12 @@ class ConflictChecker(BaseService):
     booking data without referencing availability slots.
     """
 
-    def __init__(self, db: Session, repository: Optional[ConflictCheckerRepository] = None):
+    def __init__(
+        self,
+        db: Session,
+        repository: Optional[ConflictCheckerRepository] = None,
+        config_service: Optional[ConfigService] = None,
+    ):
         """
         Initialize conflict checker service.
 
@@ -48,6 +61,86 @@ class ConflictChecker(BaseService):
         self.logger = logging.getLogger(__name__)
         self.repository = repository or RepositoryFactory.create_conflict_checker_repository(db)
         self.user_repository = RepositoryFactory.create_user_repository(db)
+        self.config_service = config_service or ConfigService(db)
+
+    @staticmethod
+    def _coerce_buffer_minutes(value: object, default: int) -> int:
+        if isinstance(value, bool):
+            return default
+        if isinstance(value, int):
+            return max(0, value)
+        if isinstance(value, float):
+            return max(0, int(value))
+        if isinstance(value, str):
+            try:
+                return max(0, int(value))
+            except ValueError:
+                return default
+        return default
+
+    def _get_booking_location_type(self, booking: Any) -> str | None:
+        location_type = getattr(booking, "location_type", None)
+        if location_type is None and getattr(booking, "status", None) in (
+            BookingStatus.CONFIRMED,
+            BookingStatus.PENDING,
+        ):
+            self.logger.warning(
+                "Active booking %s missing location_type",
+                getattr(booking, "id", "<unknown>"),
+            )
+        return cast(Optional[str], location_type)
+
+    def _get_buffer_minutes(
+        self,
+        existing_location_type: str | None,
+        new_location_type: str | None,
+        instructor_profile: InstructorProfile | None,
+        *,
+        travel_default: int,
+        non_travel_default: int,
+        perspective: str,
+    ) -> int:
+        if perspective == "student":
+            travel_required = is_student_travel_format(
+                existing_location_type
+            ) or is_student_travel_format(new_location_type)
+        else:
+            travel_required = is_instructor_travel_format(
+                existing_location_type
+            ) or is_instructor_travel_format(new_location_type)
+
+        if instructor_profile is None:
+            return travel_default if travel_required else non_travel_default
+
+        if travel_required:
+            return self._coerce_buffer_minutes(
+                getattr(instructor_profile, "travel_buffer_minutes", None),
+                travel_default,
+            )
+        return self._coerce_buffer_minutes(
+            getattr(instructor_profile, "non_travel_buffer_minutes", None),
+            non_travel_default,
+        )
+
+    @staticmethod
+    def _conflicts_with_buffer(
+        first_start: time,
+        first_end: time,
+        second_start: time,
+        second_end: time,
+        buffer_minutes: int,
+    ) -> bool:
+        first_interval = (
+            time_to_minutes(first_start, is_end_time=False),
+            time_to_minutes(first_end, is_end_time=True),
+        )
+        second_interval = (
+            time_to_minutes(second_start, is_end_time=False),
+            time_to_minutes(second_end, is_end_time=True),
+        )
+        earlier_start, earlier_end = min(first_interval, second_interval)
+        later_start, _later_end = max(first_interval, second_interval)
+        return bool(later_start < earlier_end + max(0, buffer_minutes))
 
     @BaseService.measure_operation("check_booking_conflicts")
     def check_booking_conflicts(
@@ -56,7 +149,9 @@ class ConflictChecker(BaseService):
         check_date: date,
         start_time: time,
         end_time: time,
+        new_location_type: str | None = None,
         exclude_booking_id: Optional[str] = None,
+        instructor_profile: InstructorProfile | None = None,
     ) -> List[Dict[str, Any]]:
         """
         Check if a time range conflicts with existing bookings.
@@ -77,11 +172,33 @@ class ConflictChecker(BaseService):
         bookings = self.repository.get_bookings_for_conflict_check(
             instructor_id, check_date, exclude_id
         )
+        profile = instructor_profile or self.repository.get_instructor_profile(instructor_id)
+        normalized_new_location_type = normalize_location_type(new_location_type)
+        booking_rules_config, _updated_at = self.config_service.get_booking_rules_config()
+        travel_default = self.config_service.resolve_default_buffer_minutes_from_config(
+            booking_rules_config, "student_location"
+        )
+        non_travel_default = self.config_service.resolve_default_buffer_minutes_from_config(
+            booking_rules_config, "online"
+        )
 
         conflicts = []
         for booking in bookings:
-            # Check time overlap using booking's own fields
-            if start_time < booking.end_time and end_time > booking.start_time:
+            buffer_minutes = self._get_buffer_minutes(
+                self._get_booking_location_type(booking),
+                normalized_new_location_type,
+                profile,
+                travel_default=travel_default,
+                non_travel_default=non_travel_default,
+                perspective="instructor",
+            )
+            if self._conflicts_with_buffer(
+                booking.start_time,
+                booking.end_time,
+                start_time,
+                end_time,
+                buffer_minutes,
+            ):
                 conflicts.append(
                     {
                         "booking_id": booking.id,
@@ -109,7 +226,9 @@ class ConflictChecker(BaseService):
         booking_date: date,
         start_time: time,
         end_time: time,
+        new_location_type: str | None = None,
         exclude_booking_id: Optional[str] = None,
+        instructor_profile: InstructorProfile | None = None,
     ) -> bool:
         """
         Check if a time range has any conflicts.
@@ -127,7 +246,89 @@ class ConflictChecker(BaseService):
             True if there are conflicts, False otherwise
         """
         conflicts = self.check_booking_conflicts(
-            instructor_id, booking_date, start_time, end_time, exclude_booking_id
+            instructor_id,
+            booking_date,
+            start_time,
+            end_time,
+            new_location_type,
+            exclude_booking_id,
+            instructor_profile,
+        )
+        return len(conflicts) > 0
+
+    @BaseService.measure_operation("check_student_booking_conflicts")
+    def check_student_booking_conflicts(
+        self,
+        student_id: str,
+        check_date: date,
+        start_time: time,
+        end_time: time,
+        new_location_type: str | None = None,
+        exclude_booking_id: Optional[str] = None,
+        instructor_profile: InstructorProfile | None = None,
+    ) -> List[Dict[str, Any]]:
+        exclude_id = str(exclude_booking_id) if exclude_booking_id is not None else None
+        bookings = self.repository.get_student_bookings_for_conflict_check(
+            student_id, check_date, exclude_id
+        )
+        normalized_new_location_type = normalize_location_type(new_location_type)
+        booking_rules_config, _updated_at = self.config_service.get_booking_rules_config()
+        travel_default = self.config_service.resolve_default_buffer_minutes_from_config(
+            booking_rules_config, "student_location"
+        )
+        non_travel_default = self.config_service.resolve_default_buffer_minutes_from_config(
+            booking_rules_config, "online"
+        )
+
+        conflicts = []
+        for booking in bookings:
+            buffer_minutes = self._get_buffer_minutes(
+                self._get_booking_location_type(booking),
+                normalized_new_location_type,
+                instructor_profile,
+                travel_default=travel_default,
+                non_travel_default=non_travel_default,
+                perspective="student",
+            )
+            if self._conflicts_with_buffer(
+                booking.start_time,
+                booking.end_time,
+                start_time,
+                end_time,
+                buffer_minutes,
+            ):
+                conflicts.append(
+                    {
+                        "booking_id": booking.id,
+                        "start_time": str(booking.start_time),
+                        "end_time": str(booking.end_time),
+                        "service_name": booking.service_name,
+                        "status": booking.status,
+                        "instructor_id": booking.instructor_id,
+                    }
+                )
+
+        return conflicts
+
+    @BaseService.measure_operation("check_student_time_conflicts")
+    def check_student_time_conflicts(
+        self,
+        student_id: str,
+        booking_date: date,
+        start_time: time,
+        end_time: time,
+        new_location_type: str | None = None,
+        exclude_booking_id: Optional[str] = None,
+        instructor_profile: InstructorProfile | None = None,
+    ) -> bool:
+        conflicts = self.check_student_booking_conflicts(
+            student_id,
+            booking_date,
+            start_time,
+            end_time,
+            new_location_type,
+            exclude_booking_id,
+            instructor_profile,
         )
         return len(conflicts) > 0
 
@@ -259,7 +460,13 @@ class ConflictChecker(BaseService):
 
     @BaseService.measure_operation("check_advance_booking")
     def check_minimum_advance_booking(
-        self, instructor_id: str, booking_date: date, booking_time: time
+        self,
+        instructor_id: str,
+        booking_date: date,
+        booking_time: time,
+        location_type: str | None = None,
+        *,
+        instructor_profile: InstructorProfile | None = None,
     ) -> Dict[str, Any]:
         """
         Check if booking meets minimum advance booking requirements.
@@ -273,7 +480,7 @@ class ConflictChecker(BaseService):
             Validation result with details
         """
         # Get instructor profile
-        profile = self.repository.get_instructor_profile(instructor_id)
+        profile = instructor_profile or self.repository.get_instructor_profile(instructor_id)
 
         if not profile:
             return {"valid": False, "reason": "Instructor profile not found"}
@@ -294,7 +501,8 @@ class ConflictChecker(BaseService):
         )
 
         # Calculate minimum booking time
-        min_booking_time = instructor_now + timedelta(hours=profile.min_advance_booking_hours)
+        min_advance_minutes = self.config_service.get_advance_notice_minutes(location_type)
+        min_booking_time = instructor_now + timedelta(minutes=min_advance_minutes)
 
         # For comparison, we need to ensure both times are timezone-aware
         # Convert booking_datetime to instructor's timezone for fair comparison
@@ -304,12 +512,15 @@ class ConflictChecker(BaseService):
             hours_until_booking = (booking_datetime_tz - instructor_now).total_seconds() / 3600
             return {
                 "valid": False,
-                "reason": f"Bookings must be made at least {profile.min_advance_booking_hours} hours in advance (instructor timezone)",
-                "min_advance_hours": profile.min_advance_booking_hours,
+                "reason": (
+                    "Bookings must be made at least "
+                    f"{min_advance_minutes} minutes in advance (instructor timezone)"
+                ),
+                "min_advance_minutes": min_advance_minutes,
                 "hours_until_booking": max(0, hours_until_booking),
             }
 
-        return {"valid": True, "min_advance_hours": profile.min_advance_booking_hours}
+        return {"valid": True, "min_advance_minutes": min_advance_minutes}
 
     @BaseService.measure_operation("check_blackout")
     def check_blackout_date(self, instructor_id: str, target_date: date) -> bool:
@@ -333,7 +544,9 @@ class ConflictChecker(BaseService):
         booking_date: date,
         start_time: time,
         end_time: time,
+        location_type: str | None = None,
         service_id: Optional[str] = None,
+        student_id: str | None = None,
     ) -> Dict[str, Any]:
         """
         Comprehensive validation of booking constraints.
@@ -376,19 +589,51 @@ class ConflictChecker(BaseService):
                 if start_time < instructor_now.time():
                     errors.append("Cannot book for past time slots (instructor timezone)")
 
+        profile = self.repository.get_instructor_profile(instructor_id)
+
         # Check minimum advance booking
-        advance_check = self.check_minimum_advance_booking(instructor_id, booking_date, start_time)
+        advance_check = self.check_minimum_advance_booking(
+            instructor_id,
+            booking_date,
+            start_time,
+            location_type,
+            instructor_profile=profile,
+        )
         if not advance_check["valid"]:
             errors.append(advance_check["reason"])
 
         # Check blackout date
-        if self.check_blackout_date(instructor_id, booking_date):
+        has_blackout = self.check_blackout_date(instructor_id, booking_date)
+        if has_blackout:
             errors.append("Instructor is not available on this date")
 
         # Check for conflicts
-        conflicts = self.check_booking_conflicts(instructor_id, booking_date, start_time, end_time)
+        conflicts = self.check_booking_conflicts(
+            instructor_id,
+            booking_date,
+            start_time,
+            end_time,
+            location_type,
+            instructor_profile=profile,
+        )
         if conflicts:
             errors.append(f"Time slot conflicts with {len(conflicts)} existing bookings")
+
+        if student_id:
+            student_conflicts = self.check_student_booking_conflicts(
+                student_id,
+                booking_date,
+                start_time,
+                end_time,
+                location_type,
+                instructor_profile=profile,
+            )
+            if student_conflicts:
+                errors.append(
+                    f"Time slot conflicts with {len(student_conflicts)} of the student's bookings"
+                )
+        else:
+            student_conflicts = []
 
         # If service provided, validate service constraints
         if service_id:
@@ -413,7 +658,8 @@ class ConflictChecker(BaseService):
                 "time_validation": time_validation,
                 "advance_booking": advance_check,
                 "conflicts": conflicts,
-                "has_blackout": self.check_blackout_date(instructor_id, booking_date),
+                "student_conflicts": student_conflicts,
+                "has_blackout": has_blackout,
             },
         }
 

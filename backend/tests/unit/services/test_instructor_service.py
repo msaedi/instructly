@@ -10,7 +10,12 @@ from app.core.exceptions import (
     BusinessRuleException,
     NotFoundException,
 )
-from app.schemas.instructor import InstructorProfileCreate, InstructorProfileUpdate, ServiceCreate
+from app.schemas.instructor import (
+    InstructorProfileCreate,
+    InstructorProfileUpdate,
+    ServiceCreate,
+    UpdateCalendarSettings,
+)
 from app.services.instructor_service import InstructorService, get_instructor_service
 
 
@@ -72,8 +77,6 @@ def test_create_instructor_profile_with_services_assigns_role():
     profile_data = InstructorProfileCreate(
         bio="Experienced instructor with years of lessons.",
         years_experience=5,
-        min_advance_booking_hours=2,
-        buffer_time_minutes=0,
         services=[_make_service_create("cat-1")],
     )
 
@@ -448,8 +451,7 @@ def test_profile_to_dict_handles_non_iterable_services_and_service_areas():
         user_id="user-1",
         bio="Bio",
         years_experience=3,
-        min_advance_booking_hours=2,
-        buffer_time_minutes=0,
+        non_travel_buffer_minutes=0,
         identity_verified_at=None,
         created_at=None,
         updated_at=None,
@@ -488,8 +490,7 @@ def test_profile_to_dict_preferred_places_privacy():
         user_id="user-1",
         bio="Bio",
         years_experience=3,
-        min_advance_booking_hours=2,
-        buffer_time_minutes=0,
+        non_travel_buffer_minutes=0,
         identity_verified_at=None,
         created_at=None,
         updated_at=None,
@@ -691,6 +692,35 @@ def test_get_popular_services_builds_results():
 
     assert results[0]["analytics"] == {"metric": 1}
     assert results[0]["popularity_score"] == 9.5
+
+
+def test_update_calendar_settings_invalidates_caches():
+    service = _build_service()
+    service.cache_service = MagicMock()
+    service._invalidate_instructor_caches = MagicMock()
+    profile = SimpleNamespace(
+        id="profile-1",
+        non_travel_buffer_minutes=15,
+        travel_buffer_minutes=60,
+        overnight_protection_enabled=True,
+    )
+    updated_profile = SimpleNamespace(
+        non_travel_buffer_minutes=15,
+        travel_buffer_minutes=60,
+        overnight_protection_enabled=False,
+    )
+    service.profile_repository.find_one_by.return_value = profile
+    service.profile_repository.update.return_value = updated_profile
+
+    with patch("app.services.instructor_service.invalidate_on_instructor_profile_change") as invalidate:
+        result = service.update_calendar_settings(
+            "user-1",
+            UpdateCalendarSettings(overnight_protection_enabled=False),
+        )
+
+    service._invalidate_instructor_caches.assert_called_once_with("user-1")
+    invalidate.assert_called_once_with("user-1")
+    assert result["overnight_protection_enabled"] is False
 
 
 def test_search_services_enhanced_tracks_analytics_and_price_range():

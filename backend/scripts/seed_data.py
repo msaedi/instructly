@@ -34,6 +34,8 @@ from sqlalchemy import create_engine, select, text  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
 from app.auth import get_password_hash  # noqa: E402
+from app.constants.booking_rules_defaults import BOOKING_RULES_DEFAULTS  # noqa: E402
+from app.constants.pricing_defaults import PRICING_DEFAULTS  # noqa: E402
 from app.core.config import secret_or_plain, settings  # noqa: E402
 from app.core.enums import RoleName  # noqa: E402
 from app.core.ulid_helper import generate_ulid  # noqa: E402
@@ -41,12 +43,15 @@ from app.core.ulid_helper import generate_ulid  # noqa: E402
 if TYPE_CHECKING:
     from reset_and_seed_yaml import DatabaseSeeder  # noqa: E402
 from app.models.beta import BetaAccess  # noqa: E402
+from app.models.platform_config import PlatformConfig  # noqa: E402
 from app.models.rbac import Role  # noqa: E402
 from app.models.user import User  # noqa: E402
 from app.repositories.beta_repository import (  # noqa: E402
     BetaAccessRepository,
     BetaSettingsRepository,
 )
+from app.schemas.booking_rules_config import BookingRulesConfig  # noqa: E402
+from app.schemas.pricing_config import PricingConfig  # noqa: E402
 
 DEFAULT_ADMIN_PASSWORD = "Test1234!"
 DEFAULT_ADMIN_ZIP = "10001"
@@ -757,6 +762,26 @@ def seed_referral_config(engine, site_mode: str, actor: str = "seed") -> None:
         print("[SEED][referral_config] inserted version=1")
 
 
+def seed_platform_config(engine) -> None:
+    now = datetime.now(timezone.utc)
+    desired_configs = {
+        "pricing": PricingConfig(**PRICING_DEFAULTS).model_dump(),
+        "booking_rules": BookingRulesConfig(**BOOKING_RULES_DEFAULTS).model_dump(),
+    }
+
+    with Session(engine) as session:
+        for key, value in desired_configs.items():
+            record = session.get(PlatformConfig, key)
+            if record is None:
+                session.add(PlatformConfig(key=key, value_json=value, updated_at=now))
+                print(f"[SEED][platform_config] inserted key={key}")
+            else:
+                record.value_json = value
+                record.updated_at = now
+                print(f"[SEED][platform_config] updated key={key}")
+        session.commit()
+
+
 def _print_banner():
     import os
 
@@ -845,6 +870,7 @@ def seed_system_data(verbose: bool = True) -> None:
             verbose=verbose,
         )
 
+    seed_platform_config(engine)
     seed_referral_config(engine, site_mode=settings.site_mode, actor="seed-system")
 
 
@@ -945,6 +971,7 @@ def seed_mock_data_phases(
             verbose=verbose,
         )
 
+    seed_platform_config(engine)
     return seeder, stats
 
 

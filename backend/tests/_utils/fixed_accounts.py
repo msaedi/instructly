@@ -14,6 +14,8 @@ from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog
 from app.models.user import User
 from app.services.permission_service import PermissionService
+from app.utils.bitmap_base64 import encode_bitmap_bytes
+from app.utils.bitset import bits_from_windows, new_empty_tags
 
 from .service_seed import ensure_instructor_service_for_tests
 
@@ -88,8 +90,7 @@ def ensure_instructor_profile_and_service(
             bgc_status="passed",
             is_live=True,
             bgc_completed_at=datetime.now(timezone.utc),
-            min_advance_booking_hours=2,
-            buffer_time_minutes=15,
+            non_travel_buffer_minutes=15,
         )
         db.add(prof)
         db.flush()
@@ -126,13 +127,9 @@ def ensure_future_windows_via_api(client, monday: date, windows_by_date: Dict[st
             days_until_monday = 7
         monday = monday + timedelta(days=days_until_monday)
 
-    payload = {
-        "week_start": monday.isoformat(),
-        "clear_existing": True,
-        "schedule": [],
-    }
+    days: list[dict[str, str]] = []
 
-    # Convert windows_by_date format to schedule format
+    # Convert windows_by_date into bitmap-native day payloads
     # Only include dates within the week starting at monday
     week_end = monday + timedelta(days=6)
     for date_str, windows in windows_by_date.items():
@@ -140,17 +137,26 @@ def ensure_future_windows_via_api(client, monday: date, windows_by_date: Dict[st
             date_obj = date.fromisoformat(date_str) if isinstance(date_str, str) else date_str
             # Only include dates within the week
             if monday <= date_obj <= week_end:
-                for window in windows:
-                    payload["schedule"].append(
-                        {
-                            "date": date_str,
-                            "start_time": window["start_time"],
-                            "end_time": window["end_time"],
-                        }
-                    )
+                day_windows = [
+                    (window["start_time"], window["end_time"])
+                    for window in windows
+                ]
+                days.append(
+                    {
+                        "date": date_str,
+                        "bits": encode_bitmap_bytes(bits_from_windows(day_windows)),
+                        "format_tags": encode_bitmap_bytes(new_empty_tags()),
+                    }
+                )
         except (ValueError, TypeError):
             # Skip invalid dates
             continue
+
+    payload = {
+        "week_start": monday.isoformat(),
+        "clear_existing": True,
+        "days": days,
+    }
 
     headers = auth_headers or {}
     r = client.post("/api/v1/instructors/availability/week", json=payload, headers=headers)

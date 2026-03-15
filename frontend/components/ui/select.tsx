@@ -134,16 +134,21 @@ const SelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none',
-      'focus:bg-gray-100 data-[state=checked]:bg-purple-50 data-[state=checked]:text-[#7E22CE]',
+      'relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none transition-colors',
       'text-gray-800 dark:text-gray-200',
+      'data-[highlighted]:bg-gray-100 data-[highlighted]:text-gray-900',
+      'dark:data-[highlighted]:bg-gray-700 dark:data-[highlighted]:text-gray-100',
+      'data-[state=checked]:bg-purple-50 data-[state=checked]:text-[#7E22CE]',
+      'dark:data-[state=checked]:bg-purple-500/20 dark:data-[state=checked]:text-purple-200',
+      'data-[highlighted][data-state=checked]:bg-purple-100 dark:data-[highlighted][data-state=checked]:bg-purple-500/30',
+      'data-[disabled]:pointer-events-none data-[disabled]:bg-transparent data-[disabled]:text-gray-400 dark:data-[disabled]:text-gray-500',
       className
     )}
     {...props}
   >
     <span className="absolute right-2 flex h-4 w-4 items-center justify-center">
       <SelectPrimitive.ItemIndicator>
-        <Check className="h-4 w-4 text-[#7E22CE]" />
+        <Check className="h-4 w-4 text-[#7E22CE] dark:text-purple-300" />
       </SelectPrimitive.ItemIndicator>
     </span>
     <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>

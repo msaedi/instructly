@@ -10,8 +10,6 @@ export type ProfileFormState = {
   service_area_boroughs: string[];
   service_area_neighborhoods?: ServiceAreaNeighborhood[];
   years_experience: number;
-  min_advance_booking_hours?: number;
-  buffer_time_hours?: number;
   street_line1?: string;
   street_line2?: string;
   locality?: string;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import InstructorProfileForm from '../InstructorProfileForm';
@@ -131,17 +131,6 @@ jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/PersonalI
           administrative_area: 'NY',
           postal_code: '10017',
         })}>Set Basic Address</button>
-        <button
-          type="button"
-          onClick={() =>
-            onProfileChange({
-              min_advance_booking_hours: undefined,
-              buffer_time_hours: undefined,
-            })
-          }
-        >
-          Unset Booking Prefs
-        </button>
         <button type="button" onClick={onToggle}>Toggle</button>
       </section>
     );
@@ -282,8 +271,9 @@ describe('InstructorProfileForm', () => {
       data: {
         bio: 'A'.repeat(420),
         years_experience: 5,
-        min_advance_booking_hours: 3,
-        buffer_time_minutes: 90,
+        non_travel_buffer_minutes: 15,
+        travel_buffer_minutes: 60,
+        overnight_protection_enabled: true,
         service_area_neighborhoods: [{ neighborhood_id: 'n1', name: 'Lower East Side' }],
         service_area_boroughs: ['Manhattan'],
         preferred_teaching_locations: [{ address: 'Studio', label: 'Main' }],
@@ -733,67 +723,6 @@ describe('InstructorProfileForm', () => {
     await waitFor(() => {
       expect(screen.getByTestId('skills-inline')).toBeInTheDocument();
     });
-  });
-
-  it('renders Booking Preferences section and expands it', async () => {
-    const { Wrapper } = createWrapper();
-    mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
-    mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
-    mockUseInstructorProfileMe.mockReturnValue({
-      data: { bio: 'Test', min_advance_booking_hours: 2, buffer_time_minutes: 30 },
-      isLoading: false,
-    });
-
-    mockFetchWithAuth.mockImplementation(async (url: string) => {
-      if (url === '/api/v1/addresses/service-areas/me') {
-        return { ok: true, status: 200, json: async () => ({ items: [] }) };
-      }
-      return { ok: true, status: 200, json: async () => ({}) };
-    });
-
-    render(<InstructorProfileForm context="dashboard" />, { wrapper: Wrapper });
-
-    await waitFor(() => {
-      expect(screen.getByText(/booking preferences/i)).toBeInTheDocument();
-    });
-
-    const user = userEvent.setup();
-    await user.click(screen.getByText(/booking preferences/i));
-
-    await waitFor(() => {
-      expect(screen.getByText(/advance notice/i)).toBeInTheDocument();
-      expect(screen.getByText(/buffer time/i)).toBeInTheDocument();
-    });
-  });
-
-  it('updates advance notice input', async () => {
-    const { Wrapper } = createWrapper();
-    mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
-    mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
-    mockUseInstructorProfileMe.mockReturnValue({
-      data: { bio: 'Test', min_advance_booking_hours: 2, buffer_time_minutes: 30 },
-      isLoading: false,
-    });
-
-    mockFetchWithAuth.mockImplementation(async (url: string) => {
-      if (url === '/api/v1/addresses/service-areas/me') {
-        return { ok: true, status: 200, json: async () => ({ items: [] }) };
-      }
-      return { ok: true, status: 200, json: async () => ({}) };
-    });
-
-    render(<InstructorProfileForm context="dashboard" />, { wrapper: Wrapper });
-
-    const user = userEvent.setup();
-    await user.click(screen.getByText(/booking preferences/i));
-
-    await waitFor(() => {
-      expect(screen.getByText(/advance notice/i)).toBeInTheDocument();
-    });
-
-    // Find inputs by their initial values
-    const inputs = screen.getAllByRole('spinbutton');
-    expect(inputs.length).toBeGreaterThan(0);
   });
 
   it('uses ref to call save with redirect option', async () => {
@@ -1483,15 +1412,13 @@ describe('InstructorProfileForm', () => {
     });
   });
 
-  it('preserves booking preferences values during profile changes', async () => {
+  it('preserves profile values during profile changes', async () => {
     const { Wrapper } = createWrapper();
     mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
     mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
     mockUseInstructorProfileMe.mockReturnValue({
       data: {
         bio: 'Test',
-        min_advance_booking_hours: 12,
-        buffer_time_minutes: 45,
       },
       isLoading: false,
     });
@@ -1510,9 +1437,6 @@ describe('InstructorProfileForm', () => {
     });
 
     const user = userEvent.setup();
-    await user.click(screen.getByText(/booking preferences/i));
-
-    // Update the profile using a callback that should preserve these values
     await user.click(screen.getByRole('button', { name: /update name/i }));
 
     await waitFor(() => {
@@ -1908,7 +1832,7 @@ describe('InstructorProfileForm', () => {
       });
     });
 
-    it('renders booking preferences inputs and handles value changes', async () => {
+    it('renders dashboard profile controls without booking-preference inputs', async () => {
       const { Wrapper } = createWrapper();
       mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
       mockUseUserAddresses.mockReturnValue({
@@ -1920,8 +1844,6 @@ describe('InstructorProfileForm', () => {
           bio: 'Test bio',
           first_name: 'John',
           last_name: 'Doe',
-          min_advance_booking_hours: 4,
-          buffer_time_minutes: 30,
         },
         isLoading: false,
       });
@@ -1935,6 +1857,8 @@ describe('InstructorProfileForm', () => {
       await waitFor(() => {
         expect(screen.getByTestId('personal-info')).toBeInTheDocument();
       });
+
+      expect(screen.queryByText(/booking preferences/i)).not.toBeInTheDocument();
     });
 
     it('toggleBoroughAll adds all neighborhood IDs', async () => {
@@ -3690,7 +3614,7 @@ describe('InstructorProfileForm', () => {
   });
 
   describe('buildInstructorProfilePayload edge cases', () => {
-    it('handles null min_advance_booking_hours with default of 2', async () => {
+    it('omits removed booking-preference fields from the save payload', async () => {
       const { Wrapper } = createWrapper();
       mockUseSession.mockReturnValue({
         data: { id: 'user-1', first_name: 'T', last_name: 'U' },
@@ -3701,8 +3625,6 @@ describe('InstructorProfileForm', () => {
         data: {
           bio: 'A'.repeat(420),
           has_profile_picture: true,
-          // min_advance_booking_hours intentionally omitted
-          // buffer_time_minutes intentionally omitted
         },
         isLoading: false,
       });
@@ -3735,10 +3657,7 @@ describe('InstructorProfileForm', () => {
         expect(savedPayload).toBeTruthy();
       });
 
-      // min_advance_booking_hours should default to 2
-      expect((savedPayload as unknown as Record<string, unknown>)['min_advance_booking_hours']).toBe(2);
-      // buffer_time_minutes should be 0 (from buffer_time_hours defaulting to 0)
-      expect((savedPayload as unknown as Record<string, unknown>)['buffer_time_minutes']).toBe(0);
+      expect(Object.keys(savedPayload ?? {}).sort()).toEqual(['bio', 'years_experience']);
     });
   });
 
@@ -3975,262 +3894,6 @@ describe('InstructorProfileForm', () => {
     });
   });
 
-  describe('Numeric input validation edge cases', () => {
-    it('clamps advance notice via onChange when empty string yields NaN', async () => {
-      const { Wrapper } = createWrapper();
-      mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
-      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
-      mockUseInstructorProfileMe.mockReturnValue({
-        data: { bio: 'Test', min_advance_booking_hours: 4, buffer_time_minutes: 60 },
-        isLoading: false,
-      });
-
-      mockFetchWithAuth.mockImplementation(async (url: string) => {
-        if (url === '/api/v1/addresses/service-areas/me') {
-          return { ok: true, status: 200, json: async () => ({ items: [] }) };
-        }
-        return { ok: true, status: 200, json: async () => ({}) };
-      });
-
-      render(<InstructorProfileForm context="dashboard" />, { wrapper: Wrapper });
-
-      await waitFor(() => {
-        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
-      });
-
-      const user = userEvent.setup();
-      await user.click(screen.getByText(/booking preferences/i));
-
-      await waitFor(() => {
-        expect(screen.getByText(/advance notice/i)).toBeInTheDocument();
-      });
-
-      const inputs = screen.getAllByRole('spinbutton');
-      const advanceInput = inputs[0]!;
-
-      // Verify initial prefilled value
-      expect(advanceInput).toHaveValue(4);
-
-      // Clear fires onChange with '' -> parseInt('', 10) = NaN -> clamps to 1
-      await user.clear(advanceInput);
-
-      await waitFor(() => {
-        expect(advanceInput).toHaveValue(1);
-      });
-    });
-
-    it('clamps advance notice to max 24 when appending digits exceeds boundary', async () => {
-      const { Wrapper } = createWrapper();
-      mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
-      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
-      mockUseInstructorProfileMe.mockReturnValue({
-        data: { bio: 'Test', min_advance_booking_hours: 2, buffer_time_minutes: 0 },
-        isLoading: false,
-      });
-
-      mockFetchWithAuth.mockImplementation(async (url: string) => {
-        if (url === '/api/v1/addresses/service-areas/me') {
-          return { ok: true, status: 200, json: async () => ({ items: [] }) };
-        }
-        return { ok: true, status: 200, json: async () => ({}) };
-      });
-
-      render(<InstructorProfileForm context="dashboard" />, { wrapper: Wrapper });
-
-      await waitFor(() => {
-        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
-      });
-
-      const user = userEvent.setup();
-      await user.click(screen.getByText(/booking preferences/i));
-
-      await waitFor(() => {
-        expect(screen.getByText(/advance notice/i)).toBeInTheDocument();
-      });
-
-      const inputs = screen.getAllByRole('spinbutton');
-      const advanceInput = inputs[0]!;
-
-      // Initial value is 2; typing '9' makes it '29' -> clamped to 24
-      await user.type(advanceInput, '9');
-
-      await waitFor(() => {
-        expect(advanceInput).toHaveValue(24);
-      });
-    });
-
-    it('clamps buffer time to 0 when cleared to empty string', async () => {
-      const { Wrapper } = createWrapper();
-      mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
-      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
-      mockUseInstructorProfileMe.mockReturnValue({
-        data: { bio: 'Test', min_advance_booking_hours: 2, buffer_time_minutes: 30 },
-        isLoading: false,
-      });
-
-      mockFetchWithAuth.mockImplementation(async (url: string) => {
-        if (url === '/api/v1/addresses/service-areas/me') {
-          return { ok: true, status: 200, json: async () => ({ items: [] }) };
-        }
-        return { ok: true, status: 200, json: async () => ({}) };
-      });
-
-      render(<InstructorProfileForm context="dashboard" />, { wrapper: Wrapper });
-
-      await waitFor(() => {
-        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
-      });
-
-      const user = userEvent.setup();
-      await user.click(screen.getByText(/booking preferences/i));
-
-      await waitFor(() => {
-        expect(screen.getByText(/buffer time/i)).toBeInTheDocument();
-      });
-
-      const inputs = screen.getAllByRole('spinbutton');
-      const bufferInput = inputs[1]!;
-
-      // Initial value is 0.5 (30 min / 60); verify it
-      expect(bufferInput).toHaveValue(0.5);
-
-      // Clear fires onChange with '' -> parseFloat('') = NaN -> clamps to 0
-      await user.clear(bufferInput);
-
-      await waitFor(() => {
-        expect(bufferInput).toHaveValue(0);
-      });
-    });
-
-    it('clamps buffer time to max 24 when appending digits exceeds boundary', async () => {
-      const { Wrapper } = createWrapper();
-      mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
-      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
-      mockUseInstructorProfileMe.mockReturnValue({
-        data: { bio: 'Test', min_advance_booking_hours: 2, buffer_time_minutes: 180 },
-        isLoading: false,
-      });
-
-      mockFetchWithAuth.mockImplementation(async (url: string) => {
-        if (url === '/api/v1/addresses/service-areas/me') {
-          return { ok: true, status: 200, json: async () => ({ items: [] }) };
-        }
-        return { ok: true, status: 200, json: async () => ({}) };
-      });
-
-      render(<InstructorProfileForm context="dashboard" />, { wrapper: Wrapper });
-
-      await waitFor(() => {
-        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
-      });
-
-      const user = userEvent.setup();
-      await user.click(screen.getByText(/booking preferences/i));
-
-      await waitFor(() => {
-        expect(screen.getByText(/buffer time/i)).toBeInTheDocument();
-      });
-
-      const inputs = screen.getAllByRole('spinbutton');
-      const bufferInput = inputs[1]!;
-
-      // Initial value is 3 (180 min / 60); typing '9' makes it '39' -> clamped to 24
-      expect(bufferInput).toHaveValue(3);
-      await user.type(bufferInput, '9');
-
-      await waitFor(() => {
-        expect(bufferInput).toHaveValue(24);
-      });
-    });
-
-    it('prefills buffer time correctly from buffer_time_minutes', async () => {
-      const { Wrapper } = createWrapper();
-      mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
-      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
-      mockUseInstructorProfileMe.mockReturnValue({
-        data: { bio: 'Test', min_advance_booking_hours: 2, buffer_time_minutes: 90 },
-        isLoading: false,
-      });
-
-      mockFetchWithAuth.mockImplementation(async (url: string) => {
-        if (url === '/api/v1/addresses/service-areas/me') {
-          return { ok: true, status: 200, json: async () => ({ items: [] }) };
-        }
-        return { ok: true, status: 200, json: async () => ({}) };
-      });
-
-      render(<InstructorProfileForm context="dashboard" />, { wrapper: Wrapper });
-
-      await waitFor(() => {
-        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
-      });
-
-      const user = userEvent.setup();
-      await user.click(screen.getByText(/booking preferences/i));
-
-      await waitFor(() => {
-        expect(screen.getByText(/buffer time/i)).toBeInTheDocument();
-      });
-
-      const inputs = screen.getAllByRole('spinbutton');
-      const bufferInput = inputs[1]!;
-
-      // 90 min / 60 = 1.5 hours
-      expect(bufferInput).toHaveValue(1.5);
-    });
-
-    it('saves numeric fields with correct payload values', async () => {
-      const { Wrapper } = createWrapper();
-      mockUseSession.mockReturnValue({
-        data: { id: 'user-1', first_name: 'T', last_name: 'U' },
-        isLoading: false,
-      });
-      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
-      mockUseInstructorProfileMe.mockReturnValue({
-        data: {
-          bio: 'A'.repeat(420),
-          has_profile_picture: true,
-          min_advance_booking_hours: 6,
-          buffer_time_minutes: 90,
-        },
-        isLoading: false,
-      });
-
-      let savedPayload: Record<string, unknown> | null = null;
-      mockFetchWithAuth.mockImplementation(async (url: string, options?: { method?: string; body?: string }) => {
-        if (url === '/api/v1/addresses/service-areas/me') {
-          return { ok: true, status: 200, json: async () => ({ items: [] }) };
-        }
-        if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE && options?.method === 'PUT') {
-          savedPayload = JSON.parse(options.body ?? '{}');
-          return { ok: true, status: 200, json: async () => ({}) };
-        }
-        if (url === '/api/v1/addresses/me') {
-          return { ok: true, status: 200, json: async () => ({ items: [] }) };
-        }
-        return { ok: true, status: 200, json: async () => ({}) };
-      });
-
-      render(<InstructorProfileForm context="dashboard" />, { wrapper: Wrapper });
-
-      await waitFor(() => {
-        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
-      });
-
-      const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: /save changes/i }));
-
-      await waitFor(() => {
-        expect(savedPayload).toBeTruthy();
-      });
-
-      // Prefilled with min_advance_booking_hours=6
-      expect((savedPayload as unknown as Record<string, unknown>)['min_advance_booking_hours']).toBe(6);
-      // buffer_time_hours 1.5 * 60 = 90 minutes
-      expect((savedPayload as unknown as Record<string, unknown>)['buffer_time_minutes']).toBe(90);
-    });
-  });
-
   describe('Conditional rendering modes', () => {
     it('shows dashboard header in standalone mode (not embedded, not onboarding)', async () => {
       const { Wrapper } = createWrapper();
@@ -4423,59 +4086,6 @@ describe('InstructorProfileForm', () => {
 
       await waitFor(() => {
         expect(toast.success).toHaveBeenCalledWith('Profile saved', expect.any(Object));
-      });
-    });
-  });
-
-  describe('Advance notice onKeyDown prevention', () => {
-    it('prevents period, comma, and e keys in advance notice input', async () => {
-      const { Wrapper } = createWrapper();
-      mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
-      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
-      mockUseInstructorProfileMe.mockReturnValue({
-        data: { bio: 'Test', min_advance_booking_hours: 5, buffer_time_minutes: 0 },
-        isLoading: false,
-      });
-
-      mockFetchWithAuth.mockImplementation(async (url: string) => {
-        if (url === '/api/v1/addresses/service-areas/me') {
-          return { ok: true, status: 200, json: async () => ({ items: [] }) };
-        }
-        return { ok: true, status: 200, json: async () => ({}) };
-      });
-
-      render(<InstructorProfileForm context="dashboard" />, { wrapper: Wrapper });
-
-      await waitFor(() => {
-        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
-      });
-
-      const user = userEvent.setup();
-      await user.click(screen.getByText(/booking preferences/i));
-
-      await waitFor(() => {
-        expect(screen.getByText(/advance notice/i)).toBeInTheDocument();
-      });
-
-      const inputs = screen.getAllByRole('spinbutton');
-      const advanceInput = inputs[0]!;
-
-      // Initial value is 5
-      expect(advanceInput).toHaveValue(5);
-
-      // Type disallowed characters directly — they should be prevented by onKeyDown
-      // Since we can't truly block at jsdom level, focus on the input accepting
-      // only valid keys. Typing '.' should not alter the integer-only advance notice.
-      await user.type(advanceInput, '.');
-      await user.type(advanceInput, ',');
-      await user.type(advanceInput, 'e');
-      await user.type(advanceInput, 'E');
-      await user.type(advanceInput, '+');
-      await user.type(advanceInput, '-');
-
-      // Value should remain 5 — disallowed chars do not produce valid parseInt results
-      await waitFor(() => {
-        expect(advanceInput).toHaveValue(5);
       });
     });
   });
@@ -5744,7 +5354,7 @@ describe('InstructorProfileForm', () => {
       });
     });
 
-    it('covers buildInstructorProfilePayload nullish branches during save (lines 48-49)', async () => {
+    it('saves profile updates without legacy booking-preference fields', async () => {
       const { Wrapper } = createWrapper();
       mockUseSession.mockReturnValue({
         data: { id: 'user-1', first_name: 'T', last_name: 'U' },
@@ -5752,9 +5362,6 @@ describe('InstructorProfileForm', () => {
       });
       mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
       mockUseInstructorProfileMe.mockReturnValue({
-        // Omit min_advance_booking_hours and buffer_time_minutes so they
-        // default to undefined, triggering the ?? branches in
-        // buildInstructorProfilePayload
         data: { bio: 'A'.repeat(420), has_profile_picture: true },
         isLoading: false,
       });
@@ -5776,14 +5383,13 @@ describe('InstructorProfileForm', () => {
       await user.click(screen.getByRole('button', { name: /save changes/i }));
 
       await waitFor(() => {
-        // Verify the profile save was called with default values
-        expect(mockFetchWithAuth).toHaveBeenCalledWith(
-          API_ENDPOINTS.INSTRUCTOR_PROFILE,
-          expect.objectContaining({
-            method: 'PUT',
-            body: expect.stringContaining('"min_advance_booking_hours":2'),
-          })
+        const profileCall = mockFetchWithAuth.mock.calls.find(
+          (call: unknown[]) => call[0] === API_ENDPOINTS.INSTRUCTOR_PROFILE
         );
+        expect(profileCall).toBeDefined();
+        const options = profileCall?.[1] as { body?: string } | undefined;
+        const body = JSON.parse(options?.body ?? '{}') as Record<string, unknown>;
+        expect(Object.keys(body).sort()).toEqual(['bio', 'years_experience']);
       });
     });
 
@@ -6276,98 +5882,6 @@ describe('InstructorProfileForm', () => {
       });
     });
 
-    it('handles NaN in advance notice input (line 1044)', async () => {
-      const { Wrapper } = createWrapper();
-      mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
-      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
-      mockUseInstructorProfileMe.mockReturnValue({
-        data: { bio: 'Test', min_advance_booking_hours: 3, buffer_time_minutes: 60 },
-        isLoading: false,
-      });
-
-      mockFetchWithAuth.mockImplementation(async (url: string) => {
-        if (url === '/api/v1/addresses/service-areas/me') {
-          return { ok: true, status: 200, json: async () => ({ items: [] }) };
-        }
-        return { ok: true, status: 200, json: async () => ({}) };
-      });
-
-      render(<InstructorProfileForm context="dashboard" />, { wrapper: Wrapper });
-
-      await waitFor(() => {
-        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
-      });
-
-      const user = userEvent.setup();
-      await user.click(screen.getByText(/booking preferences/i));
-
-      await waitFor(() => {
-        expect(screen.getByText(/advance notice/i)).toBeInTheDocument();
-      });
-
-      const inputs = screen.getAllByRole('spinbutton');
-      const advanceInput = inputs[0]!;
-
-      // Fire onChange with a value that makes parseInt return NaN
-      // The input has || '0' fallback but we can simulate via fireEvent
-      // directly with a non-numeric value
-      await user.clear(advanceInput);
-      // After clear, value is '' -> parseInt('' || '0', 10) = 0, not NaN
-      // To produce NaN, we need parseInt of something non-numeric
-      // jsdom number inputs accept any string via fireEvent.change
-      const { fireEvent } = await import('@testing-library/react');
-      fireEvent.change(advanceInput, { target: { value: 'abc' } });
-
-      await waitFor(() => {
-        // parseInt('abc' || '0', 10) -> 'abc' is truthy, so parseInt('abc', 10) = NaN
-        // isNaN(NaN) -> true, so result = 1 (clamped)
-        expect(advanceInput).toHaveValue(1);
-      });
-    });
-
-    it('handles NaN in buffer time input (line 1075)', async () => {
-      const { Wrapper } = createWrapper();
-      mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
-      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
-      mockUseInstructorProfileMe.mockReturnValue({
-        data: { bio: 'Test', min_advance_booking_hours: 3, buffer_time_minutes: 60 },
-        isLoading: false,
-      });
-
-      mockFetchWithAuth.mockImplementation(async (url: string) => {
-        if (url === '/api/v1/addresses/service-areas/me') {
-          return { ok: true, status: 200, json: async () => ({ items: [] }) };
-        }
-        return { ok: true, status: 200, json: async () => ({}) };
-      });
-
-      render(<InstructorProfileForm context="dashboard" />, { wrapper: Wrapper });
-
-      await waitFor(() => {
-        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
-      });
-
-      const user = userEvent.setup();
-      await user.click(screen.getByText(/booking preferences/i));
-
-      await waitFor(() => {
-        expect(screen.getByText(/buffer time/i)).toBeInTheDocument();
-      });
-
-      const inputs = screen.getAllByRole('spinbutton');
-      const bufferInput = inputs[1]!;
-
-      // Fire change with non-numeric value to trigger NaN path
-      const { fireEvent } = await import('@testing-library/react');
-      fireEvent.change(bufferInput, { target: { value: 'xyz' } });
-
-      await waitFor(() => {
-        // parseFloat('xyz' || '0') -> 'xyz' is truthy, parseFloat('xyz') = NaN
-        // isNaN(NaN) -> true, result = 0 (clamped)
-        expect(bufferInput).toHaveValue(0);
-      });
-    });
-
     it('covers save button guard when not saving (line 1092)', async () => {
       const { Wrapper } = createWrapper();
       mockUseSession.mockReturnValue({
@@ -6554,7 +6068,7 @@ describe('InstructorProfileForm', () => {
       });
     });
 
-    it('saves default booking-preference values when the profile omits them', async () => {
+    it('does not reintroduce removed booking-preference fields when the profile omits them', async () => {
       const { Wrapper } = createWrapper();
       let savedProfileBody: Record<string, unknown> | null = null;
 
@@ -6570,8 +6084,6 @@ describe('InstructorProfileForm', () => {
         data: {
           bio: 'A'.repeat(420),
           years_experience: 3,
-          min_advance_booking_hours: null,
-          buffer_time_minutes: null,
           service_area_neighborhoods: [{ neighborhood_id: 'n1', name: 'Lower East Side' }],
           service_area_boroughs: ['Manhattan'],
           preferred_teaching_locations: [],
@@ -6602,99 +6114,8 @@ describe('InstructorProfileForm', () => {
       await user.click(screen.getByRole('button', { name: /save changes/i }));
 
       await waitFor(() => {
-        expect(savedProfileBody).toMatchObject({
-          min_advance_booking_hours: 2,
-          buffer_time_minutes: 0,
-        });
+        expect(Object.keys(savedProfileBody ?? {}).sort()).toEqual(['bio', 'years_experience']);
       });
-    });
-
-    it('renders booking preference inputs with nullish fallbacks after child updates unset them', async () => {
-      const { Wrapper } = createWrapper();
-
-      mockUseSession.mockReturnValue({
-        data: { id: 'user-1', first_name: 'Taylor', last_name: 'Swift', zip_code: '10001' },
-        isLoading: false,
-      });
-      mockUseUserAddresses.mockReturnValue({
-        data: { items: [{ id: 'addr-1', postal_code: '10001', is_default: true }] },
-        isLoading: false,
-      });
-      mockUseInstructorProfileMe.mockReturnValue({
-        data: {
-          bio: 'A'.repeat(420),
-          years_experience: 3,
-          min_advance_booking_hours: 4,
-          buffer_time_minutes: 90,
-          service_area_neighborhoods: [{ neighborhood_id: 'n1', name: 'Lower East Side' }],
-          service_area_boroughs: ['Manhattan'],
-          preferred_teaching_locations: [],
-          preferred_public_spaces: [],
-          has_profile_picture: true,
-        },
-        isLoading: false,
-      });
-
-      render(<InstructorProfileForm />, { wrapper: Wrapper });
-
-      await waitFor(() => {
-        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
-      });
-
-      const user = userEvent.setup();
-      await user.click(screen.getByText('Unset Booking Prefs'));
-      await user.click(screen.getByRole('button', { name: /booking preferences/i }));
-
-      expect(screen.getByDisplayValue('2')).toBeInTheDocument();
-      expect(screen.getByDisplayValue('0')).toBeInTheDocument();
-    });
-
-    it('clamps NaN booking preference edits back to safe defaults', async () => {
-      const { Wrapper } = createWrapper();
-
-      mockUseSession.mockReturnValue({
-        data: { id: 'user-1', first_name: 'Taylor', last_name: 'Swift', zip_code: '10001' },
-        isLoading: false,
-      });
-      mockUseUserAddresses.mockReturnValue({
-        data: { items: [{ id: 'addr-1', postal_code: '10001', is_default: true }] },
-        isLoading: false,
-      });
-      mockUseInstructorProfileMe.mockReturnValue({
-        data: {
-          bio: 'A'.repeat(420),
-          years_experience: 3,
-          min_advance_booking_hours: 4,
-          buffer_time_minutes: 90,
-          service_area_neighborhoods: [{ neighborhood_id: 'n1', name: 'Lower East Side' }],
-          service_area_boroughs: ['Manhattan'],
-          preferred_teaching_locations: [],
-          preferred_public_spaces: [],
-          has_profile_picture: true,
-        },
-        isLoading: false,
-      });
-
-      render(<InstructorProfileForm />, { wrapper: Wrapper });
-
-      await waitFor(() => {
-        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
-      });
-
-      const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: /booking preferences/i }));
-
-      const [advanceNotice, bufferTime] = screen.getAllByRole('spinbutton') as Array<
-        HTMLInputElement | undefined
-      >;
-      if (!advanceNotice || !bufferTime) {
-        throw new Error('Expected booking preference inputs');
-      }
-      fireEvent.change(advanceNotice, { target: { value: 'abc' } });
-      expect(advanceNotice).toHaveValue(1);
-
-      fireEvent.change(bufferTime, { target: { value: 'abc' } });
-      expect(bufferTime).toHaveValue(0);
     });
 
     it('marks onboarding status as failed when the profile is otherwise complete but missing a photo', async () => {
@@ -6713,8 +6134,6 @@ describe('InstructorProfileForm', () => {
         data: {
           bio: 'A'.repeat(420),
           years_experience: 3,
-          min_advance_booking_hours: 2,
-          buffer_time_minutes: 0,
           service_area_neighborhoods: [{ neighborhood_id: 'n1', name: 'Lower East Side' }],
           service_area_boroughs: ['Manhattan'],
           preferred_teaching_locations: [],
@@ -6940,51 +6359,6 @@ describe('InstructorProfileForm', () => {
 
       await waitFor(() => {
         expect(toast.error).toHaveBeenCalledWith('Failed to generate bio. Please try again.');
-      });
-    });
-  });
-
-  describe('Booking preferences — branch coverage', () => {
-    it('saves with null booking preferences using defaults', async () => {
-      const { Wrapper } = createWrapper();
-      mockUseSession.mockReturnValue({
-        data: { id: 'user-1', first_name: 'Test', last_name: 'User' },
-        isLoading: false,
-      });
-      mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
-      mockUseInstructorProfileMe.mockReturnValue({
-        data: { bio: 'A'.repeat(420), has_profile_picture: true },
-        isLoading: false,
-      });
-
-      mockFetchWithAuth.mockImplementation(async (url: string) => {
-        if (url === '/api/v1/addresses/service-areas/me') {
-          return { ok: true, status: 200, json: async () => ({ items: [] }) };
-        }
-        if (url === '/api/v1/addresses/me') {
-          return { ok: true, status: 200, json: async () => ({ items: [] }) };
-        }
-        return { ok: true, status: 200, json: async () => ({}) };
-      });
-
-      render(<InstructorProfileForm />, { wrapper: Wrapper });
-
-      await waitFor(() => {
-        expect(screen.getByTestId('personal-info')).toBeInTheDocument();
-      });
-
-      // Unset booking prefs to exercise ?? defaults in buildInstructorProfilePayload
-      const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: /unset booking prefs/i }));
-      await user.click(screen.getByRole('button', { name: /save changes/i }));
-
-      await waitFor(() => {
-        expect(mockFetchWithAuth).toHaveBeenCalledWith(
-          API_ENDPOINTS.INSTRUCTOR_PROFILE,
-          expect.objectContaining({
-            body: expect.stringContaining('"min_advance_booking_hours":2'),
-          }),
-        );
       });
     });
   });

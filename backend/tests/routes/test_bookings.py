@@ -551,6 +551,7 @@ class TestBookingRoutes:
                 "booking_date": date.today().isoformat(),
                 "start_time": "14:00",
                 "end_time": "15:00",
+                "location_type": "online",
             },
         )
 
@@ -564,7 +565,7 @@ class TestBookingRoutes:
         mock_booking_service.check_availability.return_value = {
             "available": True,
             "reason": None,
-            "min_advance_hours": 2,
+            "min_advance_minutes": 60,
             "conflicts_with": [],
         }
 
@@ -577,6 +578,7 @@ class TestBookingRoutes:
                 "booking_date": (date.today() + timedelta(days=1)).isoformat(),
                 "start_time": "14:00",
                 "end_time": "15:00",
+                "location_type": "online",
             },
             headers=auth_headers_student,
         )
@@ -584,6 +586,43 @@ class TestBookingRoutes:
         # Verify
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["available"] is True
+
+    def test_check_availability_forwards_optional_duration_and_coordinates(
+        self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
+    ):
+        """Optional duration and coordinates should reach the service preflight intact."""
+        instructor_id = generate_ulid()
+        service_id = generate_ulid()
+        mock_booking_service.check_availability.return_value = {
+            "available": True,
+            "reason": None,
+            "min_advance_minutes": 60,
+            "conflicts_with": [],
+        }
+
+        response = client_with_mock_booking_service.post(
+            "/api/v1/bookings/check-availability",
+            json={
+                "instructor_id": instructor_id,
+                "instructor_service_id": service_id,
+                "booking_date": (date.today() + timedelta(days=1)).isoformat(),
+                "start_time": "14:00",
+                "end_time": "15:00",
+                "location_type": "student_location",
+                "selected_duration": 60,
+                "location_lat": 40.781,
+                "location_lng": -73.966,
+            },
+            headers=auth_headers_student,
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        _, kwargs = mock_booking_service.check_availability.call_args
+        assert kwargs["instructor_id"] == instructor_id
+        assert kwargs["service_id"] == service_id
+        assert kwargs["selected_duration"] == 60
+        assert kwargs["location_lat"] == 40.781
+        assert kwargs["location_lng"] == -73.966
 
     def test_get_booking_stats_instructor_only(
         self, client_with_mock_booking_service, auth_headers_instructor, mock_booking_service
@@ -953,6 +992,7 @@ class TestBookingRoutes:
                     "booking_date": tomorrow.isoformat(),
                     "start_time": "09:00",
                     "end_time": "10:00",
+                    "location_type": "online",
                 },
             ),
             ("PATCH", "/api/v1/bookings/01HWRZZZZZZZZZZZZZZZZZZZZ1", {"instructor_note": "Note"}),
@@ -1021,6 +1061,7 @@ class TestBookingRoutes:
                 "booking_date": tomorrow.isoformat(),
                 "start_time": "09:00",
                 "end_time": "10:00",
+                "location_type": "online",
             },
             headers=auth_headers_student,
         )
@@ -1231,6 +1272,7 @@ class TestBookingRoutes:
                 "booking_date": (date.today() + timedelta(days=7)).isoformat(),
                 "start_time": "10:00",
                 "end_time": "11:00",
+                "location_type": "online",
             },
             headers=auth_headers_student,
         )
@@ -1532,6 +1574,49 @@ class TestBookingRoutes:
         mock_booking_service.cancel_booking_without_stripe.assert_called_once()
         _, cancel_kwargs = mock_booking_service.cancel_booking_without_stripe.call_args
         assert cancel_kwargs.get("clear_payment_intent") is True
+
+    def test_reschedule_preflight_rejects_invalid_duration_before_lock_activation(
+        self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
+    ):
+        """Invalid duration should stop the flow before any reschedule fund lock occurs."""
+        original_id = generate_ulid()
+        original = Mock()
+        original.id = original_id
+        original.student_id = generate_ulid()
+        original.instructor_id = generate_ulid()
+        original.instructor_service_id = generate_ulid()
+        original.location_type = "student_location"
+        original.location_lat = 40.758
+        original.location_lng = -73.985
+        original.location_address = "123 Main St, New York, NY"
+        original.location_place_id = "place_123"
+        original.student_note = "Bring music"
+        original.meeting_location = "Lobby"
+        mock_booking_service.get_booking_for_user.return_value = original
+        mock_booking_service.check_availability.return_value = {
+            "available": False,
+            "reason": "Invalid duration 45. Available options: [30, 60]",
+        }
+
+        payload = {
+            "booking_date": (date.today() + timedelta(days=3)).isoformat(),
+            "start_time": "11:00",
+            "selected_duration": 45,
+        }
+        response = client_with_mock_booking_service.post(
+            f"/api/v1/bookings/{original_id}/reschedule", json=payload, headers=auth_headers_student
+        )
+
+        assert response.status_code == status.HTTP_409_CONFLICT
+        assert "Invalid duration 45" in response.json()["detail"]
+        mock_booking_service.activate_lock_for_reschedule.assert_not_called()
+        mock_booking_service.create_rescheduled_booking_with_locked_funds.assert_not_called()
+
+        _, kwargs = mock_booking_service.check_availability.call_args
+        assert kwargs["exclude_booking_id"] == original_id
+        assert kwargs["selected_duration"] == 45
+        assert kwargs["location_lat"] == 40.758
+        assert kwargs["location_lng"] == -73.985
 
     def test_reschedule_booking_not_found(
         self, client_with_mock_booking_service, auth_headers_student, mock_booking_service

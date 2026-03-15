@@ -164,8 +164,16 @@ class PrivacyService(BaseService):
             export_data["instructor_profile"] = {
                 "bio": instructor.bio,
                 "years_experience": instructor.years_experience,
-                "min_advance_booking_hours": instructor.min_advance_booking_hours,
-                "buffer_time_minutes": instructor.buffer_time_minutes,
+                "non_travel_buffer_minutes": getattr(instructor, "non_travel_buffer_minutes", 15),
+                "travel_buffer_minutes": getattr(instructor, "travel_buffer_minutes", 60),
+                "overnight_protection_enabled": getattr(
+                    instructor, "overnight_protection_enabled", True
+                ),
+                "calendar_settings_acknowledged_at": (
+                    instructor.calendar_settings_acknowledged_at.isoformat()
+                    if getattr(instructor, "calendar_settings_acknowledged_at", None)
+                    else None
+                ),
                 "created_at": instructor.created_at.isoformat() if instructor.created_at else None,
                 "service_area_neighborhoods": service_area_neighborhoods,
                 "service_area_boroughs": sorted_boroughs,

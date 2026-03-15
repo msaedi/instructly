@@ -744,8 +744,9 @@ def create_dummy_instructors(session: Session):
             user_id=user.id,
             bio=template["bio"],
             years_experience=template["years_experience"],
-            min_advance_booking_hours=random.choice([1, 2, 4, 24]),  # Random advance booking time
-            buffer_time_minutes=random.choice([0, 15, 30]),  # Random buffer time
+            non_travel_buffer_minutes=random.choice([0, 15, 30]),
+            travel_buffer_minutes=random.choice([60, 75, 90]),
+            overnight_protection_enabled=True,
         )
         session.add(profile)
         session.flush()

@@ -1,5 +1,22 @@
 import { describe, it, expect } from '@jest/globals';
-import { fromWindows, toWindows, SLOTS_PER_DAY, newEmptyBits, idx, toggle } from '../bitset';
+import {
+  fromWindows,
+  getRangeTag,
+  getSlotTag,
+  idx,
+  newEmptyBits,
+  newEmptyTags,
+  setRangeTag,
+  setSlotTag,
+  SLOTS_PER_DAY,
+  TAG_BYTES_PER_DAY,
+  TAG_NO_TRAVEL,
+  TAG_NONE,
+  TAG_ONLINE_ONLY,
+  TAG_RESERVED,
+  toWindows,
+  toggle,
+} from '../bitset';
 
 describe('bitset', () => {
   describe('fromWindows', () => {
@@ -207,6 +224,54 @@ describe('bitset', () => {
       for (let i = 0; i < bits.length; i++) {
         expect(bits[i]).toBe(0);
       }
+    });
+  });
+
+  describe('tag helpers', () => {
+    it('uses 72 bytes for tag storage', () => {
+      expect(TAG_BYTES_PER_DAY).toBe(72);
+      expect(newEmptyTags()).toHaveLength(72);
+    });
+
+    it.each([0, 111, 287])('round-trips all tag values for slot %i', (slot) => {
+      for (const tag of [TAG_NONE, TAG_ONLINE_ONLY, TAG_NO_TRAVEL, TAG_RESERVED] as const) {
+        const updated = setSlotTag(newEmptyTags(), slot, tag);
+        expect(getSlotTag(updated, slot)).toBe(tag);
+      }
+    });
+
+    it('sets and reads a uniform 6-slot range tag', () => {
+      const tags = setRangeTag(newEmptyTags(), 60, 6, TAG_NO_TRAVEL);
+      expect(getRangeTag(tags, 60, 6)).toBe(TAG_NO_TRAVEL);
+    });
+
+    it('returns null for mixed ranges', () => {
+      let tags = setRangeTag(newEmptyTags(), 30, 6, TAG_ONLINE_ONLY);
+      tags = setSlotTag(tags, 33, TAG_NONE);
+      expect(getRangeTag(tags, 30, 6)).toBeNull();
+    });
+
+    it('matches the expected packed bytes for a fixed pattern', () => {
+      let tags = newEmptyTags();
+      tags = setSlotTag(tags, 0, TAG_ONLINE_ONLY);
+      tags = setSlotTag(tags, 1, TAG_NO_TRAVEL);
+      tags = setSlotTag(tags, 2, TAG_RESERVED);
+
+      expect(Array.from(tags.slice(0, 2))).toEqual([57, 0]);
+    });
+
+    it('rejects wrong-length buffers and out-of-range slots', () => {
+      expect(() => getSlotTag(new Uint8Array(71), 0)).toThrow('tags length must be 72');
+      expect(() => getSlotTag(newEmptyTags(), SLOTS_PER_DAY)).toThrow('slot out of range');
+    });
+
+    it.each([
+      [-1, 6],
+      [0, 0],
+      [0, -1],
+      [SLOTS_PER_DAY - 3, 6],
+    ])('rejects invalid tag ranges start=%i count=%i', (startSlot, count) => {
+      expect(() => setRangeTag(newEmptyTags(), startSlot, count, TAG_ONLINE_ONLY)).toThrow();
     });
   });
 });
