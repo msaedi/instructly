@@ -12848,7 +12848,7 @@ export type components = {
              */
             last_name: string;
             /** @description Instructor profile details */
-            profile?: components["schemas"]["InstructorProfileResponse"] | null;
+            profile?: components["schemas"]["InstructorProfilePublic"] | null;
         };
         /**
          * FavoritesList
@@ -13305,6 +13305,158 @@ export type components = {
             status?: string | null;
         };
         /**
+         * InstructorBookingResponse
+         * @description Instructor-facing booking response with public student identity only.
+         */
+        InstructorBookingResponse: {
+            /** Auth Attempted At */
+            auth_attempted_at?: string | null;
+            /** Auth Failure Count */
+            auth_failure_count?: number | null;
+            /** Auth Last Error */
+            auth_last_error?: string | null;
+            /** Auth Scheduled For */
+            auth_scheduled_for?: string | null;
+            /**
+             * Booking Date
+             * Format: date
+             */
+            booking_date: string;
+            /** Booking End Utc */
+            booking_end_utc?: string | null;
+            /** Booking Start Utc */
+            booking_start_utc?: string | null;
+            /** Can Join Lesson */
+            can_join_lesson?: boolean | null;
+            /** Cancellation Reason */
+            cancellation_reason: string | null;
+            /** Cancelled At */
+            cancelled_at: string | null;
+            /** Cancelled By Id */
+            cancelled_by_id: string | null;
+            /** Completed At */
+            completed_at: string | null;
+            /** Confirmed At */
+            confirmed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Credits Reserved Cents */
+            credits_reserved_cents?: number | null;
+            /** Duration Minutes */
+            duration_minutes: number;
+            /**
+             * End Time
+             * Format: time
+             */
+            end_time: string;
+            /** Has Locked Funds */
+            has_locked_funds?: boolean | null;
+            /** Hourly Rate */
+            hourly_rate: number;
+            /** Id */
+            id: string;
+            instructor: components["schemas"]["InstructorInfo"];
+            /** Instructor Id */
+            instructor_id: string;
+            /** Instructor Note */
+            instructor_note: string | null;
+            /** Instructor Payout Amount */
+            instructor_payout_amount?: number | null;
+            instructor_service: components["schemas"]["BookingServiceInfo"];
+            /** Instructor Service Id */
+            instructor_service_id: string;
+            /** Instructor Timezone */
+            instructor_timezone?: string | null;
+            /** Join Closes At */
+            join_closes_at?: string | null;
+            /** Join Opens At */
+            join_opens_at?: string | null;
+            /** Lesson Timezone */
+            lesson_timezone?: string | null;
+            /** Location Address */
+            location_address?: string | null;
+            /** Location Lat */
+            location_lat?: number | null;
+            /** Location Lng */
+            location_lng?: number | null;
+            /** Location Place Id */
+            location_place_id?: string | null;
+            /** Location Type */
+            location_type: ("student_location" | "instructor_location" | "online" | "neutral_location") | null;
+            /** Lock Resolution */
+            lock_resolution?: string | null;
+            /** Lock Resolved At */
+            lock_resolved_at?: string | null;
+            /** Locked Amount Cents */
+            locked_amount_cents?: number | null;
+            /** Locked At */
+            locked_at?: string | null;
+            /** Meeting Location */
+            meeting_location: string | null;
+            /** No Show Dispute Reason */
+            no_show_dispute_reason?: string | null;
+            /** No Show Disputed */
+            no_show_disputed?: boolean | null;
+            /** No Show Disputed At */
+            no_show_disputed_at?: string | null;
+            /** No Show Reported At */
+            no_show_reported_at?: string | null;
+            /** No Show Reported By */
+            no_show_reported_by?: string | null;
+            /** No Show Resolution */
+            no_show_resolution?: string | null;
+            /** No Show Resolved At */
+            no_show_resolved_at?: string | null;
+            /** No Show Type */
+            no_show_type?: string | null;
+            payment_summary?: components["schemas"]["PaymentSummary"] | null;
+            /** Refunded To Card Amount */
+            refunded_to_card_amount?: number | null;
+            rescheduled_from?: components["schemas"]["RescheduledFromInfo"] | null;
+            /** Rescheduled From Booking Id */
+            rescheduled_from_booking_id?: string | null;
+            /** Rescheduled To Booking Id */
+            rescheduled_to_booking_id?: string | null;
+            /** Service Area */
+            service_area: string | null;
+            /** Service Name */
+            service_name: string;
+            /** Settlement Outcome */
+            settlement_outcome?: string | null;
+            /**
+             * Start Time
+             * Format: time
+             */
+            start_time: string;
+            status: components["schemas"]["BookingStatus"];
+            student: components["schemas"]["StudentInfoPublic"];
+            /** Student Credit Amount */
+            student_credit_amount?: number | null;
+            /** Student Id */
+            student_id: string;
+            /** Student Note */
+            student_note: string | null;
+            /** Student Timezone */
+            student_timezone?: string | null;
+            /** Total Price */
+            total_price: number;
+            /** Video Instructor Joined At */
+            video_instructor_joined_at?: string | null;
+            /** Video Room Id */
+            video_room_id?: string | null;
+            /** Video Session Duration Seconds */
+            video_session_duration_seconds?: number | null;
+            /** Video Session Ended At */
+            video_session_ended_at?: string | null;
+            /** Video Session Started At */
+            video_session_started_at?: string | null;
+            /** Video Student Joined At */
+            video_student_joined_at?: string | null;
+        };
+        /**
          * InstructorFilterContext
          * @description Filter context for instructor skill selection.
          *
@@ -13444,11 +13596,116 @@ export type components = {
             years_experience: number;
         };
         /**
-         * InstructorProfileResponse
-         * @description Schema for instructor profile responses with privacy protection.
+         * InstructorProfilePublic
+         * @description Public/student-facing instructor profile response.
          *
-         *     Includes all profile data plus relationships and metadata.
-         *     Student-facing endpoints will show only instructor last initial.
+         *     Excludes internal verification session IDs and private teaching addresses.
+         */
+        InstructorProfilePublic: {
+            /** Background Check Uploaded At */
+            background_check_uploaded_at?: string | null;
+            /**
+             * Bgc Name Mismatch
+             * @default false
+             */
+            bgc_name_mismatch: boolean;
+            /**
+             * Bgc Status
+             * @description Background check status for public display
+             */
+            bgc_status?: string | null;
+            /**
+             * Bio
+             * @description Instructor biography/description
+             */
+            bio: string;
+            /** Calendar Settings Acknowledged At */
+            calendar_settings_acknowledged_at?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Favorited Count
+             * @description Number of students who favorited this instructor
+             * @default 0
+             */
+            favorited_count: number;
+            /** Id */
+            id: string;
+            /**
+             * Identity Name Mismatch
+             * @default false
+             */
+            identity_name_mismatch: boolean;
+            /** Identity Verified At */
+            identity_verified_at?: string | null;
+            /**
+             * Is Favorited
+             * @description Whether the current user has favorited this instructor
+             */
+            is_favorited?: boolean | null;
+            /**
+             * Is Founding Instructor
+             * @description Whether the instructor is a founding instructor
+             * @default false
+             */
+            is_founding_instructor: boolean;
+            /**
+             * Is Live
+             * @default false
+             */
+            is_live: boolean;
+            /**
+             * Non Travel Buffer Minutes
+             * @default 15
+             */
+            non_travel_buffer_minutes: number;
+            /** Onboarding Completed At */
+            onboarding_completed_at?: string | null;
+            /**
+             * Overnight Protection Enabled
+             * @default true
+             */
+            overnight_protection_enabled: boolean;
+            /** Preferred Public Spaces */
+            preferred_public_spaces?: components["schemas"]["PreferredPublicSpaceOut"][];
+            /** Preferred Teaching Locations */
+            preferred_teaching_locations?: components["schemas"]["PreferredTeachingLocationPublicOut"][];
+            /** Service Area Boroughs */
+            service_area_boroughs?: string[];
+            /** Service Area Neighborhoods */
+            service_area_neighborhoods?: components["schemas"]["ServiceAreaNeighborhood"][];
+            /** Service Area Summary */
+            service_area_summary?: string | null;
+            /** Services */
+            services: components["schemas"]["ServiceResponse"][];
+            /**
+             * Skills Configured
+             * @description Whether skills/pricing were configured at least once
+             * @default false
+             */
+            skills_configured: boolean;
+            /**
+             * Travel Buffer Minutes
+             * @default 60
+             */
+            travel_buffer_minutes: number;
+            /** Updated At */
+            updated_at?: string | null;
+            user: components["schemas"]["UserBasicPrivacy"];
+            /** User Id */
+            user_id: string;
+            /**
+             * Years Experience
+             * @description Years of teaching experience
+             */
+            years_experience: number;
+        };
+        /**
+         * InstructorProfileResponse
+         * @description Private/self instructor profile response with internal identifiers.
          */
         InstructorProfileResponse: {
             /** Background Check Object Key */
@@ -16139,8 +16396,8 @@ export type components = {
              */
             total: number;
         };
-        /** PaginatedResponse[InstructorProfileResponse] */
-        PaginatedResponse_InstructorProfileResponse_: {
+        /** PaginatedResponse[InstructorBookingResponse] */
+        PaginatedResponse_InstructorBookingResponse_: {
             /**
              * Has Next
              * @description Whether there's a next page
@@ -16155,7 +16412,42 @@ export type components = {
              * Items
              * @description List of items
              */
-            items: components["schemas"]["InstructorProfileResponse"][];
+            items: components["schemas"]["InstructorBookingResponse"][];
+            /**
+             * Page
+             * @description Current page number
+             * @default 1
+             */
+            page: number;
+            /**
+             * Per Page
+             * @description Items per page
+             * @default 20
+             */
+            per_page: number;
+            /**
+             * Total
+             * @description Total number of items
+             */
+            total: number;
+        };
+        /** PaginatedResponse[InstructorProfilePublic] */
+        PaginatedResponse_InstructorProfilePublic_: {
+            /**
+             * Has Next
+             * @description Whether there's a next page
+             */
+            has_next: boolean;
+            /**
+             * Has Prev
+             * @description Whether there's a previous page
+             */
+            has_prev: boolean;
+            /**
+             * Items
+             * @description List of items
+             */
+            items: components["schemas"]["InstructorProfilePublic"][];
             /**
              * Page
              * @description Current page number
@@ -17089,6 +17381,9 @@ export type components = {
             label?: string | null;
         };
         PreferredTeachingLocationOut: {
+            [key: string]: unknown;
+        };
+        PreferredTeachingLocationPublicOut: {
             [key: string]: unknown;
         };
         /** PriceFloorConfig */
@@ -20025,6 +20320,18 @@ export type components = {
             id: string;
             /** Last Name */
             last_name: string;
+        };
+        /**
+         * StudentInfoPublic
+         * @description Public student information for instructor-facing booking responses.
+         */
+        StudentInfoPublic: {
+            /** First Name */
+            first_name: string;
+            /** Id */
+            id: string;
+            /** Last Initial */
+            last_initial: string;
         };
         /**
          * SubcategoryBrief
@@ -27565,7 +27872,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedResponse_BookingResponse_"];
+                    "application/json": components["schemas"]["PaginatedResponse_InstructorBookingResponse_"];
                 };
             };
             /** @description Validation Error */
@@ -27599,7 +27906,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedResponse_BookingResponse_"];
+                    "application/json": components["schemas"]["PaginatedResponse_InstructorBookingResponse_"];
                 };
             };
             /** @description Validation Error */
@@ -27633,7 +27940,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedResponse_BookingResponse_"];
+                    "application/json": components["schemas"]["PaginatedResponse_InstructorBookingResponse_"];
                 };
             };
             /** @description Validation Error */
@@ -27667,7 +27974,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedResponse_BookingResponse_"];
+                    "application/json": components["schemas"]["PaginatedResponse_InstructorBookingResponse_"];
                 };
             };
             /** @description Validation Error */
@@ -27701,7 +28008,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BookingResponse"];
+                    "application/json": components["schemas"]["InstructorBookingResponse"];
                 };
             };
             /** @description Booking not found */
@@ -27744,7 +28051,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BookingResponse"];
+                    "application/json": components["schemas"]["InstructorBookingResponse"];
                 };
             };
             /** @description Booking not found */
@@ -27891,7 +28198,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedResponse_InstructorProfileResponse_"];
+                    "application/json": components["schemas"]["PaginatedResponse_InstructorProfilePublic_"];
                 };
             };
             /** @description Invalid filter parameters (e.g., max_price < min_price) */
@@ -28804,7 +29111,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InstructorProfileResponse"];
+                    "application/json": components["schemas"]["InstructorProfilePublic"];
                 };
             };
             /** @description Instructor profile not found */

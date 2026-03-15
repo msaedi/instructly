@@ -65,6 +65,11 @@ async def test_get_pending_completion_bookings(monkeypatch, test_instructor, tes
         db=db, current_user=test_instructor, page=1, per_page=10
     )
     assert result.total == 1
+    student_payload = result.items[0].student.model_dump()
+    expected_last_initial = test_booking.student.last_name[0] if test_booking.student.last_name else ""
+    assert student_payload["last_initial"] == expected_last_initial
+    assert "email" not in student_payload
+    assert "phone" not in student_payload
 
 
 @pytest.mark.asyncio
@@ -86,6 +91,9 @@ async def test_get_upcoming_and_list_bookings(monkeypatch, test_instructor, test
         db=db, current_user=test_instructor, page=1, per_page=10
     )
     assert upcoming.total == 1
+    upcoming_student = upcoming.items[0].student.model_dump()
+    assert "email" not in upcoming_student
+    assert "phone" not in upcoming_student
 
     listed = await routes.list_instructor_bookings(
         db=db,
@@ -98,6 +106,9 @@ async def test_get_upcoming_and_list_bookings(monkeypatch, test_instructor, test
         per_page=10,
     )
     assert listed.total == 1
+    listed_student = listed.items[0].student.model_dump()
+    assert "email" not in listed_student
+    assert "phone" not in listed_student
 
 
 @pytest.mark.asyncio
@@ -188,6 +199,11 @@ async def test_mark_lesson_complete_success(monkeypatch, test_instructor, test_b
         booking_service=_Service(),
     )
     assert result.id == test_booking.id
+    student_payload = result.student.model_dump()
+    expected_last_initial = test_booking.student.last_name[0] if test_booking.student.last_name else ""
+    assert student_payload["last_initial"] == expected_last_initial
+    assert "email" not in student_payload
+    assert "phone" not in student_payload
 
 
 @pytest.mark.asyncio

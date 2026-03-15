@@ -1003,7 +1003,7 @@ def upgrade() -> None:
     payload_type = json_type
     op.create_table(
         "background_jobs",
-        sa.Column("id", sa.Text(), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
         sa.Column("type", sa.Text(), nullable=False),
         sa.Column("payload", payload_type, nullable=False),
         sa.Column("status", sa.Text(), nullable=False, server_default=sa.text("'queued'")),

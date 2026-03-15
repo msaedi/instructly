@@ -10,8 +10,8 @@ import { toast } from 'sonner';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import { BookingList, type BookingListItem } from '@/features/bookings/components/BookingList';
-import type { PaginatedBookingResponse } from '@/features/shared/api/client';
 import { useInstructorBookings } from '@/hooks/queries/useInstructorBookings';
+import type { InstructorBookingResponse } from '@/src/api/generated/instructly.schemas';
 import { useCompleteBooking, useMarkBookingNoShow } from '@/src/api/services/bookings';
 import { queryKeys } from '@/src/api/queryKeys';
 
@@ -21,6 +21,15 @@ type TabValue = 'upcoming' | 'past';
 
 const TAB_PARAM = 'tab';
 const PAGE_SIZE = 50;
+
+type PaginatedInstructorBookings = {
+  items: InstructorBookingResponse[];
+  total: number;
+  page: number;
+  per_page: number;
+  has_next: boolean;
+  has_prev: boolean;
+};
 
 const parseTab = (value: string | null): TabValue => (value === 'past' ? 'past' : 'upcoming');
 
@@ -63,7 +72,7 @@ function BookingsPageImpl() {
     perPage: PAGE_SIZE,
   });
 
-  const pluckBookings = useCallback((payload?: PaginatedBookingResponse): BookingListItem[] => {
+  const pluckBookings = useCallback((payload?: PaginatedInstructorBookings): BookingListItem[] => {
     if (!Array.isArray(payload?.items)) return [];
     return payload.items as BookingListItem[];
   }, []);

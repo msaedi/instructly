@@ -424,8 +424,8 @@ def public_logout(
                 description="User logout",
                 request=request,
             )
-    except PyJWTError:
-        logger.debug("Logout audit skipped: session cookie was not a valid JWT")
+    except PyJWTError as exc:
+        logger.warning("Tampered token during logout: %s", str(exc))
     except Exception:
         logger.warning("Audit log write failed for logout", exc_info=True)
     return resp

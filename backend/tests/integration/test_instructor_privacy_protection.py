@@ -14,7 +14,11 @@ from app.models.user import User
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 from app.schemas.booking import BookingResponse, InstructorInfo
-from app.schemas.instructor import InstructorProfileResponse, UserBasicPrivacy
+from app.schemas.instructor import (
+    InstructorProfilePublic,
+    InstructorProfileResponse,
+    UserBasicPrivacy,
+)
 from app.services.booking_service import BookingService
 from app.services.instructor_service import InstructorService
 from app.services.template_service import TemplateService
@@ -372,9 +376,9 @@ class TestPrivacyRegressionPrevention:
         assert "last_initial" in InstructorInfo.__annotations__
         assert "last_name" not in InstructorInfo.__annotations__
 
-        # Instructor profile endpoints should use UserBasicPrivacy
-        assert hasattr(InstructorProfileResponse, "__annotations__")
-        assert "user" in InstructorProfileResponse.__annotations__
+        # Student-facing instructor profile endpoints should use the public schema
+        assert hasattr(InstructorProfilePublic, "__annotations__")
+        assert "user" in InstructorProfilePublic.__annotations__
         # UserBasicPrivacy should have last_initial, not last_name
         assert hasattr(UserBasicPrivacy, "__annotations__")
         assert "last_initial" in UserBasicPrivacy.__annotations__

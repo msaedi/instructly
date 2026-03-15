@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -138,7 +139,7 @@ def test_create_and_update_instructor_profile(db, test_student, monkeypatch):
         preferred_public_spaces=[PreferredPublicSpaceIn(address="Central Park", label="Park")],
     )
 
-    updated = service.update_instructor_profile(test_student.id, update_data)
+    updated = asyncio.run(service.update_instructor_profile_async(test_student.id, update_data))
     assert updated["services"]
 
 

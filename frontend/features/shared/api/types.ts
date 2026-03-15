@@ -18,6 +18,7 @@ export type User = components['schemas']['AuthUserWithPermissionsResponse'];
 export type Booking = components['schemas']['BookingResponse'];
 export type InstructorProfile = components['schemas']['InstructorProfileResponse'];
 export type InstructorProfileResponse = components['schemas']['InstructorProfileResponse'];
+export type InstructorProfilePublic = components['schemas']['InstructorProfilePublic'];
 
 // Common endpoint payloads
 export type CreateBookingRequest = components['schemas']['BookingCreate'];
@@ -433,5 +434,5 @@ export type AuditLogListResponse = components['schemas']['AuditLogListResponse']
 export type AdminAuditEntry = components['schemas']['AdminAuditEntry'];
 
 // Paginated instructor list
-export type InstructorListResponse = components['schemas']['PaginatedResponse_InstructorProfileResponse_'];
-export type PaginatedInstructorProfileResponse = components['schemas']['PaginatedResponse_InstructorProfileResponse_'];
+export type InstructorListResponse = components['schemas']['PaginatedResponse_InstructorProfilePublic_'];
+export type PaginatedInstructorProfileResponse = components['schemas']['PaginatedResponse_InstructorProfilePublic_'];

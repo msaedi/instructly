@@ -133,6 +133,8 @@ class TestSchemaPrivacyProtection:
         profile.created_at = datetime.now()
         profile.updated_at = None
         profile.services = []
+        profile.identity_verification_session_id = None
+        profile.background_check_object_key = None
 
         # Mock user with proper attributes
         from unittest.mock import PropertyMock

@@ -13,10 +13,10 @@ import {
   useInstructorUpcomingBookings,
   useInstructorCompletedBookings,
 } from '@/src/api/services/instructor-bookings';
-import type { BookingResponse } from '@/src/api/generated/instructly.schemas';
+import type { InstructorBookingResponse } from '@/src/api/generated/instructly.schemas';
 
 type PaginatedBookingResponse = {
-  items: BookingResponse[];
+  items: InstructorBookingResponse[];
   total: number;
   page: number;
   per_page: number;

@@ -1656,6 +1656,7 @@ class TestCheckConflictsStudentBranch:
         svc._resolve_lesson_timezone = MagicMock(return_value="America/New_York")
         svc._validate_location_capability = MagicMock()
         svc._validate_service_area = MagicMock()
+        svc._check_overnight_protection = MagicMock()
 
         svc.repository.check_time_conflict.return_value = []  # no conflicts
 

@@ -25,7 +25,6 @@ Endpoints:
 
 import asyncio
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
 import logging
 from typing import Any, NoReturn, Optional, cast
 
@@ -66,6 +65,7 @@ from ...schemas.booking import (
 from ...schemas.booking_responses import BookingPreviewResponse, SendRemindersResponse
 from ...schemas.pricing_preview import PricingPreviewOut
 from ...services.booking_service import BookingService
+from ...utils.safe_cast import safe_float as _safe_float, safe_str as _safe_str
 
 logger = logging.getLogger(__name__)
 
@@ -80,23 +80,6 @@ def handle_domain_exception(exc: DomainException) -> NoReturn:
     if hasattr(exc, "to_http_exception"):
         raise exc.to_http_exception()
     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
-
-
-def _safe_float(value: object) -> Optional[float]:
-    if value is None:
-        return None
-    if isinstance(value, (int, float, Decimal)):
-        return float(value)
-    if isinstance(value, str):
-        try:
-            return float(value)
-        except ValueError:
-            return None
-    return None
-
-
-def _safe_str(value: object) -> Optional[str]:
-    return value if isinstance(value, str) else None
 
 
 # ============================================================================

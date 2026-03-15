@@ -1649,6 +1649,17 @@ def default_booking_rules_for_tests(monkeypatch):
     )
 
 
+@pytest.fixture(autouse=True)
+def clear_config_service_booking_rules_cache():
+    """Reset the in-memory booking-rules cache between tests."""
+
+    from app.services.config_service import ConfigService
+
+    ConfigService._clear_booking_rules_cache()
+    yield
+    ConfigService._clear_booking_rules_cache()
+
+
 @pytest.fixture
 def test_instructor(db: Session, test_password: str) -> User:
     """Create a test instructor user with profile and services."""

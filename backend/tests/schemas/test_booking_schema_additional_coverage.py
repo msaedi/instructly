@@ -18,6 +18,7 @@ from app.schemas.booking import (
     BookingRescheduleRequest,
     BookingResponse,
     FindBookingOpportunitiesRequest,
+    InstructorBookingResponse,
     PaymentSummary,
     UpcomingBookingResponse,
     UpcomingBookingsListResponse,
@@ -247,6 +248,36 @@ def test_booking_response_payment_summary_mapping() -> None:
     response = BookingResponse(**payload)
 
     assert response.payment_summary is not None
+
+
+def test_instructor_booking_response_uses_public_student_identity() -> None:
+    payload = _base_booking_payload()
+    payload["student"] = SimpleNamespace(
+        id="student-1",
+        first_name="Ava",
+        last_name="Taylor",
+        email="ava@example.com",
+        phone="+15555550123",
+    )
+    payload["instructor"] = SimpleNamespace(
+        id="inst-1",
+        first_name="Sam",
+        last_name="Lee",
+    )
+    payload["instructor_service"] = SimpleNamespace(
+        id="service-1",
+        name="Guitar",
+        description=None,
+    )
+
+    response = InstructorBookingResponse.from_booking(SimpleNamespace(**payload))
+    student_payload = response.student.model_dump()
+
+    assert student_payload == {
+        "id": "student-1",
+        "first_name": "Ava",
+        "last_initial": "T",
+    }
 
 
 def test_booking_create_response_properties() -> None:

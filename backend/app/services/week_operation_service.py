@@ -409,29 +409,8 @@ class WeekOperationService(BaseService):
     def _resolve_actor_payload(
         self, actor: Any | None, default_role: str = "instructor"
     ) -> dict[str, Any]:
-        """Normalize actor metadata for audit entries."""
-        if actor is None:
-            return {"role": default_role}
-
-        if isinstance(actor, dict):
-            actor_id = actor.get("id") or actor.get("actor_id") or actor.get("user_id")
-            raw_role = actor.get("role") or actor.get("actor_role") or actor.get("role_name")
-            resolved_role = str(raw_role) if raw_role is not None else default_role
-            return {"id": actor_id, "role": resolved_role}
-
-        actor_id = getattr(actor, "id", None)
-        role_value: Any = getattr(actor, "role", None) or getattr(actor, "role_name", None)
-        if role_value is None:
-            roles = getattr(actor, "roles", None)
-            if isinstance(roles, (list, tuple)):
-                for role_obj in roles:
-                    candidate = getattr(role_obj, "name", None)
-                    if candidate:
-                        role_value = candidate
-                        break
-        if role_value is None:
-            role_value = default_role
-        return {"id": actor_id, "role": str(role_value)}
+        """Use the shared actor payload helper with instructor-centric defaults."""
+        return super()._resolve_actor_payload(actor, default_role=default_role)
 
     def _week_window_counts(self, instructor_id: str, week_start: date) -> dict[str, int]:
         """Return window counts per day for the target week using bitmap storage."""

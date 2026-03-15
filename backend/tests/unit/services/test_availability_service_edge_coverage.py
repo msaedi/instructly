@@ -48,7 +48,7 @@ class TestSaveWeekBitsMidnightNormalization:
     @patch("app.services.availability_service.get_user_today_by_id")
     @patch("app.services.availability_service.AUDIT_ENABLED", False)
     @patch("app.services.availability_service.invalidate_on_availability_change")
-    @patch.dict("os.environ", {"AVAILABILITY_ALLOW_PAST": "true"})
+    @patch("app.services.availability_service.ALLOW_PAST", True)
     def test_midnight_end_normalized_to_2400(self, mock_inv, mock_today):
         from app.utils.bitset import new_empty_bits
 
@@ -96,7 +96,8 @@ class TestSaveWeekBitsPerfDebug:
     @patch("app.services.availability_service.get_user_today_by_id")
     @patch("app.services.availability_service.AUDIT_ENABLED", False)
     @patch("app.services.availability_service.invalidate_on_availability_change")
-    @patch.dict("os.environ", {"AVAILABILITY_PERF_DEBUG": "1", "AVAILABILITY_ALLOW_PAST": "true"})
+    @patch("app.services.availability_service.PERF_DEBUG", True)
+    @patch("app.services.availability_service.ALLOW_PAST", True)
     def test_perf_debug_branch(self, mock_inv, mock_today):
         from app.utils.bitset import new_empty_bits
 
@@ -635,7 +636,7 @@ class TestSaveWeekBitsCacheUpdate:
     @patch("app.services.availability_service.get_user_today_by_id")
     @patch("app.services.availability_service.AUDIT_ENABLED", False)
     @patch("app.services.availability_service.invalidate_on_availability_change")
-    @patch.dict("os.environ", {"AVAILABILITY_ALLOW_PAST": "true"})
+    @patch("app.services.availability_service.ALLOW_PAST", True)
     def test_cache_update_on_save(self, mock_inv, mock_today):
         """L540-549: cache_service present triggers _persist_week_cache."""
         from app.utils.bitset import new_empty_bits
@@ -672,7 +673,7 @@ class TestSaveWeekBitsCacheUpdate:
     @patch("app.services.availability_service.get_user_today_by_id")
     @patch("app.services.availability_service.AUDIT_ENABLED", False)
     @patch("app.services.availability_service.invalidate_on_availability_change")
-    @patch.dict("os.environ", {"AVAILABILITY_ALLOW_PAST": "true"})
+    @patch("app.services.availability_service.ALLOW_PAST", True)
     def test_cache_error_does_not_crash(self, mock_inv, mock_today):
         """L548-549: cache error is caught and logged."""
         from app.utils.bitset import new_empty_bits

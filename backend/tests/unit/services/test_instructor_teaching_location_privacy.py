@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -28,7 +29,6 @@ def test_teaching_location_sets_approx_and_neighborhood(db, test_instructor, mon
     monkeypatch.setattr(
         "app.services.instructor_service.create_geocoding_provider", lambda *_: FakeProvider()
     )
-    monkeypatch.setattr("app.services.instructor_service.anyio.run", lambda *_: fake_geo)
     monkeypatch.setattr(
         "app.services.instructor_service.jitter_coordinates",
         lambda lat, lng: (lat + 0.001, lng - 0.001),
@@ -43,7 +43,7 @@ def test_teaching_location_sets_approx_and_neighborhood(db, test_instructor, mon
             PreferredTeachingLocationIn(address="225 Cherry St, New York, NY", label="Studio")
         ]
     )
-    service.update_instructor_profile(test_instructor.id, update)
+    asyncio.run(service.update_instructor_profile_async(test_instructor.id, update))
 
     place = (
         db.query(InstructorPreferredPlace)
@@ -141,7 +141,6 @@ def test_teaching_location_recomputes_on_address_change(db, test_instructor, mon
     monkeypatch.setattr(
         "app.services.instructor_service.create_geocoding_provider", lambda *_: FakeProvider()
     )
-    monkeypatch.setattr("app.services.instructor_service.anyio.run", lambda *_: fake_geo)
     monkeypatch.setattr("app.services.instructor_service.jitter_coordinates", jitter_mock)
     monkeypatch.setattr(
         "app.services.instructor_service.LocationEnrichmentService.enrich",
@@ -154,7 +153,7 @@ def test_teaching_location_recomputes_on_address_change(db, test_instructor, mon
         ]
     )
     service = InstructorService(db)
-    service.update_instructor_profile(test_instructor.id, update)
+    asyncio.run(service.update_instructor_profile_async(test_instructor.id, update))
 
     assert jitter_mock.call_count == 1
 

@@ -10,7 +10,7 @@ from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from ._strict_base import StrictModel
-from .instructor import InstructorProfileResponse
+from .instructor import InstructorProfilePublic
 
 
 class FavoriteResponse(StrictModel):
@@ -44,7 +44,7 @@ class FavoritedInstructor(BaseModel):
     email: str = Field(..., description="Instructor email")
     first_name: str = Field(..., description="Instructor first name")
     last_name: str = Field(..., description="Instructor last name")
-    profile: Optional[InstructorProfileResponse] = Field(
+    profile: Optional[InstructorProfilePublic] = Field(
         None, description="Instructor profile details"
     )
     favorited_at: Optional[datetime] = Field(None, description="When this instructor was favorited")

@@ -24,6 +24,7 @@ from app.schemas.instructor import (
     CalendarSettingsResponse,
     InstructorFilterParams,
     InstructorProfileCreate,
+    InstructorProfilePublic,
     InstructorProfileResponse,
     InstructorProfileUpdate,
     PreferredPublicSpaceIn,
@@ -668,6 +669,8 @@ class TestInstructorProfileResponseFromOrm:
         profile.is_live = False
         profile.is_founding_instructor = False
         profile.bgc_status = None
+        profile.identity_verification_session_id = "ivs_test_123"
+        profile.background_check_object_key = "background-checks/test.pdf"
         profile.instructor_services = []
         profile.service_area_neighborhoods = None
 
@@ -693,6 +696,8 @@ class TestInstructorProfileResponseFromOrm:
         assert response.travel_buffer_minutes == 60
         assert response.overnight_protection_enabled is True
         assert response.calendar_settings_acknowledged_at is None
+        assert response.identity_verification_session_id == "ivs_test_123"
+        assert response.background_check_object_key == "background-checks/test.pdf"
 
     def test_from_orm_with_teaching_locations(self) -> None:
         """from_orm should process teaching locations (lines 585-594)."""
@@ -708,14 +713,15 @@ class TestInstructorProfileResponseFromOrm:
         place.neighborhood = "Midtown"
         profile.user.preferred_places = [place]
 
-        response = InstructorProfileResponse.from_orm(profile, include_private_fields=True)
+        response = InstructorProfileResponse.from_orm(profile)
         assert len(response.preferred_teaching_locations) == 1
         loc = response.preferred_teaching_locations[0]
         assert loc.label == "Studio"
         assert loc.approx_lat == 40.7128
+        assert loc.address == "123 Main St"
 
-    def test_from_orm_excludes_address_when_private(self) -> None:
-        """from_orm should exclude address when include_private_fields=False (line 592-593)."""
+    def test_public_from_orm_excludes_sensitive_location_and_internal_fields(self) -> None:
+        """Public from_orm should omit private teaching address and internal identifiers."""
         profile = self._create_mock_profile()
 
         place = MagicMock()
@@ -728,12 +734,14 @@ class TestInstructorProfileResponseFromOrm:
         place.neighborhood = "Midtown"
         profile.user.preferred_places = [place]
 
-        response = InstructorProfileResponse.from_orm(profile, include_private_fields=False)
+        response = InstructorProfilePublic.from_orm(profile)
         assert len(response.preferred_teaching_locations) == 1
         loc = response.preferred_teaching_locations[0]
-        # Address should not be included
         loc_data = loc.model_dump()
+        response_data = response.model_dump()
         assert "address" not in loc_data or loc_data.get("address") is None
+        assert "identity_verification_session_id" not in response_data
+        assert "background_check_object_key" not in response_data
 
     def test_from_orm_with_public_spaces(self) -> None:
         """from_orm should process public spaces (lines 596-601)."""

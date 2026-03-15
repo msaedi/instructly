@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -16,7 +16,12 @@ from app.schemas.instructor import (
     ServiceCreate,
     UpdateCalendarSettings,
 )
-from app.services.instructor_service import InstructorService, get_instructor_service
+from app.services.instructor_service import (
+    InstructorService,
+    PreparedProfileUpdateContext,
+    PreparedTeachingLocationGeocode,
+    get_instructor_service,
+)
 
 
 def _format_prices(rate: float = 60.0, *formats: str) -> list[dict[str, float | str]]:
@@ -124,19 +129,17 @@ def test_update_instructor_profile_auto_bio_variants(skill_names, expected_phras
     services = [_make_service_create(f"cat-{idx}") for idx, _ in enumerate(skill_names)]
     update_data = InstructorProfileUpdate(services=services)
 
-    with patch("app.services.instructor_service.create_geocoding_provider") as provider_mock:
-        provider_mock.return_value = SimpleNamespace(geocode=Mock())
-        with patch("app.services.instructor_service.anyio.run") as anyio_run:
-            anyio_run.return_value = SimpleNamespace(city="Brooklyn")
-            if skill_names:
-                service.catalog_repository.get_by_id.side_effect = [
-                    SimpleNamespace(name=name) for name in skill_names
-                ]
-            with patch("app.services.instructor_service.InstructorLifecycleService"):
-                with patch(
-                    "app.services.instructor_service.invalidate_on_instructor_profile_change"
-                ):
-                    service.update_instructor_profile("user-1", update_data)
+    if skill_names:
+        service.catalog_repository.get_by_id.side_effect = [
+            SimpleNamespace(name=name) for name in skill_names
+        ]
+    with patch("app.services.instructor_service.InstructorLifecycleService"):
+        with patch("app.services.instructor_service.invalidate_on_instructor_profile_change"):
+            service.update_instructor_profile(
+                "user-1",
+                update_data,
+                prepared_context=PreparedProfileUpdateContext(bio_city="Brooklyn"),
+            )
 
     _, kwargs = service.profile_repository.update.call_args
     assert kwargs["bio"] == expected_phrase
@@ -161,14 +164,10 @@ def test_update_instructor_profile_handles_geocode_and_catalog_errors():
 
     update_data = InstructorProfileUpdate(services=[_make_service_create("cat-1")])
 
-    with patch("app.services.instructor_service.create_geocoding_provider", side_effect=Exception("geo")):
-        with patch("app.services.instructor_service.anyio.run", side_effect=Exception("geo")):
-            service.catalog_repository.get_by_id.side_effect = Exception("catalog")
-            with patch("app.services.instructor_service.InstructorLifecycleService"):
-                with patch(
-                    "app.services.instructor_service.invalidate_on_instructor_profile_change"
-                ):
-                    service.update_instructor_profile("user-1", update_data)
+    service.catalog_repository.get_by_id.side_effect = Exception("catalog")
+    with patch("app.services.instructor_service.InstructorLifecycleService"):
+        with patch("app.services.instructor_service.invalidate_on_instructor_profile_change"):
+            service.update_instructor_profile("user-1", update_data)
 
     _, kwargs = service.profile_repository.update.call_args
     assert kwargs["bio"] == "Sam is a New York-based instructor."
@@ -368,14 +367,12 @@ def test_replace_preferred_places_handles_existing_place_error_and_geocoding():
     service.preferred_place_repository.flush = MagicMock()
     service.preferred_place_repository.create_for_kind = MagicMock()
 
-    with patch("app.services.instructor_service.create_geocoding_provider") as provider_mock:
-        provider_mock.return_value = SimpleNamespace(geocode=Mock())
-        with patch("app.services.instructor_service.anyio.run", return_value=None):
-            service._replace_preferred_places(
-                "user-1",
-                "teaching_location",
-                [SimpleNamespace(address="123 Main St", label=" ")],
-            )
+    service._replace_preferred_places(
+        "user-1",
+        "teaching_location",
+        [SimpleNamespace(address="123 Main St", label=" ")],
+        geocoded_locations={},
+    )
 
     _, kwargs = service.preferred_place_repository.create_for_kind.call_args
     assert kwargs["label"] is None
@@ -397,22 +394,29 @@ def test_replace_preferred_places_geocode_and_enrichment_paths():
         state="NY",
     )
 
-    with patch("app.services.instructor_service.create_geocoding_provider") as provider_mock:
-        provider_mock.return_value = SimpleNamespace(geocode=Mock())
-        with patch("app.services.instructor_service.anyio.run", return_value=fake_geo):
-            with patch(
-                "app.services.instructor_service.jitter_coordinates",
-                return_value=(40.71, -74.01),
-            ):
-                with patch(
-                    "app.services.instructor_service.LocationEnrichmentService.enrich",
-                    return_value={"neighborhood": "Chelsea", "district": "Manhattan"},
-                ):
-                    service._replace_preferred_places(
-                        "user-1",
-                        "teaching_location",
-                        [SimpleNamespace(address="456 Broadway", label="Studio")],
+    with patch(
+        "app.services.instructor_service.jitter_coordinates",
+        return_value=(40.71, -74.01),
+    ):
+        with patch(
+            "app.services.instructor_service.LocationEnrichmentService.enrich",
+            return_value={"neighborhood": "Chelsea", "district": "Manhattan"},
+        ):
+            service._replace_preferred_places(
+                "user-1",
+                "teaching_location",
+                [SimpleNamespace(address="456 Broadway", label="Studio")],
+                geocoded_locations={
+                    "456 broadway": PreparedTeachingLocationGeocode(
+                        lat=fake_geo.latitude,
+                        lng=fake_geo.longitude,
+                        place_id=fake_geo.provider_id,
+                        neighborhood=fake_geo.neighborhood,
+                        city=fake_geo.city,
+                        state=fake_geo.state,
                     )
+                },
+            )
 
     _, kwargs = service.preferred_place_repository.create_for_kind.call_args
     assert kwargs["neighborhood"] == "Chelsea, Manhattan"
@@ -495,6 +499,8 @@ def test_profile_to_dict_preferred_places_privacy():
         created_at=None,
         updated_at=None,
         services=[],
+        identity_verification_session_id="ivs_test_123",
+        background_check_object_key="background-checks/test.pdf",
         user=SimpleNamespace(
             id="user-1",
             first_name="Alex",
@@ -504,12 +510,14 @@ def test_profile_to_dict_preferred_places_privacy():
         ),
     )
 
-    result = service._profile_to_dict(profile, include_private_fields=False)
+    result = service._public_profile_to_dict(profile)
 
     assert "address" not in result["preferred_teaching_locations"][0]
     assert result["preferred_teaching_locations"][0]["label"] == "Studio"
     assert result["preferred_teaching_locations"][0]["approx_lat"] == pytest.approx(40.7)
     assert result["preferred_public_spaces"][0]["address"] == "Central Park"
+    assert "identity_verification_session_id" not in result
+    assert "background_check_object_key" not in result
 
 
 def test_invalidate_instructor_caches_no_cache():

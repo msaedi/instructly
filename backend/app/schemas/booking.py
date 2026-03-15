@@ -29,6 +29,7 @@ from ..core.constants import MIN_SESSION_DURATION
 from ..domain.video_utils import JOIN_WINDOW_EARLY_MINUTES, compute_grace_minutes
 from ..models.booking import BookingStatus
 from ..schemas.base import STRICT_SCHEMAS, Money, StandardizedModel
+from ..utils.safe_cast import safe_float as _safe_float, safe_str as _safe_str
 from ._strict_base import StrictModel, StrictRequestModel
 from .common import LocationTypeLiteral
 
@@ -298,7 +299,7 @@ class BookingUpdate(StrictRequestModel):
         return v.strip() if v else v
 
 
-class BookingCancel(BaseModel):
+class BookingCancel(StrictRequestModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Schema for cancelling a booking."""
 
@@ -468,6 +469,25 @@ class StudentInfo(StandardizedModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class StudentInfoPublic(StandardizedModel):
+    """Public student information for instructor-facing booking responses."""
+
+    id: str
+    first_name: str
+    last_initial: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @classmethod
+    def from_user(cls, user: Any) -> "StudentInfoPublic":
+        """Create the instructor-facing student identity payload."""
+        return cls(
+            id=user.id,
+            first_name=user.first_name,
+            last_initial=user.last_name[0] if user.last_name else "",
+        )
+
+
 class InstructorInfo(StandardizedModel):
     """
     Instructor information for booking display.
@@ -532,23 +552,11 @@ def _safe_datetime(value: object) -> Optional[datetime]:
     return value if isinstance(value, datetime) else None
 
 
-def _safe_str(value: object) -> Optional[str]:
-    return value if isinstance(value, str) else None
-
-
 def _safe_int(value: object) -> Optional[int]:
     # Avoid bools (subclass of int) and mocked values.
     if isinstance(value, bool):
         return None
     return value if isinstance(value, int) else None
-
-
-def _safe_float(value: object) -> Optional[float]:
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, (int, float, Decimal)):
-        return float(value)
-    return None
 
 
 def _safe_bool(value: object) -> Optional[bool]:
@@ -690,6 +698,62 @@ class PaymentSummary(StandardizedModel):
     tip_last_updated: Optional[datetime] = None
 
 
+def _build_booking_response_data(
+    booking: Any,
+    *,
+    student_info: StudentInfo | StudentInfoPublic | None,
+    payment_summary: Optional[PaymentSummary] = None,
+) -> dict[str, Any]:
+    """Build the shared booking response payload for audience-specific DTOs."""
+    satellite = _extract_satellite_fields(booking)
+    response_data = {
+        "id": booking.id,
+        "student_id": booking.student_id,
+        "instructor_id": booking.instructor_id,
+        "instructor_service_id": booking.instructor_service_id,
+        "booking_date": booking.booking_date,
+        "start_time": booking.start_time,
+        "end_time": booking.end_time,
+        "service_name": booking.service_name,
+        "hourly_rate": booking.hourly_rate,
+        "total_price": booking.total_price,
+        "duration_minutes": booking.duration_minutes,
+        "status": booking.status,
+        "created_at": booking.created_at,
+        "confirmed_at": booking.confirmed_at,
+        "completed_at": booking.completed_at,
+        "cancelled_at": booking.cancelled_at,
+        "cancelled_by_id": booking.cancelled_by_id,
+        "cancellation_reason": booking.cancellation_reason,
+        "student": student_info,
+        "instructor": InstructorInfo.from_user(booking.instructor) if booking.instructor else None,
+        "instructor_service": BookingServiceInfo.model_validate(booking.instructor_service)
+        if booking.instructor_service
+        else None,
+        "rescheduled_from": None,
+        **satellite,
+    }
+
+    try:
+        res_from = getattr(booking, "rescheduled_from", None)
+        if (
+            res_from is not None
+            and isinstance(getattr(res_from, "id", None), str)
+            and isinstance(getattr(res_from, "booking_date", None), date)
+            and isinstance(getattr(res_from, "start_time", None), time)
+        ):
+            response_data["rescheduled_from"] = RescheduledFromInfo(
+                id=res_from.id,
+                booking_date=res_from.booking_date,
+                start_time=res_from.start_time,
+            )
+    except Exception:
+        response_data["rescheduled_from"] = None
+
+    response_data["payment_summary"] = payment_summary
+    return response_data
+
+
 class BookingResponse(BookingBase):
     """
     Complete booking response with privacy protection.
@@ -765,67 +829,35 @@ class BookingResponse(BookingBase):
         Create BookingResponse from Booking ORM model.
         Handles privacy transformation automatically.
         """
-        # Satellite fields extracted via shared module-level helper
-        satellite = _extract_satellite_fields(booking)
+        return cls(
+            **_build_booking_response_data(
+                booking,
+                student_info=StudentInfo.model_validate(booking.student)
+                if booking.student
+                else None,
+                payment_summary=payment_summary,
+            )
+        )
 
-        response_data = {
-            # Base fields from BookingBase
-            "id": booking.id,
-            "student_id": booking.student_id,
-            "instructor_id": booking.instructor_id,
-            "instructor_service_id": booking.instructor_service_id,
-            # Booking details
-            "booking_date": booking.booking_date,
-            "start_time": booking.start_time,
-            "end_time": booking.end_time,
-            "service_name": booking.service_name,
-            "hourly_rate": booking.hourly_rate,
-            "total_price": booking.total_price,
-            "duration_minutes": booking.duration_minutes,
-            "status": booking.status,
-            # Timestamps
-            "created_at": booking.created_at,
-            "confirmed_at": booking.confirmed_at,
-            "completed_at": booking.completed_at,
-            "cancelled_at": booking.cancelled_at,
-            # Cancellation info
-            "cancelled_by_id": booking.cancelled_by_id,
-            "cancellation_reason": booking.cancellation_reason,
-            # Privacy-protected nested objects
-            "student": StudentInfo.model_validate(booking.student) if booking.student else None,
-            "instructor": InstructorInfo.from_user(booking.instructor)
-            if booking.instructor
-            else None,
-            "instructor_service": BookingServiceInfo.model_validate(booking.instructor_service)
-            if booking.instructor_service
-            else None,
-            # Nested minimal info for annotation
-            "rescheduled_from": None,
-            # Merge all satellite fields
-            **satellite,
-        }
 
-        # Safely include minimal reschedule info only when real values are present
-        try:
-            res_from = getattr(booking, "rescheduled_from", None)
-            if (
-                res_from is not None
-                and isinstance(getattr(res_from, "id", None), str)
-                and isinstance(getattr(res_from, "booking_date", None), date)
-                and isinstance(getattr(res_from, "start_time", None), time)
-            ):
-                response_data["rescheduled_from"] = RescheduledFromInfo(
-                    id=res_from.id,
-                    booking_date=res_from.booking_date,
-                    start_time=res_from.start_time,
-                )
-        except Exception:
-            # If anything is off (e.g., mocks), omit the optional annotation
-            response_data["rescheduled_from"] = None
+class InstructorBookingResponse(BookingResponse):
+    """Instructor-facing booking response with public student identity only."""
 
-        response_data["payment_summary"] = payment_summary
+    student: StudentInfoPublic  # type: ignore[assignment]
 
-        return cls(**response_data)
+    @classmethod
+    def from_booking(
+        cls, booking: Any, payment_summary: Optional[PaymentSummary] = None
+    ) -> "InstructorBookingResponse":
+        return cls(
+            **_build_booking_response_data(
+                booking,
+                student_info=StudentInfoPublic.from_user(booking.student)
+                if booking.student
+                else None,
+                payment_summary=payment_summary,
+            )
+        )
 
 
 class BookingCreateResponse(BookingResponse):
@@ -1085,7 +1117,6 @@ class UpcomingBookingResponse(StandardizedModel):
                 return float(v.amount)
             except Exception:
                 logger.debug("Non-fatal error ignored", exc_info=True)
-        from decimal import Decimal
 
         try:
             return float(Decimal(str(v)))

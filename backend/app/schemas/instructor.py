@@ -157,6 +157,30 @@ class PreferredTeachingLocationOut(BaseModel):
         return data
 
 
+class PreferredTeachingLocationPublicOut(BaseModel):
+    """Public teaching location response payload without precise address."""
+
+    label: Optional[str] = None
+    approx_lat: Optional[float] = None
+    approx_lng: Optional[float] = None
+    neighborhood: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @model_serializer
+    def serialize(self) -> dict[str, Any]:
+        data: dict[str, Any] = {}
+        if self.label is not None:
+            data["label"] = self.label
+        if self.approx_lat is not None:
+            data["approx_lat"] = self.approx_lat
+        if self.approx_lng is not None:
+            data["approx_lng"] = self.approx_lng
+        if self.neighborhood:
+            data["neighborhood"] = self.neighborhood
+        return data
+
+
 class PreferredPublicSpaceOut(PreferredPublicSpaceIn):
     """Preferred public space response payload."""
 
@@ -506,12 +530,11 @@ class CalendarSettingsAcknowledgeResponse(StrictModel):
     calendar_settings_acknowledged_at: datetime | None = None
 
 
-class InstructorProfileResponse(InstructorProfileBase):
+class InstructorProfilePublic(InstructorProfileBase):
     """
-    Schema for instructor profile responses with privacy protection.
+    Public/student-facing instructor profile response.
 
-    Includes all profile data plus relationships and metadata.
-    Student-facing endpoints will show only instructor last initial.
+    Excludes internal verification session IDs and private teaching addresses.
     """
 
     id: str
@@ -535,8 +558,6 @@ class InstructorProfileResponse(InstructorProfileBase):
     identity_verified_at: Optional[datetime] = Field(default=None)
     identity_name_mismatch: bool = Field(default=False)
     bgc_name_mismatch: bool = Field(default=False)
-    identity_verification_session_id: Optional[str] = Field(default=None)
-    background_check_object_key: Optional[str] = Field(default=None)
     background_check_uploaded_at: Optional[datetime] = Field(default=None)
     onboarding_completed_at: Optional[datetime] = Field(default=None)
     is_live: bool = Field(default=False)
@@ -546,7 +567,9 @@ class InstructorProfileResponse(InstructorProfileBase):
     bgc_status: Optional[str] = Field(
         default=None, description="Background check status for public display"
     )
-    preferred_teaching_locations: List[PreferredTeachingLocationOut] = Field(default_factory=list)
+    preferred_teaching_locations: List[PreferredTeachingLocationPublicOut] = Field(
+        default_factory=list
+    )
     preferred_public_spaces: List[PreferredPublicSpaceOut] = Field(default_factory=list)
     service_area_neighborhoods: List[ServiceAreaNeighborhoodOut] = Field(default_factory=list)
     service_area_boroughs: List[str] = Field(default_factory=list)
@@ -685,61 +708,64 @@ class InstructorProfileResponse(InstructorProfileBase):
         return neighborhoods_payload, boroughs
 
     @classmethod
-    def from_orm(
-        cls, instructor_profile: Any, *, include_private_fields: bool = True
-    ) -> "InstructorProfileResponse":
-        """
-        Create InstructorProfileResponse from ORM model with privacy protection.
-
-        Args:
-            instructor_profile: InstructorProfile ORM object with user relationship
-
-        Returns:
-            InstructorProfileResponse with privacy-protected user data
-        """
+    def _preferred_places(cls, instructor_profile: Any) -> list[Any]:
+        """Return preferred places eagerly loaded on the user when available."""
         preferred_places: list[Any] = []
         if hasattr(instructor_profile, "user") and instructor_profile.user is not None:
             preferred_places = getattr(instructor_profile.user, "preferred_places", []) or []
+        return preferred_places
 
-        teaching_locations: List[PreferredTeachingLocationOut] = []
-        public_spaces: List[PreferredPublicSpaceOut] = []
+    @classmethod
+    def _serialize_public_teaching_locations(
+        cls, instructor_profile: Any
+    ) -> List[PreferredTeachingLocationPublicOut]:
+        teaching_locations: List[PreferredTeachingLocationPublicOut] = []
+        preferred_places = cls._preferred_places(instructor_profile)
+        if not preferred_places:
+            return teaching_locations
 
-        if preferred_places:
-            teaching_sorted = sorted(
-                [p for p in preferred_places if getattr(p, "kind", None) == "teaching_location"],
-                key=lambda place: getattr(place, "position", 0),
-            )
-            public_sorted = sorted(
-                [p for p in preferred_places if getattr(p, "kind", None) == "public_space"],
-                key=lambda place: getattr(place, "position", 0),
-            )
-
-            for place in teaching_sorted:
-                payload: dict[str, Any] = {
-                    "label": getattr(place, "label", None),
-                    "approx_lat": getattr(place, "approx_lat", None),
-                    "approx_lng": getattr(place, "approx_lng", None),
-                    "neighborhood": getattr(place, "neighborhood", None),
-                }
-                if include_private_fields:
-                    payload["address"] = getattr(place, "address", None)
-                teaching_locations.append(PreferredTeachingLocationOut(**payload))
-
-            for place in public_sorted:
-                public_spaces.append(
-                    PreferredPublicSpaceOut(
-                        address=getattr(place, "address", ""),
-                    )
+        teaching_sorted = sorted(
+            [p for p in preferred_places if getattr(p, "kind", None) == "teaching_location"],
+            key=lambda place: getattr(place, "position", 0),
+        )
+        for place in teaching_sorted:
+            teaching_locations.append(
+                PreferredTeachingLocationPublicOut(
+                    label=getattr(place, "label", None),
+                    approx_lat=getattr(place, "approx_lat", None),
+                    approx_lng=getattr(place, "approx_lng", None),
+                    neighborhood=getattr(place, "neighborhood", None),
                 )
+            )
+        return teaching_locations
 
+    @classmethod
+    def _serialize_public_spaces(cls, instructor_profile: Any) -> List[PreferredPublicSpaceOut]:
+        public_spaces: List[PreferredPublicSpaceOut] = []
+        preferred_places = cls._preferred_places(instructor_profile)
+        if not preferred_places:
+            return public_spaces
+
+        public_sorted = sorted(
+            [p for p in preferred_places if getattr(p, "kind", None) == "public_space"],
+            key=lambda place: getattr(place, "position", 0),
+        )
+        for place in public_sorted:
+            public_spaces.append(
+                PreferredPublicSpaceOut(
+                    address=getattr(place, "address", ""),
+                    label=getattr(place, "label", None),
+                )
+            )
+        return public_spaces
+
+    @classmethod
+    def _base_payload(cls, instructor_profile: Any) -> dict[str, Any]:
         services_data = cls._serialize_services(instructor_profile)
-
         neighborhoods_payload, boroughs = cls._serialize_neighborhoods(instructor_profile)
-
         neighborhoods_payload, boroughs = cls._serialize_coverage_areas(
             instructor_profile, neighborhoods_payload, boroughs
         )
-
         sorted_boroughs = sorted(boroughs)
         if sorted_boroughs:
             if len(sorted_boroughs) <= 2:
@@ -748,49 +774,107 @@ class InstructorProfileResponse(InstructorProfileBase):
                 service_area_summary = f"{sorted_boroughs[0]} + {len(sorted_boroughs) - 1} more"
         else:
             service_area_summary = None
-
         neighborhoods_output = [entry.model_dump(mode="python") for entry in neighborhoods_payload]
         bgc_status_raw = getattr(instructor_profile, "bgc_status", None)
         bgc_status = bgc_status_raw if isinstance(bgc_status_raw, str) else None
-
-        return cls(
-            id=instructor_profile.id,
-            user_id=instructor_profile.user_id,
-            created_at=instructor_profile.created_at,
-            updated_at=instructor_profile.updated_at,
-            bio=instructor_profile.bio,
-            years_experience=instructor_profile.years_experience,
-            non_travel_buffer_minutes=getattr(instructor_profile, "non_travel_buffer_minutes", 15),
-            travel_buffer_minutes=getattr(instructor_profile, "travel_buffer_minutes", 60),
-            overnight_protection_enabled=getattr(
+        return {
+            "id": instructor_profile.id,
+            "user_id": instructor_profile.user_id,
+            "created_at": instructor_profile.created_at,
+            "updated_at": instructor_profile.updated_at,
+            "bio": instructor_profile.bio,
+            "years_experience": instructor_profile.years_experience,
+            "non_travel_buffer_minutes": getattr(
+                instructor_profile, "non_travel_buffer_minutes", 15
+            ),
+            "travel_buffer_minutes": getattr(instructor_profile, "travel_buffer_minutes", 60),
+            "overnight_protection_enabled": getattr(
                 instructor_profile, "overnight_protection_enabled", True
             ),
-            calendar_settings_acknowledged_at=getattr(
+            "calendar_settings_acknowledged_at": getattr(
                 instructor_profile, "calendar_settings_acknowledged_at", None
             ),
-            user=UserBasicPrivacy.from_user(instructor_profile.user),
-            services=services_data,
-            is_favorited=getattr(instructor_profile, "is_favorited", None),
-            favorited_count=getattr(instructor_profile, "favorited_count", 0),
-            skills_configured=getattr(instructor_profile, "skills_configured", False),
-            identity_verified_at=getattr(instructor_profile, "identity_verified_at", None),
-            identity_name_mismatch=getattr(instructor_profile, "identity_name_mismatch", False),
-            bgc_name_mismatch=getattr(instructor_profile, "bgc_name_mismatch", False),
-            background_check_uploaded_at=getattr(
+            "user": UserBasicPrivacy.from_user(instructor_profile.user),
+            "services": services_data,
+            "is_favorited": getattr(instructor_profile, "is_favorited", None),
+            "favorited_count": getattr(instructor_profile, "favorited_count", 0),
+            "skills_configured": getattr(instructor_profile, "skills_configured", False),
+            "identity_verified_at": getattr(instructor_profile, "identity_verified_at", None),
+            "identity_name_mismatch": getattr(instructor_profile, "identity_name_mismatch", False),
+            "bgc_name_mismatch": getattr(instructor_profile, "bgc_name_mismatch", False),
+            "background_check_uploaded_at": getattr(
                 instructor_profile, "background_check_uploaded_at", None
             ),
-            onboarding_completed_at=getattr(instructor_profile, "onboarding_completed_at", None),
-            is_live=getattr(instructor_profile, "is_live", False),
-            is_founding_instructor=getattr(instructor_profile, "is_founding_instructor", False),
-            bgc_status=bgc_status,
-            preferred_teaching_locations=teaching_locations,
-            preferred_public_spaces=public_spaces,
-            service_area_neighborhoods=neighborhoods_output,
-            service_area_boroughs=sorted_boroughs,
-            service_area_summary=service_area_summary,
+            "onboarding_completed_at": getattr(instructor_profile, "onboarding_completed_at", None),
+            "is_live": getattr(instructor_profile, "is_live", False),
+            "is_founding_instructor": getattr(instructor_profile, "is_founding_instructor", False),
+            "bgc_status": bgc_status,
+            "preferred_public_spaces": cls._serialize_public_spaces(instructor_profile),
+            "service_area_neighborhoods": neighborhoods_output,
+            "service_area_boroughs": sorted_boroughs,
+            "service_area_summary": service_area_summary,
+        }
+
+    @classmethod
+    def from_orm(cls, instructor_profile: Any) -> "InstructorProfilePublic":
+        """Create a public instructor profile response from an ORM model."""
+        payload = cls._base_payload(instructor_profile)
+        payload["preferred_teaching_locations"] = cls._serialize_public_teaching_locations(
+            instructor_profile
         )
+        return cls(**payload)
 
     @field_validator("services")
     def sort_services(cls, v: List[ServiceResponse]) -> List[ServiceResponse]:
         """Sort services by catalog ID for consistent display."""
         return sorted(v, key=lambda s: s.service_catalog_id)
+
+
+class InstructorProfileResponse(InstructorProfilePublic):
+    """Private/self instructor profile response with internal identifiers."""
+
+    preferred_teaching_locations: List[PreferredTeachingLocationOut] = Field(  # type: ignore[assignment]
+        default_factory=list
+    )
+    identity_verification_session_id: Optional[str] = Field(default=None)
+    background_check_object_key: Optional[str] = Field(default=None)
+
+    @classmethod
+    def _serialize_private_teaching_locations(
+        cls, instructor_profile: Any
+    ) -> List[PreferredTeachingLocationOut]:
+        teaching_locations: List[PreferredTeachingLocationOut] = []
+        preferred_places = cls._preferred_places(instructor_profile)
+        if not preferred_places:
+            return teaching_locations
+
+        teaching_sorted = sorted(
+            [p for p in preferred_places if getattr(p, "kind", None) == "teaching_location"],
+            key=lambda place: getattr(place, "position", 0),
+        )
+        for place in teaching_sorted:
+            teaching_locations.append(
+                PreferredTeachingLocationOut(
+                    address=getattr(place, "address", None),
+                    label=getattr(place, "label", None),
+                    approx_lat=getattr(place, "approx_lat", None),
+                    approx_lng=getattr(place, "approx_lng", None),
+                    neighborhood=getattr(place, "neighborhood", None),
+                )
+            )
+        return teaching_locations
+
+    @classmethod
+    def from_orm(cls, instructor_profile: Any) -> "InstructorProfileResponse":
+        """Create a private instructor profile response from an ORM model."""
+        payload = cls._base_payload(instructor_profile)
+        payload["preferred_teaching_locations"] = cls._serialize_private_teaching_locations(
+            instructor_profile
+        )
+        payload["identity_verification_session_id"] = getattr(
+            instructor_profile, "identity_verification_session_id", None
+        )
+        payload["background_check_object_key"] = getattr(
+            instructor_profile, "background_check_object_key", None
+        )
+        return cls(**payload)

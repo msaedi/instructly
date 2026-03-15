@@ -228,6 +228,57 @@ class TestConfigServiceBookingRules:
             assert config == stored_config
             assert updated_at == record_time
 
+    def test_get_booking_rules_config_uses_cache_within_ttl(self) -> None:
+        db = MagicMock()
+        stored_config = deepcopy(DEFAULT_BOOKING_RULES_CONFIG)
+        stored_config["advance_notice_travel_minutes"] = 240
+        record_time = datetime.now(timezone.utc)
+
+        with patch("app.services.config_service.PlatformConfigRepository") as mock_repo_class:
+            mock_repo = MagicMock()
+            mock_record = MagicMock()
+            mock_record.value_json = stored_config
+            mock_record.updated_at = record_time
+            mock_repo.get_by_key.return_value = mock_record
+            mock_repo_class.return_value = mock_repo
+
+            service = ConfigService(db)
+            with patch("app.services.config_service.time.monotonic", side_effect=[100.0, 120.0]):
+                first_config, first_updated_at = service.get_booking_rules_config()
+                first_config["advance_notice_travel_minutes"] = 999
+                second_config, second_updated_at = service.get_booking_rules_config()
+
+            mock_repo.get_by_key.assert_called_once_with("booking_rules")
+            assert first_updated_at == record_time
+            assert second_updated_at == record_time
+            assert second_config["advance_notice_travel_minutes"] == 240
+
+    def test_get_booking_rules_config_refreshes_after_ttl(self) -> None:
+        db = MagicMock()
+        first_config = deepcopy(DEFAULT_BOOKING_RULES_CONFIG)
+        second_config = deepcopy(DEFAULT_BOOKING_RULES_CONFIG)
+        first_config["advance_notice_travel_minutes"] = 180
+        second_config["advance_notice_travel_minutes"] = 300
+        first_time = datetime.now(timezone.utc)
+        second_time = datetime.now(timezone.utc)
+
+        with patch("app.services.config_service.PlatformConfigRepository") as mock_repo_class:
+            mock_repo = MagicMock()
+            first_record = MagicMock(value_json=first_config, updated_at=first_time)
+            second_record = MagicMock(value_json=second_config, updated_at=second_time)
+            mock_repo.get_by_key.side_effect = [first_record, second_record]
+            mock_repo_class.return_value = mock_repo
+
+            service = ConfigService(db)
+            with patch("app.services.config_service.time.monotonic", side_effect=[100.0, 161.0]):
+                cached_config, _cached_updated_at = service.get_booking_rules_config()
+                refreshed_config, refreshed_updated_at = service.get_booking_rules_config()
+
+            assert cached_config["advance_notice_travel_minutes"] == 180
+            assert refreshed_config["advance_notice_travel_minutes"] == 300
+            assert refreshed_updated_at == second_time
+            assert mock_repo.get_by_key.call_count == 2
+
     @pytest.mark.parametrize(
         ("location_type", "expected_minutes"),
         [

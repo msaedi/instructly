@@ -172,6 +172,33 @@ class BaseService:
         update_wrapper(wrapper, func)
         return wrapper
 
+    def _resolve_actor_payload(
+        self, actor: Any | None, default_role: str = "system"
+    ) -> dict[str, Any]:
+        """Normalize actor metadata for audit logging."""
+        if actor is None:
+            return {"role": default_role}
+
+        if isinstance(actor, dict):
+            actor_id = actor.get("id") or actor.get("actor_id") or actor.get("user_id")
+            raw_role = actor.get("role") or actor.get("actor_role") or actor.get("role_name")
+            resolved_role = str(raw_role) if raw_role is not None else default_role
+            return {"id": actor_id, "role": resolved_role}
+
+        actor_id = getattr(actor, "id", None)
+        role_value: Any = getattr(actor, "role", None) or getattr(actor, "role_name", None)
+        if role_value is None:
+            roles = getattr(actor, "roles", None)
+            if isinstance(roles, (list, tuple)):
+                for role_obj in roles:
+                    candidate = getattr(role_obj, "name", None)
+                    if candidate:
+                        role_value = candidate
+                        break
+        if role_value is None:
+            role_value = default_role
+        return {"id": actor_id, "role": str(role_value)}
+
     @staticmethod
     def measure_operation(
         operation_name: str,
@@ -387,9 +414,9 @@ class BaseService:
         for key in keys:
             try:
                 self.cache.delete(key)
-                self.logger.debug(f"Invalidated cache key: {key}")
+                self.logger.debug("Invalidated cache key: %s", key)
             except Exception as e:
-                self.logger.warning(f"Failed to invalidate cache key {key}: {str(e)}")
+                self.logger.warning("Failed to invalidate cache key %s: %s", key, str(e))
 
     def invalidate_pattern(self, pattern: str) -> None:
         """
@@ -403,9 +430,9 @@ class BaseService:
 
         try:
             count = self.cache.delete_pattern(pattern)
-            self.logger.debug(f"Invalidated {count} keys matching pattern: {pattern}")
+            self.logger.debug("Invalidated %s keys matching pattern: %s", count, pattern)
         except Exception as e:
-            self.logger.warning(f"Failed to invalidate pattern {pattern}: {str(e)}")
+            self.logger.warning("Failed to invalidate pattern %s: %s", pattern, str(e))
 
     def log_operation(self, operation: str, **context: Any) -> None:
         """
@@ -418,7 +445,7 @@ class BaseService:
             operation: Operation name
             **context: Additional context to log
         """
-        self.logger.info(f"Operation: {operation}", extra={"operation": operation, **context})
+        self.logger.info("Operation: %s", operation, extra={"operation": operation, **context})
 
     def _record_metric(self, operation: str, elapsed: float, success: bool) -> None:
         """
@@ -491,4 +518,4 @@ class BaseService:
         class_name = self.__class__.__name__
         if class_name in BaseService._class_metrics:
             BaseService._class_metrics[class_name].clear()
-        self.logger.info(f"Metrics reset for {class_name}")
+        self.logger.info("Metrics reset for %s", class_name)

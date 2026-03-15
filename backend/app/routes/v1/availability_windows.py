@@ -32,7 +32,7 @@ import asyncio
 from datetime import date, datetime, timedelta, timezone
 from email.utils import format_datetime
 import logging
-from typing import Any, Callable, Dict, List, Optional, TypeVar, cast
+from typing import Any, Dict, List, Optional, cast
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
 
@@ -87,8 +87,6 @@ from ...services.week_operation_service import WeekOperationService
 from ...utils.bitmap_base64 import decode_bitmap_bytes, encode_bitmap_bytes
 from ...utils.bitset import new_empty_tags
 
-F = TypeVar("F", bound=Callable[..., Any])
-
 ALLOW_PAST = SERVICE_ALLOW_PAST
 EXPOSE_HEADERS = "ETag, Last-Modified, X-Allow-Past"
 
@@ -103,18 +101,6 @@ def _set_bitmap_headers(
     response.headers["Access-Control-Expose-Headers"] = EXPOSE_HEADERS
 
 
-def requires_roles(
-    *roles: str,
-) -> Callable[[F], F]:
-    """Annotate endpoints with required roles (works for sync + async handlers)."""
-
-    def decorator(func: F) -> F:
-        setattr(func, "_required_roles", list(roles))
-        return func
-
-    return decorator
-
-
 logger = logging.getLogger(__name__)
 
 # v1 router - mounted under /api/v1/instructors/availability
@@ -125,7 +111,8 @@ def verify_instructor(current_user: User) -> User:
     """Verify the current user is an instructor."""
     if not current_user.is_instructor:
         logger.warning(
-            f"Non-instructor user {current_user.id} attempted to access instructor-only endpoint"
+            "Non-instructor user %s attempted to access instructor-only endpoint",
+            current_user.id,
         )
         raise HTTPException(status_code=403, detail=ERROR_INSTRUCTOR_ONLY)
     return current_user
@@ -194,7 +181,6 @@ def get_week_availability(
         409: {"description": "Version conflict"},
     },
 )
-@requires_roles("instructor")
 def save_week_availability(
     request: Request,
     response: Response,

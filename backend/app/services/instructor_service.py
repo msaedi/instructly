@@ -9,13 +9,14 @@ UPDATED IN v65: Added performance metrics to all public methods for observabilit
 Now tracks timing for all instructor operations to earn those MEGAWATTS! ⚡
 """
 
+import asyncio
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal
 import logging
 import os
 from typing import Any, Dict, List, Optional, Sequence, Set, cast
 
-import anyio
 from sqlalchemy.orm import Session
 
 from ..core.enums import RoleName
@@ -71,6 +72,28 @@ PRICE_FLOOR_CONFIG_KEYS = {
     SERVICE_FORMAT_INSTRUCTOR_LOCATION: "private_in_person",
     SERVICE_FORMAT_ONLINE: "private_remote",
 }
+
+
+@dataclass
+class PreparedTeachingLocationGeocode:
+    """Async geocoding details prepared for sync profile updates."""
+
+    lat: float | None = None
+    lng: float | None = None
+    place_id: str | None = None
+    neighborhood: str | None = None
+    city: str | None = None
+    state: str | None = None
+
+
+@dataclass
+class PreparedProfileUpdateContext:
+    """Precomputed async context for profile update work."""
+
+    bio_city: str | None = None
+    teaching_location_geocodes: dict[str, PreparedTeachingLocationGeocode] = field(
+        default_factory=dict
+    )
 
 
 class InstructorService(BaseService):
@@ -278,14 +301,18 @@ class InstructorService(BaseService):
             ),
         }
 
-        logger.info(
-            f"Instructor filter request - "
-            f"Filters used: {filter_info['filters_count']}, "
-            f"Search: {filter_info['search']}, "
-            f"Service Catalog: {filter_info['service_catalog']}, "
-            f"Price: {filter_info['price_range']}, "
-            f"Taxonomy: {filter_info['taxonomy_filters']}, "
-            f"Pagination: skip={skip}, limit={limit}"
+        logger.debug(
+            (
+                "Instructor filter request - Filters used: %s, Search: %s, "
+                "Service Catalog: %s, Price: %s, Taxonomy: %s, Pagination: skip=%s, limit=%s"
+            ),
+            filter_info["filters_count"],
+            filter_info["search"],
+            filter_info["service_catalog"],
+            filter_info["price_range"],
+            filter_info["taxonomy_filters"],
+            skip,
+            limit,
         )
 
         # Call repository method with filters
@@ -304,10 +331,9 @@ class InstructorService(BaseService):
         instructors = []
         for profile in profiles:
             # _profile_to_dict with include_inactive_services=False filters out inactive services
-            instructor_dict = self._profile_to_dict(
+            instructor_dict = self._public_profile_to_dict(
                 profile,
                 include_inactive_services=False,
-                include_private_fields=False,
             )
 
             # Only include instructors that have at least one active service after filtering
@@ -393,19 +419,23 @@ class InstructorService(BaseService):
 
         # Log search results for analytics
         if search:
-            logger.info(
-                f"Search '{search}' returned {len(instructors)} active instructors "
-                f"(from {len(profiles)} total matches)"
+            logger.debug(
+                "Search %s returned %d active instructors (from %d total matches)",
+                search,
+                len(instructors),
+                len(profiles),
             )
 
         if service_catalog_id:
-            logger.info(
-                f"Service catalog filter '{service_catalog_id}' returned {len(instructors)} instructors"
+            logger.debug(
+                "Service catalog filter %s returned %d instructors",
+                service_catalog_id,
+                len(instructors),
             )
 
         if min_price is not None or max_price is not None:
             price_range = f"${min_price or 0}-${max_price or 'unlimited'}"
-            logger.info("Price range %s returned %d instructors", price_range, len(instructors))
+            logger.debug("Price range %s returned %d instructors", price_range, len(instructors))
 
         return {"instructors": instructors, "metadata": metadata}
 
@@ -492,7 +522,7 @@ class InstructorService(BaseService):
         if not profile:
             return None
 
-        result = self._profile_to_dict(profile, include_private_fields=False)
+        result = self._public_profile_to_dict(profile)
 
         # Cache for 5 minutes (300 seconds)
         if self.cache_service:
@@ -501,9 +531,163 @@ class InstructorService(BaseService):
 
         return result
 
+    @staticmethod
+    def _extract_profile_basic_updates(update_data: InstructorProfileUpdate) -> dict[str, Any]:
+        """Return profile fields persisted directly on the instructor profile row."""
+        return update_data.model_dump(
+            exclude={"services", "preferred_teaching_locations", "preferred_public_spaces"},
+            exclude_unset=True,
+        )
+
+    @staticmethod
+    def _oxford_join(items: List[str]) -> str:
+        """Join display strings using an Oxford comma."""
+        if not items:
+            return ""
+        if len(items) == 1:
+            return items[0]
+        if len(items) == 2:
+            return f"{items[0]} and {items[1]}"
+        return ", ".join(items[:-1]) + f", and {items[-1]}"
+
+    def _build_auto_bio(
+        self,
+        user_id: str,
+        services: Sequence[ServiceCreate],
+        *,
+        city: str | None = None,
+    ) -> str:
+        """Generate a default bio for instructors completing their profile."""
+        try:
+            user_record = cast("User | None", self.user_repository.get_by_id(user_id))
+            first_name = getattr(user_record, "first_name", "") or ""
+            resolved_city = city or "New York"
+            skill_names: List[str] = []
+            try:
+                for svc in services:
+                    catalog_entry = self.catalog_repository.get_by_id(svc.service_catalog_id)
+                    if catalog_entry and getattr(catalog_entry, "name", None):
+                        skill_names.append(str(catalog_entry.name).strip().lower())
+            except Exception:
+                logger.debug("Non-fatal error ignored", exc_info=True)
+
+            skills_phrase = self._oxford_join(skill_names)
+            if skills_phrase:
+                return f"{first_name} is a {resolved_city}-based {skills_phrase} instructor."
+            return f"{first_name} is a {resolved_city}-based instructor."
+        except Exception as exc:
+            logger.warning(
+                "bio_generation_fallback",
+                extra={"user_id": user_id, "error": str(exc)},
+                exc_info=True,
+            )
+            return "Experienced instructor"
+
+    async def _prepare_profile_update_context(
+        self, user_id: str, update_data: InstructorProfileUpdate
+    ) -> PreparedProfileUpdateContext:
+        """Prepare async geocoding work before the sync persistence path runs."""
+        context = PreparedProfileUpdateContext()
+        provider: Any | None = None
+
+        def _get_provider() -> Any:
+            nonlocal provider
+            if provider is None:
+                provider = create_geocoding_provider()
+            return provider
+
+        basic_updates = self._extract_profile_basic_updates(update_data)
+
+        if update_data.services is not None and "bio" not in basic_updates:
+            profile = await asyncio.to_thread(self.profile_repository.find_one_by, user_id=user_id)
+            missing_bio = not getattr(profile, "bio", None) or not str(profile.bio).strip()
+            if missing_bio:
+                try:
+                    user_record = await asyncio.to_thread(self.user_repository.get_by_id, user_id)
+                    if user_record and getattr(user_record, "zip_code", None):
+                        geocoded = await _get_provider().geocode(user_record.zip_code)
+                        if geocoded and getattr(geocoded, "city", None):
+                            context.bio_city = geocoded.city
+                except Exception:
+                    logger.debug("Non-fatal error ignored", exc_info=True)
+
+        if update_data.preferred_teaching_locations is None:
+            return context
+
+        existing_places_by_address: dict[str, dict[str, Optional[Any]]] = {}
+        try:
+            existing_places = await asyncio.to_thread(
+                self.preferred_place_repository.list_for_instructor_and_kind,
+                user_id,
+                "teaching_location",
+            )
+            for place in existing_places:
+                address_key = str(place.address or "").strip().lower()
+                if address_key:
+                    existing_places_by_address[address_key] = {
+                        "lat": getattr(place, "lat", None),
+                        "lng": getattr(place, "lng", None),
+                        "approx_lat": getattr(place, "approx_lat", None),
+                        "approx_lng": getattr(place, "approx_lng", None),
+                    }
+        except Exception:
+            logger.debug("Non-fatal error loading existing teaching locations", exc_info=True)
+
+        for item in update_data.preferred_teaching_locations:
+            address = item.address.strip()
+            address_key = address.lower()
+            if not address or address_key in context.teaching_location_geocodes:
+                continue
+
+            existing_place = existing_places_by_address.get(address_key, {})
+            has_existing_geo = (
+                existing_place.get("approx_lat") is not None
+                and existing_place.get("approx_lng") is not None
+            ) or (existing_place.get("lat") is not None and existing_place.get("lng") is not None)
+            if has_existing_geo:
+                continue
+
+            try:
+                geocoded = await _get_provider().geocode(address)
+                if geocoded:
+                    context.teaching_location_geocodes[
+                        address_key
+                    ] = PreparedTeachingLocationGeocode(
+                        lat=getattr(geocoded, "latitude", None),
+                        lng=getattr(geocoded, "longitude", None),
+                        place_id=getattr(geocoded, "provider_id", None),
+                        neighborhood=getattr(geocoded, "neighborhood", None),
+                        city=getattr(geocoded, "city", None),
+                        state=getattr(geocoded, "state", None),
+                    )
+            except Exception:
+                logger.debug(
+                    "Non-fatal geocoding error for teaching location",
+                    extra={"address": address},
+                    exc_info=True,
+                )
+
+        return context
+
+    @BaseService.measure_operation("update_instructor_profile_async")
+    async def update_instructor_profile_async(
+        self, user_id: str, update_data: InstructorProfileUpdate
+    ) -> Dict[str, Any]:
+        """Prepare async geocoding work, then persist the update on a worker thread."""
+        prepared_context = await self._prepare_profile_update_context(user_id, update_data)
+        return await asyncio.to_thread(
+            self.update_instructor_profile,
+            user_id,
+            update_data,
+            prepared_context,
+        )
+
     @BaseService.measure_operation("update_instructor_profile")
     def update_instructor_profile(
-        self, user_id: str, update_data: InstructorProfileUpdate
+        self,
+        user_id: str,
+        update_data: InstructorProfileUpdate,
+        prepared_context: PreparedProfileUpdateContext | None = None,
     ) -> Dict[str, Any]:
         """
         Update instructor profile with proper soft delete handling.
@@ -525,65 +709,17 @@ class InstructorService(BaseService):
 
         with self.transaction():
             # Update basic fields (exclude service + preferred place payloads handled separately)
-            basic_updates = update_data.model_dump(
-                exclude={"services", "preferred_teaching_locations", "preferred_public_spaces"},
-                exclude_unset=True,
-            )
+            basic_updates = self._extract_profile_basic_updates(update_data)
 
             # If services are being updated but bio/areas are still empty, set smart defaults
             if update_data.services is not None:
                 missing_bio = not getattr(profile, "bio", None) or not str(profile.bio).strip()
                 if "bio" not in basic_updates and missing_bio:
-                    # Generate a bio like: "John is a New York-based yoga, tennis, and painting instructor."
-                    try:
-                        user_record = cast("User | None", self.user_repository.get_by_id(user_id))
-                        first_name = getattr(user_record, "first_name", "") or ""
-                        # Determine city from zip via geocoding
-                        city = "New York"
-                        try:
-                            if user_record and getattr(user_record, "zip_code", None):
-                                provider = create_geocoding_provider()
-                                geocoded = anyio.run(provider.geocode, user_record.zip_code)
-                                if geocoded and getattr(geocoded, "city", None):
-                                    city = geocoded.city
-                        except Exception:
-                            logger.debug("Non-fatal error ignored", exc_info=True)
-                        # Resolve skill names from catalog ids
-                        skill_names: List[str] = []
-                        try:
-                            for svc in update_data.services or []:
-                                catalog_entry = self.catalog_repository.get_by_id(
-                                    svc.service_catalog_id
-                                )
-                                if catalog_entry and getattr(catalog_entry, "name", None):
-                                    # Use lowercase for natural phrasing (e.g., 'yoga')
-                                    skill_names.append(str(catalog_entry.name).strip().lower())
-                        except Exception:
-                            logger.debug("Non-fatal error ignored", exc_info=True)
-
-                        def _oxford_join(items: List[str]) -> str:
-                            if not items:
-                                return ""
-                            if len(items) == 1:
-                                return items[0]
-                            if len(items) == 2:
-                                return f"{items[0]} and {items[1]}"
-                            return ", ".join(items[:-1]) + f", and {items[-1]}"
-
-                        skills_phrase = _oxford_join(skill_names)
-                        if skills_phrase:
-                            basic_updates[
-                                "bio"
-                            ] = f"{first_name} is a {city}-based {skills_phrase} instructor."
-                        else:
-                            basic_updates["bio"] = f"{first_name} is a {city}-based instructor."
-                    except Exception as e:
-                        logger.warning(
-                            "bio_generation_fallback",
-                            extra={"user_id": user_id, "error": str(e)},
-                            exc_info=True,
-                        )
-                        basic_updates["bio"] = "Experienced instructor"
+                    basic_updates["bio"] = self._build_auto_bio(
+                        user_id,
+                        update_data.services,
+                        city=prepared_context.bio_city if prepared_context else None,
+                    )
 
             if basic_updates:
                 self.profile_repository.update(profile.id, **basic_updates)
@@ -598,6 +734,9 @@ class InstructorService(BaseService):
                     instructor_id=user_id,
                     kind="teaching_location",
                     items=update_data.preferred_teaching_locations,
+                    geocoded_locations=(
+                        prepared_context.teaching_location_geocodes if prepared_context else None
+                    ),
                 )
 
             # Replace preferred public spaces if provided
@@ -1136,6 +1275,8 @@ class InstructorService(BaseService):
         instructor_id: str,
         kind: str,
         items: Sequence[PreferredTeachingLocationIn | PreferredPublicSpaceIn],
+        *,
+        geocoded_locations: dict[str, PreparedTeachingLocationGeocode] | None = None,
     ) -> None:
         """Replace preferred place rows for a given instructor/kind atomically."""
 
@@ -1221,28 +1362,20 @@ class InstructorService(BaseService):
 
                 if approx_lat is None or approx_lng is None:
                     if lat is None or lng is None:
-                        try:
-                            provider = create_geocoding_provider()
-                            geocoded = anyio.run(provider.geocode, address)
-                            if geocoded:
-                                lat = geocoded.latitude
-                                lng = geocoded.longitude
-                                place_id = place_id or getattr(geocoded, "provider_id", None)
+                        prepared_geocode = (geocoded_locations or {}).get(address_key)
+                        if prepared_geocode:
+                            lat = prepared_geocode.lat
+                            lng = prepared_geocode.lng
+                            place_id = place_id or prepared_geocode.place_id
+                            if not neighborhood:
+                                neighborhood = prepared_geocode.neighborhood
                                 if not neighborhood:
-                                    neighborhood = getattr(geocoded, "neighborhood", None) or None
-                                    if not neighborhood:
-                                        city = getattr(geocoded, "city", None)
-                                        state = getattr(geocoded, "state", None)
-                                        if city and state:
-                                            neighborhood = f"{city}, {state}"
-                                        elif city:
-                                            neighborhood = city
-                        except Exception:
-                            logger.debug(
-                                "Non-fatal geocoding error for teaching location",
-                                extra={"address": address},
-                                exc_info=True,
-                            )
+                                    if prepared_geocode.city and prepared_geocode.state:
+                                        neighborhood = (
+                                            f"{prepared_geocode.city}, {prepared_geocode.state}"
+                                        )
+                                    elif prepared_geocode.city:
+                                        neighborhood = prepared_geocode.city
 
                     if lat is not None and lng is not None:
                         approx_lat, approx_lng = jitter_coordinates(float(lat), float(lng))
@@ -1290,7 +1423,6 @@ class InstructorService(BaseService):
         self,
         profile: InstructorProfile,
         include_inactive_services: bool = False,
-        include_private_fields: bool = True,
     ) -> Dict[str, Any]:
         """
         Convert instructor profile to dictionary.
@@ -1345,8 +1477,7 @@ class InstructorService(BaseService):
 
             for place in teaching_places:
                 teaching_entry: Dict[str, Any] = {}
-                if include_private_fields:
-                    teaching_entry["address"] = place.address
+                teaching_entry["address"] = place.address
                 if place.label:
                     teaching_entry["label"] = place.label
                 if getattr(place, "approx_lat", None) is not None:
@@ -1436,6 +1567,10 @@ class InstructorService(BaseService):
             "identity_verified_at": profile.identity_verified_at,
             "identity_name_mismatch": getattr(profile, "identity_name_mismatch", False),
             "bgc_name_mismatch": getattr(profile, "bgc_name_mismatch", False),
+            "identity_verification_session_id": getattr(
+                profile, "identity_verification_session_id", None
+            ),
+            "background_check_object_key": getattr(profile, "background_check_object_key", None),
             "background_check_uploaded_at": getattr(profile, "background_check_uploaded_at", None),
             "onboarding_completed_at": getattr(profile, "onboarding_completed_at", None),
             "is_live": getattr(profile, "is_live", False),
@@ -1477,6 +1612,23 @@ class InstructorService(BaseService):
                 for service in sorted(services, key=lambda s: s.service_catalog_id)
             ],
         }
+
+    def _public_profile_to_dict(
+        self,
+        profile: InstructorProfile,
+        include_inactive_services: bool = False,
+    ) -> Dict[str, Any]:
+        """Convert an instructor profile into the public/student-facing response shape."""
+        profile_data = self._profile_to_dict(
+            profile,
+            include_inactive_services=include_inactive_services,
+        )
+        profile_data.pop("identity_verification_session_id", None)
+        profile_data.pop("background_check_object_key", None)
+        for location in profile_data.get("preferred_teaching_locations", []):
+            if isinstance(location, dict):
+                location.pop("address", None)
+        return profile_data
 
     def _invalidate_instructor_caches(self, user_id: str) -> None:
         """

@@ -23,14 +23,14 @@ import type {
 
 import type {
   BodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost,
-  BookingResponse,
   GetCompletedBookingsApiV1InstructorBookingsCompletedGetParams,
   GetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetParams,
   GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetParams,
   HTTPValidationError,
+  InstructorBookingResponse,
   ListInstructorBookingsApiV1InstructorBookingsGetParams,
   MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams,
-  PaginatedResponseBookingResponse,
+  PaginatedResponseInstructorBookingResponse,
 } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
@@ -63,8 +63,8 @@ export const getListInstructorBookingsApiV1InstructorBookingsGetUrl = (
 export const listInstructorBookingsApiV1InstructorBookingsGet = async (
   params?: ListInstructorBookingsApiV1InstructorBookingsGetParams,
   options?: RequestInit
-): Promise<PaginatedResponseBookingResponse> => {
-  return customFetch<PaginatedResponseBookingResponse>(
+): Promise<PaginatedResponseInstructorBookingResponse> => {
+  return customFetch<PaginatedResponseInstructorBookingResponse>(
     getListInstructorBookingsApiV1InstructorBookingsGetUrl(params),
     {
       ...options,
@@ -243,8 +243,8 @@ export const getGetCompletedBookingsApiV1InstructorBookingsCompletedGetUrl = (
 export const getCompletedBookingsApiV1InstructorBookingsCompletedGet = async (
   params?: GetCompletedBookingsApiV1InstructorBookingsCompletedGetParams,
   options?: RequestInit
-): Promise<PaginatedResponseBookingResponse> => {
-  return customFetch<PaginatedResponseBookingResponse>(
+): Promise<PaginatedResponseInstructorBookingResponse> => {
+  return customFetch<PaginatedResponseInstructorBookingResponse>(
     getGetCompletedBookingsApiV1InstructorBookingsCompletedGetUrl(params),
     {
       ...options,
@@ -429,8 +429,8 @@ export const getGetPendingCompletionBookingsApiV1InstructorBookingsPendingComple
 export const getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet = async (
   params?: GetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetParams,
   options?: RequestInit
-): Promise<PaginatedResponseBookingResponse> => {
-  return customFetch<PaginatedResponseBookingResponse>(
+): Promise<PaginatedResponseInstructorBookingResponse> => {
+  return customFetch<PaginatedResponseInstructorBookingResponse>(
     getGetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetUrl(params),
     {
       ...options,
@@ -660,8 +660,8 @@ export const getGetUpcomingBookingsApiV1InstructorBookingsUpcomingGetUrl = (
 export const getUpcomingBookingsApiV1InstructorBookingsUpcomingGet = async (
   params?: GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetParams,
   options?: RequestInit
-): Promise<PaginatedResponseBookingResponse> => {
-  return customFetch<PaginatedResponseBookingResponse>(
+): Promise<PaginatedResponseInstructorBookingResponse> => {
+  return customFetch<PaginatedResponseInstructorBookingResponse>(
     getGetUpcomingBookingsApiV1InstructorBookingsUpcomingGetUrl(params),
     {
       ...options,
@@ -858,8 +858,8 @@ export const markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost = as
   bookingId: string,
   params?: MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams,
   options?: RequestInit
-): Promise<BookingResponse> => {
-  return customFetch<BookingResponse>(
+): Promise<InstructorBookingResponse> => {
+  return customFetch<InstructorBookingResponse>(
     getMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostUrl(bookingId, params),
     {
       ...options,
@@ -983,8 +983,8 @@ export const disputeCompletionApiV1InstructorBookingsBookingIdDisputePost = asyn
   bookingId: string,
   bodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost: BodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost,
   options?: RequestInit
-): Promise<BookingResponse> => {
-  return customFetch<BookingResponse>(
+): Promise<InstructorBookingResponse> => {
+  return customFetch<InstructorBookingResponse>(
     getDisputeCompletionApiV1InstructorBookingsBookingIdDisputePostUrl(bookingId),
     {
       ...options,

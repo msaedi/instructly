@@ -29,11 +29,12 @@ import type {
   GenerateBioResponse,
   HTTPValidationError,
   InstructorProfileCreate,
+  InstructorProfilePublic,
   InstructorProfileResponse,
   InstructorProfileUpdate,
   InstructorServiceAreaCheckResponse,
   ListInstructorsApiV1InstructorsGetParams,
-  PaginatedResponseInstructorProfileResponse,
+  PaginatedResponseInstructorProfilePublic,
   UpdateCalendarSettings,
 } from '../instructly.schemas';
 
@@ -73,8 +74,8 @@ export const getListInstructorsApiV1InstructorsGetUrl = (
 export const listInstructorsApiV1InstructorsGet = async (
   params: ListInstructorsApiV1InstructorsGetParams,
   options?: RequestInit
-): Promise<PaginatedResponseInstructorProfileResponse> => {
-  return customFetch<PaginatedResponseInstructorProfileResponse>(
+): Promise<PaginatedResponseInstructorProfilePublic> => {
+  return customFetch<PaginatedResponseInstructorProfilePublic>(
     getListInstructorsApiV1InstructorsGetUrl(params),
     {
       ...options,
@@ -980,8 +981,8 @@ export const getGetInstructorApiV1InstructorsInstructorIdGetUrl = (instructorId:
 export const getInstructorApiV1InstructorsInstructorIdGet = async (
   instructorId: string,
   options?: RequestInit
-): Promise<InstructorProfileResponse> => {
-  return customFetch<InstructorProfileResponse>(
+): Promise<InstructorProfilePublic> => {
+  return customFetch<InstructorProfilePublic>(
     getGetInstructorApiV1InstructorsInstructorIdGetUrl(instructorId),
     {
       ...options,

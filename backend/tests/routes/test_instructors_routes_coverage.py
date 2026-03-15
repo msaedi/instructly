@@ -30,12 +30,23 @@ def _profile_payload(*, user_id: str, profile_id: str) -> dict:
         "travel_buffer_minutes": 60,
         "overnight_protection_enabled": True,
         "calendar_settings_acknowledged_at": None,
+        "identity_verification_session_id": "ivs_test_123",
+        "background_check_object_key": "background-checks/test.pdf",
         "user": {
             "id": user_id,
             "first_name": "Taylor",
             "last_name": "Smith",
             "last_initial": "S",
         },
+        "preferred_teaching_locations": [
+            {
+                "label": "Studio",
+                "address": "123 Main St",
+                "approx_lat": 40.7128,
+                "approx_lng": -74.006,
+                "neighborhood": "Midtown",
+            }
+        ],
         "services": [
             {
                 "id": "service-1",
@@ -78,6 +89,9 @@ class _InstructorServiceStub:
 
     def update_instructor_profile(self, *_args, **_kwargs):
         raise DomainException("bad update")
+
+    async def update_instructor_profile_async(self, *_args, **_kwargs):
+        return self.update_instructor_profile(*_args, **_kwargs)
 
     def update_calendar_settings(self, *_args, **_kwargs):
         raise DomainException("bad update")
@@ -218,7 +232,6 @@ async def test_update_profile_requires_instructor(test_student):
             profile_update=InstructorProfileUpdate(),
             current_user=test_student,
             instructor_service=_InstructorServiceStub(),
-            cache_service=None,
         )
     assert exc.value.status_code == 403
 
@@ -231,7 +244,6 @@ async def test_update_profile_domain_exception(test_instructor):
             profile_update=InstructorProfileUpdate(),
             current_user=test_instructor,
             instructor_service=service,
-            cache_service=SimpleNamespace(),
         )
     assert exc.value.status_code == 500
 
@@ -248,7 +260,6 @@ async def test_update_profile_not_found(test_instructor):
             profile_update=InstructorProfileUpdate(),
             current_user=test_instructor,
             instructor_service=service,
-            cache_service=None,
         )
     assert exc.value.status_code == 404
 
@@ -265,7 +276,6 @@ async def test_update_profile_success_dict(test_instructor):
         profile_update=InstructorProfileUpdate(),
         current_user=test_instructor,
         instructor_service=service,
-        cache_service=SimpleNamespace(),
     )
     assert response.id == "profile-1"
 
@@ -396,6 +406,10 @@ async def test_list_instructors_returns_paginated():
     assert response.per_page == 1
     assert response.has_next is True
     assert len(response.items) == 2
+    item_payload = response.items[0].model_dump()
+    assert "identity_verification_session_id" not in item_payload
+    assert "background_check_object_key" not in item_payload
+    assert "address" not in response.items[0].preferred_teaching_locations[0].model_dump()
 
 
 @pytest.mark.asyncio
@@ -599,7 +613,6 @@ async def test_delete_profile_requires_instructor(test_student):
         await instructors_routes.delete_profile(
             current_user=test_student,
             instructor_service=_InstructorServiceStub(),
-            cache_service=None,
         )
     assert exc.value.status_code == 403
 
@@ -610,23 +623,8 @@ async def test_delete_profile_not_found(test_instructor):
         await instructors_routes.delete_profile(
             current_user=test_instructor,
             instructor_service=_InstructorServiceStub(),
-            cache_service=None,
         )
     assert exc.value.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_delete_profile_assigns_cache_service(test_instructor):
-    service = _InstructorServiceStub()
-    service.delete_instructor_profile = lambda *_args, **_kwargs: None
-    cache = SimpleNamespace()
-
-    await instructors_routes.delete_profile(
-        current_user=test_instructor,
-        instructor_service=service,
-        cache_service=cache,
-    )
-    assert service.cache_service is cache
 
 
 @pytest.mark.asyncio
@@ -640,7 +638,6 @@ async def test_delete_profile_raises_unexpected(test_instructor):
         await instructors_routes.delete_profile(
             current_user=test_instructor,
             instructor_service=service,
-            cache_service=None,
         )
 
 
@@ -648,29 +645,37 @@ async def test_delete_profile_raises_unexpected(test_instructor):
 async def test_get_instructor_sets_favorite_counts(test_student):
     service = _InstructorServiceStub()
     favorites = _FavoritesServiceStub()
+    response_headers = {}
     response = await instructors_routes.get_instructor(
         instructor_id="01HF4G12ABCDEF3456789XYZAB",
-        response=SimpleNamespace(headers={}),
+        response=SimpleNamespace(headers=response_headers),
         instructor_service=service,
         favorites_service=favorites,
         current_user=None,
     )
     assert response.favorited_count == 2
     assert response.is_favorited is None
+    assert response_headers["Cache-Control"] == "public, max-age=300"
+    response_payload = response.model_dump()
+    assert "identity_verification_session_id" not in response_payload
+    assert "background_check_object_key" not in response_payload
+    assert "address" not in response.preferred_teaching_locations[0].model_dump()
 
 
 @pytest.mark.asyncio
 async def test_get_instructor_sets_favorite_flag(test_student):
     service = _InstructorServiceStub()
     favorites = _FavoritesServiceStub()
+    response_headers = {}
     response = await instructors_routes.get_instructor(
         instructor_id="01HF4G12ABCDEF3456789XYZAB",
-        response=SimpleNamespace(headers={}),
+        response=SimpleNamespace(headers=response_headers),
         instructor_service=service,
         favorites_service=favorites,
         current_user=test_student,
     )
     assert response.is_favorited is False
+    assert response_headers["Cache-Control"] == "private, max-age=300"
 
 
 @pytest.mark.asyncio

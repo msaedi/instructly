@@ -32,7 +32,7 @@ from ...schemas.favorites import (
     FavoritesList,
     FavoriteStatusResponse,
 )
-from ...schemas.instructor import InstructorProfileResponse
+from ...schemas.instructor import InstructorProfilePublic
 from ...services.cache_service import CacheService
 from ...services.favorites_service import FavoritesService
 
@@ -172,9 +172,7 @@ async def get_favorites(
                 last_name=instructor.last_name,
                 is_active=instructor.is_active,
                 profile=(
-                    InstructorProfileResponse.from_orm(
-                        instructor.instructor_profile, include_private_fields=False
-                    )
+                    InstructorProfilePublic.from_orm(instructor.instructor_profile)
                     if instructor.instructor_profile
                     else None
                 ),
