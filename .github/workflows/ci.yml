@@ -106,14 +106,6 @@ jobs:
         working-directory: frontend
         run: npm run verify:public-env
 
-      - name: Typecheck (default config)
-        working-directory: frontend
-        run: npm run typecheck
-
-      - name: Typecheck (strict)
-        working-directory: frontend
-        run: npm run typecheck:strict
-
       - name: Typecheck (strict-all)
         working-directory: frontend
         run: npm run typecheck:strict-all
