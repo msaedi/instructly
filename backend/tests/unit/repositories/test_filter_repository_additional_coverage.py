@@ -4,6 +4,8 @@ from datetime import date, timedelta
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import pytest
+
 from app.repositories.filter_repository import FilterRepository
 
 
@@ -52,6 +54,13 @@ def test_filter_by_availability_groups_multiple_days_for_same_instructor() -> No
         "inst-1": [today, today + timedelta(days=1)],
         "inst-2": [today],
     }
+
+
+def test_filter_by_availability_requires_dates_without_target_date() -> None:
+    repo = FilterRepository(_db_for_rows([]))
+
+    with pytest.raises(ValueError, match="dates_to_check is required"):
+        repo.filter_by_availability(["inst-1"])
 
 
 def test_check_weekend_availability_groups_duplicate_instructor_rows() -> None:

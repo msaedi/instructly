@@ -87,13 +87,9 @@ def upgrade() -> None:
             server_default=sa.func.now(),
         ),
         sa.PrimaryKeyConstraint("instructor_id", "day_date"),
+        sa.ForeignKeyConstraint(["instructor_id"], ["users.id"], ondelete="CASCADE"),
         sa.CheckConstraint("length(bits) = 36", name="ck_bits_length"),
         sa.CheckConstraint("length(format_tags) = 72", name="ck_format_tags_length"),
-    )
-    op.create_index(
-        "ix_avail_days_instructor_date",
-        "availability_days",
-        ["instructor_id", "day_date"],
     )
 
     # Create blackout_dates table for instructor vacation/unavailable dates

@@ -508,7 +508,15 @@ def test_apply_soft_filtering_time_relax_returns_early(repository: Mock) -> None
 
     candidates = [_candidate(i) for i in range(6)]
 
-    def availability_side_effect(instructor_ids, target_date, time_after, time_before, duration_minutes):
+    def availability_side_effect(
+        instructor_ids,
+        target_date=None,
+        time_after=None,
+        time_before=None,
+        duration_minutes=60,
+        *,
+        dates_to_check=None,
+    ):
         if time_after:
             return {"inst_0": [date.today()], "inst_1": [date.today()]}
         return {iid: [date.today()] for iid in instructor_ids}
@@ -538,7 +546,15 @@ def test_apply_soft_filtering_effective_constraints(repository: Mock) -> None:
 
     candidates = [_candidate(i) for i in range(3)]
 
-    def availability_side_effect(instructor_ids, target_date, time_after, time_before, duration_minutes):
+    def availability_side_effect(
+        instructor_ids,
+        target_date=None,
+        time_after=None,
+        time_before=None,
+        duration_minutes=60,
+        *,
+        dates_to_check=None,
+    ):
         # Tight constraints -> fewer instructors
         if time_after or target_date:
             return {"inst_0": [date.today()]}

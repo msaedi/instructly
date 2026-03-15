@@ -125,7 +125,7 @@ def verify_instructor(current_user: User) -> User:
     """Verify the current user is an instructor."""
     if not current_user.is_instructor:
         logger.warning(
-            f"Non-instructor user {current_user.email} attempted to access instructor-only endpoint"
+            f"Non-instructor user {current_user.id} attempted to access instructor-only endpoint"
         )
         raise HTTPException(status_code=403, detail=ERROR_INSTRUCTOR_ONLY)
     return current_user

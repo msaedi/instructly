@@ -101,16 +101,16 @@ class ConfigService(BaseService):
             key = "overnight_online_earliest_hour"
         return cls._get_booking_rules_int(config, key)
 
-    @classmethod
-    def _resolve_default_buffer_minutes_from_config(
-        cls, config: Dict[str, Any], location_type: str | None = None
+    @BaseService.measure_operation("resolve_default_buffer_minutes_from_config")
+    def resolve_default_buffer_minutes_from_config(
+        self, config: Dict[str, Any], location_type: str | None = None
     ) -> int:
         normalized_location = normalize_location_type(location_type)
         if normalized_location in INSTRUCTOR_TRAVEL_LOCATION_TYPES:
             key = "default_travel_buffer_minutes"
         else:
             key = "default_non_travel_buffer_minutes"
-        return cls._get_booking_rules_int(config, key)
+        return self._get_booking_rules_int(config, key)
 
     @BaseService.measure_operation("get_pricing_config")
     def get_pricing_config(self) -> Tuple[Dict[str, Any], datetime | None]:
@@ -158,4 +158,4 @@ class ConfigService(BaseService):
     @BaseService.measure_operation("get_default_buffer_minutes")
     def get_default_buffer_minutes(self, location_type: str | None = None) -> int:
         config, _updated_at = self.get_booking_rules_config()
-        return self._resolve_default_buffer_minutes_from_config(config, location_type)
+        return self.resolve_default_buffer_minutes_from_config(config, location_type)

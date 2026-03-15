@@ -901,6 +901,8 @@ class TestSoftFiltering:
             time_after: time | None = None,
             time_before: time | None = None,
             duration_minutes: int = 60,
+            *,
+            dates_to_check: list[date] | None = None,
         ) -> dict[str, list[date]]:
             # Strict: date + time constraint returns nothing.
             if target_date is not None and time_after is not None:
@@ -939,7 +941,10 @@ class TestSoftFiltering:
         # Find the first availability call where time was relaxed (time_after=None) but date is still fixed.
         time_relax_index = None
         for idx, call in enumerate(calls):
-            if len(call.args) >= 3 and call.args[1] == target_date and call.args[2] is None:
+            if (
+                call.kwargs.get("target_date") == target_date
+                and call.kwargs.get("time_after") is None
+            ):
                 time_relax_index = idx
                 break
         assert time_relax_index is not None
@@ -947,7 +952,7 @@ class TestSoftFiltering:
         # Find the first availability call where date was relaxed (target_date=None) to check next 7 days.
         date_relax_index = None
         for idx, call in enumerate(calls):
-            if call.kwargs.get("target_date") is None and "target_date" in call.kwargs:
+            if call.kwargs.get("dates_to_check") is not None:
                 date_relax_index = idx
                 break
         assert date_relax_index is not None

@@ -175,10 +175,10 @@ class ConflictChecker(BaseService):
         profile = instructor_profile or self.repository.get_instructor_profile(instructor_id)
         normalized_new_location_type = normalize_location_type(new_location_type)
         booking_rules_config, _updated_at = self.config_service.get_booking_rules_config()
-        travel_default = self.config_service._resolve_default_buffer_minutes_from_config(
+        travel_default = self.config_service.resolve_default_buffer_minutes_from_config(
             booking_rules_config, "student_location"
         )
-        non_travel_default = self.config_service._resolve_default_buffer_minutes_from_config(
+        non_travel_default = self.config_service.resolve_default_buffer_minutes_from_config(
             booking_rules_config, "online"
         )
 
@@ -273,10 +273,10 @@ class ConflictChecker(BaseService):
         )
         normalized_new_location_type = normalize_location_type(new_location_type)
         booking_rules_config, _updated_at = self.config_service.get_booking_rules_config()
-        travel_default = self.config_service._resolve_default_buffer_minutes_from_config(
+        travel_default = self.config_service.resolve_default_buffer_minutes_from_config(
             booking_rules_config, "student_location"
         )
-        non_travel_default = self.config_service._resolve_default_buffer_minutes_from_config(
+        non_travel_default = self.config_service.resolve_default_buffer_minutes_from_config(
             booking_rules_config, "online"
         )
 
@@ -465,6 +465,8 @@ class ConflictChecker(BaseService):
         booking_date: date,
         booking_time: time,
         location_type: str | None = None,
+        *,
+        instructor_profile: InstructorProfile | None = None,
     ) -> Dict[str, Any]:
         """
         Check if booking meets minimum advance booking requirements.
@@ -478,7 +480,7 @@ class ConflictChecker(BaseService):
             Validation result with details
         """
         # Get instructor profile
-        profile = self.repository.get_instructor_profile(instructor_id)
+        profile = instructor_profile or self.repository.get_instructor_profile(instructor_id)
 
         if not profile:
             return {"valid": False, "reason": "Instructor profile not found"}
@@ -587,22 +589,25 @@ class ConflictChecker(BaseService):
                 if start_time < instructor_now.time():
                     errors.append("Cannot book for past time slots (instructor timezone)")
 
+        profile = self.repository.get_instructor_profile(instructor_id)
+
         # Check minimum advance booking
         advance_check = self.check_minimum_advance_booking(
             instructor_id,
             booking_date,
             start_time,
             location_type,
+            instructor_profile=profile,
         )
         if not advance_check["valid"]:
             errors.append(advance_check["reason"])
 
         # Check blackout date
-        if self.check_blackout_date(instructor_id, booking_date):
+        has_blackout = self.check_blackout_date(instructor_id, booking_date)
+        if has_blackout:
             errors.append("Instructor is not available on this date")
 
         # Check for conflicts
-        profile = self.repository.get_instructor_profile(instructor_id)
         conflicts = self.check_booking_conflicts(
             instructor_id,
             booking_date,
@@ -654,7 +659,7 @@ class ConflictChecker(BaseService):
                 "advance_booking": advance_check,
                 "conflicts": conflicts,
                 "student_conflicts": student_conflicts,
-                "has_blackout": self.check_blackout_date(instructor_id, booking_date),
+                "has_blackout": has_blackout,
             },
         }
 

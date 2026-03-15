@@ -71,3 +71,17 @@ def test_get_slot_tag_rejects_wrong_length() -> None:
 def test_get_slot_tag_rejects_out_of_range_slot() -> None:
     with pytest.raises(ValueError, match="slot out of range"):
         get_slot_tag(new_empty_tags(), SLOTS_PER_DAY)
+
+
+@pytest.mark.parametrize(
+    ("start_slot", "count"),
+    [
+        (-1, 6),
+        (0, 0),
+        (0, -1),
+        (SLOTS_PER_DAY - 3, 6),
+    ],
+)
+def test_set_range_tag_rejects_out_of_bounds_ranges(start_slot: int, count: int) -> None:
+    with pytest.raises(ValueError):
+        set_range_tag(new_empty_tags(), start_slot, count, TAG_ONLINE_ONLY)

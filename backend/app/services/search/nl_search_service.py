@@ -382,6 +382,7 @@ class NLSearchService:
         user_location: Optional[Tuple[float, float]] = None,
         limit: int = 20,
         user_id: Optional[str] = None,
+        requester_timezone: Optional[str] = None,
         budget_ms: Optional[int] = None,
         *,
         explicit_skill_levels: Optional[List[str]] = None,
@@ -902,8 +903,9 @@ class NLSearchService:
                 unresolved_info,
                 user_location,
                 limit,
-                effective_taxonomy_filters,
-                subcategory_id,
+                taxonomy_filter_selections=effective_taxonomy_filters,
+                subcategory_id=subcategory_id,
+                requester_timezone=requester_timezone,
             )
             post_openai_ms = int((time.perf_counter() - post_openai_start) * 1000)
             if timer:
@@ -2142,6 +2144,7 @@ class NLSearchService:
         unresolved_info: Optional[UnresolvedLocationInfo],
         user_location: Optional[Tuple[float, float]],
         limit: int,
+        requester_timezone: Optional[str] = None,
         taxonomy_filter_selections: Optional[Dict[str, List[str]]] = None,
         subcategory_id: Optional[str] = None,
     ) -> PostOpenAIData:
@@ -2286,6 +2289,7 @@ class NLSearchService:
                     parsed_query,
                     user_location=user_location,
                     location_resolution=location_resolution,
+                    requester_timezone=requester_timezone,
                 )
             except Exception as exc:
                 logger.error("Filtering failed: %s", exc)
@@ -2739,6 +2743,8 @@ class NLSearchService:
         parsed_query: ParsedQuery,
         user_location: Optional[Tuple[float, float]],
         metrics: SearchMetrics,
+        *,
+        requester_timezone: Optional[str] = None,
     ) -> FilterResult:
         """Apply constraint filters."""
         start = time.time()
@@ -2748,6 +2754,7 @@ class NLSearchService:
                 retrieval_result.candidates,
                 parsed_query,
                 user_location=user_location,
+                requester_timezone=requester_timezone,
             )
         except Exception as e:
             logger.error("Filtering failed: %s", e)

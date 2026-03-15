@@ -9,24 +9,16 @@ Adapted to actual InstaInstru schema:
 """
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, time
 from typing import Dict, List, Optional
 
-import pytz
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.availability_day import AvailabilityDay
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-
-# NYC timezone for availability calculations (platform default)
-NYC_TZ = pytz.timezone("America/New_York")
-
-
-def _get_today_nyc() -> date:
-    """Get today's date in NYC timezone."""
-    return datetime.now(NYC_TZ).date()
+from app.models.user import User
 
 
 class FilterRepository:
@@ -359,6 +351,8 @@ class FilterRepository:
         self,
         instructor_ids: List[str],
         target_date: Optional[date] = None,
+        *,
+        dates_to_check: Optional[List[date]] = None,
         time_after: Optional[time] = None,
         time_before: Optional[time] = None,
         duration_minutes: int = 60,
@@ -384,10 +378,12 @@ class FilterRepository:
 
         if target_date:
             dates_to_check = [target_date]
+        elif dates_to_check is not None:
+            dates_to_check = list(dict.fromkeys(dates_to_check))
+            if not dates_to_check:
+                return {}
         else:
-            # Check next 7 days using NYC timezone
-            today = _get_today_nyc()
-            dates_to_check = [today + timedelta(days=i) for i in range(7)]
+            raise ValueError("dates_to_check is required when target_date is None")
 
         # Single batched query for all instructors and all dates
         query = text(
@@ -551,6 +547,7 @@ class FilterRepository:
                 "format_tags_by_key": {},
                 "bookings_by_key": {},
                 "profiles_by_instructor": {},
+                "timezones_by_instructor": {},
             }
 
         availability_rows = (
@@ -607,11 +604,19 @@ class FilterRepository:
         )
         profiles_by_instructor = {profile.user_id: profile for profile in profiles}
 
+        timezones_by_instructor = {
+            row.id: row.timezone
+            for row in self.db.query(User.id, User.timezone)
+            .filter(User.id.in_(instructor_ids))
+            .all()
+        }
+
         return {
             "bits_by_key": bits_by_key,
             "format_tags_by_key": format_tags_by_key,
             "bookings_by_key": bookings_by_key,
             "profiles_by_instructor": profiles_by_instructor,
+            "timezones_by_instructor": timezones_by_instructor,
         }
 
     # =========================================================================

@@ -93,13 +93,15 @@ def set_slot_tag(tags: bytes, slot: int, tag: int) -> bytes:
 def set_range_tag(tags: bytes, start_slot: int, count: int, tag: int) -> bytes:
     if len(tags) != TAG_BYTES_PER_DAY:
         raise ValueError(f"tags length must be {TAG_BYTES_PER_DAY}")
+    if count <= 0:
+        raise ValueError("count must be greater than 0")
+    if start_slot < 0 or start_slot + count > SLOTS_PER_DAY:
+        raise ValueError("range out of bounds")
     if not (TAG_NONE <= tag <= TAG_RESERVED):
         raise ValueError("tag must be 0-3")
     result = bytearray(tags)
     for i in range(count):
         slot = start_slot + i
-        if not (0 <= slot < SLOTS_PER_DAY):
-            continue
         bit_offset = slot * BITS_PER_TAG
         byte_idx = bit_offset // 8
         bit_pos = bit_offset % 8

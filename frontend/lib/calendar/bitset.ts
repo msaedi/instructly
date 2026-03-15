@@ -147,13 +147,18 @@ export function setRangeTag(tags: DayTags, startSlot: number, count: number, tag
   if (tags.length !== TAG_BYTES_PER_DAY) {
     throw new Error(`tags length must be ${TAG_BYTES_PER_DAY}`);
   }
+  if (count <= 0) {
+    throw new Error('count must be greater than 0');
+  }
+  if (startSlot < 0 || startSlot + count > SLOTS_PER_DAY) {
+    throw new Error('range out of bounds');
+  }
   if (tag < TAG_NONE || tag > TAG_RESERVED) {
     throw new Error('tag must be 0-3');
   }
   const next = tags.slice();
   for (let i = 0; i < count; i += 1) {
     const slot = startSlot + i;
-    if (slot < 0 || slot >= SLOTS_PER_DAY) continue;
     const bitOffset = slot * BITS_PER_TAG;
     const byteIdx = Math.floor(bitOffset / 8);
     const bitPos = bitOffset % 8;

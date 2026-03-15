@@ -264,5 +264,14 @@ describe('bitset', () => {
       expect(() => getSlotTag(new Uint8Array(71), 0)).toThrow('tags length must be 72');
       expect(() => getSlotTag(newEmptyTags(), SLOTS_PER_DAY)).toThrow('slot out of range');
     });
+
+    it.each([
+      [-1, 6],
+      [0, 0],
+      [0, -1],
+      [SLOTS_PER_DAY - 3, 6],
+    ])('rejects invalid tag ranges start=%i count=%i', (startSlot, count) => {
+      expect(() => setRangeTag(newEmptyTags(), startSlot, count, TAG_ONLINE_ONLY)).toThrow();
+    });
   });
 });

@@ -777,6 +777,12 @@ class TestArchitecturalIntegrity:
         assert "ck_bits_length" in constraint_names
         assert "ck_format_tags_length" in constraint_names
         assert table.c.format_tags.server_default is not None
+        assert table.c.instructor_id.foreign_keys
+        assert all(
+            key.target_fullname == "users.id" and key.ondelete == "CASCADE"
+            for key in table.c.instructor_id.foreign_keys
+        )
+        assert "ix_avail_days_instructor_date" not in {index.name for index in table.indexes}
 
 
 # Smoke test to ensure our test setup works

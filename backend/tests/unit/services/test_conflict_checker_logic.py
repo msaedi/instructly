@@ -339,7 +339,7 @@ class TestConflictCheckerValidationRules:
             },
             None,
         )
-        service.config_service._resolve_default_buffer_minutes_from_config.side_effect = [60, 15]
+        service.config_service.resolve_default_buffer_minutes_from_config.side_effect = [60, 15]
 
         service.check_booking_conflicts(
             instructor_id=generate_ulid(),
@@ -350,7 +350,7 @@ class TestConflictCheckerValidationRules:
         )
 
         service.config_service.get_booking_rules_config.assert_called_once_with()
-        assert service.config_service._resolve_default_buffer_minutes_from_config.call_count == 2
+        assert service.config_service.resolve_default_buffer_minutes_from_config.call_count == 2
 
     @pytest.mark.parametrize("buffer_value", [True, False])
     def test_coerce_buffer_minutes_uses_default_for_boolean(self, service, buffer_value: bool):
