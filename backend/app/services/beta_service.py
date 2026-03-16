@@ -24,10 +24,17 @@ AMBIGUOUS = {"0", "O", "1", "I", "L"}
 ALPHABET = [c for c in "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" if c not in AMBIGUOUS]
 
 
+def _site_mode() -> str:
+    return os.getenv("SITE_MODE", "").strip().lower()
+
+
+def _invite_claim_base_url_override() -> str:
+    return os.getenv("INVITE_CLAIM_BASE_URL", "").strip()
+
+
 def _resolve_frontend_origin(base_override: str | None) -> str:
-    site_mode = os.getenv("SITE_MODE", "").strip().lower()
     candidate = base_override or settings.frontend_url
-    if site_mode == "local" and settings.local_beta_frontend_origin:
+    if _site_mode() == "local" and settings.local_beta_frontend_origin:
         return settings.local_beta_frontend_origin
     return candidate
 
@@ -42,14 +49,13 @@ def _resolve_invite_claim_origin(base_override: str | None) -> str:
     3. INVITE_CLAIM_BASE_URL env var (if set)
     4. Fallback to frontend_url
     """
-    site_mode = os.getenv("SITE_MODE", "").strip().lower()
-    if site_mode == "local" and settings.local_beta_frontend_origin:
+    if _site_mode() == "local" and settings.local_beta_frontend_origin:
         return settings.local_beta_frontend_origin.rstrip("/")
 
     # Prefer explicit override, then INVITE_CLAIM_BASE_URL (if explicitly set), then frontend_url
     if base_override:
         base = base_override
-    elif os.getenv("INVITE_CLAIM_BASE_URL"):
+    elif _invite_claim_base_url_override():
         base = settings.invite_claim_base_url
     else:
         base = settings.frontend_url

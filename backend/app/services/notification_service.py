@@ -1319,13 +1319,8 @@ class NotificationService(BaseService):
                 "booking_new_message",
             )
 
-            # Get recipient and sender users using repository pattern
-            from ..repositories.user_repository import UserRepository
-
-            user_repo = UserRepository(self.db)
-
-            recipient = user_repo.get_by_id(recipient_id)
-            sender = user_repo.get_by_id(sender_id)
+            recipient = self.user_repository.get_by_id(recipient_id)
+            sender = self.user_repository.get_by_id(sender_id)
 
             if not recipient or not sender:
                 self.logger.error("Cannot send message notification: users not found")
@@ -1375,7 +1370,7 @@ class NotificationService(BaseService):
                     "service_name": booking.service_name,
                     "message_preview": message_preview,
                     "booking_id": booking.id,
-                    "settings": settings,  # Include settings for frontend URL
+                    "frontend_url": self.frontend_url,
                 }
 
                 # Render template using the template service
@@ -1844,8 +1839,7 @@ class NotificationService(BaseService):
         if template.email_template is None:
             return False
 
-        user_repo = UserRepository(self.db)
-        user = user_repo.get_by_id(user_id)
+        user = self.user_repository.get_by_id(user_id)
         if not user or not getattr(user, "email", None):
             return False
 

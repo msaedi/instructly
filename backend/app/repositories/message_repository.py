@@ -9,7 +9,7 @@ following the TRUE 100% repository pattern.
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import Any, List, Optional, Sequence, Tuple, cast
+from typing import Any, Dict, List, Optional, Sequence, Tuple, cast
 
 from sqlalchemy import and_, func, or_, text
 from sqlalchemy.exc import IntegrityError
@@ -100,6 +100,44 @@ class MessageRepository(BaseRepository[Message]):
         except Exception as e:
             self.logger.error(f"Error counting messages for conversation: {str(e)}")
             raise RepositoryException(f"Failed to count messages for conversation: {str(e)}")
+
+    def batch_get_latest_messages(self, conversation_ids: List[str]) -> Dict[str, Message]:
+        """Fetch the newest non-deleted message for each conversation in one query."""
+        if not conversation_ids:
+            return {}
+
+        try:
+            latest_message_ids = (
+                self.db.query(
+                    Message.id.label("message_id"),
+                    Message.conversation_id.label("conversation_id"),
+                    func.row_number()
+                    .over(
+                        partition_by=Message.conversation_id,
+                        order_by=(Message.created_at.desc(), Message.id.desc()),
+                    )
+                    .label("row_num"),
+                )
+                .filter(
+                    Message.conversation_id.in_(conversation_ids),
+                    Message.is_deleted == False,
+                    Message.deleted_at.is_(None),
+                )
+                .subquery()
+            )
+            messages = (
+                self.db.query(Message)
+                .join(latest_message_ids, Message.id == latest_message_ids.c.message_id)
+                .options(joinedload(Message.sender))
+                .filter(latest_message_ids.c.row_num == 1)
+                .all()
+            )
+            return {message.conversation_id: message for message in messages}
+        except Exception as e:
+            self.logger.error(f"Error fetching latest messages for conversations: {str(e)}")
+            raise RepositoryException(
+                f"Failed to fetch latest messages for conversations: {str(e)}"
+            )
 
     def get_last_message_at_for_conversation(self, conversation_id: str) -> Optional[datetime]:
         """Get the latest message timestamp for a conversation."""

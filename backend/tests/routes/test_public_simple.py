@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from tests._utils.bitmap_avail import seed_day
 
+MISSING_INSTRUCTOR_ID = "01J5ABCDEFGHJKMNPQRSTVWXYZ"
+
 
 def test_public_availability_basic(client, db: Session, test_instructor):
     """Test basic public availability endpoint."""
@@ -82,7 +84,7 @@ def test_public_availability_basic(client, db: Session, test_instructor):
 def test_public_availability_instructor_not_found(client):
     """Test 404 when instructor doesn't exist."""
     response = client.get(
-        "/api/v1/public/instructors/01J5TESTINSTR0000000000999/availability",
+        f"/api/v1/public/instructors/{MISSING_INSTRUCTOR_ID}/availability",
         params={"start_date": date.today().isoformat()},
     )
 

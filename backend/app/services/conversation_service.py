@@ -43,6 +43,7 @@ class CreateConversationResult:
     created: bool
     success: bool = True
     error: Optional[str] = None
+    error_code: Optional[str] = None
 
 
 @dataclass
@@ -548,6 +549,11 @@ class ConversationService(BaseService):
         """
         return self.conversation_repository.batch_get_unread_counts(conversation_ids, user_id)
 
+    @BaseService.measure_operation("batch_get_latest_messages")
+    def batch_get_latest_messages(self, conversation_ids: List[str]) -> Dict[str, Message]:
+        """Get the newest message for each conversation in a single query."""
+        return self.message_repository.batch_get_latest_messages(conversation_ids)
+
     # =========================================================================
     # Methods with context for route layer (no direct DB access needed in routes)
     # =========================================================================
@@ -574,6 +580,15 @@ class ConversationService(BaseService):
         if not instructor.is_instructor:
             return False, "Target user is not an instructor"
         return True, None
+
+    @staticmethod
+    def _conversation_error_code(error: Optional[str]) -> Optional[str]:
+        """Map service-layer conversation validation errors to stable result codes."""
+        if error == "Instructor not found":
+            return "instructor_not_found"
+        if error == "Target user is not an instructor":
+            return "target_not_instructor"
+        return None
 
     @BaseService.measure_operation("create_conversation_with_message")
     def create_conversation_with_message(
@@ -603,6 +618,7 @@ class ConversationService(BaseService):
                 created=False,
                 success=False,
                 error=error,
+                error_code=self._conversation_error_code(error),
             )
 
         with self.transaction():

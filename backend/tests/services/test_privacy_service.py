@@ -178,6 +178,45 @@ class TestPrivacyService:
 
         # Note: No separate student profile to delete in current model
 
+    def test_delete_user_data_reraises_anonymization_failures(
+        self, privacy_service, sample_user_for_privacy, monkeypatch
+    ):
+        """Anonymization failures should abort deletion instead of being swallowed."""
+
+        class _ExplodingUser:
+            def __init__(self, user):
+                self.id = user.id
+                self.is_active = user.is_active
+                self.first_name = user.first_name
+                self.last_name = user.last_name
+                self.email = user.email
+
+            @property
+            def account_status(self):
+                return "active"
+
+            @account_status.setter
+            def account_status(self, value):
+                self._account_status = value
+
+            @property
+            def phone(self):
+                return "+12125550000"
+
+            @phone.setter
+            def phone(self, value):
+                raise RuntimeError("phone explode")
+
+        exploding_user = _ExplodingUser(sample_user_for_privacy)
+        monkeypatch.setattr(
+            privacy_service.user_repository,
+            "get_by_id",
+            lambda _user_id: exploding_user,
+        )
+
+        with pytest.raises(RuntimeError, match="phone explode"):
+            privacy_service.delete_user_data(sample_user_for_privacy.id, delete_account=True)
+
     def test_delete_user_data_anonymizes_bookings(self, privacy_service, sample_user_for_privacy, sample_booking, db):
         """Test that bookings are counted during deletion."""
         user_id = sample_user_for_privacy.id

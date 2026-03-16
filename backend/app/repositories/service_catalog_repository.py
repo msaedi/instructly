@@ -835,6 +835,16 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
             if catalog_id and subcategory_id
         }
 
+    def get_active_catalog_ids(self, catalog_ids: List[str]) -> set[str]:
+        """Return the subset of provided catalog IDs that are currently active."""
+        unique_catalog_ids = [catalog_id for catalog_id in dict.fromkeys(catalog_ids) if catalog_id]
+        if not unique_catalog_ids:
+            return set()
+
+        rows = self.db.query(ServiceCatalog.id).filter(ServiceCatalog.id.in_(unique_catalog_ids))
+        rows = _apply_active_catalog_predicate(rows).all()
+        return {str(catalog_id) for (catalog_id,) in rows if catalog_id}
+
     def search_services_by_name(self, query: str, limit: int = 15) -> List[ServiceCatalog]:
         """Text search across service names for autocomplete.
 

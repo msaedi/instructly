@@ -849,6 +849,148 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
     # User Booking Queries (unchanged)
 
     @cached_method(tier="hot")
+    def _booking_list_query(self) -> Query:
+        """Base booking list query with the related objects needed by API responses."""
+        return self.db.query(Booking).options(
+            joinedload(Booking.student),
+            joinedload(Booking.instructor),
+            joinedload(Booking.instructor_service),
+            selectinload(Booking.payment_detail),
+            selectinload(Booking.no_show_detail),
+            selectinload(Booking.lock_detail),
+            selectinload(Booking.reschedule_detail),
+            selectinload(Booking.dispute),
+            selectinload(Booking.transfer),
+            selectinload(Booking.video_session),
+        )
+
+    def _build_student_bookings_query(
+        self,
+        student_id: str,
+        status: Optional[BookingStatus] = None,
+        upcoming_only: bool = False,
+        exclude_future_confirmed: bool = False,
+        include_past_confirmed: bool = False,
+    ) -> Query:
+        """Build the filtered student-bookings query used by list endpoints."""
+        query = self._booking_list_query().filter(Booking.student_id == student_id)
+
+        status_filter = status
+        if include_past_confirmed and status == BookingStatus.COMPLETED:
+            status_filter = None
+
+        if status_filter:
+            query = query.filter(Booking.status == status_filter)
+
+        if upcoming_only:
+            user_now = get_user_now_by_id(student_id, self.db)
+            now_utc = user_now.astimezone(timezone.utc)
+
+            query = query.filter(
+                Booking.booking_end_utc > now_utc,
+                Booking.status == BookingStatus.CONFIRMED,
+            )
+        elif exclude_future_confirmed:
+            user_now = get_user_now_by_id(student_id, self.db)
+            now_utc = user_now.astimezone(timezone.utc)
+
+            query = query.filter(
+                or_(
+                    Booking.booking_end_utc <= now_utc,
+                    and_(
+                        Booking.booking_end_utc > now_utc,
+                        Booking.status.in_([BookingStatus.CANCELLED, BookingStatus.NO_SHOW]),
+                        Booking.cancellation_reason != "Rescheduled",
+                    ),
+                )
+            )
+        elif include_past_confirmed:
+            user_now = get_user_now_by_id(student_id, self.db)
+            now_utc = user_now.astimezone(timezone.utc)
+
+            query = query.filter(
+                Booking.booking_start_utc <= now_utc,
+                Booking.status == BookingStatus.COMPLETED,
+            )
+
+        if upcoming_only:
+            return query.order_by(Booking.booking_date.asc(), Booking.start_time.asc())
+        return query.order_by(Booking.booking_date.desc(), Booking.start_time.desc())
+
+    def _build_instructor_bookings_query(
+        self,
+        instructor_id: str,
+        status: Optional[BookingStatus] = None,
+        upcoming_only: bool = False,
+        exclude_future_confirmed: bool = False,
+        include_past_confirmed: bool = False,
+        ended_before_utc: Optional[datetime] = None,
+    ) -> Query:
+        """Build the filtered instructor-bookings query used by list endpoints."""
+        query = self._booking_list_query().filter(Booking.instructor_id == instructor_id)
+
+        include_past_confirmed_mode = include_past_confirmed and status == BookingStatus.COMPLETED
+        status_filter = None if include_past_confirmed_mode else status
+
+        if include_past_confirmed_mode:
+            self.logger.debug(
+                "Including chronologically past confirmed lessons for instructor",
+                extra={
+                    "instructor_id": instructor_id,
+                    "upcoming_only": upcoming_only,
+                    "exclude_future_confirmed": exclude_future_confirmed,
+                    "status": getattr(status, "value", status),
+                },
+            )
+
+        if upcoming_only:
+            user_now = get_user_now_by_id(instructor_id, self.db)
+            now_utc = user_now.astimezone(timezone.utc)
+
+            query = query.filter(
+                Booking.booking_end_utc > now_utc,
+                Booking.status == BookingStatus.CONFIRMED,
+            )
+        elif exclude_future_confirmed:
+            user_now = get_user_now_by_id(instructor_id, self.db)
+            now_utc = user_now.astimezone(timezone.utc)
+
+            query = query.filter(
+                or_(
+                    Booking.booking_end_utc <= now_utc,
+                    and_(
+                        Booking.booking_end_utc > now_utc,
+                        Booking.status.in_([BookingStatus.CANCELLED, BookingStatus.NO_SHOW]),
+                    ),
+                )
+            )
+        elif include_past_confirmed_mode:
+            user_now = get_user_now_by_id(instructor_id, self.db)
+            now_utc = user_now.astimezone(timezone.utc)
+
+            query = query.filter(
+                Booking.booking_end_utc <= now_utc,
+                Booking.status.in_(
+                    [
+                        BookingStatus.CONFIRMED,
+                        BookingStatus.COMPLETED,
+                        BookingStatus.NO_SHOW,
+                    ]
+                ),
+            )
+
+        if ended_before_utc is not None:
+            query = query.filter(
+                Booking.booking_end_utc.isnot(None), Booking.booking_end_utc <= ended_before_utc
+            )
+
+        if status_filter:
+            query = query.filter(Booking.status == status_filter)
+
+        if upcoming_only:
+            return query.order_by(Booking.booking_date.asc(), Booking.start_time.asc())
+        return query.order_by(Booking.booking_date.desc(), Booking.start_time.desc())
+
     def get_student_bookings(
         self,
         student_id: str,
@@ -857,95 +999,24 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         exclude_future_confirmed: bool = False,
         include_past_confirmed: bool = False,
         limit: Optional[int] = None,
+        offset: Optional[int] = None,
     ) -> List[Booking]:
         """
         Get bookings for a specific student with advanced filtering.
 
         CACHED: Results are cached for 5 minutes with proper serialization.
-
-        Args:
-            student_id: The student's user ID
-            status: Optional status filter
-            upcoming_only: Only return future bookings
-            exclude_future_confirmed: Exclude future confirmed bookings (for History tab)
-            include_past_confirmed: Include past confirmed bookings (for BookAgain)
-            limit: Optional result limit
-
-        Returns:
-            List of student's bookings
         """
         try:
-            query = (
-                self.db.query(Booking)
-                .options(
-                    joinedload(Booking.student),
-                    joinedload(Booking.instructor),
-                    joinedload(Booking.instructor_service),
-                    selectinload(Booking.payment_detail),
-                    selectinload(Booking.no_show_detail),
-                    selectinload(Booking.lock_detail),
-                    selectinload(Booking.reschedule_detail),
-                    selectinload(Booking.dispute),
-                    selectinload(Booking.transfer),
-                    selectinload(Booking.video_session),
-                )
-                .filter(Booking.student_id == student_id)
+            query = self._build_student_bookings_query(
+                student_id=student_id,
+                status=status,
+                upcoming_only=upcoming_only,
+                exclude_future_confirmed=exclude_future_confirmed,
+                include_past_confirmed=include_past_confirmed,
             )
 
-            # Handle status filter
-            status_filter = status
-            if include_past_confirmed and status == BookingStatus.COMPLETED:
-                status_filter = None
-
-            if status_filter:
-                query = query.filter(Booking.status == status_filter)
-
-            # Handle upcoming_only filter
-            if upcoming_only:
-                # Use UTC datetime to correctly handle midnight-crossing bookings
-                user_now = get_user_now_by_id(student_id, self.db)
-                now_utc = user_now.astimezone(timezone.utc)
-
-                query = query.filter(
-                    Booking.booking_end_utc > now_utc,
-                    Booking.status == BookingStatus.CONFIRMED,
-                )
-
-            # Handle exclude_future_confirmed (for History tab - past bookings + cancelled)
-            elif exclude_future_confirmed:
-                user_now = get_user_now_by_id(student_id, self.db)
-                now_utc = user_now.astimezone(timezone.utc)
-
-                query = query.filter(
-                    or_(
-                        # Bookings that have ended (any status)
-                        Booking.booking_end_utc <= now_utc,
-                        # Future bookings that are cancelled/no-show
-                        and_(
-                            Booking.booking_end_utc > now_utc,
-                            Booking.status.in_([BookingStatus.CANCELLED, BookingStatus.NO_SHOW]),
-                            # Hide reschedule-driven cancellations from student History
-                            Booking.cancellation_reason != "Rescheduled",
-                        ),
-                    )
-                )
-
-            # Handle include_past_confirmed (for BookAgain - only completed past bookings)
-            elif include_past_confirmed:
-                user_now = get_user_now_by_id(student_id, self.db)
-                now_utc = user_now.astimezone(timezone.utc)
-
-                query = query.filter(
-                    Booking.booking_start_utc <= now_utc,
-                    Booking.status == BookingStatus.COMPLETED,
-                )
-
-            # For upcoming lessons, show nearest first (ASC). For history, show latest first (DESC)
-            if upcoming_only:
-                query = query.order_by(Booking.booking_date.asc(), Booking.start_time.asc())
-            else:
-                query = query.order_by(Booking.booking_date.desc(), Booking.start_time.desc())
-
+            if offset:
+                query = query.offset(offset)
             if limit:
                 query = query.limit(limit)
 
@@ -955,6 +1026,34 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.logger.error(f"Error getting student bookings: {str(e)}")
             raise RepositoryException(f"Failed to get student bookings: {str(e)}")
 
+    def get_student_bookings_page(
+        self,
+        student_id: str,
+        *,
+        status: Optional[BookingStatus] = None,
+        upcoming_only: bool = False,
+        exclude_future_confirmed: bool = False,
+        include_past_confirmed: bool = False,
+        page: int = 1,
+        per_page: int = 20,
+    ) -> Tuple[List[Booking], int]:
+        """Return one page of student bookings plus the filtered total count."""
+        try:
+            offset = max(0, (page - 1) * per_page)
+            query = self._build_student_bookings_query(
+                student_id=student_id,
+                status=status,
+                upcoming_only=upcoming_only,
+                exclude_future_confirmed=exclude_future_confirmed,
+                include_past_confirmed=include_past_confirmed,
+            )
+            total = int(query.order_by(None).count())
+            items = cast(List[Booking], query.offset(offset).limit(per_page).all())
+            return items, total
+        except Exception as exc:
+            self.logger.error(f"Error paginating student bookings: {str(exc)}")
+            raise RepositoryException(f"Failed to paginate student bookings: {str(exc)}")
+
     def get_instructor_bookings(
         self,
         instructor_id: str,
@@ -963,109 +1062,23 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         exclude_future_confirmed: bool = False,
         include_past_confirmed: bool = False,
         limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        ended_before_utc: Optional[datetime] = None,
     ) -> List[Booking]:
         """
         Get bookings for a specific instructor with advanced filtering.
-
-        Args:
-            instructor_id: The instructor's user ID
-            status: Optional status filter
-            upcoming_only: Only return future bookings
-            exclude_future_confirmed: Exclude future confirmed bookings (for History tab)
-            include_past_confirmed: Include past confirmed bookings (for BookAgain)
-            limit: Optional result limit
-
-        Returns:
-            List of instructor's bookings
         """
         try:
-            query = (
-                self.db.query(Booking)
-                .options(
-                    joinedload(Booking.student),
-                    joinedload(Booking.instructor),
-                    joinedload(Booking.instructor_service),
-                    selectinload(Booking.payment_detail),
-                    selectinload(Booking.no_show_detail),
-                    selectinload(Booking.lock_detail),
-                    selectinload(Booking.reschedule_detail),
-                    selectinload(Booking.dispute),
-                    selectinload(Booking.transfer),
-                    selectinload(Booking.video_session),
-                )
-                .filter(Booking.instructor_id == instructor_id)
+            query = self._build_instructor_bookings_query(
+                instructor_id=instructor_id,
+                status=status,
+                upcoming_only=upcoming_only,
+                exclude_future_confirmed=exclude_future_confirmed,
+                include_past_confirmed=include_past_confirmed,
+                ended_before_utc=ended_before_utc,
             )
-
-            include_past_confirmed_mode = (
-                include_past_confirmed and status == BookingStatus.COMPLETED
-            )
-            status_filter = None if include_past_confirmed_mode else status
-
-            if include_past_confirmed_mode:
-                self.logger.debug(
-                    "Including chronologically past confirmed lessons for instructor",
-                    extra={
-                        "instructor_id": instructor_id,
-                        "upcoming_only": upcoming_only,
-                        "exclude_future_confirmed": exclude_future_confirmed,
-                        "status": getattr(status, "value", status),
-                    },
-                )
-
-            # Handle upcoming_only filter
-            if upcoming_only:
-                # Use UTC datetime to correctly handle midnight-crossing bookings
-                user_now = get_user_now_by_id(instructor_id, self.db)
-                now_utc = user_now.astimezone(timezone.utc)
-
-                query = query.filter(
-                    Booking.booking_end_utc > now_utc,
-                    Booking.status == BookingStatus.CONFIRMED,
-                )
-
-            # Handle exclude_future_confirmed (for History tab - past bookings + cancelled)
-            elif exclude_future_confirmed:
-                user_now = get_user_now_by_id(instructor_id, self.db)
-                now_utc = user_now.astimezone(timezone.utc)
-
-                query = query.filter(
-                    or_(
-                        # Bookings that have ended (any status)
-                        Booking.booking_end_utc <= now_utc,
-                        # Future bookings that are cancelled/no-show
-                        and_(
-                            Booking.booking_end_utc > now_utc,
-                            Booking.status.in_([BookingStatus.CANCELLED, BookingStatus.NO_SHOW]),
-                        ),
-                    )
-                )
-
-            # Handle include_past_confirmed (for BookAgain - only completed past bookings)
-            elif include_past_confirmed_mode:
-                user_now = get_user_now_by_id(instructor_id, self.db)
-                now_utc = user_now.astimezone(timezone.utc)
-
-                query = query.filter(
-                    Booking.booking_end_utc <= now_utc,
-                    Booking.status.in_(
-                        [
-                            BookingStatus.CONFIRMED,
-                            BookingStatus.COMPLETED,
-                            BookingStatus.NO_SHOW,
-                        ]
-                    ),
-                )
-
-            # Apply basic status filtering only when not using include_past_confirmed overrides
-            if status_filter:
-                query = query.filter(Booking.status == status_filter)
-
-            # For upcoming lessons, show nearest first (ASC). For history, show latest first (DESC)
-            if upcoming_only:
-                query = query.order_by(Booking.booking_date.asc(), Booking.start_time.asc())
-            else:
-                query = query.order_by(Booking.booking_date.desc(), Booking.start_time.desc())
-
+            if offset:
+                query = query.offset(offset)
             if limit:
                 query = query.limit(limit)
 
@@ -1074,6 +1087,36 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         except Exception as e:
             self.logger.error(f"Error getting instructor bookings: {str(e)}")
             raise RepositoryException(f"Failed to get instructor bookings: {str(e)}")
+
+    def get_instructor_bookings_page(
+        self,
+        instructor_id: str,
+        *,
+        status: Optional[BookingStatus] = None,
+        upcoming_only: bool = False,
+        exclude_future_confirmed: bool = False,
+        include_past_confirmed: bool = False,
+        page: int = 1,
+        per_page: int = 20,
+        ended_before_utc: Optional[datetime] = None,
+    ) -> Tuple[List[Booking], int]:
+        """Return one page of instructor bookings plus the filtered total count."""
+        try:
+            offset = max(0, (page - 1) * per_page)
+            query = self._build_instructor_bookings_query(
+                instructor_id=instructor_id,
+                status=status,
+                upcoming_only=upcoming_only,
+                exclude_future_confirmed=exclude_future_confirmed,
+                include_past_confirmed=include_past_confirmed,
+                ended_before_utc=ended_before_utc,
+            )
+            total = int(query.order_by(None).count())
+            items = cast(List[Booking], query.offset(offset).limit(per_page).all())
+            return items, total
+        except Exception as exc:
+            self.logger.error(f"Error paginating instructor bookings: {str(exc)}")
+            raise RepositoryException(f"Failed to paginate instructor bookings: {str(exc)}")
 
     def get_instructor_future_bookings(
         self,

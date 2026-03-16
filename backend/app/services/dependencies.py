@@ -104,7 +104,7 @@ def get_email_service(
 ) -> EmailService | ConsoleEmailService:
     provider = getattr(settings, "email_provider", "console").lower()
     missing_key = not secret_or_plain(settings.resend_api_key).strip()
-    site_mode = getattr(settings, "site_mode", "local")
+    site_mode = (os.getenv("SITE_MODE", "") or getattr(settings, "site_mode", "local")).lower()
     is_ci = os.getenv("CI") == "true"
     if provider == "console" or missing_key or (site_mode in {"int", "local"} and is_ci):
         return ConsoleEmailService()

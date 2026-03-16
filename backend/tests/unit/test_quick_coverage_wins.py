@@ -396,38 +396,58 @@ class TestFunnelAnalyticsPeriod:
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
 class TestNotificationProviderShouldRaise:
-    def test_no_env_var(self):
-        """L42: No env var returns False."""
-        from app.services.notification_provider import _should_raise
+    def test_no_configured_tokens(self):
+        """No configured tokens returns False."""
+        from app.services import notification_provider
 
-        with patch.dict("os.environ", {}, clear=True):
-            assert _should_raise("test_event", "key_123") is False
+        with patch.object(notification_provider, "NOTIFICATION_PROVIDER_RAISE_ON", ()):
+            assert notification_provider._should_raise("test_event", "key_123") is False
 
-    def test_empty_env_var(self):
-        """L46-47: Empty string env var returns False."""
-        from app.services.notification_provider import _should_raise
+    def test_empty_configured_tokens(self):
+        """Whitespace-only config collapses to an empty token set."""
+        from app.services import notification_provider
 
-        with patch.dict("os.environ", {"NOTIFICATION_PROVIDER_RAISE_ON": "  , , "}):
+        with patch.object(notification_provider, "NOTIFICATION_PROVIDER_RAISE_ON", ("  ", "")):
             # All tokens are whitespace → empty set → False
-            result = _should_raise("test_event", "key_123")
+            result = notification_provider._should_raise("test_event", "key_123")
             assert result is False
 
     def test_wildcard_match(self):
         """Wildcard '*' should match everything."""
-        from app.services.notification_provider import _should_raise
+        from app.services import notification_provider
 
-        with patch.dict("os.environ", {"NOTIFICATION_PROVIDER_RAISE_ON": "*"}):
-            assert _should_raise("any_event", "any_key") is True
+        with patch.object(notification_provider, "NOTIFICATION_PROVIDER_RAISE_ON", ("*",)):
+            assert notification_provider._should_raise("any_event", "any_key") is True
 
     def test_event_type_match(self):
         """Exact event_type match."""
-        from app.services.notification_provider import _should_raise
+        from app.services import notification_provider
 
-        with patch.dict(
-            "os.environ", {"NOTIFICATION_PROVIDER_RAISE_ON": "booking_confirmed"}
+        with patch.object(
+            notification_provider,
+            "NOTIFICATION_PROVIDER_RAISE_ON",
+            ("booking_confirmed",),
         ):
-            assert _should_raise("booking_confirmed", "key_123") is True
-            assert _should_raise("other_event", "key_123") is False
+            assert notification_provider._should_raise("booking_confirmed", "key_123") is True
+            assert notification_provider._should_raise("other_event", "key_123") is False
+
+    def test_idempotency_key_match(self):
+        """Exact idempotency_key match should trigger."""
+        from app.services import notification_provider
+
+        with patch.object(notification_provider, "NOTIFICATION_PROVIDER_RAISE_ON", ("key_123",)):
+            assert notification_provider._should_raise("other_event", "key_123") is True
+
+    def test_partial_idempotency_key_match_requires_long_token(self):
+        """Short partial tokens do not match; longer ones still do."""
+        from app.services import notification_provider
+
+        with patch.object(notification_provider, "NOTIFICATION_PROVIDER_RAISE_ON", ("key",)):
+            assert notification_provider._should_raise("other_event", "key_123") is False
+
+        with patch.object(notification_provider, "NOTIFICATION_PROVIDER_RAISE_ON", ("key_1",)):
+            assert notification_provider._should_raise("test_event", "abc") is False
+            assert notification_provider._should_raise("other_event", "key_123") is True
 
 
 # ---------------------------------------------------------------------------

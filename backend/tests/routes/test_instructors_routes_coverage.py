@@ -82,7 +82,10 @@ class _InstructorServiceStub:
         self.cache_service = None
 
     def create_instructor_profile(self, *_args, **_kwargs):
-        raise Exception("already exists")
+        raise BusinessRuleException(
+            "Instructor profile already exists",
+            code="instructor_profile_exists",
+        )
 
     def get_instructor_profile(self, *_args, **_kwargs):
         raise NotFoundException("not found")

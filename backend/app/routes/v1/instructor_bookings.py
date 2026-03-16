@@ -17,7 +17,7 @@ Endpoints:
 import asyncio
 from datetime import datetime, timezone
 import logging
-from typing import List, Optional, cast
+from typing import List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from fastapi.params import Path
@@ -60,30 +60,27 @@ def check_permission(user: User, permission: PermissionName, db: Session) -> Non
         )
 
 
-def _get_booking_end_utc(booking: Booking) -> datetime:
-    if booking.booking_end_utc is None:
-        raise ValueError(f"Booking {booking.id} missing booking_end_utc")
-    return cast(datetime, booking.booking_end_utc)
-
-
 def _paginate_bookings(
     bookings: List[Booking],
     *,
     page: int,
     per_page: int,
+    total: Optional[int] = None,
 ) -> PaginatedResponse[InstructorBookingResponse]:
-    """Paginate booking results."""
-    total = len(bookings)
-    start = (page - 1) * per_page
-    end = start + per_page
-    paginated = bookings[start:end]
+    """Paginate booking results or wrap an already paginated result set."""
+    total_items = len(bookings) if total is None else total
+    paginated = bookings
+    if total is None:
+        start = (page - 1) * per_page
+        end = start + per_page
+        paginated = bookings[start:end]
 
     return PaginatedResponse(
         items=[InstructorBookingResponse.from_booking(b) for b in paginated],
-        total=total,
+        total=total_items,
         page=page,
         per_page=per_page,
-        has_next=end < total,
+        has_next=page * per_page < total_items,
         has_prev=page > 1,
     )
 
@@ -116,16 +113,15 @@ async def get_pending_completion_bookings(
 
     booking_repo = RepositoryFactory.create_booking_repository(db)
 
-    bookings = await asyncio.to_thread(
-        booking_repo.get_instructor_bookings,
+    bookings, total = await asyncio.to_thread(
+        booking_repo.get_instructor_bookings_page,
         instructor_id=current_user.id,
         status=BookingStatus.CONFIRMED,
+        page=page,
+        per_page=per_page,
+        ended_before_utc=datetime.now(timezone.utc),
     )
-
-    now = datetime.now(timezone.utc)
-    pending_bookings = [booking for booking in bookings if _get_booking_end_utc(booking) <= now]
-
-    return _paginate_bookings(pending_bookings, page=page, per_page=per_page)
+    return _paginate_bookings(bookings, page=page, per_page=per_page, total=total)
 
 
 @router.get(
@@ -143,13 +139,15 @@ async def get_upcoming_bookings(
     check_permission(current_user, PermissionName.VIEW_INCOMING_BOOKINGS, db)
     booking_repo = RepositoryFactory.create_booking_repository(db)
 
-    bookings = await asyncio.to_thread(
-        booking_repo.get_instructor_bookings,
+    bookings, total = await asyncio.to_thread(
+        booking_repo.get_instructor_bookings_page,
         instructor_id=current_user.id,
         status=BookingStatus.CONFIRMED,
         upcoming_only=True,
+        page=page,
+        per_page=per_page,
     )
-    return _paginate_bookings(bookings, page=page, per_page=per_page)
+    return _paginate_bookings(bookings, page=page, per_page=per_page, total=total)
 
 
 @router.get(
@@ -167,14 +165,16 @@ async def get_completed_bookings(
     check_permission(current_user, PermissionName.VIEW_INCOMING_BOOKINGS, db)
     booking_repo = RepositoryFactory.create_booking_repository(db)
 
-    bookings = await asyncio.to_thread(
-        booking_repo.get_instructor_bookings,
+    bookings, total = await asyncio.to_thread(
+        booking_repo.get_instructor_bookings_page,
         instructor_id=current_user.id,
         status=BookingStatus.COMPLETED,
         upcoming_only=False,
         include_past_confirmed=True,
+        page=page,
+        per_page=per_page,
     )
-    return _paginate_bookings(bookings, page=page, per_page=per_page)
+    return _paginate_bookings(bookings, page=page, per_page=per_page, total=total)
 
 
 # ============================================================================
@@ -207,15 +207,17 @@ async def list_instructor_bookings(
     check_permission(current_user, PermissionName.VIEW_INCOMING_BOOKINGS, db)
     booking_repo = RepositoryFactory.create_booking_repository(db)
 
-    bookings = await asyncio.to_thread(
-        booking_repo.get_instructor_bookings,
+    bookings, total = await asyncio.to_thread(
+        booking_repo.get_instructor_bookings_page,
         instructor_id=current_user.id,
         status=status,
         upcoming_only=upcoming,
         exclude_future_confirmed=exclude_future_confirmed,
         include_past_confirmed=include_past_confirmed,
+        page=page,
+        per_page=per_page,
     )
-    return _paginate_bookings(bookings, page=page, per_page=per_page)
+    return _paginate_bookings(bookings, page=page, per_page=per_page, total=total)
 
 
 # ============================================================================
@@ -236,7 +238,7 @@ async def mark_lesson_complete(
         pattern=ULID_PATH_PATTERN,
         examples=["01HF4G12ABCDEF3456789XYZAB"],
     ),
-    notes: Optional[str] = None,
+    notes: Optional[str] = Body(None, embed=True, max_length=2000),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
@@ -296,7 +298,7 @@ async def dispute_completion(
         pattern=ULID_PATH_PATTERN,
         examples=["01HF4G12ABCDEF3456789XYZAB"],
     ),
-    reason: str = Body(..., embed=True),
+    reason: str = Body(..., embed=True, max_length=2000),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),

@@ -36,6 +36,7 @@ except ModuleNotFoundError:  # pragma: no cover
 
 ORIGINAL_GET_OVERNIGHT_EARLIEST_HOUR = ConfigService.get_overnight_earliest_hour
 ORIGINAL_IS_IN_OVERNIGHT_WINDOW = ConfigService.is_in_overnight_window
+MISSING_INSTRUCTOR_ID = "01J5ABCDEFGHJKMNPQRSTVWXYZ"
 
 
 def _enable_default_overnight_rules(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -210,7 +211,7 @@ class TestPublicAvailability:
     def test_get_public_availability_instructor_not_found(self, public_client, full_detail_settings):
         """Test 404 when instructor doesn't exist."""
         response = public_client.get(
-            "/api/v1/public/instructors/01J5TESTINSTR0000000000999/availability",
+            f"/api/v1/public/instructors/{MISSING_INSTRUCTOR_ID}/availability",
             params={"start_date": date.today().isoformat()},
         )
 

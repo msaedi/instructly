@@ -32,12 +32,11 @@ def _make_region(region_id: str, name: str, borough: str) -> RegionBoundary:
 @pytest.mark.asyncio
 async def test_get_candidates_filters_and_requires_api_key(monkeypatch) -> None:
     repo = _RepoStub()
-    service = LocationEmbeddingService(repository=repo)
-
     region = _make_region("RID-1", "Upper East Side", "Manhattan")
     repo._pairs = [(region, 0.9), (region, 0.5)]
 
     monkeypatch.setenv("OPENAI_API_KEY", "test")
+    service = LocationEmbeddingService(repository=repo)
     service._embed_location_text = AsyncMock(return_value=[0.1] * 1536)
 
     candidates = await service.get_candidates("Upper East Side", threshold=0.8)
@@ -45,6 +44,7 @@ async def test_get_candidates_filters_and_requires_api_key(monkeypatch) -> None:
     assert candidates[0]["region_id"] == "RID-1"
 
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    service = LocationEmbeddingService(repository=repo)
     candidates = await service.get_candidates("Upper East Side")
     assert candidates == []
 

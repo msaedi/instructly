@@ -142,13 +142,12 @@ class TestResolveInternal:
     @pytest.mark.asyncio
     async def test_missing_api_key(self):
         """L156-158: no OPENAI_API_KEY -> None."""
-        svc = _make_service()
         with patch.dict("os.environ", {}, clear=True):
-            with patch("os.getenv", return_value=None):
-                result, debug = await svc._resolve_internal(
-                    location_text="chelsea",
-                    allowed_region_names=["Chelsea"],
-                )
+            svc = _make_service()
+            result, debug = await svc._resolve_internal(
+                location_text="chelsea",
+                allowed_region_names=["Chelsea"],
+            )
         assert result is None
         assert debug["reason"] == "missing_api_key"
 

@@ -58,6 +58,7 @@ class LocationLLMService:
         self._client: Optional[AsyncOpenAI] = None
         self._client_max_retries: Optional[int] = None
         self._client_timeout_s: Optional[float] = None
+        self._has_openai_api_key = bool(os.getenv("OPENAI_API_KEY"))
 
     @staticmethod
     def _coerce_max_retries(value: Any) -> int:
@@ -153,7 +154,7 @@ class LocationLLMService:
             debug_info["reason"] = "no_candidates"
             return None, debug_info
 
-        if not os.getenv("OPENAI_API_KEY"):
+        if not self._has_openai_api_key:
             debug_info["reason"] = "missing_api_key"
             return None, debug_info
 

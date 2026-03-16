@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
+import logging
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
@@ -20,7 +21,7 @@ from app.core.exceptions import (
 )
 from app.core.ulid_helper import generate_ulid
 from app.models.booking import BookingStatus, PaymentStatus
-from app.schemas.booking import BookingUpdate
+from app.schemas.booking import BookingRescheduleRequest, BookingUpdate
 from app.services.booking_service import GENERIC_CONFLICT_MESSAGE, BookingService
 
 
@@ -811,6 +812,80 @@ def test_create_rescheduled_booking_with_existing_payment_acquires_advisory_lock
         booking_data.instructor_id,
         booking_data.booking_date,
     )
+
+
+def test_reschedule_booking_rolls_back_replacement_when_original_cancel_fails(
+    booking_service: BookingService,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    student = make_user(RoleName.STUDENT.value)
+    original_booking = make_booking(
+        id=generate_ulid(),
+        student_id=student.id,
+        instructor_id=generate_ulid(),
+        instructor_service_id=generate_ulid(),
+        booking_date=date(2030, 1, 1),
+        start_time=time(10, 0),
+        end_time=time(11, 0),
+        location_type="online",
+        meeting_location="Studio",
+        student_note="Bring music",
+        payment_intent_id=None,
+        payment_status=None,
+        payment_method_id=None,
+    )
+    replacement_booking = make_booking(
+        id=generate_ulid(),
+        student_id=student.id,
+        instructor_id=original_booking.instructor_id,
+        instructor_service_id=original_booking.instructor_service_id,
+        booking_date=date(2030, 1, 3),
+        start_time=time(12, 0),
+        end_time=time(13, 0),
+        status=BookingStatus.CONFIRMED,
+    )
+    payload = BookingRescheduleRequest(
+        booking_date=date(2030, 1, 3),
+        start_time=time(12, 0),
+        selected_duration=60,
+    )
+
+    booking_service.get_booking_for_user = Mock(return_value=original_booking)
+    booking_service.validate_reschedule_allowed = Mock()
+    booking_service.check_availability = Mock(return_value={"available": True})
+    booking_service.get_hours_until_start = Mock(return_value=36.0)
+    booking_service.should_trigger_lock = Mock(return_value=False)
+    booking_service.validate_reschedule_payment_method = Mock(return_value=(True, "pm_test_123"))
+    booking_service.create_booking_with_payment_setup = Mock(return_value=replacement_booking)
+    booking_service.confirm_booking_payment = Mock(return_value=replacement_booking)
+    booking_service.abort_pending_booking = Mock(return_value=False)
+
+    def cancel_side_effect(booking_id: str, *_args: object, **_kwargs: object) -> SimpleNamespace:
+        if booking_id == original_booking.id:
+            raise BusinessRuleException("Original cancellation failed")
+        return make_booking(
+            id=booking_id,
+            student_id=student.id,
+            instructor_id=original_booking.instructor_id,
+            status=BookingStatus.CANCELLED,
+        )
+
+    booking_service.cancel_booking = Mock(side_effect=cancel_side_effect)
+
+    with caplog.at_level(logging.CRITICAL):
+        with pytest.raises(BusinessRuleException, match="Original cancellation failed"):
+            booking_service.reschedule_booking(
+                booking_id=original_booking.id,
+                payload=payload,
+                current_user=student,
+            )
+
+    assert booking_service.create_booking_with_payment_setup.called
+    assert booking_service.confirm_booking_payment.called
+    assert booking_service.cancel_booking.call_count == 2
+    assert booking_service.cancel_booking.call_args_list[0].args[0] == original_booking.id
+    assert booking_service.cancel_booking.call_args_list[1].args[0] == replacement_booking.id
+    assert "Failed to cancel original booking" in caplog.text
 
 
 def test_create_rescheduled_booking_with_locked_funds_missing_original_in_tx(

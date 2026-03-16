@@ -207,10 +207,10 @@ async def create_profile(
         if hasattr(profile_data, "id"):
             return InstructorProfileResponse.from_orm(profile_data)
         return InstructorProfileResponse(**profile_data)
-    except Exception as e:
-        if "already exists" in str(e):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-        raise
+    except BusinessRuleException as exc:
+        if exc.code == "instructor_profile_exists":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.message)
+        raise exc.to_http_exception()
 
 
 @router.get(

@@ -7,7 +7,7 @@ correctly renders templates and maintains the same functionality
 as the original embedded HTML version.
 """
 
-from datetime import date, datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone
 import re
 from unittest.mock import patch
 
@@ -44,14 +44,14 @@ def test_booking():
         zip_code="10001",
     )
 
-    booking_date = date.today() + timedelta(days=1)
+    booking_date = datetime.now(timezone.utc).date() + timedelta(days=1)
     start_time = time(14, 0)
     end_time = time(15, 0)
     booking = Booking(
-        id=100,
+        id="01HQTEST000000000000000100",
         student_id=student.id,  # Use the actual student ID
         instructor_id=instructor.id,  # Use the actual instructor ID
-        instructor_service_id=10,
+        instructor_service_id="01HQTEST000000000000000010",
         booking_date=booking_date,
         start_time=start_time,
         end_time=end_time,
@@ -210,6 +210,35 @@ class TestBookingConfirmation:
         assert expected_student_name in instructor_completed_html
         assert full_student_name not in instructor_completed_html
 
+    def test_instructor_facing_booking_templates_do_not_include_student_contact_pii(
+        self, notification_service_with_mocked_email, test_booking
+    ):
+        """Instructor-facing booking emails should not leak raw student contact details."""
+
+        def _find_email_html(recipient: str) -> str:
+            for call in notification_service_with_mocked_email.email_service.send_email.call_args_list:
+                if call.kwargs["to_email"] == recipient:
+                    return call.kwargs["html_content"]
+            raise AssertionError(f"Email to {recipient} was not sent")
+
+        for send_email in (
+            lambda: notification_service_with_mocked_email.send_booking_confirmation(test_booking),
+            lambda: notification_service_with_mocked_email.send_cancellation_notification(
+                booking=test_booking,
+                cancelled_by=test_booking.student,
+                reason="Schedule conflict",
+            ),
+            lambda: notification_service_with_mocked_email._send_instructor_reminder(test_booking),
+            lambda: notification_service_with_mocked_email._send_instructor_completion_notification(
+                test_booking
+            ),
+        ):
+            notification_service_with_mocked_email.email_service.send_email.reset_mock()
+            send_email()
+            instructor_html = _find_email_html(test_booking.instructor.email)
+            assert test_booking.student.email not in instructor_html
+            assert test_booking.student.phone not in instructor_html
+
 
 class TestCancellationNotification:
     """Test cancellation notification functionality."""
@@ -301,7 +330,7 @@ class TestTemplateVariables:
         assert "brand_name" in context
         assert "current_year" in context
         assert "frontend_url" in context
-        assert context["current_year"] == datetime.now().year
+        assert context["current_year"] == datetime.now(timezone.utc).year
 
     def test_no_missing_variables(self, test_booking, template_service):
         """Test templates don't have missing variables."""

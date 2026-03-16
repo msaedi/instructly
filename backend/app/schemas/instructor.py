@@ -589,7 +589,7 @@ class InstructorProfilePublic(InstructorProfileBase):
                 getattr(catalog_entry, "name", None) if catalog_entry is not None else None
             )
             service_payload = ServiceResponse(
-                id=getattr(service, "id"),
+                id=getattr(service, "id", None),
                 service_catalog_id=getattr(service, "service_catalog_id"),
                 service_catalog_name=catalog_name or "Unknown Service",
                 min_hourly_rate=getattr(service, "min_hourly_rate", None),
@@ -813,8 +813,8 @@ class InstructorProfilePublic(InstructorProfileBase):
 
     @field_validator("services")
     def sort_services(cls, v: List[ServiceResponse]) -> List[ServiceResponse]:
-        """Sort services by catalog ID for consistent display."""
-        return sorted(v, key=lambda s: s.service_catalog_id)
+        """Services are already sorted upstream before schema validation."""
+        return v
 
 
 class InstructorProfileResponse(InstructorProfilePublic):

@@ -704,6 +704,7 @@ def _build_booking_response_data(
     *,
     student_info: StudentInfo | StudentInfoPublic | None,
     payment_summary: Optional[PaymentSummary] = None,
+    instructor_service_info: Optional["BookingServiceInfo"] = None,
 ) -> dict[str, Any]:
     """Build the shared booking response payload for audience-specific DTOs."""
     satellite = _extract_satellite_fields(booking)
@@ -728,9 +729,12 @@ def _build_booking_response_data(
         "cancellation_reason": booking.cancellation_reason,
         "student": student_info,
         "instructor": InstructorInfo.from_user(booking.instructor) if booking.instructor else None,
-        "instructor_service": BookingServiceInfo.model_validate(booking.instructor_service)
-        if booking.instructor_service
-        else None,
+        "instructor_service": instructor_service_info
+        or (
+            BookingServiceInfo.model_validate(booking.instructor_service)
+            if booking.instructor_service
+            else None
+        ),
         "rescheduled_from": None,
         **satellite,
     }
@@ -909,58 +913,26 @@ class BookingCreateResponse(BookingResponse):
         Create BookingCreateResponse from Booking ORM model.
         Inherits privacy protection from parent and adds payment setup fields.
         """
-        # Satellite fields extracted via shared module-level helper
-        satellite = _extract_satellite_fields(booking)
-
-        response_data = {
-            # Base fields from BookingBase
-            "id": booking.id,
-            "student_id": booking.student_id,
-            "instructor_id": booking.instructor_id,
-            "instructor_service_id": booking.instructor_service_id,
-            # Booking details
-            "booking_date": booking.booking_date,
-            "start_time": booking.start_time,
-            "end_time": booking.end_time,
-            "service_name": booking.service_name,
-            "hourly_rate": booking.hourly_rate,
-            "total_price": booking.total_price,
-            "duration_minutes": booking.duration_minutes,
-            "status": booking.status,
-            # Timestamps
-            "created_at": booking.created_at,
-            "confirmed_at": booking.confirmed_at,
-            "completed_at": booking.completed_at,
-            "cancelled_at": booking.cancelled_at,
-            # Cancellation info
-            "cancelled_by_id": booking.cancelled_by_id,
-            "cancellation_reason": booking.cancellation_reason,
-            # Related objects with privacy protection
-            "instructor": InstructorInfo.from_user(booking.instructor),
-            "student": StudentInfo(
-                id=booking.student.id,
-                first_name=booking.student.first_name,
-                last_name=booking.student.last_name,
-                email=booking.student.email,
-            ),
-            "instructor_service": BookingServiceInfo(
+        response_data = _build_booking_response_data(
+            booking,
+            student_info=StudentInfo.model_validate(booking.student) if booking.student else None,
+            payment_summary=payment_summary,
+            instructor_service_info=BookingServiceInfo(
                 id=booking.instructor_service.id
                 if booking.instructor_service
                 else booking.instructor_service_id,
-                name=booking.service_name,  # Use denormalized name
+                name=booking.service_name,
                 description=booking.instructor_service.description
                 if booking.instructor_service
                 else None,
             ),
-            # Payment setup fields
-            "setup_intent_client_secret": setup_intent_client_secret
-            or getattr(booking, "setup_intent_client_secret", None),
-            "requires_payment_method": True,
-            "payment_summary": payment_summary,
-            # Merge all satellite fields
-            **satellite,
-        }
-
+        )
+        response_data["setup_intent_client_secret"] = setup_intent_client_secret or getattr(
+            booking,
+            "setup_intent_client_secret",
+            None,
+        )
+        response_data["requires_payment_method"] = True
         return cls(**response_data)
 
 
