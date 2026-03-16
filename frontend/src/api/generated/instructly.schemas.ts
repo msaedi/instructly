@@ -1761,6 +1761,7 @@ export interface BlockedAccount {
 }
 
 export interface BodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost {
+  /** @maxLength 2000 */
   reason: string;
 }
 
@@ -1771,6 +1772,10 @@ export interface BodyLoginApiV1AuthLoginPost {
   password: string;
   scope?: string;
   username: string;
+}
+
+export interface BodyMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePost {
+  notes?: string | null;
 }
 
 export interface BodyProxyUploadToR2ApiV1UploadsR2ProxyPost {
@@ -3743,10 +3748,6 @@ export interface UserBasicPrivacy {
 Excludes internal verification session IDs and private teaching addresses.
  */
 export interface InstructorProfilePublic {
-  background_check_uploaded_at?: string | null;
-  bgc_name_mismatch?: boolean;
-  /** Background check status for public display */
-  bgc_status?: string | null;
   /**
    * Instructor biography/description
    * @minLength 10
@@ -3758,7 +3759,6 @@ export interface InstructorProfilePublic {
   /** Number of students who favorited this instructor */
   favorited_count?: number;
   id: string;
-  identity_name_mismatch?: boolean;
   identity_verified_at?: string | null;
   /** Whether the current user has favorited this instructor */
   is_favorited?: boolean | null;
@@ -4260,7 +4260,6 @@ export interface InstructorProfileResponse {
   background_check_object_key?: string | null;
   background_check_uploaded_at?: string | null;
   bgc_name_mismatch?: boolean;
-  /** Background check status for public display */
   bgc_status?: string | null;
   /**
    * Instructor biography/description
@@ -9823,10 +9822,6 @@ export type GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetParams = {
    * @maximum 100
    */
   per_page?: number;
-};
-
-export type MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams = {
-  notes?: string | null;
 };
 
 export type GetReferredInstructorsApiV1InstructorReferralsReferredGetParams = {

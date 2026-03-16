@@ -1242,7 +1242,7 @@ class BookingService(BaseService):
         original_booking: Booking,
         booking_data: BookingCreate,
         selected_duration: int,
-        current_user: User,
+        student_id: str,
     ) -> None:
         """Validate the proposed replacement slot before any payment or cancellation work."""
         proposed_start = datetime.combine(  # tz-pattern-ok: duration math only
@@ -1261,7 +1261,7 @@ class BookingService(BaseService):
             instructor_service_id=None,
             exclude_booking_id=original_booking.id,
             location_type=booking_data.location_type,
-            student_id=current_user.id,
+            student_id=student_id,
             selected_duration=selected_duration,
             location_lat=booking_data.location_lat,
             location_lng=booking_data.location_lng,
@@ -1279,6 +1279,20 @@ class BookingService(BaseService):
 
         if not is_available:
             raise BookingConflictException(message=reason or "Requested time is unavailable")
+
+    def _resolve_reschedule_student(self, original_booking: Booking) -> User:
+        """Return the canonical student for a reschedule, even if the actor is different."""
+        student = getattr(original_booking, "student", None)
+        if student is not None and str(getattr(student, "id", "")) == str(
+            original_booking.student_id
+        ):
+            return cast(User, student)
+
+        user_repository = RepositoryFactory.create_user_repository(self.db)
+        resolved_student = user_repository.get_by_id(original_booking.student_id)
+        if not resolved_student:
+            raise NotFoundException("Student not found")
+        return resolved_student
 
     def _create_rescheduled_booking_with_existing_payment_in_transaction(
         self,
@@ -1357,13 +1371,14 @@ class BookingService(BaseService):
             raise NotFoundException("Booking not found")
 
         self.validate_reschedule_allowed(original_booking)
+        reschedule_student = self._resolve_reschedule_student(original_booking)
 
         new_booking_data = self._build_reschedule_booking_data(original_booking, payload)
         self._ensure_reschedule_slot_available(
             original_booking=original_booking,
             booking_data=new_booking_data,
             selected_duration=payload.selected_duration,
-            current_user=current_user,
+            student_id=str(reschedule_student.id),
         )
 
         payment_detail = original_booking.payment_detail
@@ -1399,6 +1414,7 @@ class BookingService(BaseService):
                 booking_data=new_booking_data,
                 selected_duration=payload.selected_duration,
                 current_user=current_user,
+                reschedule_student=reschedule_student,
             )
 
         if reuse_payment and not force_stripe_cancel:
@@ -1407,6 +1423,7 @@ class BookingService(BaseService):
                 booking_data=new_booking_data,
                 selected_duration=payload.selected_duration,
                 current_user=current_user,
+                reschedule_student=reschedule_student,
                 payment_intent_id=cast(str, raw_payment_intent_id),
                 payment_status=cast(Optional[str], normalized_payment_status),
                 payment_method_id=cast(Optional[str], raw_payment_method_id),
@@ -1417,6 +1434,7 @@ class BookingService(BaseService):
             booking_data=new_booking_data,
             selected_duration=payload.selected_duration,
             current_user=current_user,
+            reschedule_student=reschedule_student,
         )
 
     def _reschedule_with_lock(
@@ -1426,10 +1444,11 @@ class BookingService(BaseService):
         booking_data: BookingCreate,
         selected_duration: int,
         current_user: User,
+        reschedule_student: User,
     ) -> Booking:
         """Handle the LOCK reschedule path with one transaction for create + cancel."""
         service, instructor_profile, _ = self._validate_rescheduled_booking_inputs(
-            current_user,
+            reschedule_student,
             booking_data,
             selected_duration,
             original_booking.id,
@@ -1442,7 +1461,7 @@ class BookingService(BaseService):
                     replacement_booking,
                     old_booking,
                 ) = self._create_rescheduled_booking_with_locked_funds_in_transaction(
-                    student=current_user,
+                    student=reschedule_student,
                     booking_data=booking_data,
                     selected_duration=selected_duration,
                     original_booking_id=original_booking.id,
@@ -1459,7 +1478,9 @@ class BookingService(BaseService):
                 )
         except IntegrityError as exc:
             message, scope = self._resolve_integrity_conflict_message(exc)
-            conflict_details = self._build_conflict_details(booking_data, current_user.id)
+            conflict_details = self._build_conflict_details(
+                booking_data, str(reschedule_student.id)
+            )
             if scope:
                 conflict_details["conflict_scope"] = scope
             raise BookingConflictException(
@@ -1468,14 +1489,16 @@ class BookingService(BaseService):
             ) from exc
         except OperationalError as exc:
             if self._is_deadlock_error(exc):
-                conflict_details = self._build_conflict_details(booking_data, current_user.id)
+                conflict_details = self._build_conflict_details(
+                    booking_data, str(reschedule_student.id)
+                )
                 raise BookingConflictException(
                     message=GENERIC_CONFLICT_MESSAGE,
                     details=conflict_details,
                 ) from exc
             raise
         except RepositoryException as exc:
-            self._raise_conflict_from_repo_error(exc, booking_data, current_user.id)
+            self._raise_conflict_from_repo_error(exc, booking_data, str(reschedule_student.id))
 
         self._handle_post_booking_tasks(
             replacement_booking,
@@ -1492,13 +1515,14 @@ class BookingService(BaseService):
         booking_data: BookingCreate,
         selected_duration: int,
         current_user: User,
+        reschedule_student: User,
         payment_intent_id: str,
         payment_status: Optional[str],
         payment_method_id: Optional[str],
     ) -> Booking:
         """Handle the payment-reuse reschedule path with one transaction for create + cancel."""
         service, instructor_profile, _ = self._validate_rescheduled_booking_inputs(
-            current_user,
+            reschedule_student,
             booking_data,
             selected_duration,
             original_booking.id,
@@ -1511,7 +1535,7 @@ class BookingService(BaseService):
                     replacement_booking,
                     old_booking,
                 ) = self._create_rescheduled_booking_with_existing_payment_in_transaction(
-                    student=current_user,
+                    student=reschedule_student,
                     booking_data=booking_data,
                     selected_duration=selected_duration,
                     original_booking_id=original_booking.id,
@@ -1532,7 +1556,9 @@ class BookingService(BaseService):
                 )
         except IntegrityError as exc:
             message, scope = self._resolve_integrity_conflict_message(exc)
-            conflict_details = self._build_conflict_details(booking_data, current_user.id)
+            conflict_details = self._build_conflict_details(
+                booking_data, str(reschedule_student.id)
+            )
             if scope:
                 conflict_details["conflict_scope"] = scope
             raise BookingConflictException(
@@ -1541,14 +1567,16 @@ class BookingService(BaseService):
             ) from exc
         except OperationalError as exc:
             if self._is_deadlock_error(exc):
-                conflict_details = self._build_conflict_details(booking_data, current_user.id)
+                conflict_details = self._build_conflict_details(
+                    booking_data, str(reschedule_student.id)
+                )
                 raise BookingConflictException(
                     message=GENERIC_CONFLICT_MESSAGE,
                     details=conflict_details,
                 ) from exc
             raise
         except RepositoryException as exc:
-            self._raise_conflict_from_repo_error(exc, booking_data, current_user.id)
+            self._raise_conflict_from_repo_error(exc, booking_data, str(reschedule_student.id))
 
         self._handle_post_booking_tasks(
             replacement_booking,
@@ -1565,10 +1593,11 @@ class BookingService(BaseService):
         booking_data: BookingCreate,
         selected_duration: int,
         current_user: User,
+        reschedule_student: User,
     ) -> Booking:
         """Handle the new-payment reschedule path with compensation if the original cancel fails."""
         has_payment_method, stripe_payment_method_id = self.validate_reschedule_payment_method(
-            current_user.id
+            str(reschedule_student.id)
         )
         if not has_payment_method or not stripe_payment_method_id:
             raise ValidationException(
@@ -1577,7 +1606,7 @@ class BookingService(BaseService):
             )
 
         replacement_booking = self.create_booking_with_payment_setup(
-            current_user,
+            reschedule_student,
             booking_data,
             selected_duration,
             original_booking.id,
@@ -1586,7 +1615,7 @@ class BookingService(BaseService):
         try:
             replacement_booking = self.confirm_booking_payment(
                 replacement_booking.id,
-                current_user,
+                reschedule_student,
                 stripe_payment_method_id,
                 False,
             )

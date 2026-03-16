@@ -888,6 +888,72 @@ def test_reschedule_booking_rolls_back_replacement_when_original_cancel_fails(
     assert "Failed to cancel original booking" in caplog.text
 
 
+def test_reschedule_booking_uses_original_student_for_downstream_calls_when_actor_differs(
+    booking_service: BookingService,
+) -> None:
+    student = make_user(RoleName.STUDENT.value)
+    instructor = make_user(RoleName.INSTRUCTOR.value)
+    original_booking = make_booking(
+        id=generate_ulid(),
+        student_id=student.id,
+        instructor_id=instructor.id,
+        instructor_service_id=generate_ulid(),
+        booking_date=date(2030, 1, 1),
+        start_time=time(10, 0),
+        end_time=time(11, 0),
+        location_type="online",
+        meeting_location="Studio",
+        student_note="Bring music",
+        payment_intent_id=None,
+        payment_status=None,
+        payment_method_id=None,
+    )
+    original_booking.student = student
+    replacement_booking = make_booking(
+        id=generate_ulid(),
+        student_id=student.id,
+        instructor_id=original_booking.instructor_id,
+        instructor_service_id=original_booking.instructor_service_id,
+        booking_date=date(2030, 1, 3),
+        start_time=time(12, 0),
+        end_time=time(13, 0),
+        status=BookingStatus.CONFIRMED,
+    )
+    payload = BookingRescheduleRequest(
+        booking_date=date(2030, 1, 3),
+        start_time=time(12, 0),
+        selected_duration=60,
+    )
+
+    booking_service.get_booking_for_user = Mock(return_value=original_booking)
+    booking_service.validate_reschedule_allowed = Mock()
+    booking_service.check_availability = Mock(return_value={"available": True})
+    booking_service.get_hours_until_start = Mock(return_value=36.0)
+    booking_service.should_trigger_lock = Mock(return_value=False)
+    booking_service.validate_reschedule_payment_method = Mock(return_value=(True, "pm_test_123"))
+    booking_service.create_booking_with_payment_setup = Mock(return_value=replacement_booking)
+    booking_service.confirm_booking_payment = Mock(return_value=replacement_booking)
+    booking_service.cancel_booking = Mock(
+        return_value=make_booking(
+            id=original_booking.id,
+            student_id=student.id,
+            instructor_id=original_booking.instructor_id,
+            status=BookingStatus.CANCELLED,
+        )
+    )
+
+    booking_service.reschedule_booking(
+        booking_id=original_booking.id,
+        payload=payload,
+        current_user=instructor,
+    )
+
+    assert booking_service.check_availability.call_args.kwargs["student_id"] == student.id
+    assert booking_service.validate_reschedule_payment_method.call_args.args == (student.id,)
+    assert booking_service.create_booking_with_payment_setup.call_args.args[0] is student
+    assert booking_service.confirm_booking_payment.call_args.args[1] is student
+
+
 def test_create_rescheduled_booking_with_locked_funds_missing_original_in_tx(
     booking_service: BookingService, mock_repository: MagicMock
 ) -> None:

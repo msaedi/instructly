@@ -1270,6 +1270,8 @@ export const useCompleteBookingApiV1BookingsBookingIdCompletePost = <
 - Student can report instructor no-show
 - Admin can report either type
 - Must be within reporting window
+- Intentionally broader than COMPLETE_BOOKINGS: students must be able to report
+  instructor no-shows, and the service enforces actor-specific authorization.
  * @summary Report No Show
  */
 export const getReportNoShowApiV1BookingsBookingIdNoShowPostUrl = (bookingId: string) => {
@@ -1930,11 +1932,7 @@ export function useGetBookingPricingApiV1BookingsBookingIdPricingGet<
 }
 
 /**
- * Reschedule flow (server-orchestrated):
-- Validates access to the original booking
-- Cancels the original booking according to policy
-- Creates a new booking with the requested time
-- Returns the new booking
+ * Reschedule a booking through the booking service orchestration layer.
  * @summary Reschedule Booking
  */
 export const getRescheduleBookingApiV1BookingsBookingIdReschedulePostUrl = (bookingId: string) => {

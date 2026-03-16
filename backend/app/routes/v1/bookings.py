@@ -763,6 +763,22 @@ async def reschedule_booking(
     """
     Reschedule a booking through the booking service orchestration layer.
     """
+    original_booking = await asyncio.to_thread(
+        booking_service.get_booking_for_user,
+        booking_id,
+        current_user,
+    )
+    if not original_booking:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking not found",
+        )
+    if str(current_user.id) != str(original_booking.student_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the student on this booking can reschedule",
+        )
+
     try:
         async with booking_lock(booking_id) as acquired:
             if not acquired:

@@ -63,6 +63,7 @@ def test_reschedule_returns_429_when_locked(
         "start_time": "10:00",
         "selected_duration": 60,
     }
+    mock_booking_service.get_booking_for_user.return_value = test_booking
     with patch("app.routes.v1.bookings.booking_lock", _lock_unavailable):
         response = client_with_mock_booking_service.post(
             f"/api/v1/bookings/{test_booking.id}/reschedule",

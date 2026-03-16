@@ -1429,11 +1429,19 @@ class TestBookingRoutes:
 
     # ===== Reschedule Route Tests (use mocked service + dependency override) =====
     def test_reschedule_booking_success(
-        self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
+        self,
+        client_with_mock_booking_service,
+        auth_headers_student,
+        mock_booking_service,
+        test_student,
     ):
         """Reschedule delegates orchestration to the booking service and returns the replacement booking."""
         original_id = generate_ulid()
         new_id = generate_ulid()
+        mock_booking_service.get_booking_for_user.return_value = SimpleNamespace(
+            id=original_id,
+            student_id=test_student.id,
+        )
         new_booking = Mock()
         new_booking.id = new_id
         new_booking.student_id = generate_ulid()
@@ -1490,10 +1498,18 @@ class TestBookingRoutes:
         assert call_kwargs["payload"].start_time == time(11, 0)
 
     def test_reschedule_passes_service_override_payload(
-        self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
+        self,
+        client_with_mock_booking_service,
+        auth_headers_student,
+        mock_booking_service,
+        test_student,
     ):
         """Reschedule parses and forwards the optional service override to the service layer."""
         original_id = generate_ulid()
+        mock_booking_service.get_booking_for_user.return_value = SimpleNamespace(
+            id=original_id,
+            student_id=test_student.id,
+        )
         new_booking = Mock()
         new_booking.id = generate_ulid()
         new_booking.student_id = generate_ulid()
@@ -1543,10 +1559,18 @@ class TestBookingRoutes:
         assert call_kwargs["payload"].instructor_service_id == payload["instructor_service_id"]
 
     def test_reschedule_maps_conflict_errors(
-        self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
+        self,
+        client_with_mock_booking_service,
+        auth_headers_student,
+        mock_booking_service,
+        test_student,
     ):
         """Conflict exceptions from the service propagate as 409 responses."""
         original_id = generate_ulid()
+        mock_booking_service.get_booking_for_user.return_value = SimpleNamespace(
+            id=original_id,
+            student_id=test_student.id,
+        )
         mock_booking_service.reschedule_booking.side_effect = ConflictException(
             "Invalid duration 45. Available options: [30, 60]"
         )
@@ -1567,7 +1591,7 @@ class TestBookingRoutes:
         self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
     ):
         """Reschedule returns 404 if original booking does not exist."""
-        mock_booking_service.reschedule_booking.side_effect = NotFoundException("Booking not found")
+        mock_booking_service.get_booking_for_user.return_value = None
 
         payload = {
             "booking_date": (date.today() + timedelta(days=3)).isoformat(),
@@ -1579,6 +1603,36 @@ class TestBookingRoutes:
         )
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
+        mock_booking_service.reschedule_booking.assert_not_called()
+
+    def test_reschedule_forbids_instructor_participant(
+        self,
+        client_with_mock_booking_service,
+        auth_headers_instructor,
+        mock_booking_service,
+        test_instructor_with_availability,
+    ):
+        original_id = generate_ulid()
+        mock_booking_service.get_booking_for_user.return_value = SimpleNamespace(
+            id=original_id,
+            student_id=generate_ulid(),
+            instructor_id=test_instructor_with_availability.id,
+        )
+
+        payload = {
+            "booking_date": (date.today() + timedelta(days=3)).isoformat(),
+            "start_time": "11:00",
+            "selected_duration": 60,
+        }
+        response = client_with_mock_booking_service.post(
+            f"/api/v1/bookings/{original_id}/reschedule",
+            json=payload,
+            headers=auth_headers_instructor,
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.json()["detail"] == "Only the student on this booking can reschedule"
+        mock_booking_service.reschedule_booking.assert_not_called()
 
     def test_reschedule_requires_auth(self, client):
         """Reschedule endpoint should require auth like others."""
@@ -1591,9 +1645,16 @@ class TestBookingRoutes:
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_reschedule_business_rule_violation(
-        self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
+        self,
+        client_with_mock_booking_service,
+        auth_headers_student,
+        mock_booking_service,
+        test_student,
     ):
         """If cancellation policy blocks cancel, reschedule should return 422 via domain exception handler."""
+        mock_booking_service.get_booking_for_user.return_value = SimpleNamespace(
+            student_id=test_student.id
+        )
         mock_booking_service.reschedule_booking.side_effect = BusinessRuleException(
             "Late reschedule not allowed"
         )

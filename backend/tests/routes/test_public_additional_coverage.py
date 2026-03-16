@@ -942,6 +942,21 @@ async def test_send_referral_invites_validation_and_partial_failure(monkeypatch)
 
 
 @pytest.mark.asyncio
+async def test_send_referral_invites_rejects_wrong_origin():
+    payload = ReferralSendRequest(
+        emails=["ok@example.com"],
+        referral_link="https://evil.com/referral?code=ABC",
+        from_name="Tester",
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await public_routes.send_referral_invites(request=_make_request(), payload=payload, db=None)
+
+    assert exc.value.status_code == 400
+    assert exc.value.detail == "Invalid referral link"
+
+
+@pytest.mark.asyncio
 async def test_send_referral_invites_empty_and_config_error(monkeypatch):
     mock_request = _make_request()
     payload = ReferralSendRequest(emails=[], referral_link=_valid_referral_link())

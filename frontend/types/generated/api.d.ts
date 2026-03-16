@@ -3238,6 +3238,8 @@ export type paths = {
          *     - Student can report instructor no-show
          *     - Admin can report either type
          *     - Must be within reporting window
+         *     - Intentionally broader than COMPLETE_BOOKINGS: students must be able to report
+         *       instructor no-shows, and the service enforces actor-specific authorization.
          */
         post: operations["report_no_show_api_v1_bookings__booking_id__no_show_post"];
         delete?: never;
@@ -3343,11 +3345,7 @@ export type paths = {
         put?: never;
         /**
          * Reschedule Booking
-         * @description Reschedule flow (server-orchestrated):
-         *     - Validates access to the original booking
-         *     - Cancels the original booking according to policy
-         *     - Creates a new booking with the requested time
-         *     - Returns the new booking
+         * @description Reschedule a booking through the booking service orchestration layer.
          */
         post: operations["reschedule_booking_api_v1_bookings__booking_id__reschedule_post"];
         delete?: never;
@@ -10174,6 +10172,11 @@ export type components = {
             /** Username */
             username: string;
         };
+        /** Body_mark_lesson_complete_api_v1_instructor_bookings__booking_id__complete_post */
+        Body_mark_lesson_complete_api_v1_instructor_bookings__booking_id__complete_post: {
+            /** Notes */
+            notes?: string | null;
+        };
         /** Body_proxy_upload_to_r2_api_v1_uploads_r2_proxy_post */
         Body_proxy_upload_to_r2_api_v1_uploads_r2_proxy_post: {
             /**
@@ -13597,18 +13600,6 @@ export type components = {
          *     Excludes internal verification session IDs and private teaching addresses.
          */
         InstructorProfilePublic: {
-            /** Background Check Uploaded At */
-            background_check_uploaded_at?: string | null;
-            /**
-             * Bgc Name Mismatch
-             * @default false
-             */
-            bgc_name_mismatch: boolean;
-            /**
-             * Bgc Status
-             * @description Background check status for public display
-             */
-            bgc_status?: string | null;
             /**
              * Bio
              * @description Instructor biography/description
@@ -13629,11 +13620,6 @@ export type components = {
             favorited_count: number;
             /** Id */
             id: string;
-            /**
-             * Identity Name Mismatch
-             * @default false
-             */
-            identity_name_mismatch: boolean;
             /** Identity Verified At */
             identity_verified_at?: string | null;
             /**
@@ -13712,10 +13698,7 @@ export type components = {
              * @default false
              */
             bgc_name_mismatch: boolean;
-            /**
-             * Bgc Status
-             * @description Background check status for public display
-             */
+            /** Bgc Status */
             bgc_status?: string | null;
             /**
              * Bio
@@ -27985,9 +27968,7 @@ export interface operations {
     };
     mark_lesson_complete_api_v1_instructor_bookings__booking_id__complete_post: {
         parameters: {
-            query?: {
-                notes?: string | null;
-            };
+            query?: never;
             header?: never;
             path: {
                 /** @description Booking ULID */
@@ -27995,7 +27976,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["Body_mark_lesson_complete_api_v1_instructor_bookings__booking_id__complete_post"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -31609,6 +31594,7 @@ export interface operations {
             };
             header?: never;
             path: {
+                /** @description Instructor ULID */
                 instructor_id: string;
             };
             cookie?: never;
@@ -31643,6 +31629,7 @@ export interface operations {
             };
             header?: never;
             path: {
+                /** @description Instructor ULID */
                 instructor_id: string;
             };
             cookie?: never;
