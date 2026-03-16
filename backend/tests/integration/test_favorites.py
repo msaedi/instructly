@@ -130,7 +130,7 @@ def multiple_instructors_with_profiles(multiple_instructors: list[User]) -> list
 
 @pytest.fixture
 def test_instructor_with_student_role(test_password: str, db: Session) -> User:
-    """Create a user with both instructor and student roles."""
+    """Create an instructor-only user for single-role self-favorite checks."""
     from app.auth import get_password_hash
     from app.repositories.factory import RepositoryFactory
 
@@ -148,13 +148,12 @@ def test_instructor_with_student_role(test_password: str, db: Session) -> User:
         is_active=True,
     )
 
-    # Assign both roles
+    # Assign instructor role only
     permission_service = PermissionService(db)
     permission_service.assign_role(user.id, RoleName.INSTRUCTOR)
-    permission_service.assign_role(user.id, RoleName.STUDENT)
 
     # Create instructor profile using repository
-    instructor_repo.create(user_id=user.id, bio="Instructor who is also a student", years_experience=3)
+    instructor_repo.create(user_id=user.id, bio="Instructor for self-favorite checks", years_experience=3)
 
     return user
 
@@ -302,14 +301,18 @@ class TestFavoritesService:
         assert "not an instructor" in str(exc_info.value)
 
     def test_student_cannot_favorite_themselves(self, db: Session, test_instructor_with_student_role):
-        """Test that users can't favorite themselves."""
+        """Test that instructor-only users cannot favorite via the student favorites flow."""
         service = FavoritesService(db)
 
-        # Try to favorite themselves
+        # Single-role enforcement keeps this user instructor-only, so the student
+        # validation fails before the self-favorite guard.
+        role_names = {role.name for role in test_instructor_with_student_role.roles}
+        assert role_names == {RoleName.INSTRUCTOR}
+
         with pytest.raises(Exception) as exc_info:
             service.add_favorite(test_instructor_with_student_role.id, test_instructor_with_student_role.id)
 
-        assert "Cannot favorite yourself" in str(exc_info.value)
+        assert "User is not a student" in str(exc_info.value)
 
     def test_add_favorite_success(self, db: Session, test_student, test_instructor):
         """Test successfully adding a favorite."""
@@ -466,9 +469,10 @@ class TestFavoritesAPI:
         # Verify instructor data
         for fav in data["favorites"]:
             assert "id" in fav
-            assert "email" in fav
             assert "first_name" in fav
-            assert "last_name" in fav
+            assert "last_initial" in fav
+            assert "email" not in fav
+            assert "last_name" not in fav
 
     def test_check_favorite_status_endpoint(self, client, auth_headers_student, test_instructor):
         """Test GET /api/v1/favorites/check/{instructor_id}."""

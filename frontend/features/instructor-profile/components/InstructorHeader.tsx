@@ -9,6 +9,7 @@ import { favoritesApi } from '@/services/api/favorites';
 import { useFavoriteStatus, useSetFavoriteStatus } from '@/hooks/queries/useFavoriteStatus';
 import { toast } from 'sonner';
 import type { InstructorProfile } from '@/types/instructor';
+import { formatDisplayName } from '@/lib/format/displayName';
 import { FoundingBadge } from '@/components/ui/FoundingBadge';
 import { BGCBadge } from '@/components/ui/BGCBadge';
 
@@ -30,9 +31,11 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
   // Get display name with privacy (FirstName L.)
   const getDisplayName = (): string => {
     if (!instructor.user) return `Instructor #${instructor.user_id}`;
-    const firstName = instructor.user.first_name || '';
-    const lastInitial = instructor.user.last_initial || '';
-    return lastInitial ? `${firstName} ${lastInitial}.` : firstName || `Instructor #${instructor.user_id}`;
+    return formatDisplayName(
+      instructor.user.first_name,
+      instructor.user.last_initial,
+      `Instructor #${instructor.user_id}`,
+    );
   };
 
   const displayName = getDisplayName();

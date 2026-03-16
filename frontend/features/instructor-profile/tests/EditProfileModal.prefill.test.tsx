@@ -56,7 +56,7 @@ jest.mock('@/lib/api', () => {
       ok: true,
       status: 200,
       json: async () => ({
-        user: { first_name: 'Test', last_initial: 'T' },
+        user: { first_name: 'Test', last_initial: 'T.' },
         services: [],
         service_area_boroughs: [],
         service_area_neighborhoods: [],

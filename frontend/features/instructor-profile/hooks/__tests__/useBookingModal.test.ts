@@ -151,10 +151,7 @@ describe('useBookingModal', () => {
     const { result } = renderHook(() => useBookingModal());
 
     act(() => {
-      result.current.openBookingModal({
-        date: undefined,
-        time: undefined,
-      });
+      result.current.openBookingModal({});
     });
 
     expect(result.current.isOpen).toBe(true);

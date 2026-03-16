@@ -128,12 +128,12 @@ describe('validateWithZod', () => {
   it('returns raw data without loading schemas when runtime validation is disabled', async () => {
     const env = process.env as Record<string, string | undefined>;
     const previousEnv = {
-      NODE_ENV: env.NODE_ENV,
+      NODE_ENV: env['NODE_ENV'],
       NEXT_PUBLIC_RUNTIME_VALIDATE: env['NEXT_PUBLIC_RUNTIME_VALIDATE'],
       RUNTIME_VALIDATE: env['RUNTIME_VALIDATE'],
     };
 
-    env.NODE_ENV = 'production';
+    env['NODE_ENV'] = 'production';
     delete env['NEXT_PUBLIC_RUNTIME_VALIDATE'];
     delete env['RUNTIME_VALIDATE'];
 
@@ -150,7 +150,7 @@ describe('validateWithZod', () => {
         expect(schemaLoader).not.toHaveBeenCalled();
       });
     } finally {
-      env.NODE_ENV = previousEnv.NODE_ENV;
+      env['NODE_ENV'] = previousEnv.NODE_ENV;
       env['NEXT_PUBLIC_RUNTIME_VALIDATE'] = previousEnv.NEXT_PUBLIC_RUNTIME_VALIDATE;
       env['RUNTIME_VALIDATE'] = previousEnv.RUNTIME_VALIDATE;
     }

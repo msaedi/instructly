@@ -492,6 +492,12 @@ def test_public_logout_handles_pyjwt_error_and_still_clears_refresh_cookie(monke
         "decode_access_token",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(PyJWTError("bad token")),
     )
+    warning_calls: list[tuple[str, tuple[object, ...]]] = []
+    monkeypatch.setattr(
+        public_routes.logger,
+        "warning",
+        lambda message, *args, **_kwargs: warning_calls.append((message, args)),
+    )
 
     response = public_routes.public_logout(
         Response(),
@@ -502,6 +508,7 @@ def test_public_logout_handles_pyjwt_error_and_still_clears_refresh_cookie(monke
     assert response.status_code == 204
     set_cookie_headers = response.headers.getlist("set-cookie")
     assert any("/api/v1/auth/refresh" in header for header in set_cookie_headers)
+    assert warning_calls == [("Tampered token during logout: %s", ("bad token",))]
 
 
 @pytest.mark.asyncio
@@ -687,7 +694,7 @@ async def test_public_availability_cache_hit_etag_304(monkeypatch):
     cached = PublicInstructorAvailability(
         instructor_id=user.id,
         instructor_first_name="Test",
-        instructor_last_initial="T",
+        instructor_last_initial="T.",
         detail_level="full",
         availability_by_date=availability_by_date,
         has_availability=True,
@@ -761,7 +768,7 @@ async def test_public_availability_cache_hit_applies_live_overnight_filter(monke
     cached = PublicInstructorAvailability(
         instructor_id=user.id,
         instructor_first_name="Test",
-        instructor_last_initial="T",
+        instructor_last_initial="T.",
         detail_level="full",
         availability_by_date={
             target_day.isoformat(): PublicDayAvailability(

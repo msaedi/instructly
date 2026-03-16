@@ -13,6 +13,7 @@ import {
   type PricingPreviewResponse,
   formatCentsToDisplay,
 } from '@/lib/api/pricing';
+import { formatDisplayName } from '@/lib/format/displayName';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { favoritesApi } from '@/services/api/favorites';
 import { useFavoriteStatus, useSetFavoriteStatus } from '@/hooks/queries/useFavoriteStatus';
@@ -403,7 +404,11 @@ const findNextAvailableSlot = (
                   className={`${compact ? 'text-xl' : 'text-3xl'} font-extrabold text-[#7E22CE]`}
                   data-testid="instructor-name"
                 >
-                  {instructor.user.first_name} {instructor.user.last_initial ? `${instructor.user.last_initial}.` : ''}
+                  {formatDisplayName(
+                    instructor.user.first_name,
+                    instructor.user.last_initial,
+                    `Instructor #${instructor.user_id}`,
+                  )}
                 </h2>
                 {showDistance && (
                   <span className={`${compact ? 'text-sm' : 'text-base'} font-medium text-gray-500 dark:text-gray-400`}>
@@ -638,7 +643,11 @@ const findNextAvailableSlot = (
               {/* Message Button */}
               <MessageInstructorButton
                 instructorId={instructor.user_id}
-                instructorName={`${instructor.user.first_name}${instructor.user.last_initial ? ` ${instructor.user.last_initial}.` : ''}`}
+                instructorName={formatDisplayName(
+                  instructor.user.first_name,
+                  instructor.user.last_initial,
+                  `Instructor #${instructor.user_id}`,
+                )}
                 variant="ghost"
                 size="sm"
                 iconOnly
@@ -751,7 +760,11 @@ const findNextAvailableSlot = (
                   // Navigate directly to booking confirmation with the next available slot
                   const bookingData = {
                     instructorId: instructor.user_id,
-                    instructorName: `${instructor.user.first_name} ${instructor.user.last_initial ? `${instructor.user.last_initial}.` : ''}`,
+                    instructorName: formatDisplayName(
+                      instructor.user.first_name,
+                      instructor.user.last_initial,
+                      `Instructor #${instructor.user_id}`,
+                    ),
                     lessonType: (at(instructor.services, 0) ? getServiceName(at(instructor.services, 0)!) : '') || 'Service',
                     date: nextAvailableSlot.date,
                     startTime: nextAvailableSlot.time,

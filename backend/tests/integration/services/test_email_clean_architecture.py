@@ -133,7 +133,7 @@ class TestEmailCleanArchitecture:
         html_content = call_args.kwargs["html_content"]
 
         # Should include booking details
-        assert "Test Student" in html_content
+        assert "Test S." in html_content
         assert "Piano Lessons" in html_content
         assert "$50.00" in html_content
 

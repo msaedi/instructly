@@ -9,31 +9,34 @@
 export type * as Gen from '@/types/generated/api';
 
 // Import and re-export components for use in other files
-import type { components } from '@/types/generated/api';
-export type { components };
-export type { operations } from '@/types/generated/api';
+import type { components, operations } from '@/types/generated/api';
+export type { components, operations };
 
 // Canonical aliases for commonly used models (import these, not from Gen.* directly)
 export type User = components['schemas']['AuthUserWithPermissionsResponse'];
 export type Booking = components['schemas']['BookingResponse'];
+export type BookingResponse = components['schemas']['BookingResponse'];
+export type InstructorBookingResponse = components['schemas']['InstructorBookingResponse'];
 export type InstructorProfile = components['schemas']['InstructorProfileResponse'];
 export type InstructorProfileResponse = components['schemas']['InstructorProfileResponse'];
+export type InstructorProfilePublic = components['schemas']['InstructorProfilePublic'];
+export type StudentInfoPublic = components['schemas']['StudentInfoPublic'];
 
 // Common endpoint payloads
 export type CreateBookingRequest = components['schemas']['BookingCreate'];
-export type CreateBookingResponse = components['schemas']['BookingResponse'];
 export type BookingCreate = components['schemas']['BookingCreate'];
 export type AvailabilityCheckRequest = components['schemas']['AvailabilityCheckRequest'];
 export type AvailabilityCheckResponse = components['schemas']['AvailabilityCheckResponse'];
 export type BookingPreview = components['schemas']['BookingPreviewResponse'];
 
 // Paginated wrappers with useful aliases
-export type BookingList = components['schemas']['PaginatedResponse_BookingResponse_'];
-export type BookingListResponse = components['schemas']['PaginatedResponse_BookingResponse_'];
+export type BookingList =
+  components['schemas']['PaginatedResponse_Union_BookingResponse__InstructorBookingResponse__'];
+export type BookingListResponse =
+  components['schemas']['PaginatedResponse_Union_BookingResponse__InstructorBookingResponse__'];
 export type UpcomingBookingList = components['schemas']['PaginatedResponse_UpcomingBookingResponse_'];
 
 // Search responses
-export type InstructorSearchResponse = components['schemas']['NLSearchResponse'];
 export type NaturalLanguageSearchResponse = components['schemas']['NLSearchResponse'];
 
 // Availability types
@@ -179,21 +182,21 @@ export type PricingPreviewResponse = Omit<
 };
 
 // Admin auth-blocks (not yet represented in OpenAPI)
-export type AuthBlocksLockoutState = {
+type AuthBlocksLockoutState = {
   active: boolean;
   ttl_seconds: number;
   level: string;
 };
-export type AuthBlocksRateLimitState = {
+type AuthBlocksRateLimitState = {
   active: boolean;
   count: number;
   limit: number;
   ttl_seconds: number;
 };
-export type AuthBlocksCaptchaState = {
+type AuthBlocksCaptchaState = {
   active: boolean;
 };
-export type AuthBlocksState = {
+type AuthBlocksState = {
   lockout: AuthBlocksLockoutState | null;
   rate_limit_minute: AuthBlocksRateLimitState | null;
   rate_limit_hour: AuthBlocksRateLimitState | null;
@@ -224,12 +227,12 @@ export type AuthBlocksClearResponse = {
 };
 
 // Admin location-learning (not yet represented in OpenAPI)
-export type LocationLearningClickCount = {
+type LocationLearningClickCount = {
   region_boundary_id: string;
   region_name?: string | null;
   count: number;
 };
-export type LocationLearningUnresolvedQuery = {
+type LocationLearningUnresolvedQuery = {
   id: string;
   query_normalized: string;
   search_count: number;
@@ -245,7 +248,7 @@ export type LocationLearningUnresolvedQueriesResponse = {
   queries: LocationLearningUnresolvedQuery[];
   total: number;
 };
-export type LocationLearningPendingAlias = {
+type LocationLearningPendingAlias = {
   id: string;
   alias_normalized: string;
   region_boundary_id?: string | null;
@@ -258,7 +261,7 @@ export type LocationLearningPendingAlias = {
 export type LocationLearningPendingAliasesResponse = {
   aliases: LocationLearningPendingAlias[];
 };
-export type LocationLearningRegionOption = {
+type LocationLearningRegionOption = {
   id: string;
   name: string;
   borough?: string | null;
@@ -395,7 +398,6 @@ export type UpcomingBookingResponse = components['schemas']['UpcomingBookingResp
 
 // Availability update types
 export type WeekBitmapResponse = components['schemas']['WeekBitmapResponse'];
-export type WeekAvailabilityResponse = WeekBitmapResponse;
 export type WeekAvailabilityUpdateResponse = components['schemas']['WeekAvailabilityUpdateResponse'];
 export type CopyWeekResponse = components['schemas']['CopyWeekResponse'];
 
@@ -427,11 +429,22 @@ export type BookedSlotsResponse = components['schemas']['BookedSlotsResponse'];
 // Admin booking types
 export type AdminBookingListResponse = components['schemas']['AdminBookingListResponse'];
 export type AdminBookingStatsResponse = components['schemas']['AdminBookingStatsResponse'];
+export type AdminBookingDetailResponse = components['schemas']['AdminBookingDetailResponse'];
+export type AdminBookingListItem = components['schemas']['AdminBookingListItem'];
+export type AdminCancelBookingRequest = components['schemas']['AdminCancelBookingRequest'];
+export type AdminRefundRequest = components['schemas']['AdminRefundRequest'];
+export type AdminRefundReason = components['schemas']['AdminRefundReason'];
 
 // Admin audit types
 export type AuditLogListResponse = components['schemas']['AuditLogListResponse'];
 export type AdminAuditEntry = components['schemas']['AdminAuditEntry'];
+export type AdminAuditLogResponse = components['schemas']['AdminAuditLogResponse'];
 
 // Paginated instructor list
-export type InstructorListResponse = components['schemas']['PaginatedResponse_InstructorProfileResponse_'];
-export type PaginatedInstructorProfileResponse = components['schemas']['PaginatedResponse_InstructorProfileResponse_'];
+export type InstructorListResponse = components['schemas']['PaginatedResponse_InstructorProfilePublic_'];
+export type ListAdminAuditLogApiV1AdminAuditLogGetParams = NonNullable<
+  operations['list_admin_audit_log_api_v1_admin_audit_log_get']['parameters']['query']
+>;
+export type ListAdminBookingsApiV1AdminBookingsGetParams = NonNullable<
+  operations['list_admin_bookings_api_v1_admin_bookings_get']['parameters']['query']
+>;

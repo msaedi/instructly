@@ -116,7 +116,7 @@ const createInstructor = (overrides: Partial<Instructor> = {}): Instructor => ({
   user_id: '01K2TEST00000000000000001',
   user: {
     first_name: 'John',
-    last_initial: 'D',
+    last_initial: 'D.',
   },
   bio: 'Test bio for the instructor',
   years_experience: 5,
@@ -1302,7 +1302,7 @@ describe('InstructorCard', () => {
       const instructor = createInstructor({
         user: {
           first_name: 'Alice',
-          last_initial: 'B',
+          last_initial: 'B.',
           has_profile_picture: true,
           profile_picture_version: 3,
         } as Instructor['user'],

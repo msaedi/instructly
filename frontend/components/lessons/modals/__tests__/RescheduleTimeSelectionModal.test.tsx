@@ -163,7 +163,7 @@ const mockInstructor = {
   user_id: 'inst-123',
   user: {
     first_name: 'John',
-    last_initial: 'D',
+    last_initial: 'D.',
   },
   services: [
     {
@@ -1014,12 +1014,12 @@ describe('RescheduleTimeSelectionModal', () => {
         time: '18:00:00',
         service: 'Piano',
       };
+      const { onOpenChat: _onOpenChat, ...propsWithoutOnOpenChat } = defaultProps;
 
       render(
         <RescheduleTimeSelectionModal
-          {...defaultProps}
+          {...propsWithoutOnOpenChat}
           currentLesson={currentLesson}
-          onOpenChat={undefined}
         />
       );
 
@@ -1046,7 +1046,6 @@ describe('RescheduleTimeSelectionModal', () => {
           {...defaultProps}
           onClose={onClose}
           currentLesson={currentLesson}
-          onOpenChat={undefined}
         />
       );
 
@@ -1125,10 +1124,11 @@ describe('RescheduleTimeSelectionModal', () => {
 
   describe('chat link without onOpenChat', () => {
     it('renders static text instead of button when onOpenChat is not provided', async () => {
+      const { onOpenChat: _onOpenChat, ...propsWithoutOnOpenChat } = defaultProps;
+
       render(
         <RescheduleTimeSelectionModal
-          {...defaultProps}
-          onOpenChat={undefined}
+          {...propsWithoutOnOpenChat}
         />
       );
 
@@ -1965,7 +1965,6 @@ describe('RescheduleTimeSelectionModal', () => {
       render(
         <RescheduleTimeSelectionModal
           {...defaultProps}
-          currentLesson={undefined}
         />
       );
 

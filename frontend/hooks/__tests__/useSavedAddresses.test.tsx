@@ -9,8 +9,23 @@ jest.mock('@/lib/api', () => ({
 
 import { useSavedAddresses, formatAddress, getAddressLabel } from '../useSavedAddresses';
 import { fetchWithAuth } from '@/lib/api';
+import type { SavedAddress } from '../useSavedAddresses';
 
 const fetchWithAuthMock = fetchWithAuth as jest.Mock;
+
+const makeAddress = (overrides: Partial<SavedAddress>): SavedAddress => ({
+  administrative_area: 'NY',
+  country_code: 'US',
+  id: 'addr-default',
+  is_active: true,
+  is_default: false,
+  label: 'home',
+  locality: 'New York',
+  postal_code: '10001',
+  street_line1: '123 Main St',
+  verification_status: 'unverified',
+  ...overrides,
+});
 
 const createWrapper = () => {
   const queryClient = new QueryClient({
@@ -87,14 +102,12 @@ describe('useSavedAddresses', () => {
 describe('formatAddress', () => {
   it('formats address with all fields', () => {
     const value = formatAddress({
-      id: 'addr-1',
-      label: 'home',
-      street_line1: '123 Main St',
+      ...makeAddress({
+        id: 'addr-1',
+        label: 'home',
+        street_line1: '123 Main St',
+      }),
       street_line2: 'Apt 4B',
-      locality: 'New York',
-      administrative_area: 'NY',
-      postal_code: '10001',
-      is_active: true,
     });
 
     expect(value).toBe('123 Main St, Apt 4B, New York, NY 10001');
@@ -102,13 +115,14 @@ describe('formatAddress', () => {
 
   it('handles missing street_line2', () => {
     const value = formatAddress({
-      id: 'addr-2',
-      label: 'work',
-      street_line1: '456 Market St',
-      locality: 'San Francisco',
-      administrative_area: 'CA',
-      postal_code: '94105',
-      is_active: true,
+      ...makeAddress({
+        id: 'addr-2',
+        label: 'work',
+        street_line1: '456 Market St',
+        locality: 'San Francisco',
+        administrative_area: 'CA',
+        postal_code: '94105',
+      }),
     });
 
     expect(value).toBe('456 Market St, San Francisco, CA 94105');
@@ -118,22 +132,21 @@ describe('formatAddress', () => {
 describe('getAddressLabel', () => {
   it('capitalizes home/work labels', () => {
     const homeLabel = getAddressLabel({
-      id: 'addr-1',
-      label: 'home',
-      street_line1: '123 Main St',
-      locality: 'New York',
-      administrative_area: 'NY',
-      postal_code: '10001',
-      is_active: true,
+      ...makeAddress({
+        id: 'addr-1',
+        label: 'home',
+        street_line1: '123 Main St',
+      }),
     });
     const workLabel = getAddressLabel({
-      id: 'addr-2',
-      label: 'work',
-      street_line1: '456 Market St',
-      locality: 'San Francisco',
-      administrative_area: 'CA',
-      postal_code: '94105',
-      is_active: true,
+      ...makeAddress({
+        id: 'addr-2',
+        label: 'work',
+        street_line1: '456 Market St',
+        locality: 'San Francisco',
+        administrative_area: 'CA',
+        postal_code: '94105',
+      }),
     });
 
     expect(homeLabel).toBe('Home');
@@ -142,14 +155,11 @@ describe('getAddressLabel', () => {
 
   it('uses custom_label for other', () => {
     const label = getAddressLabel({
-      id: 'addr-3',
-      label: 'other',
+      ...makeAddress({
+        id: 'addr-3',
+        label: 'other',
+      }),
       custom_label: 'Studio',
-      street_line1: '789 Broadway',
-      locality: 'New York',
-      administrative_area: 'NY',
-      postal_code: '10003',
-      is_active: true,
     });
 
     expect(label).toBe('Studio');
@@ -157,13 +167,14 @@ describe('getAddressLabel', () => {
 
   it('falls back to "Other" when custom_label missing', () => {
     const label = getAddressLabel({
-      id: 'addr-4',
-      label: 'other',
-      street_line1: '101 State St',
-      locality: 'Boston',
-      administrative_area: 'MA',
-      postal_code: '02108',
-      is_active: true,
+      ...makeAddress({
+        id: 'addr-4',
+        label: 'other',
+        street_line1: '101 State St',
+        locality: 'Boston',
+        administrative_area: 'MA',
+        postal_code: '02108',
+      }),
     });
 
     expect(label).toBe('Other');
@@ -171,13 +182,14 @@ describe('getAddressLabel', () => {
 
   it('falls back to "Other" for unknown labels', () => {
     const label = getAddressLabel({
-      id: 'addr-5',
-      label: 'favorite',
-      street_line1: '12 Elm St',
-      locality: 'Boston',
-      administrative_area: 'MA',
-      postal_code: '02108',
-      is_active: true,
+      ...makeAddress({
+        id: 'addr-5',
+        label: 'favorite',
+        street_line1: '12 Elm St',
+        locality: 'Boston',
+        administrative_area: 'MA',
+        postal_code: '02108',
+      }),
     });
 
     expect(label).toBe('Other');

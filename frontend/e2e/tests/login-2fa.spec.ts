@@ -1,7 +1,7 @@
 import { test, expect, type BrowserContext, type ConsoleMessage, type Page, type Route } from '@playwright/test';
 import { buildSessionCookie } from '../support/cookies';
 
-const DEBUG_E2E_LOGIN = process.env.DEBUG_E2E_LOGIN === '1';
+const DEBUG_E2E_LOGIN = process.env['DEBUG_E2E_LOGIN'] === '1';
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const regexFromPath = (path: string) =>
@@ -113,10 +113,10 @@ const setSessionCookieHeaders = (origin: string, value = 'fake.jwt.value') => ({
 });
 
 const persistSessionCookie = async (context: BrowserContext, value = 'fake.jwt.value') => {
-  const base = process.env.PLAYWRIGHT_BASE_URL ?? process.env.BASE_URL ?? 'http://localhost:3100';
+  const base = process.env['PLAYWRIGHT_BASE_URL'] ?? process.env['BASE_URL'] ?? 'http://localhost:3100';
   const cookie = buildSessionCookie({
     baseURL: base,
-    nameFromEnv: process.env.SESSION_COOKIE_NAME,
+    nameFromEnv: process.env['SESSION_COOKIE_NAME'] ?? null,
     token: value,
   });
   await context.addCookies([cookie]);

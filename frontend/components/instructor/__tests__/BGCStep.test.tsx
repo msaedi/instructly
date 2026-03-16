@@ -50,7 +50,7 @@ const createApiProblemError = (
     title: 'Test Error',
     status: statusCode,
     detail,
-    code,
+    ...(code !== undefined ? { code } : {}),
   };
   // ApiProblemError constructor is (problem, response)
   return new ApiProblemError(problem, { status: statusCode } as Response);

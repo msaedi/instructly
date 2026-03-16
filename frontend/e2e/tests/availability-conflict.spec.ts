@@ -146,9 +146,9 @@ const alignCalendarToWeek = async (page: Page, mondayISO: string) => {
   await expect(header).toHaveAttribute('data-week-start', mondayISO);
 };
 
-const STORAGE_STATE_PATH = process.env.PLAYWRIGHT_STORAGE_STATE || 'e2e/.storage/instructor.json';
-const SESSION_TOKEN = process.env.TEST_SESSION_TOKEN ?? 'fake.jwt.value';
-const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME;
+const STORAGE_STATE_PATH = process.env['PLAYWRIGHT_STORAGE_STATE'] || 'e2e/.storage/instructor.json';
+const SESSION_TOKEN = process.env['TEST_SESSION_TOKEN'] ?? 'fake.jwt.value';
+const SESSION_COOKIE_NAME = process.env['SESSION_COOKIE_NAME'];
 
 const setClientVersionOnPage = async (page: Page, version: string) => {
   await page.evaluate((etag) => {
@@ -381,7 +381,7 @@ test.describe('Availability 409 conflict flow', () => {
     const week = createWeekContext();
     const state = createRouteState({});
     const baseURL =
-      test.info().project.use?.baseURL || process.env.PLAYWRIGHT_BASE_URL || process.env.E2E_BASE_URL || 'http://localhost:3100';
+      test.info().project.use?.baseURL || process.env['PLAYWRIGHT_BASE_URL'] || process.env['E2E_BASE_URL'] || 'http://localhost:3100';
     const contextA = await browser.newContext({ storageState: STORAGE_STATE_PATH, baseURL });
     const contextB = await browser.newContext({ storageState: STORAGE_STATE_PATH, baseURL });
     await seedSessionCookie(contextA, baseURL, SESSION_TOKEN, SESSION_COOKIE_NAME);
@@ -437,7 +437,7 @@ test.describe('Availability 409 conflict flow', () => {
     const week = createWeekContext();
     const state = createRouteState({});
     const baseURL =
-      test.info().project.use?.baseURL || process.env.PLAYWRIGHT_BASE_URL || process.env.E2E_BASE_URL || 'http://localhost:3100';
+      test.info().project.use?.baseURL || process.env['PLAYWRIGHT_BASE_URL'] || process.env['E2E_BASE_URL'] || 'http://localhost:3100';
     const contextA = await browser.newContext({ storageState: STORAGE_STATE_PATH, baseURL });
     const contextB = await browser.newContext({ storageState: STORAGE_STATE_PATH, baseURL });
     await seedSessionCookie(contextA, baseURL, SESSION_TOKEN, SESSION_COOKIE_NAME);

@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import PaymentConfirmation from '../PaymentConfirmation';
 import { PaymentMethod, PAYMENT_STATUS, BookingType, type BookingPayment } from '../../types';
 

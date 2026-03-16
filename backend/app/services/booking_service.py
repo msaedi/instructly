@@ -311,35 +311,6 @@ class BookingService(BaseService):
             end = 24 * 60
         return start, end
 
-    def _resolve_actor_payload(
-        self, actor: Any | None, default_role: str = "system"
-    ) -> dict[str, Any]:
-        """Extract actor metadata (id/role) from user-like objects."""
-        if actor is None:
-            return {"role": default_role}
-
-        if isinstance(actor, dict):
-            actor_id = actor.get("id") or actor.get("actor_id") or actor.get("user_id")
-            raw_role = actor.get("role") or actor.get("actor_role") or actor.get("role_name")
-            resolved_role = str(raw_role) if raw_role is not None else default_role
-            return {"id": actor_id, "role": resolved_role}
-
-        actor_id = getattr(actor, "id", None)
-        role_value: Any = getattr(actor, "role", None) or getattr(actor, "role_name", None)
-
-        if role_value is None:
-            roles = getattr(actor, "roles", None)
-            if isinstance(roles, (list, tuple)):
-                for role_obj in roles:
-                    candidate = getattr(role_obj, "name", None)
-                    if candidate:
-                        role_value = candidate
-                        break
-        if role_value is None:
-            role_value = default_role
-
-        return {"id": actor_id, "role": str(role_value)}
-
     @staticmethod
     def _user_has_role(user: User, role: RoleName) -> bool:
         roles = cast(list[Any], getattr(user, "roles", []) or [])
@@ -522,26 +493,6 @@ class BookingService(BaseService):
         if booking.booking_end_utc is None:
             raise ValueError(f"Booking {booking.id} missing booking_end_utc")
         return cast(datetime, booking.booking_end_utc)
-
-    def _check_bits_coverage(
-        self,
-        instructor_id: str,
-        day: date,
-        start_index: int,
-        end_index: int,
-    ) -> bool:
-        """Return True if every bit in [start_index, end_index) is set."""
-        repo = getattr(self, "availability_repository", None)
-        if repo is None or not hasattr(repo, "get_day_bits"):
-            repo = AvailabilityDayRepository(self.db)
-        bits = repo.get_day_bits(instructor_id, day) or b""
-
-        for idx in range(start_index, end_index):
-            byte_i = idx // 8
-            bit_mask = 1 << (idx % 8)
-            if byte_i >= len(bits) or (bits[byte_i] & bit_mask) == 0:
-                return False
-        return True
 
     def _get_day_bitmaps(self, instructor_id: str, day: date) -> tuple[bytes, bytes]:
         """Return (bits, format_tags) for a day, defaulting tags to all-zero."""
@@ -2818,7 +2769,7 @@ class BookingService(BaseService):
                             results["reverse_failed"] = True
                             logger.error(f"Transfer reversal failed for booking {booking_id}: {e}")
                 except Exception as e:
-                    logger.warning(f"Capture not performed for booking {booking_id}: {e}")
+                    logger.warning("Capture not performed for booking %s: %s", booking_id, e)
                     results["error"] = str(e)
 
         elif scenario in ("over_24h_regular",):
@@ -2830,7 +2781,7 @@ class BookingService(BaseService):
                     )
                     results["cancel_pi_success"] = True
                 except Exception as e:
-                    logger.warning(f"Cancel PI failed for booking {booking_id}: {e}")
+                    logger.warning("Cancel PI failed for booking %s: %s", booking_id, e)
                     results["error"] = str(e)
 
         elif scenario in ("instructor_cancel_over_24h", "instructor_cancel_under_24h"):
@@ -2846,7 +2797,11 @@ class BookingService(BaseService):
                         results["refund_success"] = True
                         results["refund_data"] = refund
                     except Exception as e:
-                        logger.warning(f"Instructor refund failed for booking {booking_id}: {e}")
+                        logger.warning(
+                            "Instructor refund failed for booking %s: %s",
+                            booking_id,
+                            e,
+                        )
                         results["refund_failed"] = True
                         results["error"] = str(e)
                 else:
@@ -2857,7 +2812,7 @@ class BookingService(BaseService):
                         )
                         results["cancel_pi_success"] = True
                     except Exception as e:
-                        logger.warning(f"Cancel PI failed for booking {booking_id}: {e}")
+                        logger.warning("Cancel PI failed for booking %s: %s", booking_id, e)
                         results["error"] = str(e)
 
         elif scenario == "between_12_24h":
@@ -2905,7 +2860,7 @@ class BookingService(BaseService):
                             results["reverse_failed"] = True
                             logger.error(f"Transfer reversal failed for booking {booking_id}: {e}")
                 except Exception as e:
-                    logger.warning(f"Capture not performed for booking {booking_id}: {e}")
+                    logger.warning("Capture not performed for booking %s: %s", booking_id, e)
                     results["error"] = str(e)
 
         elif scenario == "under_12h":
@@ -3006,7 +2961,7 @@ class BookingService(BaseService):
                                         results["payout_failed"] = True
                                         results["error"] = str(e)
                 except Exception as e:
-                    logger.warning(f"Capture not performed for booking {booking_id}: {e}")
+                    logger.warning("Capture not performed for booking %s: %s", booking_id, e)
                     results["error"] = str(e)
 
         # scenario == "under_12h_no_pi" - no Stripe calls needed
@@ -3690,7 +3645,7 @@ class BookingService(BaseService):
             cache_key = f"booking_stats:instructor:{instructor_id}"
             cached_stats = self.cache_service.get(cache_key)
             if cached_stats is not None:
-                logger.debug(f"Cache hit for instructor {instructor_id} booking stats")
+                logger.debug("Cache hit for instructor %s booking stats", instructor_id)
                 return cast(Dict[str, Any], cached_stats)
 
         # Calculate stats if not cached
@@ -3732,7 +3687,7 @@ class BookingService(BaseService):
         # Cache the results for 5 minutes
         if self.cache_service:
             self.cache_service.set(cache_key, stats, tier="hot")
-            logger.debug(f"Cached stats for instructor {instructor_id}")
+            logger.debug("Cached stats for instructor %s", instructor_id)
 
         return stats
 
@@ -6107,10 +6062,11 @@ class BookingService(BaseService):
                 stats_cache_key = f"booking_stats:instructor:{booking.instructor_id}"
                 self.cache_service.delete(stats_cache_key)
                 logger.debug(
-                    f"Invalidated availability and stats caches for instructor {booking.instructor_id}"
+                    "Invalidated availability and stats caches for instructor %s",
+                    booking.instructor_id,
                 )
             except Exception as cache_error:
-                logger.warning(f"Failed to invalidate caches: {cache_error}")
+                logger.warning("Failed to invalidate caches: %s", cache_error)
 
             # Invalidate BookingRepository cached methods
             # The cache keys use hashed kwargs, so we need to invalidate ALL cached queries
@@ -6118,10 +6074,11 @@ class BookingService(BaseService):
                 self.cache_service.delete_pattern("booking:get_student_bookings:*")
                 self.cache_service.delete_pattern("booking:get_instructor_bookings:*")
                 logger.debug(
-                    f"Invalidated BookingRepository caches after booking {booking.id} change"
+                    "Invalidated BookingRepository caches after booking %s change",
+                    booking.id,
                 )
             except Exception as e:
-                logger.warning(f"Failed to invalidate BookingRepository caches: {e}")
+                logger.warning("Failed to invalidate BookingRepository caches: %s", e)
 
     # =========================================================================
     # Methods for route layer (no direct DB/repo access needed in routes)
@@ -6340,7 +6297,7 @@ class BookingService(BaseService):
             with self.transaction():
                 self.repository.delete(booking.id)
 
-            logger.info(f"Aborted pending booking {booking_id}")
+            logger.info("Aborted pending booking %s", booking_id)
             return True
         except Exception as e:
             logger.error(f"Failed to abort pending booking {booking_id}: {e}")

@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
@@ -595,8 +594,8 @@ describe('RefineFiltersSection', () => {
     const noOptionsFilter = makeFilter({
       filter_key: 'no_opts',
       filter_display_name: 'No Opts',
-      options: undefined,
     });
+    delete noOptionsFilter.options;
     mockUseSubcategoryFilters.mockReturnValue({
       data: [MULTI_FILTER, noOptionsFilter],
       isLoading: false,
@@ -757,8 +756,8 @@ describe('RefineFiltersSection', () => {
     const filterWithNoOptions = makeFilter({
       filter_key: 'topic',
       filter_display_name: 'Topic',
-      options: undefined,
     });
+    delete filterWithNoOptions.options;
     mockUseSubcategoryFilters.mockReturnValue({
       data: [filterWithNoOptions],
       isLoading: false,
@@ -820,8 +819,8 @@ describe('RefineFiltersSection', () => {
     const undefinedOptsFilter = makeFilter({
       filter_key: 'undefined_opts',
       filter_display_name: 'Undefined Opts',
-      options: undefined,
     });
+    delete undefinedOptsFilter.options;
     mockUseSubcategoryFilters.mockReturnValue({
       data: [MULTI_FILTER, undefinedOptsFilter],
       isLoading: false,
@@ -877,7 +876,6 @@ describe('RefineFiltersSection', () => {
       filter_key: 'approach',
       filter_display_name: 'Approach',
       filter_type: 'multi_select',
-      options: undefined,
     };
     // Include a normal filter so onInitializeMissingFilters is actually called
     mockUseSubcategoryFilters.mockReturnValue({

@@ -22,7 +22,7 @@ describe('search list schema', () => {
           travel_buffer_minutes: 60,
           overnight_protection_enabled: true,
           created_at: new Date().toISOString(),
-          user: { id: '01H', first_name: 'A', last_initial: 'B' },
+          user: { id: '01H', first_name: 'A', last_initial: 'B.' },
           services: [
             {
               id: '01H',

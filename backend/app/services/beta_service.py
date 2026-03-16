@@ -83,10 +83,16 @@ def generate_code(length: int = 8) -> str:
 
 
 class BetaService(BaseService):
-    def __init__(self, db: Session, cache: CacheInvalidationProtocol | None = None):
+    def __init__(
+        self,
+        db: Session,
+        cache: CacheInvalidationProtocol | None = None,
+        config_service: ConfigService | None = None,
+    ):
         super().__init__(db, cache)
         self.invites = BetaInviteRepository(db)
         self.access = BetaAccessRepository(db)
+        self.config_service = config_service or ConfigService(db)
 
     @BaseService.measure_operation("beta_invite_validated")
     def validate_invite(self, code: str) -> tuple[bool, Optional[str], Optional[BetaInvite]]:
@@ -227,8 +233,7 @@ class BetaService(BaseService):
         if not profile:
             return False, "Instructor profile not found"
 
-        config_service = ConfigService(self.db)
-        pricing_config, _ = config_service.get_pricing_config()
+        pricing_config, _ = self.config_service.get_pricing_config()
         cap_raw = pricing_config.get("founding_instructor_cap", 100)
         try:
             cap = int(cap_raw)

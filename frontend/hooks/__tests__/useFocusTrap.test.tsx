@@ -16,7 +16,7 @@ function FocusTrapHarness({
   useFocusTrap({
     isOpen,
     containerRef,
-    onEscape,
+    ...(onEscape ? { onEscape } : {}),
   });
 
   if (!isOpen) return null;

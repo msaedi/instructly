@@ -345,7 +345,7 @@ class ApplyToDateRangeRequest(StrictRequestModel):
 
 
 # Bulk update schemas
-class SlotOperation(BaseModel):
+class SlotOperation(StrictRequestModel):
     """Schema for a single slot operation in bulk update."""
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)

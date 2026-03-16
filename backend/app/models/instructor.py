@@ -473,7 +473,7 @@ class BackgroundJob(Base):
 
     __tablename__ = "background_jobs"
 
-    id = Column(String, primary_key=True, index=True)
+    id = Column(String(26), primary_key=True, index=True)
     type = Column(String, nullable=False)
     payload = Column(
         JSONB(astext_type=Text()).with_variant(JSON(), "sqlite"),

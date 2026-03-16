@@ -20,7 +20,7 @@ import logging
 import os
 import threading
 import time
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Optional, Tuple
 
 from fastapi import HTTPException
 
@@ -117,6 +117,19 @@ def _get_adaptive_budget(inflight: int, *, force_high_load: bool = False) -> int
 async def get_search_inflight_count() -> int:
     async with _search_inflight_lock:
         return _search_inflight_requests
+
+
+def _coerce_skill_level_override(
+    value: str,
+) -> Literal["beginner", "intermediate", "advanced"] | None:
+    """Return a typed skill-level literal for validated override values."""
+    if value == "beginner":
+        return "beginner"
+    if value == "intermediate":
+        return "intermediate"
+    if value == "advanced":
+        return "advanced"
+    return None
 
 
 async def set_uncached_search_concurrency_limit(limit: int) -> int:
@@ -612,7 +625,9 @@ class NLSearchService:
             if effective_skill_levels:
                 # Explicit skill_level query params override NL-inferred skill level.
                 if len(effective_skill_levels) == 1:
-                    parsed_query.skill_level = effective_skill_levels[0]  # type: ignore[assignment]
+                    parsed_query.skill_level = _coerce_skill_level_override(
+                        effective_skill_levels[0]
+                    )
                 else:
                     parsed_query.skill_level = None
 
@@ -3194,7 +3209,8 @@ class NLSearchService:
             return None
 
         if location_resolution.resolved:
-            return location_resolution.region_name or location_resolution.borough
+            resolved_name = location_resolution.region_name or location_resolution.borough
+            return str(resolved_name) if resolved_name is not None else None
 
         if not (location_resolution.requires_clarification and location_resolution.candidates):
             return None

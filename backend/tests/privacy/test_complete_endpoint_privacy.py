@@ -4,6 +4,7 @@ Tests every student-accessible endpoint to ensure instructor last names are not 
 """
 
 import json
+from pathlib import Path
 import re
 from typing import Any, Optional
 
@@ -317,10 +318,9 @@ class TestEmailTemplatePrivacy:
 
     def test_email_templates_use_privacy_filters(self):
         """Test that email templates use proper Jinja filters for privacy."""
-        import os
-
-        backend_root = "/Users/mehdisaedi/instructly/backend"
-        template_dir = os.path.join(backend_root, "app", "templates", "email", "booking")
+        template_dir = (
+            Path(__file__).resolve().parents[2] / "app" / "templates" / "email" / "booking"
+        )
         student_templates = [
             "confirmation_student.html",
             "cancellation_student.html",
@@ -331,10 +331,9 @@ class TestEmailTemplatePrivacy:
         violations = []
 
         for template_name in student_templates:
-            template_path = os.path.join(template_dir, template_name)
-            if os.path.exists(template_path):
-                with open(template_path, "r") as f:
-                    content = f.read()
+            template_path = template_dir / template_name
+            if template_path.exists():
+                content = template_path.read_text()
 
                 # Check that if last_name is used, it has the |first filter
                 if "booking.instructor.last_name" in content:

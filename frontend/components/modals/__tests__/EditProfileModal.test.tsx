@@ -193,7 +193,7 @@ const mockInstructorProfile = {
   is_founding_instructor: false,
   is_live: false,
   skills_configured: true,
-  user: { id: 'user-123', first_name: 'Test', last_initial: 'U' },
+  user: { id: 'user-123', first_name: 'Test', last_initial: 'U.' },
   user_id: 'user-123',
   verified: true,
   visible: true,
@@ -6666,8 +6666,6 @@ describe('EditProfileModal', () => {
         <EditProfileModal
           {...defaultProps}
           variant="areas"
-          preferredTeaching={undefined}
-          preferredPublic={undefined}
           selectedServiceAreas={[]}
         />,
         { wrapper: createWrapper() }

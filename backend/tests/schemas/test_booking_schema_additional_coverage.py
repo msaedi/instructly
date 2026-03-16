@@ -18,6 +18,7 @@ from app.schemas.booking import (
     BookingRescheduleRequest,
     BookingResponse,
     FindBookingOpportunitiesRequest,
+    InstructorBookingResponse,
     PaymentSummary,
     UpcomingBookingResponse,
     UpcomingBookingsListResponse,
@@ -84,7 +85,7 @@ def _base_booking_payload() -> dict:
             "last_name": "Taylor",
             "email": "ava@example.com",
         },
-        "instructor": {"id": "inst-1", "first_name": "Sam", "last_initial": "L"},
+        "instructor": {"id": "inst-1", "first_name": "Sam", "last_initial": "L."},
         "instructor_service": {"id": "service-1", "name": "Guitar", "description": None},
         "payment_summary": None,
     }
@@ -249,6 +250,36 @@ def test_booking_response_payment_summary_mapping() -> None:
     assert response.payment_summary is not None
 
 
+def test_instructor_booking_response_uses_public_student_identity() -> None:
+    payload = _base_booking_payload()
+    payload["student"] = SimpleNamespace(
+        id="student-1",
+        first_name="Ava",
+        last_name="Taylor",
+        email="ava@example.com",
+        phone="+15555550123",
+    )
+    payload["instructor"] = SimpleNamespace(
+        id="inst-1",
+        first_name="Sam",
+        last_name="Lee",
+    )
+    payload["instructor_service"] = SimpleNamespace(
+        id="service-1",
+        name="Guitar",
+        description=None,
+    )
+
+    response = InstructorBookingResponse.from_booking(SimpleNamespace(**payload))
+    student_payload = response.student.model_dump()
+
+    assert student_payload == {
+        "id": "student-1",
+        "first_name": "Ava",
+        "last_initial": "T.",
+    }
+
+
 def test_booking_create_response_properties() -> None:
     payload = _base_booking_payload()
     response = BookingCreateResponse(**payload)
@@ -311,9 +342,9 @@ def test_upcoming_booking_response_coerce_price() -> None:
         end_time=time(10, 0),
         service_name="Guitar",
         student_first_name="Ava",
-        student_last_name="Taylor",
+        student_last_initial="T.",
         instructor_first_name="Sam",
-        instructor_last_name="L",
+        instructor_last_name="L.",
         meeting_location=None,
         total_price=BadAmount(),
     )
@@ -417,9 +448,9 @@ def test_booking_create_response_safe_float_and_upcoming_price_branches() -> Non
         end_time=time(10, 0),
         service_name="Guitar",
         student_first_name="Ava",
-        student_last_name="Taylor",
+        student_last_initial="T.",
         instructor_first_name="Sam",
-        instructor_last_name="L",
+        instructor_last_name="L.",
         meeting_location=None,
         total_price=None,
     )
@@ -437,9 +468,9 @@ def test_booking_create_response_safe_float_and_upcoming_price_branches() -> Non
         end_time=time(10, 0),
         service_name="Guitar",
         student_first_name="Ava",
-        student_last_name="Taylor",
+        student_last_initial="T.",
         instructor_first_name="Sam",
-        instructor_last_name="L",
+        instructor_last_name="L.",
         meeting_location=None,
         total_price=GoodAmount(),
     )

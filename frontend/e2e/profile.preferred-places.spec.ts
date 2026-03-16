@@ -3,10 +3,10 @@ import { test, expect } from '@playwright/test';
 import { isInstructor } from './utils/projects';
 import { mockAuthenticatedPageBackgroundApis } from './utils/authenticatedPageMocks';
 
-const LIVE_MODE = Boolean(process.env.E2E_APP_ORIGIN && process.env.E2E_API_ORIGIN);
-const APP_ORIGIN = process.env.E2E_APP_ORIGIN ?? 'http://localhost:3100';
-const API_ORIGIN = process.env.E2E_API_ORIGIN ?? 'http://localhost:8000';
-const TEST_PASSWORD = process.env.E2E_SMOKE_PASSWORD ?? 'Test1234!';
+const LIVE_MODE = Boolean(process.env['E2E_APP_ORIGIN'] && process.env['E2E_API_ORIGIN']);
+const APP_ORIGIN = process.env['E2E_APP_ORIGIN'] ?? 'http://localhost:3100';
+const API_ORIGIN = process.env['E2E_API_ORIGIN'] ?? 'http://localhost:8000';
+const TEST_PASSWORD = process.env['E2E_SMOKE_PASSWORD'] ?? 'Test1234!';
 
 const generateGuestId = (): string => {
   try {
@@ -19,7 +19,7 @@ const generateGuestId = (): string => {
 test.beforeAll(({}, workerInfo) => {
   test.skip(!isInstructor(workerInfo), `Instructor-only spec (current project: ${workerInfo.project.name})`);
 });
-test.skip(Boolean(process.env.CI) && !process.env.CI_LOCAL_E2E, 'local-only smoke; opt-in via CI_LOCAL_E2E=1');
+test.skip(Boolean(process.env.CI) && !process.env['CI_LOCAL_E2E'], 'local-only smoke; opt-in via CI_LOCAL_E2E=1');
 
 test('preferred places: add two -> save -> reload -> persisted', async ({ page }) => {
   const suffix = Date.now().toString(36);
@@ -94,25 +94,25 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
         } catch {
           data = {};
         }
-        const teachingRaw = Array.isArray(data?.preferred_teaching_locations)
-          ? (data.preferred_teaching_locations as Array<Record<string, unknown>>)
+        const teachingRaw = Array.isArray(data['preferred_teaching_locations'])
+          ? (data['preferred_teaching_locations'] as Array<Record<string, unknown>>)
           : [];
         const teachingParsed: Array<{ address: string; label?: string }> = [];
         for (const entry of teachingRaw) {
-          const address = typeof entry?.address === 'string' ? entry.address.trim() : '';
+          const address = typeof entry['address'] === 'string' ? entry['address'].trim() : '';
           if (!address) continue;
-          const label = typeof entry?.label === 'string' ? entry.label.trim() : undefined;
+          const label = typeof entry['label'] === 'string' ? entry['label'].trim() : undefined;
           teachingParsed.push(label ? { address, label } : { address });
           if (teachingParsed.length === 2) break;
         }
         state.preferredTeaching = teachingParsed;
 
-        const publicRaw = Array.isArray(data?.preferred_public_spaces)
-          ? (data.preferred_public_spaces as Array<Record<string, unknown>>)
+        const publicRaw = Array.isArray(data['preferred_public_spaces'])
+          ? (data['preferred_public_spaces'] as Array<Record<string, unknown>>)
           : [];
         const publicParsed: Array<{ address: string }> = [];
         for (const entry of publicRaw) {
-          const address = typeof entry?.address === 'string' ? entry.address.trim() : '';
+          const address = typeof entry['address'] === 'string' ? entry['address'].trim() : '';
           if (!address) continue;
           publicParsed.push({ address });
           if (publicParsed.length === 2) break;
@@ -120,7 +120,7 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
         state.preferredPublic = publicParsed;
 
         return fulfillJson(route, {
-          bio: data?.bio ?? 'Mock instructor bio for preferred places smoke.',
+          bio: data['bio'] ?? 'Mock instructor bio for preferred places smoke.',
           service_area_summary: 'Manhattan',
           service_area_boroughs: ['Manhattan'],
           service_area_neighborhoods: [
@@ -130,10 +130,10 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
               borough: 'Manhattan',
             },
           ],
-          years_experience: data?.years_experience ?? 5,
-          non_travel_buffer_minutes: data?.non_travel_buffer_minutes ?? 15,
-          travel_buffer_minutes: data?.travel_buffer_minutes ?? 60,
-          overnight_protection_enabled: data?.overnight_protection_enabled ?? true,
+          years_experience: data['years_experience'] ?? 5,
+          non_travel_buffer_minutes: data['non_travel_buffer_minutes'] ?? 15,
+          travel_buffer_minutes: data['travel_buffer_minutes'] ?? 60,
+          overnight_protection_enabled: data['overnight_protection_enabled'] ?? true,
           preferred_teaching_locations: state.preferredTeaching,
           preferred_public_spaces: state.preferredPublic,
         });

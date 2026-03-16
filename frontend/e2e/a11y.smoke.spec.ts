@@ -37,14 +37,14 @@ function loadBaseline(): Set<string> {
 }
 
 test('home a11y smoke (logs by default; fails only when A11Y_STRICT=1)', async ({ page }) => {
-  const base = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3100';
-  const strictEnv = process.env.A11Y_STRICT ?? process.env.E2E_A11Y_STRICT ?? '0';
+  const base = process.env['PLAYWRIGHT_BASE_URL'] || 'http://localhost:3100';
+  const strictEnv = process.env['A11Y_STRICT'] ?? process.env['E2E_A11Y_STRICT'] ?? '0';
   const strict = strictEnv.trim() === '1';
-  const impacts = parseImpacts(process.env.A11Y_IMPACTS);
+  const impacts = parseImpacts(process.env['A11Y_IMPACTS']);
   const baseline = loadBaseline();
 
   await mockPublicPageBaselineApis(page);
-  await bypassGateIfPresent(page, base, process.env.GATE_CODE);
+  await bypassGateIfPresent(page, base, process.env['GATE_CODE']);
   await page.goto(base + '/', { waitUntil: 'domcontentloaded' });
   await page.waitForLoadState('domcontentloaded');
   await page.waitForTimeout(100);

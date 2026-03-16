@@ -4,18 +4,18 @@ import path from 'path';
 import { normalizeStorageState } from '../support/storageState';
 
 export const ADMIN_EMAIL =
-  process.env.E2E_ADMIN_EMAIL ?? process.env.ADMIN_EMAIL ?? 'admin@instainstru.com';
+  process.env['E2E_ADMIN_EMAIL'] ?? process.env['ADMIN_EMAIL'] ?? 'admin@instainstru.com';
 export const ADMIN_PASSWORD =
-  process.env.E2E_ADMIN_PASSWORD ?? process.env.ADMIN_PASSWORD ?? 'ChangeMeSuperSecure123!';
+  process.env['E2E_ADMIN_PASSWORD'] ?? process.env['ADMIN_PASSWORD'] ?? 'ChangeMeSuperSecure123!';
 
 const DEFAULT_BASE_URL =
-  process.env.ADMIN_BASE_URL ??
-  process.env.PREVIEW_BASE ??
-  process.env.E2E_BASE_URL ??
-  process.env.PLAYWRIGHT_BASE_URL ??
+  process.env['ADMIN_BASE_URL'] ??
+  process.env['PREVIEW_BASE'] ??
+  process.env['E2E_BASE_URL'] ??
+  process.env['PLAYWRIGHT_BASE_URL'] ??
   'http://localhost:3000';
 const DEFAULT_API_BASE =
-  process.env.E2E_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8000';
+  process.env['E2E_API_BASE_URL'] ?? process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8000';
 
 export async function uiLoginAsAdmin(page: Page, loginPath = '/login') {
   await page.goto(loginPath, { waitUntil: 'domcontentloaded' });

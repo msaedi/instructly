@@ -21,7 +21,11 @@ from unittest.mock import MagicMock, PropertyMock, patch
 import pytest
 
 from app.core.exceptions import BusinessRuleException
-from app.services.instructor_service import InstructorService
+from app.services.instructor_service import (
+    InstructorService,
+    PreparedProfileUpdateContext,
+    PreparedTeachingLocationGeocode,
+)
 
 
 def _format_prices(rate: float = 60.0, *formats: str) -> list[dict[str, float | str]]:
@@ -505,25 +509,32 @@ class TestTeachingLocationGeocoding:
         mock_geocoded.city = "New York"
         mock_geocoded.state = None
 
-        with patch("app.services.instructor_service.create_geocoding_provider") as mock_geo_factory:
-            mock_provider = MagicMock()
-            mock_geo_factory.return_value = mock_provider
+        with patch("app.services.instructor_service.jitter_coordinates", return_value=(40.751, -73.991)):
+            with patch("app.services.instructor_service.LocationEnrichmentService") as mock_enrich_cls:
+                mock_enricher = MagicMock()
+                mock_enricher.enrich.return_value = {"neighborhood": None, "district": None}
+                mock_enrich_cls.return_value = mock_enricher
 
-            with patch("app.services.instructor_service.anyio") as mock_anyio:
-                mock_anyio.run.return_value = mock_geocoded
+                item = self._make_place_item()
+                svc._replace_preferred_places(
+                    "USR_01",
+                    "teaching_location",
+                    [item],
+                    geocoded_locations={
+                        "123 main st": PreparedTeachingLocationGeocode(
+                            lat=mock_geocoded.latitude,
+                            lng=mock_geocoded.longitude,
+                            place_id=mock_geocoded.provider_id,
+                            neighborhood=mock_geocoded.neighborhood,
+                            city=mock_geocoded.city,
+                            state=mock_geocoded.state,
+                        )
+                    },
+                )
 
-                with patch("app.services.instructor_service.jitter_coordinates", return_value=(40.751, -73.991)):
-                    with patch("app.services.instructor_service.LocationEnrichmentService") as mock_enrich_cls:
-                        mock_enricher = MagicMock()
-                        mock_enricher.enrich.return_value = {"neighborhood": None, "district": None}
-                        mock_enrich_cls.return_value = mock_enricher
-
-                        item = self._make_place_item()
-                        svc._replace_preferred_places("USR_01", "teaching_location", [item])
-
-                        svc.preferred_place_repository.create_for_kind.assert_called_once()
-                        call_kwargs = svc.preferred_place_repository.create_for_kind.call_args
-                        assert call_kwargs.kwargs.get("neighborhood") == "New York"
+                svc.preferred_place_repository.create_for_kind.assert_called_once()
+                call_kwargs = svc.preferred_place_repository.create_for_kind.call_args
+                assert call_kwargs.kwargs.get("neighborhood") == "New York"
 
     def test_geocoding_failure_logs_debug(self):
         """L1086-1091: geocoding exception is caught and logged."""
@@ -535,17 +546,15 @@ class TestTeachingLocationGeocoding:
         svc.preferred_place_repository.create_for_kind = MagicMock()
         svc.db.expire_all = MagicMock()
 
-        with patch("app.services.instructor_service.create_geocoding_provider") as mock_geo_factory:
-            mock_provider = MagicMock()
-            mock_geo_factory.return_value = mock_provider
-
-            with patch("app.services.instructor_service.anyio") as mock_anyio:
-                mock_anyio.run.side_effect = Exception("Geocoding failed")
-
-                item = self._make_place_item()
-                # Should not raise
-                svc._replace_preferred_places("USR_01", "teaching_location", [item])
-                svc.preferred_place_repository.create_for_kind.assert_called_once()
+        item = self._make_place_item()
+        # Missing prepared geocoding should not block the write.
+        svc._replace_preferred_places(
+            "USR_01",
+            "teaching_location",
+            [item],
+            geocoded_locations={},
+        )
+        svc.preferred_place_repository.create_for_kind.assert_called_once()
 
     def test_enrichment_district_without_neighborhood(self):
         """L1107-1108: enrichment has district but no neighborhood -> neighborhood = district."""
@@ -565,27 +574,34 @@ class TestTeachingLocationGeocoding:
         mock_geocoded.city = None
         mock_geocoded.state = None
 
-        with patch("app.services.instructor_service.create_geocoding_provider") as mock_geo_factory:
-            mock_provider = MagicMock()
-            mock_geo_factory.return_value = mock_provider
+        with patch("app.services.instructor_service.jitter_coordinates", return_value=(40.751, -73.991)):
+            with patch("app.services.instructor_service.LocationEnrichmentService") as mock_enrich_cls:
+                mock_enricher = MagicMock()
+                mock_enricher.enrich.return_value = {
+                    "neighborhood": None,
+                    "district": "Manhattan",
+                }
+                mock_enrich_cls.return_value = mock_enricher
 
-            with patch("app.services.instructor_service.anyio") as mock_anyio:
-                mock_anyio.run.return_value = mock_geocoded
+                item = self._make_place_item()
+                svc._replace_preferred_places(
+                    "USR_01",
+                    "teaching_location",
+                    [item],
+                    geocoded_locations={
+                        "123 main st": PreparedTeachingLocationGeocode(
+                            lat=mock_geocoded.latitude,
+                            lng=mock_geocoded.longitude,
+                            place_id=mock_geocoded.provider_id,
+                            neighborhood=mock_geocoded.neighborhood,
+                            city=mock_geocoded.city,
+                            state=mock_geocoded.state,
+                        )
+                    },
+                )
 
-                with patch("app.services.instructor_service.jitter_coordinates", return_value=(40.751, -73.991)):
-                    with patch("app.services.instructor_service.LocationEnrichmentService") as mock_enrich_cls:
-                        mock_enricher = MagicMock()
-                        mock_enricher.enrich.return_value = {
-                            "neighborhood": None,
-                            "district": "Manhattan",
-                        }
-                        mock_enrich_cls.return_value = mock_enricher
-
-                        item = self._make_place_item()
-                        svc._replace_preferred_places("USR_01", "teaching_location", [item])
-
-                        call_kwargs = svc.preferred_place_repository.create_for_kind.call_args
-                        assert call_kwargs.kwargs.get("neighborhood") == "Manhattan"
+                call_kwargs = svc.preferred_place_repository.create_for_kind.call_args
+                assert call_kwargs.kwargs.get("neighborhood") == "Manhattan"
 
     def test_enrichment_exception_swallowed(self):
         """L1111-1115: LocationEnrichmentService raises -> caught silently."""
@@ -605,23 +621,30 @@ class TestTeachingLocationGeocoding:
         mock_geocoded.city = None
         mock_geocoded.state = None
 
-        with patch("app.services.instructor_service.create_geocoding_provider") as mock_geo_factory:
-            mock_provider = MagicMock()
-            mock_geo_factory.return_value = mock_provider
+        with patch("app.services.instructor_service.jitter_coordinates", return_value=(40.751, -73.991)):
+            with patch("app.services.instructor_service.LocationEnrichmentService") as mock_enrich_cls:
+                mock_enricher = MagicMock()
+                mock_enricher.enrich.side_effect = Exception("Enrichment error")
+                mock_enrich_cls.return_value = mock_enricher
 
-            with patch("app.services.instructor_service.anyio") as mock_anyio:
-                mock_anyio.run.return_value = mock_geocoded
-
-                with patch("app.services.instructor_service.jitter_coordinates", return_value=(40.751, -73.991)):
-                    with patch("app.services.instructor_service.LocationEnrichmentService") as mock_enrich_cls:
-                        mock_enricher = MagicMock()
-                        mock_enricher.enrich.side_effect = Exception("Enrichment error")
-                        mock_enrich_cls.return_value = mock_enricher
-
-                        item = self._make_place_item()
-                        # Should not raise
-                        svc._replace_preferred_places("USR_01", "teaching_location", [item])
-                        svc.preferred_place_repository.create_for_kind.assert_called_once()
+                item = self._make_place_item()
+                # Should not raise
+                svc._replace_preferred_places(
+                    "USR_01",
+                    "teaching_location",
+                    [item],
+                    geocoded_locations={
+                        "123 main st": PreparedTeachingLocationGeocode(
+                            lat=mock_geocoded.latitude,
+                            lng=mock_geocoded.longitude,
+                            place_id=mock_geocoded.provider_id,
+                            neighborhood=mock_geocoded.neighborhood,
+                            city=mock_geocoded.city,
+                            state=mock_geocoded.state,
+                        )
+                    },
+                )
+                svc.preferred_place_repository.create_for_kind.assert_called_once()
 
 
 @pytest.mark.unit
@@ -916,7 +939,6 @@ class TestUpdateProfileAutoBioZipAndCatalog:
     def test_geocoded_returns_none_city(self):
         """525->530: geocoded has city=None => city stays 'New York'."""
         from types import SimpleNamespace
-        from unittest.mock import Mock
 
         svc = self._setup()
         svc.user_repository.get_by_id.return_value = SimpleNamespace(
@@ -930,13 +952,13 @@ class TestUpdateProfileAutoBioZipAndCatalog:
         update_data.preferred_teaching_locations = None
         update_data.preferred_public_spaces = None
 
-        with patch("app.services.instructor_service.create_geocoding_provider") as gp:
-            gp.return_value = SimpleNamespace(geocode=Mock())
-            with patch("app.services.instructor_service.anyio.run") as arun:
-                arun.return_value = SimpleNamespace(city=None)
-                with patch("app.services.instructor_service.InstructorLifecycleService"):
-                    with patch("app.services.instructor_service.invalidate_on_instructor_profile_change"):
-                        svc.update_instructor_profile("USR_01", update_data)
+        with patch("app.services.instructor_service.InstructorLifecycleService"):
+            with patch("app.services.instructor_service.invalidate_on_instructor_profile_change"):
+                svc.update_instructor_profile(
+                    "USR_01",
+                    update_data,
+                    prepared_context=PreparedProfileUpdateContext(bio_city=None),
+                )
 
         _, kwargs = svc.profile_repository.update.call_args
         assert "New York" in kwargs["bio"]
@@ -1558,16 +1580,26 @@ class TestTeachingLocationNeighborhoodWithDistrict:
         mock_geocoded.city = None
         mock_geocoded.state = None
 
-        with patch("app.services.instructor_service.create_geocoding_provider") as gp:
-            gp.return_value = MagicMock()
-            with patch("app.services.instructor_service.anyio") as mock_anyio:
-                mock_anyio.run.return_value = mock_geocoded
-                with patch("app.services.instructor_service.jitter_coordinates", return_value=(40.71, -73.91)):
-                    with patch("app.services.instructor_service.LocationEnrichmentService") as les:
-                        les.return_value.enrich.return_value = {
-                            "neighborhood": None, "district": "Manhattan"
-                        }
-                        svc._replace_preferred_places("USR_01", "teaching_location", [item])
+        with patch("app.services.instructor_service.jitter_coordinates", return_value=(40.71, -73.91)):
+            with patch("app.services.instructor_service.LocationEnrichmentService") as les:
+                les.return_value.enrich.return_value = {
+                    "neighborhood": None, "district": "Manhattan"
+                }
+                svc._replace_preferred_places(
+                    "USR_01",
+                    "teaching_location",
+                    [item],
+                    geocoded_locations={
+                        "456 oak ave": PreparedTeachingLocationGeocode(
+                            lat=mock_geocoded.latitude,
+                            lng=mock_geocoded.longitude,
+                            place_id=mock_geocoded.provider_id,
+                            neighborhood=mock_geocoded.neighborhood,
+                            city=mock_geocoded.city,
+                            state=mock_geocoded.state,
+                        )
+                    },
+                )
 
         call_kwargs = svc.preferred_place_repository.create_for_kind.call_args
         assert call_kwargs.kwargs.get("neighborhood") == "SoHo, Manhattan"

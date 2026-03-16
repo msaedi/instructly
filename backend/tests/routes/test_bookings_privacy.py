@@ -97,9 +97,9 @@ async def test_student_sees_instructor_last_initial_only(
     # Check instructor info - should have last_initial, not full last_name
     instructor_info = booking["instructor"]
     assert "last_initial" in instructor_info
-    assert len(instructor_info["last_initial"]) == 1  # Single character
+    assert len(instructor_info["last_initial"]) == 2  # Initial + period
     assert instructor_info["first_name"] == test_instructor.first_name
-    assert instructor_info["last_initial"] == test_instructor.last_name[0]
+    assert instructor_info["last_initial"] == f"{test_instructor.last_name[0]}."
 
     print(f"✅ List bookings shows: {instructor_info['first_name']} {instructor_info['last_initial']}")
 
@@ -110,9 +110,9 @@ async def test_student_sees_instructor_last_initial_only(
 
     instructor_info = data["instructor"]
     assert "last_initial" in instructor_info
-    assert len(instructor_info["last_initial"]) == 1
+    assert len(instructor_info["last_initial"]) == 2
     assert instructor_info["first_name"] == test_instructor.first_name
-    assert instructor_info["last_initial"] == test_instructor.last_name[0]
+    assert instructor_info["last_initial"] == f"{test_instructor.last_name[0]}."
 
     print(f"✅ Single booking shows: {instructor_info['first_name']} {instructor_info['last_initial']}")
 
@@ -127,8 +127,8 @@ async def test_student_sees_instructor_last_initial_only(
         assert "instructor_first_name" in upcoming
         assert "instructor_last_name" in upcoming
         # The endpoint now returns last initial in instructor_last_name field
-        assert len(upcoming["instructor_last_name"]) == 1
-        assert upcoming["instructor_last_name"] == test_instructor.last_name[0]
+        assert len(upcoming["instructor_last_name"]) == 2
+        assert upcoming["instructor_last_name"] == f"{test_instructor.last_name[0]}."
 
         print(f"✅ Upcoming bookings shows: {upcoming['instructor_first_name']} {upcoming['instructor_last_name']}")
 
@@ -139,9 +139,11 @@ async def test_student_sees_instructor_last_initial_only(
 
     assert "instructor_first_name" in data
     assert "instructor_last_name" in data
+    assert "student_last_initial" in data
     # Should only show last initial
-    assert len(data["instructor_last_name"]) == 1
-    assert data["instructor_last_name"] == test_instructor.last_name[0]
+    assert len(data["instructor_last_name"]) == 2
+    assert data["instructor_last_name"] == f"{test_instructor.last_name[0]}."
+    assert data["student_last_initial"] == f"{test_student.last_name[0]}."
 
     print(f"✅ Preview shows: {data['instructor_first_name']} {data['instructor_last_name']}")
 
@@ -207,6 +209,7 @@ async def test_instructor_sees_own_full_name(
 
     assert data["instructor_first_name"] == test_instructor.first_name
     assert data["instructor_last_name"] == test_instructor.last_name  # Full name
+    assert data["student_last_initial"] == f"{test_student.last_name[0]}."
 
     print(f"✅ Instructor preview shows full name: {data['instructor_first_name']} {data['instructor_last_name']}")
 

@@ -30,7 +30,6 @@ from ...api.dependencies.auth import (
     require_beta_access,
 )
 from ...api.dependencies.services import (
-    get_cache_service_sync_dep,
     get_favorites_service,
     get_instructor_service,
 )
@@ -54,6 +53,7 @@ from ...schemas.instructor import (
     GenerateBioResponse,
     InstructorFilterParams,
     InstructorProfileCreate,
+    InstructorProfilePublic,
     InstructorProfileResponse,
     InstructorProfileUpdate,
     InstructorServiceAreaCheckResponse,
@@ -62,7 +62,6 @@ from ...schemas.instructor import (
 )
 from ...services.address_service import AddressService
 from ...services.bio_generation_service import BioGenerationService
-from ...services.cache_service import CacheServiceSyncAdapter
 from ...services.favorites_service import FavoritesService
 from ...services.instructor_service import InstructorService
 from .taxonomy_filter_query import parse_taxonomy_filter_query_params
@@ -81,7 +80,7 @@ def get_address_service(db: Session = Depends(get_db)) -> AddressService:
 
 @router.get(
     "",
-    response_model=PaginatedResponse[InstructorProfileResponse],
+    response_model=PaginatedResponse[InstructorProfilePublic],
     dependencies=[Depends(rate_limit("read"))],
     responses={
         400: {"description": "Invalid filter parameters (e.g., max_price < min_price)"},
@@ -113,7 +112,7 @@ async def list_instructors(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     instructor_service: InstructorService = Depends(get_instructor_service),
-) -> PaginatedResponse[InstructorProfileResponse]:
+) -> PaginatedResponse[InstructorProfilePublic]:
     """
     Get instructors offering a specific service.
 
@@ -166,7 +165,7 @@ async def list_instructors(
 
     # Apply privacy protection
     privacy_protected_instructors = [
-        InstructorProfileResponse.model_validate(instructor)
+        InstructorProfilePublic.model_validate(instructor)
         if hasattr(instructor, "id")
         else instructor
         for instructor in instructors
@@ -262,7 +261,6 @@ async def update_profile(
     profile_update: InstructorProfileUpdate = Body(...),
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
-    cache_service: CacheServiceSyncAdapter = Depends(get_cache_service_sync_dep),
 ) -> InstructorProfileResponse:
     """Update instructor profile."""
     if not current_user.is_instructor:
@@ -272,11 +270,7 @@ async def update_profile(
         )
 
     try:
-        if not instructor_service.cache_service and cache_service:
-            instructor_service.cache_service = cache_service
-
-        profile_data = await asyncio.to_thread(
-            instructor_service.update_instructor_profile,
+        profile_data = await instructor_service.update_instructor_profile_async(
             current_user.id,
             profile_update,
         )
@@ -448,7 +442,6 @@ async def generate_bio(
 async def delete_profile(
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
-    cache_service: CacheServiceSyncAdapter = Depends(get_cache_service_sync_dep),
 ) -> None:
     """Delete instructor profile and revert to student role."""
     if not current_user.is_instructor:
@@ -458,9 +451,6 @@ async def delete_profile(
         )
 
     try:
-        if not instructor_service.cache_service and cache_service:
-            instructor_service.cache_service = cache_service
-
         # Run sync service call off the event loop so cache invalidation (sync adapter) executes.
         await asyncio.to_thread(instructor_service.delete_instructor_profile, current_user.id)
     except NotFoundException:
@@ -473,7 +463,7 @@ async def delete_profile(
 
 @router.get(
     "/{instructor_id}",
-    response_model=InstructorProfileResponse,
+    response_model=InstructorProfilePublic,
     dependencies=[Depends(rate_limit("read"))],
     responses={
         404: {"description": "Instructor profile not found"},
@@ -490,7 +480,7 @@ async def get_instructor(
     instructor_service: InstructorService = Depends(get_instructor_service),
     favorites_service: FavoritesService = Depends(get_favorites_service),
     current_user: User = Depends(get_current_active_user_optional),
-) -> InstructorProfileResponse:
+) -> InstructorProfilePublic:
     """Get a specific instructor's profile by ID with privacy protection and favorite status."""
     try:
         profile_data = await asyncio.to_thread(
@@ -503,7 +493,7 @@ async def get_instructor(
             )
 
         instructor_user_id = str(profile_data.get("user_id") or instructor_id)
-        result = InstructorProfileResponse(**profile_data)
+        result = InstructorProfilePublic(**profile_data)
 
         # Add favorite status
         if current_user:
@@ -522,7 +512,9 @@ async def get_instructor(
 
         # Set Cache-Control header (5 minutes to match backend cache TTL)
         if response:
-            response.headers["Cache-Control"] = "public, max-age=300"
+            response.headers["Cache-Control"] = (
+                "private, max-age=300" if current_user else "public, max-age=300"
+            )
 
         return result
     except HTTPException:

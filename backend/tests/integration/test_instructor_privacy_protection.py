@@ -6,6 +6,7 @@ layers of the application, using real database interactions through repositories
 """
 
 from datetime import date, time, timedelta
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
@@ -14,7 +15,11 @@ from app.models.user import User
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 from app.schemas.booking import BookingResponse, InstructorInfo
-from app.schemas.instructor import InstructorProfileResponse, UserBasicPrivacy
+from app.schemas.instructor import (
+    InstructorProfilePublic,
+    InstructorProfileResponse,
+    UserBasicPrivacy,
+)
 from app.services.booking_service import BookingService
 from app.services.instructor_service import InstructorService
 from app.services.template_service import TemplateService
@@ -35,7 +40,7 @@ class TestInstructorPrivacySchemas:
 
         # Verify only last initial is exposed
         assert info.first_name == test_instructor.first_name
-        assert info.last_initial == test_instructor.last_name[0]
+        assert info.last_initial == f"{test_instructor.last_name[0]}."
         assert not hasattr(info, "last_name")
 
     def test_user_basic_privacy_from_user(self, test_instructor: User):
@@ -45,7 +50,7 @@ class TestInstructorPrivacySchemas:
 
         # Verify only last initial is exposed
         assert privacy_user.first_name == test_instructor.first_name
-        assert privacy_user.last_initial == test_instructor.last_name[0]
+        assert privacy_user.last_initial == f"{test_instructor.last_name[0]}."
         assert not hasattr(privacy_user, "email")  # Email should NOT be exposed for privacy
         assert not hasattr(privacy_user, "last_name")
 
@@ -100,7 +105,7 @@ class TestInstructorPrivacySchemas:
 
         # Verify instructor privacy is protected
         assert response.instructor.first_name == test_instructor.first_name
-        assert response.instructor.last_initial == test_instructor.last_name[0]
+        assert response.instructor.last_initial == f"{test_instructor.last_name[0]}."
         assert not hasattr(response.instructor, "last_name")
 
         # Verify student info is complete (no privacy for own data)
@@ -126,7 +131,7 @@ class TestInstructorPrivacySchemas:
 
         # Verify user privacy is protected
         assert response.user.first_name == test_instructor.first_name
-        assert response.user.last_initial == test_instructor.last_name[0]
+        assert response.user.last_initial == f"{test_instructor.last_name[0]}."
         assert not hasattr(response.user, "email")  # Email should NOT be exposed for privacy
         assert not hasattr(response.user, "last_name")
 
@@ -148,7 +153,7 @@ class TestInstructorServicePrivacy:
         # Verify privacy protection in the user data nested in the dict
         assert "user" in profile_data
         assert profile_data["user"]["first_name"] == test_instructor.first_name
-        assert profile_data["user"]["last_initial"] == test_instructor.last_name[0]
+        assert profile_data["user"]["last_initial"] == f"{test_instructor.last_name[0]}."
         assert "email" not in profile_data["user"]  # Email should NOT be in the dict for privacy
         assert "last_name" not in profile_data["user"]  # Full last name should NOT be exposed
 
@@ -248,7 +253,7 @@ class TestBookingServicePrivacy:
 
             # Verify instructor privacy
             assert response.instructor.first_name == test_instructor.first_name
-            assert response.instructor.last_initial == test_instructor.last_name[0]
+            assert response.instructor.last_initial == f"{test_instructor.last_name[0]}."
             assert not hasattr(response.instructor, "last_name")
 
         # Clean up
@@ -356,8 +361,8 @@ class TestPrivacyRegressionPrevention:
         assert profile.user.last_name == test_instructor.last_name  # Raw data has full name
 
         # But when converted to response schema
-        response = InstructorProfileResponse.from_orm(profile)
-        assert response.user.last_initial == test_instructor.last_name[0]
+        response = InstructorProfilePublic.from_orm(profile)
+        assert response.user.last_initial == f"{test_instructor.last_name[0]}."
         assert not hasattr(response.user, "last_name")
 
     def test_all_student_endpoints_use_privacy_schemas(self):
@@ -365,28 +370,31 @@ class TestPrivacyRegressionPrevention:
         # This is a documentation test to ensure we're using the right schemas
 
         # Booking endpoints should use BookingResponse with InstructorInfo
-        assert hasattr(BookingResponse, "__annotations__")
-        assert "instructor" in BookingResponse.__annotations__
+        booking_fields = getattr(BookingResponse, "model_fields", {})
+        assert "instructor" in booking_fields
+        assert "student" in booking_fields
         # InstructorInfo should have last_initial, not last_name
-        assert hasattr(InstructorInfo, "__annotations__")
-        assert "last_initial" in InstructorInfo.__annotations__
-        assert "last_name" not in InstructorInfo.__annotations__
+        instructor_fields = getattr(InstructorInfo, "model_fields", {})
+        assert "last_initial" in instructor_fields
+        assert "last_name" not in instructor_fields
 
-        # Instructor profile endpoints should use UserBasicPrivacy
-        assert hasattr(InstructorProfileResponse, "__annotations__")
-        assert "user" in InstructorProfileResponse.__annotations__
+        # Student-facing instructor profile endpoints should use the public schema
+        instructor_profile_fields = getattr(InstructorProfilePublic, "model_fields", {})
+        assert "user" in instructor_profile_fields
+        assert "identity_name_mismatch" not in instructor_profile_fields
+        assert "bgc_name_mismatch" not in instructor_profile_fields
+        assert "background_check_uploaded_at" not in instructor_profile_fields
+        assert "bgc_status" not in instructor_profile_fields
         # UserBasicPrivacy should have last_initial, not last_name
-        assert hasattr(UserBasicPrivacy, "__annotations__")
-        assert "last_initial" in UserBasicPrivacy.__annotations__
-        assert "last_name" not in UserBasicPrivacy.__annotations__
+        privacy_fields = getattr(UserBasicPrivacy, "model_fields", {})
+        assert "last_initial" in privacy_fields
+        assert "last_name" not in privacy_fields
 
     def test_email_templates_use_jinja_filters(self):
         """Verify email templates use proper Jinja filters for privacy."""
-        import os
-
-        # Define template directory
-        backend_root = "/Users/mehdisaedi/instructly/backend"
-        template_dir = os.path.join(backend_root, "app", "templates", "email", "booking")
+        template_dir = (
+            Path(__file__).resolve().parents[2] / "app" / "templates" / "email" / "booking"
+        )
         student_templates = [
             "confirmation_student.html",
             "cancellation_student.html",
@@ -395,10 +403,9 @@ class TestPrivacyRegressionPrevention:
         ]
 
         for template_name in student_templates:
-            template_path = os.path.join(template_dir, template_name)
-            if os.path.exists(template_path):
-                with open(template_path, "r") as f:
-                    content = f.read()
+            template_path = template_dir / template_name
+            if template_path.exists():
+                content = template_path.read_text()
 
                 # Check that if last_name is used, it has the |first filter
                 if "booking.instructor.last_name" in content:

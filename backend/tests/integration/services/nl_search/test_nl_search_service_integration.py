@@ -534,7 +534,7 @@ def test_transform_instructor_results_filters_price():
         {
             "instructor_id": "i1",
             "first_name": "Test",
-            "last_initial": "I",
+            "last_initial": "I.",
             "bio_snippet": None,
             "years_experience": 5,
             "profile_picture_key": None,
@@ -588,7 +588,7 @@ async def test_hydrate_instructor_results_uses_distance_map():
         {
             "instructor_id": "i1",
             "first_name": "Test",
-            "last_initial": "I",
+            "last_initial": "I.",
             "profile_picture_key": None,
             "bio_snippet": None,
             "verified": True,

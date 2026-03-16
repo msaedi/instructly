@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ServiceCards } from '../ServiceCards';
@@ -15,6 +14,14 @@ const baseService: InstructorService = {
   location_types: ['in_person'],
   description: '',
 };
+
+function omitServiceField<K extends keyof InstructorService>(
+  service: InstructorService,
+  key: K,
+): Omit<InstructorService, K> {
+  const { [key]: _omitted, ...rest } = service;
+  return rest;
+}
 
 describe('ServiceCards', () => {
   it('shows an empty state when no services are available', () => {
@@ -106,10 +113,7 @@ describe('ServiceCards', () => {
   });
 
   it('uses fallback duration of 60 when duration_options is undefined', () => {
-    const service: InstructorService = {
-      ...baseService,
-      duration_options: undefined,
-    };
+    const service: InstructorService = omitServiceField(baseService, 'duration_options');
 
     render(<ServiceCards services={[service]} />);
 
@@ -132,10 +136,7 @@ describe('ServiceCards', () => {
   });
 
   it('renders "Service" fallback when skill is undefined', () => {
-    const service: InstructorService = {
-      ...baseService,
-      skill: undefined,
-    };
+    const service: InstructorService = omitServiceField(baseService, 'skill');
 
     render(<ServiceCards services={[service]} />);
 
@@ -175,10 +176,7 @@ describe('ServiceCards', () => {
 
   it('handles levels_taught from unsafe cast when base property is missing', () => {
     // Simulate API returning levels_taught at the raw level
-    const service = {
-      ...baseService,
-      levels_taught: undefined,
-    } as InstructorService;
+    const service: InstructorService = omitServiceField(baseService, 'levels_taught');
 
     // Override via the unsafe cast path
     (service as unknown as Record<string, unknown>)['levels_taught'] = ['expert'];
@@ -205,10 +203,7 @@ describe('ServiceCards', () => {
   });
 
   it('handles age_groups from unsafe cast for kids badge', () => {
-    const service = {
-      ...baseService,
-      age_groups: undefined,
-    } as InstructorService;
+    const service: InstructorService = omitServiceField(baseService, 'age_groups');
 
     (service as unknown as Record<string, unknown>)['age_groups'] = ['kids'];
 
@@ -682,7 +677,7 @@ describe('ServiceCards', () => {
 
   it('handles services where skill is null for sort', () => {
     const services: InstructorService[] = [
-      { ...baseService, id: 'svc-1', skill: undefined },
+      { ...omitServiceField(baseService, 'skill'), id: 'svc-1' },
       { ...baseService, id: 'svc-2', skill: 'Guitar' },
     ];
 
@@ -713,8 +708,8 @@ describe('ServiceCards', () => {
   it('sorts correctly when both services have undefined skill with searchedService', () => {
     // Exercises the optional chain `a.service.skill?.toLowerCase()` returning undefined for both
     const services: InstructorService[] = [
-      { ...baseService, id: 'svc-1', skill: undefined },
-      { ...baseService, id: 'svc-2', skill: undefined },
+      { ...omitServiceField(baseService, 'skill'), id: 'svc-1' },
+      { ...omitServiceField(baseService, 'skill'), id: 'svc-2' },
     ];
 
     render(<ServiceCards services={services} searchedService="piano" />);
@@ -728,10 +723,7 @@ describe('ServiceCards', () => {
   it('falls through age_groups ternary when raw cast returns non-array and service.age_groups is also non-array', () => {
     // Exercises the final `[]` branch on line 77 when both rawAgeGroups and
     // service.age_groups are not arrays
-    const service = {
-      ...baseService,
-      age_groups: undefined,
-    } as InstructorService;
+    const service: InstructorService = omitServiceField(baseService, 'age_groups');
     // Both rawAgeGroups and service.age_groups are undefined -> falls to []
     // No kids badge shown
     render(<ServiceCards services={[service]} />);
@@ -745,10 +737,7 @@ describe('ServiceCards', () => {
   it('falls through levels_taught ternary when raw cast returns non-array and service.levels_taught is also non-array', () => {
     // Exercises the final `[]` branch on line 54 when both rawLevels and
     // service.levels_taught are not arrays
-    const service = {
-      ...baseService,
-      levels_taught: undefined,
-    } as InstructorService;
+    const service: InstructorService = omitServiceField(baseService, 'levels_taught');
 
     render(<ServiceCards services={[service]} />);
 

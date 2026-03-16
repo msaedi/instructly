@@ -19,6 +19,8 @@ def _service() -> BookingService:
     service.db = MagicMock()
     service.conflict_checker = MagicMock()
     service.conflict_checker_repository = MagicMock()
+    service.config_service = MagicMock()
+    service.config_service.get_pricing_config.return_value = ({}, None)
     return service
 
 

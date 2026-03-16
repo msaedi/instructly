@@ -1,11 +1,10 @@
-import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BookingList } from '../BookingList';
 
 jest.mock('@/components/lessons/video/JoinLessonButton', () => ({
   JoinLessonButton: (props: Record<string, unknown>) => (
-    <div data-testid="join-lesson-button" data-booking-id={props.bookingId} />
+    <div data-testid="join-lesson-button" data-booking-id={props['bookingId']} />
   ),
 }));
 
@@ -83,8 +82,8 @@ describe('BookingList', () => {
             end_time: '11:00:00',
             status: 'CONFIRMED',
             service_name: 'Guitar',
-            student: { first_name: 'Ava', last_name: 'Lee' },
-            instructor: { first_name: 'Sam', last_initial: 'Q' },
+            student: { first_name: 'Ava', last_initial: 'L.' },
+            instructor: { first_name: 'Sam', last_initial: 'Q.' },
           },
         ]}
         emptyTitle="No bookings"
@@ -215,7 +214,7 @@ describe('BookingList', () => {
     expect(badge).toHaveClass('bg-gray-100', 'text-gray-700');
   });
 
-  it('shows first name only when last_name is missing', () => {
+  it('shows first name only when last initial is missing', () => {
     render(
       <BookingList
         data={[
@@ -225,7 +224,7 @@ describe('BookingList', () => {
             start_time: '10:00:00',
             status: 'CONFIRMED',
             service_name: 'Voice',
-            student: { first_name: 'Alice', last_name: null },
+            student: { first_name: 'Alice', last_initial: null },
           },
         ]}
         emptyTitle="No bookings"
@@ -246,7 +245,7 @@ describe('BookingList', () => {
             start_time: '10:00:00',
             status: 'CONFIRMED',
             service_name: 'Drums',
-            student: { first_name: null, last_name: null },
+            student: { first_name: null, last_initial: null },
           },
         ]}
         emptyTitle="No bookings"
@@ -330,7 +329,7 @@ describe('BookingList', () => {
             start_time: '10:00:00',
             status: 'CONFIRMED',
             service_name: 'Cello',
-            instructor: { first_name: 'Sam', last_initial: 'Q' },
+            instructor: { first_name: 'Sam', last_initial: 'Q.' },
           },
         ]}
         emptyTitle="No bookings"

@@ -1,6 +1,6 @@
-import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import BookingDetailsModal from '../BookingDetailsModal';
+import type { LoosePartial } from '@/test-utils/types';
 import type { Booking, BookingStatus } from '@/types/booking';
 
 jest.mock('@/lib/logger', () => ({
@@ -14,7 +14,7 @@ jest.mock('@/lib/logger', () => ({
 
 jest.mock('@/utils/nameDisplay', () => ({
   formatInstructorFromUser: jest.fn((instructor) =>
-    instructor ? `${instructor.first_name} ${instructor.last_initial}.` : null
+    instructor ? `${instructor.first_name} ${instructor.last_initial}` : null
   ),
   formatFullName: jest.fn((user) => `${user.first_name} ${user.last_name}`),
 }));
@@ -24,7 +24,7 @@ jest.mock('@/lib/timezone/formatBookingTime', () => ({
   formatBookingTimeRange: jest.fn((_booking, _tz) => '10:00 AM - 11:00 AM'),
 }));
 
-const createMockBooking = (overrides: Partial<Booking> = {}): Booking => ({
+const createMockBooking = (overrides: LoosePartial<Booking> = {}): Booking => ({
   id: '01K2GY3VEVJWKZDVH5HMNXEVRD',
   student_id: '01K2GY3VEVJWKZDVH5STUDENT1',
   instructor_service_id: '01K2GY3VEVJWKZDVH5SERVICE1',
@@ -40,7 +40,7 @@ const createMockBooking = (overrides: Partial<Booking> = {}): Booking => ({
   instructor: {
     id: '01K2GY3VEVJWKZDVH5INSTRUC1',
     first_name: 'Sarah',
-    last_initial: 'C',
+    last_initial: 'C.',
   },
   student: {
     id: '01K2GY3VEVJWKZDVH5STUDENT1',
@@ -50,7 +50,7 @@ const createMockBooking = (overrides: Partial<Booking> = {}): Booking => ({
   },
   created_at: '2024-01-10T10:00:00Z',
   updated_at: '2024-01-10T10:00:00Z',
-  ...overrides,
+  ...(overrides as Partial<Booking>),
 });
 
 describe('BookingDetailsModal', () => {
@@ -457,7 +457,7 @@ describe('BookingDetailsModal', () => {
     it('shows lesson timezone when it differs from viewer timezone', () => {
       const booking = createMockBooking();
       // Set lesson_timezone to something that will differ from most test environments
-      (booking as unknown as Record<string, unknown>).lesson_timezone = 'Asia/Tokyo';
+      (booking as unknown as Record<string, unknown>)['lesson_timezone'] = 'Asia/Tokyo';
 
       render(<BookingDetailsModal {...defaultProps} booking={booking} />);
 
@@ -469,7 +469,7 @@ describe('BookingDetailsModal', () => {
     it('does not show lesson timezone when it matches viewer timezone', () => {
       const viewerTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const booking = createMockBooking();
-      (booking as unknown as Record<string, unknown>).lesson_timezone = viewerTz;
+      (booking as unknown as Record<string, unknown>)['lesson_timezone'] = viewerTz;
 
       render(<BookingDetailsModal {...defaultProps} booking={booking} />);
 
@@ -479,7 +479,7 @@ describe('BookingDetailsModal', () => {
 
     it('does not show lesson timezone when it is null', () => {
       const booking = createMockBooking();
-      (booking as unknown as Record<string, unknown>).lesson_timezone = null;
+      (booking as unknown as Record<string, unknown>)['lesson_timezone'] = null;
 
       render(<BookingDetailsModal {...defaultProps} booking={booking} />);
 

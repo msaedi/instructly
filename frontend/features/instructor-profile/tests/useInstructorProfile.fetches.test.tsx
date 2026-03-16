@@ -33,7 +33,7 @@ describe('useInstructorProfile fetch behaviour', () => {
       user_id: 'user-123',
       user: {
         first_name: 'John',
-        last_initial: 'D',
+        last_initial: 'D.',
         has_profile_picture: false,
       },
       bio: 'Test bio',

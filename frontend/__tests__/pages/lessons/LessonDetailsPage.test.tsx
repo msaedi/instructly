@@ -97,7 +97,7 @@ describe('LessonDetailsPage', () => {
     instructor: {
       id: 1,
       first_name: 'John',
-      last_initial: 'D',
+      last_initial: 'D.',
       rating: 4.5,
       rating_count: 20,
       completed_lesson_count: 100,

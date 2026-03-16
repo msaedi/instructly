@@ -44,12 +44,17 @@ function MyLessonsContent() {
     return 'upcoming';
   });
 
-  type LessonItem = Omit<Booking, 'updated_at'> & { updated_at?: string | null };
+  type LessonItem = NonNullable<
+    NonNullable<ReturnType<typeof useCurrentLessonsInfinite>['data']>['items']
+  >[number];
 
-  const normalizeLesson = (lesson: LessonItem): Booking => ({
-    ...lesson,
-    updated_at: lesson.updated_at ?? new Date().toISOString(),
-  });
+  const normalizeLesson = (lesson: LessonItem): Booking => {
+    const { student: _student, ...rest } = lesson;
+    return {
+      ...(rest as Omit<Booking, 'student' | 'updated_at'>),
+      updated_at: new Date().toISOString(),
+    };
+  };
 
   const {
     data: upcomingLessons,

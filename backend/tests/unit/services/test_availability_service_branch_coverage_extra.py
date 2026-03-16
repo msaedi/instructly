@@ -289,6 +289,8 @@ def test_save_week_bits_logs_audit_enqueue_and_cache_failures(monkeypatch):
 
     monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "false")
     monkeypatch.setenv("AVAILABILITY_PERF_DEBUG", "true")
+    monkeypatch.setattr("app.services.availability_service.ALLOW_PAST", False)
+    monkeypatch.setattr("app.services.availability_service.PERF_DEBUG", True)
     monkeypatch.setattr("app.services.availability_service.get_user_today_by_id", lambda *_: monday)
     monkeypatch.setattr(
         "app.services.availability_service.get_user_now_by_id",

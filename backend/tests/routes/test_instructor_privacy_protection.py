@@ -6,6 +6,7 @@ instructor full last names, only showing last initials (e.g., "Michael R.").
 """
 
 from datetime import datetime, timedelta
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -31,7 +32,7 @@ class TestSchemaPrivacyProtection:
 
         # Verify only last initial is exposed
         assert info.first_name == "Michael"
-        assert info.last_initial == "R"
+        assert info.last_initial == "R."
         assert not hasattr(info, "last_name")
 
     def test_user_basic_privacy_from_user(self):
@@ -48,7 +49,7 @@ class TestSchemaPrivacyProtection:
 
         # Verify only last initial is exposed
         assert privacy_user.first_name == "Sarah"
-        assert privacy_user.last_initial == "T"
+        assert privacy_user.last_initial == "T."
         # Email should NOT be exposed for privacy
         assert not hasattr(privacy_user, "email")
         assert not hasattr(privacy_user, "last_name")
@@ -113,7 +114,7 @@ class TestSchemaPrivacyProtection:
 
         # Verify instructor privacy is protected
         assert response.instructor.first_name == "Michael"
-        assert response.instructor.last_initial == "R"
+        assert response.instructor.last_initial == "R."
         assert not hasattr(response.instructor, "last_name")
 
         # Verify student info is included (no privacy needed for own data)
@@ -133,6 +134,8 @@ class TestSchemaPrivacyProtection:
         profile.created_at = datetime.now()
         profile.updated_at = None
         profile.services = []
+        profile.identity_verification_session_id = None
+        profile.background_check_object_key = None
 
         # Mock user with proper attributes
         from unittest.mock import PropertyMock
@@ -147,8 +150,8 @@ class TestSchemaPrivacyProtection:
         type(user).first_name = PropertyMock(return_value="Sarah")
 
         # Calculate last_initial for the mock
-        user.last_initial = "T"
-        type(user).last_initial = PropertyMock(return_value="T")
+        user.last_initial = "T."
+        type(user).last_initial = PropertyMock(return_value="T.")
 
         neighborhood = MagicMock()
         neighborhood.region_code = "MN01"
@@ -169,7 +172,7 @@ class TestSchemaPrivacyProtection:
 
         # Verify user privacy is protected
         assert response.user.first_name == "Sarah"
-        assert response.user.last_initial == "T"
+        assert response.user.last_initial == "T."
         # Email should NOT be exposed for privacy
         assert not hasattr(response.user, "email")
         assert not hasattr(response.user, "last_name")
@@ -230,7 +233,7 @@ class TestInstructorEndpointPrivacy:
         # Verify instructor privacy is protected
         assert "user" in data
         assert data["user"]["first_name"] == test_instructor.first_name
-        assert data["user"]["last_initial"] == test_instructor.last_name[0]
+        assert data["user"]["last_initial"] == f"{test_instructor.last_name[0]}."
         # Ensure full last name is NOT exposed
         assert "last_name" not in data["user"]
         # Ensure email is NOT exposed
@@ -318,11 +321,9 @@ class TestPrivacyRegressionPrevention:
 
     def test_email_templates_use_jinja_filters(self):
         """Verify email templates use proper Jinja filters for privacy."""
-        import os
-
-        # Define template directory
-        backend_root = "/Users/mehdisaedi/instructly/backend"
-        template_dir = os.path.join(backend_root, "app", "templates", "email", "booking")
+        template_dir = (
+            Path(__file__).resolve().parents[2] / "app" / "templates" / "email" / "booking"
+        )
         student_templates = [
             "confirmation_student.html",
             "cancellation_student.html",
@@ -331,10 +332,9 @@ class TestPrivacyRegressionPrevention:
         ]
 
         for template_name in student_templates:
-            template_path = os.path.join(template_dir, template_name)
-            if os.path.exists(template_path):
-                with open(template_path, "r") as f:
-                    content = f.read()
+            template_path = template_dir / template_name
+            if template_path.exists():
+                content = template_path.read_text()
 
                 # Check that if last_name is used, it has the |first filter
                 if "booking.instructor.last_name" in content:

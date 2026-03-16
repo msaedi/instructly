@@ -66,7 +66,7 @@ const mockFetchBookingPreview = fetchBookingPreview as jest.MockedFunction<
 const createMockBookingPreview = (overrides: Partial<BookingPreview> = {}): BookingPreview => ({
   booking_id: '01K2GY3VEVJWKZDVH5HMNXEVRD',
   student_first_name: 'John',
-  student_last_name: 'D',
+  student_last_initial: 'D.',
   instructor_first_name: 'Sarah',
   instructor_last_name: 'C',
   service_name: 'Piano Lesson',
@@ -143,15 +143,15 @@ describe('BookingQuickPreview', () => {
       });
     });
 
-    it('renders student name without dot for full last name', async () => {
+    it('renders student name without an initial when missing', async () => {
       mockFetchBookingPreview.mockResolvedValue(
-        createMockBookingPreview({ student_last_name: 'Doe' })
+        createMockBookingPreview({ student_last_initial: '' })
       );
 
       render(<BookingQuickPreview {...defaultProps} />);
 
       await waitFor(() => {
-        expect(screen.getByText('John Doe')).toBeInTheDocument();
+        expect(screen.getByText('John')).toBeInTheDocument();
       });
     });
 

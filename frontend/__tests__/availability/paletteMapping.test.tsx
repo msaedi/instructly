@@ -10,7 +10,6 @@
  */
 
 import { render, screen } from '@testing-library/react';
-import React from 'react';
 import InteractiveGrid from '@/components/availability/InteractiveGrid';
 import type { WeekBits, WeekDateInfo } from '@/types/availability';
 import { formatDateForAPI } from '@/lib/availability/dateHelpers';

@@ -1,8 +1,8 @@
 import type { UseQueryResult } from '@tanstack/react-query';
 
+import type { AddressListResponse, AddressResponse } from '@/features/shared/api/types';
 import { useUserAddresses } from '@/hooks/queries/useUserAddresses';
 import { formatMeetingLocation } from '@/utils/address/format';
-import type { AddressListResponse, AddressResponse } from '@/src/api/generated/instructly.schemas';
 
 export type SavedAddress = AddressResponse;
 

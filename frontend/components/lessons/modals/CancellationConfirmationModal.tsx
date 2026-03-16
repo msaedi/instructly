@@ -4,6 +4,7 @@ import type { Booking } from '@/features/shared/api/types';
 import { useCancelLesson, calculateCancellationFee } from '@/hooks/useMyLessons';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
+import { formatDisplayName } from '@/lib/format/displayName';
 import { logger } from '@/lib/logger';
 
 interface CancellationConfirmationModalProps {
@@ -72,7 +73,11 @@ export function CancellationConfirmationModal({
             <p className="text-sm">
               <span className="font-medium">Lesson:</span> {lesson.service_name} with{' '}
               {lesson.instructor
-                ? `${lesson.instructor.first_name} ${lesson.instructor.last_initial}.`
+                ? formatDisplayName(
+                    lesson.instructor.first_name,
+                    lesson.instructor.last_initial,
+                    'Instructor',
+                  )
                 : 'Instructor'}
             </p>
             <p className="text-sm">
@@ -162,7 +167,11 @@ export function CancellationConfirmationModal({
           </p>
           <p className="text-sm">
             <span className="font-medium">Instructor:</span> {lesson.instructor
-              ? `${lesson.instructor.first_name} ${lesson.instructor.last_initial}.`
+              ? formatDisplayName(
+                  lesson.instructor.first_name,
+                  lesson.instructor.last_initial,
+                  'Instructor',
+                )
               : 'Instructor'}
           </p>
           <p className="text-sm">

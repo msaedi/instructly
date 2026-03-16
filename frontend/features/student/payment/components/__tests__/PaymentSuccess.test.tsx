@@ -20,6 +20,9 @@ const baseBooking: BookingPayment = {
 };
 
 describe('PaymentSuccess', () => {
+  const bookingWithoutFreeCancellation = { ...baseBooking };
+  delete bookingWithoutFreeCancellation.freeCancellationUntil;
+
   it('renders standard booking confirmation', () => {
     render(
       <PaymentSuccess
@@ -37,7 +40,7 @@ describe('PaymentSuccess', () => {
   it('renders last-minute booking confirmation', () => {
     render(
       <PaymentSuccess
-        booking={{ ...baseBooking, bookingType: BookingType.LAST_MINUTE, freeCancellationUntil: undefined }}
+        booking={{ ...bookingWithoutFreeCancellation, bookingType: BookingType.LAST_MINUTE }}
         confirmationNumber="XYZ789"
         cardLast4="1111"
       />
@@ -105,7 +108,7 @@ describe('PaymentSuccess', () => {
   it('hides free cancellation section when freeCancellationUntil is not provided on standard booking', () => {
     render(
       <PaymentSuccess
-        booking={{ ...baseBooking, freeCancellationUntil: undefined }}
+        booking={bookingWithoutFreeCancellation}
         confirmationNumber="NOCANCEL"
         cardLast4="3333"
       />
@@ -119,7 +122,7 @@ describe('PaymentSuccess', () => {
     // payment info section uses `new Date()` as fallback for the charge date.
     render(
       <PaymentSuccess
-        booking={{ ...baseBooking, freeCancellationUntil: undefined }}
+        booking={bookingWithoutFreeCancellation}
         confirmationNumber="FALLBACK1"
         cardLast4="6666"
       />

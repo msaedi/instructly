@@ -1,6 +1,7 @@
 import { renderHook, act } from '@testing-library/react';
 import { usePaymentFlow, PaymentStep } from '../usePaymentFlow';
 import { PaymentMethod, PAYMENT_STATUS, BookingType } from '../../types';
+import type { LoosePartial } from '@/test-utils/types';
 import type { BookingPayment } from '../../types';
 
 // Mock next/navigation
@@ -12,7 +13,7 @@ jest.mock('next/navigation', () => ({
 }));
 
 // Helper to create a test booking
-const createTestBooking = (overrides: Partial<BookingPayment> = {}): BookingPayment => ({
+const createTestBooking = (overrides: LoosePartial<BookingPayment> = {}): BookingPayment => ({
   bookingId: 'booking-123',
   instructorId: 'instructor-456',
   instructorName: 'John Doe',
@@ -27,7 +28,7 @@ const createTestBooking = (overrides: Partial<BookingPayment> = {}): BookingPaym
   bookingType: BookingType.STANDARD,
   paymentStatus: PAYMENT_STATUS.SCHEDULED,
   creditsAvailable: 50,
-  ...overrides,
+  ...(overrides as Partial<BookingPayment>),
 });
 
 describe('usePaymentFlow', () => {

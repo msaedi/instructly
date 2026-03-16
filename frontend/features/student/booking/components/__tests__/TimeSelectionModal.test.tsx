@@ -203,7 +203,7 @@ const mockInstructor = {
   user_id: 'user-123',
   user: {
     first_name: 'John',
-    last_initial: 'D',
+    last_initial: 'D.',
     has_profile_picture: true,
     profile_picture_version: 1,
     timezone: 'America/New_York',
@@ -252,7 +252,7 @@ const mockAvailabilityResponse = (dates: string[]) => {
     data: {
       instructor_id: 'user-123',
       instructor_first_name: 'John' as string | null,
-      instructor_last_initial: 'D' as string | null,
+      instructor_last_initial: 'D.' as string | null,
       availability_by_date,
       timezone: 'America/New_York',
       total_available_slots: dates.length * 2,
@@ -883,7 +883,7 @@ describe('TimeSelectionModal', () => {
 
       const instructorNoTz = {
         ...mockInstructor,
-        user: { first_name: 'John', last_initial: 'D' },
+        user: { first_name: 'John', last_initial: 'D.' },
       };
 
       render(<TimeSelectionModal {...defaultProps} instructor={instructorNoTz} />);
@@ -932,7 +932,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {},
           timezone: 'America/New_York',
           total_available_slots: 0,
@@ -1094,7 +1094,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -1183,7 +1183,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -1252,7 +1252,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [uncachedDate]: {
               date: uncachedDate,
@@ -1322,7 +1322,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {},
           timezone: 'America/New_York',
           total_available_slots: 0,
@@ -1350,7 +1350,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -1631,7 +1631,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -1688,7 +1688,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -1747,7 +1747,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -2112,7 +2112,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {},
           timezone: 'America/New_York',
           total_available_slots: 0,
@@ -2144,7 +2144,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -2199,7 +2199,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -2373,7 +2373,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [uncachedDate]: {
               date: uncachedDate,
@@ -2421,7 +2421,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {}, // Empty
           timezone: 'America/New_York',
           total_available_slots: 0,
@@ -2668,7 +2668,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -2781,7 +2781,7 @@ describe('TimeSelectionModal', () => {
         ...mockInstructor,
         user: {
           first_name: 'John',
-          last_initial: 'D',
+          last_initial: 'D.',
           timezone: 'America/New_York',
         },
       };
@@ -2920,7 +2920,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -3060,7 +3060,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -3229,7 +3229,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -3388,7 +3388,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [date1]: {
               date: date1,
@@ -3518,7 +3518,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {},
           timezone: 'America/New_York',
           total_available_slots: 0,
@@ -3618,7 +3618,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -3651,7 +3651,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -4003,7 +4003,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {},
           timezone: 'America/New_York',
           total_available_slots: 0,
@@ -4077,7 +4077,7 @@ describe('TimeSelectionModal', () => {
 
       const instructorNoTz = {
         ...mockInstructor,
-        user: { first_name: 'Jane', last_initial: 'S' },
+        user: { first_name: 'Jane', last_initial: 'S.' },
       };
 
       // Restore a working sessionStorage mock
@@ -4475,7 +4475,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -4530,7 +4530,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -4692,7 +4692,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [date1]: {
               date: date1,
@@ -4752,7 +4752,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [date1]: {
               date: date1,
@@ -4981,7 +4981,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [newDate]: {
               date: newDate,
@@ -5018,7 +5018,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -5225,7 +5225,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -5264,7 +5264,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -5335,7 +5335,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [initialDate]: {
               date: initialDate,
@@ -5391,7 +5391,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -5555,7 +5555,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -5607,7 +5607,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -5676,7 +5676,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -5847,7 +5847,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [date1]: {
               date: date1,
@@ -5964,7 +5964,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -6024,7 +6024,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -6169,7 +6169,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -6252,7 +6252,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [date1]: {
               date: date1,
@@ -6414,7 +6414,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -6718,7 +6718,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -6750,7 +6750,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {}, // No dates at all
           timezone: 'America/New_York',
           total_available_slots: 0,
@@ -6775,7 +6775,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {},
           timezone: 'America/New_York',
           total_available_slots: 0,
@@ -6854,7 +6854,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -6922,7 +6922,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -6989,7 +6989,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -7832,7 +7832,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [date1]: {
               date: date1,
@@ -8118,7 +8118,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [date1]: {
               date: date1,
@@ -8184,7 +8184,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [date1]: {
               date: date1,
@@ -8244,7 +8244,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [date1]: {
               date: date1,
@@ -8310,7 +8310,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [date1]: {
               date: date1,
@@ -8455,7 +8455,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [date1]: {
               date: date1,
@@ -8577,7 +8577,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [date1]: {
               date: date1,
@@ -8645,7 +8645,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [date1]: {
               date: date1,
@@ -8703,7 +8703,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [date1]: {
               date: date1,
@@ -8816,7 +8816,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -8891,7 +8891,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [dates[0]!]: {
               date: dates[0]!,
@@ -9155,7 +9155,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [date]: {
               date,
@@ -9198,7 +9198,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {
             [date]: {
               date,
@@ -9312,7 +9312,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John' as string | null,
-          instructor_last_initial: 'D' as string | null,
+          instructor_last_initial: 'D.' as string | null,
           availability_by_date: {},
           timezone: 'America/New_York',
           total_available_slots: 0,
@@ -9358,7 +9358,7 @@ describe('TimeSelectionModal', () => {
         data: {
           instructor_id: 'user-123',
           instructor_first_name: 'John',
-          instructor_last_initial: 'D',
+          instructor_last_initial: 'D.',
           availability_by_date: {
             [initialDate]: {
               date: initialDate,
@@ -9396,7 +9396,7 @@ describe('TimeSelectionModal', () => {
           data: {
             instructor_id: 'user-123',
             instructor_first_name: 'John',
-            instructor_last_initial: 'D',
+            instructor_last_initial: 'D.',
             availability_by_date: {
               [initialDate]: {
                 date: initialDate,

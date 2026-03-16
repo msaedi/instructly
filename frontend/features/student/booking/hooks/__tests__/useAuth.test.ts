@@ -18,7 +18,7 @@ jest.mock('@/lib/http', () => ({
   httpGet: jest.fn(),
   ApiError: class ApiError extends Error {
     status: number;
-    data?: Record<string, unknown>;
+    data: Record<string, unknown> | undefined;
     constructor(message: string, status: number, data?: Record<string, unknown>) {
       super(message);
       this.name = 'ApiError';

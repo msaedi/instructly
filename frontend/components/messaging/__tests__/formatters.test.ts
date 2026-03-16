@@ -178,15 +178,15 @@ describe('formatters', () => {
 
   describe('formatStudentName', () => {
     it('formats full name with last initial', () => {
-      expect(formatStudentName('John', 'Doe')).toBe('John D.');
+      expect(formatStudentName('John', 'D.')).toBe('John D.');
     });
 
     it('returns first name only when last name is null', () => {
       expect(formatStudentName('John', null)).toBe('John');
     });
 
-    it('returns last name only when first name is null', () => {
-      expect(formatStudentName(null, 'Doe')).toBe('Doe');
+    it('falls back when first name is null', () => {
+      expect(formatStudentName(null, 'D.')).toBe('Student');
     });
 
     it('returns "Student" when both names are null', () => {
@@ -202,11 +202,11 @@ describe('formatters', () => {
     });
 
     it('trims whitespace from names', () => {
-      expect(formatStudentName('  John  ', '  Doe  ')).toBe('John D.');
+      expect(formatStudentName('  John  ', '  D.  ')).toBe('John D.');
     });
 
-    it('handles single character last name', () => {
-      expect(formatStudentName('John', 'D')).toBe('John D.');
+    it('uses the dotted last initial from the API as-is', () => {
+      expect(formatStudentName('John', 'D.')).toBe('John D.');
     });
 
     it('returns first name when last name is empty after trimming', () => {

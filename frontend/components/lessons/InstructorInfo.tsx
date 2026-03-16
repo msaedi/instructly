@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Star, MessageCircle } from 'lucide-react';
 import { UserAvatar } from '@/components/user/UserAvatar';
+import { formatDisplayName } from '@/lib/format/displayName';
 
 type InstructorSummary = {
   id: string | number;
@@ -27,13 +28,6 @@ interface InstructorInfoProps {
   onViewReviews?: (instructorId: string | number) => void;
 }
 
-// Helper to get instructor display name with privacy (FirstName L.)
-function getInstructorPrivacyName(instructor: InstructorSummary): string {
-  const firstName = instructor.first_name || '';
-  const lastInitial = instructor.last_initial || '';
-  return lastInitial ? `${firstName} ${lastInitial}.` : firstName;
-}
-
 export function InstructorInfo({
   instructor,
   rating,
@@ -51,7 +45,11 @@ export function InstructorInfo({
     return null;
   }
 
-  const displayName = getInstructorPrivacyName(instructor);
+  const displayName = formatDisplayName(
+    instructor.first_name,
+    instructor.last_initial,
+    'Instructor'
+  );
 
   return (
     <div className="flex flex-col sm:flex-row items-start gap-4">

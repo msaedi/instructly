@@ -119,7 +119,7 @@ const baseLesson = {
   service_name: 'Piano',
   instructor_id: 'inst-1',
   instructor_service_id: 'is-1',
-  instructor: { first_name: 'Alex', last_initial: 'B', id: 'inst-1' },
+  instructor: { first_name: 'Alex', last_initial: 'B.', id: 'inst-1' },
 } as Booking;
 
 const defaultSelection = { date: '2026-03-25', time: '2:00pm', duration: 60 };

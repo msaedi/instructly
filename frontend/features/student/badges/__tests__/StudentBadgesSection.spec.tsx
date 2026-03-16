@@ -1,35 +1,34 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { StudentBadgesPanel, StudentBadgesSection } from '../StudentBadgesSection';
+import type { LoosePartial } from '@/test-utils/types';
 import type { StudentBadgeItem } from '@/types/badges';
 
 jest.mock('../useStudentBadges');
 // Radix Portal renders outside the component tree; mock it to render inline
 jest.mock('@radix-ui/react-dialog', () => {
-  const React = require('react');
   const actual = jest.requireActual('@radix-ui/react-dialog');
   return {
     ...actual,
-    Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    Portal: ({ children }: { children: import('react').ReactNode }) => <>{children}</>,
   };
 });
 
 function renderPanel(
   badges: StudentBadgeItem[],
-  overrides: Partial<Parameters<typeof StudentBadgesPanel>[0]> = {},
+  overrides: LoosePartial<Parameters<typeof StudentBadgesPanel>[0]> = {},
 ) {
-  return render(
-    <StudentBadgesPanel
-      badges={badges}
-      isLoading={false}
-      isError={false}
-      errorMessage={undefined}
-      onRetry={jest.fn()}
-      modalOpen={false}
-      onModalChange={jest.fn()}
-      {...overrides}
-    />,
-  );
+  const props = {
+    badges,
+    isLoading: false,
+    isError: false,
+    onRetry: jest.fn(),
+    modalOpen: false,
+    onModalChange: jest.fn(),
+    ...(overrides as Partial<Parameters<typeof StudentBadgesPanel>[0]>),
+  };
+
+  return render(<StudentBadgesPanel {...props} />);
 }
 
 const originalMatchMedia = window.matchMedia;
@@ -204,7 +203,7 @@ describe('StudentBadgesPanel', () => {
   });
 
   it('uses fallback error message when none is provided', () => {
-    renderPanel([], { isError: true, errorMessage: undefined });
+    renderPanel([], { isError: true });
 
     expect(screen.getByText('Unable to load badges right now.')).toBeInTheDocument();
   });
@@ -541,7 +540,7 @@ describe('StudentBadgesPanel', () => {
           name: 'Dynamic Current',
           earned: false,
           description: 'Exercises nullish fallback for current.',
-          progress: dynamicProgress as unknown as StudentBadgeItem['progress'],
+          progress: dynamicProgress as Exclude<StudentBadgeItem['progress'], undefined>,
         },
       ];
 
@@ -572,7 +571,7 @@ describe('StudentBadgesPanel', () => {
           name: 'Dynamic Goal',
           earned: false,
           description: 'Exercises nullish fallback for goal.',
-          progress: dynamicProgress as unknown as StudentBadgeItem['progress'],
+          progress: dynamicProgress as Exclude<StudentBadgeItem['progress'], undefined>,
         },
       ];
 

@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, fireEvent, waitFor, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ChatModal } from '../ChatModal';
@@ -231,12 +230,12 @@ describe('ChatModal', () => {
           }, 100);
         })
     );
+    const { conversationId: _conversationId, ...propsWithoutConversationId } = baseProps;
 
     render(
       <QueryClientProvider client={queryClient}>
         <ChatModal
-          {...baseProps}
-          conversationId={undefined}
+          {...propsWithoutConversationId}
           instructorId="instructor-123"
         />
       </QueryClientProvider>
@@ -257,12 +256,12 @@ describe('ChatModal', () => {
       ok: false,
       status: 500,
     });
+    const { conversationId: _conversationId, ...propsWithoutConversationId } = baseProps;
 
     render(
       <QueryClientProvider client={queryClient}>
         <ChatModal
-          {...baseProps}
-          conversationId={undefined}
+          {...propsWithoutConversationId}
           instructorId="instructor-123"
         />
       </QueryClientProvider>
@@ -453,12 +452,12 @@ describe('ChatModal', () => {
       ok: true,
       json: () => Promise.resolve({ id: 'new-conversation-id' }),
     });
+    const { conversationId: _conversationId, ...propsWithoutConversationId } = baseProps;
 
     render(
       <QueryClientProvider client={queryClient}>
         <ChatModal
-          {...baseProps}
-          conversationId={undefined}
+          {...propsWithoutConversationId}
           instructorId="instructor-123"
         />
       </QueryClientProvider>
@@ -491,9 +490,10 @@ describe('ChatModal', () => {
   });
 
   it('does not fetch conversation when neither conversationId nor instructorId is provided', () => {
+    const { conversationId: _conversationId, ...propsWithoutConversation } = baseProps;
     render(
       <QueryClientProvider client={queryClient}>
-        <ChatModal {...baseProps} conversationId={undefined} instructorId={undefined} />
+        <ChatModal {...propsWithoutConversation} />
       </QueryClientProvider>
     );
 

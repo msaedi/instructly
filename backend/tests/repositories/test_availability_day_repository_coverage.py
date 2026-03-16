@@ -21,9 +21,9 @@ def _make_bits(*prefix_bytes: int) -> bytes:
     return bytes(b)
 
 
-def test_upsert_week_and_getters(db):
+def test_upsert_week_and_getters(db, test_instructor):
     repo = AvailabilityDayRepository(db)
-    instructor_id = "inst-availability"
+    instructor_id = test_instructor.id
     week_start = date.today()
     bits = _make_bits(0x00, 0x01, 0x02, 0x03, 0x04, 0x05)
 
@@ -43,9 +43,9 @@ def test_upsert_week_and_getters(db):
     assert len(rows) == 2
 
 
-def test_bulk_upsert_all_and_delete(db):
+def test_bulk_upsert_all_and_delete(db, test_instructor):
     repo = AvailabilityDayRepository(db)
-    instructor_id = "inst-bulk"
+    instructor_id = test_instructor.id
     day = date.today()
     bits = _make_bits(0x01, 0x02, 0x03, 0x04, 0x05, 0x06)
 
@@ -63,9 +63,9 @@ def test_bulk_upsert_all_and_delete(db):
     assert deleted == 1
 
 
-def test_bulk_upsert_native(db):
+def test_bulk_upsert_native(db, test_instructor):
     repo = AvailabilityDayRepository(db)
-    instructor_id = "inst-native"
+    instructor_id = test_instructor.id
     day = date.today()
     bits = _make_bits(0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C)
 
@@ -86,10 +86,10 @@ def test_get_day_bits_nonexistent(db):
     assert repo.get_day_bits("nonexistent-inst-xyz", date.today()) is None
 
 
-def test_upsert_week_updates_existing(db):
+def test_upsert_week_updates_existing(db, test_instructor):
     """L127: upsert_week updates existing row when one already exists."""
     repo = AvailabilityDayRepository(db)
-    instructor_id = "inst-upsert-update"
+    instructor_id = test_instructor.id
     day = date.today()
     bits_v1 = _make_bits(0x01, 0x01, 0x01)
     bits_v2 = _make_bits(0x02, 0x02, 0x02)
@@ -112,10 +112,10 @@ def test_bulk_upsert_native_empty_list(db):
     assert repo.bulk_upsert_native([]) == 0
 
 
-def test_delete_days_for_instructor_no_exclusions(db):
+def test_delete_days_for_instructor_no_exclusions(db, test_instructor):
     """delete_days_for_instructor without exclude_dates deletes all."""
     repo = AvailabilityDayRepository(db)
-    instructor_id = "inst-delete-all"
+    instructor_id = test_instructor.id
     day = date.today()
     bits = _make_bits(0x01, 0x02, 0x03)
 
@@ -124,9 +124,9 @@ def test_delete_days_for_instructor_no_exclusions(db):
     assert deleted == 2
 
 
-def test_upsert_week_bits_only_update_clears_tags_for_disabled_slots(db):
+def test_upsert_week_bits_only_update_clears_tags_for_disabled_slots(db, test_instructor):
     repo = AvailabilityDayRepository(db)
-    instructor_id = "inst-tags-upsert"
+    instructor_id = test_instructor.id
     day = date.today()
     initial_bits = bits_from_windows([("09:00:00", "11:00:00")])
     initial_tags = set_range_tag(new_empty_tags(), 108, 24, TAG_ONLINE_ONLY)
@@ -142,9 +142,9 @@ def test_upsert_week_bits_only_update_clears_tags_for_disabled_slots(db):
     assert get_slot_tag(stored_tags, 120) == TAG_ONLINE_ONLY
 
 
-def test_bulk_upsert_all_bits_only_update_clears_tags_for_disabled_slots(db):
+def test_bulk_upsert_all_bits_only_update_clears_tags_for_disabled_slots(db, test_instructor):
     repo = AvailabilityDayRepository(db)
-    instructor_id = "inst-tags-bulk"
+    instructor_id = test_instructor.id
     day = date.today()
     initial_bits = bits_from_windows([("12:00:00", "14:00:00")])
     initial_tags = set_range_tag(new_empty_tags(), 144, 24, TAG_NO_TRAVEL)
@@ -160,9 +160,9 @@ def test_bulk_upsert_all_bits_only_update_clears_tags_for_disabled_slots(db):
     assert get_slot_tag(stored_tags, 156) == TAG_NO_TRAVEL
 
 
-def test_bulk_upsert_native_bits_only_update_clears_tags_for_disabled_slots(db):
+def test_bulk_upsert_native_bits_only_update_clears_tags_for_disabled_slots(db, test_instructor):
     repo = AvailabilityDayRepository(db)
-    instructor_id = "inst-tags-native"
+    instructor_id = test_instructor.id
     day = date.today()
     initial_bits = bits_from_windows([("15:00:00", "17:00:00")])
     initial_tags = set_range_tag(new_empty_tags(), 180, 24, TAG_ONLINE_ONLY)

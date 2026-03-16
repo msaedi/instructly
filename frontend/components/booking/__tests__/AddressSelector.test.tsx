@@ -1,9 +1,9 @@
-import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 
 import { AddressSelector } from '../AddressSelector';
 import { useSavedAddresses } from '@/hooks/useSavedAddresses';
 import { useServiceAreaCheck } from '@/hooks/useServiceAreaCheck';
+import type { SavedAddress } from '@/hooks/useSavedAddresses';
 
 jest.mock('@/hooks/useSavedAddresses', () => {
   const actual = jest.requireActual('@/hooks/useSavedAddresses');
@@ -20,8 +20,22 @@ jest.mock('@/hooks/useServiceAreaCheck', () => ({
 const useSavedAddressesMock = useSavedAddresses as jest.Mock;
 const useServiceAreaCheckMock = useServiceAreaCheck as jest.Mock;
 
-const sampleAddresses = [
-  {
+const makeAddress = (overrides: Partial<SavedAddress>): SavedAddress => ({
+  administrative_area: 'NY',
+  country_code: 'US',
+  id: 'addr-default',
+  is_active: true,
+  is_default: false,
+  label: 'home',
+  locality: 'New York',
+  postal_code: '10001',
+  street_line1: '123 Main St',
+  verification_status: 'unverified',
+  ...overrides,
+});
+
+const sampleAddresses: SavedAddress[] = [
+  makeAddress({
     id: 'addr-1',
     label: 'home',
     street_line1: '123 Main St',
@@ -30,10 +44,9 @@ const sampleAddresses = [
     postal_code: '10001',
     latitude: 40.7,
     longitude: -73.9,
-    is_active: true,
     is_default: true,
-  },
-  {
+  }),
+  makeAddress({
     id: 'addr-2',
     label: 'work',
     street_line1: '456 Market St',
@@ -43,8 +56,7 @@ const sampleAddresses = [
     postal_code: '94105',
     latitude: 37.79,
     longitude: -122.39,
-    is_active: true,
-  },
+  }),
 ];
 
 describe('AddressSelector', () => {
@@ -143,15 +155,14 @@ describe('AddressSelector', () => {
   });
 
   it('disables address missing coordinates', () => {
-    const missingCoords = {
+    const missingCoords = makeAddress({
       id: 'addr-3',
       label: 'other',
       street_line1: '987 Pine St',
       locality: 'Seattle',
       administrative_area: 'WA',
       postal_code: '98101',
-      is_active: true,
-    };
+    });
     useSavedAddressesMock.mockReturnValue({ addresses: [missingCoords], isLoading: false });
     useServiceAreaCheckMock.mockReturnValue({ data: null, isLoading: false });
 

@@ -1,27 +1,27 @@
 import { test, expect, request } from '@playwright/test';
 import { bypassGateIfPresent } from './utils/gate';
 
-const base = process.env.PLAYWRIGHT_BASE_URL as string;
-const apiBase = process.env.PLAYWRIGHT_API_BASE_URL as string;
+const base = process.env['PLAYWRIGHT_BASE_URL'] as string;
+const apiBase = process.env['PLAYWRIGHT_API_BASE_URL'] as string;
 
 test.describe('env-contract smoke', () => {
   test.skip(!base, 'PLAYWRIGHT_BASE_URL not set');
 
   test.beforeEach(async ({ page }) => {
-    const apiOnly = !!process.env.PLAYWRIGHT_API_BASE_URL;
-    if (!apiOnly && process.env.GATE_CODE) {
-      await bypassGateIfPresent(page, process.env.PLAYWRIGHT_BASE_URL!, process.env.GATE_CODE);
+    const apiOnly = !!process.env['PLAYWRIGHT_API_BASE_URL'];
+    if (!apiOnly && process.env['GATE_CODE']) {
+      await bypassGateIfPresent(page, process.env['PLAYWRIGHT_BASE_URL']!, process.env['GATE_CODE']);
     }
   });
 
   test('health headers (gated)', async () => {
-    if (process.env.E2E_HEADERS_TEST !== '1') {
+    if (process.env['E2E_HEADERS_TEST'] !== '1') {
       // Log that the test is skipped so CI can detect it
       console.log('[headers] X-Site-Mode=SKIPPED X-Phase=SKIPPED');
       test.skip(true, 'Headers test disabled');
       return;
     }
-    const ctx = await request.newContext({ baseURL: process.env.PLAYWRIGHT_API_BASE_URL! });
+    const ctx = await request.newContext({ baseURL: process.env['PLAYWRIGHT_API_BASE_URL']! });
     // Try multiple endpoints - prefer v1 health which goes through all proxy logic
     const candidates = [
       '/api/v1/health',       // v1 health endpoint (preferred)
@@ -43,7 +43,7 @@ test.describe('env-contract smoke', () => {
     console.log(`[headers] X-Site-Mode=${xSiteMode || 'MISSING'} X-Phase=${xPhase || 'MISSING'}`);
     expect(['preview','prod']).toContain((xSiteMode || '').toLowerCase());
     const phase = (xPhase || '').toLowerCase();
-    const allowedPhasesCsv = (process.env.ALLOWED_PHASES || 'beta,open,instructor_only,instructor-only');
+    const allowedPhasesCsv = (process.env['ALLOWED_PHASES'] || 'beta,open,instructor_only,instructor-only');
     const allowedPhases = allowedPhasesCsv.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
     console.log(`[headers-allowed] phase=${phase}`);
     expect(allowedPhases).toContain(phase);
@@ -51,7 +51,7 @@ test.describe('env-contract smoke', () => {
   });
 
   test('CORS preflight allows credentials (gated)', async () => {
-    if (process.env.E2E_HEADERS_TEST !== '1') {
+    if (process.env['E2E_HEADERS_TEST'] !== '1') {
       // Log that the test is skipped so CI can detect it
       console.log('[cors] access-control-allow-credentials=SKIPPED access-control-allow-origin=SKIPPED');
       test.skip(true, 'Headers test disabled');
@@ -80,7 +80,7 @@ test.describe('env-contract smoke', () => {
 
   test('429 path triggers limited responses (gated)', async () => {
     const dedupeKey = 'env-contract:rate-limit-test';
-    if (process.env.E2E_RATE_LIMIT_TEST !== '1') {
+    if (process.env['E2E_RATE_LIMIT_TEST'] !== '1') {
       // Log that the test is skipped so CI can detect it
       console.log(`[429-triage] dedupeKey=${dedupeKey} limited=SKIPPED attempts=SKIPPED`);
       test.skip(true, 'Rate limit test disabled');

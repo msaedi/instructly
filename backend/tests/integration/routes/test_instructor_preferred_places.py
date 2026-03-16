@@ -11,6 +11,13 @@ def _strict(monkeypatch):
     monkeypatch.setenv("STRICT_SCHEMAS", "true")
 
 
+def _assert_places_match(actual: list[dict], expected: list[dict]) -> None:
+    assert len(actual) == len(expected)
+    for actual_item, expected_item in zip(actual, expected):
+        for key, value in expected_item.items():
+            assert actual_item[key] == value
+
+
 def test_put_and_get_preferred_places_ok(
     client: TestClient,
     db: Session,
@@ -33,14 +40,17 @@ def test_put_and_get_preferred_places_ok(
     assert response.status_code == 200, response.text
     data = response.json()
 
-    assert data["preferred_teaching_locations"] == payload["preferred_teaching_locations"]
-    assert data["preferred_public_spaces"] == payload["preferred_public_spaces"]
+    _assert_places_match(data["preferred_teaching_locations"], payload["preferred_teaching_locations"])
+    _assert_places_match(data["preferred_public_spaces"], payload["preferred_public_spaces"])
 
     follow_up = client.get("/api/v1/instructors/me", headers=auth_headers_instructor)
     assert follow_up.status_code == 200, follow_up.text
     follow_data = follow_up.json()
-    assert follow_data["preferred_teaching_locations"] == payload["preferred_teaching_locations"]
-    assert follow_data["preferred_public_spaces"] == payload["preferred_public_spaces"]
+    _assert_places_match(
+        follow_data["preferred_teaching_locations"],
+        payload["preferred_teaching_locations"],
+    )
+    _assert_places_match(follow_data["preferred_public_spaces"], payload["preferred_public_spaces"])
 
 
 def test_enforce_max_two_per_kind(

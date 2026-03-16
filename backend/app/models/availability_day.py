@@ -17,14 +17,14 @@ class _ZeroedFormatTagsDefault(ClauseElement):  # type: ignore[misc]
     inherit_cache = True
 
 
-@compiles(_ZeroedFormatTagsDefault, "sqlite")  # type: ignore[untyped-decorator]
+@compiles(_ZeroedFormatTagsDefault, "sqlite")  # type: ignore
 def _compile_zeroed_format_tags_sqlite(
     element: _ZeroedFormatTagsDefault, compiler: Any, **kw: object
 ) -> str:
     return f"zeroblob({TAG_BYTES_PER_DAY})"
 
 
-@compiles(_ZeroedFormatTagsDefault, "postgresql")  # type: ignore[untyped-decorator]
+@compiles(_ZeroedFormatTagsDefault, "postgresql")  # type: ignore
 def _compile_zeroed_format_tags_postgresql(
     element: _ZeroedFormatTagsDefault, compiler: Any, **kw: object
 ) -> str:

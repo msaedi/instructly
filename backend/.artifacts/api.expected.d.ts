@@ -6848,7 +6848,7 @@ export type components = {
  start_time: string;
  status: string;
  student_first_name: string;
- student_last_name: string;
+ student_last_initial: string;
  student_note: string | null;
  total_price: number;
  };
@@ -7608,13 +7608,12 @@ export type components = {
  is_favorited: boolean;
  };
  FavoritedInstructor: {
- email: string;
  favorited_at?: string | null;
  first_name: string;
  id: string;
  is_active: boolean;
- last_name: string;
- profile?: components["schemas"]["InstructorProfileResponse"] | null;
+ last_initial: string;
+ profile?: components["schemas"]["InstructorProfilePublic"] | null;
  };
  FavoritesList: {
  favorites: components["schemas"]["FavoritedInstructor"][];
@@ -7760,6 +7759,78 @@ export type components = {
  payout_id?: string | null;
  status?: string | null;
  };
+ InstructorBookingResponse: {
+ auth_attempted_at?: string | null;
+ auth_failure_count?: number | null;
+ auth_last_error?: string | null;
+ auth_scheduled_for?: string | null;
+ booking_date: string;
+ booking_end_utc?: string | null;
+ booking_start_utc?: string | null;
+ can_join_lesson?: boolean | null;
+ cancellation_reason: string | null;
+ cancelled_at: string | null;
+ cancelled_by_id: string | null;
+ completed_at: string | null;
+ confirmed_at: string | null;
+ created_at: string;
+ credits_reserved_cents?: number | null;
+ duration_minutes: number;
+ end_time: string;
+ has_locked_funds?: boolean | null;
+ hourly_rate: number;
+ id: string;
+ instructor: components["schemas"]["InstructorInfo"];
+ instructor_id: string;
+ instructor_note: string | null;
+ instructor_payout_amount?: number | null;
+ instructor_service: components["schemas"]["BookingServiceInfo"];
+ instructor_service_id: string;
+ instructor_timezone?: string | null;
+ join_closes_at?: string | null;
+ join_opens_at?: string | null;
+ lesson_timezone?: string | null;
+ location_address?: string | null;
+ location_lat?: number | null;
+ location_lng?: number | null;
+ location_place_id?: string | null;
+ location_type: ("student_location" | "instructor_location" | "online" | "neutral_location") | null;
+ lock_resolution?: string | null;
+ lock_resolved_at?: string | null;
+ locked_amount_cents?: number | null;
+ locked_at?: string | null;
+ meeting_location: string | null;
+ no_show_dispute_reason?: string | null;
+ no_show_disputed?: boolean | null;
+ no_show_disputed_at?: string | null;
+ no_show_reported_at?: string | null;
+ no_show_reported_by?: string | null;
+ no_show_resolution?: string | null;
+ no_show_resolved_at?: string | null;
+ no_show_type?: string | null;
+ payment_summary?: components["schemas"]["PaymentSummary"] | null;
+ refunded_to_card_amount?: number | null;
+ rescheduled_from?: components["schemas"]["RescheduledFromInfo"] | null;
+ rescheduled_from_booking_id?: string | null;
+ rescheduled_to_booking_id?: string | null;
+ service_area: string | null;
+ service_name: string;
+ settlement_outcome?: string | null;
+ start_time: string;
+ status: components["schemas"]["BookingStatus"];
+ student: components["schemas"]["StudentInfoPublic"];
+ student_credit_amount?: number | null;
+ student_id: string;
+ student_note: string | null;
+ student_timezone?: string | null;
+ total_price: number;
+ video_instructor_joined_at?: string | null;
+ video_room_id?: string | null;
+ video_session_duration_seconds?: number | null;
+ video_session_ended_at?: string | null;
+ video_session_started_at?: string | null;
+ video_student_joined_at?: string | null;
+ };
  InstructorFilterContext: {
  available_filters?: components["schemas"]["SubcategoryFilterResponse"][];
  current_selections?: {
@@ -7791,6 +7862,36 @@ export type components = {
  InstructorProfileCreate: {
  bio: string;
  services: components["schemas"]["ServiceCreate"][];
+ years_experience: number;
+ };
+ InstructorProfilePublic: {
+ background_check_uploaded_at?: string | null;
+ bgc_name_mismatch: boolean;
+ bgc_status?: string | null;
+ bio: string;
+ calendar_settings_acknowledged_at?: string | null;
+ created_at: string;
+ favorited_count: number;
+ id: string;
+ identity_name_mismatch: boolean;
+ identity_verified_at?: string | null;
+ is_favorited?: boolean | null;
+ is_founding_instructor: boolean;
+ is_live: boolean;
+ non_travel_buffer_minutes: number;
+ onboarding_completed_at?: string | null;
+ overnight_protection_enabled: boolean;
+ preferred_public_spaces?: components["schemas"]["PreferredPublicSpaceOut"][];
+ preferred_teaching_locations?: components["schemas"]["PreferredTeachingLocationPublicOut"][];
+ service_area_boroughs?: string[];
+ service_area_neighborhoods?: components["schemas"]["ServiceAreaNeighborhood"][];
+ service_area_summary?: string | null;
+ services: components["schemas"]["ServiceResponse"][];
+ skills_configured: boolean;
+ travel_buffer_minutes: number;
+ updated_at?: string | null;
+ user: components["schemas"]["UserBasicPrivacy"];
+ user_id: string;
  years_experience: number;
  };
  InstructorProfileResponse: {
@@ -8828,18 +8929,26 @@ export type components = {
  OverridePayload: {
  action: "approve" | "reject";
  };
- PaginatedResponse_BookingResponse_: {
+ PaginatedResponse_InstructorBookingResponse_: {
  has_next: boolean;
  has_prev: boolean;
- items: components["schemas"]["BookingResponse"][];
+ items: components["schemas"]["InstructorBookingResponse"][];
  page: number;
  per_page: number;
  total: number;
  };
- PaginatedResponse_InstructorProfileResponse_: {
+ PaginatedResponse_InstructorProfilePublic_: {
  has_next: boolean;
  has_prev: boolean;
- items: components["schemas"]["InstructorProfileResponse"][];
+ items: components["schemas"]["InstructorProfilePublic"][];
+ page: number;
+ per_page: number;
+ total: number;
+ };
+ PaginatedResponse_Union_BookingResponse__InstructorBookingResponse__: {
+ has_next: boolean;
+ has_prev: boolean;
+ items: (components["schemas"]["BookingResponse"] | components["schemas"]["InstructorBookingResponse"])[];
  page: number;
  per_page: number;
  total: number;
@@ -9164,6 +9273,9 @@ export type components = {
  label?: string | null;
  };
  PreferredTeachingLocationOut: {
+ [key: string]: unknown;
+ };
+ PreferredTeachingLocationPublicOut: {
  [key: string]: unknown;
  };
  PriceFloorConfig: {
@@ -10105,6 +10217,11 @@ export type components = {
  id: string;
  last_name: string;
  };
+ StudentInfoPublic: {
+ first_name: string;
+ id: string;
+ last_initial: string;
+ };
  SubcategoryBrief: {
  id: string;
  name: string;
@@ -10321,7 +10438,7 @@ export type components = {
  service_name: string;
  start_time: string;
  student_first_name: string;
- student_last_name: string;
+ student_last_initial: string;
  total_price: number;
  };
  UpdateCalendarSettings: {
@@ -15113,7 +15230,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["PaginatedResponse_BookingResponse_"];
+ "application/json": components["schemas"]["PaginatedResponse_Union_BookingResponse__InstructorBookingResponse__"];
  };
  };
  422: {
@@ -15281,7 +15398,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["BookingResponse"];
+ "application/json": components["schemas"]["BookingResponse"] | components["schemas"]["InstructorBookingResponse"];
  };
  };
  404: {
@@ -15320,7 +15437,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["BookingResponse"];
+ "application/json": components["schemas"]["InstructorBookingResponse"];
  };
  };
  404: {
@@ -15359,7 +15476,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["BookingResponse"];
+ "application/json": components["schemas"]["BookingResponse"] | components["schemas"]["InstructorBookingResponse"];
  };
  };
  404: {
@@ -15394,7 +15511,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["BookingResponse"];
+ "application/json": components["schemas"]["InstructorBookingResponse"];
  };
  };
  403: {
@@ -15646,7 +15763,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["BookingResponse"];
+ "application/json": components["schemas"]["BookingResponse"] | components["schemas"]["InstructorBookingResponse"];
  };
  };
  404: {
@@ -16410,7 +16527,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["PaginatedResponse_BookingResponse_"];
+ "application/json": components["schemas"]["PaginatedResponse_InstructorBookingResponse_"];
  };
  };
  422: {
@@ -16440,7 +16557,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["PaginatedResponse_BookingResponse_"];
+ "application/json": components["schemas"]["PaginatedResponse_InstructorBookingResponse_"];
  };
  };
  422: {
@@ -16470,7 +16587,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["PaginatedResponse_BookingResponse_"];
+ "application/json": components["schemas"]["PaginatedResponse_InstructorBookingResponse_"];
  };
  };
  422: {
@@ -16500,7 +16617,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["PaginatedResponse_BookingResponse_"];
+ "application/json": components["schemas"]["PaginatedResponse_InstructorBookingResponse_"];
  };
  };
  422: {
@@ -16531,7 +16648,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["BookingResponse"];
+ "application/json": components["schemas"]["InstructorBookingResponse"];
  };
  };
  404: {
@@ -16570,7 +16687,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["BookingResponse"];
+ "application/json": components["schemas"]["InstructorBookingResponse"];
  };
  };
  404: {
@@ -16700,7 +16817,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["PaginatedResponse_InstructorProfileResponse_"];
+ "application/json": components["schemas"]["PaginatedResponse_InstructorProfilePublic_"];
  };
  };
  400: {
@@ -17527,7 +17644,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["InstructorProfileResponse"];
+ "application/json": components["schemas"]["InstructorProfilePublic"];
  };
  };
  404: {

@@ -10,8 +10,9 @@ import { toast } from 'sonner';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import { BookingList, type BookingListItem } from '@/features/bookings/components/BookingList';
-import type { PaginatedBookingResponse } from '@/features/shared/api/client';
+import type { InstructorBookingResponse } from '@/features/shared/api/types';
 import { useInstructorBookings } from '@/hooks/queries/useInstructorBookings';
+import { formatDisplayName } from '@/lib/format/displayName';
 import { useCompleteBooking, useMarkBookingNoShow } from '@/src/api/services/bookings';
 import { queryKeys } from '@/src/api/queryKeys';
 
@@ -21,6 +22,15 @@ type TabValue = 'upcoming' | 'past';
 
 const TAB_PARAM = 'tab';
 const PAGE_SIZE = 50;
+
+type PaginatedInstructorBookings = {
+  items: InstructorBookingResponse[];
+  total: number;
+  page: number;
+  per_page: number;
+  has_next: boolean;
+  has_prev: boolean;
+};
 
 const parseTab = (value: string | null): TabValue => (value === 'past' ? 'past' : 'upcoming');
 
@@ -63,7 +73,7 @@ function BookingsPageImpl() {
     perPage: PAGE_SIZE,
   });
 
-  const pluckBookings = useCallback((payload?: PaginatedBookingResponse): BookingListItem[] => {
+  const pluckBookings = useCallback((payload?: PaginatedInstructorBookings): BookingListItem[] => {
     if (!Array.isArray(payload?.items)) return [];
     return payload.items as BookingListItem[];
   }, []);
@@ -212,9 +222,11 @@ function BookingsPageImpl() {
                 Are you sure you want to mark this lesson as a no-show? This indicates that
                 <span className="font-medium">
                   {' '}
-                  {noShowModalBooking.student?.first_name && noShowModalBooking.student?.last_name
-                    ? `${noShowModalBooking.student.first_name} ${noShowModalBooking.student.last_name}`
-                    : 'the student'}
+                  {formatDisplayName(
+                    noShowModalBooking.student?.first_name,
+                    noShowModalBooking.student?.last_initial,
+                    'the student',
+                  )}
                 </span>{' '}
                 did not attend the scheduled lesson.
               </p>

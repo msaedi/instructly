@@ -9,9 +9,9 @@ test.beforeAll(({}, workerInfo) => {
   test.skip(!isInstructor(workerInfo), `Instructor-only spec (current project: ${workerInfo.project.name})`);
 });
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3100';
-const SESSION_TOKEN = process.env.TEST_SESSION_TOKEN ?? 'fake.jwt.value';
-const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME;
+const BASE_URL = process.env['PLAYWRIGHT_BASE_URL'] || 'http://localhost:3100';
+const SESSION_TOKEN = process.env['TEST_SESSION_TOKEN'] ?? 'fake.jwt.value';
+const SESSION_COOKIE_NAME = process.env['SESSION_COOKIE_NAME'];
 
 type ScheduleEntry = { date: string; start_time: string; end_time: string };
 type ScheduleSeed = Record<string, Array<Omit<ScheduleEntry, 'date'>>>;
@@ -84,7 +84,7 @@ const createBookedSlots = (iso: WeekContext['iso']) => [
     start_time: '14:00:00',
     end_time: '14:30:00',
     student_first_name: 'Alex',
-    student_last_initial: 'R',
+    student_last_initial: 'R.',
     service_name: 'Lesson',
     service_area_short: 'NYC',
     duration_minutes: 30,

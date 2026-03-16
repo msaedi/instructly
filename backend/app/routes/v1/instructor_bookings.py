@@ -33,7 +33,7 @@ from ...models.user import User
 from ...ratelimit.dependency import rate_limit
 from ...repositories.factory import RepositoryFactory
 from ...schemas.base_responses import PaginatedResponse
-from ...schemas.booking import BookingResponse
+from ...schemas.booking import InstructorBookingResponse
 from ...services.booking_service import BookingService
 from ...services.permission_service import PermissionService
 
@@ -71,7 +71,7 @@ def _paginate_bookings(
     *,
     page: int,
     per_page: int,
-) -> PaginatedResponse[BookingResponse]:
+) -> PaginatedResponse[InstructorBookingResponse]:
     """Paginate booking results."""
     total = len(bookings)
     start = (page - 1) * per_page
@@ -79,7 +79,7 @@ def _paginate_bookings(
     paginated = bookings[start:end]
 
     return PaginatedResponse(
-        items=[BookingResponse.from_booking(b) for b in paginated],
+        items=[InstructorBookingResponse.from_booking(b) for b in paginated],
         total=total,
         page=page,
         per_page=per_page,
@@ -95,7 +95,7 @@ def _paginate_bookings(
 
 @router.get(
     "/pending-completion",
-    response_model=PaginatedResponse[BookingResponse],
+    response_model=PaginatedResponse[InstructorBookingResponse],
     dependencies=[Depends(require_beta_access("instructor")), Depends(rate_limit("read"))],
 )
 async def get_pending_completion_bookings(
@@ -103,7 +103,7 @@ async def get_pending_completion_bookings(
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
-) -> PaginatedResponse[BookingResponse]:
+) -> PaginatedResponse[InstructorBookingResponse]:
     """
     Get all bookings that are pending completion by the instructor.
 
@@ -130,7 +130,7 @@ async def get_pending_completion_bookings(
 
 @router.get(
     "/upcoming",
-    response_model=PaginatedResponse[BookingResponse],
+    response_model=PaginatedResponse[InstructorBookingResponse],
     dependencies=[Depends(require_beta_access("instructor")), Depends(rate_limit("read"))],
 )
 async def get_upcoming_bookings(
@@ -138,7 +138,7 @@ async def get_upcoming_bookings(
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
-) -> PaginatedResponse[BookingResponse]:
+) -> PaginatedResponse[InstructorBookingResponse]:
     """Return instructor's upcoming confirmed bookings."""
     check_permission(current_user, PermissionName.VIEW_INCOMING_BOOKINGS, db)
     booking_repo = RepositoryFactory.create_booking_repository(db)
@@ -154,7 +154,7 @@ async def get_upcoming_bookings(
 
 @router.get(
     "/completed",
-    response_model=PaginatedResponse[BookingResponse],
+    response_model=PaginatedResponse[InstructorBookingResponse],
     dependencies=[Depends(require_beta_access("instructor")), Depends(rate_limit("read"))],
 )
 async def get_completed_bookings(
@@ -162,7 +162,7 @@ async def get_completed_bookings(
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
-) -> PaginatedResponse[BookingResponse]:
+) -> PaginatedResponse[InstructorBookingResponse]:
     """Get instructor's completed bookings."""
     check_permission(current_user, PermissionName.VIEW_INCOMING_BOOKINGS, db)
     booking_repo = RepositoryFactory.create_booking_repository(db)
@@ -184,7 +184,7 @@ async def get_completed_bookings(
 
 @router.get(
     "",
-    response_model=PaginatedResponse[BookingResponse],
+    response_model=PaginatedResponse[InstructorBookingResponse],
     dependencies=[Depends(require_beta_access("instructor")), Depends(rate_limit("read"))],
 )
 async def list_instructor_bookings(
@@ -202,7 +202,7 @@ async def list_instructor_bookings(
     include_past_confirmed: bool = Query(
         False, description="Include past confirmed bookings (for BookAgain)"
     ),
-) -> PaginatedResponse[BookingResponse]:
+) -> PaginatedResponse[InstructorBookingResponse]:
     """List instructor bookings with filters."""
     check_permission(current_user, PermissionName.VIEW_INCOMING_BOOKINGS, db)
     booking_repo = RepositoryFactory.create_booking_repository(db)
@@ -225,7 +225,7 @@ async def list_instructor_bookings(
 
 @router.post(
     "/{booking_id}/complete",
-    response_model=BookingResponse,
+    response_model=InstructorBookingResponse,
     dependencies=[Depends(require_beta_access("instructor")), Depends(rate_limit("write"))],
     responses={404: {"description": "Booking not found"}},
 )
@@ -240,7 +240,7 @@ async def mark_lesson_complete(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
-) -> BookingResponse:
+) -> InstructorBookingResponse:
     """
     Mark a lesson as completed by the instructor.
 
@@ -270,7 +270,7 @@ async def mark_lesson_complete(
             instructor=current_user,
             notes=notes,
         )
-        return BookingResponse.from_booking(booking)
+        return InstructorBookingResponse.from_booking(booking)
     except NotFoundException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ValidationException as e:
@@ -285,7 +285,7 @@ async def mark_lesson_complete(
 
 @router.post(
     "/{booking_id}/dispute",
-    response_model=BookingResponse,
+    response_model=InstructorBookingResponse,
     dependencies=[Depends(require_beta_access("instructor")), Depends(rate_limit("write"))],
     responses={404: {"description": "Booking not found"}},
 )
@@ -300,7 +300,7 @@ async def dispute_completion(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
-) -> BookingResponse:
+) -> InstructorBookingResponse:
     """
     Dispute a lesson completion as an instructor.
 
@@ -331,7 +331,7 @@ async def dispute_completion(
                 instructor=current_user,
                 reason=reason,
             )
-            return BookingResponse.from_booking(booking)
+            return InstructorBookingResponse.from_booking(booking)
     except NotFoundException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ValidationException as e:

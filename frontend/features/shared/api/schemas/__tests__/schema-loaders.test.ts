@@ -95,7 +95,7 @@ describe('schema loaders production guard', () => {
           user: {
             id: 'user-1',
             first_name: 'Jane',
-            last_initial: 'D',
+            last_initial: 'D.',
           },
           services: [
             {

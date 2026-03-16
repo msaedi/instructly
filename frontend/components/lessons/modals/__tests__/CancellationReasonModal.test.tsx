@@ -35,7 +35,7 @@ const baseLesson = {
   booking_date: '2025-01-10',
   start_time: '10:00:00',
   service_name: 'Guitar',
-  instructor: { first_name: 'Jo', last_initial: 'Q' },
+  instructor: { first_name: 'Jo', last_initial: 'Q.' },
 } as Booking;
 
 describe('CancellationReasonModal', () => {

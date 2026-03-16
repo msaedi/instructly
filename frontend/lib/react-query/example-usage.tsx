@@ -97,7 +97,7 @@ function InstructorSearch() {
       <h3>Found {data?.meta.total_results} instructors</h3>
       {data?.results.map((result: NonNullable<typeof data>['results'][number]) => (
         <div key={result.instructor.id}>
-          {result.instructor.first_name} {result.instructor.last_initial}. - $
+          {result.instructor.first_name} {result.instructor.last_initial} - $
           {result.best_match.min_hourly_rate}/hr
         </div>
       ))}

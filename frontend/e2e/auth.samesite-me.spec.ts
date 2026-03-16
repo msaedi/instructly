@@ -4,7 +4,7 @@ import path from 'node:path';
 import { normalizeCookiesForContext } from './support/cookies';
 import { normalizeStorageState } from './support/storageState';
 
-const CROSS_ORIGIN_ENABLED = process.env.E2E_CROSS_ORIGIN === '1';
+const CROSS_ORIGIN_ENABLED = process.env['E2E_CROSS_ORIGIN'] === '1';
 
 test.skip(!CROSS_ORIGIN_ENABLED, 'Cross-origin E2E disabled (set E2E_CROSS_ORIGIN=1 to enable).');
 
@@ -12,16 +12,16 @@ test.beforeEach(({}, testInfo) => {
   test.skip(testInfo.project.name !== 'instructor', `Instructor-only spec (current project: ${testInfo.project.name})`);
 });
 
-const defaultFrontend = process.env.PLAYWRIGHT_BASE_URL || process.env.E2E_BASE_URL || 'http://localhost:3100';
-const previewFrontend = process.env.E2E_PREVIEW_BASE_URL || defaultFrontend;
-const betaFrontend = process.env.E2E_BETA_BASE_URL || previewFrontend;
+const defaultFrontend = process.env['PLAYWRIGHT_BASE_URL'] || process.env['E2E_BASE_URL'] || 'http://localhost:3100';
+const previewFrontend = process.env['E2E_PREVIEW_BASE_URL'] || defaultFrontend;
+const betaFrontend = process.env['E2E_BETA_BASE_URL'] || previewFrontend;
 
 const defaultApi =
-  process.env.E2E_API_BASE_URL ||
-  process.env.PLAYWRIGHT_API_BASE ||
+  process.env['E2E_API_BASE_URL'] ||
+  process.env['PLAYWRIGHT_API_BASE'] ||
   process.env.NEXT_PUBLIC_API_BASE ||
   'http://localhost:8000';
-const betaApi = process.env.E2E_BETA_API_BASE_URL || defaultApi;
+const betaApi = process.env['E2E_BETA_API_BASE_URL'] || defaultApi;
 
 const normalizeOrigin = (value: string) => {
   try {
@@ -36,8 +36,8 @@ const betaOrigin = normalizeOrigin(betaFrontend);
 const apiForOrigin = (origin: string) =>
   normalizeOrigin(origin) === betaOrigin ? betaApi : defaultApi;
 
-const rawHosts = process.env.SAMESITE_FE_ORIGINS
-  ? process.env.SAMESITE_FE_ORIGINS.split(',')
+const rawHosts = process.env['SAMESITE_FE_ORIGINS']
+  ? process.env['SAMESITE_FE_ORIGINS'].split(',')
       .map((origin) => origin.trim())
       .filter(Boolean)
       .map((origin) => ({
@@ -118,17 +118,17 @@ async function loginForOrigin(origin: string, apiBase: string, email: string, pa
 
 test.describe('SameSite cookie smoke: /api/v1/auth/me across local hosts', () => {
   test('me is 200 from each FE origin', async () => {
-    test.skip(Boolean(process.env.CI) && !process.env.CI_LOCAL_E2E, 'Local-only smoke; opt-in via CI_LOCAL_E2E=1');
+    test.skip(Boolean(process.env.CI) && !process.env['CI_LOCAL_E2E'], 'Local-only smoke; opt-in via CI_LOCAL_E2E=1');
 
     const email =
-      process.env.E2E_INSTRUCTOR_EMAIL ||
+      process.env['E2E_INSTRUCTOR_EMAIL'] ||
       process.env.E2E_USER_EMAIL ||
-      process.env.E2E_ADMIN_EMAIL ||
+      process.env['E2E_ADMIN_EMAIL'] ||
       'sarah.chen@example.com';
     const password =
-      process.env.E2E_INSTRUCTOR_PASSWORD ||
+      process.env['E2E_INSTRUCTOR_PASSWORD'] ||
       process.env.E2E_USER_PASSWORD ||
-      process.env.E2E_ADMIN_PASSWORD ||
+      process.env['E2E_ADMIN_PASSWORD'] ||
       'Test1234';
 
     for (const { fe: origin, api } of HOSTS) {

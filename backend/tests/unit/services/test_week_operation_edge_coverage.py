@@ -1,14 +1,14 @@
 """
 Bug-hunting edge-case tests for week_operation_service.py targeting uncovered lines/branches.
 
-Covers lines: 377-388, 409->exit, 443->448, 445->443, 515->exit, 776
+Covers lines: 377-388, 409->exit, 443->448, 445->443, 515->exit
 """
 
 from __future__ import annotations
 
 from datetime import date, timedelta
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -133,27 +133,33 @@ class TestResolveActorPayloadWeekOp:
 
     def test_actor_none(self):
         svc = _make_service()
-        result = svc._resolve_actor_payload(None)
+        result = svc._resolve_actor_payload(None, default_role="instructor")
         assert result == {"role": "instructor"}
 
     def test_actor_dict_with_role(self):
         svc = _make_service()
-        result = svc._resolve_actor_payload({"id": "U1", "role": "admin"})
+        result = svc._resolve_actor_payload({"id": "U1", "role": "admin"}, default_role="instructor")
         assert result == {"id": "U1", "role": "admin"}
 
     def test_actor_dict_with_actor_id(self):
         svc = _make_service()
-        result = svc._resolve_actor_payload({"actor_id": "U2", "actor_role": "staff"})
+        result = svc._resolve_actor_payload(
+            {"actor_id": "U2", "actor_role": "staff"},
+            default_role="instructor",
+        )
         assert result == {"id": "U2", "role": "staff"}
 
     def test_actor_dict_with_user_id(self):
         svc = _make_service()
-        result = svc._resolve_actor_payload({"user_id": "U3", "role_name": "teacher"})
+        result = svc._resolve_actor_payload(
+            {"user_id": "U3", "role_name": "teacher"},
+            default_role="instructor",
+        )
         assert result == {"id": "U3", "role": "teacher"}
 
     def test_actor_dict_no_role(self):
         svc = _make_service()
-        result = svc._resolve_actor_payload({"id": "U4"})
+        result = svc._resolve_actor_payload({"id": "U4"}, default_role="instructor")
         assert result == {"id": "U4", "role": "instructor"}
 
     def test_actor_object_with_role(self):
@@ -163,7 +169,7 @@ class TestResolveActorPayloadWeekOp:
             id = "U5"
             role = "admin"
 
-        result = svc._resolve_actor_payload(Actor())
+        result = svc._resolve_actor_payload(Actor(), default_role="instructor")
         assert result == {"id": "U5", "role": "admin"}
 
     def test_actor_object_with_role_name(self):
@@ -174,7 +180,7 @@ class TestResolveActorPayloadWeekOp:
             role = None
             role_name = "teacher"
 
-        result = svc._resolve_actor_payload(Actor())
+        result = svc._resolve_actor_payload(Actor(), default_role="instructor")
         assert result == {"id": "U5b", "role": "teacher"}
 
     def test_actor_object_with_roles_list(self):
@@ -191,7 +197,7 @@ class TestResolveActorPayloadWeekOp:
             role_name = None
             roles = [RoleObj(None), RoleObj("editor")]
 
-        result = svc._resolve_actor_payload(Actor())
+        result = svc._resolve_actor_payload(Actor(), default_role="instructor")
         assert result == {"id": "U6", "role": "editor"}
 
     def test_actor_object_with_empty_roles_list(self):
@@ -207,7 +213,7 @@ class TestResolveActorPayloadWeekOp:
             role_name = None
             roles = [RoleObj()]
 
-        result = svc._resolve_actor_payload(Actor())
+        result = svc._resolve_actor_payload(Actor(), default_role="instructor")
         assert result == {"id": "U7", "role": "instructor"}
 
     def test_actor_object_no_role_at_all(self):
@@ -217,7 +223,7 @@ class TestResolveActorPayloadWeekOp:
         class Actor:
             id = "U8"
 
-        result = svc._resolve_actor_payload(Actor())
+        result = svc._resolve_actor_payload(Actor(), default_role="instructor")
         assert result == {"id": "U8", "role": "instructor"}
 
     def test_actor_object_with_roles_tuple(self):
@@ -234,7 +240,7 @@ class TestResolveActorPayloadWeekOp:
             role_name = None
             roles = (RoleObj("viewer"),)
 
-        result = svc._resolve_actor_payload(Actor())
+        result = svc._resolve_actor_payload(Actor(), default_role="instructor")
         assert result == {"id": "U9", "role": "viewer"}
 
 
@@ -272,42 +278,6 @@ class TestWriteCopyAuditDisabled:
             after={"a": 2},
         )
         svc.audit_repository.write.assert_called_once()
-
-
-# ---------------------------------------------------------------------------
-# L776: _warm_cache_for_affected_weeks — no cache_service
-# ---------------------------------------------------------------------------
-@pytest.mark.unit
-class TestWarmCacheForAffectedWeeksNoCache:
-    """Test _warm_cache_for_affected_weeks when cache_service is None."""
-
-    @pytest.mark.asyncio
-    async def test_no_cache_service_returns_early(self):
-        """L775-776: no cache_service => return immediately."""
-        svc = _make_service(cache_service=None)
-        # Should not raise
-        await svc._warm_cache_for_affected_weeks(
-            "I1", date(2026, 3, 16), date(2026, 3, 22)
-        )
-
-    @pytest.mark.asyncio
-    async def test_with_cache_service_warms(self):
-        """With cache_service, _warm_cache_for_affected_weeks calls warmer."""
-        mock_cache = MagicMock()
-        svc = _make_service(cache_service=mock_cache)
-
-        with patch("app.services.week_operation_service.CacheWarmingStrategy", create=True) as MockStrategy:
-            mock_warmer = AsyncMock()
-            MockStrategy.return_value = mock_warmer
-            # Patch the import inside the method
-            with patch(
-                "app.services.cache_strategies.CacheWarmingStrategy",
-                MockStrategy,
-                create=True,
-            ):
-                await svc._warm_cache_for_affected_weeks(
-                    "I1", date(2026, 3, 16), date(2026, 3, 22)
-                )
 
 
 # ---------------------------------------------------------------------------

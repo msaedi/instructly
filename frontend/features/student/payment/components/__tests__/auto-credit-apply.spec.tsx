@@ -1,4 +1,3 @@
-import React from 'react';
 import { screen, waitFor } from '@testing-library/react';
 import { PaymentSection } from '../PaymentSection';
 import { BookingPayment, PAYMENT_STATUS } from '../../types';

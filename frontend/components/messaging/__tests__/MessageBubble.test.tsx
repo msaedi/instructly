@@ -1,11 +1,11 @@
-import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MessageBubble } from '../MessageBubble';
+import type { LoosePartial } from '@/test-utils/types';
 import type { NormalizedMessage, NormalizedReaction } from '../types';
 
 describe('MessageBubble', () => {
   const createMessage = (
-    overrides: Partial<NormalizedMessage> = {}
+    overrides: LoosePartial<NormalizedMessage> = {}
   ): NormalizedMessage => ({
     id: 'msg-1',
     content: 'Hello, world!',
@@ -15,7 +15,7 @@ describe('MessageBubble', () => {
     isEdited: false,
     isDeleted: false,
     reactions: [],
-    ...overrides,
+    ...(overrides as Partial<NormalizedMessage>),
   });
 
   describe('basic rendering', () => {

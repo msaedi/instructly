@@ -9,6 +9,7 @@
 import { useMemo, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMessageStream } from '@/providers/UserMessageStreamProvider';
+import { formatDisplayName } from '@/lib/format/displayName';
 import { withApiBase, withApiBaseForRequest } from '@/lib/apiBase';
 import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
 import type { ConversationEntry } from '../types';
@@ -165,7 +166,11 @@ export function useConversations({
       })
       .map((conv) => {
         // Build display name from other_user
-        const displayName = `${conv.other_user.first_name} ${conv.other_user.last_initial}.`;
+        const displayName = formatDisplayName(
+          conv.other_user.first_name,
+          conv.other_user.last_initial,
+          'Student',
+        );
 
         // Get initials for avatar
         const avatar = getInitials(

@@ -2136,7 +2136,7 @@ describe('useMessageThread', () => {
 
       if (capturedOnSuccess) {
         act(() => {
-          capturedOnSuccess!({ messages: undefined });
+          capturedOnSuccess!({});
         });
       }
 

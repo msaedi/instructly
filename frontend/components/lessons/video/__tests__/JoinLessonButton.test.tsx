@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react';
 jest.mock('next/link', () => ({
   __esModule: true,
   default: (props: Record<string, unknown>) => (
-    <a {...props}>{props.children as React.ReactNode}</a>
+    <a {...props}>{props['children'] as React.ReactNode}</a>
   ),
 }));
 

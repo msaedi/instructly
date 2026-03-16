@@ -171,8 +171,10 @@ class TestPublicAvailability:
         assert result["instructor_id"] == instructor.id
         assert result["instructor_first_name"] == instructor.first_name  # Privacy-protected: first name only
         assert (
-            result["instructor_last_initial"] == instructor.last_name[0] if instructor.last_name else None
-        )  # Privacy-protected: initial only
+            result["instructor_last_initial"] == f"{instructor.last_name[0]}."
+            if instructor.last_name
+            else None
+        )  # Privacy-protected: initial + period only
         assert "availability_by_date" in result
         assert result["timezone"] == "America/New_York"
 

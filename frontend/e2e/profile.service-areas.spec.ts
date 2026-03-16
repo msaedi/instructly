@@ -5,7 +5,7 @@ import { mockAuthenticatedPageBackgroundApis } from './utils/authenticatedPageMo
 test.beforeAll(({}, workerInfo) => {
   test.skip(!isInstructor(workerInfo), `Instructor-only spec (current project: ${workerInfo.project.name})`);
 });
-test.skip(Boolean(process.env.CI) && !process.env.CI_LOCAL_E2E, 'local-only smoke; opt-in via CI_LOCAL_E2E=1');
+test.skip(Boolean(process.env.CI) && !process.env['CI_LOCAL_E2E'], 'local-only smoke; opt-in via CI_LOCAL_E2E=1');
 
 test('service areas: select two -> save -> reload -> persisted', async ({ page }) => {
   await mockAuthenticatedPageBackgroundApis(page, { userId: 'mock-user' });

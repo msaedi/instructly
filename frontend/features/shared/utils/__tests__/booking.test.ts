@@ -86,8 +86,8 @@ describe('booking intent helpers', () => {
         'bookingIntent',
         expect.any(String)
       );
-      expect(store.bookingIntent).toBeDefined();
-      const storedValue = store.bookingIntent as string;
+      expect(store['bookingIntent']).toBeDefined();
+      const storedValue = store['bookingIntent'] as string;
       const stored = JSON.parse(storedValue) as Record<string, unknown>;
       expect(stored).toMatchObject({
         instructorId: 'instructor-1',
@@ -108,11 +108,11 @@ describe('booking intent helpers', () => {
         skipModal: true,
       });
 
-      expect(store.bookingIntent).toBeDefined();
-      const storedValue = store.bookingIntent as string;
+      expect(store['bookingIntent']).toBeDefined();
+      const storedValue = store['bookingIntent'] as string;
       const stored = JSON.parse(storedValue) as Record<string, unknown>;
-      expect(stored.skipModal).toBe(true);
-      expect(stored.locationType).toBe('student_location');
+      expect(stored['skipModal']).toBe(true);
+      expect(stored['locationType']).toBe('student_location');
     });
 
     it('does not persist data when storage throws', () => {
@@ -127,13 +127,13 @@ describe('booking intent helpers', () => {
         duration: 30,
       });
 
-      expect(store.bookingIntent).toBeUndefined();
+      expect(store['bookingIntent']).toBeUndefined();
     });
   });
 
   describe('getBookingIntent', () => {
     it('returns parsed booking intent when present', () => {
-      store.bookingIntent = JSON.stringify({
+      store['bookingIntent'] = JSON.stringify({
         instructorId: 'instructor-4',
         date: '2025-01-04',
         time: '09:00',
@@ -153,14 +153,14 @@ describe('booking intent helpers', () => {
     });
 
     it('returns null when stored JSON is invalid', () => {
-      store.bookingIntent = '{invalid-json';
+      store['bookingIntent'] = '{invalid-json';
       expect(getBookingIntent()).toBeNull();
     });
   });
 
   describe('clearBookingIntent', () => {
     it('removes the booking intent from storage', () => {
-      store.bookingIntent = JSON.stringify({ instructorId: 'instructor-5', date: '2025-01-05', time: '10:00', duration: 60 });
+      store['bookingIntent'] = JSON.stringify({ instructorId: 'instructor-5', date: '2025-01-05', time: '10:00', duration: 60 });
 
       clearBookingIntent();
 
@@ -175,7 +175,7 @@ describe('booking intent helpers', () => {
     });
 
     it('leaves data intact when removal fails', () => {
-      store.bookingIntent = JSON.stringify({ instructorId: 'instructor-6', date: '2025-01-06', time: '11:00', duration: 30 });
+      store['bookingIntent'] = JSON.stringify({ instructorId: 'instructor-6', date: '2025-01-06', time: '11:00', duration: 30 });
       sessionStorageMock.removeItem.mockImplementationOnce(() => {
         throw new Error('Removal failed');
       });

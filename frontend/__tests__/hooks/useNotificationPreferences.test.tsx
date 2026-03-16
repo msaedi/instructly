@@ -45,7 +45,7 @@ describe('useNotificationPreferences', () => {
     const { result } = renderHook(() => useNotificationPreferences(), { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(result.current.preferences?.lesson_updates.email).toBe(true);
+      expect(result.current.preferences?.lesson_updates['email']).toBe(true);
     });
   });
 
@@ -78,7 +78,7 @@ describe('useNotificationPreferences', () => {
     const { result } = renderHook(() => useNotificationPreferences(), { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(result.current.preferences?.promotional.email).toBe(false);
+      expect(result.current.preferences?.promotional['email']).toBe(false);
     });
 
     act(() => {
@@ -87,7 +87,7 @@ describe('useNotificationPreferences', () => {
 
     await waitFor(() => {
       expect(mockedApi.updatePreference).toHaveBeenCalledWith('promotional', 'email', true);
-      expect(result.current.preferences?.promotional.email).toBe(true);
+      expect(result.current.preferences?.promotional['email']).toBe(true);
     });
   });
 
@@ -108,7 +108,7 @@ describe('useNotificationPreferences', () => {
     const { result } = renderHook(() => useNotificationPreferences(), { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(result.current.preferences?.promotional.email).toBe(false);
+      expect(result.current.preferences?.promotional['email']).toBe(false);
     });
 
     act(() => {
@@ -119,7 +119,7 @@ describe('useNotificationPreferences', () => {
     await waitFor(() => {
       expect(mockedApi.updatePreference).toHaveBeenCalledWith('promotional', 'email', true);
       // Value should be rolled back to original after error
-      expect(result.current.preferences?.promotional.email).toBe(false);
+      expect(result.current.preferences?.promotional['email']).toBe(false);
     });
   });
 });

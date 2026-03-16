@@ -6,7 +6,6 @@ import type { ServiceAreaNeighborhood } from '@/types/instructor';
 // Note: Some types kept local because they differ from generated (use frontend-specific structures)
 import type {
   BookingStatus as GeneratedBookingStatus,
-  BookingListResponse as GeneratedBookingListResponse,
   AvailabilityCheckRequest as GeneratedAvailabilityCheckRequest,
   AvailabilityCheckResponse as GeneratedAvailabilityCheckResponse,
   BookingCreateResponse as GeneratedBookingCreateResponse,
@@ -18,7 +17,6 @@ import type {
 
 // Re-export generated types for convenience
 export type BookingStatus = GeneratedBookingStatus;
-export type BookingListResponse = GeneratedBookingListResponse;
 export type AvailabilityCheckRequest = GeneratedAvailabilityCheckRequest;
 export type AvailabilityCheckResponse = GeneratedAvailabilityCheckResponse;
 export type BookingCreateResponse = GeneratedBookingCreateResponse;
@@ -48,7 +46,7 @@ export type LocationType =
 export interface InstructorInfo {
   id: string;
   first_name: string;
-  last_initial: string;  // Only last initial, no full last name for privacy
+  last_initial: string;  // Privacy-safe display value like "S."
   full_name?: string; // Computed full name with last initial (optional API field)
   // Note: email excluded for privacy
 }
@@ -128,6 +126,16 @@ export interface Booking {
   service?: Service;
   // REMOVED: availability_slot relation
 }
+
+export type BookingListResponse = {
+  items: Booking[];
+  total: number;
+  page: number;
+  per_page: number;
+  pages?: number;
+  has_next?: boolean;
+  has_prev?: boolean;
+};
 
 // User type for relations
 export interface User {
@@ -221,7 +229,7 @@ export interface BookedSlotsResponse {
 export interface BookingPreview {
   booking_id: string;
   student_first_name: string;
-  student_last_name: string;  // Full if viewing own, initial if viewing others
+  student_last_initial: string;
   instructor_first_name: string;
   instructor_last_name: string;  // Full if viewing own, initial if viewing others
   service_name: string;
@@ -245,7 +253,7 @@ export interface UpcomingBooking {
   end_time: string;
   service_name: string;
   student_first_name: string;
-  student_last_name: string;  // Full if viewing own, initial if viewing others
+  student_last_initial: string;
   instructor_first_name: string;
   instructor_last_name: string;  // Full if viewing own, initial if viewing others
   meeting_location?: string;

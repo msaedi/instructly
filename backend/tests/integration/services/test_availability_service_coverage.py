@@ -1246,6 +1246,7 @@ class TestSaveWeekBitsGuardrailsCoverage:
     ):
         fixed_today = date(2026, 1, 16)
         monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "0")
+        monkeypatch.setattr("app.services.availability_service.ALLOW_PAST", False)
         monkeypatch.setattr(
             "app.services.availability_service.get_user_today_by_id",
             lambda instructor_id, db_session: fixed_today,
@@ -1274,6 +1275,7 @@ class TestSaveWeekBitsGuardrailsCoverage:
     ):
         fixed_today = date(2026, 1, 16)
         monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "1")
+        monkeypatch.setattr("app.services.availability_service.ALLOW_PAST", True)
         monkeypatch.setattr(settings, "past_edit_window_days", 2, raising=False)
         monkeypatch.setattr(
             "app.services.availability_service.get_user_today_by_id",
@@ -1320,6 +1322,7 @@ class TestSaveWeekBitmapsTagNormalizationCoverage:
     ):
         fixed_today = date(2026, 1, 19)
         monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "0")
+        monkeypatch.setattr("app.services.availability_service.ALLOW_PAST", False)
         monkeypatch.setattr(
             "app.services.availability_service.get_user_today_by_id",
             lambda instructor_id, db_session: fixed_today,

@@ -50,6 +50,7 @@ from ...schemas.conversation import (
 )
 from ...services.conversation_service import ConversationService
 from ...services.messaging import publish_new_message_direct, publish_typing_status_direct
+from ...utils.privacy import format_last_initial, format_private_display_name
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +102,7 @@ def _build_user_summary(user: User) -> UserSummary:
     return UserSummary(
         id=user.id,
         first_name=user.first_name or "",
-        last_initial=(user.last_name or " ")[0] if user.last_name else "",
+        last_initial=format_last_initial(getattr(user, "last_name", None), with_period=True),
         profile_photo_url=getattr(user, "profile_photo_url", None),
     )
 
@@ -340,7 +341,11 @@ async def send_typing_indicator(
     if not typing_context:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
-    user_name = current_user.first_name or current_user.email or "Someone"
+    user_name = format_private_display_name(
+        getattr(current_user, "first_name", None),
+        getattr(current_user, "last_name", None),
+        default="User",
+    )
 
     try:
         # Use direct publish function (no DB required)
@@ -475,8 +480,11 @@ async def send_message(
             message_id=str(message.id),
             content=message.content,
             sender_id=str(current_user.id),
-            sender_name=f"{current_user.first_name or ''} {current_user.last_name or ''}".strip()
-            or current_user.email,
+            sender_name=format_private_display_name(
+                getattr(current_user, "first_name", None),
+                getattr(current_user, "last_name", None),
+                default="User",
+            ),
             conversation_id=conversation_id,
             created_at=message.created_at,
             booking_id=message.booking_id,

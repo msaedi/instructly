@@ -182,17 +182,13 @@ class TestAutoBioGeneration:
             ),
         ]
 
-        # Mock geocoding
-        with patch("app.services.instructor_service.create_geocoding_provider") as mock_provider:
-            mock_geocoder = MagicMock()
-            mock_provider.return_value = mock_geocoder
+        from app.services.instructor_service import PreparedProfileUpdateContext
 
-            with patch("anyio.run") as mock_anyio:
-                mock_geocoded = MagicMock()
-                mock_geocoded.city = "Brooklyn"
-                mock_anyio.return_value = mock_geocoded
-
-                service.update_instructor_profile("user-123", update_data)
+        service.update_instructor_profile(
+            "user-123",
+            update_data,
+            prepared_context=PreparedProfileUpdateContext(bio_city="Brooklyn"),
+        )
 
         # Verify bio was set with skills
         calls = service.profile_repository.update.call_args_list

@@ -14,6 +14,7 @@ FIXED IN THIS VERSION:
 """
 
 from datetime import datetime, timezone
+from enum import Enum
 import logging
 from pathlib import Path
 from typing import Any, Optional, cast
@@ -163,6 +164,13 @@ class TemplateService(BaseService):
         """Check if caching should be used."""
         return self._caching_enabled and self.cache is not None and hasattr(self.cache, "get")
 
+    @staticmethod
+    def _normalize_template_name(template_name: str | Enum) -> str:
+        """Convert string-like template identifiers to the filesystem path Jinja expects."""
+        if isinstance(template_name, Enum):
+            return str(template_name.value)
+        return str(template_name)
+
     @BaseService.measure_operation("get_common_context")
     def get_common_context(self) -> dict[str, Any]:
         """
@@ -208,7 +216,7 @@ class TemplateService(BaseService):
     def render_template(
         self,
         /,
-        template_name: str,
+        template_name: str | Enum,
         context: Optional[dict[str, Any]] = None,
         **kwargs: Any,
     ) -> str:
@@ -230,11 +238,7 @@ class TemplateService(BaseService):
             TemplateNotFound: If template doesn't exist
         """
         try:
-            # Coerce Enum values to plain strings if needed
-            try:
-                template_name_str = template_name.value  # type: ignore[attr-defined]
-            except Exception:
-                template_name_str = str(template_name)
+            template_name_str = self._normalize_template_name(template_name)
             # Get the template (Jinja2 caches compiled templates internally)
             template = self.env.get_template(template_name_str)
 
@@ -256,10 +260,7 @@ class TemplateService(BaseService):
         except Exception as e:
             # Fallback: read file content and render from string after sanitizing any stray bytes
             try:
-                try:
-                    template_name_str = template_name.value  # type: ignore[attr-defined]
-                except Exception:
-                    template_name_str = str(template_name)
+                template_name_str = self._normalize_template_name(template_name)
                 template_path = (
                     Path(__file__).parent.parent / "templates" / template_name_str
                 ).resolve()
@@ -329,7 +330,7 @@ class TemplateService(BaseService):
             raise
 
     @BaseService.measure_operation("template_exists")
-    def template_exists(self, template_name: str) -> bool:
+    def template_exists(self, template_name: str | Enum) -> bool:
         """
         Check if a template exists.
 
@@ -357,10 +358,7 @@ class TemplateService(BaseService):
 
         # Check if template exists
         try:
-            try:
-                template_name_str = template_name.value  # type: ignore[attr-defined]
-            except Exception:
-                template_name_str = str(template_name)
+            template_name_str = self._normalize_template_name(template_name)
             self.env.get_template(template_name_str)
             exists = True
         except TemplateNotFound:

@@ -165,7 +165,7 @@ describe('useCreateBooking', () => {
         total_price: 100,
         hourly_rate: 100,
         created_at: '2025-01-01T00:00:00Z',
-        instructor: { id: '01K2GY3VEVJWKZDVH5HMNXEVR2', first_name: 'Alice', last_initial: 'B' },
+        instructor: { id: '01K2GY3VEVJWKZDVH5HMNXEVR2', first_name: 'Alice', last_initial: 'B.' },
         service_name: 'Math Tutoring',
       } as BookingResponse;
 
@@ -203,7 +203,7 @@ describe('useCreateBooking', () => {
         total_price: 150,
         hourly_rate: 100,
         created_at: '2025-01-01T00:00:00Z',
-        instructor: { id: '01K2GY3VEVJWKZDVH5HMNXEVR2', first_name: 'Alice', last_initial: 'B' },
+        instructor: { id: '01K2GY3VEVJWKZDVH5HMNXEVR2', first_name: 'Alice', last_initial: 'B.' },
         service_name: 'Math Tutoring',
       } as BookingResponse;
 

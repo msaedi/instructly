@@ -6,7 +6,7 @@ Instructor lifecycle event tracking for funnel analytics.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
@@ -48,9 +48,10 @@ class InstructorLifecycleService(BaseService):
     - BackgroundCheckService (BGC status changes)
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, config_service: Optional[ConfigService] = None):
         super().__init__(db)
         self.repository = InstructorLifecycleRepository(db)
+        self.config_service = config_service or ConfigService(db)
 
     def _should_record_stage(self, user_id: str, event_type: str) -> bool:
         if event_type not in FUNNEL_STAGES:
@@ -159,8 +160,7 @@ class InstructorLifecycleService(BaseService):
             rate = round((to_count / from_count), 4) if from_count else 0.0
             conversion_rates.append({"from_stage": from_stage, "to_stage": to_stage, "rate": rate})
 
-        config_service = ConfigService(self.db)
-        pricing_config, _updated_at = config_service.get_pricing_config()
+        pricing_config, _updated_at = self.config_service.get_pricing_config()
         cap_raw = pricing_config.get("founding_instructor_cap", 100)
         try:
             cap = int(cap_raw)

@@ -15,40 +15,40 @@ describe('next.config security headers', () => {
   const originalDsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
   const originalNodeEnv = process.env.NODE_ENV;
   const originalAppEnv = process.env.NEXT_PUBLIC_APP_ENV;
-  const originalVercelEnv = process.env.VERCEL_ENV;
-  const original100msOrigins = process.env.NEXT_PUBLIC_100MS_CONNECT_ORIGINS;
+  const originalVercelEnv = process.env['VERCEL_ENV'];
+  const original100msOrigins = process.env['NEXT_PUBLIC_100MS_CONNECT_ORIGINS'];
 
   afterEach(() => {
     if (originalDsn === undefined) {
-      delete mutableEnv.NEXT_PUBLIC_SENTRY_DSN;
+      delete mutableEnv['NEXT_PUBLIC_SENTRY_DSN'];
     } else {
-      mutableEnv.NEXT_PUBLIC_SENTRY_DSN = originalDsn;
+      mutableEnv['NEXT_PUBLIC_SENTRY_DSN'] = originalDsn;
     }
     if (originalNodeEnv === undefined) {
-      delete mutableEnv.NODE_ENV;
+      delete mutableEnv['NODE_ENV'];
     } else {
-      mutableEnv.NODE_ENV = originalNodeEnv;
+      mutableEnv['NODE_ENV'] = originalNodeEnv;
     }
     if (originalAppEnv === undefined) {
-      delete mutableEnv.NEXT_PUBLIC_APP_ENV;
+      delete mutableEnv['NEXT_PUBLIC_APP_ENV'];
     } else {
-      mutableEnv.NEXT_PUBLIC_APP_ENV = originalAppEnv;
+      mutableEnv['NEXT_PUBLIC_APP_ENV'] = originalAppEnv;
     }
     if (originalVercelEnv === undefined) {
-      delete mutableEnv.VERCEL_ENV;
+      delete mutableEnv['VERCEL_ENV'];
     } else {
-      mutableEnv.VERCEL_ENV = originalVercelEnv;
+      mutableEnv['VERCEL_ENV'] = originalVercelEnv;
     }
     if (original100msOrigins === undefined) {
-      delete mutableEnv.NEXT_PUBLIC_100MS_CONNECT_ORIGINS;
+      delete mutableEnv['NEXT_PUBLIC_100MS_CONNECT_ORIGINS'];
     } else {
-      mutableEnv.NEXT_PUBLIC_100MS_CONNECT_ORIGINS = original100msOrigins;
+      mutableEnv['NEXT_PUBLIC_100MS_CONNECT_ORIGINS'] = original100msOrigins;
     }
     jest.resetModules();
   });
 
   it('includes enforcing CSP header with required directives', async () => {
-    mutableEnv.NEXT_PUBLIC_SENTRY_DSN = '';
+    mutableEnv['NEXT_PUBLIC_SENTRY_DSN'] = '';
     jest.resetModules();
 
     const configModule = await import('../../next.config');
@@ -80,11 +80,11 @@ describe('next.config security headers', () => {
   });
 
   it('requires explicit 100ms origins in strict production runtime', async () => {
-    mutableEnv.NODE_ENV = 'production';
-    mutableEnv.NEXT_PUBLIC_APP_ENV = 'production';
-    delete mutableEnv.VERCEL_ENV;
-    mutableEnv.NEXT_PUBLIC_SENTRY_DSN = '';
-    delete mutableEnv.NEXT_PUBLIC_100MS_CONNECT_ORIGINS;
+    mutableEnv['NODE_ENV'] = 'production';
+    mutableEnv['NEXT_PUBLIC_APP_ENV'] = 'production';
+    delete mutableEnv['VERCEL_ENV'];
+    mutableEnv['NEXT_PUBLIC_SENTRY_DSN'] = '';
+    delete mutableEnv['NEXT_PUBLIC_100MS_CONNECT_ORIGINS'];
     jest.resetModules();
 
     await expect(import('../../next.config')).rejects.toThrow(
@@ -93,11 +93,11 @@ describe('next.config security headers', () => {
   });
 
   it('allows *.100ms.live wildcards in production (dynamic regional endpoints)', async () => {
-    mutableEnv.NODE_ENV = 'production';
-    mutableEnv.NEXT_PUBLIC_APP_ENV = 'production';
-    delete mutableEnv.VERCEL_ENV;
-    mutableEnv.NEXT_PUBLIC_SENTRY_DSN = '';
-    mutableEnv.NEXT_PUBLIC_100MS_CONNECT_ORIGINS =
+    mutableEnv['NODE_ENV'] = 'production';
+    mutableEnv['NEXT_PUBLIC_APP_ENV'] = 'production';
+    delete mutableEnv['VERCEL_ENV'];
+    mutableEnv['NEXT_PUBLIC_SENTRY_DSN'] = '';
+    mutableEnv['NEXT_PUBLIC_100MS_CONNECT_ORIGINS'] =
       'https://*.100ms.live,wss://*.100ms.live,https://storage.googleapis.com';
     jest.resetModules();
 
@@ -119,11 +119,11 @@ describe('next.config security headers', () => {
   });
 
   it('rejects non-100ms wildcards in production', async () => {
-    mutableEnv.NODE_ENV = 'production';
-    mutableEnv.NEXT_PUBLIC_APP_ENV = 'production';
-    delete mutableEnv.VERCEL_ENV;
-    mutableEnv.NEXT_PUBLIC_SENTRY_DSN = '';
-    mutableEnv.NEXT_PUBLIC_100MS_CONNECT_ORIGINS =
+    mutableEnv['NODE_ENV'] = 'production';
+    mutableEnv['NEXT_PUBLIC_APP_ENV'] = 'production';
+    delete mutableEnv['VERCEL_ENV'];
+    mutableEnv['NEXT_PUBLIC_SENTRY_DSN'] = '';
+    mutableEnv['NEXT_PUBLIC_100MS_CONNECT_ORIGINS'] =
       'https://*.example.com,https://*.100ms.live';
     jest.resetModules();
 

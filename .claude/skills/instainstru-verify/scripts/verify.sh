@@ -105,21 +105,7 @@ run_frontend() {
         record "ESLint" "FAIL" "lint errors or warnings found"
     fi
 
-    # 3. TypeScript (all levels)
-    echo "→ Running typecheck..."
-    if npm run typecheck 2>&1 > /dev/null; then
-        record "typecheck" "PASS" "0 errors"
-    else
-        record "typecheck" "FAIL" "type errors found"
-    fi
-
-    echo "→ Running typecheck:strict..."
-    if npm run typecheck:strict 2>&1 > /dev/null; then
-        record "typecheck:strict" "PASS" "0 errors"
-    else
-        record "typecheck:strict" "FAIL" "strict type errors found"
-    fi
-
+    # 3. TypeScript (strict-all is the strictest superset — covers typecheck and typecheck:strict)
     echo "→ Running typecheck:strict-all..."
     if npm run typecheck:strict-all 2>&1 > /dev/null; then
         record "typecheck:strict-all" "PASS" "0 errors"

@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AvailabilityCalendar from '../AvailabilityCalendar';
@@ -69,7 +68,7 @@ const mockInstructor = {
   id: 'inst-123',
   user_id: 'user-123',
   first_name: 'John',
-  last_initial: 'D',
+  last_initial: 'D.',
   service_name: 'Piano Lessons',
   hourly_rate: 60,
   services: [{ id: 'svc-1', name: 'Piano Lessons' }],

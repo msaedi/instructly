@@ -53,11 +53,13 @@ describe('protectedApi.getBookings', () => {
   });
 
   it('drops nullish filters while preserving explicit false booleans', async () => {
+    const limit = undefined;
+
     await protectedApi.getBookings({
       upcoming: false,
       include_past_confirmed: false,
       exclude_future_confirmed: null as unknown as boolean,
-      limit: undefined,
+      ...(limit === undefined ? {} : { limit }),
     });
 
     const calledUrl = fetchMock.mock.calls[0][0] as string;
@@ -681,11 +683,13 @@ describe('protectedApi — additional branch coverage', () => {
   });
 
   it('getInstructorBookings filters nullish params but keeps false flags', async () => {
+    const status = undefined;
+
     await protectedApi.getInstructorBookings({
       page: 2,
       upcoming: false,
       per_page: null as unknown as number,
-      status: undefined,
+      ...(status === undefined ? {} : { status }),
     });
 
     const calledUrl = fetchMock.mock.calls[0][0] as string;
@@ -707,7 +711,8 @@ describe('protectedApi — additional branch coverage', () => {
 
   it('normalizeBookingStatus returns undefined for empty string', async () => {
     // passing status as '' which is falsy
-    await protectedApi.getBookings({ status: '' as unknown as undefined });
+    const status = undefined;
+    await protectedApi.getBookings(status === undefined ? {} : { status });
 
     const calledUrl = fetchMock.mock.calls[0][0] as string;
     const requestUrl = new URL(calledUrl);

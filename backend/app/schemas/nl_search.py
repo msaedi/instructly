@@ -37,7 +37,7 @@ class InstructorSummary(StrictModel):
 
     id: str = Field(..., description="Instructor user ID")
     first_name: str = Field(..., description="Instructor first name")
-    last_initial: str = Field(..., description="Last name initial for privacy (e.g., 'D')")
+    last_initial: str = Field(..., description="Last name initial for privacy (e.g., 'D.')")
     profile_picture_url: Optional[str] = Field(None, description="Profile picture URL")
     bio_snippet: Optional[str] = Field(None, description="First 150 chars of bio")
     verified: bool = Field(False, description="Whether instructor is verified")

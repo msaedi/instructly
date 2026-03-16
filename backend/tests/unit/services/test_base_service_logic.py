@@ -390,7 +390,8 @@ class TestLogging:
 
             mock_info.assert_called_once()
             args, kwargs = mock_info.call_args
-            assert "Operation: create_booking" in args[0]
+            assert args[0] == "Operation: %s"
+            assert args[1] == "create_booking"
 
             # Check extra context
             extra = kwargs.get("extra", {})

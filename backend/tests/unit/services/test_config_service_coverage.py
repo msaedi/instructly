@@ -21,6 +21,12 @@ ORIGINAL_IS_IN_OVERNIGHT_WINDOW = ConfigService.is_in_overnight_window
 ORIGINAL_GET_DEFAULT_BUFFER_MINUTES = ConfigService.get_default_buffer_minutes
 
 
+@pytest.fixture(autouse=True)
+def clear_config_service_caches() -> None:
+    ConfigService._clear_pricing_cache()
+    ConfigService._clear_booking_rules_cache()
+
+
 class TestConfigServiceInit:
     """Tests for ConfigService initialization."""
 
@@ -96,6 +102,57 @@ class TestConfigServiceGetPricingConfig:
             assert config == stored_config
             assert updated_at == record_time
 
+    def test_get_pricing_config_uses_cache_within_ttl(self) -> None:
+        db = MagicMock()
+        stored_config = deepcopy(DEFAULT_PRICING_CONFIG)
+        stored_config["student_fee_pct"] = 0.15
+        record_time = datetime.now(timezone.utc)
+
+        with patch("app.services.config_service.PlatformConfigRepository") as mock_repo_class:
+            mock_repo = MagicMock()
+            mock_record = MagicMock()
+            mock_record.value_json = stored_config
+            mock_record.updated_at = record_time
+            mock_repo.get_by_key.return_value = mock_record
+            mock_repo_class.return_value = mock_repo
+
+            service = ConfigService(db)
+            with patch("app.services.config_service.time.monotonic", side_effect=[100.0, 120.0]):
+                first_config, first_updated_at = service.get_pricing_config()
+                first_config["student_fee_pct"] = 0.99
+                second_config, second_updated_at = service.get_pricing_config()
+
+            mock_repo.get_by_key.assert_called_once_with("pricing")
+            assert first_updated_at == record_time
+            assert second_updated_at == record_time
+            assert second_config["student_fee_pct"] == 0.15
+
+    def test_get_pricing_config_refreshes_after_ttl(self) -> None:
+        db = MagicMock()
+        first_config = deepcopy(DEFAULT_PRICING_CONFIG)
+        second_config = deepcopy(DEFAULT_PRICING_CONFIG)
+        first_config["student_fee_pct"] = 0.15
+        second_config["student_fee_pct"] = 0.2
+        first_time = datetime.now(timezone.utc)
+        second_time = datetime.now(timezone.utc)
+
+        with patch("app.services.config_service.PlatformConfigRepository") as mock_repo_class:
+            mock_repo = MagicMock()
+            first_record = MagicMock(value_json=first_config, updated_at=first_time)
+            second_record = MagicMock(value_json=second_config, updated_at=second_time)
+            mock_repo.get_by_key.side_effect = [first_record, second_record]
+            mock_repo_class.return_value = mock_repo
+
+            service = ConfigService(db)
+            with patch("app.services.config_service.time.monotonic", side_effect=[100.0, 161.0]):
+                cached_config, _cached_updated_at = service.get_pricing_config()
+                refreshed_config, refreshed_updated_at = service.get_pricing_config()
+
+            assert cached_config["student_fee_pct"] == 0.15
+            assert refreshed_config["student_fee_pct"] == 0.2
+            assert refreshed_updated_at == second_time
+            assert mock_repo.get_by_key.call_count == 2
+
 
 class TestConfigServiceSetPricingConfig:
     """Tests for set_pricing_config method."""
@@ -149,6 +206,32 @@ class TestConfigServiceSetPricingConfig:
 
             # Should return a timestamp even when record has none
             assert updated_at is not None
+
+    def test_set_pricing_config_updates_cache(self) -> None:
+        db = MagicMock()
+        payload = deepcopy(DEFAULT_PRICING_CONFIG)
+        payload["student_fee_pct"] = 0.12
+        record_time = datetime.now(timezone.utc)
+
+        with patch("app.services.config_service.PlatformConfigRepository") as mock_repo_class:
+            mock_repo = MagicMock()
+            mock_record = MagicMock()
+            mock_record.value_json = payload
+            mock_record.updated_at = record_time
+            mock_repo.upsert.return_value = mock_record
+            mock_repo_class.return_value = mock_repo
+
+            service = ConfigService(db)
+            mock_repo.get_by_key.reset_mock()
+            with patch("app.services.config_service.time.monotonic", side_effect=[100.0, 120.0]):
+                stored_config, stored_updated_at = service.set_pricing_config(payload)
+                cached_config, cached_updated_at = service.get_pricing_config()
+
+            assert stored_config == payload
+            assert stored_updated_at == record_time
+            assert cached_config == payload
+            assert cached_updated_at == record_time
+            mock_repo.get_by_key.assert_not_called()
 
 
 class TestConfigServiceTransactions:
@@ -227,6 +310,57 @@ class TestConfigServiceBookingRules:
 
             assert config == stored_config
             assert updated_at == record_time
+
+    def test_get_booking_rules_config_uses_cache_within_ttl(self) -> None:
+        db = MagicMock()
+        stored_config = deepcopy(DEFAULT_BOOKING_RULES_CONFIG)
+        stored_config["advance_notice_travel_minutes"] = 240
+        record_time = datetime.now(timezone.utc)
+
+        with patch("app.services.config_service.PlatformConfigRepository") as mock_repo_class:
+            mock_repo = MagicMock()
+            mock_record = MagicMock()
+            mock_record.value_json = stored_config
+            mock_record.updated_at = record_time
+            mock_repo.get_by_key.return_value = mock_record
+            mock_repo_class.return_value = mock_repo
+
+            service = ConfigService(db)
+            with patch("app.services.config_service.time.monotonic", side_effect=[100.0, 120.0]):
+                first_config, first_updated_at = service.get_booking_rules_config()
+                first_config["advance_notice_travel_minutes"] = 999
+                second_config, second_updated_at = service.get_booking_rules_config()
+
+            mock_repo.get_by_key.assert_called_once_with("booking_rules")
+            assert first_updated_at == record_time
+            assert second_updated_at == record_time
+            assert second_config["advance_notice_travel_minutes"] == 240
+
+    def test_get_booking_rules_config_refreshes_after_ttl(self) -> None:
+        db = MagicMock()
+        first_config = deepcopy(DEFAULT_BOOKING_RULES_CONFIG)
+        second_config = deepcopy(DEFAULT_BOOKING_RULES_CONFIG)
+        first_config["advance_notice_travel_minutes"] = 180
+        second_config["advance_notice_travel_minutes"] = 300
+        first_time = datetime.now(timezone.utc)
+        second_time = datetime.now(timezone.utc)
+
+        with patch("app.services.config_service.PlatformConfigRepository") as mock_repo_class:
+            mock_repo = MagicMock()
+            first_record = MagicMock(value_json=first_config, updated_at=first_time)
+            second_record = MagicMock(value_json=second_config, updated_at=second_time)
+            mock_repo.get_by_key.side_effect = [first_record, second_record]
+            mock_repo_class.return_value = mock_repo
+
+            service = ConfigService(db)
+            with patch("app.services.config_service.time.monotonic", side_effect=[100.0, 161.0]):
+                cached_config, _cached_updated_at = service.get_booking_rules_config()
+                refreshed_config, refreshed_updated_at = service.get_booking_rules_config()
+
+            assert cached_config["advance_notice_travel_minutes"] == 180
+            assert refreshed_config["advance_notice_travel_minutes"] == 300
+            assert refreshed_updated_at == second_time
+            assert mock_repo.get_by_key.call_count == 2
 
     @pytest.mark.parametrize(
         ("location_type", "expected_minutes"),

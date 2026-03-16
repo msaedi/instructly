@@ -1,4 +1,5 @@
 import { formatDistance, format as formatDate } from 'date-fns';
+import { formatDisplayName } from '@/lib/format/displayName';
 
 /**
  * Format a date/time as relative time (e.g., "just now", "2 minutes ago")
@@ -47,9 +48,6 @@ export function getInitials(firstName?: string | null, lastName?: string | null)
 /**
  * Format student name with last initial (e.g., "John S.")
  */
-export function formatStudentName(firstName?: string | null, lastName?: string | null): string {
-  const first = firstName?.trim() ?? '';
-  const lastInitial = lastName?.trim()?.[0];
-  if (first && lastInitial) return `${first} ${lastInitial}.`;
-  return first || lastName || 'Student';
+export function formatStudentName(firstName?: string | null, lastInitial?: string | null): string {
+  return formatDisplayName(firstName, lastInitial, 'Student');
 }

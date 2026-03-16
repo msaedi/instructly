@@ -349,7 +349,7 @@ class TestInstructorRoutes:
         data = response.json()
         # Email removed for privacy - only last_initial exposed
         assert "email" not in data["user"]
-        assert data["user"]["last_initial"] == test_instructor.last_name[0]
+        assert data["user"]["last_initial"] == f"{test_instructor.last_name[0]}."
         assert data["bio"] == "Test instructor bio"
         assert "areas_of_service" not in data
         neighborhoods = data.get("service_area_neighborhoods", [])
@@ -517,7 +517,7 @@ class TestInstructorRoutes:
         assert "email" not in data["user"]
         # Check that we have first_name and last_initial instead
         assert data["user"]["first_name"] == test_instructor.first_name
-        assert data["user"]["last_initial"] == test_instructor.last_name[0]
+        assert data["user"]["last_initial"] == f"{test_instructor.last_name[0]}."
         assert data["user_id"] == test_instructor.id
         assert len(data["services"]) == 2
         assert "areas_of_service" not in data

@@ -89,6 +89,7 @@ logger = logging.getLogger(__name__)
 
 AUDIT_ENABLED = os.getenv("AUDIT_ENABLED", "true").lower() in {"1", "true", "yes"}
 ALLOW_PAST = os.getenv("AVAILABILITY_ALLOW_PAST", "true").lower() in {"1", "true", "yes"}
+PERF_DEBUG = os.getenv("AVAILABILITY_PERF_DEBUG", "0").lower() in {"1", "true", "yes"}
 
 
 def build_availability_idempotency_key(
@@ -462,12 +463,10 @@ class AvailabilityService(BaseService):
             day: current_raw.get(day, DayBitmaps(new_empty_bits(), new_empty_tags()))
             for day in days_this_week
         }
-        allow_past = os.getenv("AVAILABILITY_ALLOW_PAST", "true").lower() in {"1", "true", "yes"}
         server_version = self.compute_week_version_bitmaps(normalized_current_map)
         if base_version and base_version != server_version and not override:
             raise ConflictException("Week has changed; please refresh and retry")
 
-        perf_debug = os.getenv("AVAILABILITY_PERF_DEBUG", "0").lower() in {"1", "true", "yes"}
         instructor_today = get_user_today_by_id(instructor_id, self.db)
         window_days = max(0, settings.past_edit_window_days)
         past_cutoff: Optional[date] = (
@@ -478,7 +477,7 @@ class AvailabilityService(BaseService):
 
         def _apply_same_day_cutoff(bits: bytes, target_day: date) -> bytes:
             nonlocal now_minutes
-            if allow_past or target_day != instructor_today:
+            if ALLOW_PAST or target_day != instructor_today:
                 return bits
             if now_minutes is None:
                 now_dt = get_user_now_by_id(instructor_id, self.db)
@@ -513,7 +512,7 @@ class AvailabilityService(BaseService):
                 desired_bits = existing.bits
                 desired_tags = existing.format_tags
 
-            if not allow_past and day == instructor_today:
+            if not ALLOW_PAST and day == instructor_today:
                 desired_bits = _apply_same_day_cutoff(desired_bits, day)
             desired_tags = normalize_format_tags(desired_bits, desired_tags)
 
@@ -524,7 +523,7 @@ class AvailabilityService(BaseService):
             ):
                 continue
 
-            if not allow_past and day < instructor_today:
+            if not ALLOW_PAST and day < instructor_today:
                 skipped_forbidden_dates.add(day)
                 continue
 
@@ -543,7 +542,7 @@ class AvailabilityService(BaseService):
             if len(new_windows) > len(old_windows):
                 windows_created_count += len(new_windows) - len(old_windows)
 
-            if perf_debug:
+            if PERF_DEBUG:
                 old_crc = hashlib.sha1(
                     existing.bits + existing.format_tags, usedforsecurity=False
                 ).hexdigest()
@@ -557,7 +556,7 @@ class AvailabilityService(BaseService):
                     old_crc,
                     new_crc,
                     override,
-                    "true" if allow_past else "false",
+                    "true" if ALLOW_PAST else "false",
                 )
 
         skipped_window_list = sorted(skipped_window_dates)
@@ -827,33 +826,6 @@ class AvailabilityService(BaseService):
                     exc_info=True,
                 )
 
-    def _resolve_actor_payload(
-        self, actor: Any | None, default_role: str = "instructor"
-    ) -> dict[str, Any]:
-        """Normalize actor metadata for audit logging."""
-        if actor is None:
-            return {"role": default_role}
-
-        if isinstance(actor, dict):
-            actor_id = actor.get("id") or actor.get("actor_id") or actor.get("user_id")
-            raw_role = actor.get("role") or actor.get("actor_role") or actor.get("role_name")
-            resolved_role = str(raw_role) if raw_role is not None else default_role
-            return {"id": actor_id, "role": resolved_role}
-
-        actor_id = getattr(actor, "id", None)
-        role_value: Any = getattr(actor, "role", None) or getattr(actor, "role_name", None)
-        if role_value is None:
-            roles = getattr(actor, "roles", None)
-            if isinstance(roles, (list, tuple)):
-                for role_obj in roles:
-                    candidate = getattr(role_obj, "name", None)
-                    if candidate:
-                        role_value = candidate
-                        break
-        if role_value is None:
-            role_value = default_role
-        return {"id": actor_id, "role": str(role_value)}
-
     def _build_week_audit_payload(
         self,
         instructor_id: str,
@@ -903,7 +875,7 @@ class AvailabilityService(BaseService):
         default_role: str = "instructor",
     ) -> None:
         """Persist audit entry for availability changes."""
-        actor_payload = self._resolve_actor_payload(actor, default_role=default_role)
+        actor_payload = super()._resolve_actor_payload(actor, default_role=default_role)
         audit_entry = AuditLog.from_change(
             entity_type="availability",
             entity_id=f"{instructor_id}:{week_start.isoformat()}",

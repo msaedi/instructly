@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { getLocationTypeIcon, type LocationType } from '@/types/booking';
 import { at } from '@/lib/ts/safe';
+import { formatDisplayName } from '@/lib/format/displayName';
 import { useBooking, useCompleteBooking, useMarkBookingNoShow } from '@/src/api/services/bookings';
 import { formatSessionDuration, formatSessionTime } from '@/lib/time/videoSession';
 import { queryKeys } from '@/src/api/queryKeys';
@@ -60,6 +61,13 @@ export default function BookingDetailsPage() {
   };
 
   const needsAction = booking?.status === 'CONFIRMED' && isPastLesson();
+  const studentLastInitial =
+    booking?.student && 'last_initial' in booking.student ? booking.student.last_initial : null;
+  const studentName = formatDisplayName(
+    booking?.student?.first_name,
+    studentLastInitial,
+    '',
+  );
 
   const formatTime = (timeStr: string) => {
     const parts = timeStr.split(':');
@@ -194,8 +202,9 @@ export default function BookingDetailsPage() {
               <h3 className="font-medium text-gray-900 dark:text-gray-100">Student Information</h3>
             </div>
             <div className="ml-6">
-              <p className="text-lg text-gray-800 dark:text-gray-200 font-medium">{booking.student ? `${booking.student.first_name} ${booking.student.last_name}` : `Student #${booking.student_id}`}</p>
-              {booking.student?.email && (<a href={`mailto:${booking.student.email}`} className="text-blue-600 hover:text-blue-800 dark:hover:text-blue-200 text-sm">{booking.student.email}</a>)}
+              <p className="text-lg text-gray-800 dark:text-gray-200 font-medium">
+                {studentName || `Student #${booking.student_id}`}
+              </p>
             </div>
           </div>
 
@@ -296,7 +305,7 @@ export default function BookingDetailsPage() {
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 Are you sure you want to mark this lesson as a no-show? This indicates that
-                <span className="font-medium"> {booking.student ? `${booking.student.first_name} ${booking.student.last_name}` : 'the student'}</span> did not attend the scheduled lesson.
+                <span className="font-medium"> {studentName || 'the student'}</span> did not attend the scheduled lesson.
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
                 The student will still be charged for the lesson.

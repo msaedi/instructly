@@ -21,7 +21,7 @@ describe('InstructorInfo', () => {
   const mockInstructor = {
     id: 1,
     first_name: 'Jane',
-    last_initial: 'S',
+    last_initial: 'S.',
     email: 'jane@example.com',
     role: 'INSTRUCTOR' as const,
     created_at: '2024-01-01T00:00:00Z',
@@ -95,7 +95,7 @@ describe('InstructorInfo', () => {
     const longNameInstructor = {
       ...mockInstructor,
       first_name: 'Alexandra',
-      last_initial: 'M',
+      last_initial: 'M.',
     };
 
     renderWithQueryClient(<InstructorInfo instructor={longNameInstructor} onChat={mockOnChat} />);
@@ -341,7 +341,7 @@ describe('InstructorInfo', () => {
 
   describe('edge cases and bug hunting', () => {
     it('handles instructor with missing first_name', () => {
-      const noFirstName = { ...mockInstructor, first_name: undefined };
+      const { first_name: _firstName, ...noFirstName } = mockInstructor;
 
       renderWithQueryClient(<InstructorInfo instructor={noFirstName} onChat={mockOnChat} />);
 
@@ -350,7 +350,7 @@ describe('InstructorInfo', () => {
     });
 
     it('handles instructor with missing last_initial', () => {
-      const noLastInitial = { ...mockInstructor, last_initial: undefined };
+      const { last_initial: _lastInitial, ...noLastInitial } = mockInstructor;
 
       renderWithQueryClient(<InstructorInfo instructor={noLastInitial} onChat={mockOnChat} />);
 

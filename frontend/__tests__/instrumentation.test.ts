@@ -11,7 +11,7 @@ describe('OpenTelemetry instrumentation', () => {
   });
 
   it('does not initialize OTel when ENABLE_OTEL is false', async () => {
-    process.env.ENABLE_OTEL = 'false';
+    process.env['ENABLE_OTEL'] = 'false';
 
     const registerOTel = jest.fn();
     const loggerMock = { info: jest.fn() };
@@ -30,8 +30,8 @@ describe('OpenTelemetry instrumentation', () => {
   });
 
   it('initializes OTel when ENABLE_OTEL is true', async () => {
-    process.env.ENABLE_OTEL = 'true';
-    process.env.OTEL_SERVICE_NAME = 'instainstru-web-test';
+    process.env['ENABLE_OTEL'] = 'true';
+    process.env['OTEL_SERVICE_NAME'] = 'instainstru-web-test';
 
     const registerOTel = jest.fn();
     const loggerMock = { info: jest.fn() };

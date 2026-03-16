@@ -3,7 +3,7 @@
  * Name display utilities for consistent privacy-protected formatting
  */
 
-import { User } from '@/types/booking';
+import { formatDisplayName as formatCanonicalDisplayName } from '@/lib/format/displayName';
 
 /**
  * Format instructor name for student display with privacy protection
@@ -13,9 +13,7 @@ export const formatInstructorNameForStudent = (
   firstName: string | null | undefined,
   lastInitial: string | null | undefined
 ): string => {
-  if (!firstName) return 'Instructor';
-  if (!lastInitial) return firstName;
-  return `${firstName} ${lastInitial}.`;
+  return formatCanonicalDisplayName(firstName, lastInitial, 'Instructor');
 };
 
 /**
@@ -41,7 +39,7 @@ export const formatFullName = (user: { first_name?: string; last_initial?: strin
   const firstName = user.first_name || '';
   // For instructors in public context, use last_initial
   // For authenticated users (own profile), use last_name
-  const lastName = user.last_initial ? `${user.last_initial}.` : (user.last_name || '');
+  const lastName = user.last_initial || (user.last_name || '');
 
   return `${firstName} ${lastName}`.trim() || user.email || 'User';
 };
@@ -54,17 +52,9 @@ export const getUserInitials = (user: { first_name?: string; last_initial?: stri
 
   const firstName = user.first_name || '';
   // Use last_initial for instructors, last_name for authenticated users
-  const lastInitialChar = user.last_initial ||
+  const lastInitialChar = user.last_initial?.trim().charAt(0).toUpperCase() ||
                           (user.last_name ? user.last_name.charAt(0).toUpperCase() : '');
   const firstInitial = firstName.charAt(0).toUpperCase();
 
   return (firstInitial + lastInitialChar) || '??';
-};
-
-/**
- * Format user display name (first name only for friendly contexts)
- */
-export const formatDisplayName = (user: User | null | undefined): string => {
-  if (!user) return 'User';
-  return user.first_name || user.email || 'User';
 };

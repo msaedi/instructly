@@ -13,7 +13,7 @@ import {
   useAdminCancelBookingApiV1AdminBookingsBookingIdCancelPost,
   useAdminUpdateBookingStatusApiV1AdminBookingsBookingIdCompletePost,
 } from '@/src/api/generated/admin-bookings/admin-bookings';
-import type { AdminCancelBookingRequest } from '@/src/api/generated/instructly.schemas';
+import type { AdminCancelBookingRequest } from '@/features/shared/api/types';
 
 import BookingsTab from './components/BookingsTab';
 import HistoryTab from './components/HistoryTab';

@@ -22,6 +22,7 @@ import { BookingPayment, PAYMENT_STATUS } from '@/features/student/payment';
 import { BookingType } from '@/features/shared/types/booking';
 import { determineBookingType } from '@/features/shared/utils/paymentCalculations';
 import { navigationStateManager } from '@/lib/navigation/navigationStateManager';
+import { formatDisplayName } from '@/lib/format/displayName';
 import { format } from 'date-fns';
 import { useBackgroundConfig } from '@/lib/config/backgroundProvider';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
@@ -513,7 +514,13 @@ function InstructorProfileContent() {
               const paymentBookingData: BookingPayment & { metadata?: Record<string, unknown> } = {
                 bookingId: '',
                 instructorId: String(instructor.user_id),
-                instructorName: instructor.user ? `${instructor.user.first_name} ${instructor.user.last_initial ? instructor.user.last_initial + '.' : ''}`.trim() : `Instructor #${instructor.user_id}`,
+                instructorName: instructor.user
+                  ? formatDisplayName(
+                      instructor.user.first_name,
+                      instructor.user.last_initial,
+                      `Instructor #${instructor.user_id}`,
+                    )
+                  : `Instructor #${instructor.user_id}`,
                 lessonType: selectedService.skill || 'Lesson',
                 date: bookingDate,
                 startTime: newSlot.time,

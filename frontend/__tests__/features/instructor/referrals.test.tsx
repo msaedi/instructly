@@ -48,7 +48,7 @@ const mockReferredInstructors = {
     {
       id: '1',
       firstName: 'Sarah',
-      lastInitial: 'C',
+      lastInitial: 'C.',
       referredAt: new Date('2024-12-01'),
       isLive: true,
       wentLiveAt: new Date('2024-12-05'),
@@ -59,7 +59,7 @@ const mockReferredInstructors = {
     {
       id: '2',
       firstName: 'Mike',
-      lastInitial: 'R',
+      lastInitial: 'R.',
       referredAt: new Date('2024-12-15'),
       isLive: true,
       wentLiveAt: new Date('2024-12-18'),

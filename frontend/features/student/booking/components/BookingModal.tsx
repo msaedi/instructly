@@ -5,6 +5,7 @@ import { useCallback, useId, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, MapPin, Clock, DollarSign, User, Mail, Phone, MessageSquare } from 'lucide-react';
 import { BookingModalProps, Service } from '../types';
+import { formatDisplayName } from '@/lib/format/displayName';
 import { logger } from '@/lib/logger';
 import { formatFullName } from '@/utils/nameDisplay';
 import { useAuth } from '../hooks/useAuth';
@@ -144,7 +145,11 @@ export default function BookingModal({
       const paymentBookingData: BookingPayment = {
         bookingId: '', // Will be set after creation
         instructorId: String(instructor.user_id),
-        instructorName: `${instructor.user.first_name} ${instructor.user.last_initial}.`,
+        instructorName: formatDisplayName(
+          instructor.user.first_name,
+          instructor.user.last_initial,
+          'Instructor',
+        ),
         lessonType: selectedService.skill,
         date: bookingDate,
         startTime: selectedTime,
@@ -232,7 +237,11 @@ export default function BookingModal({
     const paymentBookingData: BookingPayment = {
       bookingId: '', // Will be set after creation
       instructorId: String(instructor.user_id),
-      instructorName: `${instructor.user.first_name} ${instructor.user.last_initial}.`,
+      instructorName: formatDisplayName(
+        instructor.user.first_name,
+        instructor.user.last_initial,
+        'Instructor',
+      ),
       lessonType: confirmedService.skill,
       date: bookingDate,
       startTime: selectedTime,
@@ -440,7 +449,11 @@ export default function BookingModal({
                 <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2">
                   <h4 className="font-medium text-gray-900 dark:text-white">Booking Summary</h4>
                   <div className="text-sm space-y-1 text-gray-600 dark:text-gray-400">
-                    <div>Instructor: {instructor.user.first_name} {instructor.user.last_initial}.</div>
+                    <div>Instructor: {formatDisplayName(
+                      instructor.user.first_name,
+                      instructor.user.last_initial,
+                      'Instructor',
+                    )}</div>
                     <div>Service: {selectedService?.skill}</div>
                     <div>Date: {formatDate(selectedDate)}</div>
                     <div>Time: {formatTime(selectedTime)}</div>
@@ -506,7 +519,11 @@ export default function BookingModal({
                   </div>
                   <div>
                     <h3 className="font-medium text-gray-900 dark:text-white">
-                      {selectedService?.skill || 'Lesson'} with {instructor.user.first_name} {instructor.user.last_initial}.
+                      {selectedService?.skill || 'Lesson'} with {formatDisplayName(
+                        instructor.user.first_name,
+                        instructor.user.last_initial,
+                        'Instructor',
+                      )}
                     </h3>
                     <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                       <Clock className="h-4 w-4 mr-1" />

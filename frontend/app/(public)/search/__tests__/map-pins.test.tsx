@@ -1,4 +1,3 @@
-import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -129,7 +128,7 @@ describe('Search results map pins', () => {
             relevance_score: 0.9,
             instructor: {
               first_name: 'Ava',
-              last_initial: 'L',
+              last_initial: 'L.',
               bio_snippet: '',
               profile_picture_url: '',
               verified: false,

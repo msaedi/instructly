@@ -58,8 +58,8 @@ test.describe('[instructor] bookings list', () => {
               status: 'CONFIRMED',
               service_name: 'Jazz Piano',
               total_price: 95,
-              student: { first_name: 'Emma', last_name: 'Johnson' },
-              instructor: { full_name: 'Sarah Chen' },
+              student: { first_name: 'Emma', last_initial: 'J.' },
+              instructor: { first_name: 'Sarah', last_initial: 'C.' },
             },
           ],
           total: 1,
@@ -82,8 +82,8 @@ test.describe('[instructor] bookings list', () => {
               status: 'COMPLETED',
               service_name: 'Music Theory',
               total_price: 120,
-              student: { first_name: 'Emma', last_name: 'Johnson' },
-              instructor: { full_name: 'Sarah Chen' },
+              student: { first_name: 'Emma', last_initial: 'J.' },
+              instructor: { first_name: 'Sarah', last_initial: 'C.' },
             },
           ],
           total: 1,
@@ -98,19 +98,19 @@ test.describe('[instructor] bookings list', () => {
       await route.continue();
     });
 
-    const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3100';
+    const baseURL = process.env['PLAYWRIGHT_BASE_URL'] || 'http://localhost:3100';
     await page.goto(`${baseURL}/instructor/bookings`);
 
     await upcomingRequest;
 
     const upcomingCards = page.getByTestId('booking-card');
-    await expect(upcomingCards.first()).toContainText('Emma Johnson');
+    await expect(upcomingCards.first()).toContainText('Emma J.');
     await expect(upcomingCards.first()).toContainText(/Confirmed/i);
 
     await page.getByRole('tab', { name: /past/i }).click();
     await pastRequest;
     const pastCards = page.getByTestId('booking-card');
-    await expect(pastCards.first()).toContainText('Emma Johnson');
+    await expect(pastCards.first()).toContainText('Emma J.');
     await expect(pastCards.first()).toContainText(/Completed/i);
   });
 });

@@ -1,7 +1,7 @@
-import React from 'react';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import * as React from 'react';
 import InstructorProfileForm from '../InstructorProfileForm';
 import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import { useSession } from '@/src/api/hooks/useSession';
@@ -155,7 +155,6 @@ jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/BioCard',
 });
 
 jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/ServiceAreasCard', () => {
-  const React = require('react');
   function ServiceAreasCard({ selectedNeighborhoods, formatNeighborhoodName, onToggleBoroughAccordion, onGlobalFilterChange, onToggleNeighborhood, toggleBoroughAll, onToggle, boroughAccordionRefs }: { selectedNeighborhoods: Set<string>; formatNeighborhoodName: (value: string) => string; onToggleBoroughAccordion: (borough: string) => void; onGlobalFilterChange: (value: string) => void; onToggleNeighborhood?: (id: string) => void; toggleBoroughAll?: (borough: string, value: boolean, items?: Array<{ neighborhood_id: string }>) => void; onToggle?: () => void; boroughAccordionRefs?: React.MutableRefObject<Record<string, HTMLDivElement | null>> }) {
     return (
       <section>

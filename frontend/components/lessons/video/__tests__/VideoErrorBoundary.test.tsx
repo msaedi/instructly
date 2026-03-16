@@ -1,5 +1,4 @@
 import { render, screen, fireEvent, act } from '@testing-library/react';
-import React from 'react';
 
 jest.mock('@/lib/logger', () => ({
   logger: { error: jest.fn(), debug: jest.fn(), warn: jest.fn(), info: jest.fn() },

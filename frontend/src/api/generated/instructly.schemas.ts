@@ -2234,7 +2234,7 @@ export interface BookingPreviewResponse {
   start_time: string;
   status: string;
   student_first_name: string;
-  student_last_name: string;
+  student_last_initial: string;
   student_note: string | null;
   total_price: number;
 }
@@ -2263,7 +2263,7 @@ export interface BookingRescheduleRequest {
 /**
  * Complete booking response with privacy protection.
 
-Shows instructor as "FirstName L" (last initial only).
+Shows instructor as "FirstName L.".
 Students see their own full information.
 Clean Architecture: No availability slot references.
  */
@@ -3639,7 +3639,7 @@ export interface PreferredPublicSpaceOut {
   [key: string]: unknown;
 }
 
-export interface PreferredTeachingLocationOut {
+export interface PreferredTeachingLocationPublicOut {
   [key: string]: unknown;
 }
 
@@ -3738,13 +3738,11 @@ export interface UserBasicPrivacy {
 }
 
 /**
- * Schema for instructor profile responses with privacy protection.
+ * Public/student-facing instructor profile response.
 
-Includes all profile data plus relationships and metadata.
-Student-facing endpoints will show only instructor last initial.
+Excludes internal verification session IDs and private teaching addresses.
  */
-export interface InstructorProfileResponse {
-  background_check_object_key?: string | null;
+export interface InstructorProfilePublic {
   background_check_uploaded_at?: string | null;
   bgc_name_mismatch?: boolean;
   /** Background check status for public display */
@@ -3761,7 +3759,6 @@ export interface InstructorProfileResponse {
   favorited_count?: number;
   id: string;
   identity_name_mismatch?: boolean;
-  identity_verification_session_id?: string | null;
   identity_verified_at?: string | null;
   /** Whether the current user has favorited this instructor */
   is_favorited?: boolean | null;
@@ -3772,7 +3769,7 @@ export interface InstructorProfileResponse {
   onboarding_completed_at?: string | null;
   overnight_protection_enabled?: boolean;
   preferred_public_spaces?: PreferredPublicSpaceOut[];
-  preferred_teaching_locations?: PreferredTeachingLocationOut[];
+  preferred_teaching_locations?: PreferredTeachingLocationPublicOut[];
   service_area_boroughs?: string[];
   service_area_neighborhoods?: ServiceAreaNeighborhood[];
   service_area_summary?: string | null;
@@ -3792,11 +3789,9 @@ export interface InstructorProfileResponse {
 }
 
 /**
- * Instructor with favorite metadata.
+ * Privacy-safe instructor with favorite metadata.
  */
 export interface FavoritedInstructor {
-  /** Instructor email */
-  email: string;
   /** When this instructor was favorited */
   favorited_at?: string | null;
   /** Instructor first name */
@@ -3805,10 +3800,10 @@ export interface FavoritedInstructor {
   id: string;
   /** Whether the instructor is active */
   is_active?: boolean;
-  /** Instructor last name */
-  last_name: string;
+  /** Instructor last initial (for example, "D.") */
+  last_initial: string;
   /** Instructor profile details */
-  profile?: InstructorProfileResponse | null;
+  profile?: InstructorProfilePublic | null;
 }
 
 /**
@@ -4051,6 +4046,91 @@ export interface InstantPayoutResponse {
 }
 
 /**
+ * Public student information for instructor-facing booking responses.
+ */
+export interface StudentInfoPublic {
+  first_name: string;
+  id: string;
+  last_initial: string;
+}
+
+/**
+ * Instructor-facing booking response with public student identity only.
+ */
+export interface InstructorBookingResponse {
+  auth_attempted_at?: string | null;
+  auth_failure_count?: number | null;
+  auth_last_error?: string | null;
+  auth_scheduled_for?: string | null;
+  booking_date: string;
+  booking_end_utc?: string | null;
+  booking_start_utc?: string | null;
+  can_join_lesson?: boolean | null;
+  cancellation_reason: string | null;
+  cancelled_at: string | null;
+  cancelled_by_id: string | null;
+  completed_at: string | null;
+  confirmed_at: string | null;
+  created_at: string;
+  credits_reserved_cents?: number | null;
+  duration_minutes: number;
+  end_time: string;
+  has_locked_funds?: boolean | null;
+  hourly_rate: number;
+  id: string;
+  instructor: InstructorInfo;
+  instructor_id: string;
+  instructor_note: string | null;
+  instructor_payout_amount?: number | null;
+  instructor_service: BookingServiceInfo;
+  instructor_service_id: string;
+  instructor_timezone?: string | null;
+  join_closes_at?: string | null;
+  join_opens_at?: string | null;
+  lesson_timezone?: string | null;
+  location_address?: string | null;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  location_place_id?: string | null;
+  location_type: 'student_location' | 'instructor_location' | 'online' | 'neutral_location' | null;
+  lock_resolution?: string | null;
+  lock_resolved_at?: string | null;
+  locked_amount_cents?: number | null;
+  locked_at?: string | null;
+  meeting_location: string | null;
+  no_show_dispute_reason?: string | null;
+  no_show_disputed?: boolean | null;
+  no_show_disputed_at?: string | null;
+  no_show_reported_at?: string | null;
+  no_show_reported_by?: string | null;
+  no_show_resolution?: string | null;
+  no_show_resolved_at?: string | null;
+  no_show_type?: string | null;
+  payment_summary?: PaymentSummary | null;
+  refunded_to_card_amount?: number | null;
+  rescheduled_from?: RescheduledFromInfo | null;
+  rescheduled_from_booking_id?: string | null;
+  rescheduled_to_booking_id?: string | null;
+  service_area: string | null;
+  service_name: string;
+  settlement_outcome?: string | null;
+  start_time: string;
+  status: BookingStatus;
+  student: StudentInfoPublic;
+  student_credit_amount?: number | null;
+  student_id: string;
+  student_note: string | null;
+  student_timezone?: string | null;
+  total_price: number;
+  video_instructor_joined_at?: string | null;
+  video_room_id?: string | null;
+  video_session_duration_seconds?: number | null;
+  video_session_ended_at?: string | null;
+  video_session_started_at?: string | null;
+  video_student_joined_at?: string | null;
+}
+
+/**
  * Instructor's current filter selections (filter_key -> [selected values])
  */
 export type InstructorFilterContextCurrentSelections = { [key: string]: string[] };
@@ -4161,6 +4241,61 @@ export interface InstructorProfileCreate {
    * @maxItems 20
    */
   services: ServiceCreate[];
+  /**
+   * Years of teaching experience
+   * @minimum 1
+   * @maximum 50
+   */
+  years_experience: number;
+}
+
+export interface PreferredTeachingLocationOut {
+  [key: string]: unknown;
+}
+
+/**
+ * Private/self instructor profile response with internal identifiers.
+ */
+export interface InstructorProfileResponse {
+  background_check_object_key?: string | null;
+  background_check_uploaded_at?: string | null;
+  bgc_name_mismatch?: boolean;
+  /** Background check status for public display */
+  bgc_status?: string | null;
+  /**
+   * Instructor biography/description
+   * @minLength 10
+   * @maxLength 1000
+   */
+  bio: string;
+  calendar_settings_acknowledged_at?: string | null;
+  created_at: string;
+  /** Number of students who favorited this instructor */
+  favorited_count?: number;
+  id: string;
+  identity_name_mismatch?: boolean;
+  identity_verification_session_id?: string | null;
+  identity_verified_at?: string | null;
+  /** Whether the current user has favorited this instructor */
+  is_favorited?: boolean | null;
+  /** Whether the instructor is a founding instructor */
+  is_founding_instructor?: boolean;
+  is_live?: boolean;
+  non_travel_buffer_minutes?: number;
+  onboarding_completed_at?: string | null;
+  overnight_protection_enabled?: boolean;
+  preferred_public_spaces?: PreferredPublicSpaceOut[];
+  preferred_teaching_locations?: PreferredTeachingLocationOut[];
+  service_area_boroughs?: string[];
+  service_area_neighborhoods?: ServiceAreaNeighborhood[];
+  service_area_summary?: string | null;
+  services: ServiceResponse[];
+  /** Whether skills/pricing were configured at least once */
+  skills_configured?: boolean;
+  travel_buffer_minutes?: number;
+  updated_at?: string | null;
+  user: UserBasicPrivacy;
+  user_id: string;
   /**
    * Years of teaching experience
    * @minimum 1
@@ -4372,7 +4507,7 @@ export interface InstructorSummary {
   id: string;
   /** Founding instructor status */
   is_founding_instructor?: boolean;
-  /** Last name initial for privacy (e.g., 'D') */
+  /** Last name initial for privacy (e.g., 'D.') */
   last_initial: string;
   /** Profile picture URL */
   profile_picture_url?: string | null;
@@ -5983,13 +6118,13 @@ export interface OverridePayload {
   action: OverridePayloadAction;
 }
 
-export interface PaginatedResponseBookingResponse {
+export interface PaginatedResponseInstructorBookingResponse {
   /** Whether there's a next page */
   has_next: boolean;
   /** Whether there's a previous page */
   has_prev: boolean;
   /** List of items */
-  items: BookingResponse[];
+  items: InstructorBookingResponse[];
   /**
    * Current page number
    * @minimum 1
@@ -6005,13 +6140,35 @@ export interface PaginatedResponseBookingResponse {
   total: number;
 }
 
-export interface PaginatedResponseInstructorProfileResponse {
+export interface PaginatedResponseInstructorProfilePublic {
   /** Whether there's a next page */
   has_next: boolean;
   /** Whether there's a previous page */
   has_prev: boolean;
   /** List of items */
-  items: InstructorProfileResponse[];
+  items: InstructorProfilePublic[];
+  /**
+   * Current page number
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * Items per page
+   * @minimum 1
+   * @maximum 100
+   */
+  per_page?: number;
+  /** Total number of items */
+  total: number;
+}
+
+export interface PaginatedResponseUnionBookingResponseInstructorBookingResponse {
+  /** Whether there's a next page */
+  has_next: boolean;
+  /** Whether there's a previous page */
+  has_prev: boolean;
+  /** List of items */
+  items: (BookingResponse | InstructorBookingResponse)[];
   /**
    * Current page number
    * @minimum 1
@@ -6030,8 +6187,8 @@ export interface PaginatedResponseInstructorProfileResponse {
 /**
  * Simplified response for upcoming bookings widget.
 
-Privacy-aware: instructor_last_name shows last initial for students,
-full last name for instructors viewing their own bookings.
+Privacy-aware: participant last-name fields expose initials only
+except when users view their own identity.
  */
 export interface UpcomingBookingResponse {
   booking_date: string;
@@ -6044,7 +6201,7 @@ export interface UpcomingBookingResponse {
   service_name: string;
   start_time: string;
   student_first_name: string;
-  student_last_name: string;
+  student_last_initial: string;
   total_price: number;
 }
 
