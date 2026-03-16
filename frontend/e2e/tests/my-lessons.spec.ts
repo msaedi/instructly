@@ -85,7 +85,7 @@ async function setupMocksAndAuth(page: Page) {
             instructor: {
               id: '01J5TESTINSTR0000000000008',
               first_name: 'John',
-              last_initial: 'D',
+              last_initial: 'D.',
             },
             student: {
               id: '01J5TESTUSER00000000000001',
@@ -133,7 +133,7 @@ async function setupMocksAndAuth(page: Page) {
             student_id: '01J5TESTUSER00000000000001',
             instructor_id: '01J5TESTINSTR00000000000009',
             instructor_service_id: '01J5TESTSERV00000000000002',
-            instructor: { id: '01J5TESTINSTR00000000000009', first_name: 'Jane', last_initial: 'S' },
+            instructor: { id: '01J5TESTINSTR00000000000009', first_name: 'Jane', last_initial: 'S.' },
             service_name: 'Physics',
             booking_date: '2024-12-20',
             start_time: '10:00:00',
@@ -177,7 +177,7 @@ async function setupMocksAndAuth(page: Page) {
           instructor: {
             id: 1,
             first_name: 'John',
-            last_initial: 'D',
+            last_initial: 'D.',
             email: 'john.doe@example.com',
             rating: 4.8,
             total_reviews: 156,
@@ -212,7 +212,7 @@ async function setupMocksAndAuth(page: Page) {
           instructor: {
             id: '01J5TESTINSTR00000000000009',
             first_name: 'Jane',
-            last_initial: 'S',
+            last_initial: 'S.',
             email: 'jane.smith@example.com',
             rating: 4.9,
             total_reviews: 89,
@@ -272,7 +272,7 @@ async function setupMocksAndAuth(page: Page) {
                 instructor: {
                   id: '01J5TESTINSTR0000000000008',
                   first_name: 'John',
-                  last_initial: 'D',
+                  last_initial: 'D.',
                   email: 'john.doe@example.com',
                   rating: 4.8,
                   total_reviews: 156,
@@ -310,7 +310,7 @@ async function setupMocksAndAuth(page: Page) {
                 instructor: {
                   id: '01J5TESTINSTR00000000000009',
                   first_name: 'Jane',
-                  last_initial: 'S',
+                  last_initial: 'S.',
                   email: 'jane.smith@example.com',
                 },
                 service_name: completedLesson.service,
@@ -344,7 +344,7 @@ async function setupMocksAndAuth(page: Page) {
       body: JSON.stringify({
         id: 2,
         first_name: 'Jane',
-        last_initial: 'S',
+        last_initial: 'S.',
         email: 'jane.smith@example.com',
         bio: 'PhD in Physics',
         rating: 4.9,
@@ -769,7 +769,7 @@ test.describe('My Lessons Page', () => {
             items: [
               {
                 id: 2,
-                instructor: { id: 2, first_name: 'Jane', last_initial: 'S' },
+                instructor: { id: 2, first_name: 'Jane', last_initial: 'S.' },
                 service_name: completedLesson.service,
                 booking_date: '2024-12-20',
                 start_time: '10:00:00',
@@ -829,7 +829,7 @@ test.describe('My Lessons Page', () => {
           items: [
             {
               id: 2,
-              instructor: { id: 2, first_name: 'Jane', last_initial: 'S' },
+              instructor: { id: 2, first_name: 'Jane', last_initial: 'S.' },
               service_name: completedLesson.service,
               booking_date: '2024-12-20',
               start_time: '10:00:00',
@@ -1250,7 +1250,7 @@ test.describe('Error Handling', () => {
               instructor: {
                 id: 1,
                 first_name: 'John',
-                last_initial: 'D',
+                last_initial: 'D.',
                 email: 'john.doe@example.com',
                 rating: 4.8,
                 total_reviews: 156,

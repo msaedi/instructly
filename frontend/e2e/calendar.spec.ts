@@ -84,7 +84,7 @@ const createBookedSlots = (iso: WeekContext['iso']) => [
     start_time: '14:00:00',
     end_time: '14:30:00',
     student_first_name: 'Alex',
-    student_last_initial: 'R',
+    student_last_initial: 'R.',
     service_name: 'Lesson',
     service_area_short: 'NYC',
     duration_minutes: 30,

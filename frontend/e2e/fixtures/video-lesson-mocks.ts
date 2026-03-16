@@ -75,7 +75,7 @@ export function makeVideoBooking(overrides: BookingOverrides = {}) {
     instructor: {
       id: TEST_ULIDS.instructor8,
       first_name: 'Sarah',
-      last_initial: 'C',
+      last_initial: 'C.',
     },
     student: {
       id: TEST_ULIDS.studentUser1,

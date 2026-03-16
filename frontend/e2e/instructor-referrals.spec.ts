@@ -157,7 +157,7 @@ async function mockDashboardApis(
       is_live: true,
       user: {
         first_name: 'Sarah',
-        last_initial: 'C',
+        last_initial: 'C.',
         has_profile_picture: false,
       },
       services: [
@@ -223,7 +223,7 @@ async function mockDashboardApis(
     await respondJson(route, {
       instructor_id: instructorUser.id,
       instructor_first_name: 'Sarah',
-      instructor_last_initial: 'C',
+      instructor_last_initial: 'C.',
       availability_by_date: {},
       timezone: 'America/New_York',
       total_available_slots: 0,

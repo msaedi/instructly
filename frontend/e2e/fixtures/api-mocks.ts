@@ -40,7 +40,7 @@ export async function mockInstructorProfile(page: Page) {
           user_id: userId,
           user: {
             first_name: isInstructor8 ? 'Sarah' : 'John',
-            last_initial: isInstructor8 ? 'C' : 'D',
+            last_initial: isInstructor8 ? 'C.' : 'D.',
             // No email for privacy
           },
           bio: 'Professional piano teacher with 10 years of experience',
@@ -410,7 +410,7 @@ export async function setupAllMocks(
             instructor: {
               id: TEST_ULIDS.user8,
               first_name: 'Sarah',
-              last_initial: 'C',
+              last_initial: 'C.',
               profile_picture_url: null,
               bio_snippet: 'Professional piano teacher with 10 years of experience',
               verified: true,
@@ -677,7 +677,7 @@ export async function setupAllMocks(
       body: JSON.stringify({
         instructor_id: TEST_ULIDS.instructor8,  // Always use the test ULID
         instructor_first_name: 'Sarah',
-        instructor_last_initial: 'C',
+        instructor_last_initial: 'C.',
         availability_by_date: {
           // Thursday slots
           [formatDate(thu)]: {
@@ -758,7 +758,7 @@ export async function setupAllMocks(
       body: JSON.stringify({
         instructor_id: TEST_ULIDS.instructor8,
         instructor_first_name: 'Sarah',
-        instructor_last_initial: 'C',
+        instructor_last_initial: 'C.',
         availability_by_date: {
           [formatDate(thu)]: { date: formatDate(thu), available_slots: [
             { start_time: '10:00:00', end_time: '11:00:00' },
@@ -810,7 +810,7 @@ export async function setupAllMocks(
           user_id: TEST_ULIDS.user8,
           user: {
             first_name: 'Sarah',
-            last_initial: 'C',
+            last_initial: 'C.',
           },
           bio: 'Professional piano teacher with 10 years of experience',
           service_area_summary: 'Upper West Side, Midtown',
@@ -1034,7 +1034,7 @@ export async function setupAllMocks(
       body: JSON.stringify({
         instructor_id: instructorId,
         instructor_first_name: 'Sarah',
-        instructor_last_initial: 'C',
+        instructor_last_initial: 'C.',
         availability_by_date: {
           [formatDate(thu)]: { date: formatDate(thu), available_slots: [
             { start_time: '10:00', end_time: '11:00' },
@@ -1091,7 +1091,7 @@ export async function setupAllMocks(
       body: JSON.stringify({
         instructor_id: TEST_ULIDS.instructor8,
         instructor_first_name: 'Sarah',
-        instructor_last_initial: 'C',
+        instructor_last_initial: 'C.',
         availability_by_date: {
           [formatDate(thu)]: { date: formatDate(thu), available_slots: [
             { start_time: '10:00', end_time: '11:00' },

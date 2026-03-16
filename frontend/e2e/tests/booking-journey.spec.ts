@@ -142,7 +142,7 @@ test.describe('Student Booking Journey', () => {
                 instructor: {
                   id: '1',
                   first_name: 'Test',
-                  last_initial: 'I',
+                  last_initial: 'I.',
                   profile_picture_url: null,
                   bio_snippet: 'Experienced instructor',
                   verified: true,
@@ -171,7 +171,7 @@ test.describe('Student Booking Journey', () => {
                 instructor: {
                   id: '2',
                   first_name: 'Test',
-                  last_initial: 'J',
+                  last_initial: 'J.',
                   profile_picture_url: null,
                   bio_snippet: 'Professional instructor',
                   verified: false,
@@ -235,7 +235,7 @@ test.describe('Student Booking Journey', () => {
             id,
             user_id: id,
             first_name: 'Test',
-            last_initial: 'I',
+            last_initial: 'I.',
             bio: 'Experienced instructor',
             services: [
               {
@@ -302,7 +302,7 @@ test.describe('Student Booking Journey', () => {
             instructor: {
               id: 1,
               first_name: 'Test',
-              last_initial: 'I',
+              last_initial: 'I.',
               email: 'instructor@example.com',
             },
             student: {
