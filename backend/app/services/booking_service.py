@@ -385,7 +385,12 @@ class BookingService(BaseService):
                     metadata={"legacy_action": action},
                 )
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                # Side-effect only — does not affect booking state.
+                logger.debug(
+                    "Failed to write booking audit trail for booking %s",
+                    booking.id,
+                    exc_info=True,
+                )
 
     def _calculate_and_validate_end_time(
         self,
@@ -1994,12 +1999,20 @@ class BookingService(BaseService):
                             refreshed_bp.payment_status = PaymentStatus.AUTHORIZED.value
                 self.repository.refresh(booking)
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning(
+                    "Booking %s was updated after immediate authorization, but ORM refresh failed",
+                    booking.id,
+                    exc_info=True,
+                )
         elif trigger_immediate_auth:
             try:
                 self.repository.refresh(booking)
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning(
+                    "Failed to refresh booking %s after immediate authorization attempt",
+                    booking.id,
+                    exc_info=True,
+                )
         # Create system message in conversation only after confirmation
         if booking.status != BookingStatus.CONFIRMED:
             return booking
@@ -2048,7 +2061,12 @@ class BookingService(BaseService):
         try:
             self._invalidate_booking_caches(booking)
         except Exception:
-            logger.debug("Non-fatal error ignored", exc_info=True)
+            # Side-effect only — does not affect booking state.
+            logger.debug(
+                "Failed to invalidate booking caches after confirmation for booking %s",
+                booking.id,
+                exc_info=True,
+            )
         return booking
 
     @BaseService.measure_operation("retry_authorization")
@@ -2578,7 +2596,11 @@ class BookingService(BaseService):
             try:
                 self.db.expire_all()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning(
+                    "Failed to expire session state after authorizing booking %s for reschedule lock",
+                    booking_id,
+                    exc_info=True,
+                )
         # Refresh booking after possible authorization
         booking = self.repository.get_booking_with_details(booking_id)
         if not booking:

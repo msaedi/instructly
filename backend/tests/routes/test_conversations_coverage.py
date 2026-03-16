@@ -41,6 +41,7 @@ class DummyCreateConversationResult:
     error: str | None
     conversation_id: str | None
     created: bool
+    error_code: str | None = None
 
 
 @dataclass
@@ -255,6 +256,7 @@ async def test_create_conversation_error_paths(monkeypatch, test_student):
                 error="Instructor not found",
                 conversation_id=None,
                 created=False,
+                error_code="instructor_not_found",
             )
 
     with pytest.raises(HTTPException) as excinfo:

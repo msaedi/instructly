@@ -289,7 +289,7 @@ async def create_conversation(
 
     if not result.success:
         error_code = getattr(result, "error_code", None)
-        if error_code == "instructor_not_found" or result.error == "Instructor not found":
+        if error_code == "instructor_not_found":
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=result.error,

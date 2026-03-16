@@ -976,7 +976,7 @@ def test_create_rescheduled_booking_with_locked_funds_acquires_advisory_lock(
 
 
 def test_confirm_booking_payment_gaming_reschedule_immediate_auth_error(
-    booking_service: BookingService, mock_repository: MagicMock
+    booking_service: BookingService, mock_repository: MagicMock, caplog: pytest.LogCaptureFixture
 ) -> None:
     student = make_user(RoleName.STUDENT.value)
     booking = make_booking(
@@ -1001,18 +1001,73 @@ def test_confirm_booking_payment_gaming_reschedule_immediate_auth_error(
 
     booking_service.transaction = MagicMock(return_value=_transaction_cm())
 
-    with patch("app.repositories.payment_repository.PaymentRepository") as payment_repo:
-        payment_repo.return_value.create_payment_event = Mock()
-        with patch(
+    with caplog.at_level(logging.WARNING):
+        with patch("app.repositories.payment_repository.PaymentRepository") as payment_repo:
+            payment_repo.return_value.create_payment_event = Mock()
+            with patch(
+                "app.tasks.payment_tasks._process_authorization_for_booking",
+                side_effect=Exception("boom"),
+            ):
+                with patch.object(booking_service.repository, "refresh", side_effect=Exception("no")):
+                    booking_service.confirm_booking_payment(
+                        booking_id=booking.id,
+                        student=student,
+                        payment_method_id="pm_123",
+                    )
+
+    assert "Failed to refresh booking" in caplog.text
+
+
+def test_confirm_booking_payment_gaming_reschedule_refresh_warning_after_auth_success(
+    booking_service: BookingService, mock_repository: MagicMock, caplog: pytest.LogCaptureFixture
+) -> None:
+    student = make_user(RoleName.STUDENT.value)
+    booking = make_booking(
+        status=BookingStatus.PENDING,
+        payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+        rescheduled_from_booking_id=generate_ulid(),
+        original_lesson_datetime=datetime(2030, 1, 2, 10, 0, 0, tzinfo=timezone.utc),
+        created_at=datetime(2030, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+    )
+    booking.instructor_service = SimpleNamespace(name="Piano")
+    student.id = booking.student_id
+
+    mock_repository.get_booking_for_student.return_value = booking
+    mock_repository.get_by_id.side_effect = [booking, None]
+    mock_repository.get_reschedule_by_booking_id.return_value = SimpleNamespace(
+        original_lesson_datetime=datetime(2030, 1, 2, 10, 0, 0, tzinfo=timezone.utc)
+    )
+    booking_service._get_booking_start_utc = Mock(
+        return_value=datetime(2030, 1, 2, 10, 0, 0, tzinfo=timezone.utc)
+    )
+    booking_service._determine_auth_timing = Mock(
+        return_value={
+            "immediate": False,
+            "scheduled_for": None,
+            "initial_payment_status": PaymentStatus.SCHEDULED.value,
+            "hours_until_lesson": 5.0,
+        }
+    )
+    booking_service.transaction = MagicMock(return_value=_transaction_cm())
+    booking_service.repository.refresh = Mock(side_effect=Exception("refresh failed"))
+    booking_service.system_message_service.create_booking_created_message = Mock()
+    booking_service.system_message_service.create_booking_rescheduled_message = Mock()
+    booking_service._invalidate_booking_caches = Mock()
+
+    with caplog.at_level(logging.WARNING):
+        with patch("app.repositories.payment_repository.PaymentRepository") as payment_repo, patch(
             "app.tasks.payment_tasks._process_authorization_for_booking",
-            side_effect=Exception("boom"),
+            return_value={"success": True},
         ):
-            with patch.object(booking_service.repository, "refresh", side_effect=Exception("no")):
-                booking_service.confirm_booking_payment(
-                    booking_id=booking.id,
-                    student=student,
-                    payment_method_id="pm_123",
-                )
+            payment_repo.return_value.create_payment_event = Mock()
+            booking_service.confirm_booking_payment(
+                booking_id=booking.id,
+                student=student,
+                payment_method_id="pm_123",
+            )
+
+    assert booking.status == BookingStatus.CONFIRMED
+    assert "ORM refresh failed" in caplog.text
 
 
 def test_confirm_booking_payment_system_message_fallback_and_cache_error(
@@ -1226,7 +1281,10 @@ def test_cancel_booking_without_stripe_clear_payment_intent(
 
 
 def test_activate_lock_for_reschedule_expire_all_error(
-    booking_service: BookingService, mock_repository: MagicMock, mock_db: MagicMock
+    booking_service: BookingService,
+    mock_repository: MagicMock,
+    mock_db: MagicMock,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     booking = make_booking(
         payment_status=PaymentStatus.SCHEDULED.value,
@@ -1239,24 +1297,27 @@ def test_activate_lock_for_reschedule_expire_all_error(
     mock_db.expire_all.side_effect = Exception("boom")
     booking_service.db = mock_db
 
-    with patch("app.tasks.payment_tasks._process_authorization_for_booking") as auth_task:
-        auth_task.return_value = {"success": True}
-        with patch("app.services.stripe_service.StripeService") as stripe_service:
-            stripe_service.return_value.capture_payment_intent.return_value = {
-                "transfer_id": "tr_123",
-                "amount_received": 1000,
-                "transfer_amount": 800,
-            }
-            stripe_service.return_value.reverse_transfer.return_value = {"reversal": {"id": "rv"}}
-            with patch("app.services.credit_service.CreditService") as credit_service:
-                credit_service.return_value.forfeit_credits_for_booking = Mock()
-                with patch("app.repositories.payment_repository.PaymentRepository") as payment_repo:
-                    payment_repo.return_value.create_payment_event = Mock()
-                    mock_repository.get_booking_with_details.return_value = make_booking(
-                        payment_status=PaymentStatus.AUTHORIZED.value,
-                        payment_intent_id="pi_123",
-                    )
-                    booking_service.activate_lock_for_reschedule(booking.id)
+    with caplog.at_level(logging.WARNING):
+        with patch("app.tasks.payment_tasks._process_authorization_for_booking") as auth_task:
+            auth_task.return_value = {"success": True}
+            with patch("app.services.stripe_service.StripeService") as stripe_service:
+                stripe_service.return_value.capture_payment_intent.return_value = {
+                    "transfer_id": "tr_123",
+                    "amount_received": 1000,
+                    "transfer_amount": 800,
+                }
+                stripe_service.return_value.reverse_transfer.return_value = {"reversal": {"id": "rv"}}
+                with patch("app.services.credit_service.CreditService") as credit_service:
+                    credit_service.return_value.forfeit_credits_for_booking = Mock()
+                    with patch("app.repositories.payment_repository.PaymentRepository") as payment_repo:
+                        payment_repo.return_value.create_payment_event = Mock()
+                        mock_repository.get_booking_with_details.return_value = make_booking(
+                            payment_status=PaymentStatus.AUTHORIZED.value,
+                            payment_intent_id="pi_123",
+                        )
+                        booking_service.activate_lock_for_reschedule(booking.id)
+
+    assert "Failed to expire session state after authorizing booking" in caplog.text
 
 
 def test_resolve_lock_for_booking_cancelled_ge12_credit(
