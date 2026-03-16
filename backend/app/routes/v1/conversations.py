@@ -168,6 +168,7 @@ def list_conversations(
     latest_messages_by_conv = (
         batch_latest_messages(conv_ids) if callable(batch_latest_messages) else {}
     )
+    latest_message_lookup_ran = callable(batch_latest_messages)
 
     items: List[ConversationListItem] = []
     for conv in conversations:
@@ -180,8 +181,15 @@ def list_conversations(
         # Build last message preview
         last_message = None
         last_msg = latest_messages_by_conv.get(conv.id)
-        if last_msg is None and conv.messages:
-            last_msg = sorted(conv.messages, key=lambda m: m.created_at)[-1]
+        if (
+            latest_message_lookup_ran
+            and last_msg is None
+            and getattr(conv, "last_message_at", None) is not None
+        ):
+            logger.warning(
+                "Latest message batch lookup missed conversation %s in list_conversations",
+                conv.id,
+            )
         if last_msg is not None:
             last_message = LastMessage(
                 content=_safe_truncate(last_msg.content, 100),  # Unicode-safe truncate

@@ -1048,7 +1048,7 @@ class InstructorService(BaseService):
             valid_ids = {
                 catalog_id
                 for catalog_id in catalog_ids
-                if bool(self.catalog_repository.exists(catalog_id))
+                if bool(self.catalog_repository.exists(id=catalog_id))
             }
 
         # Check for invalid IDs

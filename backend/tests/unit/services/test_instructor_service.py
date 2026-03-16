@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -206,6 +206,8 @@ def test_validate_catalog_ids_invalid_raises():
 
     with pytest.raises(BusinessRuleException):
         service._validate_catalog_ids(["cat-1", "cat-2"])
+
+    assert service.catalog_repository.exists.call_args_list == [call(id="cat-1"), call(id="cat-2")]
 
 
 def test_normalize_capability_flags():
