@@ -149,7 +149,7 @@ def test_get_sender_name_sync_empty_first_name(monkeypatch):
     monkeypatch.setattr(
         publisher.RepositoryFactory, "create_user_repository", lambda _db: _UserRepo()
     )
-    assert publisher._get_sender_name_sync(None, "user-1") == ""
+    assert publisher._get_sender_name_sync(None, "user-1") == "User"
 
 
 def test_get_sender_name_sync_handles_exception(monkeypatch):

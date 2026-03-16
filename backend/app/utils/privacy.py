@@ -18,13 +18,16 @@ def format_private_display_name(
     first_name: str | None,
     last_name: str | None,
     *,
-    default: str = "Someone",
+    default: str = "User",
 ) -> str:
-    """Return ``First L.`` for counterparties while preserving simple fallbacks."""
+    """Return ``First L.`` for counterparties without leaking email-like fallbacks."""
     cleaned_first = clean_identity_value(first_name)
     last_initial = format_last_initial(last_name, with_period=True)
+    fallback = clean_identity_value(default) or "User"
+    if "@" in fallback:
+        fallback = "User"
     if cleaned_first and last_initial:
         return f"{cleaned_first} {last_initial}"
     if cleaned_first:
         return cleaned_first
-    return default
+    return fallback

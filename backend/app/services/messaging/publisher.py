@@ -84,7 +84,7 @@ def _get_sender_name_sync(db: Session, sender_id: str) -> Optional[str]:
             return format_private_display_name(
                 getattr(sender, "first_name", None),
                 getattr(sender, "last_name", None),
-                default="",
+                default="User",
             )
         return None
     except Exception:

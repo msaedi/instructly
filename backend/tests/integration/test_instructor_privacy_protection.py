@@ -381,6 +381,10 @@ class TestPrivacyRegressionPrevention:
         # Student-facing instructor profile endpoints should use the public schema
         instructor_profile_fields = getattr(InstructorProfilePublic, "model_fields", {})
         assert "user" in instructor_profile_fields
+        assert "identity_name_mismatch" not in instructor_profile_fields
+        assert "bgc_name_mismatch" not in instructor_profile_fields
+        assert "background_check_uploaded_at" not in instructor_profile_fields
+        assert "bgc_status" not in instructor_profile_fields
         # UserBasicPrivacy should have last_initial, not last_name
         privacy_fields = getattr(UserBasicPrivacy, "model_fields", {})
         assert "last_initial" in privacy_fields

@@ -344,7 +344,7 @@ async def send_typing_indicator(
     user_name = format_private_display_name(
         getattr(current_user, "first_name", None),
         getattr(current_user, "last_name", None),
-        default=current_user.email or "Someone",
+        default="User",
     )
 
     try:
@@ -483,7 +483,7 @@ async def send_message(
             sender_name=format_private_display_name(
                 getattr(current_user, "first_name", None),
                 getattr(current_user, "last_name", None),
-                default=current_user.email or "Someone",
+                default="User",
             ),
             conversation_id=conversation_id,
             created_at=message.created_at,

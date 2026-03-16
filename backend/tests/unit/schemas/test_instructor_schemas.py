@@ -664,6 +664,8 @@ class TestInstructorProfileResponseFromOrm:
         profile.favorited_count = 0
         profile.skills_configured = False
         profile.identity_verified_at = None
+        profile.identity_name_mismatch = False
+        profile.bgc_name_mismatch = False
         profile.background_check_uploaded_at = None
         profile.onboarding_completed_at = None
         profile.is_live = False
@@ -723,6 +725,10 @@ class TestInstructorProfileResponseFromOrm:
     def test_public_from_orm_excludes_sensitive_location_and_internal_fields(self) -> None:
         """Public from_orm should omit private teaching address and internal identifiers."""
         profile = self._create_mock_profile()
+        profile.identity_name_mismatch = True
+        profile.bgc_name_mismatch = True
+        profile.background_check_uploaded_at = datetime.now(timezone.utc)
+        profile.bgc_status = "review"
 
         place = MagicMock()
         place.kind = "teaching_location"
@@ -742,6 +748,25 @@ class TestInstructorProfileResponseFromOrm:
         assert "address" not in loc_data or loc_data.get("address") is None
         assert "identity_verification_session_id" not in response_data
         assert "background_check_object_key" not in response_data
+        assert "identity_name_mismatch" not in response_data
+        assert "bgc_name_mismatch" not in response_data
+        assert "background_check_uploaded_at" not in response_data
+        assert "bgc_status" not in response_data
+
+    def test_private_from_orm_keeps_internal_onboarding_review_fields(self) -> None:
+        """Private from_orm should retain self/admin onboarding review fields."""
+        profile = self._create_mock_profile()
+        profile.identity_name_mismatch = True
+        profile.bgc_name_mismatch = True
+        profile.background_check_uploaded_at = datetime.now(timezone.utc)
+        profile.bgc_status = "review"
+
+        response = InstructorProfileResponse.from_orm(profile)
+
+        assert response.identity_name_mismatch is True
+        assert response.bgc_name_mismatch is True
+        assert response.background_check_uploaded_at == profile.background_check_uploaded_at
+        assert response.bgc_status == "review"
 
     def test_from_orm_with_public_spaces(self) -> None:
         """from_orm should process public spaces (lines 596-601)."""

@@ -557,16 +557,10 @@ class InstructorProfilePublic(InstructorProfileBase):
         default=False, description="Whether skills/pricing were configured at least once"
     )
     identity_verified_at: Optional[datetime] = Field(default=None)
-    identity_name_mismatch: bool = Field(default=False)
-    bgc_name_mismatch: bool = Field(default=False)
-    background_check_uploaded_at: Optional[datetime] = Field(default=None)
     onboarding_completed_at: Optional[datetime] = Field(default=None)
     is_live: bool = Field(default=False)
     is_founding_instructor: bool = Field(
         default=False, description="Whether the instructor is a founding instructor"
-    )
-    bgc_status: Optional[str] = Field(
-        default=None, description="Background check status for public display"
     )
     preferred_teaching_locations: List[PreferredTeachingLocationPublicOut] = Field(
         default_factory=list
@@ -776,8 +770,6 @@ class InstructorProfilePublic(InstructorProfileBase):
         else:
             service_area_summary = None
         neighborhoods_output = [entry.model_dump(mode="python") for entry in neighborhoods_payload]
-        bgc_status_raw = getattr(instructor_profile, "bgc_status", None)
-        bgc_status = bgc_status_raw if isinstance(bgc_status_raw, str) else None
         return {
             "id": instructor_profile.id,
             "user_id": instructor_profile.user_id,
@@ -801,15 +793,9 @@ class InstructorProfilePublic(InstructorProfileBase):
             "favorited_count": getattr(instructor_profile, "favorited_count", 0),
             "skills_configured": getattr(instructor_profile, "skills_configured", False),
             "identity_verified_at": getattr(instructor_profile, "identity_verified_at", None),
-            "identity_name_mismatch": getattr(instructor_profile, "identity_name_mismatch", False),
-            "bgc_name_mismatch": getattr(instructor_profile, "bgc_name_mismatch", False),
-            "background_check_uploaded_at": getattr(
-                instructor_profile, "background_check_uploaded_at", None
-            ),
             "onboarding_completed_at": getattr(instructor_profile, "onboarding_completed_at", None),
             "is_live": getattr(instructor_profile, "is_live", False),
             "is_founding_instructor": getattr(instructor_profile, "is_founding_instructor", False),
-            "bgc_status": bgc_status,
             "preferred_public_spaces": cls._serialize_public_spaces(instructor_profile),
             "service_area_neighborhoods": neighborhoods_output,
             "service_area_boroughs": sorted_boroughs,
@@ -840,6 +826,10 @@ class InstructorProfileResponse(InstructorProfilePublic):
     preferred_teaching_locations: List[PreferredTeachingLocationOut] = Field(  # type: ignore[assignment]
         default_factory=list
     )
+    identity_name_mismatch: bool = Field(default=False)
+    bgc_name_mismatch: bool = Field(default=False)
+    background_check_uploaded_at: Optional[datetime] = Field(default=None)
+    bgc_status: Optional[str] = Field(default=None)
     identity_verification_session_id: Optional[str] = Field(default=None)
     background_check_object_key: Optional[str] = Field(default=None)
 
@@ -872,9 +862,18 @@ class InstructorProfileResponse(InstructorProfilePublic):
     def from_orm(cls, instructor_profile: Any) -> "InstructorProfileResponse":
         """Create a private instructor profile response from an ORM model."""
         payload = cls._base_payload(instructor_profile)
+        bgc_status_raw = getattr(instructor_profile, "bgc_status", None)
         payload["preferred_teaching_locations"] = cls._serialize_private_teaching_locations(
             instructor_profile
         )
+        payload["identity_name_mismatch"] = getattr(
+            instructor_profile, "identity_name_mismatch", False
+        )
+        payload["bgc_name_mismatch"] = getattr(instructor_profile, "bgc_name_mismatch", False)
+        payload["background_check_uploaded_at"] = getattr(
+            instructor_profile, "background_check_uploaded_at", None
+        )
+        payload["bgc_status"] = bgc_status_raw if isinstance(bgc_status_raw, str) else None
         payload["identity_verification_session_id"] = getattr(
             instructor_profile, "identity_verification_session_id", None
         )
