@@ -40,7 +40,7 @@ from ..models.booking_transfer import BookingTransfer
 from ..models.booking_video_session import BookingVideoSession
 from ..models.user import User
 from .base_repository import BaseRepository
-from .cached_repository_mixin import CachedRepositoryMixin, cached_method
+from .cached_repository_mixin import CachedRepositoryMixin
 
 logger = logging.getLogger(__name__)
 
@@ -848,7 +848,6 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
     # User Booking Queries (unchanged)
 
-    @cached_method(tier="hot")
     def _booking_list_query(self) -> Query:
         """Base booking list query with the related objects needed by API responses."""
         return self.db.query(Booking).options(
