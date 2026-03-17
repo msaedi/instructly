@@ -87,7 +87,7 @@ def get_timezone_from_zip(zip_code: Optional[str]) -> str:
 
     # Validate ZIP format
     if not cleaned.isdigit() or len(cleaned) < 3:
-        logger.warning(f"Invalid ZIP code format: {zip_code}")
+        logger.warning("Invalid ZIP code format: %s", zip_code)
         return "America/New_York"
 
     # Get first 3 digits for prefix lookup
@@ -96,7 +96,7 @@ def get_timezone_from_zip(zip_code: Optional[str]) -> str:
     # Look up timezone from static mapping
     timezone = ZIP_PREFIX_TO_TZ.get(prefix, "America/New_York")
 
-    logger.debug(f"ZIP {zip_code} (prefix {prefix}) → timezone {timezone}")
+    logger.debug("ZIP %s (prefix %s) → timezone %s", zip_code, prefix, timezone)
     return timezone
 
 

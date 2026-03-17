@@ -54,7 +54,7 @@ async def redis_health() -> RedisHealthResponse:
         await client.ping()
         return RedisHealthResponse(status="healthy", connected=True)
     except Exception as e:
-        logger.error(f"Redis health check failed: {e}")
+        logger.error("Redis health check failed: %s", e)
         return RedisHealthResponse(status="unhealthy", connected=False, error=str(e))
 
 
@@ -87,7 +87,7 @@ async def redis_test() -> RedisTestResponse:
             message="Redis migration successful! Connection to instainstru-redis:6379 is working.",
         )
     except Exception as e:
-        logger.error(f"Redis test failed: {e}")
+        logger.error("Redis test failed: %s", e)
         return RedisTestResponse(
             status="error",
             ping=False,
@@ -168,7 +168,7 @@ async def redis_stats(
         return RedisStatsResponse(stats=stats_data)
 
     except Exception as e:
-        logger.error(f"Failed to get Redis stats: {e}")
+        logger.error("Failed to get Redis stats: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve Redis statistics: {str(e)}",
@@ -200,7 +200,7 @@ async def celery_queue_status(
         return RedisCeleryQueuesResponse(queues=queues_data)
 
     except Exception as e:
-        logger.error(f"Failed to get Celery queue status: {e}")
+        logger.error("Failed to get Celery queue status: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve queue status: {str(e)}",
@@ -227,7 +227,7 @@ async def _get_celery_queue_lengths(client: AsyncRedis) -> Dict[str, int]:
             if length > 0:
                 queue_lengths[queue] = length
         except Exception as e:
-            logger.warning(f"Failed to get length of queue {queue}: {e}")
+            logger.warning("Failed to get length of queue %s: %s", queue, e)
             queue_lengths[queue] = -1
 
     return queue_lengths
@@ -326,7 +326,7 @@ async def redis_connection_audit(
         return RedisConnectionAuditResponse(connections=connections_data)
 
     except Exception as e:
-        logger.error(f"Failed to audit Redis connections: {e}")
+        logger.error("Failed to audit Redis connections: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to audit connections: {str(e)}",
@@ -373,7 +373,7 @@ async def flush_celery_queues(
                     flushed[queue] = length
                     total_removed += length
             except Exception as e:
-                logger.error(f"Failed to flush queue {queue}: {e}")
+                logger.error("Failed to flush queue %s: %s", queue, e)
                 flushed[queue] = f"error: {str(e)}"
 
         return RedisFlushQueuesResponse(
@@ -382,7 +382,7 @@ async def flush_celery_queues(
         )
 
     except Exception as e:
-        logger.error(f"Failed to flush queues: {e}")
+        logger.error("Failed to flush queues: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to flush queues: {str(e)}",

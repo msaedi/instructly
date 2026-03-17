@@ -167,7 +167,7 @@ async def test_periodic_health_check_stale_count(monkeypatch) -> None:
     fake_monitor.check_db_pool_health.assert_called_once()
     fake_monitor.check_memory_usage.assert_called_once()
     fake_monitor.cleanup_stale_requests.assert_called_once()
-    warning_log.assert_called_once_with("Cleaned up 3 stale requests")
+    warning_log.assert_called_once_with("Cleaned up %s stale requests", 3)
 
 
 # ──────────────────────────────────────────────────────────────

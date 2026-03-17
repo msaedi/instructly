@@ -63,7 +63,10 @@ class TimingMiddlewareASGI:
                 # Log slow requests
                 if process_time > 100:  # Log requests slower than 100ms
                     logger.warning(
-                        f"[TIMING] Slow request: {method} {path} took {process_time:.2f}ms"
+                        "[TIMING] Slow request: %s %s took %sms",
+                        method,
+                        path,
+                        f"{process_time:.2f}",
                     )
                 if process_time > 1000:
                     pool_status = None
@@ -92,5 +95,7 @@ class TimingMiddlewareASGI:
         except Exception as e:
             # Log any errors
             process_time = (time.time() - start_time) * 1000
-            logger.error(f"[TIMING] Error in request {path} after {process_time:.2f}ms: {str(e)}")
+            logger.error(
+                "[TIMING] Error in request %s after %sms: %s", path, f"{process_time:.2f}", str(e)
+            )
             raise

@@ -70,7 +70,7 @@ class AdminOpsRepository(BaseRepository[Booking]):
                 .all(),
             )
         except Exception as e:
-            self.logger.error(f"Error getting bookings in date range: {str(e)}")
+            self.logger.error("Error getting bookings in date range: %s", str(e))
             raise RepositoryException(f"Failed to get bookings in date range: {str(e)}")
 
     def get_first_booking_date_for_student(self, student_id: str) -> Optional[date]:
@@ -91,7 +91,7 @@ class AdminOpsRepository(BaseRepository[Booking]):
             )
             return cast(Optional[date], result)
         except Exception as e:
-            self.logger.error(f"Error getting first booking date: {str(e)}")
+            self.logger.error("Error getting first booking date: %s", str(e))
             raise RepositoryException(f"Failed to get first booking date: {str(e)}")
 
     def get_first_booking_dates_for_students(self, student_ids: list[str]) -> dict[str, date]:
@@ -120,7 +120,7 @@ class AdminOpsRepository(BaseRepository[Booking]):
                 if booking_date
             }
         except Exception as e:
-            self.logger.error(f"Error getting first booking dates: {str(e)}")
+            self.logger.error("Error getting first booking dates: %s", str(e))
             raise RepositoryException(f"Failed to get first booking dates: {str(e)}")
 
     # ==================== Recent Bookings Queries ====================
@@ -159,7 +159,7 @@ class AdminOpsRepository(BaseRepository[Booking]):
 
             return cast(list[Booking], query.limit(limit).all())
         except Exception as e:
-            self.logger.error(f"Error getting recent bookings: {str(e)}")
+            self.logger.error("Error getting recent bookings: %s", str(e))
             raise RepositoryException(f"Failed to get recent bookings: {str(e)}")
 
     # ==================== Payment Pipeline Queries ====================
@@ -188,7 +188,7 @@ class AdminOpsRepository(BaseRepository[Booking]):
                 or 0,
             )
         except Exception as e:
-            self.logger.error(f"Error counting pending authorizations: {str(e)}")
+            self.logger.error("Error counting pending authorizations: %s", str(e))
             raise RepositoryException(f"Failed to count pending authorizations: {str(e)}")
 
     def count_bookings_by_payment_and_status(
@@ -223,7 +223,7 @@ class AdminOpsRepository(BaseRepository[Booking]):
 
             return cast(int, query.scalar() or 0)
         except Exception as e:
-            self.logger.error(f"Error counting bookings by payment status: {str(e)}")
+            self.logger.error("Error counting bookings by payment status: %s", str(e))
             raise RepositoryException(f"Failed to count bookings: {str(e)}")
 
     def count_failed_payments(self, updated_since: datetime) -> int:
@@ -254,7 +254,7 @@ class AdminOpsRepository(BaseRepository[Booking]):
                 or 0,
             )
         except Exception as e:
-            self.logger.error(f"Error counting failed payments: {str(e)}")
+            self.logger.error("Error counting failed payments: %s", str(e))
             raise RepositoryException(f"Failed to count failed payments: {str(e)}")
 
     def count_refunded_bookings(self, updated_since: datetime) -> int:
@@ -280,7 +280,7 @@ class AdminOpsRepository(BaseRepository[Booking]):
                 or 0,
             )
         except Exception as e:
-            self.logger.error(f"Error counting refunded bookings: {str(e)}")
+            self.logger.error("Error counting refunded bookings: %s", str(e))
             raise RepositoryException(f"Failed to count refunded bookings: {str(e)}")
 
     def count_overdue_authorizations(self, cutoff_time: datetime) -> int:
@@ -307,7 +307,7 @@ class AdminOpsRepository(BaseRepository[Booking]):
                 or 0,
             )
         except Exception as e:
-            self.logger.error(f"Error counting overdue authorizations: {str(e)}")
+            self.logger.error("Error counting overdue authorizations: %s", str(e))
             raise RepositoryException(f"Failed to count overdue authorizations: {str(e)}")
 
     def count_overdue_captures(self, completed_before: datetime) -> int:
@@ -334,7 +334,7 @@ class AdminOpsRepository(BaseRepository[Booking]):
                 or 0,
             )
         except Exception as e:
-            self.logger.error(f"Error counting overdue captures: {str(e)}")
+            self.logger.error("Error counting overdue captures: %s", str(e))
             raise RepositoryException(f"Failed to count overdue captures: {str(e)}")
 
     def sum_captured_amount(self, updated_since: datetime) -> float:
@@ -359,7 +359,7 @@ class AdminOpsRepository(BaseRepository[Booking]):
             )
             return float(result) if result else 0.0
         except Exception as e:
-            self.logger.error(f"Error summing captured amounts: {str(e)}")
+            self.logger.error("Error summing captured amounts: %s", str(e))
             raise RepositoryException(f"Failed to sum captured amounts: {str(e)}")
 
     # ==================== Pending Payouts Queries ====================
@@ -416,7 +416,7 @@ class AdminOpsRepository(BaseRepository[Booking]):
                 results,
             )
         except Exception as e:
-            self.logger.error(f"Error getting instructors with pending payouts: {str(e)}")
+            self.logger.error("Error getting instructors with pending payouts: %s", str(e))
             raise RepositoryException(f"Failed to get pending payouts: {str(e)}")
 
     # ==================== User Lookup Queries ====================
@@ -444,7 +444,7 @@ class AdminOpsRepository(BaseRepository[Booking]):
                 .first(),
             )
         except Exception as e:
-            self.logger.error(f"Error getting user by email: {str(e)}")
+            self.logger.error("Error getting user by email: %s", str(e))
             raise RepositoryException(f"Failed to get user by email: {str(e)}")
 
     def get_user_by_phone_with_profile(self, phone: str) -> Optional[User]:
@@ -479,7 +479,7 @@ class AdminOpsRepository(BaseRepository[Booking]):
                 .first(),
             )
         except Exception as e:
-            self.logger.error(f"Error getting user by phone: {str(e)}")
+            self.logger.error("Error getting user by phone: %s", str(e))
             raise RepositoryException(f"Failed to get user by phone: {str(e)}")
 
     def sum_platform_fees(self, start_date: date, end_date: date) -> int:
@@ -498,7 +498,7 @@ class AdminOpsRepository(BaseRepository[Booking]):
             )
             return int(total or 0)
         except Exception as e:
-            self.logger.error(f"Error summing platform fees: {str(e)}")
+            self.logger.error("Error summing platform fees: %s", str(e))
             raise RepositoryException(f"Failed to sum platform fees: {str(e)}")
 
     def get_user_by_id_with_profile(self, user_id: str) -> Optional[User]:
@@ -524,7 +524,7 @@ class AdminOpsRepository(BaseRepository[Booking]):
                 .first(),
             )
         except Exception as e:
-            self.logger.error(f"Error getting user by ID: {str(e)}")
+            self.logger.error("Error getting user by ID: %s", str(e))
             raise RepositoryException(f"Failed to get user by ID: {str(e)}")
 
     def count_student_bookings(self, student_id: str) -> int:
@@ -546,7 +546,7 @@ class AdminOpsRepository(BaseRepository[Booking]):
                 or 0,
             )
         except Exception as e:
-            self.logger.error(f"Error counting student bookings: {str(e)}")
+            self.logger.error("Error counting student bookings: %s", str(e))
             raise RepositoryException(f"Failed to count student bookings: {str(e)}")
 
     def sum_student_spent(self, student_id: str) -> float:
@@ -575,7 +575,7 @@ class AdminOpsRepository(BaseRepository[Booking]):
             )
             return float(result) if result else 0.0
         except Exception as e:
-            self.logger.error(f"Error summing student spent: {str(e)}")
+            self.logger.error("Error summing student spent: %s", str(e))
             raise RepositoryException(f"Failed to sum student spent: {str(e)}")
 
     def count_instructor_completed_lessons(self, instructor_id: str) -> int:
@@ -600,7 +600,7 @@ class AdminOpsRepository(BaseRepository[Booking]):
                 or 0,
             )
         except Exception as e:
-            self.logger.error(f"Error counting instructor completed lessons: {str(e)}")
+            self.logger.error("Error counting instructor completed lessons: %s", str(e))
             raise RepositoryException(f"Failed to count completed lessons: {str(e)}")
 
     def sum_instructor_earned(self, instructor_id: str) -> float:
@@ -624,7 +624,7 @@ class AdminOpsRepository(BaseRepository[Booking]):
             )
             return float(result) if result else 0.0
         except Exception as e:
-            self.logger.error(f"Error summing instructor earned: {str(e)}")
+            self.logger.error("Error summing instructor earned: %s", str(e))
             raise RepositoryException(f"Failed to sum instructor earned: {str(e)}")
 
     # ==================== User Booking History Queries ====================
@@ -648,7 +648,7 @@ class AdminOpsRepository(BaseRepository[Booking]):
                 .first(),
             )
         except Exception as e:
-            self.logger.error(f"Error getting user with profile: {str(e)}")
+            self.logger.error("Error getting user with profile: %s", str(e))
             raise RepositoryException(f"Failed to get user with profile: {str(e)}")
 
     def get_user_booking_history(
@@ -683,7 +683,7 @@ class AdminOpsRepository(BaseRepository[Booking]):
 
             return cast(list[Booking], query.limit(limit).all())
         except Exception as e:
-            self.logger.error(f"Error getting user booking history: {str(e)}")
+            self.logger.error("Error getting user booking history: %s", str(e))
             raise RepositoryException(f"Failed to get booking history: {str(e)}")
 
     # ==================== Payment Timeline Queries ====================
@@ -702,7 +702,7 @@ class AdminOpsRepository(BaseRepository[Booking]):
                 .first(),
             )
         except Exception as e:
-            self.logger.error(f"Error getting booking for payment timeline: {str(e)}")
+            self.logger.error("Error getting booking for payment timeline: %s", str(e))
             raise RepositoryException(f"Failed to get booking for payment timeline: {str(e)}")
 
     def get_user_bookings_for_payment_timeline(
@@ -732,5 +732,5 @@ class AdminOpsRepository(BaseRepository[Booking]):
             )
             return cast(list[Booking], query.all())
         except Exception as e:
-            self.logger.error(f"Error getting payment timeline bookings: {str(e)}")
+            self.logger.error("Error getting payment timeline bookings: %s", str(e))
             raise RepositoryException(f"Failed to get payment timeline bookings: {str(e)}")

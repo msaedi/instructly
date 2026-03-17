@@ -74,9 +74,9 @@ def audit_privacy_production() -> Dict[str, Any]:
 
         # Log critical violations
         if high_severity:
-            logger.error(f"PRIVACY ALERT: {len(high_severity)} high-severity violations found!")
+            logger.error("PRIVACY ALERT: %s high-severity violations found!", len(high_severity))
             for v in high_severity[:5]:  # Log first 5
-                logger.error(f"  - [{v.method}] {v.endpoint}: {v.message}")
+                logger.error("  - [%s] %s: %s", v.method, v.endpoint, v.message)
 
         # Return summary
         return {
@@ -87,7 +87,7 @@ def audit_privacy_production() -> Dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error(f"Privacy audit failed: {e}")
+        logger.error("Privacy audit failed: %s", e)
         return {
             "status": "failed",
             "error": str(e),

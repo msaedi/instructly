@@ -811,11 +811,6 @@ class InstructorProfilePublic(InstructorProfileBase):
         )
         return cls(**payload)
 
-    @field_validator("services")
-    def sort_services(cls, v: List[ServiceResponse]) -> List[ServiceResponse]:
-        """Services are already sorted upstream before schema validation."""
-        return v
-
 
 class InstructorProfileResponse(InstructorProfilePublic):
     """Private/self instructor profile response with internal identifiers."""

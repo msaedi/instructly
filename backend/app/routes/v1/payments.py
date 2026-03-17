@@ -233,10 +233,10 @@ async def create_identity_session(
     except HTTPException:
         raise
     except ServiceException as e:
-        logger.error(f"Service error creating identity session: {str(e)}")
+        logger.error("Service error creating identity session: %s", str(e))
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-        logger.error(f"Unexpected error creating identity session: {str(e)}")
+        logger.error("Unexpected error creating identity session: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create identity session",
@@ -336,7 +336,7 @@ async def request_instant_payout(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         prometheus_metrics.inc_instant_payout_request("error")
-        logger.error(f"Unexpected error requesting instant payout: {str(e)}")
+        logger.error("Unexpected error requesting instant payout: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred",
@@ -380,7 +380,7 @@ async def save_payment_method(
             set_as_default=payload.set_as_default,
         )
 
-        logger.info(f"Saved payment method for user {current_user.id}")
+        logger.info("Saved payment method for user %s", current_user.id)
 
         return PaymentMethodResponse(
             id=payment_method.stripe_payment_method_id,
@@ -394,10 +394,10 @@ async def save_payment_method(
         # Re-raise HTTP exceptions
         raise
     except ServiceException as e:
-        logger.error(f"Service error saving payment method: {str(e)}")
+        logger.error("Service error saving payment method: %s", str(e))
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-        logger.error(f"Unexpected error saving payment method: {str(e)}")
+        logger.error("Unexpected error saving payment method: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to save payment method",
@@ -443,10 +443,10 @@ async def list_payment_methods(
         # Re-raise HTTP exceptions
         raise
     except ServiceException as e:
-        logger.error(f"Service error listing payment methods: {str(e)}")
+        logger.error("Service error listing payment methods: %s", str(e))
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-        logger.error(f"Unexpected error listing payment methods: {str(e)}")
+        logger.error("Unexpected error listing payment methods: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to list payment methods",
@@ -487,17 +487,17 @@ async def delete_payment_method(
                 detail="Payment method not found or not owned by user",
             )
 
-        logger.info(f"Deleted payment method {method_id} for user {current_user.id}")
+        logger.info("Deleted payment method %s for user %s", method_id, current_user.id)
 
         return PaymentDeleteResponse(success=True)
 
     except HTTPException:
         raise
     except ServiceException as e:
-        logger.error(f"Service error deleting payment method: {str(e)}")
+        logger.error("Service error deleting payment method: %s", str(e))
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-        logger.error(f"Unexpected error deleting payment method: {str(e)}")
+        logger.error("Unexpected error deleting payment method: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete payment method",
@@ -557,13 +557,13 @@ async def create_checkout(
     except HTTPException:
         raise
     except BookingCancelledException as e:
-        logger.error(f"Checkout failed due to cancelled booking: {str(e)}")
+        logger.error("Checkout failed due to cancelled booking: %s", str(e))
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except BookingNotFoundException as e:
-        logger.error(f"Checkout failed due to missing booking: {str(e)}")
+        logger.error("Checkout failed due to missing booking: %s", str(e))
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ServiceException as e:
-        logger.error(f"Service error creating checkout: {str(e)}")
+        logger.error("Service error creating checkout: %s", str(e))
         status_code = status.HTTP_400_BAD_REQUEST
         if getattr(e, "code", None) == "not_found":
             status_code = status.HTTP_404_NOT_FOUND
@@ -572,7 +572,7 @@ async def create_checkout(
 
         raise HTTPException(status_code=status_code, detail=str(e))
     except Exception as e:
-        logger.error(f"Unexpected error creating checkout: {str(e)}")
+        logger.error("Unexpected error creating checkout: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to process payment"
         )
@@ -793,7 +793,7 @@ async def handle_stripe_webhook(
                     webhook_kind = f"secret #{i+1}"
 
                 logger.info(
-                    f"Webhook verified with {webhook_kind} secret for event: {event['type']}"
+                    "Webhook verified with %s secret for event: %s", webhook_kind, event["type"]
                 )
                 break  # Success! Stop trying other secrets
             except stripe.error.SignatureVerificationError as e:
@@ -802,7 +802,8 @@ async def handle_stripe_webhook(
 
         if not event:
             logger.error(
-                f"Webhook signature verification failed with all {len(webhook_secrets)} configured secrets"
+                "Webhook signature verification failed with all %s configured secrets",
+                len(webhook_secrets),
             )
             raise HTTPException(status_code=400, detail="Invalid signature")
 
@@ -817,7 +818,7 @@ async def handle_stripe_webhook(
 
         # Log account context for debugging
         if event_payload.get("account"):
-            logger.info(f"Event from connected account: {event_payload['account']}")
+            logger.info("Event from connected account: %s", event_payload["account"])
         else:
             logger.info("Event from platform account")
 
@@ -870,7 +871,7 @@ async def handle_stripe_webhook(
             )
             raise
 
-        logger.info(f"Webhook processed successfully: {event_payload.get('type', 'unknown')}")
+        logger.info("Webhook processed successfully: %s", event_payload.get("type", "unknown"))
         response_payload = {
             "status": "success",
             "event_type": event_payload.get("type", "unknown"),

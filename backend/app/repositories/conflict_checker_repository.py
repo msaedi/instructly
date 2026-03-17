@@ -105,7 +105,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
             return cast(List[Booking], query.order_by(Booking.start_time).all())
 
         except Exception as e:
-            self.logger.error(f"Error getting bookings for conflict check: {str(e)}")
+            self.logger.error("Error getting bookings for conflict check: %s", str(e))
             raise RepositoryException(f"Failed to get conflict bookings: {str(e)}")
 
     def get_student_bookings_for_conflict_check(
@@ -135,7 +135,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
             return cast(List[Booking], query.order_by(Booking.start_time).all())
 
         except Exception as e:
-            self.logger.error(f"Error getting student bookings for conflict check: {str(e)}")
+            self.logger.error("Error getting student bookings for conflict check: %s", str(e))
             raise RepositoryException(f"Failed to get student conflict bookings: {str(e)}")
 
     def get_bookings_for_date(self, instructor_id: str, target_date: date) -> List[Booking]:
@@ -167,7 +167,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
             )
 
         except Exception as e:
-            self.logger.error(f"Error getting bookings for date: {str(e)}")
+            self.logger.error("Error getting bookings for date: %s", str(e))
             raise RepositoryException(f"Failed to get bookings: {str(e)}")
 
     def get_bookings_for_week(self, instructor_id: str, week_dates: List[date]) -> List[Booking]:
@@ -199,7 +199,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
             )
 
         except Exception as e:
-            self.logger.error(f"Error getting bookings for week: {str(e)}")
+            self.logger.error("Error getting bookings for week: %s", str(e))
             raise RepositoryException(f"Failed to get weekly bookings: {str(e)}")
 
     # Blackout Date Queries (unchanged)
@@ -226,7 +226,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
             )
             return cast(Optional[BlackoutDate], result)
         except Exception as e:
-            self.logger.error(f"Error checking blackout date: {str(e)}")
+            self.logger.error("Error checking blackout date: %s", str(e))
             raise RepositoryException(f"Failed to check blackout: {str(e)}")
 
     # Instructor and Service Queries (unchanged)
@@ -249,7 +249,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
             )
             return cast(Optional[InstructorProfile], result)
         except Exception as e:
-            self.logger.error(f"Error getting instructor profile: {str(e)}")
+            self.logger.error("Error getting instructor profile: %s", str(e))
             raise RepositoryException(f"Failed to get profile: {str(e)}")
 
     def get_active_service(self, service_id: str) -> Optional[InstructorService]:
@@ -274,5 +274,5 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
             )
             return cast(Optional[InstructorService], result)
         except Exception as e:
-            self.logger.error(f"Error getting active service: {str(e)}")
+            self.logger.error("Error getting active service: %s", str(e))
             raise RepositoryException(f"Failed to get service: {str(e)}")

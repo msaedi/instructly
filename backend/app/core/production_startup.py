@@ -103,7 +103,7 @@ class ProductionStartup:
                 conn.execute(text("SELECT 1"))
             logger.info("✓ Database connection verified")
         except Exception as e:
-            logger.error(f"✗ Database connection failed: {e}")
+            logger.error("✗ Database connection failed: %s", e)
             if os.getenv("STRICT_STARTUP", "false").lower() == "true":
                 raise
 
@@ -117,7 +117,7 @@ class ProductionStartup:
             await client.ping()
             logger.info("✓ Redis/Upstash connection verified")
         except Exception as e:
-            logger.warning(f"✗ Redis/Upstash connection failed: {e} (will use fallback)")
+            logger.warning("✗ Redis/Upstash connection failed: %s (will use fallback)", e)
 
     @staticmethod
     async def _warm_connections() -> None:
@@ -140,9 +140,9 @@ class ProductionStartup:
                 connections.append(conn)  # Track connection BEFORE executing
                 conn.execute(text("SELECT 1"))
 
-            logger.info(f"✓ Warmed {len(connections)} database connections")
+            logger.info("✓ Warmed %s database connections", len(connections))
         except Exception as e:
-            logger.warning(f"Failed to warm database connections: {e}")
+            logger.warning("Failed to warm database connections: %s", e)
         finally:
             # Always close any connections we created, even if warming failed
             for conn in connections:
@@ -177,4 +177,4 @@ class ProductionStartup:
 
         summary: dict[str, Any] = monitor.get_performance_summary()
         memory_mb = summary.get("memory", {}).get("rss_mb", "unknown")
-        logger.info(f"Initial system state: {memory_mb}MB RSS")
+        logger.info("Initial system state: %sMB RSS", memory_mb)

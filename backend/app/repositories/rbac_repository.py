@@ -52,7 +52,7 @@ class RBACRepository:
             result = self.db.query(Permission).filter_by(name=name).first()
             return cast(Optional[Permission], result)
         except Exception as e:
-            self.logger.error(f"Error getting permission by name {name}: {str(e)}")
+            self.logger.error("Error getting permission by name %s: %s", name, str(e))
             return None
 
     def get_all_permissions(self) -> List[Permission]:
@@ -64,7 +64,7 @@ class RBACRepository:
         try:
             return cast(List[Permission], self.db.query(Permission).all())
         except Exception as e:
-            self.logger.error(f"Error getting all permissions: {str(e)}")
+            self.logger.error("Error getting all permissions: %s", str(e))
             return []
 
     # ==========================================
@@ -87,7 +87,10 @@ class RBACRepository:
             return cast(Optional[UserPermission], result)
         except Exception as e:
             self.logger.error(
-                f"Error getting user permission for user {user_id}, permission {permission_id}: {str(e)}"
+                "Error getting user permission for user %s, permission %s: %s",
+                user_id,
+                permission_id,
+                str(e),
             )
             return None
 
@@ -110,7 +113,10 @@ class RBACRepository:
             return cast(Optional[UserPermission], result)
         except Exception as e:
             self.logger.error(
-                f"Error checking user permission for user {user_id}, permission {permission_name}: {str(e)}"
+                "Error checking user permission for user %s, permission %s: %s",
+                user_id,
+                permission_name,
+                str(e),
             )
             return None
 
@@ -132,7 +138,7 @@ class RBACRepository:
                 ),
             )
         except Exception as e:
-            self.logger.error(f"Error getting user permissions for user {user_id}: {str(e)}")
+            self.logger.error("Error getting user permissions for user %s: %s", user_id, str(e))
             return []
 
     def add_user_permission(
@@ -153,7 +159,7 @@ class RBACRepository:
             self.db.add(user_perm)
             return user_perm
         except Exception as e:
-            self.logger.error(f"Error adding user permission: {str(e)}")
+            self.logger.error("Error adding user permission: %s", str(e))
             raise
 
     # ==========================================
@@ -171,7 +177,7 @@ class RBACRepository:
             result = self.db.query(Role).filter_by(name=name).first()
             return cast(Optional[Role], result)
         except Exception as e:
-            self.logger.error(f"Error getting role by name {name}: {str(e)}")
+            self.logger.error("Error getting role by name %s: %s", name, str(e))
             return None
 
     def get_all_roles(self) -> List[Role]:
@@ -183,7 +189,7 @@ class RBACRepository:
         try:
             return cast(List[Role], self.db.query(Role).all())
         except Exception as e:
-            self.logger.error(f"Error getting all roles: {str(e)}")
+            self.logger.error("Error getting all roles: %s", str(e))
             return []
 
     def get_role_permissions(self, role_name: str) -> List[Permission]:
@@ -198,7 +204,7 @@ class RBACRepository:
                 return cast(List[Permission], role.permissions)
             return []
         except Exception as e:
-            self.logger.error(f"Error getting role permissions for {role_name}: {str(e)}")
+            self.logger.error("Error getting role permissions for %s: %s", role_name, str(e))
             return []
 
     # ==========================================
@@ -219,7 +225,7 @@ class RBACRepository:
             result = self.db.query(User).filter_by(id=user_id).first()
             return cast(Optional[User], result)
         except Exception as e:
-            self.logger.error(f"Error getting user by ID {user_id}: {str(e)}")
+            self.logger.error("Error getting user by ID %s: %s", user_id, str(e))
             return None
 
     # ==========================================

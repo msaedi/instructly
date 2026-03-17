@@ -45,9 +45,9 @@ def start_beat() -> None:
     celery_app.conf.beat_schedule = CELERY_BEAT_SCHEDULE
 
     # Log scheduled tasks
-    logger.info(f"Configured {len(CELERY_BEAT_SCHEDULE)} periodic tasks:")
+    logger.info("Configured %s periodic tasks:", len(CELERY_BEAT_SCHEDULE))
     for task_name, task_config in CELERY_BEAT_SCHEDULE.items():
-        logger.info(f"  - {task_name}: {task_config['schedule']}")
+        logger.info("  - %s: %s", task_name, task_config["schedule"])
 
     # Configure beat options
     beat_cls = cast(Any, beat.beat)

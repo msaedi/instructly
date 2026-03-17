@@ -725,7 +725,7 @@ class InstructorService(Base):
         """
         self.is_active = False
         catalog_name = self.catalog_entry.name if self.catalog_entry else "Unknown"
-        logger.info(f"Deactivated instructor service {self.id}: {catalog_name}")
+        logger.info("Deactivated instructor service %s: %s", self.id, catalog_name)
 
     def activate(self) -> None:
         """
@@ -735,7 +735,7 @@ class InstructorService(Base):
         """
         self.is_active = True
         catalog_name = self.catalog_entry.name if self.catalog_entry else "Unknown"
-        logger.info(f"Activated instructor service {self.id}: {catalog_name}")
+        logger.info("Activated instructor service %s: %s", self.id, catalog_name)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for API responses."""

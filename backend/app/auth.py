@@ -63,10 +63,10 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     except VerifyMismatchError:
         return False
     except InvalidHashError as e:
-        logger.error(f"Invalid hash format: {str(e)}")
+        logger.error("Invalid hash format: %s", str(e))
         return False
     except Exception as e:
-        logger.error(f"Error verifying password: {str(e)}")
+        logger.error("Error verifying password: %s", str(e))
         return False
 
 
@@ -106,7 +106,7 @@ async def verify_password_async(plain_password: str, hashed_password: str) -> bo
             hashed_password,
         )
     except Exception as e:
-        logger.error(f"Error verifying password async: {str(e)}")
+        logger.error("Error verifying password async: %s", str(e))
         return False
 
 
@@ -455,7 +455,7 @@ async def get_current_user(
                     cookie_token = request.cookies.get(cookie_name)
                     if cookie_token:
                         token = cookie_token
-                        logger.debug(f"Using {cookie_name} cookie for authentication")
+                        logger.debug("Using %s cookie for authentication", cookie_name)
                         break
 
         if not token:
@@ -481,7 +481,7 @@ async def get_current_user(
 
         await _enforce_revocation_and_user_invalidation(payload, user_id)
 
-        logger.debug(f"Successfully validated token for user: {user_id}")
+        logger.debug("Successfully validated token for user: %s", user_id)
         return user_id
 
     except HTTPException as http_exc:
@@ -543,7 +543,7 @@ async def get_current_user_optional(
 
         await _enforce_revocation_and_user_invalidation(payload, user_id)
 
-        logger.debug(f"Successfully validated optional token for user: {user_id}")
+        logger.debug("Successfully validated optional token for user: %s", user_id)
         return user_id
 
     except HTTPException as exc:
@@ -552,8 +552,8 @@ async def get_current_user_optional(
             return None
         raise
     except PyJWTError as e:
-        logger.debug(f"JWT validation error in optional auth: {str(e)}")
+        logger.debug("JWT validation error in optional auth: %s", str(e))
         return None
     except Exception as e:
-        logger.error(f"Unexpected error in optional token validation: {str(e)}")
+        logger.error("Unexpected error in optional token validation: %s", str(e))
         return None

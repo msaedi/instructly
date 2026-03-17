@@ -213,8 +213,12 @@ class ConflictChecker(BaseService):
 
         if conflicts:
             self.logger.warning(
-                f"Found {len(conflicts)} booking conflicts for {instructor_id} "
-                f"on {check_date} between {start_time}-{end_time}"
+                "Found %s booking conflicts for %s on %s between %s-%s",
+                len(conflicts),
+                instructor_id,
+                check_date,
+                start_time,
+                end_time,
             )
 
         return conflicts

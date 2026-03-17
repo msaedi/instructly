@@ -67,9 +67,9 @@ def refresh_beta_settings_cache(db: "Session") -> None:
             _cache.phase_value = str(s.beta_phase).encode("utf-8")
         _cache.allow_signup_value = b"1" if bool(s.allow_signup_without_invite) else b"0"
         _cache.cached_at = time.time()
-        logger.info(f"Beta settings cache loaded: phase={_cache.phase_value.decode()}")
+        logger.info("Beta settings cache loaded: phase=%s", _cache.phase_value.decode())
     except Exception as e:
-        logger.warning(f"Failed to pre-load beta settings cache: {e}")
+        logger.warning("Failed to pre-load beta settings cache: %s", e)
 
 
 class BetaPhaseHeaderMiddleware:
@@ -126,7 +126,7 @@ class BetaPhaseHeaderMiddleware:
             except Exception as e:
                 # Never break the response due to header resolution failures
                 # Use cached values even if stale
-                logger.debug(f"BetaPhaseHeaderMiddleware error: {e}")
+                logger.debug("BetaPhaseHeaderMiddleware error: %s", e)
 
         async def send_wrapper(message: Message) -> None:
             if message["type"] == "http.response.start":

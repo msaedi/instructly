@@ -52,7 +52,7 @@ class CachedRepositoryMixin:
             try:
                 self._cache_service = CacheServiceSyncAdapter(get_cache_service(self.db))
             except Exception as e:
-                logger.warning(f"Failed to initialize cache service: {e}")
+                logger.warning("Failed to initialize cache service: %s", e)
                 self._cache_service = None
         return self._cache_service
 
@@ -212,9 +212,9 @@ class CachedRepositoryMixin:
         cache_key = self._generate_cache_key(method_name, *args, **kwargs)
         try:
             self.cache_service.delete(cache_key)
-            logger.debug(f"Invalidated cache for {method_name}: {cache_key}")
+            logger.debug("Invalidated cache for %s: %s", method_name, cache_key)
         except Exception as e:
-            logger.error(f"Failed to invalidate cache for {method_name}: {e}")
+            logger.error("Failed to invalidate cache for %s: %s", method_name, e)
 
     def invalidate_entity_cache(self, entity_id: Union[int, str]):
         """
@@ -230,10 +230,13 @@ class CachedRepositoryMixin:
         try:
             count = self.cache_service.delete_pattern(pattern)
             logger.info(
-                f"Invalidated {count} cache entries for {self._cache_prefix} entity {entity_id}"
+                "Invalidated %s cache entries for %s entity %s",
+                count,
+                self._cache_prefix,
+                entity_id,
             )
         except Exception as e:
-            logger.error(f"Failed to invalidate entity cache: {e}")
+            logger.error("Failed to invalidate entity cache: %s", e)
 
     def invalidate_all_cache(self):
         """Invalidate all cache entries for this repository."""
@@ -243,9 +246,9 @@ class CachedRepositoryMixin:
         pattern = f"{self._cache_prefix}:*"
         try:
             count = self.cache_service.delete_pattern(pattern)
-            logger.info(f"Invalidated {count} cache entries for {self._cache_prefix}")
+            logger.info("Invalidated %s cache entries for %s", count, self._cache_prefix)
         except Exception as e:
-            logger.error(f"Failed to invalidate all cache: {e}")
+            logger.error("Failed to invalidate all cache: %s", e)
 
     def with_cache_disabled(self):
         """
@@ -322,10 +325,10 @@ def cached_method(
             try:
                 cached_value = self.cache_service.get(cache_key)
                 if cached_value is not None:
-                    logger.debug(f"Cache hit for {func.__name__}: {cache_key}")
+                    logger.debug("Cache hit for %s: %s", func.__name__, cache_key)
                     return cached_value
             except Exception as e:
-                logger.error(f"Cache get error in {func.__name__}: {e}")
+                logger.error("Cache get error in %s: %s", func.__name__, e)
 
             # Execute function
             result = func(self, *args, **kwargs)
@@ -335,13 +338,13 @@ def cached_method(
                 try:
                     cache_data = self._serialize_for_cache(result)
                     self.cache_service.set(cache_key, cache_data, ttl=ttl, tier=tier)
-                    logger.debug(f"Cached result for {func.__name__}: {cache_key}")
+                    logger.debug("Cached result for %s: %s", func.__name__, cache_key)
                 except RecursionError as e:
                     logger.error(
-                        f"Recursion error during cache serialization in {func.__name__}: {e}"
+                        "Recursion error during cache serialization in %s: %s", func.__name__, e
                     )
                 except Exception as e:
-                    logger.error(f"Cache set error in {func.__name__}: {e}")
+                    logger.error("Cache set error in %s: %s", func.__name__, e)
 
             return result
 

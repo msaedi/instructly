@@ -290,7 +290,9 @@ def get_recent_reviews(
         try:
             reviewer_name = service.get_reviewer_display_name(r.student_id)
         except Exception as e:
-            logger.warning(f"[REVIEWS] Failed to get reviewer display name for {r.student_id}: {e}")
+            logger.warning(
+                "[REVIEWS] Failed to get reviewer display name for %s: %s", r.student_id, e
+            )
             reviewer_name = None
         items.append(
             ReviewItem(

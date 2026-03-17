@@ -65,7 +65,7 @@ async def database_health() -> DatabaseHealthResponse:
             pool_status=pool_status,
         )
     except Exception as e:
-        logger.error(f"Database health check failed: {e}")
+        logger.error("Database health check failed: %s", e)
         return DatabaseHealthResponse(
             status="unhealthy",
             message="Database connection failed",
@@ -144,7 +144,7 @@ async def database_pool_status(
             },
         )
     except Exception as e:
-        logger.error(f"Failed to get database pool status: {e}")
+        logger.error("Failed to get database pool status: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve pool statistics: {str(e)}",
@@ -188,7 +188,7 @@ async def database_stats(
             ),
         )
     except Exception as e:
-        logger.error(f"Failed to get database stats: {e}")
+        logger.error("Failed to get database stats: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve database statistics: {str(e)}",

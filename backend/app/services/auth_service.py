@@ -89,7 +89,7 @@ class AuthService(BaseService):
         from app.core.timezone_service import get_timezone_from_zip
 
         timezone = get_timezone_from_zip(zip_code) if zip_code else "America/New_York"
-        self.logger.info(f"Setting timezone {timezone} for zip code {zip_code}")
+        self.logger.info("Setting timezone %s for zip code %s", timezone, zip_code)
 
         try:
             with self.transaction():
@@ -165,7 +165,7 @@ class AuthService(BaseService):
                             ids = rb_repo.find_region_ids_by_partial_names([service_area_guess])
                             region_boundary_id = ids.get(service_area_guess)
                     except Exception as _e:
-                        self.logger.debug(f"ZIP→neighborhood/city lookup failed: {str(_e)}")
+                        self.logger.debug("ZIP→neighborhood/city lookup failed: %s", str(_e))
 
                     # Build a friendly default bio using first name and city
                     first_name = getattr(user, "first_name", "") or ""
@@ -194,18 +194,18 @@ class AuthService(BaseService):
                     lifecycle_service = InstructorLifecycleService(self.db)
                     lifecycle_service.record_registration(user.id, is_founding=False)
 
-                self.logger.info(f"Successfully registered user: {email} with role: {role}")
+                self.logger.info("Successfully registered user: %s with role: %s", email, role)
                 return user
 
         except IntegrityError as e:
-            self.logger.info(f"Race condition on registration: {str(e)}")
+            self.logger.info("Race condition on registration: %s", str(e))
             # Timing normalization — same as existing-email case
             get_password_hash(
                 "dummy_timing_normalization_padding"
             )  # Timing normalization — do not remove
             return None
         except Exception as e:
-            self.logger.error(f"Error registering user {email}: {str(e)}")
+            self.logger.error("Error registering user %s: %s", email, str(e))
             raise ValidationException(f"Error creating user: {str(e)}")
 
     @BaseService.measure_operation("fetch_user_for_auth")
@@ -230,7 +230,7 @@ class AuthService(BaseService):
         """
         user = self.get_user_by_email(email)
         if not user:
-            self.logger.debug(f"User not found for auth: {email}")
+            self.logger.debug("User not found for auth: %s", email)
             return None
 
         # Extract all needed fields to memory so ORM object can be detached
@@ -262,7 +262,7 @@ class AuthService(BaseService):
                     "beta_invited_by": beta.invited_by_code,
                 }
         except Exception as e:
-            self.logger.debug(f"Could not fetch beta claims: {e}")
+            self.logger.debug("Could not fetch beta claims: %s", e)
 
         return result
 
@@ -282,23 +282,23 @@ class AuthService(BaseService):
         Returns:
             User object if authentication successful, None otherwise
         """
-        self.logger.info(f"Authentication attempt for user: {email}")
+        self.logger.info("Authentication attempt for user: %s", email)
 
         user = self.get_user_by_email(email)
         if not user:
-            self.logger.warning(f"Authentication failed - user not found: {email}")
+            self.logger.warning("Authentication failed - user not found: %s", email)
             return None
 
         if not verify_password(password, user.hashed_password):
-            self.logger.warning(f"Authentication failed - incorrect password: {email}")
+            self.logger.warning("Authentication failed - incorrect password: %s", email)
             return None
 
         # Check account status - deactivated users cannot login
         if hasattr(user, "account_status") and user.account_status == "deactivated":
-            self.logger.warning(f"Authentication failed - account deactivated: {email}")
+            self.logger.warning("Authentication failed - account deactivated: %s", email)
             return None
 
-        self.logger.info(f"Successful authentication for user: {email}")
+        self.logger.info("Successful authentication for user: %s", email)
         return user
 
     @BaseService.measure_operation("authenticate_user_async")
@@ -318,25 +318,25 @@ class AuthService(BaseService):
         """
         from ..auth import verify_password_async
 
-        self.logger.info(f"Authentication attempt (async) for user: {email}")
+        self.logger.info("Authentication attempt (async) for user: %s", email)
 
         user = self.get_user_by_email(email)
         if not user:
-            self.logger.warning(f"Authentication failed - user not found: {email}")
+            self.logger.warning("Authentication failed - user not found: %s", email)
             # Prevent timing attacks - still do a fake verification with proper Argon2id hash
             await verify_password_async(password, DUMMY_HASH_FOR_TIMING_ATTACK)
             return None
 
         if not await verify_password_async(password, user.hashed_password):
-            self.logger.warning(f"Authentication failed - incorrect password: {email}")
+            self.logger.warning("Authentication failed - incorrect password: %s", email)
             return None
 
         # Check account status - deactivated users cannot login
         if hasattr(user, "account_status") and user.account_status == "deactivated":
-            self.logger.warning(f"Authentication failed - account deactivated: {email}")
+            self.logger.warning("Authentication failed - account deactivated: %s", email)
             return None
 
-        self.logger.info(f"Successful authentication (async) for user: {email}")
+        self.logger.info("Successful authentication (async) for user: %s", email)
         return user
 
     @BaseService.measure_operation("get_user_by_email")
@@ -363,7 +363,7 @@ class AuthService(BaseService):
                 return self.get_user_by_id(identifier)
             return None
         except Exception as e:
-            self.logger.error(f"Error getting user by email {email}: {str(e)}")
+            self.logger.error("Error getting user by email %s: %s", email, str(e))
             return None
 
     @BaseService.measure_operation("get_user_by_id")
@@ -380,7 +380,7 @@ class AuthService(BaseService):
         try:
             return self.user_repository.get_by_id(user_id)
         except Exception as e:
-            self.logger.error(f"Error getting user by ID {user_id}: {str(e)}")
+            self.logger.error("Error getting user by ID %s: %s", user_id, str(e))
             return None
 
     @BaseService.measure_operation("get_current_user")
@@ -399,7 +399,7 @@ class AuthService(BaseService):
         """
         user = self.get_user_by_email(identifier)
         if not user:
-            self.logger.error(f"Current user not found: {identifier}")
+            self.logger.error("Current user not found: %s", identifier)
             raise NotFoundException("User not found")
 
         return user

@@ -165,7 +165,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             return profiles
 
         except Exception as e:
-            self.logger.error(f"Error getting all profiles with details: {str(e)}")
+            self.logger.error("Error getting all profiles with details: %s", str(e))
             raise RepositoryException(f"Failed to get instructor profiles: {str(e)}")
 
     def get_by_user_id_with_details(self, user_id: str) -> Optional[InstructorProfile]:
@@ -197,7 +197,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             return profile
 
         except Exception as e:
-            self.logger.error(f"Error getting profile by user_id: {str(e)}")
+            self.logger.error("Error getting profile by user_id: %s", str(e))
             raise RepositoryException(f"Failed to get instructor profile: {str(e)}")
 
     def get_profiles_by_area(
@@ -246,7 +246,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 .all(),
             )
         except Exception as e:
-            self.logger.error(f"Error getting profiles by area: {str(e)}")
+            self.logger.error("Error getting profiles by area: %s", str(e))
             raise RepositoryException(f"Failed to get profiles by area: {str(e)}")
 
     def get_profiles_by_experience(
@@ -290,7 +290,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 ),
             )
         except Exception as e:
-            self.logger.error(f"Error getting profiles by experience: {str(e)}")
+            self.logger.error("Error getting profiles by experience: %s", str(e))
             raise RepositoryException(f"Failed to get profiles by experience: {str(e)}")
 
     def count_profiles(self) -> int:
@@ -303,7 +303,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         try:
             return cast(int, self.db.query(InstructorProfile).count())
         except Exception as e:
-            self.logger.error(f"Error counting active profiles: {str(e)}")
+            self.logger.error("Error counting active profiles: %s", str(e))
             raise RepositoryException(f"Failed to count profiles: {str(e)}")
 
     def count_founding_instructors(self) -> int:
@@ -1339,26 +1339,28 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             # Log query performance
             query_time = time.time() - start_time
             self.logger.info(
-                f"Filter query completed in {query_time:.3f}s - "
-                f"Filters: search={bool(search)}, service_catalog_id={bool(service_catalog_id)}, "
-                f"price_range={bool(min_price or max_price)}, "
-                f"Results: {len(profiles)} profiles"
+                "Filter query completed in %ss - Filters: search=%s, service_catalog_id=%s, price_range=%s, Results: %s profiles",
+                f"{query_time:.3f}",
+                bool(search),
+                bool(service_catalog_id),
+                bool(min_price or max_price),
+                len(profiles),
             )
 
             # Log slow queries for optimization
             if query_time > 0.5:  # 500ms threshold
                 self.logger.warning(
-                    f"Slow filter query detected ({query_time:.3f}s) - "
-                    f"Consider adding indexes for: "
-                    f"{'search' if search else ''} "
-                    f"{'service_catalog_id' if service_catalog_id else ''} "
-                    f"{'price' if min_price or max_price else ''}"
+                    "Slow filter query detected (%ss) - Consider adding indexes for: %s %s %s",
+                    f"{query_time:.3f}",
+                    "search" if search else "",
+                    "service_catalog_id" if service_catalog_id else "",
+                    "price" if min_price or max_price else "",
                 )
 
             return profiles
 
         except Exception as e:
-            self.logger.error(f"Error finding profiles by filters: {str(e)}")
+            self.logger.error("Error finding profiles by filters: %s", str(e))
             raise RepositoryException(f"Failed to find profiles by filters: {str(e)}")
 
     def find_by_service_ids(
@@ -1439,19 +1441,23 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             query_time = time.time() - start_time
             total_profiles = sum(len(v) for v in grouped.values())
             self.logger.info(
-                f"Batch service query completed in {query_time:.3f}s - "
-                f"Services: {len(service_catalog_ids)}, Results: {total_profiles} profiles"
+                "Batch service query completed in %ss - Services: %s, Results: %s profiles",
+                f"{query_time:.3f}",
+                len(service_catalog_ids),
+                total_profiles,
             )
 
             if query_time > 0.5:
                 self.logger.warning(
-                    f"Slow batch query detected ({query_time:.3f}s) for {len(service_catalog_ids)} services"
+                    "Slow batch query detected (%ss) for %s services",
+                    f"{query_time:.3f}",
+                    len(service_catalog_ids),
                 )
 
             return grouped
 
         except Exception as e:
-            self.logger.error(f"Error in batch service query: {str(e)}")
+            self.logger.error("Error in batch service query: %s", str(e))
             raise RepositoryException(f"Failed to find profiles by service IDs: {str(e)}")
 
     # Override the base eager loading method

@@ -167,7 +167,7 @@ def get_week_availability(
         except DomainException as e:
             raise e.to_http_exception()
         except Exception as e:
-            logger.error(f"Unexpected error getting bitmap week availability: {str(e)}")
+            logger.error("Unexpected error getting bitmap week availability: %s", str(e))
             raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -284,7 +284,7 @@ def save_week_availability(
         except DomainException as e:
             raise e.to_http_exception()
         except Exception as e:
-            logger.error(f"Unexpected error saving week availability: {str(e)}")
+            logger.error("Unexpected error saving week availability: %s", str(e))
             raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -337,7 +337,7 @@ async def copy_week_availability(
         except DomainException as e:
             raise e.to_http_exception()
         except Exception as e:
-            logger.error(f"Unexpected error copying week: {str(e)}")
+            logger.error("Unexpected error copying week: %s", str(e))
             raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -412,7 +412,7 @@ async def apply_to_date_range(
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:
-        logger.error(f"Unexpected error applying pattern: {str(e)}")
+        logger.error("Unexpected error applying pattern: %s", str(e))
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -453,7 +453,7 @@ def add_specific_date_availability(
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:
-        logger.error(f"Unexpected error adding specific date: {str(e)}")
+        logger.error("Unexpected error adding specific date: %s", str(e))
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -504,7 +504,7 @@ def get_all_availability(
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:
-        logger.error(f"Unexpected error getting all availability: {str(e)}")
+        logger.error("Unexpected error getting all availability: %s", str(e))
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -549,7 +549,7 @@ async def get_week_booked_slots(
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:
-        logger.error(f"Unexpected error getting booked slots: {str(e)}")
+        logger.error("Unexpected error getting booked slots: %s", str(e))
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -580,7 +580,7 @@ async def validate_week_changes(
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:
-        logger.error(f"Unexpected error validating changes: {str(e)}")
+        logger.error("Unexpected error validating changes: %s", str(e))
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -607,7 +607,7 @@ def get_blackout_dates(
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:
-        logger.error(f"Unexpected error getting blackout dates: {str(e)}")
+        logger.error("Unexpected error getting blackout dates: %s", str(e))
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -636,7 +636,7 @@ def add_blackout_date(
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:
-        logger.error(f"Unexpected error adding blackout date: {str(e)}")
+        logger.error("Unexpected error adding blackout date: %s", str(e))
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -665,5 +665,5 @@ def delete_blackout_date(
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:
-        logger.error(f"Unexpected error deleting blackout date: {str(e)}")
+        logger.error("Unexpected error deleting blackout date: %s", str(e))
         raise HTTPException(status_code=500, detail="Internal server error")

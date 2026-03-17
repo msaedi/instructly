@@ -47,11 +47,15 @@ class StubOutboxRepo:
 
 
 def test_should_raise_env_tokens(monkeypatch):
-    monkeypatch.setenv("NOTIFICATION_PROVIDER_RAISE_ON", "booking.created")
+    monkeypatch.setattr(
+        notification_provider,
+        "NOTIFICATION_PROVIDER_RAISE_ON",
+        ("booking.created",),
+    )
     assert notification_provider._should_raise("booking.created", "key") is True
     assert notification_provider._should_raise("other", "key") is False
 
-    monkeypatch.setenv("NOTIFICATION_PROVIDER_RAISE_ON", "*")
+    monkeypatch.setattr(notification_provider, "NOTIFICATION_PROVIDER_RAISE_ON", ("*",))
     assert notification_provider._should_raise("anything", "key") is True
 
 
@@ -80,7 +84,11 @@ def test_send_requires_idempotency_key():
 
 
 def test_send_simulates_provider_failure(monkeypatch):
-    monkeypatch.setenv("NOTIFICATION_PROVIDER_RAISE_ON", "booking.created")
+    monkeypatch.setattr(
+        notification_provider,
+        "NOTIFICATION_PROVIDER_RAISE_ON",
+        ("booking.created",),
+    )
     provider = notification_provider.NotificationProvider(session_factory=lambda: StubSession())
     with pytest.raises(notification_provider.NotificationProviderTemporaryError):
         provider.send(

@@ -9,6 +9,9 @@ echo "iNSTAiNSTRU RBAC Testing Suite"
 echo "================================================"
 echo ""
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BACKEND_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 # Colors for output
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -17,7 +20,7 @@ NC='\033[0m' # No Color
 
 # Step 1: Reset test database with fresh data
 echo -e "${YELLOW}Step 1: Resetting test database...${NC}"
-cd /Users/mehdisaedi/instructly/backend
+cd "$BACKEND_DIR"
 export USE_TEST_DATABASE=true
 python scripts/reset_and_seed_yaml.py
 

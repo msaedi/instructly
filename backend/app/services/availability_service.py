@@ -255,7 +255,7 @@ class AvailabilityService(BaseService):
                 if sanitized is not None:
                     return self._bits_from_week_map(sanitized, monday)
             except Exception as cache_error:
-                logger.warning(f"Cache read error for week bits: {cache_error}")
+                logger.warning("Cache read error for week bits: %s", cache_error)
 
         repo = self._bitmap_repo()
         rows = repo.get_week_rows(instructor_id, monday)
@@ -275,7 +275,7 @@ class AvailabilityService(BaseService):
                     cache_keys=cache_keys,
                 )
             except Exception as cache_error:
-                logger.warning(f"Cache write error for week bits: {cache_error}")
+                logger.warning("Cache write error for week bits: %s", cache_error)
 
         return bits_by_day
 
@@ -711,7 +711,7 @@ class AvailabilityService(BaseService):
                     week_map=week_map_after,
                 )
             except Exception as cache_error:
-                logger.warning(f"Cache update error after bitmap save: {cache_error}")
+                logger.warning("Cache update error after bitmap save: %s", cache_error)
 
         new_version = self.compute_week_version_bitmaps(after_map)
         changed_dates = sorted(changed_dates_set)
@@ -911,7 +911,7 @@ class AvailabilityService(BaseService):
                 if cached is not None and len(cached) > 0:
                     return cached[0]  # Return the single date's data
             except Exception as cache_error:
-                logger.warning(f"Cache error for date availability: {cache_error}")
+                logger.warning("Cache error for date availability: %s", cache_error)
 
         # Cache miss - query bitmap database
         try:
@@ -941,11 +941,11 @@ class AvailabilityService(BaseService):
                         instructor_id, target_date, target_date, [result]
                     )
                 except Exception as cache_error:
-                    logger.warning(f"Failed to cache date availability: {cache_error}")
+                    logger.warning("Failed to cache date availability: %s", cache_error)
 
             return result
         except Exception as e:
-            logger.error(f"Error getting availability for date: {e}")
+            logger.error("Error getting availability for date: %s", e)
             return None
 
     @BaseService.measure_operation("get_availability_summary")
@@ -974,7 +974,7 @@ class AvailabilityService(BaseService):
                     result[row.day_date.isoformat()] = len(windows)
             return result
         except Exception as e:
-            logger.error(f"Error getting availability summary: {e}")
+            logger.error("Error getting availability summary: %s", e)
             return {}
 
     @BaseService.measure_operation("compute_week_version")
@@ -1113,7 +1113,7 @@ class AvailabilityService(BaseService):
                             return WeekAvailabilityResult(week_map=week_map, windows=[])
 
                 except Exception as cache_error:
-                    logger.warning(f"Cache error for week availability: {cache_error}")
+                    logger.warning("Cache error for week availability: %s", cache_error)
 
             bits_by_day = self.get_week_bits(instructor_id, start_date)
             week_map, slot_snapshots = self._week_map_from_bits(
@@ -1130,7 +1130,7 @@ class AvailabilityService(BaseService):
                         cache_keys=cache_keys,
                     )
                 except Exception as cache_error:
-                    logger.warning(f"Failed to cache week availability: {cache_error}")
+                    logger.warning("Failed to cache week availability: %s", cache_error)
 
             if perf:
                 perf(cache_used=cache_used)
@@ -1352,7 +1352,7 @@ class AvailabilityService(BaseService):
                 if cached_data is not None:
                     return cached_data
             except Exception as cache_error:
-                logger.warning(f"Cache error for date range availability: {cache_error}")
+                logger.warning("Cache error for date range availability: %s", cache_error)
 
         # Cache miss - query bitmap database
         try:
@@ -1383,11 +1383,11 @@ class AvailabilityService(BaseService):
                         instructor_id, start_date, end_date, result
                     )
                 except Exception as cache_error:
-                    logger.warning(f"Failed to cache date range availability: {cache_error}")
+                    logger.warning("Failed to cache date range availability: %s", cache_error)
 
             return result
         except Exception as e:
-            logger.error(f"Error getting date range availability: {e}")
+            logger.error("Error getting date range availability: %s", e)
             return []
 
     @BaseService.measure_operation("get_all_availability")
@@ -1443,7 +1443,7 @@ class AvailabilityService(BaseService):
             return windows
 
         except Exception as e:
-            logger.error(f"Error retrieving all availability: {str(e)}")
+            logger.error("Error retrieving all availability: %s", str(e))
             raise
 
     def _validate_and_parse_week_data(
@@ -1578,7 +1578,7 @@ class AvailabilityService(BaseService):
                 logger.warning("Cache strategies not available, using direct fetch")
             except Exception as cache_error:
                 logger.warning(
-                    f"Cache warming failed for instructor {instructor_id}: {cache_error}"
+                    "Cache warming failed for instructor %s: %s", instructor_id, cache_error
                 )
 
             self._invalidate_availability_caches(instructor_id, cache_dates_sorted)
@@ -1642,7 +1642,7 @@ class AvailabilityService(BaseService):
             except ConflictException:
                 raise
             except Exception as _e:
-                logger.debug(f"Version check skipped: {_e}")
+                logger.debug("Version check skipped: %s", _e)
 
             # Ensure no intra-day overlaps before persisting
             self._validate_no_overlaps(
@@ -1775,7 +1775,7 @@ class AvailabilityService(BaseService):
         try:
             return self.repository.get_future_blackout_dates(instructor_id)
         except RepositoryException as e:
-            logger.error(f"Error getting blackout dates: {e}")
+            logger.error("Error getting blackout dates: %s", e)
             return []
 
     @BaseService.measure_operation("add_blackout_date")
@@ -1827,7 +1827,7 @@ class AvailabilityService(BaseService):
                     raise NotFoundException("Blackout date not found")
                 return True
             except RepositoryException as e:
-                logger.error(f"Error deleting blackout date: {e}")
+                logger.error("Error deleting blackout date: %s", e)
                 raise
 
     @BaseService.measure_operation("get_week_windows_as_slot_like")
@@ -2426,7 +2426,7 @@ class AvailabilityService(BaseService):
 
             if not ALLOW_PAST and slot_date < instructor_today:
                 logger.warning(
-                    f"Skipping past date: {slot_date} (instructor today: {instructor_today})"
+                    "Skipping past date: %s (instructor today: %s)", slot_date, instructor_today
                 )
                 continue
 
@@ -2465,7 +2465,7 @@ class AvailabilityService(BaseService):
 
         if not ALLOW_PAST and target_date < instructor_today:
             logger.warning(
-                f"Skipping past date: {target_date} (instructor today: {instructor_today})"
+                "Skipping past date: %s (instructor today: %s)", target_date, instructor_today
             )
             return
 
@@ -2489,7 +2489,7 @@ class AvailabilityService(BaseService):
                 # Use the cache service invalidation method - handles all patterns
                 self.cache_service.invalidate_instructor_availability(instructor_id, dates)
             except Exception as cache_error:
-                logger.warning(f"Cache invalidation failed: {cache_error}")
+                logger.warning("Cache invalidation failed: %s", cache_error)
 
         # Invalidate week cache composite keys via BaseService
         weeks = set()
@@ -2504,5 +2504,7 @@ class AvailabilityService(BaseService):
                     self.invalidate_cache(map_key, composite_key)
                 except Exception as cache_error:
                     logger.warning(
-                        f"Failed to invalidate availability cache keys for week {week_start}: {cache_error}"
+                        "Failed to invalidate availability cache keys for week %s: %s",
+                        week_start,
+                        cache_error,
                     )

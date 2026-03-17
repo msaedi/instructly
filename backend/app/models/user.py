@@ -242,7 +242,7 @@ class User(Base):
         # Only log actual new user creations (with role), not transient/cache reconstructions
         role = kwargs.get("role")
         if role:
-            logger.info(f"Creating new {role} user with email: {kwargs.get('email', 'unknown')}")
+            logger.info("Creating new %s user with email: %s", role, kwargs.get("email", "unknown"))
 
     def __repr__(self) -> str:
         """String representation of the User object."""

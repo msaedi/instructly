@@ -62,7 +62,7 @@ async def ready_probe(response_obj: Response) -> ReadyProbeResponse:
             )
     except Exception as e:
         # If messaging health can't be determined, log but don't fail
-        logger.debug(f"[BROADCAST] /ready: Could not check messaging health: {e}")
+        logger.debug("[BROADCAST] /ready: Could not check messaging health: %s", e)
         # notifications_healthy remains None (unknown)
 
     return ReadyProbeResponse(status="ok", notifications_healthy=notifications_healthy)

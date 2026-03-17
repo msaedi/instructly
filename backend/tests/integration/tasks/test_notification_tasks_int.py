@@ -9,6 +9,7 @@ from tests.factories.booking_builders import create_booking_pg_safe
 from app.models.booking import BookingStatus
 from app.models.event_outbox import EventOutbox, EventOutboxStatus
 from app.repositories.event_outbox_repository import EventOutboxRepository
+from app.services import notification_provider
 from app.services.notification_provider import NotificationProviderTemporaryError
 from app.tasks.notification_tasks import (
     MAX_DELIVERY_ATTEMPTS,
@@ -78,7 +79,7 @@ def test_deliver_event_temporary_error_retries(db, monkeypatch):
         aggregate_id="booking-4",
         key="booking:booking-4:booking.created",
     )
-    monkeypatch.setenv("NOTIFICATION_PROVIDER_RAISE_ON", "*")
+    monkeypatch.setattr(notification_provider, "NOTIFICATION_PROVIDER_RAISE_ON", ("*",))
 
     with pytest.raises(NotificationProviderTemporaryError):
         deliver_event.run(event.id)
@@ -99,7 +100,7 @@ def test_deliver_event_temporary_error_terminal(db, monkeypatch):
     )
     event.attempt_count = MAX_DELIVERY_ATTEMPTS - 1
     db.commit()
-    monkeypatch.setenv("NOTIFICATION_PROVIDER_RAISE_ON", "*")
+    monkeypatch.setattr(notification_provider, "NOTIFICATION_PROVIDER_RAISE_ON", ("*",))
 
     with pytest.raises(NotificationProviderTemporaryError):
         deliver_event.run(event.id)

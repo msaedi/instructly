@@ -90,7 +90,7 @@ class BookingCreate(StrictRequestModel):
     instructor_id: str = Field(..., description="Instructor to book")
     instructor_service_id: str = Field(..., description="Instructor service being booked")
     booking_date: date = Field(..., description="Date of the booking")
-    start_time: time = Field(..., description="Start time")
+    start_time: time = Field(..., description="Start time (HH:MM)")
     selected_duration: int = Field(
         ...,
         ge=MIN_SESSION_DURATION,
@@ -119,7 +119,9 @@ class BookingCreate(StrictRequestModel):
     location_place_id: Optional[str] = Field(None, description="Place ID for the lesson location")
 
     # Note: end_time is calculated from start_time + selected_duration
-    end_time: Optional[time] = Field(None, description="Calculated end time (set automatically)")
+    end_time: Optional[time] = Field(
+        None, description="Calculated end time (HH:MM, set automatically)"
+    )
     timezone: Optional[str] = Field(
         None,
         description="IANA timezone for booking times (defaults to instructor timezone)",
@@ -970,8 +972,8 @@ class AvailabilityCheckRequest(StrictRequestModel):
     instructor_id: str = Field(..., description="Instructor to check")
     instructor_service_id: str = Field(..., description="Service to book")
     booking_date: date = Field(..., description="Date to check")
-    start_time: time = Field(..., description="Start time to check")
-    end_time: time = Field(..., description="End time to check")
+    start_time: time = Field(..., description="Start time to check (HH:MM)")
+    end_time: time = Field(..., description="End time to check (HH:MM)")
     location_type: LocationTypeLiteral = Field(..., description="Requested booking format")
     selected_duration: Optional[int] = Field(
         None,
@@ -1132,7 +1134,7 @@ class FindBookingOpportunitiesRequest(StrictRequestModel):
     instructor_service_id: str = Field(..., description="Service to book")
     date_range_start: date = Field(..., description="Start of search range")
     date_range_end: date = Field(..., description="End of search range")
-    preferred_times: Optional[List[time]] = Field(None, description="Preferred start times")
+    preferred_times: Optional[List[time]] = Field(None, description="Preferred start times (HH:MM)")
 
     @field_validator("date_range_end")
     @classmethod
@@ -1183,7 +1185,7 @@ class BookingSearchParameters(StrictModel):
     date_range_start: str = Field(description="Start of search range (YYYY-MM-DD)")
     date_range_end: str = Field(description="End of search range (YYYY-MM-DD)")
     preferred_times: Optional[List[str]] = Field(
-        default=None, description="Preferred start times (HH:MM:SS)"
+        default=None, description="Preferred start times (HH:MM)"
     )
 
 

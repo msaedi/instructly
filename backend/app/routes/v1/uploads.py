@@ -216,5 +216,5 @@ def finalize_profile_picture(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Finalize profile picture failed for user={current_user.id}: {e}")
+        logger.error("Finalize profile picture failed for user=%s: %s", current_user.id, e)
         raise HTTPException(status_code=400, detail=str(e))

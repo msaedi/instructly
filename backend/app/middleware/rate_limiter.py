@@ -167,7 +167,7 @@ class RateLimiter:
             return True, requests_in_window + 1, 0
 
         except Exception as e:
-            logger.error(f"Rate limit check failed: {e}")
+            logger.error("Rate limit check failed: %s", e)
             # On error, allow request but log
             return True, 0, 0
 
@@ -191,7 +191,7 @@ class RateLimiter:
         try:
             return await self.cache.delete(cache_key)
         except Exception as e:
-            logger.error(f"Failed to reset rate limit: {e}")
+            logger.error("Failed to reset rate limit: %s", e)
             return False
 
     async def get_remaining_requests(
@@ -225,7 +225,7 @@ class RateLimiter:
             return max(0, limit - current_count)
 
         except Exception as e:
-            logger.error(f"Failed to get remaining requests: {e}")
+            logger.error("Failed to get remaining requests: %s", e)
             return limit
 
 
@@ -471,7 +471,7 @@ async def _get_identifier(
 
     # Ensure we have a Request object
     if not isinstance(request, Request):
-        logger.warning(f"Expected Request object, got {type(request).__name__}")
+        logger.warning("Expected Request object, got %s", type(request).__name__)
         return None
 
     if key_type == RateLimitKeyType.IP:
@@ -598,11 +598,11 @@ class RateLimitAdmin:
                 if await redis.delete(key):
                     count += 1
 
-            logger.info(f"Reset {count} rate limits matching pattern: {identifier_pattern}")
+            logger.info("Reset %s rate limits matching pattern: %s", count, identifier_pattern)
             return count
 
         except Exception as e:
-            logger.error(f"Failed to reset rate limits: {e}")
+            logger.error("Failed to reset rate limits: %s", e)
             return 0
 
     @staticmethod
@@ -640,7 +640,7 @@ class RateLimitAdmin:
             return stats
 
         except Exception as e:
-            logger.error(f"Failed to get rate limit stats: {e}")
+            logger.error("Failed to get rate limit stats: %s", e)
             return {"error": str(e)}
 
 

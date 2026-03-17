@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Quick script to check BGC case counts in the database."""
 
+from pathlib import Path
 import sys
 
-sys.path.insert(0, '/Users/mehdisaedi/instructly/backend')
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(BACKEND_DIR))
 
-from app.core.database import SessionLocal
+from app.database import SessionLocal
 from app.models.instructor import InstructorProfile
 
 db = SessionLocal()

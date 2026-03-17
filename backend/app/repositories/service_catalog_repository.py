@@ -649,7 +649,7 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
             return True
 
         except Exception as e:
-            logger.error(f"Failed to update embedding for {service_id}: {e}")
+            logger.error("Failed to update embedding for %s: %s", service_id, e)
             self.db.rollback()
             return False
 

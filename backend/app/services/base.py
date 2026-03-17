@@ -145,11 +145,11 @@ class BaseService:
             self.db.commit()
             self.logger.debug("Transaction committed successfully")
         except SQLAlchemyError as e:
-            self.logger.error(f"Transaction failed: {str(e)}")
+            self.logger.error("Transaction failed: %s", str(e))
             self.db.rollback()
             raise ServiceException(f"Database operation failed: {str(e)}")
         except Exception as e:
-            self.logger.error(f"Unexpected error in transaction: {str(e)}")
+            self.logger.error("Unexpected error in transaction: %s", str(e))
             self.db.rollback()
             raise
 
@@ -248,7 +248,7 @@ class BaseService:
                         if elapsed > 1.0 and hasattr(service, "logger"):
                             func_name = getattr(func, "__name__", operation_name)
                             service.logger.warning(
-                                f"Slow operation detected: {func_name} took {elapsed:.2f}s"
+                                "Slow operation detected: %s took %ss", func_name, f"{elapsed:.2f}"
                             )
 
                         if PROMETHEUS_AVAILABLE and prometheus_metrics:
@@ -295,7 +295,7 @@ class BaseService:
                     if elapsed > 1.0 and hasattr(service, "logger"):
                         func_name = getattr(func, "__name__", operation_name)
                         service.logger.warning(
-                            f"Slow operation detected: {func_name} took {elapsed:.2f}s"
+                            "Slow operation detected: %s took %ss", func_name, f"{elapsed:.2f}"
                         )
 
                     if PROMETHEUS_AVAILABLE and prometheus_metrics:
@@ -347,7 +347,7 @@ class BaseService:
             # Log slow operations
             if elapsed > 1.0:
                 self.logger.warning(
-                    f"Slow operation detected: {operation_name} took {elapsed:.2f}s"
+                    "Slow operation detected: %s took %ss", operation_name, f"{elapsed:.2f}"
                 )
 
             # Record Prometheus metrics
@@ -385,7 +385,7 @@ class BaseService:
 
             if elapsed > 1.0:
                 self.logger.warning(
-                    f"Slow operation detected: {operation_name} took {elapsed:.2f}s"
+                    "Slow operation detected: %s took %ss", operation_name, f"{elapsed:.2f}"
                 )
 
             if PROMETHEUS_AVAILABLE and prometheus_metrics:

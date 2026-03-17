@@ -26,9 +26,9 @@ def test_paginate_bookings_uses_precomputed_total(test_booking):
     assert page.has_next is True
 
 
-def test_paginate_bookings(test_booking):
-    bookings = [test_booking, test_booking, test_booking]
-    page = routes._paginate_bookings(bookings, page=2, per_page=2)
+def test_paginate_bookings_returns_paginated_slice_metadata(test_booking):
+    bookings = [test_booking, test_booking]
+    page = routes._paginate_bookings(bookings, page=2, per_page=2, total=3)
     assert page.has_prev is True
     assert page.has_next is False
 

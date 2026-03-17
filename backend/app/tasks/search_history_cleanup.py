@@ -50,7 +50,7 @@ def cleanup_search_history(self: Any) -> Dict[str, Any]:
     }
     ```
     """
-    logger.info(f"Starting search history cleanup task at {datetime.now(timezone.utc)}")
+    logger.info("Starting search history cleanup task at %s", datetime.now(timezone.utc))
 
     db: Session = SessionLocal()
     try:
@@ -58,20 +58,20 @@ def cleanup_search_history(self: Any) -> Dict[str, Any]:
 
         # Get statistics before cleanup
         stats_before = cleanup_service.get_cleanup_statistics()
-        logger.info(f"Cleanup statistics before: {stats_before}")
+        logger.info("Cleanup statistics before: %s", stats_before)
 
         # Run cleanup
         soft_deleted, guest_sessions = cleanup_service.cleanup_all()
 
         # Get statistics after cleanup
         stats_after = cleanup_service.get_cleanup_statistics()
-        logger.info(f"Cleanup statistics after: {stats_after}")
+        logger.info("Cleanup statistics after: %s", stats_after)
 
         # Log summary
         logger.info(
-            f"Search history cleanup completed. "
-            f"Removed {soft_deleted} soft-deleted records and "
-            f"{guest_sessions} old guest sessions"
+            "Search history cleanup completed. Removed %s soft-deleted records and %s old guest sessions",
+            soft_deleted,
+            guest_sessions,
         )
 
         return {
@@ -84,7 +84,7 @@ def cleanup_search_history(self: Any) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error(f"Error in search history cleanup task: {str(e)}")
+        logger.error("Error in search history cleanup task: %s", str(e))
         raise
     finally:
         db.close()
@@ -107,7 +107,7 @@ def search_history_cleanup_dry_run(self: Any) -> Dict[str, Any]:
         cleanup_service = SearchHistoryCleanupService(db)
         stats = cleanup_service.get_cleanup_statistics()
 
-        logger.info(f"Cleanup dry run statistics: {stats}")
+        logger.info("Cleanup dry run statistics: %s", stats)
 
         return {
             "status": "dry_run",
@@ -121,7 +121,7 @@ def search_history_cleanup_dry_run(self: Any) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error(f"Error in cleanup dry run: {str(e)}")
+        logger.error("Error in cleanup dry run: %s", str(e))
         raise
     finally:
         db.close()

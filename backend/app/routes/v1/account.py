@@ -264,7 +264,7 @@ async def check_account_status(
         )
         return AccountStatusResponse(**result)
     except Exception as e:
-        logger.error(f"Error checking account status: {str(e)}")
+        logger.error("Error checking account status: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to check account status",

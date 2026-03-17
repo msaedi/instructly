@@ -159,16 +159,16 @@ class EmailService(BaseService):
             # Send email
             response_data: Dict[str, Any] = resend.Emails.send(email_data)
 
-            self.logger.info(f"Email sent successfully to {to_email} - Subject: {subject}")
+            self.logger.info("Email sent successfully to %s - Subject: %s", to_email, subject)
             self.log_operation("email_sent", to_email=to_email, subject=subject)
 
             return response_data
 
         except Exception as e:
             error_msg = str(e) if e else "Unknown error"
-            self.logger.error(f"Failed to send email to {to_email}: {error_msg}")
-            self.logger.error(f"Exception type: {type(e).__name__}")
-            self.logger.error(f"Exception details: {repr(e)}")
+            self.logger.error("Failed to send email to %s: %s", to_email, error_msg)
+            self.logger.error("Exception type: %s", type(e).__name__)
+            self.logger.error("Exception details: %s", repr(e))
             self.log_operation("email_failed", to_email=to_email, subject=subject, error=error_msg)
             raise ServiceException(f"Email sending failed: {error_msg}")
 
@@ -239,7 +239,7 @@ class EmailService(BaseService):
             return False
         except Exception as e:
             self.logger.error(
-                f"Unexpected error sending password reset email to {to_email}: {str(e)}"
+                "Unexpected error sending password reset email to %s: %s", to_email, str(e)
             )
             return False
 
@@ -285,7 +285,7 @@ class EmailService(BaseService):
             return False
         except Exception as e:
             self.logger.error(
-                f"Unexpected error sending confirmation email to {to_email}: {str(e)}"
+                "Unexpected error sending confirmation email to %s: %s", to_email, str(e)
             )
             return False
 

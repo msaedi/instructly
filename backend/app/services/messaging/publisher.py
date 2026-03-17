@@ -65,7 +65,7 @@ def _get_conversation_participants_sync(db: Session, conversation_id: str) -> Li
 
     conversation = repository.get_by_id(conversation_id)
     if not conversation:
-        logger.error(f"[PUBLISHER] Conversation not found: {conversation_id}")
+        logger.error("[PUBLISHER] Conversation not found: %s", conversation_id)
         return []
     return [conversation.student_id, conversation.instructor_id]
 
@@ -127,7 +127,7 @@ async def publish_new_message(
     participants = await asyncio.to_thread(_get_conversation_participants_sync, db, conversation_id)
     if not participants:
         logger.warning(
-            f"[PUBLISHER] Cannot publish new_message: conversation {conversation_id} not found"
+            "[PUBLISHER] Cannot publish new_message: conversation %s not found", conversation_id
         )
         return
 
@@ -160,7 +160,7 @@ async def publish_new_message(
     all_user_ids = list(set(participants))
     await _publish_to_users(all_user_ids, event)
 
-    logger.debug(f"[BROADCAST] Published new_message {message_id} to {len(all_user_ids)} users")
+    logger.debug("[BROADCAST] Published new_message %s to %s users", message_id, len(all_user_ids))
 
 
 async def publish_typing_status(
@@ -198,7 +198,7 @@ async def publish_typing_status(
     other_users = [uid for uid in participants if uid != user_id]
     await _publish_to_users(other_users, event)
 
-    logger.debug(f"[BROADCAST] Published typing_status to {len(other_users)} users")
+    logger.debug("[BROADCAST] Published typing_status to %s users", len(other_users))
 
 
 async def publish_reaction_update(
@@ -225,7 +225,7 @@ async def publish_reaction_update(
     participants = await asyncio.to_thread(_get_conversation_participants_sync, db, conversation_id)
     if not participants:
         logger.warning(
-            f"[PUBLISHER] Cannot publish reaction_update: conversation {conversation_id} not found"
+            "[PUBLISHER] Cannot publish reaction_update: conversation %s not found", conversation_id
         )
         return
 
@@ -241,7 +241,9 @@ async def publish_reaction_update(
     all_user_ids = list(set(participants))
     await _publish_to_users(all_user_ids, event)
 
-    logger.debug(f"[BROADCAST] Published reaction_update ({action}) to {len(all_user_ids)} users")
+    logger.debug(
+        "[BROADCAST] Published reaction_update (%s) to %s users", action, len(all_user_ids)
+    )
 
 
 async def publish_message_edited(
@@ -268,7 +270,7 @@ async def publish_message_edited(
     participants = await asyncio.to_thread(_get_conversation_participants_sync, db, conversation_id)
     if not participants:
         logger.warning(
-            f"[PUBLISHER] Cannot publish message_edited: conversation {conversation_id} not found"
+            "[PUBLISHER] Cannot publish message_edited: conversation %s not found", conversation_id
         )
         return
 
@@ -283,7 +285,9 @@ async def publish_message_edited(
     all_user_ids = list(set(participants))
     await _publish_to_users(all_user_ids, event)
 
-    logger.debug(f"[BROADCAST] Published message_edited {message_id} to {len(all_user_ids)} users")
+    logger.debug(
+        "[BROADCAST] Published message_edited %s to %s users", message_id, len(all_user_ids)
+    )
 
 
 async def publish_read_receipt(
@@ -318,8 +322,9 @@ async def publish_read_receipt(
     await _publish_to_users(other_users, event)
 
     logger.debug(
-        f"[BROADCAST] Published read_receipt for {len(message_ids)} messages "
-        f"to {len(other_users)} users"
+        "[BROADCAST] Published read_receipt for %s messages to %s users",
+        len(message_ids),
+        len(other_users),
     )
 
 
@@ -335,7 +340,7 @@ async def publish_message_deleted(
     participants = await asyncio.to_thread(_get_conversation_participants_sync, db, conversation_id)
     if not participants:
         logger.warning(
-            f"[PUBLISHER] Cannot publish message_deleted: conversation {conversation_id} not found"
+            "[PUBLISHER] Cannot publish message_deleted: conversation %s not found", conversation_id
         )
         return
 
@@ -349,7 +354,9 @@ async def publish_message_deleted(
     all_user_ids = list(set(participants))
     await _publish_to_users(all_user_ids, event)
 
-    logger.debug(f"[BROADCAST] Published message_deleted {message_id} to {len(all_user_ids)} users")
+    logger.debug(
+        "[BROADCAST] Published message_deleted %s to %s users", message_id, len(all_user_ids)
+    )
 
 
 # =============================================================================
@@ -390,8 +397,9 @@ async def publish_read_receipt_direct(
     await _publish_to_users(other_users, event)
 
     logger.debug(
-        f"[BROADCAST] Published read_receipt for {len(message_ids)} messages "
-        f"to {len(other_users)} users"
+        "[BROADCAST] Published read_receipt for %s messages to %s users",
+        len(message_ids),
+        len(other_users),
     )
 
 
@@ -416,7 +424,7 @@ async def publish_message_edited_direct(
     """
     if not participant_ids:
         logger.warning(
-            f"[PUBLISHER] Cannot publish message_edited: no participants for {conversation_id}"
+            "[PUBLISHER] Cannot publish message_edited: no participants for %s", conversation_id
         )
         return
 
@@ -431,7 +439,9 @@ async def publish_message_edited_direct(
     all_user_ids = list(set(participant_ids))
     await _publish_to_users(all_user_ids, event)
 
-    logger.debug(f"[BROADCAST] Published message_edited {message_id} to {len(all_user_ids)} users")
+    logger.debug(
+        "[BROADCAST] Published message_edited %s to %s users", message_id, len(all_user_ids)
+    )
 
 
 async def publish_message_deleted_direct(
@@ -451,7 +461,7 @@ async def publish_message_deleted_direct(
     """
     if not participant_ids:
         logger.warning(
-            f"[PUBLISHER] Cannot publish message_deleted: no participants for {conversation_id}"
+            "[PUBLISHER] Cannot publish message_deleted: no participants for %s", conversation_id
         )
         return
 
@@ -464,7 +474,9 @@ async def publish_message_deleted_direct(
     all_user_ids = list(set(participant_ids))
     await _publish_to_users(all_user_ids, event)
 
-    logger.debug(f"[BROADCAST] Published message_deleted {message_id} to {len(all_user_ids)} users")
+    logger.debug(
+        "[BROADCAST] Published message_deleted %s to %s users", message_id, len(all_user_ids)
+    )
 
 
 async def publish_reaction_update_direct(
@@ -488,7 +500,7 @@ async def publish_reaction_update_direct(
     """
     if not participant_ids:
         logger.warning(
-            f"[PUBLISHER] Cannot publish reaction_update: no participants for {conversation_id}"
+            "[PUBLISHER] Cannot publish reaction_update: no participants for %s", conversation_id
         )
         return
 
@@ -503,7 +515,9 @@ async def publish_reaction_update_direct(
     all_user_ids = list(set(participant_ids))
     await _publish_to_users(all_user_ids, event)
 
-    logger.debug(f"[BROADCAST] Published reaction_update ({action}) to {len(all_user_ids)} users")
+    logger.debug(
+        "[BROADCAST] Published reaction_update (%s) to %s users", action, len(all_user_ids)
+    )
 
 
 async def publish_typing_status_direct(
@@ -539,7 +553,7 @@ async def publish_typing_status_direct(
     other_users = [uid for uid in participant_ids if uid != user_id]
     await _publish_to_users(other_users, event)
 
-    logger.debug(f"[BROADCAST] Published typing_status to {len(other_users)} users")
+    logger.debug("[BROADCAST] Published typing_status to %s users", len(other_users))
 
 
 async def publish_new_message_direct(
@@ -573,7 +587,7 @@ async def publish_new_message_direct(
     """
     if not participant_ids:
         logger.warning(
-            f"[PUBLISHER] Cannot publish new_message: no participants for {conversation_id}"
+            "[PUBLISHER] Cannot publish new_message: no participants for %s", conversation_id
         )
         return
 
@@ -602,4 +616,4 @@ async def publish_new_message_direct(
     all_user_ids = list(set(participant_ids))
     await _publish_to_users(all_user_ids, event)
 
-    logger.debug(f"[BROADCAST] Published new_message {message_id} to {len(all_user_ids)} users")
+    logger.debug("[BROADCAST] Published new_message %s to %s users", message_id, len(all_user_ids))

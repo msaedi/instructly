@@ -161,7 +161,7 @@ class R2StorageClient:
             resp = requests.put(pre.url, data=data, headers=pre.headers, timeout=30)
             return (200 <= resp.status_code < 300, resp.status_code)
         except Exception as e:
-            logger.error(f"Failed to upload {object_key}: {e}")
+            logger.error("Failed to upload %s: %s", object_key, e)
             return (False, None)
 
     def download_bytes(self, object_key: str) -> Optional[bytes]:
@@ -170,10 +170,10 @@ class R2StorageClient:
             resp = requests.get(pre.url, timeout=30)
             if 200 <= resp.status_code < 300:
                 return resp.content
-            logger.error(f"Failed to download {object_key}: status={resp.status_code}")
+            logger.error("Failed to download %s: status=%s", object_key, resp.status_code)
             return None
         except Exception as e:
-            logger.error(f"Failed to download {object_key}: {e}")
+            logger.error("Failed to download %s: %s", object_key, e)
             return None
 
     def delete_object(self, object_key: str) -> bool:
@@ -182,5 +182,5 @@ class R2StorageClient:
             resp = requests.delete(pre.url, timeout=30)
             return 200 <= resp.status_code < 300 or resp.status_code == 404
         except Exception as e:
-            logger.error(f"Failed to delete {object_key}: {e}")
+            logger.error("Failed to delete %s: %s", object_key, e)
             return False

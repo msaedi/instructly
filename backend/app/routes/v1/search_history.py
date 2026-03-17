@@ -430,7 +430,7 @@ async def track_interaction(
         # Re-raise HTTP exceptions as-is
         raise
     except Exception as e:
-        logger.error(f"Error tracking interaction: {str(e)}", exc_info=True)
+        logger.error("Error tracking interaction: %s", str(e), exc_info=True)
         # Return more specific error in development
         import os
 

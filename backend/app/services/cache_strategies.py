@@ -72,7 +72,7 @@ class CacheWarmingStrategy:
             if retry_count > 0:
                 delay = 0.05 * (2 ** (retry_count - 1))
                 await asyncio.sleep(delay)
-                self.logger.debug(f"Retry {retry_count} after {delay}s delay")
+                self.logger.debug("Retry %s after %ss delay", retry_count, delay)
 
             # Get fresh data directly from DB (bypass cache)
             service = AvailabilityService(self.db, None)  # No cache
@@ -93,11 +93,11 @@ class CacheWarmingStrategy:
                         fresh_data,
                         [],  # slots_for_cache removed - bitmap-only storage now
                     )
-                    self.logger.info(f"Cache warmed successfully after {retry_count} retries")
+                    self.logger.info("Cache warmed successfully after %s retries", retry_count)
                     return fresh_data
                 else:
                     self.logger.debug(
-                        f"Expected {expected_window_count} windows, got {actual_count}"
+                        "Expected %s windows, got %s", expected_window_count, actual_count
                     )
             else:
                 # No verification needed, just cache and return
@@ -113,7 +113,7 @@ class CacheWarmingStrategy:
             retry_count += 1
 
         # Max retries reached, log warning but return what we have
-        self.logger.warning(f"Cache warming verification failed after {self.max_retries} retries")
+        self.logger.warning("Cache warming verification failed after %s retries", self.max_retries)
 
         # Cache what we have anyway
         if last_result:
@@ -247,7 +247,7 @@ class ReadThroughCache:
             cached_data_raw = await self._maybe_await(self.cache_service.get(cache_key))
             if isinstance(cached_data_raw, dict):
                 cached_data = cast(Dict[str, Any], cached_data_raw)
-                self.logger.debug(f"Cache hit for {cache_key}")
+                self.logger.debug("Cache hit for %s", cache_key)
                 return cached_data
 
         # Cache miss or forced refresh - get from DB
@@ -264,6 +264,6 @@ class ReadThroughCache:
             await self._maybe_await(
                 self.cache_service.cache_week_availability(instructor_id, week_start, fresh_data)
             )
-            self.logger.debug(f"Cache updated for {cache_key}")
+            self.logger.debug("Cache updated for %s", cache_key)
 
         return fresh_data

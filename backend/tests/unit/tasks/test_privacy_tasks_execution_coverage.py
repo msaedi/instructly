@@ -252,6 +252,7 @@ class TestAnonymizeOldBookingsExecution:
 
     def test_booking_anonymization_with_custom_days_logs_warning(self) -> None:
         """Test that custom days_old logs a warning (lines 211-216)."""
+        from app.core.config import settings
         from app.tasks.privacy_tasks import DatabaseTask, anonymize_old_bookings
 
         mock_db = MagicMock()
@@ -273,8 +274,13 @@ class TestAnonymizeOldBookingsExecution:
             assert result == 30
             # Verify warning was logged about custom days_old
             mock_logger.warning.assert_called_once()
-            warning_call = mock_logger.warning.call_args[0][0]
-            assert "Custom days_old=365 requested" in warning_call
+            assert mock_logger.warning.call_args.args == (
+                "Custom days_old=%s requested, but using configured retention period of %s days "
+                "for thread safety. To change retention period, update booking_pii_retention_days "
+                "in settings.",
+                365,
+                getattr(settings, "booking_pii_retention_days", 2555),
+            )
 
     def test_booking_anonymization_with_same_days_no_warning(self) -> None:
         """Test that matching days_old does not log a warning."""

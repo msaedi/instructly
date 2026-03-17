@@ -55,5 +55,5 @@ class BulkOperationRepository:
             return count > 0
 
         except SQLAlchemyError as e:
-            self.logger.error(f"Error checking bookings: {str(e)}")
+            self.logger.error("Error checking bookings: %s", str(e))
             raise RepositoryException(f"Failed to check bookings: {str(e)}")

@@ -122,7 +122,7 @@ class AccountLifecycleService(BaseService):
                 instructor.id,
             )
 
-        self.logger.info(f"Instructor {instructor.id} account suspended successfully")
+        self.logger.info("Instructor %s account suspended successfully", instructor.id)
 
         return {
             "success": True,
@@ -179,7 +179,7 @@ class AccountLifecycleService(BaseService):
                 instructor.id,
             )
 
-        self.logger.info(f"Instructor {instructor.id} account deactivated successfully")
+        self.logger.info("Instructor %s account deactivated successfully", instructor.id)
 
         return {
             "success": True,
@@ -225,7 +225,7 @@ class AccountLifecycleService(BaseService):
             self.cache_service.delete_pattern(f"instructor:{instructor.id}:*")
             self.cache_service.delete_pattern(f"availability:instructor:{instructor.id}:*")
 
-        self.logger.info(f"Instructor {instructor.id} account reactivated successfully")
+        self.logger.info("Instructor %s account reactivated successfully", instructor.id)
 
         return {
             "success": True,

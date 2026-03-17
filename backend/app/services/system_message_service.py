@@ -104,7 +104,8 @@ class SystemMessageService(BaseService):
         )
 
         self.logger.info(
-            f"Created booking_created system message for booking {booking_id}",
+            "Created booking_created system message for booking %s",
+            booking_id,
             extra={
                 "booking_id": booking_id,
                 "conversation_id": conversation.id,
@@ -165,7 +166,8 @@ class SystemMessageService(BaseService):
         )
 
         self.logger.info(
-            f"Created booking_cancelled system message for booking {booking_id}",
+            "Created booking_cancelled system message for booking %s",
+            booking_id,
             extra={
                 "booking_id": booking_id,
                 "conversation_id": conversation.id,
@@ -217,7 +219,8 @@ class SystemMessageService(BaseService):
         )
 
         self.logger.info(
-            f"Created booking_rescheduled system message for booking {booking_id}",
+            "Created booking_rescheduled system message for booking %s",
+            booking_id,
             extra={
                 "booking_id": booking_id,
                 "conversation_id": conversation.id,
@@ -260,7 +263,8 @@ class SystemMessageService(BaseService):
         )
 
         self.logger.info(
-            f"Created booking_completed system message for booking {booking_id}",
+            "Created booking_completed system message for booking %s",
+            booking_id,
             extra={
                 "booking_id": booking_id,
                 "conversation_id": conversation.id,
@@ -326,7 +330,7 @@ class SystemMessageService(BaseService):
             try:
                 await coro_func()
             except Exception as e:  # pragma: no cover - best effort logging
-                self.logger.warning(f"Failed {error_context}: {e}")
+                self.logger.warning("Failed %s: %s", error_context, e)
 
         try:
             loop = asyncio.get_running_loop()
@@ -336,7 +340,7 @@ class SystemMessageService(BaseService):
             try:
                 asyncio.run(coro_func())
             except Exception as e:  # pragma: no cover - best effort logging
-                self.logger.warning(f"Failed {error_context}: {e}")
+                self.logger.warning("Failed %s: %s", error_context, e)
 
     def _create_system_message(
         self,

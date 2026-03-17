@@ -88,7 +88,7 @@ class MonitoringTask(MonitoringTaskBase):
                     bind=engine,
                 )
                 self._db = test_session_factory()
-                logger.info(f"MonitoringTask using TEST database: {test_db_url.split('@')[1]}")
+                logger.info("MonitoringTask using TEST database: %s", test_db_url.split("@")[1])
             else:
                 self._db = SessionLocal()
         return self._db
@@ -173,10 +173,10 @@ def process_monitoring_alert(
                 args=(alert.id,),
             )
 
-        logger.info(f"Processed {severity} alert: {title}")
+        logger.info("Processed %s alert: %s", severity, title)
 
     except Exception as e:
-        logger.error(f"Failed to process monitoring alert: {str(e)}")
+        logger.error("Failed to process monitoring alert: %s", str(e))
         raise self.retry(exc=e, countdown=60)
 
 
@@ -186,7 +186,7 @@ def send_alert_email(self: MonitoringTask, alert_id: str) -> None:
     try:
         alert = self.alert_repo.get_by_id(alert_id)
         if not alert:
-            logger.error(f"Alert {alert_id} not found")
+            logger.error("Alert %s not found", alert_id)
             return
 
         from app.repositories.user_repository import UserRepository
@@ -257,16 +257,16 @@ def send_alert_email(self: MonitoringTask, alert_id: str) -> None:
                     from_email=from_email,
                 )
             except Exception as e:
-                logger.error(f"Failed to send alert email to {email}: {str(e)}")
+                logger.error("Failed to send alert email to %s: %s", email, str(e))
 
         # Update alert record
         with self.alert_repo.transaction():
             self.alert_repo.mark_email_sent(alert_id)
 
-        logger.info(f"Alert email sent for alert {alert_id}")
+        logger.info("Alert email sent for alert %s", alert_id)
 
     except Exception as e:
-        logger.error(f"Failed to send alert email: {str(e)}")
+        logger.error("Failed to send alert email: %s", str(e))
         raise self.retry(exc=e, countdown=300)
 
 
@@ -276,7 +276,7 @@ def create_github_issue_for_alert(self: MonitoringTask, alert_id: str) -> None:
     try:
         alert = self.alert_repo.get_by_id(alert_id)
         if not alert:
-            logger.error(f"Alert {alert_id} not found")
+            logger.error("Alert %s not found", alert_id)
             return
 
         # Check if GitHub integration is configured
@@ -337,10 +337,10 @@ def create_github_issue_for_alert(self: MonitoringTask, alert_id: str) -> None:
             with self.alert_repo.transaction():
                 self.alert_repo.mark_github_issue_created(alert_id, issue_url)
 
-            logger.info(f"GitHub issue created for alert {alert_id}: {issue_url}")
+            logger.info("GitHub issue created for alert %s: %s", alert_id, issue_url)
 
     except Exception as e:
-        logger.error(f"Failed to create GitHub issue: {str(e)}")
+        logger.error("Failed to create GitHub issue: %s", str(e))
         raise self.retry(exc=e, countdown=600)
 
 
@@ -383,9 +383,9 @@ def cleanup_old_alerts() -> None:
 
         db.close()
 
-        logger.info(f"Cleaned up {deleted_count} old alert records")
+        logger.info("Cleaned up %s old alert records", deleted_count)
 
     except Exception as e:
-        logger.error(f"Failed to cleanup old alerts: {str(e)}")
+        logger.error("Failed to cleanup old alerts: %s", str(e))
         if db is not None:
             db.close()

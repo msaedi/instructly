@@ -191,7 +191,7 @@ async def get_current_user_sse(
             raise credentials_exception
 
     except (PyJWTError, InvalidIssuerError) as e:
-        logger.error(f"JWT decode error: {str(e)}")
+        logger.error("JWT decode error: %s", str(e))
         raise credentials_exception
 
     # =========================================================================

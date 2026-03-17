@@ -120,7 +120,9 @@ class MonitoringMiddleware:
 
                 # Log slow requests
                 if duration_ms > 500:
-                    logger.warning(f"Slow request: {method} {path} " f"took {duration_ms:.2f}ms")
+                    logger.warning(
+                        "Slow request: %s %s took %sms", method, path, f"{duration_ms:.2f}"
+                    )
 
             await send(message)
 

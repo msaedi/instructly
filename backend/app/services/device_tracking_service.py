@@ -128,11 +128,11 @@ class DeviceTrackingService(BaseService):
             # Cache the result
             self._user_agent_cache[cache_key] = device_info
 
-            logger.debug(f"Parsed user agent: {device_type} - {parsed.browser.family}")
+            logger.debug("Parsed user agent: %s - %s", device_type, parsed.browser.family)
             return device_info
 
         except Exception as e:
-            logger.warning(f"Failed to parse user agent: {str(e)}")
+            logger.warning("Failed to parse user agent: %s", str(e))
             return self._get_default_device_info(user_agent)
 
     def _determine_device_type(self, parsed: Any, user_agent: str) -> str:

@@ -22,6 +22,9 @@ from .notification_service import NotificationService
 from .personal_asset_service import PersonalAssetService
 from .template_service import TemplateService
 
+SITE_MODE = os.getenv("SITE_MODE", "").lower()
+CI = os.getenv("CI") == "true"
+
 
 def get_cache_service_sync(db: Session = Depends(get_db)) -> CacheServiceSyncAdapter:
     """Get sync cache adapter for sync call sites."""
@@ -104,9 +107,8 @@ def get_email_service(
 ) -> EmailService | ConsoleEmailService:
     provider = getattr(settings, "email_provider", "console").lower()
     missing_key = not secret_or_plain(settings.resend_api_key).strip()
-    site_mode = (os.getenv("SITE_MODE", "") or getattr(settings, "site_mode", "local")).lower()
-    is_ci = os.getenv("CI") == "true"
-    if provider == "console" or missing_key or (site_mode in {"int", "local"} and is_ci):
+    site_mode = (SITE_MODE or getattr(settings, "site_mode", "local")).lower()
+    if provider == "console" or missing_key or (site_mode in {"int", "local"} and CI):
         return ConsoleEmailService()
     return EmailService(db, cache)
 

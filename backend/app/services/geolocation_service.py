@@ -72,12 +72,12 @@ class GeolocationService(BaseService):
             }
         """
         if not self._is_valid_ip(ip_address):
-            logger.warning(f"Invalid IP address format: {ip_address}")
+            logger.warning("Invalid IP address format: %s", ip_address)
             return None
 
         # Skip private/local IPs
         if self._is_private_ip(ip_address):
-            logger.debug(f"Skipping private IP: {ip_address}")
+            logger.debug("Skipping private IP: %s", ip_address)
             return self._get_default_location()
 
         # Check cache first
@@ -86,7 +86,7 @@ class GeolocationService(BaseService):
             cached_raw = await self.cache_service.get(cache_key)
             cached_result = cast(dict[str, Any] | None, cached_raw)
             if cached_result:
-                logger.debug(f"Cache hit for IP geolocation: {ip_address[:8]}...")
+                logger.debug("Cache hit for IP geolocation: %s...", ip_address[:8])
                 return cached_result
 
         try:
@@ -101,14 +101,14 @@ class GeolocationService(BaseService):
                 if self.cache_service:
                     await self.cache_service.set(cache_key, location_data, ttl=86400)
 
-                logger.info(f"Geolocation lookup successful for {ip_address[:8]}...")
+                logger.info("Geolocation lookup successful for %s...", ip_address[:8])
                 return location_data
             else:
-                logger.warning(f"No location data found for IP: {ip_address[:8]}...")
+                logger.warning("No location data found for IP: %s...", ip_address[:8])
                 return self._get_default_location()
 
         except Exception as e:
-            logger.error(f"Geolocation lookup failed for {ip_address[:8]}...: {str(e)}")
+            logger.error("Geolocation lookup failed for %s...: %s", ip_address[:8], str(e))
             return self._get_default_location()
 
     async def _lookup_with_fallback(self, ip_address: str) -> dict[str, Any] | None:  # no-metrics
@@ -120,7 +120,7 @@ class GeolocationService(BaseService):
             if location_data:
                 return location_data
         except Exception as e:
-            logger.warning(f"ipapi.co lookup failed: {str(e)}")
+            logger.warning("ipapi.co lookup failed: %s", str(e))
 
         # Fallback service: ip-api.com (free tier: 1000/hour)
         try:
@@ -128,7 +128,7 @@ class GeolocationService(BaseService):
             if location_data:
                 return location_data
         except Exception as e:
-            logger.warning(f"ip-api.com lookup failed: {str(e)}")
+            logger.warning("ip-api.com lookup failed: %s", str(e))
 
         return None
 
@@ -142,7 +142,7 @@ class GeolocationService(BaseService):
             data = response.json()
 
             if data.get("error"):
-                logger.warning(f"ipapi.co error: {data.get('reason', 'Unknown error')}")
+                logger.warning("ipapi.co error: %s", data.get("reason", "Unknown error"))
                 return None
 
             return {
@@ -166,7 +166,7 @@ class GeolocationService(BaseService):
             data = response.json()
 
             if data.get("status") != "success":
-                logger.warning(f"ip-api.com error: {data.get('message', 'Unknown error')}")
+                logger.warning("ip-api.com error: %s", data.get("message", "Unknown error"))
                 return None
 
             return {
@@ -186,7 +186,7 @@ class GeolocationService(BaseService):
         state = location_data.get("state", "")
 
         # Debug logging
-        logger.debug(f"NYC detection - city: '{city}', state: '{state}'")
+        logger.debug("NYC detection - city: '%s', state: '%s'", city, state)
 
         # Check if this is NYC - normalize and strip whitespace
         is_nyc = (

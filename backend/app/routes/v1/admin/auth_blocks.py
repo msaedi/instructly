@@ -311,7 +311,7 @@ async def list_auth_issues(
         blocked.sort(key=lambda x: x.failure_count, reverse=True)
 
     except Exception as e:
-        logger.error(f"Failed to list blocked accounts: {e}")
+        logger.error("Failed to list blocked accounts: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve blocked accounts",
@@ -374,7 +374,7 @@ async def get_summary_stats(
         stats.total_blocked = len(seen_emails)
 
     except Exception as e:
-        logger.error(f"Failed to get summary stats: {e}")
+        logger.error("Failed to get summary stats: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve summary stats",
@@ -421,7 +421,7 @@ async def get_account_state(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get account state: {e}")
+        logger.error("Failed to get account state: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve account state",
@@ -482,12 +482,15 @@ async def clear_account_blocks(
 
         # Log the action
         logger.info(
-            f"Auth blocks cleared: email={email_lower}, cleared={cleared}, "
-            f"by={current_user.email}, reason={reason}"
+            "Auth blocks cleared: email=%s, cleared=%s, by=%s, reason=%s",
+            email_lower,
+            cleared,
+            current_user.email,
+            reason,
         )
 
     except Exception as e:
-        logger.error(f"Failed to clear blocks: {e}")
+        logger.error("Failed to clear blocks: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to clear blocks",

@@ -41,16 +41,9 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _configured_raise_tokens() -> set[str]:
-    env_value = os.getenv("NOTIFICATION_PROVIDER_RAISE_ON")
-    if env_value is not None:
-        return {token.strip() for token in env_value.split(",") if token.strip()}
-    return set(NOTIFICATION_PROVIDER_RAISE_ON)
-
-
 def _should_raise(event_type: str, idempotency_key: str) -> bool:
     """Determine whether to simulate a provider failure."""
-    tokens = _configured_raise_tokens()
+    tokens = {token.strip() for token in NOTIFICATION_PROVIDER_RAISE_ON if token.strip()}
     if not tokens:
         return False
 

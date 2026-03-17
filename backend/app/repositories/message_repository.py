@@ -87,7 +87,7 @@ class MessageRepository(BaseRepository[Message]):
                 ),
             )
         except Exception as e:
-            self.logger.error(f"Error fetching unread messages by conversation: {str(e)}")
+            self.logger.error("Error fetching unread messages by conversation: %s", str(e))
             raise RepositoryException(f"Failed to fetch unread messages: {str(e)}")
 
     def count_for_conversation(self, conversation_id: str) -> int:
@@ -98,7 +98,7 @@ class MessageRepository(BaseRepository[Message]):
             )
             return int(self._execute_scalar(query) or 0)
         except Exception as e:
-            self.logger.error(f"Error counting messages for conversation: {str(e)}")
+            self.logger.error("Error counting messages for conversation: %s", str(e))
             raise RepositoryException(f"Failed to count messages for conversation: {str(e)}")
 
     def batch_get_latest_messages(self, conversation_ids: List[str]) -> Dict[str, Message]:
@@ -134,7 +134,7 @@ class MessageRepository(BaseRepository[Message]):
             )
             return {message.conversation_id: message for message in messages}
         except Exception as e:
-            self.logger.error(f"Error fetching latest messages for conversations: {str(e)}")
+            self.logger.error("Error fetching latest messages for conversations: %s", str(e))
             raise RepositoryException(
                 f"Failed to fetch latest messages for conversations: {str(e)}"
             )
@@ -147,7 +147,7 @@ class MessageRepository(BaseRepository[Message]):
             )
             return cast(Optional[datetime], self._execute_scalar(query))
         except Exception as e:
-            self.logger.error(f"Error getting last message time: {str(e)}")
+            self.logger.error("Error getting last message time: %s", str(e))
             raise RepositoryException(f"Failed to get last message time: {str(e)}")
 
     def _update_message_read_by(self, message_ids: List[str], user_id: str) -> None:
@@ -206,11 +206,11 @@ class MessageRepository(BaseRepository[Message]):
             if count > 0:
                 self._update_message_read_by(message_ids, user_id)
 
-            self.logger.info(f"Marked {count} messages as read for user {user_id}")
+            self.logger.info("Marked %s messages as read for user %s", count, user_id)
             return count
 
         except Exception as e:
-            self.logger.error(f"Error marking messages as read: {str(e)}")
+            self.logger.error("Error marking messages as read: %s", str(e))
             raise RepositoryException(f"Failed to mark messages as read: {str(e)}")
 
     def mark_unread_messages_read_atomic(
@@ -247,7 +247,7 @@ class MessageRepository(BaseRepository[Message]):
                 timestamp=timestamp,
             )
         except Exception as e:
-            self.logger.error(f"Error marking messages as read atomically: {str(e)}")
+            self.logger.error("Error marking messages as read atomically: %s", str(e))
             raise RepositoryException(f"Failed to mark messages as read atomically: {str(e)}")
 
     def get_unread_count_for_user(self, user_id: str) -> int:
@@ -276,7 +276,7 @@ class MessageRepository(BaseRepository[Message]):
             ) or 0
 
         except Exception as e:
-            self.logger.error(f"Error counting unread messages: {str(e)}")
+            self.logger.error("Error counting unread messages: %s", str(e))
             raise RepositoryException(f"Failed to count unread messages: {str(e)}")
 
     # --- Aggregations & helpers for services ---
@@ -306,7 +306,7 @@ class MessageRepository(BaseRepository[Message]):
             )
             return rows
         except Exception as e:
-            self.logger.error(f"Error fetching read receipts: {str(e)}")
+            self.logger.error("Error fetching read receipts: %s", str(e))
             raise RepositoryException(f"Failed to fetch read receipts: {str(e)}")
 
     def get_reaction_counts_for_message_ids(
@@ -333,7 +333,7 @@ class MessageRepository(BaseRepository[Message]):
             )
             return [(mid, emoji, int(cnt)) for (mid, emoji, cnt) in rows]
         except Exception as e:
-            self.logger.error(f"Error fetching reaction counts: {str(e)}")
+            self.logger.error("Error fetching reaction counts: %s", str(e))
             raise RepositoryException(f"Failed to fetch reaction counts: {str(e)}")
 
     def get_user_reactions_for_message_ids(
@@ -360,7 +360,7 @@ class MessageRepository(BaseRepository[Message]):
             )
             return rows
         except Exception as e:
-            self.logger.error(f"Error fetching user reactions: {str(e)}")
+            self.logger.error("Error fetching user reactions: %s", str(e))
             raise RepositoryException(f"Failed to fetch user reactions: {str(e)}")
 
     def has_user_reaction(self, message_id: str, user_id: str, emoji: str) -> bool:
@@ -381,7 +381,7 @@ class MessageRepository(BaseRepository[Message]):
             )
             return exists is not None
         except Exception as e:
-            self.logger.error(f"Error checking reaction existence: {str(e)}")
+            self.logger.error("Error checking reaction existence: %s", str(e))
             raise RepositoryException(f"Failed to check reaction existence: {str(e)}")
 
     def apply_message_edit(self, message_id: str, new_content: str) -> Optional[datetime]:
@@ -405,7 +405,7 @@ class MessageRepository(BaseRepository[Message]):
             message.edited_at = edited_at
             return edited_at
         except Exception as e:
-            self.logger.error(f"Error applying message edit: {str(e)}")
+            self.logger.error("Error applying message edit: %s", str(e))
             raise RepositoryException(f"Failed to apply message edit: {str(e)}")
 
     def soft_delete_message(self, message_id: str, user_id: str) -> Optional[Message]:
@@ -432,11 +432,11 @@ class MessageRepository(BaseRepository[Message]):
             message.deleted_at = now
             message.deleted_by = user_id
             message.updated_at = now
-            self.logger.info(f"Soft deleted message {message_id} by user {user_id}")
+            self.logger.info("Soft deleted message %s by user %s", message_id, user_id)
             return message
 
         except Exception as e:
-            self.logger.error(f"Error deleting message: {str(e)}")
+            self.logger.error("Error deleting message: %s", str(e))
             raise RepositoryException(f"Failed to delete message: {str(e)}")
 
     # Phase 2: reactions
@@ -466,10 +466,10 @@ class MessageRepository(BaseRepository[Message]):
             except IntegrityError:
                 # Parallel inserts for the same reaction are safe to treat as idempotent success.
                 return True
-            self.logger.info(f"Added reaction {emoji} by {user_id} on message {message_id}")
+            self.logger.info("Added reaction %s by %s on message %s", emoji, user_id, message_id)
             return True
         except Exception as e:
-            self.logger.error(f"Error adding reaction: {str(e)}")
+            self.logger.error("Error adding reaction: %s", str(e))
             raise RepositoryException(f"Failed to add reaction: {str(e)}")
 
     def remove_reaction(self, message_id: str, user_id: str, emoji: str) -> bool:
@@ -484,10 +484,10 @@ class MessageRepository(BaseRepository[Message]):
             if q.first() is None:
                 return False
             q.delete(synchronize_session=False)
-            self.logger.info(f"Removed reaction {emoji} by {user_id} on message {message_id}")
+            self.logger.info("Removed reaction %s by %s on message %s", emoji, user_id, message_id)
             return True
         except Exception as e:
-            self.logger.error(f"Error removing reaction: {str(e)}")
+            self.logger.error("Error removing reaction: %s", str(e))
             raise RepositoryException(f"Failed to remove reaction: {str(e)}")
 
     # Phase 2: SSE catch-up support
@@ -545,7 +545,7 @@ class MessageRepository(BaseRepository[Message]):
                 ),
             )
         except Exception as e:
-            self.logger.error(f"Error fetching messages after ID (conversation): {str(e)}")
+            self.logger.error("Error fetching messages after ID (conversation): %s", str(e))
             raise RepositoryException(f"Failed to fetch messages after ID: {str(e)}")
 
     # Per-user-pair conversation support
@@ -611,12 +611,12 @@ class MessageRepository(BaseRepository[Message]):
                     self.db.flush()
 
             self.logger.info(
-                f"Created conversation message {message.id} in conversation {conversation_id}"
+                "Created conversation message %s in conversation %s", message.id, conversation_id
             )
             return message
 
         except Exception as e:
-            self.logger.error(f"Error creating conversation message: {str(e)}")
+            self.logger.error("Error creating conversation message: %s", str(e))
             raise RepositoryException(f"Failed to create conversation message: {str(e)}")
 
     def find_by_conversation(
@@ -660,7 +660,7 @@ class MessageRepository(BaseRepository[Message]):
             return cast(List[Message], query.limit(limit).all())
 
         except Exception as e:
-            self.logger.error(f"Error fetching messages for conversation: {str(e)}")
+            self.logger.error("Error fetching messages for conversation: %s", str(e))
             raise RepositoryException(f"Failed to fetch messages for conversation: {str(e)}")
 
     def has_recent_reschedule_message(
