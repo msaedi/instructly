@@ -3671,7 +3671,8 @@ class StripeService(BaseService):
             Dict with client_secret key
         """
         customer = self.get_or_create_customer(user_id)
-        setup_intent = stripe.SetupIntent.create(
+        setup_intent = self._call_with_retry(
+            stripe.SetupIntent.create,
             customer=customer.stripe_customer_id,
             automatic_payment_methods={"enabled": True, "allow_redirects": "never"},
             usage="off_session",
@@ -4047,6 +4048,11 @@ class StripeService(BaseService):
                     if new_status == "succeeded":
                         self._handle_successful_payment(payment_record)
 
+                    # Handle requires_capture — advance booking to CONFIRMED
+                    # This fires after PaymentElement confirmPayment() succeeds
+                    if new_status == "requires_capture":
+                        self._advance_booking_on_capture(payment_record)
+
                     return True
                 else:
                     self.logger.warning(
@@ -4058,6 +4064,34 @@ class StripeService(BaseService):
         except Exception as e:
             self.logger.error("Error handling payment intent webhook: %s", e)
             raise ServiceException(f"Failed to handle payment webhook: {str(e)}")
+
+    def _advance_booking_on_capture(self, payment_record: PaymentIntent) -> None:
+        """Advance booking to CONFIRMED when PI reaches requires_capture (PaymentElement flow)."""
+        try:
+            booking = self.booking_repository.get_by_id(payment_record.booking_id)
+            if not booking:
+                self.logger.warning(
+                    "requires_capture webhook for missing booking %s",
+                    payment_record.booking_id,
+                )
+                return
+
+            if booking.status == BookingStatus.PENDING.value:
+                booking.status = BookingStatus.CONFIRMED.value
+                if booking.confirmed_at is None:
+                    booking.confirmed_at = datetime.now(timezone.utc)
+                bp = self.booking_repository.ensure_payment(booking.id)
+                bp.payment_status = PaymentStatus.AUTHORIZED.value
+                bp.payment_intent_id = payment_record.stripe_payment_intent_id
+                bp.auth_attempted_at = datetime.now(timezone.utc)
+                bp.auth_failure_count = 0
+                bp.auth_last_error = None
+                self.logger.info(
+                    "Booking %s confirmed via PaymentElement webhook (requires_capture)",
+                    booking.id,
+                )
+        except Exception as e:
+            self.logger.error("Error advancing booking on capture: %s", e)
 
     def _handle_successful_payment(self, payment_record: PaymentIntent) -> None:
         """

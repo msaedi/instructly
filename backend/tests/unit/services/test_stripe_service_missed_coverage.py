@@ -1976,3 +1976,52 @@ class TestHandleIdentityWebhookProcessingException:
         }
         result = svc._handle_identity_webhook(event)
         assert result is True
+
+
+@pytest.mark.unit
+class TestCreateSetupIntentForSaving:
+    @patch("stripe.SetupIntent.create")
+    def test_success(self, mock_create: MagicMock) -> None:
+        mock_create.return_value = MagicMock(client_secret="seti_secret_123")
+        svc = _make_stripe_service()
+        customer = MagicMock()
+        customer.stripe_customer_id = "cus_test"
+        svc.get_or_create_customer = MagicMock(return_value=customer)
+        svc._call_with_retry = MagicMock(side_effect=lambda fn, **kw: fn(**kw))
+
+        result = svc.create_setup_intent_for_saving("user_123")
+
+        assert result == {"client_secret": "seti_secret_123"}
+        svc.get_or_create_customer.assert_called_once_with("user_123")
+
+    @patch("stripe.SetupIntent.create")
+    def test_stripe_api_failure(self, mock_create: MagicMock) -> None:
+        mock_create.side_effect = stripe.StripeError("Stripe down")
+        svc = _make_stripe_service()
+        customer = MagicMock()
+        customer.stripe_customer_id = "cus_test"
+        svc.get_or_create_customer = MagicMock(return_value=customer)
+        svc._call_with_retry = MagicMock(side_effect=lambda fn, **kw: fn(**kw))
+
+        with pytest.raises(stripe.StripeError, match="Stripe down"):
+            svc.create_setup_intent_for_saving("user_123")
+
+    def test_missing_client_secret(self) -> None:
+        svc = _make_stripe_service()
+        customer = MagicMock()
+        customer.stripe_customer_id = "cus_test"
+        svc.get_or_create_customer = MagicMock(return_value=customer)
+        mock_intent = MagicMock(client_secret=None)
+        svc._call_with_retry = MagicMock(return_value=mock_intent)
+
+        with pytest.raises(ServiceException, match="client_secret"):
+            svc.create_setup_intent_for_saving("user_123")
+
+    def test_customer_creation_failure(self) -> None:
+        svc = _make_stripe_service()
+        svc.get_or_create_customer = MagicMock(
+            side_effect=ServiceException("Customer creation failed")
+        )
+
+        with pytest.raises(ServiceException, match="Customer creation failed"):
+            svc.create_setup_intent_for_saving("user_123")

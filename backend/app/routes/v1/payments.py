@@ -508,13 +508,14 @@ async def delete_payment_method(
 @router.post(
     "/setup-intent",
     response_model=SetupIntentResponse,
-    dependencies=[Depends(rate_limit("financial"))],
+    dependencies=[Depends(rate_limit("write"))],
 )
 async def create_setup_intent(
     current_user: User = Depends(get_current_active_user),
     stripe_service: StripeService = Depends(get_stripe_service),
 ) -> SetupIntentResponse:
     """Create a SetupIntent for saving a new payment method via PaymentElement."""
+    validate_student_role(current_user)
     try:
         result = await run_in_threadpool(
             stripe_service.create_setup_intent_for_saving, current_user.id

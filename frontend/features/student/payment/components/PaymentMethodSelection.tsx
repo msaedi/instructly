@@ -6,8 +6,7 @@ import { PaymentCard, CreditBalance, BookingPayment, PaymentMethod } from '../ty
 import { paymentService } from '@/services/api/payments';
 import { logger } from '@/lib/logger';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
-import { getStripe } from '@/features/shared/payment/utils/stripe';
-import { paymentElementAppearance } from '@/features/shared/payment/utils/stripe';
+import { getStripe, getPaymentElementAppearance } from '@/features/shared/payment/utils/stripe';
 
 // Inner form that uses PaymentElement (must be inside <Elements>)
 const AddCardFormInner: React.FC<{
@@ -83,14 +82,6 @@ const AddCardFormInner: React.FC<{
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <PaymentElement
-        options={{
-          fields: {
-            billingDetails: {
-              name: 'never',
-              email: 'never',
-            }
-          }
-        }}
         className="p-2 border border-gray-200 dark:border-gray-700 rounded"
       />
 
@@ -183,7 +174,9 @@ const AddCardFormWrapper: React.FC<{
   return (
     <Elements
       stripe={getStripe()}
-      options={{ clientSecret, appearance: paymentElementAppearance }}
+      options={{ clientSecret, appearance: getPaymentElementAppearance(
+        typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+      ) }}
     >
       <AddCardFormInner
         onSuccess={onSuccess}

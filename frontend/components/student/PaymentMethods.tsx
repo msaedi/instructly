@@ -7,8 +7,7 @@ import {
   useStripe,
   useElements,
 } from '@stripe/react-stripe-js';
-import { getStripe } from '@/features/shared/payment/utils/stripe';
-import { paymentElementAppearance } from '@/features/shared/payment/utils/stripe';
+import { getStripe, getPaymentElementAppearance } from '@/features/shared/payment/utils/stripe';
 import {
   CreditCard,
   Plus,
@@ -107,14 +106,7 @@ const AddCardFormInner: React.FC<{
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="p-4 border rounded-lg">
-        <PaymentElement options={{
-          fields: {
-            billingDetails: {
-              name: 'never',
-              email: 'never',
-            }
-          }
-        }} />
+        <PaymentElement />
       </div>
 
       {showDefaultCheckbox && (
@@ -219,7 +211,9 @@ const AddCardForm: React.FC<{
   return (
     <Elements
       stripe={getStripe()}
-      options={{ clientSecret, appearance: paymentElementAppearance }}
+      options={{ clientSecret, appearance: getPaymentElementAppearance(
+        typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+      ) }}
     >
       <AddCardFormInner
         onSuccess={onSuccess}

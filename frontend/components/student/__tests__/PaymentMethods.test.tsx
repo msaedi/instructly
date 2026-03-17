@@ -13,6 +13,7 @@ jest.mock('@stripe/stripe-js', () => ({
 jest.mock('@/features/shared/payment/utils/stripe', () => ({
   getStripe: jest.fn(() => Promise.resolve({})),
   paymentElementAppearance: { theme: 'stripe' },
+  getPaymentElementAppearance: jest.fn(() => ({ theme: 'stripe' })),
 }));
 
 jest.mock('@stripe/react-stripe-js', () => ({

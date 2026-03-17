@@ -65,6 +65,24 @@ describe('Stripe element configuration', () => {
       }),
     );
   });
+
+  it('returns light theme appearance by default', () => {
+    const { stripeModule } = setupModule('pk_live_123');
+    const appearance = stripeModule.getPaymentElementAppearance();
+    expect(appearance.theme).toBe('stripe');
+    expect(appearance.variables).not.toHaveProperty('colorBackground');
+  });
+
+  it('returns dark theme appearance when isDark is true', () => {
+    const { stripeModule } = setupModule('pk_live_123');
+    const appearance = stripeModule.getPaymentElementAppearance(true);
+    expect(appearance.theme).toBe('night');
+    expect(appearance.variables).toEqual(
+      expect.objectContaining({
+        colorBackground: '#1f2937',
+      }),
+    );
+  });
 });
 
 describe('formatAmountFromStripe', () => {

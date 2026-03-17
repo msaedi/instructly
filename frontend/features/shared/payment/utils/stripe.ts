@@ -27,14 +27,22 @@ export const stripeElementsOptions = {
 };
 
 // PaymentElement appearance configuration
-export const paymentElementAppearance: Appearance = {
-  theme: 'stripe',
-  variables: {
-    fontFamily: 'Inter, system-ui, sans-serif',
-    colorPrimary: '#7E22CE',
-    colorDanger: '#EF4444',
-  },
-};
+export function getPaymentElementAppearance(isDark = false): Appearance {
+  return {
+    theme: isDark ? 'night' : 'stripe',
+    variables: {
+      fontFamily: 'Inter, system-ui, sans-serif',
+      colorPrimary: '#7E22CE',
+      colorDanger: '#EF4444',
+      ...(isDark && {
+        colorBackground: '#1f2937',
+      }),
+    },
+  };
+}
+
+// Static export for backward compatibility in tests
+export const paymentElementAppearance: Appearance = getPaymentElementAppearance(false);
 
 // Helper to format amount for Stripe (convert dollars to cents)
 export const formatAmountForStripe = (amount: number): number => {

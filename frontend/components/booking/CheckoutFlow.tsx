@@ -8,7 +8,7 @@ import {
   useElements,
 } from '@stripe/react-stripe-js';
 import { getStripe } from '@/features/shared/payment/utils/stripe';
-import { paymentElementAppearance } from '@/features/shared/payment/utils/stripe';
+import { getPaymentElementAppearance } from '@/features/shared/payment/utils/stripe';
 import {
   Calendar,
   Clock,
@@ -121,14 +121,7 @@ const NewCardPaymentForm: React.FC<{
   return (
     <div className="space-y-4">
       <div className="p-4 border rounded-lg">
-        <PaymentElement options={{
-          fields: {
-            billingDetails: {
-              name: 'never',
-              email: 'never',
-            }
-          }
-        }} />
+        <PaymentElement />
       </div>
 
       {/* Security Badge */}
@@ -172,6 +165,10 @@ const PaymentForm: React.FC<{
   const [intentPaymentIntentId, setIntentPaymentIntentId] = useState<string | null>(null);
   const [intentLoading, setIntentLoading] = useState(false);
 
+  // Stable ref for onError to avoid re-triggering the intent fetch effect
+  const onErrorRef = React.useRef(onError);
+  onErrorRef.current = onError;
+
   const payAmount = typeof studentPayAmount === 'number'
     ? Number(studentPayAmount.toFixed(2))
     : 0;
@@ -185,6 +182,8 @@ const PaymentForm: React.FC<{
   }, [savedMethods]);
 
   // Fetch PaymentIntent clientSecret when "new card" is selected
+  // saveCard is NOT a dependency — it's sent at submission time via the backend's
+  // setup_future_usage parameter, not at intent creation time
   useEffect(() => {
     if (selectedMethod !== 'new') {
       setClientSecret(null);
@@ -201,7 +200,6 @@ const PaymentForm: React.FC<{
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             booking_id: booking.id,
-            save_payment_method: saveCard,
           }),
         });
 
@@ -218,7 +216,7 @@ const PaymentForm: React.FC<{
       } catch (error: unknown) {
         if (!cancelled) {
           const message = error instanceof Error ? error.message : 'Failed to initialize payment';
-          onError(message);
+          onErrorRef.current(message);
         }
       } finally {
         if (!cancelled) {
@@ -229,7 +227,7 @@ const PaymentForm: React.FC<{
 
     void fetchIntent();
     return () => { cancelled = true; };
-  }, [selectedMethod, booking.id, saveCard, onError]);
+  }, [selectedMethod, booking.id]);
 
   // Process payment for saved card (existing flow — no PaymentElement needed)
   const processSavedCardPayment = async () => {
@@ -256,17 +254,18 @@ const PaymentForm: React.FC<{
       // Handle 3D Secure if required (for saved cards)
       if (result.requires_action && result.client_secret) {
         const stripeInstance = await getStripe();
-        if (stripeInstance) {
-          const { error: confirmError } = await stripeInstance.confirmPayment({
-            clientSecret: result.client_secret,
-            confirmParams: {
-              return_url: `${window.location.origin}/student/booking/complete`,
-            },
-            redirect: 'if_required',
-          });
-          if (confirmError) {
-            throw new Error(confirmError.message || 'Payment confirmation failed');
-          }
+        if (!stripeInstance) {
+          throw new Error('Stripe not initialized');
+        }
+        const { error: confirmError } = await stripeInstance.confirmPayment({
+          clientSecret: result.client_secret,
+          confirmParams: {
+            return_url: `${window.location.origin}/student/booking/complete`,
+          },
+          redirect: 'if_required',
+        });
+        if (confirmError) {
+          throw new Error(confirmError.message || 'Payment confirmation failed');
         }
       }
 
@@ -366,7 +365,9 @@ const PaymentForm: React.FC<{
           {clientSecret && intentPaymentIntentId && (
             <Elements
               stripe={getStripe()}
-              options={{ clientSecret, appearance: paymentElementAppearance }}
+              options={{ clientSecret, appearance: getPaymentElementAppearance(
+                typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+              ) }}
             >
               <NewCardPaymentForm
                 booking={booking}
