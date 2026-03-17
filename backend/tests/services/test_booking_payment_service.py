@@ -421,7 +421,7 @@ class TestBookingPaymentService:
         mock_setup_intent.assert_called_once()
         call_args = mock_setup_intent.call_args[1]
         assert call_args["customer"] == "cus_test123"
-        assert call_args["payment_method_types"] == ["card"]
+        assert call_args["automatic_payment_methods"] == {"enabled": True, "allow_redirects": "never"}
         assert call_args["usage"] == "off_session"
         assert call_args["metadata"]["booking_id"] == booking.id
         assert call_args["metadata"]["amount_cents"] == 10000  # $100

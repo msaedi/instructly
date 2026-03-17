@@ -56,17 +56,12 @@ describe('Stripe element configuration', () => {
     ]);
   });
 
-  it('exposes the expected card element styles', () => {
+  it('exposes the expected PaymentElement appearance', () => {
     const { stripeModule } = setupModule('pk_live_123');
-    expect(stripeModule.cardElementOptions.style.base).toEqual(
+    expect(stripeModule.paymentElementAppearance.variables).toEqual(
       expect.objectContaining({
-        fontSize: '16px',
-        color: '#374151',
-      }),
-    );
-    expect(stripeModule.cardElementOptions.style.invalid).toEqual(
-      expect.objectContaining({
-        color: '#EF4444',
+        colorPrimary: '#7E22CE',
+        colorDanger: '#EF4444',
       }),
     );
   });
@@ -86,6 +81,21 @@ describe('formatAmountFromStripe', () => {
   it('preserves fractional dollar values', () => {
     const { stripeModule } = setupModule('pk_live_123');
     expect(stripeModule.formatAmountFromStripe(105)).toBe(1.05);
+  });
+});
+
+describe('paymentElementAppearance', () => {
+  it('exposes the expected appearance configuration', () => {
+    const { stripeModule } = setupModule('pk_live_123');
+    expect(stripeModule.paymentElementAppearance).toEqual(
+      expect.objectContaining({
+        theme: 'stripe',
+        variables: expect.objectContaining({
+          fontFamily: expect.stringContaining('Inter'),
+          colorPrimary: '#7E22CE',
+        }),
+      }),
+    );
   });
 });
 

@@ -3,11 +3,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Elements,
-  CardElement,
+  PaymentElement,
   useStripe,
   useElements,
 } from '@stripe/react-stripe-js';
 import { getStripe } from '@/features/shared/payment/utils/stripe';
+import { paymentElementAppearance } from '@/features/shared/payment/utils/stripe';
 import {
   Calendar,
   Clock,
@@ -73,7 +74,90 @@ interface CheckoutFlowProps {
   onCancel: () => void;
 }
 
-// Payment Form Component (handles Stripe Elements)
+// Inner form component for new-card PaymentElement (must be inside <Elements>)
+const NewCardPaymentForm: React.FC<{
+  booking: Booking;
+  paymentIntentId: string;
+  saveCard: boolean;
+  onSuccess: (paymentIntentId: string) => void;
+  onError: (error: string) => void;
+  payAmount: number;
+  processing: boolean;
+  setProcessing: (v: boolean) => void;
+}> = ({ booking: _booking, paymentIntentId, saveCard: _saveCard, onSuccess, onError, payAmount, processing, setProcessing }) => {
+  const stripe = useStripe();
+  const elements = useElements();
+
+  const handleSubmit = async () => {
+    if (!stripe || !elements) return void onError('Stripe not initialized');
+
+    setProcessing(true);
+
+    try {
+      const { error: confirmError } = await stripe.confirmPayment({
+        elements,
+        confirmParams: {
+          return_url: `${window.location.origin}/student/booking/complete`,
+        },
+        redirect: 'if_required',
+      });
+
+      if (confirmError) {
+        throw new Error(confirmError.message || 'Payment failed');
+      }
+
+      // PaymentIntent is now in requires_capture state (capture_method: manual)
+      logger.info('Payment processed successfully');
+      onSuccess(paymentIntentId);
+    } catch (error: unknown) {
+      logger.error('Payment processing error:', error);
+      const message = error instanceof Error ? error.message : 'Payment failed. Please try again.';
+      onError(message);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="p-4 border rounded-lg">
+        <PaymentElement options={{
+          fields: {
+            billingDetails: {
+              name: 'never',
+              email: 'never',
+            }
+          }
+        }} />
+      </div>
+
+      {/* Security Badge */}
+      <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+        <Shield className="h-4 w-4" />
+        <span>Your payment information is encrypted and secure</span>
+      </div>
+
+      {/* Pay Button */}
+      <Button
+        onClick={handleSubmit}
+        disabled={processing || !stripe}
+        className="w-full py-3 text-lg"
+        size="lg"
+      >
+        {processing ? (
+          <>
+            <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+            Processing...
+          </>
+        ) : (
+          `Pay $${payAmount.toFixed(2)}`
+        )}
+      </Button>
+    </div>
+  );
+};
+
+// Payment Form Component (handles saved cards + new card via PaymentElement)
 const PaymentForm: React.FC<{
   booking: Booking;
   savedMethods: PaymentMethod[];
@@ -81,11 +165,12 @@ const PaymentForm: React.FC<{
   onError: (error: string) => void;
   studentPayAmount?: number;
 }> = ({ booking, savedMethods, onSuccess, onError, studentPayAmount }) => {
-  const stripe = useStripe();
-  const elements = useElements();
   const [selectedMethod, setSelectedMethod] = useState<string | 'new'>('new');
   const [processing, setProcessing] = useState(false);
   const [saveCard, setSaveCard] = useState(false);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [intentPaymentIntentId, setIntentPaymentIntentId] = useState<string | null>(null);
+  const [intentLoading, setIntentLoading] = useState(false);
 
   const payAmount = typeof studentPayAmount === 'number'
     ? Number(studentPayAmount.toFixed(2))
@@ -99,51 +184,65 @@ const PaymentForm: React.FC<{
     }
   }, [savedMethods]);
 
-  const processPayment = async () => {
-    if (!stripe) return void onError('Stripe not initialized');
+  // Fetch PaymentIntent clientSecret when "new card" is selected
+  useEffect(() => {
+    if (selectedMethod !== 'new') {
+      setClientSecret(null);
+      setIntentPaymentIntentId(null);
+      return;
+    }
 
+    let cancelled = false;
+    const fetchIntent = async () => {
+      setIntentLoading(true);
+      try {
+        const response = await fetchWithSessionRefresh('/api/v1/payments/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            booking_id: booking.id,
+            save_payment_method: saveCard,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = (await response.json()) as ApiErrorResponse;
+          throw new Error(extractApiErrorMessage(errorData, 'Failed to initialize payment'));
+        }
+
+        const result = (await response.json()) as CheckoutResponse;
+        if (!cancelled && result.client_secret) {
+          setClientSecret(result.client_secret);
+          setIntentPaymentIntentId(result.payment_intent_id);
+        }
+      } catch (error: unknown) {
+        if (!cancelled) {
+          const message = error instanceof Error ? error.message : 'Failed to initialize payment';
+          onError(message);
+        }
+      } finally {
+        if (!cancelled) {
+          setIntentLoading(false);
+        }
+      }
+    };
+
+    void fetchIntent();
+    return () => { cancelled = true; };
+  }, [selectedMethod, booking.id, saveCard, onError]);
+
+  // Process payment for saved card (existing flow — no PaymentElement needed)
+  const processSavedCardPayment = async () => {
     setProcessing(true);
 
     try {
-      let paymentMethodId: string | undefined;
-
-      if (selectedMethod === 'new') {
-        // Create new payment method from card element
-        if (!elements) {
-          throw new Error('Card elements not initialized');
-        }
-
-        const cardElement = elements.getElement(CardElement);
-        if (!cardElement) {
-          throw new Error('Card element not found');
-        }
-
-        const { error, paymentMethod } = await stripe.createPaymentMethod({
-          type: 'card',
-          card: cardElement,
-        });
-
-        if (error || !paymentMethod) {
-          throw new Error(error?.message || 'Failed to create payment method');
-        }
-
-        paymentMethodId = paymentMethod.id;
-      } else {
-        // Use existing payment method
-        paymentMethodId = selectedMethod;
-      }
-
-      // Create checkout session with backend
       const response = await fetchWithSessionRefresh('/api/v1/payments/checkout', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // Cookies-only auth; do not attach bearer token
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           booking_id: booking.id,
-          payment_method_id: paymentMethodId,
-          save_payment_method: saveCard && selectedMethod === 'new',
+          payment_method_id: selectedMethod,
+          save_payment_method: false,
         }),
       });
 
@@ -154,18 +253,23 @@ const PaymentForm: React.FC<{
 
       const result = (await response.json()) as CheckoutResponse;
 
-      // Handle 3D Secure if required
+      // Handle 3D Secure if required (for saved cards)
       if (result.requires_action && result.client_secret) {
-        const { error: confirmError } = await stripe.confirmCardPayment(
-          result.client_secret
-        );
-
-        if (confirmError) {
-          throw new Error(confirmError.message || 'Payment confirmation failed');
+        const stripeInstance = await getStripe();
+        if (stripeInstance) {
+          const { error: confirmError } = await stripeInstance.confirmPayment({
+            clientSecret: result.client_secret,
+            confirmParams: {
+              return_url: `${window.location.origin}/student/booking/complete`,
+            },
+            redirect: 'if_required',
+          });
+          if (confirmError) {
+            throw new Error(confirmError.message || 'Payment confirmation failed');
+          }
         }
       }
 
-      // Payment successful
       logger.info('Payment processed successfully');
       onSuccess(result.payment_intent_id);
     } catch (error: unknown) {
@@ -238,64 +342,74 @@ const PaymentForm: React.FC<{
         </label>
       </div>
 
-      {/* New Card Input */}
+      {/* New Card Input via PaymentElement */}
       {selectedMethod === 'new' && (
         <div className="space-y-4">
-          <div className="p-4 border rounded-lg">
-            <CardElement
-              options={{
-                style: {
-                  base: {
-                    fontSize: '16px',
-                    color: '#374151',
-                    fontFamily: 'Inter, system-ui, sans-serif',
-                    '::placeholder': {
-                      color: '#9CA3AF',
-                    },
-                  },
-                  invalid: {
-                    color: '#EF4444',
-                    iconColor: '#EF4444',
-                  },
-                },
-              }}
-            />
-          </div>
+          {selectedMethod === 'new' && (
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={saveCard}
+                onChange={(e) => setSaveCard(e.target.checked)}
+                className="rounded border-gray-300 dark:border-gray-700"
+              />
+              <span className="text-sm text-gray-700 dark:text-gray-300">Save card for future use</span>
+            </label>
+          )}
 
-          <label className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              checked={saveCard}
-              onChange={(e) => setSaveCard(e.target.checked)}
-              className="rounded border-gray-300 dark:border-gray-700"
-            />
-            <span className="text-sm text-gray-700 dark:text-gray-300">Save card for future use</span>
-          </label>
+          {intentLoading && (
+            <div className="flex justify-center items-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-300" />
+            </div>
+          )}
+
+          {clientSecret && intentPaymentIntentId && (
+            <Elements
+              stripe={getStripe()}
+              options={{ clientSecret, appearance: paymentElementAppearance }}
+            >
+              <NewCardPaymentForm
+                booking={booking}
+                paymentIntentId={intentPaymentIntentId}
+                saveCard={saveCard}
+                onSuccess={onSuccess}
+                onError={onError}
+                payAmount={payAmount}
+                processing={processing}
+                setProcessing={setProcessing}
+              />
+            </Elements>
+          )}
         </div>
       )}
 
-      {/* Security Badge */}
-      <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
-        <Shield className="h-4 w-4" />
-        <span>Your payment information is encrypted and secure</span>
-      </div>
+      {/* Saved Card Payment */}
+      {selectedMethod !== 'new' && (
+        <>
+          {/* Security Badge */}
+          <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+            <Shield className="h-4 w-4" />
+            <span>Your payment information is encrypted and secure</span>
+          </div>
 
-      {/* Pay Button */}
-      <Button
-        onClick={processPayment}
-        disabled={processing || !stripe}
-        className="w-full py-3 text-lg"
-        size="lg"
-      >
-        {processing ? (
-          <>
-            <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-            Processing...
-          </>
-        ) : (
-          `Pay $${payAmount.toFixed(2)}`
-        )}
-      </Button>
+          {/* Pay Button for saved cards */}
+          <Button
+            onClick={processSavedCardPayment}
+            disabled={processing}
+            className="w-full py-3 text-lg"
+            size="lg"
+          >
+            {processing ? (
+              <>
+                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              `Pay $${payAmount.toFixed(2)}`
+            )}
+          </Button>
+        </>
+      )}
     </div>
   );
 };
@@ -573,15 +687,13 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
           </div>
         )}
 
-        <Elements stripe={getStripe()}>
-          <PaymentForm
-            booking={booking}
-            savedMethods={savedMethods}
-            onSuccess={handlePaymentSuccess}
-            onError={handlePaymentError}
-            studentPayAmount={previewStudentPayCents / 100}
-          />
-        </Elements>
+        <PaymentForm
+          booking={booking}
+          savedMethods={savedMethods}
+          onSuccess={handlePaymentSuccess}
+          onError={handlePaymentError}
+          studentPayAmount={previewStudentPayCents / 100}
+        />
       </Card>
 
       {/* Cancel Button */}

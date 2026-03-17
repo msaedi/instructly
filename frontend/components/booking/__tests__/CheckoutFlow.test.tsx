@@ -6,12 +6,10 @@ import React from 'react';
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { invokeReactClick } from '@/test-utils/reactEventHandlers';
 
 // Shared mock implementations
 const stripeMocks = {
-  createPaymentMethod: jest.fn(),
-  confirmCardPayment: jest.fn(),
+  confirmPayment: jest.fn(),
 };
 
 jest.mock('@stripe/stripe-js', () => ({
@@ -19,14 +17,15 @@ jest.mock('@stripe/stripe-js', () => ({
 }));
 
 jest.mock('@/features/shared/payment/utils/stripe', () => ({
-  getStripe: jest.fn(() => Promise.resolve({})),
+  getStripe: jest.fn(() => Promise.resolve(stripeMocks)),
+  paymentElementAppearance: { theme: 'stripe' },
 }));
 
 jest.mock('@stripe/react-stripe-js', () => ({
   Elements: ({ children }: { children: React.ReactNode }) => <div data-testid="stripe-elements">{children}</div>,
-  CardElement: () => <div data-testid="card-element" />,
+  PaymentElement: () => <div data-testid="payment-element" />,
   useStripe: () => stripeMocks,
-  useElements: () => ({ getElement: () => ({}) }),
+  useElements: () => ({}),
 }));
 
 // Mock logger
@@ -138,14 +137,18 @@ describe('CheckoutFlow', () => {
       data: mockPaymentMethods,
       isLoading: false,
     });
-    stripeMocks.createPaymentMethod.mockResolvedValue({
-      paymentMethod: { id: 'pm_new' },
-      error: null,
-    });
-    stripeMocks.confirmCardPayment.mockResolvedValue({ error: null });
+    stripeMocks.confirmPayment.mockResolvedValue({ error: null });
     mockFetch.mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ payment_intent_id: 'pi_123', requires_action: false }),
+      json: () => Promise.resolve({
+        payment_intent_id: 'pi_123',
+        requires_action: true,
+        client_secret: 'pi_secret_123',
+        success: true,
+        status: 'requires_payment_method',
+        amount: 6300,
+        application_fee: 300,
+      }),
     });
   });
 
@@ -174,7 +177,7 @@ describe('CheckoutFlow', () => {
       expect(screen.getByText('60 minutes')).toBeInTheDocument();
     });
 
-    it('renders payment section with Stripe elements', async () => {
+    it('renders payment section with Stripe elements when new card selected', async () => {
       render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
         wrapper: createWrapper(),
       });
@@ -182,7 +185,18 @@ describe('CheckoutFlow', () => {
       await waitFor(() => {
         expect(screen.getByText('Payment')).toBeInTheDocument();
       });
-      expect(screen.getByTestId('stripe-elements')).toBeInTheDocument();
+
+      // Select "Add New Card" to trigger Elements rendering
+      const labels = screen.getAllByText('Add New Card');
+      const newCardLabel = labels.find(el => el.closest('label'));
+      if (newCardLabel) {
+        fireEvent.click(newCardLabel);
+      }
+
+      // Wait for PaymentIntent to be created and Elements to render
+      await waitFor(() => {
+        expect(screen.getByTestId('stripe-elements')).toBeInTheDocument();
+      });
     });
 
     it('renders cancel button', async () => {
@@ -258,7 +272,7 @@ describe('CheckoutFlow', () => {
       }
 
       await waitFor(() => {
-        expect(screen.getByTestId('card-element')).toBeInTheDocument();
+        expect(screen.getByTestId('payment-element')).toBeInTheDocument();
       });
     });
 
@@ -345,14 +359,14 @@ describe('CheckoutFlow', () => {
       }
 
       await waitFor(() => {
-        expect(screen.getByTestId('card-element')).toBeInTheDocument();
+        expect(screen.getByTestId('payment-element')).toBeInTheDocument();
       });
 
       const payButton = screen.getByRole('button', { name: /Pay \$/ });
       await userEvent.click(payButton);
 
       await waitFor(() => {
-        expect(stripeMocks.createPaymentMethod).toHaveBeenCalled();
+        expect(stripeMocks.confirmPayment).toHaveBeenCalled();
       });
     });
 
@@ -393,12 +407,7 @@ describe('CheckoutFlow', () => {
       }, { timeout: 3000 });
     });
 
-    it('handles payment error', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        json: () => Promise.resolve({ detail: 'Card declined' }),
-      });
-
+    it('handles payment error for saved card', async () => {
       render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
         wrapper: createWrapper(),
       });
@@ -407,12 +416,18 @@ describe('CheckoutFlow', () => {
         expect(screen.getByText('Visa')).toBeInTheDocument();
       });
 
+      // Default payment method (saved card) is selected - override the fetch mock for this call
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({ detail: 'Card declined' }),
+      });
+
       const payButton = screen.getByRole('button', { name: /Pay \$/ });
       fireEvent.click(payButton);
 
       await waitFor(() => {
         expect(screen.getByText('Card declined')).toBeInTheDocument();
-      }, { timeout: 3000 });
+      });
     });
   });
 
@@ -470,11 +485,6 @@ describe('CheckoutFlow', () => {
 
   describe('Error Handling', () => {
     it('displays error and allows retry', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        json: () => Promise.resolve({ detail: 'Payment failed' }),
-      });
-
       render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
         wrapper: createWrapper(),
       });
@@ -483,12 +493,18 @@ describe('CheckoutFlow', () => {
         expect(screen.getByText('Visa')).toBeInTheDocument();
       });
 
+      // Set up error response for the saved-card checkout call
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({ detail: 'Payment failed' }),
+      });
+
       const payButton = screen.getByRole('button', { name: /Pay \$/ });
       fireEvent.click(payButton);
 
       await waitFor(() => {
         expect(screen.getByText('Payment failed')).toBeInTheDocument();
-      }, { timeout: 3000 });
+      });
 
       // Try again button should be available
       expect(screen.getByText('Try again')).toBeInTheDocument();
@@ -627,15 +643,6 @@ describe('CheckoutFlow', () => {
 
   describe('3D Secure Flow', () => {
     it('handles 3D Secure confirmation when required', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({
-          payment_intent_id: 'pi_123',
-          requires_action: true,
-          client_secret: 'secret_123',
-        }),
-      });
-
       render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
         wrapper: createWrapper(),
       });
@@ -644,15 +651,7 @@ describe('CheckoutFlow', () => {
         expect(screen.getByText('Visa')).toBeInTheDocument();
       });
 
-      const payButton = screen.getByRole('button', { name: /Pay \$/ });
-      fireEvent.click(payButton);
-
-      await waitFor(() => {
-        expect(stripeMocks.confirmCardPayment).toHaveBeenCalledWith('secret_123');
-      });
-    });
-
-    it('handles 3D Secure confirmation error', async () => {
+      // Set up 3D Secure response for saved-card checkout
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({
@@ -661,7 +660,19 @@ describe('CheckoutFlow', () => {
           client_secret: 'secret_123',
         }),
       });
-      stripeMocks.confirmCardPayment.mockResolvedValueOnce({
+
+      const payButton = screen.getByRole('button', { name: /Pay \$/ });
+      fireEvent.click(payButton);
+
+      await waitFor(() => {
+        expect(stripeMocks.confirmPayment).toHaveBeenCalledWith(
+          expect.objectContaining({ clientSecret: 'secret_123', redirect: 'if_required' })
+        );
+      });
+    });
+
+    it('handles 3D Secure confirmation error', async () => {
+      stripeMocks.confirmPayment.mockResolvedValueOnce({
         error: { message: '3DS authentication failed' },
       });
 
@@ -673,22 +684,27 @@ describe('CheckoutFlow', () => {
         expect(screen.getByText('Visa')).toBeInTheDocument();
       });
 
+      // Set up 3D Secure response for saved-card checkout
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          payment_intent_id: 'pi_123',
+          requires_action: true,
+          client_secret: 'secret_123',
+        }),
+      });
+
       const payButton = screen.getByRole('button', { name: /Pay \$/ });
       fireEvent.click(payButton);
 
       await waitFor(() => {
         expect(screen.getByText('3DS authentication failed')).toBeInTheDocument();
-      }, { timeout: 3000 });
+      });
     });
   });
 
   describe('Error Reset', () => {
     it('clears error and resets payment status when try again is clicked', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        json: () => Promise.resolve({ detail: 'Payment failed' }),
-      });
-
       render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
         wrapper: createWrapper(),
       });
@@ -697,12 +713,18 @@ describe('CheckoutFlow', () => {
         expect(screen.getByText('Visa')).toBeInTheDocument();
       });
 
+      // Set up error response for saved-card checkout
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({ detail: 'Payment failed' }),
+      });
+
       const payButton = screen.getByRole('button', { name: /Pay \$/ });
       fireEvent.click(payButton);
 
       await waitFor(() => {
         expect(screen.getByText('Payment failed')).toBeInTheDocument();
-      }, { timeout: 3000 });
+      });
 
       // Click try again
       await userEvent.click(screen.getByText('Try again'));
@@ -733,19 +755,21 @@ describe('CheckoutFlow', () => {
         fireEvent.click(newCardLabel);
       }
 
-      const payButton = screen.getByRole('button', { name: /Pay \$/ });
-      fireEvent.click(payButton);
+      // Wait for PaymentElement to render
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-element')).toBeInTheDocument();
+      });
 
-      // Stripe null case is handled at button disabled level
+      // Pay button should be disabled when stripe is null
+      const payButton = screen.getByRole('button', { name: /Pay \$/ });
       expect(payButton).toBeDisabled();
 
       // Restore mock
       jest.requireMock('@stripe/react-stripe-js').useStripe = () => stripeMocks;
     });
 
-    it('handles payment method creation failure', async () => {
-      stripeMocks.createPaymentMethod.mockResolvedValueOnce({
-        paymentMethod: null,
+    it('handles payment confirmation failure', async () => {
+      stripeMocks.confirmPayment.mockResolvedValueOnce({
         error: { message: 'Card creation failed' },
       });
 
@@ -763,12 +787,17 @@ describe('CheckoutFlow', () => {
         fireEvent.click(newCardLabel);
       }
 
+      // Wait for PaymentElement to render
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-element')).toBeInTheDocument();
+      });
+
       const payButton = screen.getByRole('button', { name: /Pay \$/ });
       await userEvent.click(payButton);
 
       await waitFor(() => {
         expect(screen.getByText('Card creation failed')).toBeInTheDocument();
-      }, { timeout: 3000 });
+      });
     });
   });
 
@@ -919,11 +948,6 @@ describe('CheckoutFlow', () => {
 
   describe('API Error Response Handling', () => {
     it('handles error with message field instead of detail', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        json: () => Promise.resolve({ message: 'Server error occurred' }),
-      });
-
       render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
         wrapper: createWrapper(),
       });
@@ -932,12 +956,17 @@ describe('CheckoutFlow', () => {
         expect(screen.getByText('Visa')).toBeInTheDocument();
       });
 
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({ message: 'Server error occurred' }),
+      });
+
       const payButton = screen.getByRole('button', { name: /Pay \$/ });
       fireEvent.click(payButton);
 
       await waitFor(() => {
         expect(screen.getByText('Server error occurred')).toBeInTheDocument();
-      }, { timeout: 3000 });
+      });
     });
   });
 
@@ -981,10 +1010,8 @@ describe('CheckoutFlow', () => {
   });
 
   describe('Stripe Elements Edge Cases', () => {
-    it('handles useElements returning null by showing error', async () => {
-      // Save original mock
+    it('handles useElements returning null gracefully', async () => {
       const originalUseElements = jest.requireMock('@stripe/react-stripe-js').useElements;
-      // Mock useElements to return null
       jest.requireMock('@stripe/react-stripe-js').useElements = () => null;
 
       mockUsePaymentMethods.mockReturnValue({
@@ -997,50 +1024,16 @@ describe('CheckoutFlow', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Add New Card')).toBeInTheDocument();
+        expect(screen.getByTestId('payment-element')).toBeInTheDocument();
       });
 
+      // Pay button should show but clicking should not call confirmPayment
       const payButton = screen.getByRole('button', { name: /Pay \$/ });
       await userEvent.click(payButton);
 
-      // Should show error when elements is null
-      await waitFor(() => {
-        expect(screen.getByText(/Card elements not initialized/i)).toBeInTheDocument();
-      }, { timeout: 3000 });
+      // confirmPayment should not be called when elements is null
+      expect(stripeMocks.confirmPayment).not.toHaveBeenCalled();
 
-      // Restore original
-      jest.requireMock('@stripe/react-stripe-js').useElements = originalUseElements;
-    });
-
-    it('handles getElement returning null', async () => {
-      // Save original mock
-      const originalUseElements = jest.requireMock('@stripe/react-stripe-js').useElements;
-      // Mock useElements to return object with getElement returning null
-      jest.requireMock('@stripe/react-stripe-js').useElements = () => ({
-        getElement: () => null,
-      });
-
-      mockUsePaymentMethods.mockReturnValue({
-        data: [],
-        isLoading: false,
-      });
-
-      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
-        wrapper: createWrapper(),
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText('Add New Card')).toBeInTheDocument();
-      });
-
-      const payButton = screen.getByRole('button', { name: /Pay \$/ });
-      await userEvent.click(payButton);
-
-      await waitFor(() => {
-        expect(screen.getByText(/Card element not found/i)).toBeInTheDocument();
-      }, { timeout: 3000 });
-
-      // Restore original
       jest.requireMock('@stripe/react-stripe-js').useElements = originalUseElements;
     });
   });
@@ -1137,8 +1130,7 @@ describe('CheckoutFlow', () => {
   });
 
   describe('Stripe Initialization', () => {
-    it('disables pay button when stripe is not initialized', async () => {
-      // Mock useStripe to return null
+    it('disables pay button for new cards when stripe is not initialized', async () => {
       const originalUseStripe = jest.requireMock('@stripe/react-stripe-js').useStripe;
       jest.requireMock('@stripe/react-stripe-js').useStripe = () => null;
 
@@ -1147,14 +1139,23 @@ describe('CheckoutFlow', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Visa')).toBeInTheDocument();
+        expect(screen.getByText('Add New Card')).toBeInTheDocument();
+      });
+
+      // Select new card
+      const labels = screen.getAllByText('Add New Card');
+      const newCardLabel = labels.find(el => el.closest('label'));
+      if (newCardLabel) fireEvent.click(newCardLabel);
+
+      // Wait for PaymentElement
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-element')).toBeInTheDocument();
       });
 
       // Button should be disabled when stripe is null
       const payButton = screen.getByRole('button', { name: /Pay \$/ });
       expect(payButton).toBeDisabled();
 
-      // Restore original
       jest.requireMock('@stripe/react-stripe-js').useStripe = originalUseStripe;
     });
   });
@@ -1397,17 +1398,17 @@ describe('CheckoutFlow', () => {
 
   describe('API error without detail or message', () => {
     it('shows generic "Payment failed" when no detail or message in error response', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        json: () => Promise.resolve({}),
-      });
-
       render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
         wrapper: createWrapper(),
       });
 
       await waitFor(() => {
         expect(screen.getByText('Visa')).toBeInTheDocument();
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({}),
       });
 
       const payButton = screen.getByRole('button', { name: /Pay \$/ });
@@ -1415,13 +1416,12 @@ describe('CheckoutFlow', () => {
 
       await waitFor(() => {
         expect(screen.getByText('Payment failed')).toBeInTheDocument();
-      }, { timeout: 3000 });
+      });
     });
   });
 
   describe('Stripe null during payment submission', () => {
-    it('shows Stripe not initialized error when stripe is null and saved card is used', async () => {
-      // Render with stripe available so button is initially enabled
+    it('saved card payment calls getStripe for 3D Secure', async () => {
       render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
         wrapper: createWrapper(),
       });
@@ -1430,30 +1430,25 @@ describe('CheckoutFlow', () => {
         expect(screen.getByText('Visa')).toBeInTheDocument();
       });
 
-      // Now set stripe to null before clicking pay
-      const originalUseStripe = jest.requireMock('@stripe/react-stripe-js').useStripe;
-      jest.requireMock('@stripe/react-stripe-js').useStripe = () => null;
-
-      // Force re-render by toggling payment method selection
-      const mastercardLabel = screen.getByText('Mastercard').closest('label');
-      if (mastercardLabel) {
-        fireEvent.click(mastercardLabel);
-      }
-
-      // Button should now be disabled since stripe is null after re-render
-      await waitFor(() => {
-        const payButton = screen.getByRole('button', { name: /Pay/ });
-        expect(payButton).toBeDisabled();
+      // Set up a 3D Secure response that will call getStripe
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          payment_intent_id: 'pi_3ds',
+          requires_action: true,
+          client_secret: 'secret_3ds',
+        }),
       });
 
-      invokeReactClick(screen.getByRole('button', { name: /Pay/ }));
+      const payButton = screen.getByRole('button', { name: /Pay/ });
+      fireEvent.click(payButton);
 
+      // Should attempt 3D Secure confirmation via getStripe()
       await waitFor(() => {
-        expect(screen.getByText('Stripe not initialized')).toBeInTheDocument();
+        expect(stripeMocks.confirmPayment).toHaveBeenCalledWith(
+          expect.objectContaining({ clientSecret: 'secret_3ds', redirect: 'if_required' })
+        );
       });
-
-      // Restore
-      jest.requireMock('@stripe/react-stripe-js').useStripe = originalUseStripe;
     });
   });
 
@@ -1512,8 +1507,6 @@ describe('CheckoutFlow', () => {
 
   describe('Non-Error thrown during payment', () => {
     it('shows default message when non-Error is thrown', async () => {
-      mockFetch.mockRejectedValueOnce('string error');
-
       render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
         wrapper: createWrapper(),
       });
@@ -1522,12 +1515,14 @@ describe('CheckoutFlow', () => {
         expect(screen.getByText('Visa')).toBeInTheDocument();
       });
 
+      mockFetch.mockRejectedValueOnce('string error');
+
       const payButton = screen.getByRole('button', { name: /Pay \$/ });
       fireEvent.click(payButton);
 
       await waitFor(() => {
         expect(screen.getByText('Payment failed. Please try again.')).toBeInTheDocument();
-      }, { timeout: 3000 });
+      });
     });
   });
 
@@ -1578,15 +1573,7 @@ describe('CheckoutFlow', () => {
 
   describe('3D Secure with empty error message', () => {
     it('uses fallback message when confirmError.message is empty', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({
-          payment_intent_id: 'pi_123',
-          requires_action: true,
-          client_secret: 'secret_456',
-        }),
-      });
-      stripeMocks.confirmCardPayment.mockResolvedValueOnce({
+      stripeMocks.confirmPayment.mockResolvedValueOnce({
         error: { message: '' },
       });
 
@@ -1598,20 +1585,27 @@ describe('CheckoutFlow', () => {
         expect(screen.getByText('Visa')).toBeInTheDocument();
       });
 
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          payment_intent_id: 'pi_123',
+          requires_action: true,
+          client_secret: 'secret_456',
+        }),
+      });
+
       const payButton = screen.getByRole('button', { name: /Pay \$/ });
       fireEvent.click(payButton);
 
       await waitFor(() => {
-        // Empty string is falsy, so || operator triggers fallback
         expect(screen.getByText('Payment confirmation failed')).toBeInTheDocument();
-      }, { timeout: 3000 });
+      });
     });
   });
 
-  describe('createPaymentMethod with empty error message', () => {
+  describe('confirmPayment with empty error message', () => {
     it('uses fallback message when stripe error.message is empty', async () => {
-      stripeMocks.createPaymentMethod.mockResolvedValueOnce({
-        paymentMethod: null,
+      stripeMocks.confirmPayment.mockResolvedValueOnce({
         error: { message: '' },
       });
 
@@ -1624,17 +1618,18 @@ describe('CheckoutFlow', () => {
         wrapper: createWrapper(),
       });
 
+      // Wait for PaymentElement to render (new-card auto-selected when no saved methods)
       await waitFor(() => {
-        expect(screen.getByText('Add New Card')).toBeInTheDocument();
+        expect(screen.getByTestId('payment-element')).toBeInTheDocument();
       });
 
       const payButton = screen.getByRole('button', { name: /Pay \$/ });
       await userEvent.click(payButton);
 
       await waitFor(() => {
-        // Empty error.message is falsy, so || triggers 'Failed to create payment method'
-        expect(screen.getByText('Failed to create payment method')).toBeInTheDocument();
-      }, { timeout: 3000 });
+        // Empty error.message is falsy, so ?? triggers 'Payment failed'
+        expect(screen.getByText('Payment failed')).toBeInTheDocument();
+      });
     });
   });
 
@@ -1995,28 +1990,30 @@ describe('CheckoutFlow', () => {
       expect(payButton).toHaveTextContent('Pay $0.30');
     });
 
-    it('disables pay button when Stripe is not initialized (lines 110-111 guard)', async () => {
-      // Override useStripe to return null
+    it('disables pay button for new cards when Stripe is not initialized', async () => {
       const stripeMock = jest.requireMock('@stripe/react-stripe-js') as Record<string, unknown>;
       const originalUseStripe = stripeMock['useStripe'];
       stripeMock['useStripe'] = () => null;
+
+      mockUsePaymentMethods.mockReturnValue({
+        data: [],
+        isLoading: false,
+      });
 
       render(
         <CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />,
         { wrapper: createWrapper() },
       );
 
+      // Wait for PaymentElement to render (auto-selected new card when no saved methods)
       await waitFor(() => {
-        expect(screen.getByText('Booking Summary')).toBeInTheDocument();
+        expect(screen.getByTestId('payment-element')).toBeInTheDocument();
       });
 
-      // The Pay button should be disabled when stripe is null,
-      // which prevents processPayment from running (lines 110-111 are
-      // a defensive guard behind this disabled state).
+      // Pay button should be disabled when stripe is null
       const payButton = screen.getByRole('button', { name: /Pay/ });
       expect(payButton).toBeDisabled();
 
-      // Restore
       stripeMock['useStripe'] = originalUseStripe;
     });
 
@@ -2043,6 +2040,244 @@ describe('CheckoutFlow', () => {
       // This exposes the NaN propagation bug: the button shows "Pay $NaN"
       const payButton = screen.getByRole('button', { name: /Pay/ });
       expect(payButton).toHaveTextContent('Pay $NaN');
+    });
+  });
+
+  describe('New card PaymentIntent creation error paths', () => {
+    it('shows error when checkout API fails during new-card intent creation', async () => {
+      mockUsePaymentMethods.mockReturnValue({
+        data: mockPaymentMethods,
+        isLoading: false,
+      });
+
+      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Add New Card')).toBeInTheDocument();
+      });
+
+      // Override fetch to return error for the PaymentIntent creation
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: () => Promise.resolve({ detail: 'Booking not found' }),
+      });
+
+      // Click "Add New Card" to trigger the intent creation useEffect
+      const labels = screen.getAllByText('Add New Card');
+      const newCardLabel = labels.find(el => el.closest('label'));
+      if (newCardLabel) fireEvent.click(newCardLabel);
+
+      await waitFor(() => {
+        expect(screen.getByText('Booking not found')).toBeInTheDocument();
+      });
+    });
+
+    it('shows error when checkout API throws during new-card intent creation', async () => {
+      mockUsePaymentMethods.mockReturnValue({
+        data: mockPaymentMethods,
+        isLoading: false,
+      });
+
+      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Add New Card')).toBeInTheDocument();
+      });
+
+      mockFetch.mockRejectedValueOnce(new Error('Network failure'));
+
+      const labels = screen.getAllByText('Add New Card');
+      const newCardLabel = labels.find(el => el.closest('label'));
+      if (newCardLabel) fireEvent.click(newCardLabel);
+
+      await waitFor(() => {
+        expect(screen.getByText('Network failure')).toBeInTheDocument();
+      });
+    });
+
+    it('shows generic message when non-Error is thrown during intent creation', async () => {
+      mockUsePaymentMethods.mockReturnValue({
+        data: mockPaymentMethods,
+        isLoading: false,
+      });
+
+      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Add New Card')).toBeInTheDocument();
+      });
+
+      mockFetch.mockRejectedValueOnce('string rejection');
+
+      const labels = screen.getAllByText('Add New Card');
+      const newCardLabel = labels.find(el => el.closest('label'));
+      if (newCardLabel) fireEvent.click(newCardLabel);
+
+      await waitFor(() => {
+        expect(screen.getByText('Failed to initialize payment')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('New card confirmPayment non-Error throw', () => {
+    it('shows fallback message when non-Error is thrown during confirmPayment', async () => {
+      stripeMocks.confirmPayment.mockRejectedValueOnce('raw string error');
+
+      mockUsePaymentMethods.mockReturnValue({
+        data: [],
+        isLoading: false,
+      });
+
+      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-element')).toBeInTheDocument();
+      });
+
+      const payButton = screen.getByRole('button', { name: /Pay \$/ });
+      await userEvent.click(payButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('Payment failed. Please try again.')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Saved card flow — no 3D Secure required', () => {
+    it('succeeds without 3D Secure when requires_action is false', async () => {
+      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Visa')).toBeInTheDocument();
+      });
+
+      // Mock successful payment with no 3D Secure
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          payment_intent_id: 'pi_no3ds',
+          requires_action: false,
+          client_secret: null,
+        }),
+      });
+
+      const payButton = screen.getByRole('button', { name: /Pay \$/ });
+      fireEvent.click(payButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('Payment Successful!')).toBeInTheDocument();
+      });
+
+      // confirmPayment should NOT be called
+      expect(stripeMocks.confirmPayment).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Saved card 3D Secure — getStripe returns null', () => {
+    it('handles null stripe instance during 3D Secure gracefully', async () => {
+      // Mock getStripe to return null
+      const stripeMod = jest.requireMock('@/features/shared/payment/utils/stripe');
+      const origGetStripe = stripeMod.getStripe;
+      stripeMod.getStripe = jest.fn(() => Promise.resolve(null));
+
+      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Visa')).toBeInTheDocument();
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          payment_intent_id: 'pi_3ds_null',
+          requires_action: true,
+          client_secret: 'secret_3ds_null',
+        }),
+      });
+
+      const payButton = screen.getByRole('button', { name: /Pay \$/ });
+      fireEvent.click(payButton);
+
+      // Should succeed without calling confirmPayment (stripe is null)
+      await waitFor(() => {
+        expect(screen.getByText('Payment Successful!')).toBeInTheDocument();
+      });
+
+      stripeMod.getStripe = origGetStripe;
+    });
+  });
+
+  describe('studentPayAmount edge cases', () => {
+    it('handles string studentPayAmount via typeof guard', async () => {
+      // When student_pay_cents is undefined, fallbackTotalCents is used (a number).
+      // typeof NaN === 'number' so the guard is effectively for non-number types.
+      // We test this via a booking with total_price of 0 and no pricing preview.
+      mockUsePaymentMethods.mockReturnValue({
+        data: mockPaymentMethods,
+        isLoading: false,
+      });
+
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockResolvedValue({
+        base_price_cents: 0,
+        student_pay_cents: 0,
+        line_items: [],
+      });
+
+      render(<CheckoutFlow booking={{ ...mockBooking, total_price: 0 }} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        const payButton = screen.getByRole('button', { name: /Pay/ });
+        expect(payButton).toHaveTextContent('Pay $0.00');
+      });
+    });
+  });
+
+  describe('Default args coverage', () => {
+    it('renders with undefined data from usePaymentMethods', async () => {
+      mockUsePaymentMethods.mockReturnValue({
+        data: undefined as unknown as { id: string; last4: string; brand: string; is_default: boolean }[],
+        isLoading: false,
+      });
+
+      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      // Should render with empty savedMethods (default [])
+      await waitFor(() => {
+        expect(screen.getByText('Add New Card')).toBeInTheDocument();
+      });
+    });
+
+    it('renders with undefined line_items from pricing preview', async () => {
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockResolvedValue({
+        base_price_cents: 6000,
+        student_pay_cents: 6300,
+        // line_items undefined — should use ?? [] default
+      });
+
+      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Booking Summary')).toBeInTheDocument();
+      });
     });
   });
 });

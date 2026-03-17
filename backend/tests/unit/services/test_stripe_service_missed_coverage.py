@@ -331,7 +331,8 @@ class TestCreateBookingCheckout:
         with pytest.raises(ServiceException, match="already been paid"):
             svc.create_booking_checkout(current_user=user, payload=payload, booking_service=booking_svc)
 
-    def test_save_payment_method_no_id(self):
+    def test_save_payment_method_no_id_passes_save_flag(self):
+        """save_payment_method=True without payment_method_id passes flag to process_booking_payment."""
         svc = _make_stripe_service()
         user = _fake_user(is_student=True)
         booking = MagicMock()
@@ -343,9 +344,21 @@ class TestCreateBookingCheckout:
         payload.booking_id = "B1"
         payload.save_payment_method = True
         payload.payment_method_id = None
+        payload.requested_credit_cents = None
         booking_svc = MagicMock()
-        with pytest.raises(ServiceException, match="required"):
-            svc.create_booking_checkout(current_user=user, payload=payload, booking_service=booking_svc)
+        mock_result = {
+            "success": True,
+            "payment_intent_id": "pi_test",
+            "status": "requires_payment_method",
+            "amount": 5000,
+            "application_fee": 500,
+            "requires_action": True,
+            "client_secret": "pi_secret_test",
+        }
+        svc.process_booking_payment = MagicMock(return_value=mock_result)
+        result = svc.create_booking_checkout(current_user=user, payload=payload, booking_service=booking_svc)
+        svc.process_booking_payment.assert_called_once_with("B1", None, None, save_payment_method=True)
+        assert result.requires_action is True
 
 
 @pytest.mark.unit

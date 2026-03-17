@@ -4399,6 +4399,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/payments/setup-intent": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["create_setup_intent_api_v1_payments_setup_intent_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/payments/transactions": {
  parameters: {
  query?: never;
@@ -10149,6 +10165,9 @@ export type components = {
  };
  SessionRefreshResponse: {
  message: string;
+ };
+ SetupIntentResponse: {
+ client_secret: string;
  };
  SignedUploadResponse: {
  expires_at: string;
@@ -19704,6 +19723,25 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ create_setup_intent_api_v1_payments_setup_intent_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SetupIntentResponse"];
  };
  };
  };

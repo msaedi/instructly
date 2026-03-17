@@ -130,7 +130,13 @@ export default function ReviewPage() {
       if (res.tip_client_secret) {
         const stripe = await getStripe();
         if (stripe) {
-          const { error: stripeError } = await stripe.confirmCardPayment(res.tip_client_secret);
+          const { error: stripeError } = await stripe.confirmPayment({
+            clientSecret: res.tip_client_secret,
+            confirmParams: {
+              return_url: `${window.location.origin}/student/lessons`,
+            },
+            redirect: 'if_required',
+          });
           if (stripeError) {
             toast.error(stripeError.message || 'Tip payment failed');
           } else {

@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Elements,
-  CardElement,
+  PaymentElement,
   useStripe,
   useElements,
 } from '@stripe/react-stripe-js';
 import { getStripe } from '@/features/shared/payment/utils/stripe';
+import { paymentElementAppearance } from '@/features/shared/payment/utils/stripe';
 import {
   CreditCard,
   Plus,
@@ -44,17 +45,18 @@ const getCardBrandDisplay = (brand: string): string => {
   return brandNames[brand.toLowerCase()] || brandNames['unknown']!
 };
 
-// Add Card Form Component
-const AddCardForm: React.FC<{
+// Inner form that uses PaymentElement (must be inside <Elements>)
+const AddCardFormInner: React.FC<{
   onSuccess: () => void;
   onCancel: () => void;
-}> = ({ onSuccess, onCancel }) => {
+  setAsDefault: boolean;
+  setSetAsDefault: (v: boolean) => void;
+  showDefaultCheckbox: boolean;
+}> = ({ onSuccess, onCancel, setAsDefault, setSetAsDefault, showDefaultCheckbox }) => {
   const stripe = useStripe();
   const elements = useElements();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saveForFuture, setSaveForFuture] = useState(true);
-  const [setAsDefault, setSetAsDefault] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,31 +68,31 @@ const AddCardForm: React.FC<{
     setLoading(true);
     setError(null);
 
-    const cardElement = elements.getElement(CardElement);
-    if (!cardElement) {
-      setError('Card element not found');
-      setLoading(false);
-      return;
-    }
-
     try {
-      // Create payment method
-      const { error: stripeError, paymentMethod } = await stripe.createPaymentMethod({
-        type: 'card',
-        card: cardElement,
+      const { error: confirmError, setupIntent } = await stripe.confirmSetup({
+        elements,
+        confirmParams: {
+          return_url: `${window.location.origin}/student/billing`,
+        },
+        redirect: 'if_required',
       });
 
-      if (stripeError) {
-        setError(stripeError.message || 'Failed to add card');
+      if (confirmError) {
+        setError(confirmError.message ?? 'Failed to add payment method');
         setLoading(false);
         return;
       }
 
       // Save payment method to backend
-      await paymentService.savePaymentMethod({
-        payment_method_id: paymentMethod?.id || '',
-        set_as_default: setAsDefault,
-      });
+      if (setupIntent?.payment_method) {
+        const pmId = typeof setupIntent.payment_method === 'string'
+          ? setupIntent.payment_method
+          : setupIntent.payment_method.id;
+        await paymentService.savePaymentMethod({
+          payment_method_id: pmId,
+          set_as_default: setAsDefault,
+        });
+      }
 
       logger.info('Payment method added successfully');
       onSuccess();
@@ -105,49 +107,27 @@ const AddCardForm: React.FC<{
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="p-4 border rounded-lg">
-        <CardElement
-          options={{
-            style: {
-              base: {
-                fontSize: '16px',
-                color: '#374151',
-                fontFamily: 'Inter, system-ui, sans-serif',
-                '::placeholder': {
-                  color: '#9CA3AF',
-                },
-              },
-              invalid: {
-                color: '#EF4444',
-                iconColor: '#EF4444',
-              },
-            },
-          }}
-        />
+        <PaymentElement options={{
+          fields: {
+            billingDetails: {
+              name: 'never',
+              email: 'never',
+            }
+          }
+        }} />
       </div>
 
-      <div className="space-y-2">
+      {showDefaultCheckbox && (
         <label className="flex items-center space-x-2">
           <input
             type="checkbox"
-            checked={saveForFuture}
-            onChange={(e) => setSaveForFuture(e.target.checked)}
+            checked={setAsDefault}
+            onChange={(e) => setSetAsDefault(e.target.checked)}
             className="rounded border-gray-300 dark:border-gray-700"
           />
-          <span className="text-sm text-gray-700 dark:text-gray-300">Save for future use</span>
+          <span className="text-sm text-gray-700 dark:text-gray-300">Set as default payment method</span>
         </label>
-
-        {saveForFuture && (
-          <label className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              checked={setAsDefault}
-              onChange={(e) => setSetAsDefault(e.target.checked)}
-              className="rounded border-gray-300 dark:border-gray-700"
-            />
-            <span className="text-sm text-gray-700 dark:text-gray-300">Set as default payment method</span>
-          </label>
-        )}
-      </div>
+      )}
 
       {error && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3">
@@ -170,7 +150,7 @@ const AddCardForm: React.FC<{
               Adding...
             </>
           ) : (
-            'Add Card'
+            'Add Payment Method'
           )}
         </Button>
         <Button
@@ -183,6 +163,72 @@ const AddCardForm: React.FC<{
         </Button>
       </div>
     </form>
+  );
+};
+
+// Wrapper that fetches SetupIntent clientSecret, then renders Elements + inner form
+const AddCardForm: React.FC<{
+  onSuccess: () => void;
+  onCancel: () => void;
+  existingMethodCount: number;
+}> = ({ onSuccess, onCancel, existingMethodCount }) => {
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [intentError, setIntentError] = useState<string | null>(null);
+  const [setAsDefault, setSetAsDefault] = useState(existingMethodCount === 0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchIntent = async () => {
+      try {
+        const result = await paymentService.createSetupIntent();
+        if (!cancelled) {
+          setClientSecret(result.client_secret);
+        }
+      } catch {
+        if (!cancelled) {
+          setIntentError('Failed to initialize payment form. Please try again.');
+        }
+      }
+    };
+    void fetchIntent();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (intentError) {
+    return (
+      <div className="space-y-4">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3">
+          <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400 text-sm">
+            <AlertCircle className="h-4 w-4" />
+            <span>{intentError}</span>
+          </div>
+        </div>
+        <Button variant="outline" onClick={onCancel}>Cancel</Button>
+      </div>
+    );
+  }
+
+  if (!clientSecret) {
+    return (
+      <div className="flex justify-center items-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-300" />
+      </div>
+    );
+  }
+
+  return (
+    <Elements
+      stripe={getStripe()}
+      options={{ clientSecret, appearance: paymentElementAppearance }}
+    >
+      <AddCardFormInner
+        onSuccess={onSuccess}
+        onCancel={onCancel}
+        setAsDefault={setAsDefault}
+        setSetAsDefault={setSetAsDefault}
+        showDefaultCheckbox={existingMethodCount > 0}
+      />
+    </Elements>
   );
 };
 
@@ -259,16 +305,15 @@ const PaymentMethods: React.FC = () => {
 
       {addingCard && (
         <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-          <h3 className="text-lg font-medium mb-4">Add New Card</h3>
-          <Elements stripe={getStripe()}>
-            <AddCardForm
-              onSuccess={() => {
-                setAddingCard(false);
-                void invalidatePaymentMethods(); // Refresh data via React Query
-              }}
-              onCancel={() => setAddingCard(false)}
-            />
-          </Elements>
+          <h3 className="text-lg font-medium mb-4">Add New Payment Method</h3>
+          <AddCardForm
+            onSuccess={() => {
+              setAddingCard(false);
+              void invalidatePaymentMethods();
+            }}
+            onCancel={() => setAddingCard(false)}
+            existingMethodCount={paymentMethods.length}
+          />
         </div>
       )}
 

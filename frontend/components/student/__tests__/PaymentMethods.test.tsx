@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PaymentMethods from '../PaymentMethods';
 import { paymentService } from '@/services/api/payments';
@@ -12,11 +12,12 @@ jest.mock('@stripe/stripe-js', () => ({
 
 jest.mock('@/features/shared/payment/utils/stripe', () => ({
   getStripe: jest.fn(() => Promise.resolve({})),
+  paymentElementAppearance: { theme: 'stripe' },
 }));
 
 jest.mock('@stripe/react-stripe-js', () => ({
   Elements: ({ children }: { children: React.ReactNode }) => <div data-testid="stripe-elements">{children}</div>,
-  CardElement: () => <div data-testid="card-element" />,
+  PaymentElement: () => <div data-testid="payment-element" />,
   useStripe: jest.fn(),
   useElements: jest.fn(),
 }));
@@ -26,6 +27,7 @@ jest.mock('@/services/api/payments', () => ({
     savePaymentMethod: jest.fn(),
     setDefaultPaymentMethod: jest.fn(),
     deletePaymentMethod: jest.fn(),
+    createSetupIntent: jest.fn().mockResolvedValue({ client_secret: 'seti_test_secret' }),
   },
 }));
 
@@ -71,11 +73,11 @@ describe('PaymentMethods', () => {
     latestDeleteModalProps = null;
     mockUseInvalidatePaymentMethods.mockReturnValue(jest.fn());
     mockUseStripe.mockReturnValue({
-      createPaymentMethod: jest.fn().mockResolvedValue({ paymentMethod: { id: 'pm_1' } }),
+      confirmSetup: jest.fn().mockResolvedValue({
+        setupIntent: { payment_method: 'pm_1' },
+      }),
     });
-    mockUseElements.mockReturnValue({
-      getElement: jest.fn().mockReturnValue({}),
-    });
+    mockUseElements.mockReturnValue({});
   });
 
   it('shows a loading state while payment methods are fetched', () => {
@@ -97,39 +99,69 @@ describe('PaymentMethods', () => {
   });
 
   it('adds a payment method successfully', async () => {
-    const user = userEvent.setup();
     const invalidate = jest.fn();
     mockUsePaymentMethods.mockReturnValue({ data: [], isLoading: false, error: null });
     mockUseInvalidatePaymentMethods.mockReturnValue(invalidate);
     (paymentService.savePaymentMethod as jest.Mock).mockResolvedValue({});
+    (paymentService.createSetupIntent as jest.Mock).mockResolvedValue({ client_secret: 'seti_test_secret' });
 
     render(<PaymentMethods />);
 
-    await user.click(screen.getByRole('button', { name: /add your first card/i }));
-    await user.click(screen.getByLabelText(/set as default payment method/i));
-    await user.click(screen.getByRole('button', { name: /add card/i }));
+    // Open the add form
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /add your first card/i }));
+    });
 
+    // Wait for createSetupIntent and PaymentElement to render
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    });
+
+    // PaymentElement should be visible
+    expect(screen.getByTestId('payment-element')).toBeInTheDocument();
+
+    // Click submit button
+    const submitButton = screen.getByRole('button', { name: /^add payment method$/i });
+    fireEvent.click(submitButton);
+
+    // Wait for confirmSetup → savePaymentMethod chain to complete
     await waitFor(() => {
-      expect(paymentService.savePaymentMethod).toHaveBeenCalledWith({
-        payment_method_id: 'pm_1',
-        set_as_default: true,
-      });
+      const stripe = mockUseStripe();
+      expect(stripe.confirmSetup).toHaveBeenCalled();
+    });
+
+    // savePaymentMethod is called after confirmSetup resolves — need to flush promises
+    await act(async () => {
+      // Multiple flushes for chained async calls:
+      // confirmSetup (microtask) → savePaymentMethod (microtask) → onSuccess (setState)
+      for (let i = 0; i < 5; i++) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    });
+
+    expect(paymentService.savePaymentMethod).toHaveBeenCalledWith({
+      payment_method_id: 'pm_1',
+      set_as_default: true, // First card defaults to default
     });
     expect(invalidate).toHaveBeenCalled();
-    expect(screen.queryByText(/add new card/i)).not.toBeInTheDocument();
   });
 
-  it('shows a Stripe error when createPaymentMethod fails', async () => {
+  it('shows a Stripe error when confirmSetup fails', async () => {
     const user = userEvent.setup();
     mockUsePaymentMethods.mockReturnValue({ data: [], isLoading: false, error: null });
     mockUseStripe.mockReturnValue({
-      createPaymentMethod: jest.fn().mockResolvedValue({ error: { message: 'Bad card' } }),
+      confirmSetup: jest.fn().mockResolvedValue({ error: { message: 'Bad card' } }),
     });
 
     render(<PaymentMethods />);
 
     await user.click(screen.getByRole('button', { name: /add your first card/i }));
-    await user.click(screen.getByRole('button', { name: /add card/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('payment-element')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /add payment method/i }));
 
     expect(await screen.findByText(/bad card/i)).toBeInTheDocument();
   });
@@ -222,76 +254,77 @@ describe('PaymentMethods', () => {
     expect(screen.getByText(/card/i)).toBeInTheDocument();
   });
 
-  it('handles missing stripe instance gracefully', async () => {
-    // Line 71: Early return when stripe or elements is null
+  it('handles null stripe instance gracefully', async () => {
     const user = userEvent.setup();
     mockUsePaymentMethods.mockReturnValue({ data: [], isLoading: false, error: null });
-    mockUseStripe.mockReturnValue(null); // Stripe not loaded
+    mockUseStripe.mockReturnValue(null);
 
     render(<PaymentMethods />);
 
     await user.click(screen.getByRole('button', { name: /add your first card/i }));
 
-    // Form should render but submission should be prevented
-    expect(screen.getByText(/add new card/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('payment-element')).toBeInTheDocument();
+    });
 
-    // Try to submit - should return early without error
-    await user.click(screen.getByRole('button', { name: /add card/i }));
-
-    // Should still be on the add card form (no submission happened)
-    expect(screen.getByText(/add new card/i)).toBeInTheDocument();
+    // Submit button should be disabled when stripe is null
+    const submitButton = screen.getByRole('button', { name: /add payment method/i });
+    expect(submitButton).toBeDisabled();
   });
 
   it('handles missing elements instance gracefully', async () => {
-    // Line 71: Early return when elements is null
     const user = userEvent.setup();
     mockUsePaymentMethods.mockReturnValue({ data: [], isLoading: false, error: null });
-    mockUseElements.mockReturnValue(null); // Elements not loaded
+    mockUseElements.mockReturnValue(null);
 
     render(<PaymentMethods />);
 
     await user.click(screen.getByRole('button', { name: /add your first card/i }));
 
-    // Form should render but submission should be prevented
-    expect(screen.getByText(/add new card/i)).toBeInTheDocument();
-
-    // Try to submit - should return early
-    await user.click(screen.getByRole('button', { name: /add card/i }));
-
-    // Should still be on the add card form
-    expect(screen.getByText(/add new card/i)).toBeInTheDocument();
-  });
-
-  it('handles missing card element error', async () => {
-    // Lines 79-81: Error when cardElement is null
-    const user = userEvent.setup();
-    mockUsePaymentMethods.mockReturnValue({ data: [], isLoading: false, error: null });
-    mockUseElements.mockReturnValue({
-      getElement: jest.fn().mockReturnValue(null), // CardElement not found
+    await waitFor(() => {
+      expect(screen.getByTestId('payment-element')).toBeInTheDocument();
     });
 
+    // Try to submit - should return early without calling confirmSetup
+    await user.click(screen.getByRole('button', { name: /add payment method/i }));
+
+    // Form should still be visible (no submission happened)
+    expect(screen.getByText(/add new payment method/i)).toBeInTheDocument();
+  });
+
+  it('handles SetupIntent creation error', async () => {
+    const user = userEvent.setup();
+    mockUsePaymentMethods.mockReturnValue({ data: [], isLoading: false, error: null });
+    (paymentService.createSetupIntent as jest.Mock).mockRejectedValueOnce(new Error('Intent failed'));
+
     render(<PaymentMethods />);
 
     await user.click(screen.getByRole('button', { name: /add your first card/i }));
 
-    await user.click(screen.getByRole('button', { name: /add card/i }));
-
-    // Should show error message
     await waitFor(() => {
-      expect(screen.getByText(/card element not found/i)).toBeInTheDocument();
+      expect(screen.getByText(/failed to initialize payment form/i)).toBeInTheDocument();
     });
   });
 
   it('handles save payment method API error', async () => {
-    // Lines 106-107: Error handling when save fails
     const user = userEvent.setup();
     mockUsePaymentMethods.mockReturnValue({ data: [], isLoading: false, error: null });
+    mockUseStripe.mockReturnValue({
+      confirmSetup: jest.fn().mockResolvedValue({
+        setupIntent: { payment_method: 'pm_fail' },
+      }),
+    });
     (paymentService.savePaymentMethod as jest.Mock).mockRejectedValue(new Error('Network error'));
 
     render(<PaymentMethods />);
 
     await user.click(screen.getByRole('button', { name: /add your first card/i }));
-    await user.click(screen.getByRole('button', { name: /add card/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('payment-element')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /add payment method/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/failed to add payment method/i)).toBeInTheDocument();
@@ -319,22 +352,21 @@ describe('PaymentMethods', () => {
     });
   });
 
-  it('handles cancel button in add card form', async () => {
-    // Line 277: onCancel callback
+  it('handles cancel button in add payment method form', async () => {
     const user = userEvent.setup();
     mockUsePaymentMethods.mockReturnValue({ data: [], isLoading: false, error: null });
 
     render(<PaymentMethods />);
 
-    // Open add card form
+    // Open form
     await user.click(screen.getByRole('button', { name: /add your first card/i }));
-    expect(screen.getByText(/add new card/i)).toBeInTheDocument();
+    expect(screen.getByText(/add new payment method/i)).toBeInTheDocument();
 
     // Click cancel
     await user.click(screen.getByRole('button', { name: /cancel/i }));
 
-    // Add card form should be closed
-    expect(screen.queryByText(/add new card/i)).not.toBeInTheDocument();
+    // Form should be closed
+    expect(screen.queryByText(/add new payment method/i)).not.toBeInTheDocument();
     // Should show empty state again
     expect(screen.getByText(/no payment methods saved/i)).toBeInTheDocument();
   });
@@ -366,31 +398,25 @@ describe('PaymentMethods', () => {
     expect(screen.queryByTestId('delete-modal')).not.toBeInTheDocument();
   });
 
-  it('handles save for future toggle', async () => {
-    // Line 141: setSaveForFuture checkbox
+  it('shows set as default checkbox when existing cards present', async () => {
     const user = userEvent.setup();
-    mockUsePaymentMethods.mockReturnValue({ data: [], isLoading: false, error: null });
+    mockUsePaymentMethods.mockReturnValue({
+      data: [
+        { id: 'pm_existing', last4: '1234', brand: 'visa', is_default: true, created_at: '2024-01-01T00:00:00Z' },
+      ],
+      isLoading: false,
+      error: null,
+    });
 
     render(<PaymentMethods />);
 
-    await user.click(screen.getByRole('button', { name: /add your first card/i }));
+    await user.click(screen.getByRole('button', { name: /add payment method/i }));
 
-    // Save for future should be checked by default
-    const saveForFutureCheckbox = screen.getByLabelText(/save for future use/i);
-    expect(saveForFutureCheckbox).toBeChecked();
+    await waitFor(() => {
+      expect(screen.getByTestId('payment-element')).toBeInTheDocument();
+    });
 
-    // Uncheck it
-    await user.click(saveForFutureCheckbox);
-    expect(saveForFutureCheckbox).not.toBeChecked();
-
-    // Set as default should be hidden when save for future is unchecked
-    expect(screen.queryByLabelText(/set as default payment method/i)).not.toBeInTheDocument();
-
-    // Check it again
-    await user.click(saveForFutureCheckbox);
-    expect(saveForFutureCheckbox).toBeChecked();
-
-    // Set as default should be visible again
+    // Set as default checkbox should be visible when cards exist
     expect(screen.getByLabelText(/set as default payment method/i)).toBeInTheDocument();
   });
 
@@ -414,7 +440,7 @@ describe('PaymentMethods', () => {
     await user.click(addButton);
 
     // Add card form should be visible
-    expect(screen.getByText(/add new card/i)).toBeInTheDocument();
+    expect(screen.getByText(/add new payment method/i)).toBeInTheDocument();
   });
 
   it('displays query error message', async () => {
@@ -433,15 +459,20 @@ describe('PaymentMethods', () => {
     const user = userEvent.setup();
     mockUsePaymentMethods.mockReturnValue({ data: [], isLoading: false, error: null });
     mockUseStripe.mockReturnValue({
-      createPaymentMethod: jest.fn().mockResolvedValue({ error: {} }),
+      confirmSetup: jest.fn().mockResolvedValue({ error: {} }),
     });
 
     render(<PaymentMethods />);
 
     await user.click(screen.getByRole('button', { name: /add your first card/i }));
-    await user.click(screen.getByRole('button', { name: /add card/i }));
 
-    expect(await screen.findByText(/failed to add card/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('payment-element')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /add payment method/i }));
+
+    expect(await screen.findByText(/failed to add payment method/i)).toBeInTheDocument();
   });
 
   it('displays recognized brand names correctly', () => {
@@ -486,8 +517,8 @@ describe('PaymentMethods', () => {
 
     // The "Add Your First Card" button within the empty state should disappear
     expect(screen.queryByRole('button', { name: /add your first card/i })).not.toBeInTheDocument();
-    // The top "Add Payment Method" button should also be hidden
-    expect(screen.queryByRole('button', { name: /add payment method/i })).not.toBeInTheDocument();
+    // The form heading should be visible
+    expect(screen.getByText(/add new payment method/i)).toBeInTheDocument();
   });
 
   it('does not show "Set Default" button for the default card', () => {
@@ -522,5 +553,156 @@ describe('PaymentMethods', () => {
 
     // Check that the "Added" date is formatted
     expect(screen.getByText(/added/i)).toBeInTheDocument();
+  });
+
+  it('toggles set as default checkbox in add payment method form', async () => {
+    const user = userEvent.setup();
+    mockUsePaymentMethods.mockReturnValue({
+      data: [
+        { id: 'pm_existing', last4: '1234', brand: 'visa', is_default: true, created_at: '2024-01-01T00:00:00Z' },
+      ],
+      isLoading: false,
+      error: null,
+    });
+
+    render(<PaymentMethods />);
+
+    await user.click(screen.getByRole('button', { name: /add payment method/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('payment-element')).toBeInTheDocument();
+    });
+
+    const checkbox = screen.getByLabelText(/set as default payment method/i);
+    expect(checkbox).not.toBeChecked();
+
+    await user.click(checkbox);
+    expect(checkbox).toBeChecked();
+
+    await user.click(checkbox);
+    expect(checkbox).not.toBeChecked();
+  });
+
+  it('handles confirmSetup returning no payment_method', async () => {
+    mockUsePaymentMethods.mockReturnValue({ data: [], isLoading: false, error: null });
+    mockUseStripe.mockReturnValue({
+      confirmSetup: jest.fn().mockResolvedValue({
+        setupIntent: { payment_method: null },
+      }),
+    });
+
+    render(<PaymentMethods />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /add your first card/i }));
+    });
+
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    });
+
+    const form = screen.getByTestId('payment-element').closest('form')!;
+    await act(async () => {
+      fireEvent.submit(form);
+    });
+
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    });
+
+    // savePaymentMethod should NOT be called when payment_method is null
+    expect(paymentService.savePaymentMethod).not.toHaveBeenCalled();
+  });
+
+  it('handles payment_method as object with id property', async () => {
+    mockUsePaymentMethods.mockReturnValue({ data: [], isLoading: false, error: null });
+    const invalidate = jest.fn();
+    mockUseInvalidatePaymentMethods.mockReturnValue(invalidate);
+    mockUseStripe.mockReturnValue({
+      confirmSetup: jest.fn().mockResolvedValue({
+        setupIntent: { payment_method: { id: 'pm_obj_123', card: { last4: '9999' } } },
+      }),
+    });
+    (paymentService.savePaymentMethod as jest.Mock).mockResolvedValue({});
+
+    render(<PaymentMethods />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /add your first card/i }));
+    });
+
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    });
+
+    const form = screen.getByTestId('payment-element').closest('form')!;
+    await act(async () => {
+      fireEvent.submit(form);
+    });
+
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    });
+
+    // Should extract id from object
+    expect(paymentService.savePaymentMethod).toHaveBeenCalledWith({
+      payment_method_id: 'pm_obj_123',
+      set_as_default: true, // First card defaults to default
+    });
+  });
+
+  it('handles cleanup when component unmounts during SetupIntent fetch', async () => {
+    mockUsePaymentMethods.mockReturnValue({ data: [], isLoading: false, error: null });
+
+    let resolveSetupIntent: (val: { client_secret: string }) => void;
+    (paymentService.createSetupIntent as jest.Mock).mockImplementation(
+      () => new Promise((resolve) => { resolveSetupIntent = resolve; })
+    );
+
+    const { unmount } = render(<PaymentMethods />);
+
+    fireEvent.click(screen.getByRole('button', { name: /add your first card/i }));
+
+    // Unmount before the SetupIntent resolves
+    unmount();
+
+    // Resolve after unmount — should not cause state update error
+    await act(async () => {
+      resolveSetupIntent!({ client_secret: 'seti_late' });
+    });
+
+    // No error thrown — cancelled flag prevented state update
+  });
+
+  it('uses empty array default when usePaymentMethods returns undefined data', () => {
+    mockUsePaymentMethods.mockReturnValue({ data: undefined, isLoading: false, error: null });
+
+    render(<PaymentMethods />);
+
+    // Should render empty state (default [] kicks in)
+    expect(screen.getByText(/no payment methods saved/i)).toBeInTheDocument();
+  });
+
+  it('handles cleanup when component unmounts during SetupIntent error', async () => {
+    mockUsePaymentMethods.mockReturnValue({ data: [], isLoading: false, error: null });
+
+    let rejectSetupIntent: (err: Error) => void;
+    (paymentService.createSetupIntent as jest.Mock).mockImplementation(
+      () => new Promise((_resolve, reject) => { rejectSetupIntent = reject; })
+    );
+
+    const { unmount } = render(<PaymentMethods />);
+
+    fireEvent.click(screen.getByRole('button', { name: /add your first card/i }));
+
+    // Unmount before the SetupIntent rejects
+    unmount();
+
+    // Reject after unmount — should not cause state update error
+    await act(async () => {
+      rejectSetupIntent!(new Error('Too late'));
+    });
+
+    // No error thrown — cancelled flag prevented state update
   });
 });

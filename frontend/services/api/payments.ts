@@ -90,6 +90,18 @@ class PaymentService {
     }
   }
 
+  // SetupIntent for PaymentElement (saving new payment methods)
+  async createSetupIntent(): Promise<{ client_secret: string }> {
+    try {
+      return await this.request<{ client_secret: string }>('/setup-intent', {
+        method: 'POST',
+      });
+    } catch (error) {
+      logger.error('Failed to create setup intent:', error);
+      throw error;
+    }
+  }
+
   // Checkout
   async createCheckout(data: CreateCheckoutRequest): Promise<CheckoutResponse> {
     try {

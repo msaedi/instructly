@@ -68,6 +68,7 @@ from ...schemas.payment_schemas import (
     PayoutHistoryResponse,
     PayoutScheduleResponse,
     SavePaymentMethodRequest,
+    SetupIntentResponse,
     TransactionHistoryItem,
     WebhookResponse,
 )
@@ -501,6 +502,32 @@ async def delete_payment_method(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete payment method",
+        )
+
+
+@router.post(
+    "/setup-intent",
+    response_model=SetupIntentResponse,
+    dependencies=[Depends(rate_limit("financial"))],
+)
+async def create_setup_intent(
+    current_user: User = Depends(get_current_active_user),
+    stripe_service: StripeService = Depends(get_stripe_service),
+) -> SetupIntentResponse:
+    """Create a SetupIntent for saving a new payment method via PaymentElement."""
+    try:
+        result = await run_in_threadpool(
+            stripe_service.create_setup_intent_for_saving, current_user.id
+        )
+        return SetupIntentResponse(**result)
+    except ServiceException as e:
+        logger.error("Service error creating setup intent: %s", str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error("Unexpected error creating setup intent: %s", str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create setup intent",
         )
 
 

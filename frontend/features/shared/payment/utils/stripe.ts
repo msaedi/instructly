@@ -1,4 +1,4 @@
-import { loadStripe, Stripe } from '@stripe/stripe-js';
+import { loadStripe, type Appearance, type Stripe } from '@stripe/stripe-js';
 import { STRIPE_PUBLISHABLE_KEY } from '@/lib/publicEnv';
 
 // Initialize Stripe lazily to avoid throwing at module load time in tests
@@ -26,20 +26,13 @@ export const stripeElementsOptions = {
   ],
 };
 
-export const cardElementOptions = {
-  style: {
-    base: {
-      fontSize: '16px',
-      color: '#374151',
-      fontFamily: 'Inter, system-ui, sans-serif',
-      '::placeholder': {
-        color: '#9CA3AF',
-      },
-    },
-    invalid: {
-      color: '#EF4444',
-      iconColor: '#EF4444',
-    },
+// PaymentElement appearance configuration
+export const paymentElementAppearance: Appearance = {
+  theme: 'stripe',
+  variables: {
+    fontFamily: 'Inter, system-ui, sans-serif',
+    colorPrimary: '#7E22CE',
+    colorDanger: '#EF4444',
   },
 };
 
