@@ -2025,3 +2025,48 @@ class TestCreateSetupIntentForSaving:
 
         with pytest.raises(ServiceException, match="Customer creation failed"):
             svc.create_setup_intent_for_saving("user_123")
+
+
+@pytest.mark.unit
+class TestAdvanceBookingOnCapture:
+    def test_happy_path_pending_to_confirmed(self) -> None:
+        svc = _make_stripe_service()
+        svc.booking_repository.atomic_confirm_if_pending.return_value = 1
+
+        bp = MagicMock()
+        svc.booking_repository.ensure_payment.return_value = bp
+
+        payment_record = MagicMock()
+        payment_record.booking_id = "B1"
+        payment_record.stripe_payment_intent_id = "pi_capture_1"
+
+        svc._advance_booking_on_capture(payment_record)
+
+        svc.booking_repository.atomic_confirm_if_pending.assert_called_once()
+        assert bp.payment_status == "authorized"
+        assert bp.payment_intent_id == "pi_capture_1"
+        assert bp.auth_failure_count == 0
+
+    def test_booking_not_found_or_already_confirmed(self) -> None:
+        """When atomic UPDATE matches 0 rows (missing or already confirmed), no-op."""
+        svc = _make_stripe_service()
+        svc.booking_repository.atomic_confirm_if_pending.return_value = 0
+
+        payment_record = MagicMock()
+        payment_record.booking_id = "B_MISSING"
+
+        svc._advance_booking_on_capture(payment_record)
+
+        svc.booking_repository.ensure_payment.assert_not_called()
+        svc.logger.info.assert_called()
+
+    def test_exception_propagates(self) -> None:
+        svc = _make_stripe_service()
+        svc.booking_repository.atomic_confirm_if_pending.return_value = 1
+        svc.booking_repository.ensure_payment.side_effect = RuntimeError("DB failure")
+
+        payment_record = MagicMock()
+        payment_record.booking_id = "B3"
+
+        with pytest.raises(RuntimeError, match="DB failure"):
+            svc._advance_booking_on_capture(payment_record)

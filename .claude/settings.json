@@ -54,6 +54,7 @@
     "serena@claude-plugins-official": true,
     "greptile@claude-plugins-official": true,
     "coderabbit@claude-plugins-official": true,
-    "skill-creator@claude-plugins-official": true
+    "skill-creator@claude-plugins-official": true,
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true
   }
 }

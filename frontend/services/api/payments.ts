@@ -1,7 +1,7 @@
 import { logger } from '@/lib/logger';
 import { withApiBase, withApiBaseForRequest } from '@/lib/apiBase';
 import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
-import { httpGet, httpPost } from '@/lib/http';
+import { httpGet, httpPost, httpDelete } from '@/lib/http';
 import type { CheckoutResponse } from '@/types/api/checkout';
 import type {
   PaymentMethod,
@@ -38,6 +38,9 @@ class PaymentService {
     const url = withApiBaseForRequest(`${this.basePath}${endpoint}`, method);
     if (method === 'GET') {
       return (await httpGet(url)) as T;
+    }
+    if (method === 'DELETE') {
+      return (await httpDelete(url)) as T;
     }
     return (await httpPost(url, options.body ? JSON.parse(options.body as string) : undefined)) as T;
   }

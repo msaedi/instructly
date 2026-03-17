@@ -277,7 +277,7 @@ describe('CheckoutFlow', () => {
       });
     });
 
-    it('shows save card checkbox when adding new card', async () => {
+    it('does not show save card checkbox (cards always saved in PaymentElement flow)', async () => {
       render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
         wrapper: createWrapper(),
       });
@@ -292,9 +292,8 @@ describe('CheckoutFlow', () => {
         fireEvent.click(newCardLabel);
       }
 
-      await waitFor(() => {
-        expect(screen.getByText('Save card for future use')).toBeInTheDocument();
-      });
+      // Save card checkbox should NOT exist — cards are always saved
+      expect(screen.queryByText('Save card for future use')).not.toBeInTheDocument();
     });
   });
 
@@ -802,34 +801,7 @@ describe('CheckoutFlow', () => {
     });
   });
 
-  describe('Save Card Checkbox', () => {
-    it('toggles save card checkbox when checked', async () => {
-      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
-        wrapper: createWrapper(),
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText('Add New Card')).toBeInTheDocument();
-      });
-
-      const labels = screen.getAllByText('Add New Card');
-      const newCardLabel = labels.find(el => el.closest('label'));
-      if (newCardLabel) {
-        fireEvent.click(newCardLabel);
-      }
-
-      await waitFor(() => {
-        expect(screen.getByText('Save card for future use')).toBeInTheDocument();
-      });
-
-      const saveCheckbox = screen.getByRole('checkbox');
-      expect(saveCheckbox).not.toBeChecked();
-
-      await userEvent.click(saveCheckbox);
-
-      expect(saveCheckbox).toBeChecked();
-    });
-  });
+  // Save Card Checkbox tests removed — cards are always saved in PaymentElement flow
 
   describe('Line Items Display', () => {
     it('displays service support fee line item with tooltip', async () => {
@@ -1634,34 +1606,7 @@ describe('CheckoutFlow', () => {
     });
   });
 
-  describe('Save card with new payment method', () => {
-    it('does not include save_payment_method in intent creation (deferred to submission)', async () => {
-      mockUsePaymentMethods.mockReturnValue({
-        data: [],
-        isLoading: false,
-      });
-
-      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
-        wrapper: createWrapper(),
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText('Save card for future use')).toBeInTheDocument();
-      });
-
-      // The intent creation call should NOT include save_payment_method
-      // (it's deferred to the confirmPayment step via setup_future_usage on the backend)
-      await waitFor(() => {
-        const checkoutCalls = mockFetch.mock.calls.filter(
-          (call: unknown[]) => call[0] === '/api/v1/payments/checkout'
-        );
-        if (checkoutCalls.length > 0) {
-          const body = JSON.parse(checkoutCalls[0][1].body as string);
-          expect(body).not.toHaveProperty('save_payment_method');
-        }
-      });
-    });
-  });
+  // Save card tests removed — cards are always saved in PaymentElement flow
 
   describe('normalizeAmount default-arg fallback', () => {
     it('uses custom fallback for normalizeAmount when value is non-numeric string', async () => {
@@ -2261,6 +2206,52 @@ describe('CheckoutFlow', () => {
         student_pay_cents: 6300,
         line_items: [{ label: 'Service & Support fee (5%)', amount_cents: 300 }],
       });
+    });
+  });
+
+  describe('PaymentIntent caching across tab toggles', () => {
+    it('reuses existing PI when toggling back to new card', async () => {
+      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Add New Card')).toBeInTheDocument();
+      });
+
+      // Select new card → creates PI
+      const labels = screen.getAllByText('Add New Card');
+      const newCardLabel = labels.find(el => el.closest('label'));
+      if (newCardLabel) fireEvent.click(newCardLabel);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-element')).toBeInTheDocument();
+      });
+
+      // Count how many checkout calls were made
+      const initialCallCount = mockFetch.mock.calls.filter(
+        (call: unknown[]) => call[0] === '/api/v1/payments/checkout'
+      ).length;
+
+      // Toggle to saved card
+      const visaLabel = screen.getByText('Visa').closest('label');
+      if (visaLabel) fireEvent.click(visaLabel);
+
+      // Toggle back to new card — should reuse cached PI
+      const newLabels = screen.getAllByText('Add New Card');
+      const newLabel = newLabels.find(el => el.closest('label'));
+      if (newLabel) fireEvent.click(newLabel);
+
+      // PaymentElement should appear immediately (cached)
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-element')).toBeInTheDocument();
+      });
+
+      // No additional checkout API call should have been made
+      const finalCallCount = mockFetch.mock.calls.filter(
+        (call: unknown[]) => call[0] === '/api/v1/payments/checkout'
+      ).length;
+      expect(finalCallCount).toBe(initialCallCount);
     });
   });
 });

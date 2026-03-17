@@ -91,10 +91,11 @@ const AddCardFormInner: React.FC<{
           payment_method_id: pmId,
           set_as_default: setAsDefault,
         });
+        logger.info('Payment method added successfully');
+        onSuccess();
+      } else {
+        setError('Payment method could not be saved. Please try again.');
       }
-
-      logger.info('Payment method added successfully');
-      onSuccess();
     } catch (err) {
       logger.error('Error adding payment method:', err);
       setError('Failed to add payment method. Please try again.');

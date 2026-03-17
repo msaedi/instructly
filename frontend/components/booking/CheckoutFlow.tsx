@@ -7,8 +7,7 @@ import {
   useStripe,
   useElements,
 } from '@stripe/react-stripe-js';
-import { getStripe } from '@/features/shared/payment/utils/stripe';
-import { getPaymentElementAppearance } from '@/features/shared/payment/utils/stripe';
+import { getStripe, getPaymentElementAppearance } from '@/features/shared/payment/utils/stripe';
 import {
   Calendar,
   Clock,
@@ -76,15 +75,13 @@ interface CheckoutFlowProps {
 
 // Inner form component for new-card PaymentElement (must be inside <Elements>)
 const NewCardPaymentForm: React.FC<{
-  booking: Booking;
   paymentIntentId: string;
-  saveCard: boolean;
   onSuccess: (paymentIntentId: string) => void;
   onError: (error: string) => void;
   payAmount: number;
   processing: boolean;
   setProcessing: (v: boolean) => void;
-}> = ({ booking: _booking, paymentIntentId, saveCard: _saveCard, onSuccess, onError, payAmount, processing, setProcessing }) => {
+}> = ({ paymentIntentId, onSuccess, onError, payAmount, processing, setProcessing }) => {
   const stripe = useStripe();
   const elements = useElements();
 
@@ -160,7 +157,6 @@ const PaymentForm: React.FC<{
 }> = ({ booking, savedMethods, onSuccess, onError, studentPayAmount }) => {
   const [selectedMethod, setSelectedMethod] = useState<string | 'new'>('new');
   const [processing, setProcessing] = useState(false);
-  const [saveCard, setSaveCard] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [intentPaymentIntentId, setIntentPaymentIntentId] = useState<string | null>(null);
   const [intentLoading, setIntentLoading] = useState(false);
@@ -181,13 +177,18 @@ const PaymentForm: React.FC<{
     }
   }, [savedMethods]);
 
-  // Fetch PaymentIntent clientSecret when "new card" is selected
-  // saveCard is NOT a dependency — it's sent at submission time via the backend's
-  // setup_future_usage parameter, not at intent creation time
+  // Track whether we've already fetched a PI for this booking
+  const hasFetchedIntentRef = React.useRef(false);
+
+  // Fetch PaymentIntent clientSecret when "new card" is selected.
+  // Reuse existing PI if user toggles away and back — avoids orphaned intents.
   useEffect(() => {
     if (selectedMethod !== 'new') {
-      setClientSecret(null);
-      setIntentPaymentIntentId(null);
+      return;
+    }
+
+    // Already have a PI for this booking — reuse it
+    if (hasFetchedIntentRef.current) {
       return;
     }
 
@@ -212,9 +213,11 @@ const PaymentForm: React.FC<{
         if (!cancelled && result.client_secret) {
           setClientSecret(result.client_secret);
           setIntentPaymentIntentId(result.payment_intent_id);
+          hasFetchedIntentRef.current = true;
         }
       } catch (error: unknown) {
         if (!cancelled) {
+          hasFetchedIntentRef.current = false; // Allow retry on error
           const message = error instanceof Error ? error.message : 'Failed to initialize payment';
           onErrorRef.current(message);
         }
@@ -344,18 +347,6 @@ const PaymentForm: React.FC<{
       {/* New Card Input via PaymentElement */}
       {selectedMethod === 'new' && (
         <div className="space-y-4">
-          {selectedMethod === 'new' && (
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={saveCard}
-                onChange={(e) => setSaveCard(e.target.checked)}
-                className="rounded border-gray-300 dark:border-gray-700"
-              />
-              <span className="text-sm text-gray-700 dark:text-gray-300">Save card for future use</span>
-            </label>
-          )}
-
           {intentLoading && (
             <div className="flex justify-center items-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-gray-300" />
@@ -370,9 +361,7 @@ const PaymentForm: React.FC<{
               ) }}
             >
               <NewCardPaymentForm
-                booking={booking}
                 paymentIntentId={intentPaymentIntentId}
-                saveCard={saveCard}
                 onSuccess={onSuccess}
                 onError={onError}
                 payAmount={payAmount}

@@ -44,8 +44,9 @@ class CreateCheckoutRequest(StrictRequestModel):
 
 
 class SetupIntentResponse(StrictModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for SetupIntent creation — provides client_secret for PaymentElement."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     client_secret: str = Field(..., description="Client secret for PaymentElement on the frontend")
 

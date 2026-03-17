@@ -455,6 +455,26 @@ describe('PaymentMethodSelection', () => {
     expect(onSelectPayment).toHaveBeenCalledWith(PaymentMethod.CREDIT_CARD, '');
   });
 
+  it('shows error when confirmSetup returns no payment_method', async () => {
+    confirmSetupMock.mockResolvedValueOnce({
+      setupIntent: { payment_method: null },
+    });
+
+    renderComponent();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add New Card' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('payment-element')).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add Card' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Payment method could not be saved. Please try again.')).toBeInTheDocument();
+    });
+  });
+
   it('shows error when createSetupIntent fails', async () => {
     createSetupIntentMock.mockRejectedValueOnce(new Error('Intent failed'));
 

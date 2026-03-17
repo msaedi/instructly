@@ -64,12 +64,10 @@ const AddCardFormInner: React.FC<{
           expiryYear: null,
           isDefault: result.is_default,
         };
-      }
-
-      logger.info('Payment method added successfully');
-
-      if (savedCard) {
+        logger.info('Payment method added successfully');
         onSuccess(savedCard);
+      } else {
+        setError('Payment method could not be saved. Please try again.');
       }
     } catch (err: unknown) {
       logger.error('Failed to save payment method', err);
@@ -306,7 +304,8 @@ export default function PaymentMethodSelection({
           <div className="mt-6">
             <button
               onClick={handleContinue}
-              className="w-full py-2.5 px-4 bg-[#7E22CE] text-white hover:bg-purple-800 dark:hover:bg-purple-700 rounded-lg font-medium transition-colors focus:outline-none focus:ring-0"
+              disabled={!selectedCardId}
+              className="w-full py-2.5 px-4 bg-[#7E22CE] text-white hover:bg-purple-800 dark:hover:bg-purple-700 rounded-lg font-medium transition-colors focus:outline-none focus:ring-0 disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
               {isInlineFlow ? 'Apply payment method' : 'Continue to Confirmation'}
             </button>
