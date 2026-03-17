@@ -344,7 +344,7 @@ async def get_unread_count(
         )
 
     except Exception as e:
-        logger.error(f"Error getting unread count: {str(e)}")
+        logger.error("Error getting unread count: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get unread count",
@@ -430,7 +430,7 @@ async def mark_messages_as_read(
             detail=str(e),
         )
     except Exception as e:
-        logger.error(f"Error marking messages as read: {str(e)}")
+        logger.error("Error marking messages as read: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to mark messages as read",
@@ -654,7 +654,7 @@ async def delete_message(
     except HTTPException:
         raise  # Re-raise HTTPExceptions (like 404) as-is
     except Exception as e:
-        logger.error(f"Error deleting message: {str(e)}")
+        logger.error("Error deleting message: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete message",

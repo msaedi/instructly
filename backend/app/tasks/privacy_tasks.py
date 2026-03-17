@@ -114,7 +114,7 @@ def apply_retention_policies(self: DatabaseTask) -> Dict[str, int]:
         privacy_service = PrivacyService(self.db)
         retention_stats = privacy_service.apply_retention_policies()
 
-        logger.info(f"Data retention policies applied successfully: {retention_stats}")
+        logger.info("Data retention policies applied successfully: %s", retention_stats)
 
         # Also run search history cleanup
         cleanup_service = SearchHistoryCleanupService(self.db)
@@ -128,11 +128,11 @@ def apply_retention_policies(self: DatabaseTask) -> Dict[str, int]:
             "guest_sessions_removed": guest_sessions,
         }
 
-        logger.info(f"Complete retention cleanup finished: {combined_stats}")
+        logger.info("Complete retention cleanup finished: %s", combined_stats)
         return combined_stats
 
     except Exception as e:
-        logger.error(f"Error applying retention policies: {str(e)}", exc_info=True)
+        logger.error("Error applying retention policies: %s", str(e), exc_info=True)
         raise
 
 
@@ -160,11 +160,11 @@ def cleanup_search_history(self: DatabaseTask) -> Dict[str, Any]:
             "cleanup_date": datetime.now(timezone.utc).isoformat(),
         }
 
-        logger.info(f"Search history cleanup completed: {stats}")
+        logger.info("Search history cleanup completed: %s", stats)
         return stats
 
     except Exception as e:
-        logger.error(f"Error during search history cleanup: {str(e)}", exc_info=True)
+        logger.error("Error during search history cleanup: %s", str(e), exc_info=True)
         raise
 
 
@@ -204,12 +204,12 @@ def generate_privacy_report(self: DatabaseTask) -> Dict[str, Any]:
         }
 
         logger.info(
-            f"Privacy report generated successfully with {len(cleanup_stats)} cleanup metrics"
+            "Privacy report generated successfully with %s cleanup metrics", len(cleanup_stats)
         )
         return report
 
     except Exception as e:
-        logger.error(f"Error generating privacy report: {str(e)}", exc_info=True)
+        logger.error("Error generating privacy report: %s", str(e), exc_info=True)
         raise
 
 
@@ -236,22 +236,22 @@ def anonymize_old_bookings(self: DatabaseTask, days_old: Optional[int] = None) -
     configured_days = getattr(settings, "booking_pii_retention_days", 2555)
     if days_old is not None and days_old != configured_days:
         logger.warning(
-            f"Custom days_old={days_old} requested, but using configured "
-            f"retention period of {configured_days} days for thread safety. "
-            f"To change retention period, update booking_pii_retention_days in settings."
+            "Custom days_old=%s requested, but using configured retention period of %s days for thread safety. To change retention period, update booking_pii_retention_days in settings.",
+            days_old,
+            configured_days,
         )
-    logger.info(f"Starting booking anonymization for bookings older than {configured_days} days")
+    logger.info("Starting booking anonymization for bookings older than %s days", configured_days)
 
     try:
         privacy_service = PrivacyService(self.db)
         retention_stats = privacy_service.apply_retention_policies()
         anonymized_count = retention_stats.old_bookings_anonymized
 
-        logger.info(f"Anonymized {anonymized_count} old bookings")
+        logger.info("Anonymized %s old bookings", anonymized_count)
         return anonymized_count
 
     except Exception as e:
-        logger.error(f"Error anonymizing old bookings: {str(e)}", exc_info=True)
+        logger.error("Error anonymizing old bookings: %s", str(e), exc_info=True)
         raise
 
 
@@ -274,7 +274,7 @@ def process_data_export_request(
     Returns:
         Dictionary with export results
     """
-    logger.info(f"Processing data export request for user {user_id} (request: {request_id})")
+    logger.info("Processing data export request for user %s (request: %s)", user_id, request_id)
 
     try:
         privacy_service = PrivacyService(self.db)
@@ -284,11 +284,11 @@ def process_data_export_request(
         export_data["request_id"] = request_id
         export_data["processed_at"] = datetime.now(timezone.utc).isoformat()
 
-        logger.info(f"Data export completed for user {user_id}")
+        logger.info("Data export completed for user %s", user_id)
         return export_data
 
     except Exception as e:
-        logger.error(f"Error processing data export for user {user_id}: {str(e)}", exc_info=True)
+        logger.error("Error processing data export for user %s: %s", user_id, str(e), exc_info=True)
         raise
 
 
@@ -315,8 +315,10 @@ def process_data_deletion_request(
         Dictionary with deletion results
     """
     logger.info(
-        f"Processing data deletion request for user {user_id} "
-        f"(delete_account: {delete_account}, request: {request_id})"
+        "Processing data deletion request for user %s (delete_account: %s, request: %s)",
+        user_id,
+        delete_account,
+        request_id,
     )
 
     try:
@@ -339,9 +341,11 @@ def process_data_deletion_request(
             "processed_at": datetime.now(timezone.utc).isoformat(),
         }
 
-        logger.info(f"Data deletion completed for user {user_id}: {deletion_stats}")
+        logger.info("Data deletion completed for user %s: %s", user_id, deletion_stats)
         return result
 
     except Exception as e:
-        logger.error(f"Error processing data deletion for user {user_id}: {str(e)}", exc_info=True)
+        logger.error(
+            "Error processing data deletion for user %s: %s", user_id, str(e), exc_info=True
+        )
         raise

@@ -53,7 +53,7 @@ class ReviewRepository(BaseRepository[Review]):
             self.db.flush()
             return review
         except Exception as e:
-            self.logger.error(f"Error creating review: {e}")
+            self.logger.error("Error creating review: %s", e)
             raise RepositoryException(f"Failed to create review: {e}")
 
     def exists_for_booking(self, booking_id: str) -> bool:
@@ -63,7 +63,7 @@ class ReviewRepository(BaseRepository[Review]):
                 is not None
             )
         except Exception as e:
-            self.logger.error(f"Error checking review existence: {e}")
+            self.logger.error("Error checking review existence: %s", e)
             raise RepositoryException(f"Failed to check review existence: {e}")
 
     def get_by_booking_id(self, booking_id: str) -> Optional[Review]:
@@ -73,7 +73,7 @@ class ReviewRepository(BaseRepository[Review]):
                 self.db.query(Review).filter(Review.booking_id == booking_id).first(),
             )
         except Exception as e:
-            self.logger.error(f"Error fetching review by booking: {e}")
+            self.logger.error("Error fetching review by booking: %s", e)
             raise RepositoryException(f"Failed to fetch review by booking: {e}")
 
     def get_instructor_aggregates(self, instructor_id: str) -> InstructorAggregate:
@@ -99,7 +99,7 @@ class ReviewRepository(BaseRepository[Review]):
                 "rating_sum": int(mapping.get("rating_sum", 0) or 0),
             }
         except Exception as e:
-            self.logger.error(f"Error aggregating instructor reviews: {e}")
+            self.logger.error("Error aggregating instructor reviews: %s", e)
             raise RepositoryException(f"Failed to aggregate reviews: {e}")
 
     def get_service_aggregates(
@@ -127,7 +127,7 @@ class ReviewRepository(BaseRepository[Review]):
                 "rating_sum": int(mapping.get("rating_sum", 0) or 0),
             }
         except Exception as e:
-            self.logger.error(f"Error aggregating service reviews: {e}")
+            self.logger.error("Error aggregating service reviews: %s", e)
             raise RepositoryException(f"Failed to aggregate service reviews: {e}")
 
     def get_service_breakdown(self, instructor_id: str) -> List[ServiceBreakdown]:
@@ -167,7 +167,7 @@ class ReviewRepository(BaseRepository[Review]):
                 )
             return breakdown
         except Exception as e:
-            self.logger.error(f"Error getting service breakdown: {e}")
+            self.logger.error("Error getting service breakdown: %s", e)
             raise RepositoryException(f"Failed to get service breakdown: {e}")
 
     def _apply_recent_filters(
@@ -222,7 +222,7 @@ class ReviewRepository(BaseRepository[Review]):
                 q.order_by(Review.created_at.desc()).offset(offset).limit(limit).all(),
             )
         except Exception as e:
-            self.logger.error(f"Error getting recent reviews: {e}")
+            self.logger.error("Error getting recent reviews: %s", e)
             raise RepositoryException(f"Failed to get recent reviews: {e}")
 
     def count_recent_reviews(
@@ -246,7 +246,7 @@ class ReviewRepository(BaseRepository[Review]):
             )
             return int(q.scalar() or 0)
         except Exception as e:
-            self.logger.error(f"Error counting recent reviews: {e}")
+            self.logger.error("Error counting recent reviews: %s", e)
             raise RepositoryException(f"Failed to count recent reviews: {e}")
 
     def get_existing_for_bookings(self, booking_ids: List[str]) -> List[str]:
@@ -263,7 +263,7 @@ class ReviewRepository(BaseRepository[Review]):
                     existing.append(str(value))
             return existing
         except Exception as e:
-            self.logger.error(f"Error checking existing reviews for bookings: {e}")
+            self.logger.error("Error checking existing reviews for bookings: %s", e)
             raise RepositoryException(f"Failed to check existing reviews: {e}")
 
     def get_published_verified_for_instructor(
@@ -285,7 +285,7 @@ class ReviewRepository(BaseRepository[Review]):
                 q = q.filter(Review.instructor_service_id == instructor_service_id)
             return cast(List[Review], q.all())
         except Exception as e:
-            self.logger.error(f"Error fetching verified reviews for instructor: {e}")
+            self.logger.error("Error fetching verified reviews for instructor: %s", e)
             raise RepositoryException(f"Failed to fetch verified reviews: {e}")
 
 

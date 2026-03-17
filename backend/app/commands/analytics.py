@@ -60,7 +60,7 @@ class AnalyticsCommand:
         Returns:
             dict: Execution result
         """
-        logger.info(f"Starting analytics calculation for last {days_back} days")
+        logger.info("Starting analytics calculation for last %s days", days_back)
 
         if async_mode:
             # Run via Celery (async)
@@ -116,15 +116,15 @@ class AnalyticsCommand:
                 }
                 self._store_last_run_info(run_info)
 
-                logger.info(f"Analytics calculation completed in {execution_time:.2f}s")
-                logger.info(f"Services updated: {services_updated}")
+                logger.info("Analytics calculation completed in %ss", f"{execution_time:.2f}")
+                logger.info("Services updated: %s", services_updated)
 
                 db.close()
 
                 return run_info
 
             except Exception as e:
-                logger.error(f"Analytics calculation failed: {e}", exc_info=True)
+                logger.error("Analytics calculation failed: %s", e, exc_info=True)
 
                 # Store failure info
                 self._store_last_run_info(

@@ -50,7 +50,7 @@ def upload_finalize_profile_picture(
         asset_service.finalize_profile_picture(current_user, payload.object_key)
         return SuccessResponse(success=True, message="Profile picture updated", data=None)
     except Exception as e:
-        logger.error(f"Finalize profile picture failed: {e}")
+        logger.error("Finalize profile picture failed: %s", e)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
@@ -148,5 +148,5 @@ def delete_profile_picture(
             success=ok, message="Profile picture deleted" if ok else "No profile picture present"
         )
     except Exception as e:
-        logger.error(f"Delete profile picture failed: {e}")
+        logger.error("Delete profile picture failed: %s", e)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

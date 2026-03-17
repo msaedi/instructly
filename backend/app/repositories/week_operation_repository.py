@@ -120,7 +120,7 @@ class WeekOperationRepository:
                     {"start_time": start_time_value, "end_time": end_time_value}
                 )
 
-            self.logger.info(f"Found {len(booking_rows)} bookings in target week")
+            self.logger.info("Found %s bookings in target week", len(booking_rows))
 
             return {
                 "booked_time_ranges_by_date": booked_time_ranges_by_date,
@@ -128,7 +128,7 @@ class WeekOperationRepository:
             }
 
         except SQLAlchemyError as e:
-            self.logger.error(f"Error getting week bookings: {str(e)}")
+            self.logger.error("Error getting week bookings: %s", str(e))
             raise RepositoryException(f"Failed to get week bookings: {str(e)}")
 
     def get_bookings_in_date_range(
@@ -196,5 +196,5 @@ class WeekOperationRepository:
             }
 
         except SQLAlchemyError as e:
-            self.logger.error(f"Error getting bookings in range: {str(e)}")
+            self.logger.error("Error getting bookings in range: %s", str(e))
             raise RepositoryException(f"Failed to get bookings: {str(e)}")

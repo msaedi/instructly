@@ -62,14 +62,15 @@ class SearchHistoryCleanupService(BaseService):
                 pass  # Transaction commits automatically
 
             logger.info(
-                f"Permanently deleted {deleted_count} soft-deleted searches "
-                f"older than {settings.soft_delete_retention_days} days"
+                "Permanently deleted %s soft-deleted searches older than %s days",
+                deleted_count,
+                settings.soft_delete_retention_days,
             )
 
             return deleted_count
 
         except Exception as e:
-            logger.error(f"Error cleaning up soft-deleted searches: {str(e)}")
+            logger.error("Error cleaning up soft-deleted searches: %s", str(e))
             raise
 
     @BaseService.measure_operation("cleanup_old_guest_sessions")
@@ -112,14 +113,16 @@ class SearchHistoryCleanupService(BaseService):
                 pass  # Transaction commits automatically
 
             logger.info(
-                f"Cleaned up {total_deleted} old guest session records "
-                f"({converted_deleted} converted, {expired_deleted} expired)"
+                "Cleaned up %s old guest session records (%s converted, %s expired)",
+                total_deleted,
+                converted_deleted,
+                expired_deleted,
             )
 
             return total_deleted
 
         except Exception as e:
-            logger.error(f"Error cleaning up guest sessions: {str(e)}")
+            logger.error("Error cleaning up guest sessions: %s", str(e))
             raise
 
     @BaseService.measure_operation("cleanup_all")
@@ -137,9 +140,9 @@ class SearchHistoryCleanupService(BaseService):
         guest_session_count = self.cleanup_old_guest_sessions()
 
         logger.info(
-            f"Search history cleanup complete. "
-            f"Removed {soft_deleted_count} soft-deleted records and "
-            f"{guest_session_count} old guest sessions"
+            "Search history cleanup complete. Removed %s soft-deleted records and %s old guest sessions",
+            soft_deleted_count,
+            guest_session_count,
         )
 
         return soft_deleted_count, guest_session_count

@@ -60,9 +60,9 @@ logger = logging.getLogger(__name__)
 # Load .env file only if not in CI
 if not os.getenv("CI"):
     env_path = Path(__file__).parent.parent.parent / ".env"  # Goes up to backend/.env
-    logger.info(f"[CONFIG] Looking for .env at: {env_path}")
-    logger.info(f"[CONFIG] .env exists: {env_path.exists()}")
-    logger.info(f"[CONFIG] Absolute path: {env_path.absolute()}")
+    logger.info("[CONFIG] Looking for .env at: %s", env_path)
+    logger.info("[CONFIG] .env exists: %s", env_path.exists())
+    logger.info("[CONFIG] Absolute path: %s", env_path.absolute())
     load_dotenv(env_path)
 
 

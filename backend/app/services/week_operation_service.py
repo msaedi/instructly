@@ -332,9 +332,9 @@ class WeekOperationService(BaseService):
     def _validate_week_dates(self, from_week_start: date, to_week_start: date) -> None:
         """Validate that dates are Mondays."""
         if from_week_start.weekday() != 0:
-            self.logger.warning(f"Source week start {from_week_start} is not a Monday")
+            self.logger.warning("Source week start %s is not a Monday", from_week_start)
         if to_week_start.weekday() != 0:
-            self.logger.warning(f"Target week start {to_week_start} is not a Monday")
+            self.logger.warning("Target week start %s is not a Monday", to_week_start)
 
     def _enqueue_week_copy_event(
         self,
@@ -743,5 +743,5 @@ class WeekOperationService(BaseService):
             if slots:
                 pattern[day_name] = [dict(slot) for slot in slots]
 
-        self.logger.debug(f"Extracted pattern with availability for days: {list(pattern.keys())}")
+        self.logger.debug("Extracted pattern with availability for days: %s", list(pattern.keys()))
         return pattern

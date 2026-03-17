@@ -543,7 +543,7 @@ async def get_instructor_public_availability(
         try:
             cached_data = await cache_service.get(cache_key)
             if cached_data:
-                logger.info(f"Cache hit for public availability: {cache_key}")
+                logger.info("Cache hit for public availability: %s", cache_key)
                 cached_result = cast(Dict[str, Any], cached_data)
                 response_data = PublicInstructorAvailability(**cached_result)
                 if response_data.detail_level == "full" and response_data.availability_by_date:
@@ -580,7 +580,7 @@ async def get_instructor_public_availability(
                 response_obj.headers["Vary"] = "Accept-Encoding"
                 return response_data
         except Exception as e:
-            logger.warning(f"Cache error: {e}")
+            logger.warning("Cache error: %s", e)
 
     # Cache miss - compute fresh data below
 
@@ -713,7 +713,7 @@ async def get_instructor_public_availability(
                 ttl=settings.public_availability_cache_ttl,
             )
         except Exception as e:
-            logger.warning(f"Failed to cache public availability: {e}")
+            logger.warning("Failed to cache public availability: %s", e)
 
     # Set headers for public caching (short TTL)
     response_obj.headers["Cache-Control"] = "public, max-age=60"
@@ -880,14 +880,17 @@ async def send_referral_invites(
         )
 
     logger.info(
-        f"[Referrals] Sending invites: count={len(valid_emails)} link={referral_link} from={from_name}"
+        "[Referrals] Sending invites: count=%s link=%s from=%s",
+        len(valid_emails),
+        referral_link,
+        from_name,
     )
     email_service = EmailService(db)
     try:
         await asyncio.to_thread(email_service.validate_email_config)
         logger.info("[Referrals] Email config validated")
     except Exception as e:
-        logger.error(f"[Referrals] Email config invalid: {e}")
+        logger.error("[Referrals] Email config invalid: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Email not configured"
         )
@@ -922,11 +925,11 @@ async def send_referral_invites(
             sent += 1
         except Exception as e:
             # continue to next
-            logger.error(f"Failed to send referral to {to_email}: {e}")
+            logger.error("Failed to send referral to %s: %s", to_email, e)
             failures += 1
             try:
                 error_details.append(ReferralSendError(email=to_email, error=str(e)))
             except Exception:
                 logger.debug("Non-fatal error ignored", exc_info=True)
-    logger.info(f"[Referrals] Completed: sent={sent} failed={failures}")
+    logger.info("[Referrals] Completed: sent=%s failed=%s", sent, failures)
     return ReferralSendResponse(status="ok", sent=sent, failed=failures, errors=error_details)

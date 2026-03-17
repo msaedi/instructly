@@ -163,10 +163,13 @@ class SearchHistoryService(BaseService):
 
             # Log what happened
             if result.search_count == 1:
-                logger.info(f"Created new search history for {context.identifier}: {query}")
+                logger.info("Created new search history for %s: %s", context.identifier, query)
             else:
                 logger.info(
-                    f"Updated search history for {context.identifier}: {query} (count: {result.search_count})"
+                    "Updated search history for %s: %s (count: %s)",
+                    context.identifier,
+                    query,
+                    result.search_count,
                 )
 
             # Maintain limit per user/guest
@@ -185,7 +188,7 @@ class SearchHistoryService(BaseService):
                 try:
                     geo_data = await self.geolocation_service.get_location_from_ip(request_ip)
                 except Exception as e:
-                    logger.warning(f"Failed to get geolocation: {str(e)}")
+                    logger.warning("Failed to get geolocation: %s", str(e))
 
             # Parse device/browser info
             if user_agent:
@@ -287,7 +290,7 @@ class SearchHistoryService(BaseService):
                     )
             except Exception as e:
                 logger.warning(
-                    f"Failed to persist observability candidates for event {event.id}: {e}"
+                    "Failed to persist observability candidates for event %s: %s", event.id, e
                 )
 
             # Use service transaction pattern instead of direct DB operations
@@ -304,7 +307,7 @@ class SearchHistoryService(BaseService):
             return result
 
         except Exception as e:
-            logger.error(f"Error recording search: {str(e)}")
+            logger.error("Error recording search: %s", str(e))
             raise
 
     @BaseService.measure_operation("get_recent_searches")
@@ -355,8 +358,10 @@ class SearchHistoryService(BaseService):
         result = filtered_searches[:limit]
 
         logger.debug(
-            f"Retrieved {len(result)} recent searches for {context.identifier} "
-            f"(filtered {len(searches) - len(filtered_searches)} categories)"
+            "Retrieved %s recent searches for %s (filtered %s categories)",
+            len(result),
+            context.identifier,
+            len(searches) - len(filtered_searches),
         )
         return result
 
@@ -396,10 +401,10 @@ class SearchHistoryService(BaseService):
         if deleted:
             with self.transaction():
                 pass  # Transaction commits automatically
-            logger.info(f"Soft deleted search history {search_id} for {identifier}")
+            logger.info("Soft deleted search history %s for %s", search_id, identifier)
         else:
             logger.warning(
-                f"Search history {search_id} not found or already deleted for {identifier}"
+                "Search history %s not found or already deleted for %s", search_id, identifier
             )
 
         return deleted
@@ -429,7 +434,7 @@ class SearchHistoryService(BaseService):
             with self.transaction():
                 pass  # Transaction commits automatically
             logger.info(
-                f"Deleted {deleted} old searches for {context.identifier} to maintain limit"
+                "Deleted %s old searches for %s to maintain limit", deleted, context.identifier
             )
 
     # Guest-to-user conversion (remains as specific operation)
@@ -485,14 +490,16 @@ class SearchHistoryService(BaseService):
                 pass  # Transaction commits automatically
 
             logger.info(
-                f"Converted {converted_count} guest searches to user {user_id}, "
-                f"marked {marked_count} as converted"
+                "Converted %s guest searches to user %s, marked %s as converted",
+                converted_count,
+                user_id,
+                marked_count,
             )
 
             return converted_count
 
         except Exception as e:
-            logger.error(f"Failed to convert guest searches: {str(e)}")
+            logger.error("Failed to convert guest searches: %s", str(e))
             # Don't fail auth if conversion fails
             return 0
 
@@ -527,14 +534,14 @@ class SearchHistoryService(BaseService):
                     + ", ".join(sorted(ALLOWED_INTERACTION_TYPES))
                 )
 
-            logger.info(f"Looking for search event {search_event_id}")
+            logger.info("Looking for search event %s", search_event_id)
 
             # Validate search event exists
             search_event = self.event_repository.get_search_event_by_id(search_event_id)
             if not search_event:
                 raise ValueError(f"Search event {search_event_id} not found")
 
-            logger.info(f"Found search event {search_event_id}")
+            logger.info("Found search event %s", search_event_id)
 
             normalized_time = time_to_interaction
             if normalized_time is not None:
@@ -568,5 +575,5 @@ class SearchHistoryService(BaseService):
             return interaction
 
         except Exception as e:
-            logger.error(f"Failed to track interaction: {str(e)}")
+            logger.error("Failed to track interaction: %s", str(e))
             raise

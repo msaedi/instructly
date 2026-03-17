@@ -110,8 +110,8 @@ class TemplateService(BaseService):
         # Track if caching is enabled (can be disabled for development)
         self._caching_enabled = getattr(settings, "template_cache_enabled", True)
 
-        self.logger.info(f"Template service initialized with template directory: {template_dir}")
-        self.logger.info(f"Template caching: {'enabled' if self._caching_enabled else 'disabled'}")
+        self.logger.info("Template service initialized with template directory: %s", template_dir)
+        self.logger.info("Template caching: %s", "enabled" if self._caching_enabled else "disabled")
 
     def __del__(self) -> None:
         """Clean up the database session if we created it."""
@@ -191,7 +191,7 @@ class TemplateService(BaseService):
                     self.logger.debug("Common context retrieved from cache")
                     return cast(dict[str, Any], cached_context)
             except Exception as e:
-                self.logger.warning(f"Cache get failed for common context: {e}")
+                self.logger.warning("Cache get failed for common context: %s", e)
 
         # Build the context
         context: dict[str, Any] = {
@@ -208,7 +208,7 @@ class TemplateService(BaseService):
                 cache.set(cache_key, context, self.CACHE_TTL_CONTEXT)
                 self.logger.debug("Common context cached")
             except Exception as e:
-                self.logger.warning(f"Failed to cache common context: {e}")
+                self.logger.warning("Failed to cache common context: %s", e)
 
         return context
 
@@ -251,11 +251,11 @@ class TemplateService(BaseService):
             # Render and return
             rendered = cast(str, template.render(full_context))
 
-            self.logger.debug(f"Successfully rendered template: {template_name}")
+            self.logger.debug("Successfully rendered template: %s", template_name)
             return rendered
 
         except TemplateNotFound:
-            self.logger.error(f"Template not found: {template_name}")
+            self.logger.error("Template not found: %s", template_name)
             raise
         except Exception as e:
             # Fallback: read file content and render from string after sanitizing any stray bytes
@@ -277,11 +277,14 @@ class TemplateService(BaseService):
                     full_context.update(context)
                 full_context.update(kwargs)
                 rendered = cast(str, template.render(full_context))
-                self.logger.warning(f"Rendered {template_name} via fallback sanitize path")
+                self.logger.warning("Rendered %s via fallback sanitize path", template_name)
                 return rendered
             except Exception as inner:
                 self.logger.error(
-                    f"Error rendering template {template_name}: {str(e)} | Fallback failed: {inner}"
+                    "Error rendering template %s: %s | Fallback failed: %s",
+                    template_name,
+                    str(e),
+                    inner,
                 )
                 raise
 
@@ -326,7 +329,7 @@ class TemplateService(BaseService):
             return cast(str, template.render(full_context))
 
         except Exception as e:
-            self.logger.error(f"Error rendering template string: {str(e)}")
+            self.logger.error("Error rendering template string: %s", str(e))
             raise
 
     @BaseService.measure_operation("template_exists")
@@ -350,11 +353,11 @@ class TemplateService(BaseService):
                 cached_result = cache.get(cache_key)
                 if isinstance(cached_result, bool):
                     self.logger.debug(
-                        f"Template existence for '{template_name}' retrieved from cache"
+                        "Template existence for '%s' retrieved from cache", template_name
                     )
                     return cached_result
             except Exception as e:
-                self.logger.warning(f"Cache get failed for template existence: {e}")
+                self.logger.warning("Cache get failed for template existence: %s", e)
 
         # Check if template exists
         try:
@@ -368,9 +371,9 @@ class TemplateService(BaseService):
         if self._should_use_cache() and cache is not None:
             try:
                 cache.set(cache_key, exists, self.CACHE_TTL_EXISTS)
-                self.logger.debug(f"Template existence for '{template_name}' cached")
+                self.logger.debug("Template existence for '%s' cached", template_name)
             except Exception as e:
-                self.logger.warning(f"Failed to cache template existence: {e}")
+                self.logger.warning("Failed to cache template existence: %s", e)
 
         return exists
 
@@ -394,7 +397,7 @@ class TemplateService(BaseService):
 
             self.logger.info("Template cache invalidated")
         except Exception as e:
-            self.logger.error(f"Failed to invalidate template cache: {e}")
+            self.logger.error("Failed to invalidate template cache: %s", e)
 
     def get_cache_stats(self) -> dict[str, Any]:  # no-metrics
         """

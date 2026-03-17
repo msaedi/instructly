@@ -100,13 +100,17 @@ def retry(
                     if attempt < max_attempts - 1:
                         wait_time = backoff_seconds * (2**attempt)
                         logger.warning(
-                            f"Attempt {attempt + 1}/{max_attempts} failed for {func.__name__}: {str(e)}. "
-                            f"Retrying in {wait_time}s..."
+                            "Attempt %s/%s failed for %s: %s. Retrying in %ss...",
+                            attempt + 1,
+                            max_attempts,
+                            func.__name__,
+                            str(e),
+                            wait_time,
                         )
                         time.sleep(wait_time)
                     else:
                         logger.error(
-                            f"All {max_attempts} attempts failed for {func.__name__}: {str(e)}"
+                            "All %s attempts failed for %s: %s", max_attempts, func.__name__, str(e)
                         )
 
             if last_exception is not None:
@@ -301,41 +305,43 @@ class NotificationService(BaseService):
             return False
 
         try:
-            self.logger.info(f"Sending booking confirmation emails for booking {booking.id}")
+            self.logger.info("Sending booking confirmation emails for booking %s", booking.id)
 
             # Send to student - catch exceptions after retries
             try:
                 student_success = self._send_student_booking_confirmation(booking)
             except TemplateNotFound as e:
-                self.logger.error(f"Template error in booking confirmation: {str(e)}")
+                self.logger.error("Template error in booking confirmation: %s", str(e))
                 raise ServiceException(f"Email template error: {str(e)}")
             except Exception as e:
-                self.logger.error(f"Failed to send student confirmation after retries: {str(e)}")
+                self.logger.error("Failed to send student confirmation after retries: %s", str(e))
                 student_success = False
 
             # Send to instructor - catch exceptions after retries
             try:
                 instructor_success = self._send_instructor_booking_notification(booking)
             except TemplateNotFound as e:
-                self.logger.error(f"Template error in booking confirmation: {str(e)}")
+                self.logger.error("Template error in booking confirmation: %s", str(e))
                 raise ServiceException(f"Email template error: {str(e)}")
             except Exception as e:
-                self.logger.error(f"Failed to send instructor notification after retries: {str(e)}")
+                self.logger.error(
+                    "Failed to send instructor notification after retries: %s", str(e)
+                )
                 instructor_success = False
 
             if student_success and instructor_success:
-                self.logger.info(f"All booking confirmation emails sent for booking {booking.id}")
+                self.logger.info("All booking confirmation emails sent for booking %s", booking.id)
                 return True
             else:
                 self.logger.warning(
-                    f"Some booking confirmation emails failed for booking {booking.id}"
+                    "Some booking confirmation emails failed for booking %s", booking.id
                 )
                 return False
 
         except ServiceException:
             raise  # Re-raise ServiceException
         except Exception as e:
-            self.logger.error(f"Unexpected error sending booking confirmation: {str(e)}")
+            self.logger.error("Unexpected error sending booking confirmation: %s", str(e))
             raise
 
     @BaseService.measure_operation("send_cancellation_notification")
@@ -365,7 +371,7 @@ class NotificationService(BaseService):
             return False
 
         try:
-            self.logger.info(f"Sending cancellation emails for booking {booking.id}")
+            self.logger.info("Sending cancellation emails for booking %s", booking.id)
 
             # Determine who cancelled
             cancelled_by_role = None
@@ -391,7 +397,7 @@ class NotificationService(BaseService):
                     raise ServiceException(f"Email template error: {str(e)}")
                 except Exception as e:
                     self.logger.error(
-                        f"Failed to send instructor cancellation after retries: {str(e)}"
+                        "Failed to send instructor cancellation after retries: %s", str(e)
                     )
                     success = False
 
@@ -402,7 +408,7 @@ class NotificationService(BaseService):
                     raise ServiceException(f"Email template error: {str(e)}")
                 except Exception as e:
                     self.logger.error(
-                        f"Failed to send student confirmation after retries: {str(e)}"
+                        "Failed to send student confirmation after retries: %s", str(e)
                     )
                     student_success = False
 
@@ -417,7 +423,7 @@ class NotificationService(BaseService):
                     raise ServiceException(f"Email template error: {str(e)}")
                 except Exception as e:
                     self.logger.error(
-                        f"Failed to send student cancellation after retries: {str(e)}"
+                        "Failed to send student cancellation after retries: %s", str(e)
                     )
                     success = False
 
@@ -428,7 +434,7 @@ class NotificationService(BaseService):
                     raise ServiceException(f"Email template error: {str(e)}")
                 except Exception as e:
                     self.logger.error(
-                        f"Failed to send instructor confirmation after retries: {str(e)}"
+                        "Failed to send instructor confirmation after retries: %s", str(e)
                     )
                     instructor_success = False
 
@@ -437,7 +443,7 @@ class NotificationService(BaseService):
         except ServiceException:
             raise
         except Exception as e:
-            self.logger.error(f"Unexpected error sending cancellation emails: {str(e)}")
+            self.logger.error("Unexpected error sending cancellation emails: %s", str(e))
             raise
 
     @BaseService.measure_operation("send_reminder_emails")
@@ -468,11 +474,11 @@ class NotificationService(BaseService):
             # Send reminders
             sent_count = self._send_booking_reminders(bookings)
 
-            self.logger.info(f"Sent {sent_count} reminder emails for {len(bookings)} bookings")
+            self.logger.info("Sent %s reminder emails for %s bookings", sent_count, len(bookings))
             return sent_count
 
         except Exception as e:
-            self.logger.error(f"Error in send_reminder_emails: {str(e)}")
+            self.logger.error("Error in send_reminder_emails: %s", str(e))
             raise ServiceException(f"Failed to send reminder emails: {str(e)}")
 
     # Private helper methods
@@ -506,7 +512,7 @@ class NotificationService(BaseService):
             start_date, end_date, "CONFIRMED"
         )
 
-        self.logger.info(f"Found {len(all_bookings)} bookings for tomorrow")
+        self.logger.info("Found %s bookings for tomorrow", len(all_bookings))
         return all_bookings
 
     def _send_booking_reminders(self, bookings: List[Booking]) -> int:
@@ -530,7 +536,9 @@ class NotificationService(BaseService):
                 student_sent = self._send_student_reminder(booking)
             except Exception as e:
                 self.logger.error(
-                    f"Failed to send student reminder for booking {booking.id} after retries: {str(e)}"
+                    "Failed to send student reminder for booking %s after retries: %s",
+                    booking.id,
+                    str(e),
                 )
 
             # Try to send instructor reminder
@@ -538,7 +546,9 @@ class NotificationService(BaseService):
                 instructor_sent = self._send_instructor_reminder(booking)
             except Exception as e:
                 self.logger.error(
-                    f"Failed to send instructor reminder for booking {booking.id} after retries: {str(e)}"
+                    "Failed to send instructor reminder for booking %s after retries: %s",
+                    booking.id,
+                    str(e),
                 )
 
             if student_sent and instructor_sent:
@@ -616,7 +626,7 @@ class NotificationService(BaseService):
             template=TemplateRegistry.BOOKING_CONFIRMATION_STUDENT,
         )
 
-        self.logger.info(f"Student confirmation email sent for booking {booking.id}")
+        self.logger.info("Student confirmation email sent for booking %s", booking.id)
         return True
 
     @BaseService.measure_operation("send_booking_cancelled_payment_failed")
@@ -716,12 +726,15 @@ class NotificationService(BaseService):
                 )
 
             self.logger.info(
-                f"Sent payment-failure cancellation notifications for booking {getattr(booking, 'id', 'unknown')}"
+                "Sent payment-failure cancellation notifications for booking %s",
+                getattr(booking, "id", "unknown"),
             )
             return True
         except Exception as e:
             self.logger.error(
-                f"Failed to send payment-failure cancellation notifications for booking {getattr(booking, 'id', 'unknown')}: {e}"
+                "Failed to send payment-failure cancellation notifications for booking %s: %s",
+                getattr(booking, "id", "unknown"),
+                e,
             )
             return False
 
@@ -861,10 +874,12 @@ class NotificationService(BaseService):
                 subject=subject,
                 html_content=html_content,
             )
-            self.logger.info(f"Sent T-24 payment warning to student for booking {booking.id}")
+            self.logger.info("Sent T-24 payment warning to student for booking %s", booking.id)
             return True
         except Exception as e:
-            self.logger.error(f"Failed to send T-24 payment warning for booking {booking.id}: {e}")
+            self.logger.error(
+                "Failed to send T-24 payment warning for booking %s: %s", booking.id, e
+            )
             return False
 
     @retry(max_attempts=3, backoff_seconds=1.0)
@@ -911,7 +926,7 @@ class NotificationService(BaseService):
             template=TemplateRegistry.BOOKING_CONFIRMATION_INSTRUCTOR,
         )
 
-        self.logger.info(f"Instructor notification email sent for booking {booking.id}")
+        self.logger.info("Instructor notification email sent for booking %s", booking.id)
         return True
 
     @retry(max_attempts=3, backoff_seconds=1.0)
@@ -1385,10 +1400,12 @@ class NotificationService(BaseService):
                 )
 
                 if _response:
-                    self.logger.info(f"Message notification sent to {recipient.email}")
+                    self.logger.info("Message notification sent to %s", recipient.email)
                     email_sent = True
                 else:
-                    self.logger.warning(f"Failed to send message notification to {recipient.email}")
+                    self.logger.warning(
+                        "Failed to send message notification to %s", recipient.email
+                    )
                     email_sent = False
 
             if self.sms_service and self._should_send_sms(
@@ -1429,7 +1446,7 @@ class NotificationService(BaseService):
             return email_sent
 
         except Exception as e:
-            self.logger.error(f"Error sending message notification: {str(e)}")
+            self.logger.error("Error sending message notification: %s", str(e))
             return False
 
     @BaseService.measure_operation("send_payout_notification")

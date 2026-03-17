@@ -285,9 +285,11 @@ async def register(
                     guest_session_id=payload.guest_session_id,
                     user_id=db_user.id,
                 )
-                logger.info(f"Converted {converted_count} guest searches for new user {db_user.id}")
+                logger.info(
+                    "Converted %s guest searches for new user %s", converted_count, db_user.id
+                )
             except Exception as e:
-                logger.error(f"Failed to convert guest searches during registration: {str(e)}")
+                logger.error("Failed to convert guest searches during registration: %s", str(e))
 
         # Beta invite consumption (server-side guarantee)
         try:
@@ -308,10 +310,10 @@ async def register(
                     phase="instructor_only",
                 )
                 if grant:
-                    logger.info(f"Consumed beta invite for user {db_user.id} via register")
+                    logger.info("Consumed beta invite for user %s via register", db_user.id)
                 else:
                     logger.warning(
-                        f"Invite not consumed on register for user {db_user.id}: {reason}"
+                        "Invite not consumed on register for user %s: %s", db_user.id, reason
                     )
                 if grant and invite and getattr(invite, "grant_founding_status", False):
                     role_name = (payload.role or RoleName.STUDENT).lower()
@@ -335,7 +337,7 @@ async def register(
                                     message,
                                 )
         except Exception as e:
-            logger.error(f"Error consuming invite on register for {db_user.id}: {e}")
+            logger.error("Error consuming invite on register for %s: %s", db_user.id, e)
 
         try:
             AuditService(db).log(
@@ -381,7 +383,7 @@ async def register(
     except ValidationException as e:
         raise e.to_http_exception()
     except Exception as e:
-        logger.error(f"Unexpected error during registration: {str(e)}")
+        logger.error("Unexpected error during registration: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={
@@ -953,9 +955,9 @@ async def login_with_session(
                 guest_session_id=login_data.guest_session_id,
                 user_id=user_id,
             )
-            logger.info(f"Converted {converted_count} guest searches for user {user_id}")
+            logger.info("Converted %s guest searches for user %s", converted_count, user_id)
         except Exception as e:
-            logger.error(f"Failed to convert guest searches during login: {str(e)}")
+            logger.error("Failed to convert guest searches during login: %s", str(e))
             # Don't fail login if conversion fails
 
     if hasattr(cache_service, "get") and hasattr(cache_service, "set"):
@@ -1151,7 +1153,11 @@ async def update_current_user(
 
                     new_tz = get_timezone_from_zip(user_update.zip_code)
                     logger.info(
-                        f"Updating timezone from {u.timezone} to {new_tz} for zip change {old_zip} -> {user_update.zip_code}"
+                        "Updating timezone from %s to %s for zip change %s -> %s",
+                        u.timezone,
+                        new_tz,
+                        old_zip,
+                        user_update.zip_code,
                     )
                     upd_data["timezone"] = new_tz
 
@@ -1231,7 +1237,7 @@ async def update_current_user(
             detail="User not found",
         )
     except Exception as e:
-        logger.error(f"Error updating user profile: {str(e)}")
+        logger.error("Error updating user profile: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update user profile",

@@ -105,7 +105,7 @@ class FavoritesService(BaseService):
                 }
 
         except Exception as e:
-            self.logger.error(f"Error adding favorite: {str(e)}")
+            self.logger.error("Error adding favorite: %s", str(e))
             raise ValidationException(f"Failed to add favorite: {str(e)}")
 
     @BaseService.measure_operation("remove_favorite")
@@ -150,7 +150,7 @@ class FavoritesService(BaseService):
                 }
 
         except Exception as e:
-            self.logger.error(f"Error removing favorite: {str(e)}")
+            self.logger.error("Error removing favorite: %s", str(e))
             raise ValidationException(f"Failed to remove favorite: {str(e)}")
 
     @BaseService.measure_operation("is_favorited")
@@ -207,7 +207,7 @@ class FavoritesService(BaseService):
         # Get favorites with instructor profiles
         favorites = self.favorites_repository.get_favorites_with_details(student_id)
 
-        self.logger.info(f"Retrieved {len(favorites)} favorites for student {student_id}")
+        self.logger.info("Retrieved %s favorites for student %s", len(favorites), student_id)
         return favorites
 
     @BaseService.measure_operation("get_instructor_stats")

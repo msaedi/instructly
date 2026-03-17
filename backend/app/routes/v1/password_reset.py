@@ -117,7 +117,7 @@ async def confirm_password_reset(
             detail=str(e),
         )
     except Exception as e:
-        logger.error(f"Unexpected error during password reset: {str(e)}")
+        logger.error("Unexpected error during password reset: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while resetting your password",

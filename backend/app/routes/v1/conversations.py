@@ -164,11 +164,7 @@ def list_conversations(
     upcoming_by_conv = service.batch_get_upcoming_bookings(conversations, current_user.id)
     states_by_conv = service.batch_get_states(conv_ids, current_user.id)
     unread_by_conv = service.batch_get_unread_counts(conv_ids, current_user.id)
-    batch_latest_messages = getattr(service, "batch_get_latest_messages", None)
-    latest_messages_by_conv = (
-        batch_latest_messages(conv_ids) if callable(batch_latest_messages) else {}
-    )
-    latest_message_lookup_ran = callable(batch_latest_messages)
+    latest_messages_by_conv = service.batch_get_latest_messages(conv_ids)
 
     items: List[ConversationListItem] = []
     for conv in conversations:
@@ -181,11 +177,7 @@ def list_conversations(
         # Build last message preview
         last_message = None
         last_msg = latest_messages_by_conv.get(conv.id)
-        if (
-            latest_message_lookup_ran
-            and last_msg is None
-            and getattr(conv, "last_message_at", None) is not None
-        ):
+        if last_msg is None and getattr(conv, "last_message_at", None) is not None:
             logger.warning(
                 "Latest message batch lookup missed conversation %s in list_conversations",
                 conv.id,

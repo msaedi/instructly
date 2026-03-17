@@ -72,7 +72,7 @@ async def _maintain_embeddings_async() -> Dict[str, int]:
                 logger.info("No services need embedding updates")
                 break
 
-            logger.info(f"Processing {len(services)} services for embedding")
+            logger.info("Processing %s services for embedding", len(services))
 
             # Generate embeddings in batch
             embeddings = await service.embed_services_batch(services, batch_size=BATCH_SIZE)
@@ -99,7 +99,7 @@ async def _maintain_embeddings_async() -> Dict[str, int]:
 
         # Log summary
         logger.info(
-            f"Embedding maintenance complete: {total_updated} updated, {total_failed} failed"
+            "Embedding maintenance complete: %s updated, %s failed", total_updated, total_failed
         )
 
         # Check for alerts
@@ -108,7 +108,7 @@ async def _maintain_embeddings_async() -> Dict[str, int]:
         return {"updated": total_updated, "failed": total_failed}
 
     except Exception as e:
-        logger.error(f"Embedding maintenance failed: {e}")
+        logger.error("Embedding maintenance failed: %s", e)
         raise
     finally:
         db.close()
@@ -126,12 +126,15 @@ def _check_embedding_coverage(db: "Session") -> None:
 
         if missing_pct > 5:
             logger.warning(
-                f"HIGH: {missing_pct:.1f}% of services missing embeddings ({missing}/{total})"
+                "HIGH: %s%% of services missing embeddings (%s/%s)",
+                f"{missing_pct:.1f}",
+                missing,
+                total,
             )
         elif missing > 0:
-            logger.info(f"LOW: {missing} services missing embeddings ({missing_pct:.1f}%)")
+            logger.info("LOW: %s services missing embeddings (%s%%)", missing, f"{missing_pct:.1f}")
         else:
-            logger.info(f"All {total} active services have embeddings")
+            logger.info("All %s active services have embeddings", total)
 
 
 @typed_task(
@@ -161,7 +164,7 @@ async def _bulk_embed_async() -> Dict[str, int]:
         # Get ALL services needing embedding (no limit)
         services = repo.get_all_services_missing_embedding()
 
-        logger.info(f"Bulk embedding {len(services)} services")
+        logger.info("Bulk embedding %s services", len(services))
 
         if not services:
             logger.info("No services need bulk embedding")
@@ -173,7 +176,7 @@ async def _bulk_embed_async() -> Dict[str, int]:
 
         for i in range(0, len(services), BATCH_SIZE):
             batch = services[i : i + BATCH_SIZE]
-            logger.info(f"Processing batch {i // BATCH_SIZE + 1} ({len(batch)} services)")
+            logger.info("Processing batch %s (%s services)", i // BATCH_SIZE + 1, len(batch))
 
             embeddings = await service.embed_services_batch(batch, batch_size=BATCH_SIZE)
 
@@ -196,12 +199,12 @@ async def _bulk_embed_async() -> Dict[str, int]:
                 else:
                     total_failed += 1
 
-        logger.info(f"Bulk embedding complete: {total_updated} updated, {total_failed} failed")
+        logger.info("Bulk embedding complete: %s updated, %s failed", total_updated, total_failed)
 
         return {"updated": total_updated, "failed": total_failed}
 
     except Exception as e:
-        logger.error(f"Bulk embedding failed: {e}")
+        logger.error("Bulk embedding failed: %s", e)
         raise
     finally:
         db.close()

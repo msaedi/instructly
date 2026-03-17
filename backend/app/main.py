@@ -368,11 +368,13 @@ def _validate_startup_config() -> None:
 async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Handle application startup/shutdown without deprecated events."""
     # Startup
-    logger.info(f"{BRAND_NAME} API starting up...")
+    logger.info("%s API starting up...", BRAND_NAME)
     import os
 
     logger.info(
-        f"Environment: {settings.environment} (SITE_MODE={os.getenv('SITE_MODE','') or 'unset'})"
+        "Environment: %s (SITE_MODE=%s)",
+        settings.environment,
+        os.getenv("SITE_MODE", "") or "unset",
     )
 
     init_session_factories()
@@ -411,7 +413,7 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if is_running_tests():
             logger.info("Running under pytest (test mode active)")
     except Exception as e:
-        logger.debug(f"Test detection check failed: {e}")
+        logger.debug("Test detection check failed: %s", e)
 
     # Pre-warm lightweight health endpoint to avoid first request cold start spikes
     if httpx is not None:
@@ -424,7 +426,7 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from .core.database_config import DatabaseConfig
 
     db_config = DatabaseConfig()
-    logger.info(f"Database safety score: {db_config.get_safety_score()['score']}%")
+    logger.info("Database safety score: %s%%", db_config.get_safety_score()["score"])
 
     # Eager load beta settings cache to avoid DB query on first request
     from .middleware.beta_phase_header import refresh_beta_settings_cache
@@ -435,7 +437,7 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     finally:
         db.close()
 
-    logger.info(f"Allowed origins: {_DYN_ALLOWED_ORIGINS}")
+    logger.info("Allowed origins: %s", _DYN_ALLOWED_ORIGINS)
     logger.info("GZip compression enabled for responses > 500 bytes")
     logger.info("Rate limiting enabled for DDoS and brute force protection")
 
@@ -459,7 +461,7 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         )
         logger.info("Template smoke-check passed")
     except Exception as e:
-        logger.error(f"Template smoke-check failed: {e}")
+        logger.error("Template smoke-check failed: %s", e)
 
     # Production startup optimizations
     if settings.environment == "production":
@@ -475,7 +477,7 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         cache_service = CacheService()
         init_search_cache(cache_service)
     except Exception as e:
-        logger.warning(f"Failed to initialize search cache: {e}")
+        logger.warning("Failed to initialize search cache: %s", e)
 
     # Initialize Broadcaster for SSE multiplexing
     # This enables 500+ concurrent SSE users instead of ~30
@@ -483,7 +485,7 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await connect_broadcast()
         logger.info("[BROADCAST] SSE multiplexer initialized")
     except Exception as e:
-        logger.error(f"[BROADCAST] Failed to initialize broadcaster: {e}")
+        logger.error("[BROADCAST] Failed to initialize broadcaster: %s", e)
         # Don't fail startup - SSE will fall back gracefully
 
     if getattr(settings, "bgc_expiry_enabled", False):
@@ -502,7 +504,7 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
     # Shutdown
-    logger.info(f"{BRAND_NAME} API shutting down...")
+    logger.info("%s API shutting down...", BRAND_NAME)
 
     shutdown_otel()
 
@@ -517,14 +519,14 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await disconnect_broadcast()
         logger.info("[BROADCAST] SSE multiplexer disconnected")
     except Exception as e:
-        logger.error(f"[BROADCAST] Error disconnecting broadcaster: {e}")
+        logger.error("[BROADCAST] Error disconnecting broadcaster: %s", e)
 
     # Close Redis Pub/Sub client
     try:
         await close_async_redis_client()
         logger.info("[REDIS-PUBSUB] Async Redis client closed")
     except Exception as e:
-        logger.error(f"[REDIS-PUBSUB] Error closing async Redis client: {e}")
+        logger.error("[REDIS-PUBSUB] Error closing async Redis client: %s", e)
 
     # Close Redis cache client (separate from Pub/Sub)
     try:
@@ -533,7 +535,7 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await close_async_cache_redis_client()
         logger.info("[REDIS-CACHE] Async Redis client closed")
     except Exception as e:
-        logger.error(f"[REDIS-CACHE] Error closing async Redis client: {e}")
+        logger.error("[REDIS-CACHE] Error closing async Redis client: %s", e)
 
     # Close Redis client used by rate limiting / idempotency (may be separate from cache Redis)
     try:
@@ -542,7 +544,7 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await close_async_rate_limit_redis_client()
         logger.info("[REDIS-RATELIMIT] Async Redis client closed")
     except Exception as e:
-        logger.error(f"[REDIS-RATELIMIT] Error closing async Redis client: {e}")
+        logger.error("[REDIS-RATELIMIT] Error closing async Redis client: %s", e)
 
     # Clear the cached event-loop reference used by CacheServiceSyncAdapter.
     try:

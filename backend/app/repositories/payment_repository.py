@@ -82,7 +82,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             self.db.flush()
             return customer
         except Exception as e:
-            self.logger.error(f"Failed to create customer record: {str(e)}")
+            self.logger.error("Failed to create customer record: %s", str(e))
             raise RepositoryException(f"Failed to create customer record: {str(e)}")
 
     def get_customer_by_user_id(self, user_id: str) -> Optional[StripeCustomer]:
@@ -101,7 +101,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             )
             return cast(Optional[StripeCustomer], customer)
         except Exception as e:
-            self.logger.error(f"Failed to get customer by user ID: {str(e)}")
+            self.logger.error("Failed to get customer by user ID: %s", str(e))
             raise RepositoryException(f"Failed to get customer by user ID: {str(e)}")
 
     def get_customer_by_stripe_id(self, stripe_customer_id: str) -> Optional[StripeCustomer]:
@@ -122,7 +122,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             )
             return cast(Optional[StripeCustomer], customer)
         except Exception as e:
-            self.logger.error(f"Failed to get customer by Stripe ID: {str(e)}")
+            self.logger.error("Failed to get customer by Stripe ID: %s", str(e))
             raise RepositoryException(f"Failed to get customer by Stripe ID: {str(e)}")
 
     # ========== Connected Account Management ==========
@@ -158,7 +158,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             # Let IntegrityError propagate for idempotency handling in service layer
             raise
         except Exception as e:
-            self.logger.error(f"Failed to create connected account: {str(e)}")
+            self.logger.error("Failed to create connected account: %s", str(e))
             raise RepositoryException(f"Failed to create connected account: {str(e)}")
 
     def get_connected_account_by_instructor_id(
@@ -181,7 +181,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             )
             return cast(Optional[StripeConnectedAccount], account)
         except Exception as e:
-            self.logger.error(f"Failed to get connected account: {str(e)}")
+            self.logger.error("Failed to get connected account: %s", str(e))
             raise RepositoryException(f"Failed to get connected account: {str(e)}")
 
     def update_onboarding_status(
@@ -208,7 +208,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 self.db.flush()
             return cast(Optional[StripeConnectedAccount], account)
         except Exception as e:
-            self.logger.error(f"Failed to update onboarding status: {str(e)}")
+            self.logger.error("Failed to update onboarding status: %s", str(e))
             raise RepositoryException(f"Failed to update onboarding status: {str(e)}")
 
     # ========== Payment Intent Management ==========
@@ -260,7 +260,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             self.db.flush()
             return payment
         except Exception as e:
-            self.logger.error(f"Failed to create payment record: {str(e)}")
+            self.logger.error("Failed to create payment record: %s", str(e))
             raise RepositoryException(f"Failed to create payment record: {str(e)}")
 
     def update_payment_status(self, payment_intent_id: str, status: str) -> Optional[PaymentIntent]:
@@ -285,7 +285,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 self.db.flush()
             return cast(Optional[PaymentIntent], payment)
         except Exception as e:
-            self.logger.error(f"Failed to update payment status: {str(e)}")
+            self.logger.error("Failed to update payment status: %s", str(e))
             raise RepositoryException(f"Failed to update payment status: {str(e)}")
 
     def get_payment_by_intent_id(self, payment_intent_id: str) -> Optional[PaymentIntent]:
@@ -306,7 +306,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             )
             return cast(Optional[PaymentIntent], payment)
         except Exception as e:
-            self.logger.error(f"Failed to get payment by intent ID: {str(e)}")
+            self.logger.error("Failed to get payment by intent ID: %s", str(e))
             raise RepositoryException(f"Failed to get payment by intent ID: {str(e)}")
 
     def get_payment_by_booking_id(self, booking_id: str) -> Optional[PaymentIntent]:
@@ -325,7 +325,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             )
             return cast(Optional[PaymentIntent], payment)
         except Exception as e:
-            self.logger.error(f"Failed to get payment by booking ID: {str(e)}")
+            self.logger.error("Failed to get payment by booking ID: %s", str(e))
             raise RepositoryException(f"Failed to get payment by booking ID: {str(e)}")
 
     def get_payment_intents_for_booking(self, booking_id: str) -> List[PaymentIntent]:
@@ -342,7 +342,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 ),
             )
         except Exception as e:
-            self.logger.error(f"Failed to get payment intents for booking: {str(e)}")
+            self.logger.error("Failed to get payment intents for booking: %s", str(e))
             raise RepositoryException(f"Failed to get payment intents for booking: {str(e)}")
 
     def find_payment_by_booking_and_amount(
@@ -384,7 +384,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 ),
             )
         except Exception as e:
-            self.logger.error(f"Failed to get payment by booking prefix: {str(e)}")
+            self.logger.error("Failed to get payment by booking prefix: %s", str(e))
             raise RepositoryException(f"Failed to get payment by booking prefix: {str(e)}")
 
     # ========== Payout Events (Analytics) ==========
@@ -417,7 +417,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             self.db.flush()
             return evt
         except Exception as e:
-            self.logger.error(f"Failed to record payout event: {str(e)}")
+            self.logger.error("Failed to record payout event: %s", str(e))
             raise RepositoryException(f"Failed to record payout event: {str(e)}")
 
     def get_instructor_payout_history(
@@ -447,7 +447,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 ),
             )
         except Exception as e:
-            self.logger.error(f"Failed to get instructor payout history: {str(e)}")
+            self.logger.error("Failed to get instructor payout history: %s", str(e))
             raise RepositoryException(f"Failed to get instructor payout history: {str(e)}")
 
     # Helper to resolve Stripe account to instructor profile via connected account record
@@ -464,7 +464,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 ),
             )
         except Exception as e:
-            self.logger.error(f"Failed to get connected account by stripe id: {str(e)}")
+            self.logger.error("Failed to get connected account by stripe id: %s", str(e))
             raise RepositoryException(f"Failed to get connected account by stripe id: {str(e)}")
 
     def get_all_connected_accounts(self) -> List[StripeConnectedAccount]:
@@ -545,7 +545,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 self.db.flush()
                 return method
         except Exception as e:
-            self.logger.error(f"Failed to save payment method: {str(e)}")
+            self.logger.error("Failed to save payment method: %s", str(e))
             raise RepositoryException(f"Failed to save payment method: {str(e)}")
 
     def get_payment_methods_by_user(self, user_id: str) -> List[PaymentMethod]:
@@ -569,7 +569,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 ),
             )
         except Exception as e:
-            self.logger.error(f"Failed to get payment methods: {str(e)}")
+            self.logger.error("Failed to get payment methods: %s", str(e))
             raise RepositoryException(f"Failed to get payment methods: {str(e)}")
 
     def get_default_payment_method(self, user_id: str) -> Optional[PaymentMethod]:
@@ -590,7 +590,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             )
             return cast(Optional[PaymentMethod], method)
         except Exception as e:
-            self.logger.error(f"Failed to get default payment method: {str(e)}")
+            self.logger.error("Failed to get default payment method: %s", str(e))
             raise RepositoryException(f"Failed to get default payment method: {str(e)}")
 
     def get_payment_method_by_stripe_id(
@@ -619,7 +619,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             )
             return cast(Optional[PaymentMethod], method)
         except Exception as e:
-            self.logger.error(f"Failed to get payment method by Stripe ID: {str(e)}")
+            self.logger.error("Failed to get payment method by Stripe ID: %s", str(e))
             raise RepositoryException(f"Failed to get payment method by Stripe ID: {str(e)}")
 
     def set_default_payment_method(self, payment_method_id: str, user_id: str) -> bool:
@@ -656,7 +656,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             self.db.flush()
             return result > 0
         except Exception as e:
-            self.logger.error(f"Failed to set default payment method: {str(e)}")
+            self.logger.error("Failed to set default payment method: %s", str(e))
             raise RepositoryException(f"Failed to set default payment method: {str(e)}")
 
     def delete_payment_method(self, payment_method_id: str, user_id: str) -> bool:
@@ -704,7 +704,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             self.db.flush()
             return result > 0
         except Exception as e:
-            self.logger.error(f"Failed to delete payment method: {str(e)}")
+            self.logger.error("Failed to delete payment method: %s", str(e))
             raise RepositoryException(f"Failed to delete payment method: {str(e)}")
 
     # ========== Analytics Methods ==========
@@ -751,7 +751,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 "average_transaction": float(getattr(result, "average_transaction", 0) or 0),
             }
         except Exception as e:
-            self.logger.error(f"Failed to get platform revenue stats: {str(e)}")
+            self.logger.error("Failed to get platform revenue stats: %s", str(e))
             raise RepositoryException(f"Failed to get platform revenue stats: {str(e)}")
 
     def get_instructor_earnings(
@@ -815,7 +815,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 "average_earning": float(getattr(result, "average_earning", 0) or 0),
             }
         except Exception as e:
-            self.logger.error(f"Failed to get instructor earnings: {str(e)}")
+            self.logger.error("Failed to get instructor earnings: %s", str(e))
             raise RepositoryException(f"Failed to get instructor earnings: {str(e)}")
 
     def get_user_payment_history(
@@ -857,7 +857,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
 
             return results
         except Exception as e:
-            self.logger.error(f"Failed to get user payment history: {str(e)}")
+            self.logger.error("Failed to get user payment history: %s", str(e))
             raise RepositoryException(f"Failed to get user payment history: {str(e)}")
 
     def get_instructor_payment_history(
@@ -892,7 +892,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
 
             return cast(List[PaymentIntent], query.all())
         except Exception as e:
-            self.logger.error(f"Failed to get instructor payment history: {str(e)}")
+            self.logger.error("Failed to get instructor payment history: %s", str(e))
             raise RepositoryException(f"Failed to get instructor payment history: {str(e)}")
 
     def get_instructor_earnings_for_export(
@@ -961,7 +961,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
 
             return results
         except Exception as e:
-            self.logger.error(f"Failed to get instructor earnings export data: {str(e)}")
+            self.logger.error("Failed to get instructor earnings export data: %s", str(e))
             raise RepositoryException(f"Failed to get instructor earnings export data: {str(e)}")
 
     # ========== Payment Events (Phase 1.1) ==========
@@ -1019,7 +1019,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 logger.debug("Non-fatal error ignored", exc_info=True)
             return event
         except Exception as e:
-            self.logger.error(f"Failed to create payment event: {str(e)}")
+            self.logger.error("Failed to create payment event: %s", str(e))
             raise RepositoryException(f"Failed to create payment event: {str(e)}")
 
     def bulk_create_payment_events(self, events: List[Dict[str, Any]]) -> List[PaymentEvent]:
@@ -1050,7 +1050,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             self.db.flush()
             return payment_events
         except Exception as e:
-            self.logger.error(f"Failed to bulk create payment events: {str(e)}")
+            self.logger.error("Failed to bulk create payment events: %s", str(e))
             raise RepositoryException(f"Failed to bulk create payment events: {str(e)}")
 
     def get_payment_events_for_booking(
@@ -1094,7 +1094,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 query.all(),
             )
         except Exception as e:
-            self.logger.error(f"Failed to get payment events: {str(e)}")
+            self.logger.error("Failed to get payment events: %s", str(e))
             raise RepositoryException(f"Failed to get payment events: {str(e)}")
 
     def get_payment_events_for_user(
@@ -1136,7 +1136,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 query = query.limit(limit)
             return cast(List[PaymentEvent], query.all())
         except Exception as e:
-            self.logger.error(f"Failed to get payment events for user: {str(e)}")
+            self.logger.error("Failed to get payment events for user: %s", str(e))
             raise RepositoryException(f"Failed to get payment events for user: {str(e)}")
 
     def list_payment_events_by_types(
@@ -1181,7 +1181,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
 
             return cast(List[PaymentEvent], query.all())
         except Exception as e:
-            self.logger.error(f"Failed to list payment events by type: {str(e)}")
+            self.logger.error("Failed to list payment events by type: %s", str(e))
             raise RepositoryException(f"Failed to list payment events: {str(e)}")
 
     def count_payment_events_by_types(
@@ -1204,7 +1204,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 query = query.filter(PaymentEvent.created_at <= end)
             return int(query.scalar() or 0)
         except Exception as e:
-            self.logger.error(f"Failed to count payment events by type: {str(e)}")
+            self.logger.error("Failed to count payment events by type: %s", str(e))
             raise RepositoryException(f"Failed to count payment events: {str(e)}")
 
     def sum_application_fee_for_booking_date_range(self, start: date, end: date) -> int:
@@ -1218,7 +1218,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             )
             return int(total or 0)
         except Exception as e:
-            self.logger.error(f"Failed to sum application fee: {str(e)}")
+            self.logger.error("Failed to sum application fee: %s", str(e))
             raise RepositoryException(f"Failed to sum application fee: {str(e)}")
 
     def get_latest_payment_event(
@@ -1249,7 +1249,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 (query.order_by(PaymentEvent.created_at.desc(), PaymentEvent.id.desc())).first(),
             )
         except Exception as e:
-            self.logger.error(f"Failed to get latest payment event: {str(e)}")
+            self.logger.error("Failed to get latest payment event: %s", str(e))
             raise RepositoryException(f"Failed to get latest payment event: {str(e)}")
 
     # ========== Platform Credits (Phase 1.3) ==========
@@ -1362,7 +1362,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             self.db.flush()
             return credit
         except Exception as e:
-            self.logger.error(f"Failed to create platform credit: {str(e)}")
+            self.logger.error("Failed to create platform credit: %s", str(e))
             raise RepositoryException(f"Failed to create platform credit: {str(e)}")
 
     def apply_credits_for_booking(
@@ -1459,7 +1459,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 "remainder_credit_id": remainder_credit_id,
             }
         except Exception as e:
-            self.logger.error(f"Failed to apply credits for booking {booking_id}: {str(e)}")
+            self.logger.error("Failed to apply credits for booking %s: %s", booking_id, str(e))
             raise RepositoryException(f"Failed to apply credits: {str(e)}")
 
     def get_available_credits(self, user_id: str) -> List[PlatformCredit]:
@@ -1504,7 +1504,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 ),
             )
         except Exception as e:
-            self.logger.error(f"Failed to get available credits: {str(e)}")
+            self.logger.error("Failed to get available credits: %s", str(e))
             raise RepositoryException(f"Failed to get available credits: {str(e)}")
 
     def delete_platform_credit(self, credit_id: str) -> None:
@@ -1619,7 +1619,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             )
             return result or 0
         except Exception as e:
-            self.logger.error(f"Failed to get total available credits: {str(e)}")
+            self.logger.error("Failed to get total available credits: %s", str(e))
             raise RepositoryException(f"Failed to get total available credits: {str(e)}")
 
     def mark_credit_used(self, credit_id: str, used_booking_id: str) -> PlatformCredit:
@@ -1659,7 +1659,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
         except RepositoryException:
             raise
         except Exception as e:
-            self.logger.error(f"Failed to mark credit as used: {str(e)}")
+            self.logger.error("Failed to mark credit as used: %s", str(e))
             raise RepositoryException(f"Failed to mark credit as used: {str(e)}")
 
 

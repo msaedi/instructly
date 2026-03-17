@@ -395,7 +395,7 @@ async def send_reminder_emails(
             failed_reminders=0,
         )
     except Exception as e:
-        logger.error(f"Failed to send reminder emails: {str(e)}")
+        logger.error("Failed to send reminder emails: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to send reminder emails",

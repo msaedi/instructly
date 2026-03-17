@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-import os
 from unittest.mock import patch
 
 import pytest
@@ -17,6 +16,7 @@ from app.monitoring.prometheus_metrics import (
     notifications_outbox_total,
 )
 from app.schemas.booking import BookingCreate
+from app.services import notification_provider
 from app.services.booking_service import BookingService
 from app.services.notification_provider import NotificationProviderTemporaryError
 from app.services.pricing_service import PricingService
@@ -161,11 +161,11 @@ async def test_booking_cancel_event_retries_then_succeeds(
     before_sent = sent_counter._value.get()
 
     try:
-        os.environ["NOTIFICATION_PROVIDER_RAISE_ON"] = "booking.cancelled"
+        notification_provider.NOTIFICATION_PROVIDER_RAISE_ON = ("booking.cancelled",)
         with pytest.raises(NotificationProviderTemporaryError):
             deliver_event.run(outbox_row.id)
     finally:
-        os.environ.pop("NOTIFICATION_PROVIDER_RAISE_ON", None)
+        notification_provider.NOTIFICATION_PROVIDER_RAISE_ON = ()
 
     db.refresh(outbox_row)
     assert outbox_row.status == EventOutboxStatus.PENDING.value

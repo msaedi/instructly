@@ -251,7 +251,7 @@ class DatabaseConfig:
         # Check if any CI indicator is present
         for indicator in ci_indicators:
             if os.getenv(indicator):
-                logger.info(f"CI environment detected: {indicator}={os.getenv(indicator)}")
+                logger.info("CI environment detected: %s=%s", indicator, os.getenv(indicator))
                 return True
 
         return False
@@ -531,7 +531,7 @@ class DatabaseConfig:
             with open(self.audit_log_path, "a") as f:
                 f.write(json.dumps(log_entry) + "\n")
         except Exception as e:
-            logger.warning(f"Failed to write audit log: {e}")
+            logger.warning("Failed to write audit log: %s", e)
 
     def _check_production_mode(self) -> bool:
         """

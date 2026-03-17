@@ -77,7 +77,7 @@ async def export_my_data(
             data=user_data,
         )
     except Exception as e:
-        logger.error(f"Error exporting user data: {str(e)}")
+        logger.error("Error exporting user data: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to export user data",
@@ -153,7 +153,7 @@ async def delete_my_data(
         # Business rule violations (e.g., has active bookings)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-        logger.error(f"Error deleting user data: {str(e)}")
+        logger.error("Error deleting user data: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete user data",
@@ -179,7 +179,7 @@ async def get_privacy_statistics(
             statistics=stats,
         )
     except Exception as e:
-        logger.error(f"Error getting privacy statistics: {str(e)}")
+        logger.error("Error getting privacy statistics: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get privacy statistics",
@@ -206,7 +206,7 @@ async def apply_retention_policies(
             stats=retention_stats,
         )
     except Exception as e:
-        logger.error(f"Error applying retention policies: {str(e)}")
+        logger.error("Error applying retention policies: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to apply retention policies",
@@ -239,7 +239,7 @@ async def export_user_data_admin(
             detail=str(e),
         )
     except Exception as e:
-        logger.error(f"Error exporting user data: {str(e)}")
+        logger.error("Error exporting user data: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to export user data",
@@ -290,7 +290,7 @@ async def delete_user_data_admin(
             detail=str(e),
         )
     except Exception as e:
-        logger.error(f"Error deleting user data: {str(e)}")
+        logger.error("Error deleting user data: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete user data",

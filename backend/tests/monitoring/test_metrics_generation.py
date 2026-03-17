@@ -277,7 +277,8 @@ class TestMetricsGeneration:
             assert result == "logged"
 
             # Verify slow operation warning was logged
-            mock_logger.warning.assert_called_once()
-            call_args = mock_logger.warning.call_args[0][0]
-            assert "slow_logged_operation took" in call_args
-            assert "1." in call_args  # Should contain duration around 1.5s
+            assert mock_logger.warning.call_args.args == (
+                "Slow operation detected: %s took %ss",
+                "slow_logged_operation",
+                "1.50",
+            )

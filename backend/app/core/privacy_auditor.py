@@ -214,7 +214,7 @@ class PrivacyAuditor:
                     self.auth_tokens[email] = token
                 return token
         except Exception as e:
-            logger.error(f"Failed to authenticate {email}: {e}")
+            logger.error("Failed to authenticate %s: %s", email, e)
 
         return None
 
@@ -303,7 +303,7 @@ class PrivacyAuditor:
             if token:
                 headers["Authorization"] = f"Bearer {token}"
             else:
-                logger.warning(f"Failed to authenticate as {as_user}")
+                logger.warning("Failed to authenticate as %s", as_user)
                 return violations
 
         try:
@@ -374,7 +374,7 @@ class PrivacyAuditor:
                     pass
 
         except Exception as e:
-            logger.error(f"Error testing endpoint {endpoint.path}: {e}")
+            logger.error("Error testing endpoint %s: %s", endpoint.path, e)
             if self.verbose:
                 traceback.print_exc()
 
@@ -483,7 +483,7 @@ class PrivacyAuditor:
 
         # Discover endpoints
         endpoints = self._discover_endpoints()
-        logger.info(f"Testing {len(endpoints)} endpoints")
+        logger.info("Testing %s endpoints", len(endpoints))
 
         # Test each endpoint
         for endpoint in endpoints:

@@ -69,7 +69,8 @@ def calculate_analytics(self: BaseTask, days_back: int = 90) -> Dict[str, Any]:
     task_id = self.request.id
 
     logger.info(
-        f"Starting analytics calculation task {task_id}",
+        "Starting analytics calculation task %s",
+        task_id,
         extra={
             "task_id": task_id,
             "days_back": days_back,
@@ -124,7 +125,8 @@ def calculate_analytics(self: BaseTask, days_back: int = 90) -> Dict[str, Any]:
         execution_time = time.time() - start_time
 
         logger.error(
-            f"Analytics calculation failed after {execution_time:.2f}s",
+            "Analytics calculation failed after %ss",
+            f"{execution_time:.2f}",
             exc_info=True,
             extra={
                 "task_id": task_id,
@@ -162,7 +164,7 @@ def generate_daily_report(self: BaseTask) -> Dict[str, Any]:
     start_time = time.time()
     task_id = self.request.id
 
-    logger.info(f"Generating daily analytics report {task_id}")
+    logger.info("Generating daily analytics report %s", task_id)
 
     db: Optional[Session] = None
     try:
@@ -194,7 +196,7 @@ def generate_daily_report(self: BaseTask) -> Dict[str, Any]:
         }
 
     except Exception as exc:
-        logger.error(f"Failed to generate daily report: {exc}", exc_info=True)
+        logger.error("Failed to generate daily report: %s", exc, exc_info=True)
         raise self.retry(exc=exc, countdown=300)  # Retry in 5 minutes
 
     finally:
@@ -220,7 +222,7 @@ def update_service_metrics(self: BaseTask, service_id: str) -> Dict[str, Any]:
     Returns:
         dict: Update summary
     """
-    logger.info(f"Updating metrics for service {service_id}")
+    logger.info("Updating metrics for service %s", service_id)
 
     db: Optional[Session] = None
     try:
@@ -235,7 +237,7 @@ def update_service_metrics(self: BaseTask, service_id: str) -> Dict[str, Any]:
         service = catalog_repo.get_by_id(service_id)
 
         if not service:
-            logger.warning(f"Service {service_id} not found")
+            logger.warning("Service %s not found", service_id)
             return {
                 "status": "error",
                 "message": f"Service {service_id} not found",
@@ -260,7 +262,7 @@ def update_service_metrics(self: BaseTask, service_id: str) -> Dict[str, Any]:
 
         updated = analytics_repo.update(service_id, **update_data)
 
-        logger.info(f"Metrics updated for service {service_id}")
+        logger.info("Metrics updated for service %s", service_id)
 
         return {
             "status": "success",
@@ -272,7 +274,7 @@ def update_service_metrics(self: BaseTask, service_id: str) -> Dict[str, Any]:
         }
 
     except Exception as exc:
-        logger.error(f"Failed to update service {service_id} metrics: {exc}")
+        logger.error("Failed to update service %s metrics: %s", service_id, exc)
         raise
 
     finally:
@@ -325,7 +327,7 @@ def record_task_execution(
         )
 
     except Exception as exc:
-        logger.error(f"Failed to record task execution: {exc}")
+        logger.error("Failed to record task execution: %s", exc)
 
     finally:
         if db:

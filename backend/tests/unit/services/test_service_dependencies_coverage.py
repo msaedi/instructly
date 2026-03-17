@@ -122,8 +122,8 @@ def test_get_email_service_console_provider(monkeypatch) -> None:
 def test_get_email_service_missing_key(monkeypatch) -> None:
     monkeypatch.setattr(deps.settings, "email_provider", "resend", raising=False)
     monkeypatch.setattr(deps.settings, "resend_api_key", "", raising=False)
-    monkeypatch.setenv("SITE_MODE", "prod")
-    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setattr(deps, "SITE_MODE", "prod")
+    monkeypatch.setattr(deps, "CI", False)
 
     class DummyConsole:
         pass
@@ -138,8 +138,8 @@ def test_get_email_service_missing_key(monkeypatch) -> None:
 def test_get_email_service_real_provider(monkeypatch) -> None:
     monkeypatch.setattr(deps.settings, "email_provider", "resend", raising=False)
     monkeypatch.setattr(deps.settings, "resend_api_key", "key", raising=False)
-    monkeypatch.setenv("SITE_MODE", "prod")
-    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setattr(deps, "SITE_MODE", "prod")
+    monkeypatch.setattr(deps, "CI", False)
 
     class DummyEmail:
         def __init__(self, db, cache):
@@ -156,3 +156,20 @@ def test_get_email_service_real_provider(monkeypatch) -> None:
     assert isinstance(service, DummyEmail)
     assert service.db is db
     assert service.cache is cache
+
+
+def test_get_email_service_uses_settings_site_mode_when_env_constant_blank(monkeypatch) -> None:
+    monkeypatch.setattr(deps.settings, "email_provider", "resend", raising=False)
+    monkeypatch.setattr(deps.settings, "resend_api_key", "key", raising=False)
+    monkeypatch.setattr(deps, "SITE_MODE", "")
+    monkeypatch.setattr(deps, "CI", True)
+    monkeypatch.setenv("SITE_MODE", "local")
+
+    class DummyConsole:
+        pass
+
+    monkeypatch.setattr(deps, "ConsoleEmailService", DummyConsole)
+
+    service = deps.get_email_service(db=SimpleNamespace(), cache=SimpleNamespace())
+
+    assert isinstance(service, DummyConsole)

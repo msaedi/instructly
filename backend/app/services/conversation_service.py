@@ -376,7 +376,8 @@ class ConversationService(BaseService):
         )
 
         self.logger.info(
-            f"Message sent in conversation {conversation_id}",
+            "Message sent in conversation %s",
+            conversation_id,
             extra={
                 "conversation_id": conversation_id,
                 "sender_id": sender_id,
@@ -862,7 +863,8 @@ class ConversationService(BaseService):
         )
 
         self.logger.info(
-            f"Message sent in conversation {conversation_id}",
+            "Message sent in conversation %s",
+            conversation_id,
             extra={
                 "conversation_id": conversation_id,
                 "sender_id": sender_id,

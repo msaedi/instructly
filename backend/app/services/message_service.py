@@ -181,7 +181,7 @@ class MessageService(BaseService):
 
         with self.transaction():
             count = self.repository.mark_messages_as_read(message_ids, user_id)
-            self.logger.info(f"Marked {count} messages as read for user {user_id}")
+            self.logger.info("Marked %s messages as read for user %s", count, user_id)
             return int(count or 0)
 
     @BaseService.measure_operation("mark_conversation_messages_as_read")
@@ -427,7 +427,7 @@ class MessageService(BaseService):
                 count = atomic_result.rowcount
                 marked_message_ids = atomic_result.message_ids
                 if marked_message_ids:
-                    self.logger.info(f"Marked {count} messages as read for user {user_id}")
+                    self.logger.info("Marked %s messages as read for user %s", count, user_id)
 
             # Pre-fetch participants
             participant_ids = self._get_conversation_participants(conversation_id)
@@ -436,7 +436,7 @@ class MessageService(BaseService):
             marked_message_ids = message_ids
             with self.transaction():
                 count = self.repository.mark_messages_as_read(message_ids, user_id)
-                self.logger.info(f"Marked {count} messages as read for user {user_id}")
+                self.logger.info("Marked %s messages as read for user %s", count, user_id)
 
             # Get conversation_id from first message for notification
             if marked_message_ids:

@@ -282,9 +282,11 @@ class TestPerformanceMonitoring:
                     pass  # No actual sleep needed - time is mocked
 
             mock_warning.assert_called_once()
-            args = mock_warning.call_args[0][0]
-            assert "Slow operation detected" in args
-            assert "slow_query took" in args
+            assert mock_warning.call_args.args == (
+                "Slow operation detected: %s took %ss",
+                "slow_query",
+                "1.50",
+            )
 
     def test_measure_operation_decorator(self):
         """Test measure_operation decorator."""

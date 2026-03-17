@@ -182,7 +182,7 @@ class PrivacyService(BaseService):
 
         # For students, the user record is sufficient (no separate student profile table)
 
-        logger.info(f"Exported data for user {user_id}")
+        logger.info("Exported data for user %s", user_id)
         return export_data
 
     @BaseService.measure_operation("delete_user_data")
@@ -292,7 +292,7 @@ class PrivacyService(BaseService):
         if delete_account:
             invalidate_cached_user_by_id_sync(user_id, self.db)
 
-        logger.info(f"Deleted data for user {user_id}: {deletion_stats}")
+        logger.info("Deleted data for user %s: %s", user_id, deletion_stats)
         return deletion_stats
 
     @BaseService.measure_operation("apply_retention_policies")
@@ -334,7 +334,7 @@ class PrivacyService(BaseService):
             search_events_deleted=search_events_deleted,
             old_bookings_anonymized=old_bookings_anonymized,
         )
-        logger.info(f"Applied retention policies: {retention_stats}")
+        logger.info("Applied retention policies: %s", retention_stats)
         return retention_stats
 
     @BaseService.measure_operation("get_privacy_statistics")
@@ -393,5 +393,5 @@ class PrivacyService(BaseService):
             self.search_event_repository.delete_user_events(user_id)
         invalidate_cached_user_by_id_sync(user_id, self.db)
 
-        logger.info(f"Anonymized user {user_id}")
+        logger.info("Anonymized user %s", user_id)
         return True

@@ -124,7 +124,9 @@ class PerformanceMonitor:
 
                 self.slow_queries.append(slow_query_info)
                 logger.warning(
-                    f"Slow query detected ({duration_ms:.2f}ms): {query_preview}",
+                    "Slow query detected (%sms): %s",
+                    f"{duration_ms:.2f}",
+                    query_preview,
                     extra={"duration_ms": duration_ms},
                 )
 
@@ -174,8 +176,11 @@ class PerformanceMonitor:
 
             self.slow_requests.append(slow_request_info)
             logger.warning(
-                f"Slow request: {request_info['method']} {request_info['path']} "
-                f"took {duration_ms:.2f}ms (status: {status_code})"
+                "Slow request: %s %s took %sms (status: %s)",
+                request_info["method"],
+                request_info["path"],
+                f"{duration_ms:.2f}",
+                status_code,
             )
 
             # Alert for extremely slow requests
@@ -322,7 +327,7 @@ class PerformanceMonitor:
                 return
 
         # Log alert
-        logger.error(f"ALERT [{alert_type}]: {message}")
+        logger.error("ALERT [%s]: %s", alert_type, message)
 
         # Determine severity based on alert type
         severity = "critical" if "extremely" in alert_type else "warning"
@@ -340,7 +345,7 @@ class PerformanceMonitor:
                         "details": details or {},
                     },
                 )
-                logger.info(f"Alert dispatched to Celery: {alert_type}")
+                logger.info("Alert dispatched to Celery: %s", alert_type)
             except Exception as e:
                 logger.warning("Celery dispatch failed after Redis ping succeeded: %s", e)
         else:
@@ -396,9 +401,11 @@ class PerformanceMonitor:
             start_time = cast(float, info["start_time"])
             if now - start_time > timeout_seconds:
                 logger.warning(
-                    f"Cleaning up stale request {request_id}: "
-                    f"{info['method']} {info['path']} "
-                    f"(active for {now - start_time:.0f}s)"
+                    "Cleaning up stale request %s: %s %s (active for %ss)",
+                    request_id,
+                    info["method"],
+                    info["path"],
+                    f"{now - start_time:.0f}",
                 )
                 del self._active_requests[request_id]
                 stale_count += 1
@@ -442,10 +449,10 @@ async def periodic_health_check() -> None:
             # Clean up stale requests
             stale_count = monitor.cleanup_stale_requests()
             if stale_count > 0:
-                logger.warning(f"Cleaned up {stale_count} stale requests")
+                logger.warning("Cleaned up %s stale requests", stale_count)
 
         except Exception as e:
-            logger.error(f"Error in periodic health check: {e}")
+            logger.error("Error in periodic health check: %s", e)
 
         # Run every 60 seconds
         await asyncio.sleep(60)

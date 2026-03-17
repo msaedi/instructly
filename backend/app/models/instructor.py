@@ -269,7 +269,7 @@ class InstructorProfile(Base):
     def __init__(self, **kwargs: Any) -> None:
         """Initialize instructor profile."""
         super().__init__(**kwargs)
-        logger.info(f"Creating instructor profile for user {kwargs.get('user_id')}")
+        logger.info("Creating instructor profile for user %s", kwargs.get("user_id"))
 
     def __repr__(self) -> str:
         """String representation for debugging."""

@@ -193,7 +193,7 @@ class BaseRepository(IRepository[T]):
 
             return query.first()
         except SQLAlchemyError as e:
-            self.logger.error(f"Error getting {self.model.__name__} by id {id}: {str(e)}")
+            self.logger.error("Error getting %s by id %s: %s", self.model.__name__, id, str(e))
             raise RepositoryException(f"Failed to retrieve {self.model.__name__}: {str(e)}")
 
     def get_all(self, skip: int = 0, limit: int = 100) -> List[T]:
@@ -205,7 +205,7 @@ class BaseRepository(IRepository[T]):
         try:
             return self.db.query(self.model).offset(skip).limit(limit).all()
         except SQLAlchemyError as e:
-            self.logger.error(f"Error getting all {self.model.__name__}: {str(e)}")
+            self.logger.error("Error getting all %s: %s", self.model.__name__, str(e))
             raise RepositoryException(f"Failed to retrieve {self.model.__name__} list: {str(e)}")
 
     def refresh(self, instance: T) -> None:
@@ -238,7 +238,7 @@ class BaseRepository(IRepository[T]):
             self.db.rollback()
             raise RepositoryException(f"Integrity constraint violated: {exc}") from exc
         except SQLAlchemyError as e:
-            self.logger.error(f"Error creating {self.model.__name__}: {str(e)}")
+            self.logger.error("Error creating %s: %s", self.model.__name__, str(e))
             self.db.rollback()
             raise RepositoryException(f"Failed to create {self.model.__name__}: {str(e)}")
 
@@ -269,7 +269,7 @@ class BaseRepository(IRepository[T]):
             self.db.flush()
             return entity
         except SQLAlchemyError as e:
-            self.logger.error(f"Error updating {self.model.__name__} {id}: {str(e)}")
+            self.logger.error("Error updating %s %s: %s", self.model.__name__, id, str(e))
             self.db.rollback()
             raise RepositoryException(f"Failed to update {self.model.__name__}: {str(e)}")
 
@@ -289,12 +289,12 @@ class BaseRepository(IRepository[T]):
             return True
         except IntegrityError as e:
             self.logger.error(
-                f"Cannot delete {self.model.__name__} {id} due to constraints: {str(e)}"
+                "Cannot delete %s %s due to constraints: %s", self.model.__name__, id, str(e)
             )
             self.db.rollback()
             raise RepositoryException(f"Cannot delete due to existing references: {str(e)}")
         except SQLAlchemyError as e:
-            self.logger.error(f"Error deleting {self.model.__name__} {id}: {str(e)}")
+            self.logger.error("Error deleting %s %s: %s", self.model.__name__, id, str(e))
             self.db.rollback()
             raise RepositoryException(f"Failed to delete {self.model.__name__}: {str(e)}")
 
@@ -303,7 +303,7 @@ class BaseRepository(IRepository[T]):
         try:
             return self.db.query(self.model).filter_by(**kwargs).first() is not None
         except SQLAlchemyError as e:
-            self.logger.error(f"Error checking existence: {str(e)}")
+            self.logger.error("Error checking existence: %s", str(e))
             raise RepositoryException(f"Failed to check existence: {str(e)}")
 
     def count(self, **kwargs) -> int:
@@ -311,7 +311,7 @@ class BaseRepository(IRepository[T]):
         try:
             return self.db.query(self.model).filter_by(**kwargs).count()
         except SQLAlchemyError as e:
-            self.logger.error(f"Error counting records: {str(e)}")
+            self.logger.error("Error counting records: %s", str(e))
             raise RepositoryException(f"Failed to count records: {str(e)}")
 
     def find_by(self, **kwargs) -> List[T]:
@@ -327,7 +327,7 @@ class BaseRepository(IRepository[T]):
         try:
             return self.db.query(self.model).filter_by(**kwargs).all()
         except SQLAlchemyError as e:
-            self.logger.error(f"Error finding by criteria: {str(e)}")
+            self.logger.error("Error finding by criteria: %s", str(e))
             raise RepositoryException(f"Failed to find records: {str(e)}")
 
     def find_one_by(self, **kwargs) -> Optional[T]:
@@ -343,7 +343,7 @@ class BaseRepository(IRepository[T]):
         try:
             return self.db.query(self.model).filter_by(**kwargs).first()
         except SQLAlchemyError as e:
-            self.logger.error(f"Error finding one by criteria: {str(e)}")
+            self.logger.error("Error finding one by criteria: %s", str(e))
             raise RepositoryException(f"Failed to find record: {str(e)}")
 
     def bulk_create(self, entities: List[Dict[str, Any]]) -> List[T]:
@@ -362,7 +362,7 @@ class BaseRepository(IRepository[T]):
             self.db.flush()
             return db_entities
         except SQLAlchemyError as e:
-            self.logger.error(f"Error bulk creating: {str(e)}")
+            self.logger.error("Error bulk creating: %s", str(e))
             raise RepositoryException(f"Failed to bulk create: {str(e)}")
 
     def bulk_update(self, updates: List[Dict[str, Any]]) -> int:
@@ -411,7 +411,7 @@ class BaseRepository(IRepository[T]):
             self.db.flush()
             return updated_count
         except SQLAlchemyError as e:
-            self.logger.error(f"Error bulk updating: {str(e)}")
+            self.logger.error("Error bulk updating: %s", str(e))
             raise RepositoryException(f"Failed to bulk update: {str(e)}")
 
     # Protected helper methods for use by subclasses
@@ -435,7 +435,7 @@ class BaseRepository(IRepository[T]):
         try:
             return query.all()
         except SQLAlchemyError as e:
-            self.logger.error(f"Query execution error: {str(e)}")
+            self.logger.error("Query execution error: %s", str(e))
             raise RepositoryException(f"Query failed: {str(e)}")
 
     def _execute_scalar(self, query: Query) -> Any:
@@ -443,5 +443,5 @@ class BaseRepository(IRepository[T]):
         try:
             return query.scalar()
         except SQLAlchemyError as e:
-            self.logger.error(f"Scalar query error: {str(e)}")
+            self.logger.error("Scalar query error: %s", str(e))
             raise RepositoryException(f"Scalar query failed: {str(e)}")

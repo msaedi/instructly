@@ -414,7 +414,10 @@ class BaseTask(BaseTaskType):
 
         logger = logging.getLogger(__name__)
         logger.error(
-            f"Task {self.name}[{task_id}] failed with exception: {exc}",
+            "Task %s[%s] failed with exception: %s",
+            self.name,
+            task_id,
+            exc,
             exc_info=True,
             extra={
                 "task_id": task_id,
@@ -433,7 +436,11 @@ class BaseTask(BaseTaskType):
 
         logger = logging.getLogger(__name__)
         logger.warning(
-            f"Task {self.name}[{task_id}] retry {self.request.retries} due to: {exc}",
+            "Task %s[%s] retry %s due to: %s",
+            self.name,
+            task_id,
+            self.request.retries,
+            exc,
             extra={
                 "task_id": task_id,
                 "task_name": self.name,
@@ -448,7 +455,9 @@ class BaseTask(BaseTaskType):
 
         logger = logging.getLogger(__name__)
         logger.info(
-            f"Task {self.name}[{task_id}] completed successfully",
+            "Task %s[%s] completed successfully",
+            self.name,
+            task_id,
             extra={
                 "task_id": task_id,
                 "task_name": self.name,

@@ -61,7 +61,7 @@ class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
             url = request.url.replace(scheme="https")
 
             # Log the redirect for monitoring
-            logger.info(f"Redirecting HTTP to HTTPS: {request.url} -> {url}")
+            logger.info("Redirecting HTTP to HTTPS: %s -> %s", request.url, url)
 
             # Return permanent redirect
             return RedirectResponse(url=str(url), status_code=301)

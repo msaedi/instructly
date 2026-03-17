@@ -51,7 +51,7 @@ class FavoritesRepository(BaseRepository[UserFavorite]):
             existing = self.is_favorited(student_id, instructor_id)
             if existing:
                 self.logger.info(
-                    f"Student {student_id} already favorited instructor {instructor_id}"
+                    "Student %s already favorited instructor %s", student_id, instructor_id
                 )
                 return None
 
@@ -62,18 +62,18 @@ class FavoritesRepository(BaseRepository[UserFavorite]):
             self.db.commit()
             self.db.refresh(favorite)
 
-            self.logger.info(f"Student {student_id} favorited instructor {instructor_id}")
+            self.logger.info("Student %s favorited instructor %s", student_id, instructor_id)
             return favorite
 
         except IntegrityError:
             self.db.rollback()
             self.logger.warning(
-                f"Duplicate favorite attempted: student={student_id}, instructor={instructor_id}"
+                "Duplicate favorite attempted: student=%s, instructor=%s", student_id, instructor_id
             )
             return None
         except Exception as e:
             self.db.rollback()
-            self.logger.error(f"Error adding favorite: {str(e)}")
+            self.logger.error("Error adding favorite: %s", str(e))
             raise
 
     def remove_favorite(self, student_id: str, instructor_id: str) -> bool:
@@ -101,19 +101,19 @@ class FavoritesRepository(BaseRepository[UserFavorite]):
 
             if not favorite:
                 self.logger.info(
-                    f"No favorite found for student {student_id} and instructor {instructor_id}"
+                    "No favorite found for student %s and instructor %s", student_id, instructor_id
                 )
                 return False
 
             self.db.delete(favorite)
             self.db.commit()
 
-            self.logger.info(f"Student {student_id} unfavorited instructor {instructor_id}")
+            self.logger.info("Student %s unfavorited instructor %s", student_id, instructor_id)
             return True
 
         except Exception as e:
             self.db.rollback()
-            self.logger.error(f"Error removing favorite: {str(e)}")
+            self.logger.error("Error removing favorite: %s", str(e))
             raise
 
     def is_favorited(self, student_id: str, instructor_id: str) -> bool:
@@ -141,7 +141,7 @@ class FavoritesRepository(BaseRepository[UserFavorite]):
             return exists is not None
 
         except Exception as e:
-            self.logger.error(f"Error checking favorite status: {str(e)}")
+            self.logger.error("Error checking favorite status: %s", str(e))
             return False
 
     def get_student_favorites(self, student_id: str) -> List[User]:
@@ -164,11 +164,11 @@ class FavoritesRepository(BaseRepository[UserFavorite]):
                 .all(),
             )
 
-            self.logger.info(f"Retrieved {len(favorites)} favorites for student {student_id}")
+            self.logger.info("Retrieved %s favorites for student %s", len(favorites), student_id)
             return favorites
 
         except Exception as e:
-            self.logger.error(f"Error getting student favorites: {str(e)}")
+            self.logger.error("Error getting student favorites: %s", str(e))
             return []
 
     def get_favorites_with_details(self, student_id: str) -> List[User]:
@@ -193,12 +193,12 @@ class FavoritesRepository(BaseRepository[UserFavorite]):
             )
 
             self.logger.info(
-                f"Retrieved {len(favorites)} favorites with details for student {student_id}"
+                "Retrieved %s favorites with details for student %s", len(favorites), student_id
             )
             return favorites
 
         except Exception as e:
-            self.logger.error(f"Error getting favorites with details: {str(e)}")
+            self.logger.error("Error getting favorites with details: %s", str(e))
             return []
 
     def get_instructor_favorited_count(self, instructor_id: str) -> int:
@@ -222,7 +222,7 @@ class FavoritesRepository(BaseRepository[UserFavorite]):
 
         except Exception as e:
             self.logger.error(
-                f"Error getting favorite count for instructor {instructor_id}: {str(e)}"
+                "Error getting favorite count for instructor %s: %s", instructor_id, str(e)
             )
             return 0
 
@@ -247,7 +247,7 @@ class FavoritesRepository(BaseRepository[UserFavorite]):
             return [id[0] for id in instructor_ids]
 
         except Exception as e:
-            self.logger.error(f"Error getting favorite IDs: {str(e)}")
+            self.logger.error("Error getting favorite IDs: %s", str(e))
             return []
 
     def bulk_check_favorites(self, student_id: str, instructor_ids: List[str]) -> dict[str, bool]:
@@ -273,6 +273,6 @@ class FavoritesRepository(BaseRepository[UserFavorite]):
             return result
 
         except Exception as e:
-            self.logger.error(f"Error bulk checking favorites: {str(e)}")
+            self.logger.error("Error bulk checking favorites: %s", str(e))
             # Return all False on error
             return {instructor_id: False for instructor_id in instructor_ids}

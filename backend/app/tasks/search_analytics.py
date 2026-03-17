@@ -51,7 +51,7 @@ def process_search_event(self: "Task[Any, Any]", event_id: str | int) -> Dict[st
         # Get the search event
         event = search_repo.get_by_id(event_key)
         if not event:
-            logger.warning(f"Search event {event_id} not found")
+            logger.warning("Search event %s not found", event_id)
             return {"status": "error", "message": f"Event {event_id} not found"}
 
         # Calculate search quality score using repository method
@@ -61,7 +61,7 @@ def process_search_event(self: "Task[Any, Any]", event_id: str | int) -> Dict[st
         setattr(event, "quality_score", quality_score)
         db.commit()
 
-        logger.info(f"Processed search event {event_id} with quality score {quality_score}")
+        logger.info("Processed search event %s with quality score %s", event_id, quality_score)
 
         return {
             "status": "success",
@@ -71,7 +71,7 @@ def process_search_event(self: "Task[Any, Any]", event_id: str | int) -> Dict[st
         }
 
     except Exception as exc:
-        logger.error(f"Failed to process search event {event_id}: {exc}")
+        logger.error("Failed to process search event %s: %s", event_id, exc)
         raise self.retry(exc=exc, countdown=60 * (2**self.request.retries))
 
     finally:
@@ -135,12 +135,12 @@ def calculate_search_metrics(self: "Task[Any, Any]", hours_back: int = 24) -> Di
             "calculated_at": datetime.now(timezone.utc).isoformat(),
         }
 
-        logger.info(f"Calculated search metrics for last {hours_back} hours")
+        logger.info("Calculated search metrics for last %s hours", hours_back)
 
         return metrics
 
     except Exception as exc:
-        logger.error(f"Failed to calculate search metrics: {exc}")
+        logger.error("Failed to calculate search metrics: %s", exc)
         raise
 
     finally:
@@ -216,12 +216,12 @@ def generate_search_insights(self: "Task[Any, Any]", days_back: int = 7) -> Dict
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
-        logger.info(f"Generated search insights for last {days_back} days")
+        logger.info("Generated search insights for last %s days", days_back)
 
         return insights
 
     except Exception as exc:
-        logger.error(f"Failed to generate search insights: {exc}", exc_info=True)
+        logger.error("Failed to generate search insights: %s", exc, exc_info=True)
         raise
 
     finally:

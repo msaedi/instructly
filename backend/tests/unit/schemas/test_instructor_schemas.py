@@ -1033,8 +1033,7 @@ class TestServiceResponse:
             ),
         ]
 
-        # Create a profile response mock to test sorting
-        # The sort_services validator is on InstructorProfileResponse
+        # Services are sorted upstream before schema validation.
         profile = MagicMock()
         profile.id = "01HPROFILEID"
 

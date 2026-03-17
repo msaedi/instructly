@@ -339,7 +339,7 @@ def _process_authorization_for_booking(
                     },
                 )
                 logger.info(
-                    f"Booking {booking_id} fully covered by credits; no authorization needed"
+                    "Booking %s fully covered by credits; no authorization needed", booking_id
                 )
             else:
                 booking_payment.payment_intent_id = stripe_result.get("payment_intent_id")
@@ -373,7 +373,7 @@ def _process_authorization_for_booking(
                     },
                 )
                 # TODO: Notify student on authorization success (Issue #10).
-                logger.info(f"Successfully authorized payment for booking {booking_id}")
+                logger.info("Successfully authorized payment for booking %s", booking_id)
         else:
             # Record failure
             booking_payment.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
@@ -393,7 +393,9 @@ def _process_authorization_for_booking(
                 },
             )
             logger.error(
-                f"Failed to authorize payment for booking {booking_id}: {stripe_result.get('error')}"
+                "Failed to authorize payment for booking %s: %s",
+                booking_id,
+                stripe_result.get("error"),
             )
             send_payment_failed_notification = True
 
@@ -557,11 +559,11 @@ def process_scheduled_authorizations(self: Any) -> AuthorizationJobResults:
                         db_notify.close()
                 except Exception as mail_err:
                     logger.error(
-                        f"Failed to send T-24 failure email for booking {booking_id}: {mail_err}"
+                        "Failed to send T-24 failure email for booking %s: %s", booking_id, mail_err
                     )
 
         except Exception as e:
-            logger.error(f"Error processing authorization for booking {booking_id}: {e}")
+            logger.error("Error processing authorization for booking %s: %s", booking_id, e)
             results["failed"] += 1
             results["failures"].append(
                 {
@@ -573,10 +575,10 @@ def process_scheduled_authorizations(self: Any) -> AuthorizationJobResults:
 
     # Log results
     if results["failed"] > 0:
-        logger.warning(f"Authorization job completed with {results['failed']} failures")
+        logger.warning("Authorization job completed with %s failures", results["failed"])
 
     logger.info(
-        f"Authorization job completed: {results['success']} success, {results['failed']} failed"
+        "Authorization job completed: %s success, %s failed", results["success"], results["failed"]
     )
     return results
 
@@ -642,11 +644,13 @@ def _cancel_booking_payment_failed(
 
         db.commit()
         logger.info(
-            f"Cancelled booking {booking_id} due to payment failure (T-{hours_until_lesson:.1f}hr)"
+            "Cancelled booking %s due to payment failure (T-%shr)",
+            booking_id,
+            f"{hours_until_lesson:.1f}",
         )
         return True
     except Exception as e:
-        logger.error(f"Error cancelling booking {booking_id}: {e}")
+        logger.error("Error cancelling booking %s: %s", booking_id, e)
         db.rollback()
         return False
     finally:
@@ -802,7 +806,9 @@ def _process_retry_authorization(booking_id: str, hours_until_lesson: float) -> 
                 },
             )
             logger.info(
-                f"Successfully retried authorization for booking {booking_id} (T-{hours_until_lesson:.1f}hr)"
+                "Successfully retried authorization for booking %s (T-%shr)",
+                booking_id,
+                f"{hours_until_lesson:.1f}",
             )
         else:
             bp_retry.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
@@ -818,7 +824,7 @@ def _process_retry_authorization(booking_id: str, hours_until_lesson: float) -> 
                     "failed_at": datetime.now(timezone.utc).isoformat(),
                 },
             )
-            logger.error(f"Retry failed for booking {booking_id}: {stripe_result.get('error')}")
+            logger.error("Retry failed for booking %s: %s", booking_id, stripe_result.get("error"))
 
         db3.commit()  # Commit and release lock immediately
     finally:
@@ -1005,13 +1011,16 @@ def retry_failed_authorizations(self: Any) -> RetryJobResults:
                     results["retried"] += 1
 
         except Exception as e:
-            logger.error(f"Error processing retry for booking {booking_id}: {e}")
+            logger.error("Error processing retry for booking %s: %s", booking_id, e)
             results["failed"] += 1
 
     logger.info(
-        f"Retry job completed: {results['retried']} attempted, "
-        f"{results['success']} success, {results['failed']} failed, "
-        f"{results['cancelled']} cancelled, {results['warnings_sent']} warnings sent"
+        "Retry job completed: %s attempted, %s success, %s failed, %s cancelled, %s warnings sent",
+        results["retried"],
+        results["success"],
+        results["failed"],
+        results["cancelled"],
+        results["warnings_sent"],
     )
     return results
 
@@ -1127,7 +1136,7 @@ def retry_failed_captures(self: Any) -> CaptureRetryResults:
                     results["succeeded"] += 1
 
         except Exception as exc:
-            logger.error(f"Capture retry failed for booking {booking_id}: {exc}")
+            logger.error("Capture retry failed for booking %s: %s", booking_id, exc)
 
     return results
 
@@ -1290,7 +1299,7 @@ def handle_authorization_failure(
         },
     )
 
-    logger.error(f"Failed to authorize payment for booking {booking.id}: {error}")
+    logger.error("Failed to authorize payment for booking %s: %s", booking.id, error)
 
 
 def attempt_authorization_retry(
@@ -1376,7 +1385,9 @@ def attempt_authorization_retry(
         )
 
         logger.info(
-            f"Successfully retried authorization for booking {booking.id} (T-{hours_until_lesson:.1f}hr)"
+            "Successfully retried authorization for booking %s (T-%shr)",
+            booking.id,
+            f"{hours_until_lesson:.1f}",
         )
         return True
 
@@ -1393,7 +1404,7 @@ def attempt_authorization_retry(
         )
 
         bp_attempt.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
-        logger.error(f"Retry failed for booking {booking.id}: {e}")
+        logger.error("Retry failed for booking %s: %s", booking.id, e)
         return False
 
 
@@ -1702,7 +1713,9 @@ def _process_capture_for_booking(
                 },
             )
             logger.info(
-                f"Successfully captured payment for booking {booking_id} (reason: {capture_reason})"
+                "Successfully captured payment for booking %s (reason: %s)",
+                booking_id,
+                capture_reason,
             )
 
         elif stripe_result.get("expired"):
@@ -1754,7 +1767,9 @@ def _process_capture_for_booking(
                 },
             )
             logger.error(
-                f"Failed to capture payment for booking {booking_id}: {stripe_result.get('error')}"
+                "Failed to capture payment for booking %s: %s",
+                booking_id,
+                stripe_result.get("error"),
             )
 
         db3.commit()  # Commit and release lock immediately
@@ -1880,7 +1895,7 @@ def _auto_complete_booking(booking_id: str, now: datetime) -> Dict[str, Any]:
         }
 
     if not payment_intent_id:
-        logger.warning(f"Skipping capture for booking {booking_id}: no payment_intent_id")
+        logger.warning("Skipping capture for booking %s: no payment_intent_id", booking_id)
         return {
             "success": True,
             "auto_completed": True,
@@ -2008,7 +2023,7 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
             elif not capture_result.get("skipped"):
                 results["failed"] += 1
         except Exception as e:
-            logger.error(f"Error processing capture for booking {booking_id}: {e}")
+            logger.error("Error processing capture for booking %s: %s", booking_id, e)
             results["failed"] += 1
 
     # 2. Process auto-complete bookings
@@ -2026,7 +2041,7 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
                 # Count as failed only if we tried to capture but failed
                 results["failed"] += 1
         except Exception as e:
-            logger.error(f"Error auto-completing booking {booking_id}: {e}")
+            logger.error("Error auto-completing booking %s: %s", booking_id, e)
             results["failed"] += 1
 
     # 3. Process expired authorizations
@@ -2093,13 +2108,15 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
                 finally:
                     db_expired.close()
         except Exception as e:
-            logger.error(f"Error handling expired auth for booking {booking_id}: {e}")
+            logger.error("Error handling expired auth for booking %s: %s", booking_id, e)
             results["failed"] += 1
 
     logger.info(
-        f"Capture job completed: {results['captured']} captured, "
-        f"{results['failed']} failed, {results['auto_completed']} auto-completed, "
-        f"{results['expired_handled']} expired handled"
+        "Capture job completed: %s captured, %s failed, %s auto-completed, %s expired handled",
+        results["captured"],
+        results["failed"],
+        results["auto_completed"],
+        results["expired_handled"],
     )
     return results
 
@@ -2133,12 +2150,12 @@ def attempt_payment_capture(
             PaymentStatus.SETTLED.value,
             PaymentStatus.LOCKED.value,
         }:
-            logger.info(f"Payment already captured for booking {booking.id}")
+            logger.info("Payment already captured for booking %s", booking.id)
             return {"success": True, "already_captured": True}
 
         _intent_id: str | None = getattr(_pd_apc, "payment_intent_id", None)
         if not _intent_id:
-            logger.warning(f"No payment_intent_id for booking {booking.id} — skipping capture")
+            logger.warning("No payment_intent_id for booking %s — skipping capture", booking.id)
             return {"success": False, "error": "missing_payment_intent"}
         idempotency_key = f"capture_{capture_reason}_{booking.id}_{_intent_id}"
         capture_payload = stripe_service.capture_booking_payment_intent(
@@ -2177,7 +2194,7 @@ def attempt_payment_capture(
         )
 
         logger.info(
-            f"Successfully captured payment for booking {booking.id} (reason: {capture_reason})"
+            "Successfully captured payment for booking %s (reason: %s)", booking.id, capture_reason
         )
         return {"success": True}
 
@@ -2267,7 +2284,7 @@ def attempt_payment_capture(
             bp_apc.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
             bp_apc.capture_failed_at = datetime.now(timezone.utc)
             bp_apc.capture_retry_count = int(getattr(bp_apc, "capture_retry_count", 0) or 0) + 1
-        logger.error(f"Failed to capture payment for booking {booking.id}: {e}")
+        logger.error("Failed to capture payment for booking %s: %s", booking.id, e)
         return {"success": False, "error": str(e)}
 
 
@@ -2393,7 +2410,7 @@ def create_new_authorization_and_capture(
             },
         )
 
-        logger.info(f"Successfully created new auth and captured for booking {booking.id}")
+        logger.info("Successfully created new auth and captured for booking %s", booking.id)
         return {"success": True}
 
     except Exception as e:
@@ -2407,7 +2424,7 @@ def create_new_authorization_and_capture(
                 else getattr(bp_reauth, "payment_intent_id", None),
             },
         )
-        logger.error(f"Failed to reauth and capture for booking {booking.id}: {e}")
+        logger.error("Failed to reauth and capture for booking %s: %s", booking.id, e)
         return {"success": False, "error": str(e)}
 
 
@@ -2445,7 +2462,7 @@ def capture_late_cancellation(self: Any, booking_id: Union[int, str]) -> Dict[st
             booking_repo = RepositoryFactory.create_booking_repository(db)
             booking = booking_repo.get_by_id(str(booking_id))
             if not booking:
-                logger.error(f"Booking {booking_id} not found for late cancellation capture")
+                logger.error("Booking %s not found for late cancellation capture", booking_id)
                 return {"success": False, "error": "Booking not found"}
 
             # Verify this is a late cancellation
@@ -2455,7 +2472,9 @@ def capture_late_cancellation(self: Any, booking_id: Union[int, str]) -> Dict[st
 
             if hours_until_lesson >= 12:
                 logger.warning(
-                    f"Booking {booking_id} cancelled with {hours_until_lesson:.1f}hr notice - no charge"
+                    "Booking %s cancelled with %shr notice - no charge",
+                    booking_id,
+                    f"{hours_until_lesson:.1f}",
                 )
                 return {"success": False, "error": "Not a late cancellation"}
 
@@ -2465,12 +2484,12 @@ def capture_late_cancellation(self: Any, booking_id: Union[int, str]) -> Dict[st
                 PaymentStatus.SETTLED.value,
                 PaymentStatus.LOCKED.value,
             }:
-                logger.info(f"Payment already captured for booking {booking_id}")
+                logger.info("Payment already captured for booking %s", booking_id)
                 return {"success": True, "already_captured": True}
 
             # Ensure we have an authorization to capture
             if not bp_late.payment_intent_id:
-                logger.error(f"No payment intent for booking {booking_id}")
+                logger.error("No payment intent for booking %s", booking_id)
                 return {"success": False, "error": "No payment intent"}
 
             # Attempt immediate capture
@@ -2516,8 +2535,9 @@ def capture_late_cancellation(self: Any, booking_id: Union[int, str]) -> Dict[st
                 db.commit()
 
                 logger.info(
-                    f"Successfully captured late cancellation for booking {booking_id} "
-                    f"({hours_until_lesson:.1f}hr before lesson)"
+                    "Successfully captured late cancellation for booking %s (%shr before lesson)",
+                    booking_id,
+                    f"{hours_until_lesson:.1f}",
                 )
                 return {
                     "success": True,
@@ -2543,7 +2563,7 @@ def capture_late_cancellation(self: Any, booking_id: Union[int, str]) -> Dict[st
                         },
                     )
                     db.commit()
-                    logger.error(f"Failed to capture late cancellation for {booking_id}: {e}")
+                    logger.error("Failed to capture late cancellation for %s: %s", booking_id, e)
                     return {"success": False, "error": str(e)}
 
             except Exception as e:
@@ -2557,11 +2577,11 @@ def capture_late_cancellation(self: Any, booking_id: Union[int, str]) -> Dict[st
                     },
                 )
                 db.commit()
-                logger.error(f"Failed to capture late cancellation for {booking_id}: {e}")
+                logger.error("Failed to capture late cancellation for %s: %s", booking_id, e)
                 return {"success": False, "error": str(e)}
 
     except Exception as exc:
-        logger.error(f"Late cancellation capture task failed for {booking_id}: {exc}")
+        logger.error("Late cancellation capture task failed for %s: %s", booking_id, exc)
         raise self.retry(exc=exc, countdown=60)  # Retry in 1 minute
     finally:
         if db is not None:
@@ -2693,16 +2713,16 @@ def check_authorization_health() -> Dict[str, Any]:
         # Alert if system appears unhealthy
         if len(overdue_bookings) > 5:
             health_status["healthy"] = False
-            logger.error(f"ALERT: {len(overdue_bookings)} bookings are overdue for authorization")
+            logger.error("ALERT: %s bookings are overdue for authorization", len(overdue_bookings))
 
         if minutes_since_last_auth and minutes_since_last_auth > 120:  # 2 hours
             health_status["healthy"] = False
-            logger.warning(f"No successful authorizations in {minutes_since_last_auth} minutes")
+            logger.warning("No successful authorizations in %s minutes", minutes_since_last_auth)
 
         return health_status
 
     except Exception as e:
-        logger.error(f"Health check failed: {e}")
+        logger.error("Health check failed: %s", e)
         return {
             "healthy": False,
             "error": str(e),
@@ -2751,13 +2771,13 @@ def audit_and_fix_payout_schedules(self: Any) -> Dict[str, Any]:
                     )
                     fixed += 1
             except Exception as e:
-                logger.warning(f"Payout schedule audit failed for {acc.stripe_account_id}: {e}")
+                logger.warning("Payout schedule audit failed for %s: %s", acc.stripe_account_id, e)
 
         result = {"checked": checked, "fixed": fixed}
-        logger.info(f"Payout schedule audit completed: {result}")
+        logger.info("Payout schedule audit completed: %s", result)
         return result
     except Exception as exc:
-        logger.error(f"Payout schedule audit failed: {exc}")
+        logger.error("Payout schedule audit failed: %s", exc)
         raise self.retry(exc=exc, countdown=900)
     finally:
         db.close()

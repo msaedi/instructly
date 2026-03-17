@@ -32,6 +32,24 @@ def _transaction_cm() -> MagicMock:
     return cm
 
 
+def _tracked_transaction_cm(events: list[str], state: dict[str, bool]) -> MagicMock:
+    cm = MagicMock()
+
+    def _enter() -> None:
+        events.append("enter")
+        state["entered"] = True
+        return None
+
+    def _exit(*_args: object) -> None:
+        events.append("exit")
+        state["entered"] = False
+        return None
+
+    cm.__enter__.side_effect = _enter
+    cm.__exit__.side_effect = _exit
+    return cm
+
+
 def _role(name: str) -> SimpleNamespace:
     return SimpleNamespace(name=name)
 
@@ -952,6 +970,258 @@ def test_reschedule_booking_uses_original_student_for_downstream_calls_when_acto
     assert booking_service.validate_reschedule_payment_method.call_args.args == (student.id,)
     assert booking_service.create_booking_with_payment_setup.call_args.args[0] is student
     assert booking_service.confirm_booking_payment.call_args.args[1] is student
+
+
+def test_reschedule_booking_lock_path_uses_canonical_student_and_one_transaction(
+    booking_service: BookingService,
+    mock_repository: MagicMock,
+) -> None:
+    student = make_user(RoleName.STUDENT.value)
+    instructor = make_user(RoleName.INSTRUCTOR.value)
+    original_booking = make_booking(
+        id=generate_ulid(),
+        student_id=student.id,
+        instructor_id=instructor.id,
+        instructor_service_id=generate_ulid(),
+        payment_intent_id=None,
+        payment_status=None,
+        payment_method_id=None,
+    )
+    original_booking.student = student
+    payload = BookingRescheduleRequest(
+        booking_date=date(2030, 1, 3),
+        start_time=time(12, 0),
+        selected_duration=60,
+    )
+    booking_data = make_booking_data(
+        instructor_id=original_booking.instructor_id,
+        instructor_service_id=original_booking.instructor_service_id,
+        booking_date=payload.booking_date,
+        start_time=payload.start_time,
+    )
+    service = SimpleNamespace(duration_options=[60])
+    instructor_profile = SimpleNamespace()
+    replacement_booking = make_booking(
+        id=generate_ulid(),
+        student_id=student.id,
+        instructor_id=original_booking.instructor_id,
+        instructor_service_id=original_booking.instructor_service_id,
+    )
+    old_booking = make_booking(id=original_booking.id, student_id=student.id)
+    cancelled_booking = make_booking(
+        id=original_booking.id,
+        student_id=student.id,
+        instructor_id=original_booking.instructor_id,
+        status=BookingStatus.CANCELLED,
+    )
+    tx_events: list[str] = []
+    tx_state = {"entered": False}
+    mock_repository.transaction.return_value = _tracked_transaction_cm(tx_events, tx_state)
+
+    booking_service.get_booking_for_user = Mock(return_value=original_booking)
+    booking_service.validate_reschedule_allowed = Mock()
+    booking_service._build_reschedule_booking_data = Mock(return_value=booking_data)
+    booking_service._ensure_reschedule_slot_available = Mock()
+    booking_service.get_hours_until_start = Mock(return_value=36.0)
+    booking_service.should_trigger_lock = Mock(return_value=True)
+    booking_service.activate_lock_for_reschedule = Mock()
+    booking_service._validate_rescheduled_booking_inputs = Mock(
+        return_value=(service, instructor_profile, None)
+    )
+    booking_service._handle_post_booking_tasks = Mock()
+    booking_service._post_cancellation_actions = Mock()
+
+    def create_side_effect(*_args: object, **kwargs: object) -> tuple[SimpleNamespace, SimpleNamespace]:
+        assert tx_state["entered"] is True
+        tx_events.append("create")
+        assert kwargs["student"] is student
+        return replacement_booking, old_booking
+
+    def cancel_side_effect(*args: object, **kwargs: object) -> tuple[SimpleNamespace, str]:
+        assert tx_state["entered"] is True
+        tx_events.append("cancel")
+        assert args == (original_booking.id, instructor, "Rescheduled")
+        assert kwargs == {}
+        return cancelled_booking, "instructor"
+
+    booking_service._create_rescheduled_booking_with_locked_funds_in_transaction = Mock(
+        side_effect=create_side_effect
+    )
+    booking_service._cancel_booking_without_stripe_in_transaction = Mock(
+        side_effect=cancel_side_effect
+    )
+
+    result = booking_service.reschedule_booking(
+        booking_id=original_booking.id,
+        payload=payload,
+        current_user=instructor,
+    )
+
+    assert result is replacement_booking
+    assert booking_service._ensure_reschedule_slot_available.call_args.kwargs["student_id"] == student.id
+    assert booking_service.activate_lock_for_reschedule.call_args.args == (original_booking.id,)
+    assert booking_service._validate_rescheduled_booking_inputs.call_args.args == (
+        student,
+        booking_data,
+        payload.selected_duration,
+        original_booking.id,
+    )
+    assert (
+        booking_service._create_rescheduled_booking_with_locked_funds_in_transaction.call_args.kwargs
+        == {
+            "student": student,
+            "booking_data": booking_data,
+            "selected_duration": payload.selected_duration,
+            "original_booking_id": original_booking.id,
+            "service": service,
+            "instructor_profile": instructor_profile,
+        }
+    )
+    assert booking_service._cancel_booking_without_stripe_in_transaction.call_args.args == (
+        original_booking.id,
+        instructor,
+        "Rescheduled",
+    )
+    assert (
+        booking_service._cancel_booking_without_stripe_in_transaction.call_args.kwargs == {}
+    )
+    assert tx_events == ["enter", "create", "cancel", "exit"]
+    booking_service._handle_post_booking_tasks.assert_called_once_with(
+        replacement_booking,
+        is_reschedule=True,
+        old_booking=old_booking,
+    )
+    booking_service._post_cancellation_actions.assert_called_once_with(
+        cancelled_booking,
+        "instructor",
+    )
+
+
+def test_reschedule_booking_existing_payment_path_uses_canonical_student_and_one_transaction(
+    booking_service: BookingService,
+    mock_repository: MagicMock,
+) -> None:
+    student = make_user(RoleName.STUDENT.value)
+    instructor = make_user(RoleName.INSTRUCTOR.value)
+    original_booking = make_booking(
+        id=generate_ulid(),
+        student_id=student.id,
+        instructor_id=instructor.id,
+        instructor_service_id=generate_ulid(),
+        payment_intent_id="pi_123",
+        payment_status="requires_capture",
+        payment_method_id="pm_123",
+    )
+    original_booking.student = student
+    payload = BookingRescheduleRequest(
+        booking_date=date(2030, 1, 3),
+        start_time=time(12, 0),
+        selected_duration=60,
+    )
+    booking_data = make_booking_data(
+        instructor_id=original_booking.instructor_id,
+        instructor_service_id=original_booking.instructor_service_id,
+        booking_date=payload.booking_date,
+        start_time=payload.start_time,
+    )
+    service = SimpleNamespace(duration_options=[60])
+    instructor_profile = SimpleNamespace()
+    replacement_booking = make_booking(
+        id=generate_ulid(),
+        student_id=student.id,
+        instructor_id=original_booking.instructor_id,
+        instructor_service_id=original_booking.instructor_service_id,
+    )
+    old_booking = make_booking(id=original_booking.id, student_id=student.id)
+    cancelled_booking = make_booking(
+        id=original_booking.id,
+        student_id=student.id,
+        instructor_id=original_booking.instructor_id,
+        status=BookingStatus.CANCELLED,
+    )
+    tx_events: list[str] = []
+    tx_state = {"entered": False}
+    mock_repository.transaction.return_value = _tracked_transaction_cm(tx_events, tx_state)
+
+    booking_service.get_booking_for_user = Mock(return_value=original_booking)
+    booking_service.validate_reschedule_allowed = Mock()
+    booking_service._build_reschedule_booking_data = Mock(return_value=booking_data)
+    booking_service._ensure_reschedule_slot_available = Mock()
+    booking_service.get_hours_until_start = Mock(return_value=36.0)
+    booking_service.should_trigger_lock = Mock(return_value=False)
+    booking_service._validate_rescheduled_booking_inputs = Mock(
+        return_value=(service, instructor_profile, None)
+    )
+    booking_service._handle_post_booking_tasks = Mock()
+    booking_service._post_cancellation_actions = Mock()
+
+    def create_side_effect(*_args: object, **kwargs: object) -> tuple[SimpleNamespace, SimpleNamespace]:
+        assert tx_state["entered"] is True
+        tx_events.append("create")
+        assert kwargs["student"] is student
+        return replacement_booking, old_booking
+
+    def cancel_side_effect(*args: object, **kwargs: object) -> tuple[SimpleNamespace, str]:
+        assert tx_state["entered"] is True
+        tx_events.append("cancel")
+        assert args == (original_booking.id, instructor, "Rescheduled")
+        assert kwargs == {"clear_payment_intent": True}
+        return cancelled_booking, "instructor"
+
+    booking_service._create_rescheduled_booking_with_existing_payment_in_transaction = Mock(
+        side_effect=create_side_effect
+    )
+    booking_service._cancel_booking_without_stripe_in_transaction = Mock(
+        side_effect=cancel_side_effect
+    )
+
+    result = booking_service.reschedule_booking(
+        booking_id=original_booking.id,
+        payload=payload,
+        current_user=instructor,
+    )
+
+    assert result is replacement_booking
+    assert booking_service._ensure_reschedule_slot_available.call_args.kwargs["student_id"] == student.id
+    assert booking_service._validate_rescheduled_booking_inputs.call_args.args == (
+        student,
+        booking_data,
+        payload.selected_duration,
+        original_booking.id,
+    )
+    assert (
+        booking_service._create_rescheduled_booking_with_existing_payment_in_transaction.call_args.kwargs
+        == {
+            "student": student,
+            "booking_data": booking_data,
+            "selected_duration": payload.selected_duration,
+            "original_booking_id": original_booking.id,
+            "service": service,
+            "instructor_profile": instructor_profile,
+            "payment_intent_id": "pi_123",
+            "payment_status": PaymentStatus.AUTHORIZED.value,
+            "payment_method_id": "pm_123",
+        }
+    )
+    assert booking_service._cancel_booking_without_stripe_in_transaction.call_args.args == (
+        original_booking.id,
+        instructor,
+        "Rescheduled",
+    )
+    assert (
+        booking_service._cancel_booking_without_stripe_in_transaction.call_args.kwargs
+        == {"clear_payment_intent": True}
+    )
+    assert tx_events == ["enter", "create", "cancel", "exit"]
+    booking_service._handle_post_booking_tasks.assert_called_once_with(
+        replacement_booking,
+        is_reschedule=True,
+        old_booking=old_booking,
+    )
+    booking_service._post_cancellation_actions.assert_called_once_with(
+        cancelled_booking,
+        "instructor",
+    )
 
 
 def test_create_rescheduled_booking_with_locked_funds_missing_original_in_tx(

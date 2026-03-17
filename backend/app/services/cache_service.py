@@ -126,7 +126,7 @@ class CircuitBreaker:
             Exception if function fails and circuit allows
         """
         if self.state == CircuitState.OPEN:
-            logger.warning(f"Circuit breaker is OPEN, skipping {func.__name__}")
+            logger.warning("Circuit breaker is OPEN, skipping %s", func.__name__)
             return None
 
         try:
@@ -157,7 +157,7 @@ class CircuitBreaker:
 
             if self._failure_count >= self.failure_threshold:
                 self._state = CircuitState.OPEN
-                logger.warning(f"Circuit breaker opened after {self._failure_count} failures")
+                logger.warning("Circuit breaker opened after %s failures", self._failure_count)
 
 
 class CacheKeyBuilder:
@@ -341,7 +341,7 @@ class CacheService(BaseService):
             return None
 
         except Exception as exc:  # pragma: no cover - defensive
-            logger.error(f"Cache backend get error for key {key}: {exc}")
+            logger.error("Cache backend get error for key %s: %s", key, exc)
             self._stats["errors"] += 1
             return None
 
@@ -375,7 +375,7 @@ class CacheService(BaseService):
             return False
 
         except Exception as exc:  # pragma: no cover - defensive
-            logger.error(f"Cache backend set error for key {key}: {exc}")
+            logger.error("Cache backend set error for key %s: %s", key, exc)
             self._stats["errors"] += 1
             return False
 
@@ -431,7 +431,7 @@ class CacheService(BaseService):
             return raw_value
 
         except Exception as e:
-            logger.error(f"Cache get error for key {key}: {e}")
+            logger.error("Cache get error for key %s: %s", key, e)
             self._stats["errors"] += 1
             return None
 
@@ -480,7 +480,7 @@ class CacheService(BaseService):
             return False
 
         except Exception as e:
-            logger.error(f"Cache set error for key {key}: {e}")
+            logger.error("Cache set error for key %s: %s", key, e)
             self._stats["errors"] += 1
             return False
 
@@ -511,7 +511,7 @@ class CacheService(BaseService):
             return False
 
         except Exception as e:
-            logger.error(f"Cache delete error for key {key}: {e}")
+            logger.error("Cache delete error for key %s: %s", key, e)
             self._stats["errors"] += 1
             return False
 
@@ -531,11 +531,11 @@ class CacheService(BaseService):
                 count = self._delete_pattern_memory(pattern)
 
             self._stats["deletes"] += count
-            logger.info(f"Deleted {count} keys matching pattern: {pattern}")
+            logger.info("Deleted %s keys matching pattern: %s", count, pattern)
             return count
 
         except Exception as e:
-            logger.error(f"Cache delete pattern error: {e}")
+            logger.error("Cache delete pattern error: %s", e)
             self._stats["errors"] += 1
             return 0
 
@@ -613,7 +613,7 @@ class CacheService(BaseService):
                 return False
 
         except Exception as e:
-            logger.error(f"Lock acquire error for key {key}: {e}")
+            logger.error("Lock acquire error for key %s: %s", key, e)
             self._stats["errors"] += 1
             # On error, allow the request to proceed (fail-open)
             return True
@@ -641,7 +641,7 @@ class CacheService(BaseService):
                 return True
 
         except Exception as e:
-            logger.error(f"Lock release error for key {key}: {e}")
+            logger.error("Lock release error for key %s: %s", key, e)
             self._stats["errors"] += 1
             return False
 
@@ -676,7 +676,7 @@ class CacheService(BaseService):
                         result[key] = value
 
         except Exception as e:
-            logger.error(f"Cache mget error: {e}")
+            logger.error("Cache mget error: %s", e)
             self._stats["errors"] += 1
 
         return result
@@ -711,7 +711,7 @@ class CacheService(BaseService):
             return True
 
         except Exception as e:
-            logger.error(f"Cache mset error: {e}")
+            logger.error("Cache mset error: %s", e)
             self._stats["errors"] += 1
             return False
 
@@ -864,7 +864,7 @@ class CacheService(BaseService):
         # Track availability-specific invalidations
         self._stats["availability_invalidations"] += total_deleted
 
-        logger.info(f"Invalidated {total_deleted} cache entries for instructor {instructor_id}")
+        logger.info("Invalidated %s cache entries for instructor %s", total_deleted, instructor_id)
 
     @BaseService.measure_operation("cache_booking_conflicts")
     async def cache_booking_conflicts(
@@ -909,7 +909,7 @@ class CacheService(BaseService):
                 await self.cache_week_availability(instructor_id, week_start, availability)
                 warmed += 1
 
-        logger.info(f"Warmed {warmed} weeks of cache for instructor {instructor_id}")
+        logger.info("Warmed %s weeks of cache for instructor %s", warmed, instructor_id)
         return warmed
 
     # Decorators
@@ -942,7 +942,7 @@ class CacheService(BaseService):
                 # Try cache first
                 cached_value = await self.get(cache_key)
                 if cached_value is not None:
-                    logger.debug(f"Cache hit for {func.__name__}: {cache_key}")
+                    logger.debug("Cache hit for %s: %s", func.__name__, cache_key)
                     return cast(T, cached_value)
 
                 # Execute function
@@ -1216,13 +1216,13 @@ class CacheServiceSyncAdapter:
                     exc = t.exception()
                     if exc:
                         logger.warning(
-                            f"Async cache invalidation failed for {instructor_id}: {exc}"
+                            "Async cache invalidation failed for %s: %s", instructor_id, exc
                         )
 
                 task.add_done_callback(_log_error)
             except RuntimeError:
                 # No running loop available - skip gracefully
-                logger.debug(f"No event loop for cache invalidation: instructor {instructor_id}")
+                logger.debug("No event loop for cache invalidation: instructor %s", instructor_id)
             return
         _run_cache_coroutine(
             self._cache_service.invalidate_instructor_availability(instructor_id, dates)

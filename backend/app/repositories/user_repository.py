@@ -75,7 +75,7 @@ class UserRepository(BaseRepository[User]):
                 result = self.db.execute(stmt).scalars().first()
                 return cast(Optional[User], result)
             except Exception as e:
-                self.logger.error(f"Error getting user by ID {id}: {str(e)}")
+                self.logger.error("Error getting user by ID %s: %s", id, str(e))
                 return None
 
         if not use_retry:
@@ -94,7 +94,7 @@ class UserRepository(BaseRepository[User]):
                 self.db.query(User).filter(User.email == email).first(),
             )
         except Exception as e:
-            self.logger.error(f"Error getting user by email {email}: {str(e)}")
+            self.logger.error("Error getting user by email %s: %s", email, str(e))
             return None
 
     def list_by_emails(self, emails: Sequence[str], *, case_insensitive: bool = True) -> list[User]:
@@ -111,7 +111,7 @@ class UserRepository(BaseRepository[User]):
                 stmt = select(User).where(User.email.in_(list(emails)))
             return cast(list[User], self.db.execute(stmt).scalars().all())
         except Exception as e:
-            self.logger.error(f"Error listing users by emails: {str(e)}")
+            self.logger.error("Error listing users by emails: %s", str(e))
             return []
 
     # ==========================================
@@ -136,7 +136,7 @@ class UserRepository(BaseRepository[User]):
                 ),
             )
         except Exception as e:
-            self.logger.error(f"Error getting user with roles/permissions {user_id}: {str(e)}")
+            self.logger.error("Error getting user with roles/permissions %s: %s", user_id, str(e))
             return None
 
     def get_by_email_with_roles_and_permissions(self, email: str) -> Optional[User]:
@@ -157,7 +157,7 @@ class UserRepository(BaseRepository[User]):
             )
         except Exception as e:
             self.logger.error(
-                f"Error getting user by email with roles/permissions {email}: {str(e)}"
+                "Error getting user by email with roles/permissions %s: %s", email, str(e)
             )
             return None
 
@@ -179,7 +179,7 @@ class UserRepository(BaseRepository[User]):
             )
         except Exception as e:
             self.logger.error(
-                f"Error getting user by id with roles/permissions {user_id}: {str(e)}"
+                "Error getting user by id with roles/permissions %s: %s", user_id, str(e)
             )
             return None
 
@@ -201,7 +201,7 @@ class UserRepository(BaseRepository[User]):
                 ),
             )
         except Exception as e:
-            self.logger.error(f"Error getting user with roles {user_id}: {str(e)}")
+            self.logger.error("Error getting user with roles %s: %s", user_id, str(e))
             return None
 
     # ==========================================
@@ -230,7 +230,7 @@ class UserRepository(BaseRepository[User]):
                 ),
             )
         except Exception as e:
-            self.logger.error(f"Error getting instructor {user_id}: {str(e)}")
+            self.logger.error("Error getting instructor %s: %s", user_id, str(e))
             return None
 
     def get_active_admin_users(self) -> List[User]:
@@ -248,7 +248,7 @@ class UserRepository(BaseRepository[User]):
                 ),
             )
         except Exception as e:
-            self.logger.error(f"Error getting active admin users: {str(e)}")
+            self.logger.error("Error getting active admin users: %s", str(e))
             return []
 
     def is_instructor(self, user_id: str) -> bool:
@@ -277,7 +277,7 @@ class UserRepository(BaseRepository[User]):
             )
             return [row[0] for row in rows]
         except Exception as e:
-            self.logger.error(f"Error listing instructor ids: {str(e)}")
+            self.logger.error("Error listing instructor ids: %s", str(e))
             return []
 
     # ==========================================
@@ -294,7 +294,7 @@ class UserRepository(BaseRepository[User]):
         try:
             return cast(int, self.db.query(User).count())
         except Exception as e:
-            self.logger.error(f"Error counting all users: {str(e)}")
+            self.logger.error("Error counting all users: %s", str(e))
             return 0
 
     def count_active(self) -> int:
@@ -307,7 +307,7 @@ class UserRepository(BaseRepository[User]):
         try:
             return cast(int, self.db.query(User).filter_by(is_active=True).count())
         except Exception as e:
-            self.logger.error(f"Error counting active users: {str(e)}")
+            self.logger.error("Error counting active users: %s", str(e))
             return 0
 
     def get_profile_picture_versions(self, user_ids: Sequence[str]) -> dict[str, Optional[int]]:
@@ -322,7 +322,7 @@ class UserRepository(BaseRepository[User]):
             rows = self.db.execute(stmt).all()
             return {row[0]: row[1] for row in rows}
         except Exception as e:
-            self.logger.error(f"Error loading profile picture versions: {str(e)}")
+            self.logger.error("Error loading profile picture versions: %s", str(e))
             return {}
 
     # ==========================================
@@ -358,7 +358,7 @@ class UserRepository(BaseRepository[User]):
             return user
 
         except Exception as e:
-            self.logger.error(f"Error updating user profile {user_id}: {str(e)}")
+            self.logger.error("Error updating user profile %s: %s", user_id, str(e))
             self.db.rollback()
             return None
 
@@ -374,7 +374,7 @@ class UserRepository(BaseRepository[User]):
             self.db.commit()
             return True
         except Exception as e:
-            self.logger.error(f"Error clearing user profile picture {user_id}: {str(e)}")
+            self.logger.error("Error clearing user profile picture %s: %s", user_id, str(e))
             self.db.rollback()
             return False
 
@@ -397,7 +397,7 @@ class UserRepository(BaseRepository[User]):
             self.db.commit()
             return True
         except Exception as e:
-            self.logger.error(f"Error updating user password {user_id}: {str(e)}")
+            self.logger.error("Error updating user password %s: %s", user_id, str(e))
             self.db.rollback()
             return False
 
@@ -430,7 +430,7 @@ class UserRepository(BaseRepository[User]):
                 )
             return True
         except Exception as e:
-            self.logger.error(f"Error invalidating all tokens for user {user_id}: {str(e)}")
+            self.logger.error("Error invalidating all tokens for user %s: %s", user_id, str(e))
             self.db.rollback()
             return False
 
@@ -450,7 +450,7 @@ class UserRepository(BaseRepository[User]):
                 self.db.query(User).filter(User.id.in_(list(user_ids))).all(),
             )
         except Exception as e:
-            self.logger.error(f"Error getting users by IDs: {str(e)}")
+            self.logger.error("Error getting users by IDs: %s", str(e))
             return []
 
     def get_all_active(self) -> list[User]:
@@ -465,7 +465,7 @@ class UserRepository(BaseRepository[User]):
                 self.db.query(User).filter_by(is_active=True).all(),
             )
         except Exception as e:
-            self.logger.error(f"Error getting all active users: {str(e)}")
+            self.logger.error("Error getting all active users: %s", str(e))
             return []
 
     def lock_account(self, user_id: str, reason: str) -> bool:
@@ -490,7 +490,7 @@ class UserRepository(BaseRepository[User]):
             user.account_locked_reason = reason
             return True
         except Exception as e:
-            self.logger.error(f"Error locking account {user_id}: {str(e)}")
+            self.logger.error("Error locking account %s: %s", user_id, str(e))
             return False
 
     def list_students_paginated(

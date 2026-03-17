@@ -86,7 +86,8 @@ async def create_sse_stream(
     # Step 1: Send any missed messages (pre-fetched by caller)
     if missed_messages:
         logger.info(
-            f"[SSE-STREAM] Sending {len(missed_messages)} missed messages",
+            "[SSE-STREAM] Sending %s missed messages",
+            len(missed_messages),
             extra={"user_id": user_id, "count": len(missed_messages)},
         )
         for msg in missed_messages:
@@ -109,7 +110,8 @@ async def create_sse_stream(
         broadcast = get_broadcast()
         async with broadcast.subscribe(channel=channel) as subscriber:
             logger.info(
-                f"[SSE-STREAM] Subscribed to channel {channel} via Broadcaster",
+                "[SSE-STREAM] Subscribed to channel %s via Broadcaster",
+                channel,
                 extra={"user_id": user_id},
             )
 
@@ -156,21 +158,21 @@ async def create_sse_stream(
                                     yield format_redis_event(parsed_event, user_id)
                                 except GeneratorExit:
                                     logger.info(
-                                        f"[SSE-STREAM] Client disconnected for user {user_id}"
+                                        "[SSE-STREAM] Client disconnected for user %s", user_id
                                     )
                                     return  # Exit cleanly
                             except json.JSONDecodeError as e:
-                                logger.warning(f"[SSE-STREAM] Invalid JSON in message: {e}")
+                                logger.warning("[SSE-STREAM] Invalid JSON in message: %s", e)
                         elif msg_type == "error":
-                            logger.error(f"[SSE-STREAM] Reader error for user {user_id}: {data}")
+                            logger.error("[SSE-STREAM] Reader error for user %s: %s", user_id, data)
                             break
                         elif msg_type == "done":
-                            logger.info(f"[SSE-STREAM] Subscription ended for user {user_id}")
+                            logger.info("[SSE-STREAM] Subscription ended for user %s", user_id)
                             break
 
                     except asyncio.TimeoutError:
                         # No message within timeout - send heartbeat
-                        logger.debug(f"[SSE-HEARTBEAT] Sending heartbeat for user {user_id}")
+                        logger.debug("[SSE-HEARTBEAT] Sending heartbeat for user %s", user_id)
                         try:
                             yield {
                                 "event": "heartbeat",
@@ -182,7 +184,7 @@ async def create_sse_stream(
                                 ),
                             }
                         except GeneratorExit:
-                            logger.info(f"[SSE-STREAM] Client disconnected for user {user_id}")
+                            logger.info("[SSE-STREAM] Client disconnected for user %s", user_id)
                             return  # Exit cleanly
             finally:
                 # Clean up the reader task
@@ -193,15 +195,15 @@ async def create_sse_stream(
                     pass
 
     except asyncio.CancelledError:
-        logger.info(f"[SSE-STREAM] Stream cancelled for user {user_id}")
+        logger.info("[SSE-STREAM] Stream cancelled for user %s", user_id)
         raise
     except RuntimeError as e:
         if "generator" in str(e).lower():
             # Normal cleanup during client disconnect - not an error
-            logger.debug(f"[SSE-STREAM] Generator cleanup for user {user_id}")
+            logger.debug("[SSE-STREAM] Generator cleanup for user %s", user_id)
         else:
             # Broadcast not initialized or other runtime error
-            logger.error(f"[SSE-STREAM] Broadcast error for user {user_id}: {e}")
+            logger.error("[SSE-STREAM] Broadcast error for user %s: %s", user_id, e)
             yield {
                 "event": "error",
                 "data": json.dumps(
@@ -213,12 +215,14 @@ async def create_sse_stream(
             }
     except Exception as e:
         logger.error(
-            f"[SSE-STREAM] Unexpected error for user {user_id}: {e}",
+            "[SSE-STREAM] Unexpected error for user %s: %s",
+            user_id,
+            e,
             exc_info=True,
         )
         raise
 
-    logger.info(f"[SSE-STREAM] User {user_id} unsubscribed from channel {channel}")
+    logger.info("[SSE-STREAM] User %s unsubscribed from channel %s", user_id, channel)
 
 
 async def publish_to_user(user_id: str, message: Dict[str, Any]) -> None:
@@ -235,12 +239,12 @@ async def publish_to_user(user_id: str, message: Dict[str, Any]) -> None:
     try:
         broadcast = get_broadcast()
         await broadcast.publish(channel=channel, message=json.dumps(message))
-        logger.debug(f"[SSE-PUBLISH] Published message to user {user_id}")
+        logger.debug("[SSE-PUBLISH] Published message to user %s", user_id)
     except RuntimeError as e:
         # Broadcast not initialized
-        logger.warning(f"[SSE-PUBLISH] Broadcast not initialized, cannot publish: {e}")
+        logger.warning("[SSE-PUBLISH] Broadcast not initialized, cannot publish: %s", e)
     except Exception as e:
-        logger.error(f"[SSE-PUBLISH] Failed to publish to {channel}: {e}")
+        logger.error("[SSE-PUBLISH] Failed to publish to %s: %s", channel, e)
 
 
 def format_redis_event(event: Dict[str, Any], user_id: str) -> Dict[str, str]:
@@ -305,7 +309,7 @@ def format_redis_event(event: Dict[str, Any], user_id: str) -> Dict[str, str]:
 
     else:
         # Unknown event type - pass through without id
-        logger.warning(f"[SSE-STREAM] Unknown event type: {event_type}")
+        logger.warning("[SSE-STREAM] Unknown event type: %s", event_type)
         return {
             "event": event_type,
             "data": json.dumps(payload),

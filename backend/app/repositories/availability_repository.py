@@ -61,7 +61,7 @@ class AvailabilityRepository:
                 .all(),
             )
         except SQLAlchemyError as e:
-            self.logger.error(f"Error getting blackout dates: {str(e)}")
+            self.logger.error("Error getting blackout dates: %s", str(e))
             raise RepositoryException(f"Failed to get blackout dates: {str(e)}")
 
     def create_blackout_date(
@@ -88,10 +88,10 @@ class AvailabilityRepository:
             return blackout
 
         except IntegrityError as e:
-            self.logger.error(f"Integrity error creating blackout: {str(e)}")
+            self.logger.error("Integrity error creating blackout: %s", str(e))
             raise RepositoryException(f"Blackout date already exists: {str(e)}")
         except SQLAlchemyError as e:
-            self.logger.error(f"Error creating blackout: {str(e)}")
+            self.logger.error("Error creating blackout: %s", str(e))
             raise RepositoryException(f"Failed to create blackout: {str(e)}")
 
     def flush(self) -> None:
@@ -124,5 +124,5 @@ class AvailabilityRepository:
             return bool(result > 0)
 
         except SQLAlchemyError as e:
-            self.logger.error(f"Error deleting blackout: {str(e)}")
+            self.logger.error("Error deleting blackout: %s", str(e))
             raise RepositoryException(f"Failed to delete blackout: {str(e)}")

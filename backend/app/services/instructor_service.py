@@ -1274,8 +1274,9 @@ class InstructorService(BaseService):
                         service.catalog_entry.name if service.catalog_entry else "Unknown"
                     )
                     logger.info(
-                        f"Soft deleted service '{catalog_name}' (ID: {service.id}) "
-                        f"- has existing bookings"
+                        "Soft deleted service '%s' (ID: %s) - has existing bookings",
+                        catalog_name,
+                        service.id,
                     )
                 else:
                     # Hard delete
@@ -1284,7 +1285,7 @@ class InstructorService(BaseService):
                         service.catalog_entry.name if service.catalog_entry else "Unknown"
                     )
                     logger.info(
-                        f"Hard deleted service '{catalog_name}' (ID: {service.id}) - no bookings"
+                        "Hard deleted service '%s' (ID: %s) - no bookings", catalog_name, service.id
                     )
 
         # Update skills_configured based on whether services exist after update

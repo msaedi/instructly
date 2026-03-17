@@ -92,14 +92,14 @@ class PasswordResetService(BaseService):
                         user_name=user.first_name,
                     )
 
-                    self.logger.info(f"Password reset token created for user {user.id}")
+                    self.logger.info("Password reset token created for user %s", user.id)
 
             except Exception as e:
                 self.logger.error("Error creating password reset token: %s", e, exc_info=True)
                 # Still return True to prevent enumeration
         else:
             # Log that email doesn't exist but don't reveal this
-            self.logger.warning(f"Password reset requested for non-existent email: {email}")
+            self.logger.warning("Password reset requested for non-existent email: %s", email)
 
         # Always return True to prevent email enumeration
         return True
@@ -121,11 +121,11 @@ class PasswordResetService(BaseService):
             return (False, None)
 
         if reset_token.used:
-            self.logger.warning(f"Attempted to use already used token: {token[:8]}...")
+            self.logger.warning("Attempted to use already used token: %s...", token[:8])
             return (False, None)
 
         if datetime.now(timezone.utc) > reset_token.expires_at:
-            self.logger.warning(f"Attempted to use expired token: {token[:8]}...")
+            self.logger.warning("Attempted to use expired token: %s...", token[:8])
             return (False, None)
 
         # Get user for email masking
@@ -157,29 +157,29 @@ class PasswordResetService(BaseService):
         Raises:
             ValidationException: If token is invalid, expired, or already used
         """
-        self.logger.info(f"Password reset confirmation attempted with token: {token[:8]}...")
+        self.logger.info("Password reset confirmation attempted with token: %s...", token[:8])
 
         # Find the token
         reset_token = self.token_repository.find_one_by(token=token)
 
         if not reset_token:
-            self.logger.warning(f"Invalid password reset token: {token[:8]}...")
+            self.logger.warning("Invalid password reset token: %s...", token[:8])
             raise ValidationException("Invalid or expired reset token")
 
         # Check if token is already used
         if reset_token.used:
-            self.logger.warning(f"Attempted to reuse password reset token: {token[:8]}...")
+            self.logger.warning("Attempted to reuse password reset token: %s...", token[:8])
             raise ValidationException("This reset link has already been used")
 
         # Check if token is expired
         if datetime.now(timezone.utc) > reset_token.expires_at:
-            self.logger.warning(f"Expired password reset token used: {token[:8]}...")
+            self.logger.warning("Expired password reset token used: %s...", token[:8])
             raise ValidationException("This reset link has expired")
 
         # Get the user
         user = self.user_repository.get_by_id(reset_token.user_id)
         if not user:
-            self.logger.error(f"User not found for reset token: {reset_token.user_id}")
+            self.logger.error("User not found for reset token: %s", reset_token.user_id)
             raise ValidationException("Invalid reset token")
 
         try:
@@ -200,7 +200,7 @@ class PasswordResetService(BaseService):
         except ValidationException:
             raise
         except Exception as e:
-            self.logger.error(f"Error resetting password: {str(e)}")
+            self.logger.error("Error resetting password: %s", str(e))
             raise ValidationException("An error occurred while resetting your password")
 
         # Password reset has committed successfully; token invalidation is best-effort
@@ -220,7 +220,7 @@ class PasswordResetService(BaseService):
                 exc_info=True,
             )
 
-        self.logger.info(f"Password successfully reset for user {user.id}")
+        self.logger.info("Password successfully reset for user %s", user.id)
         return True
 
     def _generate_reset_token(self, user_id: str) -> str:

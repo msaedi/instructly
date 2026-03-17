@@ -354,7 +354,7 @@ async def nl_search(
         # Preserve intentional status codes (e.g., 503 overload from NLSearchService)
         raise
     except Exception as e:
-        logger.error(f"NL search error: {e}", exc_info=True)
+        logger.error("NL search error: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="Search temporarily unavailable",

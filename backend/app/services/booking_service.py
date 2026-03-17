@@ -2084,7 +2084,7 @@ class BookingService(BaseService):
                     start_time=booking.start_time,
                 )
         except Exception as e:
-            logger.error(f"Failed to create system message for booking {booking.id}: {str(e)}")
+            logger.error("Failed to create system message for booking %s: %s", booking.id, str(e))
 
         # Invalidate caches so upcoming lists include the newly confirmed booking
         try:
@@ -3286,7 +3286,9 @@ class BookingService(BaseService):
                             )
                         except Exception as e:
                             results["reverse_failed"] = True
-                            logger.error(f"Transfer reversal failed for booking {booking_id}: {e}")
+                            logger.error(
+                                "Transfer reversal failed for booking %s: %s", booking_id, e
+                            )
                 except Exception as e:
                     logger.warning("Capture not performed for booking %s: %s", booking_id, e)
                     results["error"] = str(e)
@@ -3377,7 +3379,9 @@ class BookingService(BaseService):
                             )
                         except Exception as e:
                             results["reverse_failed"] = True
-                            logger.error(f"Transfer reversal failed for booking {booking_id}: {e}")
+                            logger.error(
+                                "Transfer reversal failed for booking %s: %s", booking_id, e
+                            )
                 except Exception as e:
                     logger.warning("Capture not performed for booking %s: %s", booking_id, e)
                     results["error"] = str(e)
@@ -3425,7 +3429,9 @@ class BookingService(BaseService):
                             )
                         except Exception as e:
                             results["reverse_failed"] = True
-                            logger.error(f"Transfer reversal failed for booking {booking_id}: {e}")
+                            logger.error(
+                                "Transfer reversal failed for booking %s: %s", booking_id, e
+                            )
                     else:
                         results["reverse_failed"] = True
                         logger.error(
@@ -3601,7 +3607,7 @@ class BookingService(BaseService):
                         )
                     except Exception as e:
                         logger.error(
-                            f"Failed to create credit for gaming reschedule {booking_id}: {e}"
+                            "Failed to create credit for gaming reschedule %s: %s", booking_id, e
                         )
 
                     payment_repo.create_payment_event(
@@ -3733,7 +3739,7 @@ class BookingService(BaseService):
                         )
                     except Exception as e:
                         logger.error(
-                            f"Failed to create platform credit for booking {booking_id}: {e}"
+                            "Failed to create platform credit for booking %s: %s", booking_id, e
                         )
 
                     payment_repo.create_payment_event(
@@ -3866,7 +3872,7 @@ class BookingService(BaseService):
                         )
                     except Exception as e:
                         logger.error(
-                            f"Failed to create platform credit for booking {booking_id}: {e}"
+                            "Failed to create platform credit for booking %s: %s", booking_id, e
                         )
 
                     payment_repo.create_payment_event(
@@ -4052,7 +4058,7 @@ class BookingService(BaseService):
                 )
             )
         except Exception as e:
-            logger.error(f"Failed to send cancellation notification event: {str(e)}")
+            logger.error("Failed to send cancellation notification event: %s", str(e))
 
         # Create system message in conversation
         try:
@@ -4066,7 +4072,9 @@ class BookingService(BaseService):
             )
         except Exception as e:
             logger.error(
-                f"Failed to create cancellation system message for booking {booking.id}: {str(e)}"
+                "Failed to create cancellation system message for booking %s: %s",
+                booking.id,
+                str(e),
             )
 
         self._send_cancellation_notifications(booking, cancelled_by_role)
@@ -4416,7 +4424,7 @@ class BookingService(BaseService):
             )
         except Exception as e:
             logger.error(
-                f"Failed to create completion system message for booking {booking_id}: {str(e)}"
+                "Failed to create completion system message for booking %s: %s", booking_id, str(e)
             )
 
         try:
@@ -5666,7 +5674,7 @@ class BookingService(BaseService):
                 )
                 sent_count += 1
             except Exception as e:
-                logger.error(f"Error queueing reminder for booking {booking.id}: {str(e)}")
+                logger.error("Error queueing reminder for booking %s: %s", booking.id, str(e))
 
         return sent_count
 
@@ -6333,7 +6341,7 @@ class BookingService(BaseService):
                     )
                 )
             except Exception as e:
-                logger.error(f"Failed to enqueue booking confirmation event: {str(e)}")
+                logger.error("Failed to enqueue booking confirmation event: %s", str(e))
 
         # Create system message in conversation
         try:
@@ -6363,7 +6371,7 @@ class BookingService(BaseService):
                     start_time=booking.start_time,
                 )
         except Exception as e:
-            logger.error(f"Failed to create system message for booking {booking.id}: {str(e)}")
+            logger.error("Failed to create system message for booking %s: %s", booking.id, str(e))
 
         self._send_booking_notifications(booking, is_reschedule)
 
@@ -6845,7 +6853,9 @@ class BookingService(BaseService):
             # Only abort pending bookings
             if booking.status != BookingStatus.PENDING:
                 logger.warning(
-                    f"Cannot abort booking {booking_id} - status is {booking.status}, not pending_payment"
+                    "Cannot abort booking %s - status is %s, not pending_payment",
+                    booking_id,
+                    booking.status,
                 )
                 return False
 
@@ -6855,5 +6865,5 @@ class BookingService(BaseService):
             logger.info("Aborted pending booking %s", booking_id)
             return True
         except Exception as e:
-            logger.error(f"Failed to abort pending booking {booking_id}: {e}")
+            logger.error("Failed to abort pending booking %s: %s", booking_id, e)
             return False

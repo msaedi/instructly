@@ -305,7 +305,9 @@ class Booking(Base):
         if not self.status:
             self.status = BookingStatus.CONFIRMED
         logger.info(
-            f"Creating booking for student {self.student_id} with instructor {self.instructor_id}"
+            "Creating booking for student %s with instructor %s",
+            self.student_id,
+            self.instructor_id,
         )
 
     def __repr__(self) -> str:
@@ -322,18 +324,18 @@ class Booking(Base):
         self.cancelled_at = datetime.now(timezone.utc)
         self.cancelled_by_id = cancelled_by_user_id
         self.cancellation_reason = reason
-        logger.info(f"Booking {self.id} cancelled by user {cancelled_by_user_id}")
+        logger.info("Booking %s cancelled by user %s", self.id, cancelled_by_user_id)
 
     def complete(self) -> None:
         """Mark booking as completed."""
         self.status = BookingStatus.COMPLETED
         self.completed_at = datetime.now(timezone.utc)
-        logger.info(f"Booking {self.id} marked as completed")
+        logger.info("Booking %s marked as completed", self.id)
 
     def mark_no_show(self) -> None:
         """Mark booking as no-show."""
         self.status = BookingStatus.NO_SHOW
-        logger.info(f"Booking {self.id} marked as no-show")
+        logger.info("Booking %s marked as no-show", self.id)
 
     @property
     def is_cancellable(self) -> bool:

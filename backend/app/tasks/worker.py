@@ -41,9 +41,9 @@ def start_worker() -> None:
     logger.info("Starting Celery worker for iNSTAiNSTRU")
 
     # Log configuration
-    logger.info(f"Broker URL: {celery_app.conf.broker_url}")
-    logger.info(f"Result backend: {celery_app.conf.result_backend}")
-    logger.info(f"Timezone: {celery_app.conf.timezone}")
+    logger.info("Broker URL: %s", celery_app.conf.broker_url)
+    logger.info("Result backend: %s", celery_app.conf.result_backend)
+    logger.info("Timezone: %s", celery_app.conf.timezone)
 
     # Configure worker options
     worker_cls = cast(Any, worker.worker)

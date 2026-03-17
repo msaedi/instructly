@@ -111,7 +111,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             )
             return dispute
         except Exception as e:
-            self.logger.error(f"Error getting dispute for booking {booking_id}: {str(e)}")
+            self.logger.error("Error getting dispute for booking %s: %s", booking_id, str(e))
             raise RepositoryException(f"Failed to get booking dispute: {str(e)}")
 
     def get_transfer_by_booking_id(self, booking_id: str) -> Optional[BookingTransfer]:
@@ -125,7 +125,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             )
             return transfer
         except Exception as e:
-            self.logger.error(f"Error getting transfer for booking {booking_id}: {str(e)}")
+            self.logger.error("Error getting transfer for booking %s: %s", booking_id, str(e))
             raise RepositoryException(f"Failed to get booking transfer: {str(e)}")
 
     def ensure_dispute(self, booking_id: str) -> BookingDispute:
@@ -191,7 +191,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             )
             return no_show
         except Exception as e:
-            self.logger.error(f"Error getting no-show for booking {booking_id}: {str(e)}")
+            self.logger.error("Error getting no-show for booking %s: %s", booking_id, str(e))
             raise RepositoryException(f"Failed to get booking no-show: {str(e)}")
 
     def get_lock_by_booking_id(self, booking_id: str) -> Optional[BookingLock]:
@@ -205,7 +205,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             )
             return lock
         except Exception as e:
-            self.logger.error(f"Error getting lock for booking {booking_id}: {str(e)}")
+            self.logger.error("Error getting lock for booking %s: %s", booking_id, str(e))
             raise RepositoryException(f"Failed to get booking lock: {str(e)}")
 
     def ensure_no_show(self, booking_id: str) -> BookingNoShow:
@@ -271,7 +271,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             )
             return reschedule
         except Exception as e:
-            self.logger.error(f"Error getting reschedule for booking {booking_id}: {str(e)}")
+            self.logger.error("Error getting reschedule for booking %s: %s", booking_id, str(e))
             raise RepositoryException(f"Failed to get booking reschedule: {str(e)}")
 
     def ensure_reschedule(self, booking_id: str) -> BookingReschedule:
@@ -311,7 +311,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             )
             return payment
         except Exception as e:
-            self.logger.error(f"Error getting payment for booking {booking_id}: {str(e)}")
+            self.logger.error("Error getting payment for booking %s: %s", booking_id, str(e))
             raise RepositoryException(f"Failed to get booking payment: {str(e)}")
 
     def ensure_payment(self, booking_id: str) -> BookingPayment:
@@ -351,7 +351,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             )
             return video_session
         except Exception as e:
-            self.logger.error(f"Error getting video session for booking {booking_id}: {str(e)}")
+            self.logger.error("Error getting video session for booking %s: %s", booking_id, str(e))
             raise RepositoryException(f"Failed to get booking video session: {str(e)}")
 
     def ensure_video_session(
@@ -485,7 +485,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return cast(List[Booking], query.all())
 
         except Exception as e:
-            self.logger.error(f"Error getting bookings by time range: {str(e)}")
+            self.logger.error("Error getting bookings by time range: %s", str(e))
             raise RepositoryException(f"Failed to get bookings by time: {str(e)}")
 
     def check_time_conflict(
@@ -529,7 +529,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return query.first() is not None
 
         except Exception as e:
-            self.logger.error(f"Error checking time conflict: {str(e)}")
+            self.logger.error("Error checking time conflict: %s", str(e))
             raise RepositoryException(f"Failed to check conflict: {str(e)}")
 
     def check_student_time_conflict(
@@ -571,7 +571,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return cast(List[Booking], query.all())
 
         except Exception as e:
-            self.logger.error(f"Error checking student time conflict: {str(e)}")
+            self.logger.error("Error checking student time conflict: %s", str(e))
             raise RepositoryException(f"Failed to check student conflict: {str(e)}")
 
     def get_instructor_bookings_for_date(
@@ -603,7 +603,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return cast(List[Booking], query.order_by(Booking.start_time).all())
 
         except Exception as e:
-            self.logger.error(f"Error getting bookings for date: {str(e)}")
+            self.logger.error("Error getting bookings for date: %s", str(e))
             raise RepositoryException(f"Failed to get bookings: {str(e)}")
 
     def get_bookings_for_week(
@@ -637,7 +637,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             )
 
         except Exception as e:
-            self.logger.error(f"Error getting bookings for week: {str(e)}")
+            self.logger.error("Error getting bookings for week: %s", str(e))
             raise RepositoryException(f"Failed to get weekly bookings: {str(e)}")
 
     def get_distinct_booking_dates(self, instructor_id: str) -> List[date]:
@@ -843,7 +843,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return opportunities
 
         except Exception as e:
-            self.logger.error(f"Error finding opportunities: {str(e)}")
+            self.logger.error("Error finding opportunities: %s", str(e))
             raise RepositoryException(f"Failed to find opportunities: {str(e)}")
 
     # User Booking Queries (unchanged)
@@ -1020,7 +1020,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return cast(List[Booking], query.all())
 
         except Exception as e:
-            self.logger.error(f"Error getting student bookings: {str(e)}")
+            self.logger.error("Error getting student bookings: %s", str(e))
             raise RepositoryException(f"Failed to get student bookings: {str(e)}")
 
     def get_student_bookings_page(
@@ -1048,7 +1048,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             items = cast(List[Booking], query.offset(offset).limit(per_page).all())
             return items, total
         except Exception as exc:
-            self.logger.error(f"Error paginating student bookings: {str(exc)}")
+            self.logger.error("Error paginating student bookings: %s", str(exc))
             raise RepositoryException(f"Failed to paginate student bookings: {str(exc)}")
 
     def get_instructor_bookings(
@@ -1082,7 +1082,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return cast(List[Booking], query.all())
 
         except Exception as e:
-            self.logger.error(f"Error getting instructor bookings: {str(e)}")
+            self.logger.error("Error getting instructor bookings: %s", str(e))
             raise RepositoryException(f"Failed to get instructor bookings: {str(e)}")
 
     def get_instructor_bookings_page(
@@ -1112,7 +1112,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             items = cast(List[Booking], query.offset(offset).limit(per_page).all())
             return items, total
         except Exception as exc:
-            self.logger.error(f"Error paginating instructor bookings: {str(exc)}")
+            self.logger.error("Error paginating instructor bookings: %s", str(exc))
             raise RepositoryException(f"Failed to paginate instructor bookings: {str(exc)}")
 
     def get_instructor_future_bookings(
@@ -1150,7 +1150,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             )
 
         except Exception as e:
-            self.logger.error(f"Error getting instructor future bookings: {str(e)}")
+            self.logger.error("Error getting instructor future bookings: %s", str(e))
             raise RepositoryException(f"Failed to get future bookings: {str(e)}")
 
     def get_bookings_for_service_catalog(
@@ -1191,7 +1191,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return cast(List[Booking], query.all())
 
         except Exception as e:
-            self.logger.error(f"Error getting bookings for service catalog: {str(e)}")
+            self.logger.error("Error getting bookings for service catalog: %s", str(e))
             raise RepositoryException(f"Failed to get service catalog bookings: {str(e)}")
 
     def get_all_bookings_by_service_catalog(
@@ -1235,7 +1235,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return dict(grouped)
 
         except Exception as e:
-            self.logger.error(f"Error getting all bookings by service catalog: {str(e)}")
+            self.logger.error("Error getting all bookings by service catalog: %s", str(e))
             raise RepositoryException(f"Failed to get bookings by service catalog: {str(e)}")
 
     # Detailed Booking Queries (unchanged)
@@ -1274,7 +1274,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             )
             return booking
         except Exception as e:
-            self.logger.error(f"Error getting booking details: {str(e)}")
+            self.logger.error("Error getting booking details: %s", str(e))
             raise RepositoryException(f"Failed to get booking details: {str(e)}")
 
     def _apply_full_eager_loading(self, query: Query) -> Query:
@@ -1324,7 +1324,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             query = self._apply_full_eager_loading(query)
             return cast(Optional[Booking], query.first())
         except Exception as e:
-            self.logger.error(f"Error getting booking for participant: {str(e)}")
+            self.logger.error("Error getting booking for participant: %s", str(e))
             raise RepositoryException(f"Failed to get booking for participant: {str(e)}")
 
     def get_booking_for_student(self, booking_id: str, student_id: str) -> Optional[Booking]:
@@ -1341,7 +1341,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             query = self._apply_full_eager_loading(query)
             return cast(Optional[Booking], query.first())
         except Exception as e:
-            self.logger.error(f"Error getting booking for student: {str(e)}")
+            self.logger.error("Error getting booking for student: %s", str(e))
             raise RepositoryException(f"Failed to get booking for student: {str(e)}")
 
     def get_booking_for_instructor(self, booking_id: str, instructor_id: str) -> Optional[Booking]:
@@ -1358,7 +1358,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             query = self._apply_full_eager_loading(query)
             return cast(Optional[Booking], query.first())
         except Exception as e:
-            self.logger.error(f"Error getting booking for instructor: {str(e)}")
+            self.logger.error("Error getting booking for instructor: %s", str(e))
             raise RepositoryException(f"Failed to get booking for instructor: {str(e)}")
 
     def get_booking_for_participant_for_update(
@@ -1406,7 +1406,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 self._external_call_lock_savepoint = None
                 if savepoint is not None and getattr(savepoint, "is_active", True):
                     savepoint.rollback()
-            self.logger.error(f"Error getting booking for participant (for update): {str(e)}")
+            self.logger.error("Error getting booking for participant (for update): %s", str(e))
             raise RepositoryException(
                 f"Failed to get booking for participant (for update): {str(e)}"
             )
@@ -1439,7 +1439,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 query = query.populate_existing()
             return cast(Optional[Booking], query.first())
         except Exception as e:
-            self.logger.error(f"Error getting booking for update: {str(e)}")
+            self.logger.error("Error getting booking for update: %s", str(e))
             raise RepositoryException(f"Failed to get booking for update: {str(e)}")
 
     def list_admin_bookings(
@@ -1548,7 +1548,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             )
             return cast(List[Booking], bookings), total
         except Exception as e:
-            self.logger.error(f"Error listing admin bookings: {str(e)}")
+            self.logger.error("Error listing admin bookings: %s", str(e))
             raise RepositoryException(f"Failed to list admin bookings: {str(e)}")
 
     def count_bookings_in_date_range(self, start: date, end: date) -> int:
@@ -1562,7 +1562,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             )
             return int(count or 0)
         except Exception as e:
-            self.logger.error(f"Error counting bookings in range: {str(e)}")
+            self.logger.error("Error counting bookings in range: %s", str(e))
             raise RepositoryException(f"Failed to count bookings: {str(e)}")
 
     def sum_total_price_in_date_range(self, start: date, end: date) -> Decimal:
@@ -1575,7 +1575,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             )
             return cast(Decimal, total)
         except Exception as e:
-            self.logger.error(f"Error summing total_price in range: {str(e)}")
+            self.logger.error("Error summing total_price in range: %s", str(e))
             raise RepositoryException(f"Failed to sum booking totals: {str(e)}")
 
     def count_pending_completion(self, now: datetime) -> int:
@@ -1592,7 +1592,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             )
             return int(count or 0)
         except Exception as e:
-            self.logger.error(f"Error counting pending completion bookings: {str(e)}")
+            self.logger.error("Error counting pending completion bookings: %s", str(e))
             raise RepositoryException(f"Failed to count pending completion bookings: {str(e)}")
 
     # Statistics Queries (unchanged)
@@ -1615,7 +1615,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 self.db.query(Booking).filter(Booking.instructor_id == instructor_id).all(),
             )
         except Exception as e:
-            self.logger.error(f"Error getting instructor stats: {str(e)}")
+            self.logger.error("Error getting instructor stats: %s", str(e))
             raise RepositoryException(f"Failed to get instructor statistics: {str(e)}")
 
     # Date-based Queries (simplified)
@@ -1653,7 +1653,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return cast(List[Booking], query.all())
 
         except Exception as e:
-            self.logger.error(f"Error getting bookings for date: {str(e)}")
+            self.logger.error("Error getting bookings for date: %s", str(e))
             raise RepositoryException(f"Failed to get bookings for date: {str(e)}")
 
     # Counting Queries (unchanged)
@@ -1700,7 +1700,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return status_counts
 
         except Exception as e:
-            self.logger.error(f"Error counting bookings by status: {str(e)}")
+            self.logger.error("Error counting bookings by status: %s", str(e))
             raise RepositoryException(f"Failed to count bookings by status: {str(e)}")
 
     # Status Management Methods
@@ -1728,7 +1728,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             booking.completed_at = datetime.now(timezone.utc)
 
             self.db.flush()
-            self.logger.info(f"Marked booking {booking_id} as completed")
+            self.logger.info("Marked booking %s as completed", booking_id)
 
             # Invalidate caches for this booking and related entities
             self.invalidate_entity_cache(booking_id)
@@ -1740,7 +1740,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         except NotFoundException:
             raise
         except Exception as e:
-            self.logger.error(f"Error completing booking {booking_id}: {str(e)}")
+            self.logger.error("Error completing booking %s: %s", booking_id, str(e))
             raise RepositoryException(f"Failed to complete booking: {str(e)}")
 
     def cancel_booking(
@@ -1772,7 +1772,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             booking.cancellation_reason = reason
 
             self.db.flush()
-            self.logger.info(f"Cancelled booking {booking_id} by user {cancelled_by_id}")
+            self.logger.info("Cancelled booking %s by user %s", booking_id, cancelled_by_id)
 
             # Invalidate caches for this booking and related entities
             self.invalidate_entity_cache(booking_id)
@@ -1784,7 +1784,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         except NotFoundException:
             raise
         except Exception as e:
-            self.logger.error(f"Error cancelling booking {booking_id}: {str(e)}")
+            self.logger.error("Error cancelling booking %s: %s", booking_id, str(e))
             raise RepositoryException(f"Failed to cancel booking: {str(e)}")
 
     def apply_refund_updates(
@@ -1850,14 +1850,14 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             booking.status = BookingStatus.NO_SHOW
 
             self.db.flush()
-            self.logger.info(f"Marked booking {booking_id} as no-show")
+            self.logger.info("Marked booking %s as no-show", booking_id)
 
             return booking
 
         except NotFoundException:
             raise
         except Exception as e:
-            self.logger.error(f"Error marking booking {booking_id} as no-show: {str(e)}")
+            self.logger.error("Error marking booking %s as no-show: %s", booking_id, str(e))
             raise RepositoryException(f"Failed to mark booking as no-show: {str(e)}")
 
     def get_no_show_reports_due_for_resolution(self, *, reported_before: datetime) -> List[Booking]:
@@ -1950,7 +1950,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 .all(),
             )
         except Exception as e:
-            self.logger.error(f"Error getting bookings by date and status: {str(e)}")
+            self.logger.error("Error getting bookings by date and status: %s", str(e))
             return []
 
     def get_bookings_by_date_range_and_status(
@@ -1982,7 +1982,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 .all(),
             )
         except Exception as e:
-            self.logger.error(f"Error getting bookings by date range and status: {str(e)}")
+            self.logger.error("Error getting bookings by date range and status: %s", str(e))
             return []
 
     def get_bookings_for_payment_authorization(self) -> List[Booking]:
@@ -2010,7 +2010,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 .all(),
             )
         except Exception as e:
-            self.logger.error(f"Error getting bookings for payment authorization: {str(e)}")
+            self.logger.error("Error getting bookings for payment authorization: %s", str(e))
             raise RepositoryException(f"Failed to get bookings for payment authorization: {str(e)}")
 
     def get_bookings_for_payment_retry(self) -> List[Booking]:
@@ -2040,7 +2040,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 .all(),
             )
         except Exception as e:
-            self.logger.error(f"Error getting bookings for payment retry: {str(e)}")
+            self.logger.error("Error getting bookings for payment retry: %s", str(e))
             raise RepositoryException(f"Failed to get bookings for payment retry: {str(e)}")
 
     def get_bookings_for_payment_capture(self) -> List[Booking]:
@@ -2080,7 +2080,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 .all(),
             )
         except Exception as e:
-            self.logger.error(f"Error getting bookings for payment capture: {str(e)}")
+            self.logger.error("Error getting bookings for payment capture: %s", str(e))
             raise RepositoryException(f"Failed to get bookings for payment capture: {str(e)}")
 
     def get_bookings_for_auto_completion(self) -> List[Booking]:
@@ -2118,7 +2118,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 .all(),
             )
         except Exception as e:
-            self.logger.error(f"Error getting bookings for auto completion: {str(e)}")
+            self.logger.error("Error getting bookings for auto completion: %s", str(e))
             raise RepositoryException(f"Failed to get bookings for auto completion: {str(e)}")
 
     def get_bookings_with_expired_auth(self) -> List[Booking]:
@@ -2144,7 +2144,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 .all(),
             )
         except Exception as e:
-            self.logger.error(f"Error getting bookings with expired auth: {str(e)}")
+            self.logger.error("Error getting bookings with expired auth: %s", str(e))
             raise RepositoryException(f"Failed to get bookings with expired auth: {str(e)}")
 
     def get_failed_capture_booking_ids(self) -> List[str]:
@@ -2167,7 +2167,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             )
             return [row[0] for row in rows]
         except Exception as e:
-            self.logger.error(f"Error getting failed capture booking IDs: {str(e)}")
+            self.logger.error("Error getting failed capture booking IDs: %s", str(e))
             raise RepositoryException(f"Failed to get failed capture booking IDs: {str(e)}")
 
     def count_overdue_authorizations(self, current_date: date) -> int:
@@ -2194,7 +2194,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 .count()
             )
         except Exception as e:
-            self.logger.error(f"Error counting overdue authorizations: {str(e)}")
+            self.logger.error("Error counting overdue authorizations: %s", str(e))
             raise RepositoryException(f"Failed to count overdue authorizations: {str(e)}")
 
     def count_completed_lessons(
@@ -2358,7 +2358,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             )
             return [r[0] if isinstance(r, tuple) else r.id for r in rows]
         except Exception as e:
-            self.logger.error(f"Error filtering owned booking ids: {e}")
+            self.logger.error("Error filtering owned booking ids: %s", e)
             return []
 
     # Per-user-pair conversation support
@@ -2405,7 +2405,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 .all(),
             )
         except Exception as e:
-            self.logger.error(f"Error finding upcoming bookings for pair: {str(e)}")
+            self.logger.error("Error finding upcoming bookings for pair: %s", str(e))
             raise RepositoryException(f"Failed to find upcoming bookings for pair: {str(e)}")
 
     def batch_find_upcoming_for_pairs(
@@ -2469,6 +2469,6 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
             return result
         except Exception as e:
-            self.logger.error(f"Error in batch_find_upcoming_for_pairs: {str(e)}")
+            self.logger.error("Error in batch_find_upcoming_for_pairs: %s", str(e))
             # Return empty lists on error rather than failing
             return {pair: [] for pair in pairs}

@@ -65,22 +65,15 @@ def _paginate_bookings(
     *,
     page: int,
     per_page: int,
-    total: Optional[int] = None,
+    total: int,
 ) -> PaginatedResponse[InstructorBookingResponse]:
-    """Paginate booking results or wrap an already paginated result set."""
-    total_items = len(bookings) if total is None else total
-    paginated = bookings
-    if total is None:
-        start = (page - 1) * per_page
-        end = start + per_page
-        paginated = bookings[start:end]
-
+    """Wrap an already paginated booking result set."""
     return PaginatedResponse(
-        items=[InstructorBookingResponse.from_booking(b) for b in paginated],
-        total=total_items,
+        items=[InstructorBookingResponse.from_booking(b) for b in bookings],
+        total=total,
         page=page,
         per_page=per_page,
-        has_next=page * per_page < total_items,
+        has_next=page * per_page < total,
         has_prev=page > 1,
     )
 
