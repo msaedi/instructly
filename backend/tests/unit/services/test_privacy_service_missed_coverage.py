@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, PropertyMock, patch
 
+import pytest
+
 
 class TestPrivacyServiceMissedLines:
     """Test missed lines in PrivacyService."""
@@ -42,7 +44,7 @@ class TestPrivacyServiceMissedLines:
         return svc
 
     def test_delete_user_data_account_status_raises(self) -> None:
-        """Lines 249-250: setting account_status raises an exception (caught)."""
+        """Lines 249-250: setting account_status raises an exception and aborts deletion."""
         svc = self._make_service()
 
         mock_user = MagicMock()
@@ -63,12 +65,11 @@ class TestPrivacyServiceMissedLines:
         svc.search_event_repository.delete_user_events.return_value = 0
         svc.instructor_repository.get_by_user_id.return_value = None
 
-        # Should not raise despite account_status error
-        result = svc.delete_user_data("user123", delete_account=True)
-        assert "search_history" in result
+        with pytest.raises(AttributeError, match="no attr"):
+            svc.delete_user_data("user123", delete_account=True)
 
     def test_delete_user_data_phone_assignment_raises(self) -> None:
-        """Lines 258-259: phone assignment raises (caught)."""
+        """Lines 258-259: phone assignment raises and aborts deletion."""
         svc = self._make_service()
 
         mock_user = MagicMock()
@@ -86,11 +87,11 @@ class TestPrivacyServiceMissedLines:
         svc.search_event_repository.delete_user_events.return_value = 0
         svc.instructor_repository.get_by_user_id.return_value = None
 
-        result = svc.delete_user_data("user123", delete_account=True)
-        assert "search_history" in result
+        with pytest.raises(AttributeError, match="no phone"):
+            svc.delete_user_data("user123", delete_account=True)
 
     def test_delete_user_data_zip_code_assignment_raises(self) -> None:
-        """Lines 262-263: zip_code assignment raises (caught)."""
+        """Lines 262-263: zip_code assignment raises and aborts deletion."""
         svc = self._make_service()
 
         mock_user = MagicMock()
@@ -109,8 +110,8 @@ class TestPrivacyServiceMissedLines:
         svc.search_event_repository.delete_user_events.return_value = 0
         svc.instructor_repository.get_by_user_id.return_value = None
 
-        result = svc.delete_user_data("user123", delete_account=True)
-        assert "search_history" in result
+        with pytest.raises(AttributeError, match="no zip"):
+            svc.delete_user_data("user123", delete_account=True)
 
     def test_apply_retention_policies_with_search_event_retention(self) -> None:
         """Lines 285->292: settings has search_event_retention_days."""

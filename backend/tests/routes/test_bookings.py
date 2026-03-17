@@ -18,13 +18,18 @@ TEST FAILURE ANALYSIS - test_bookings.py
 
 from datetime import date, datetime, time, timedelta, timezone
 from types import SimpleNamespace
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock
 
 from fastapi import HTTPException, status
 import pytest
 
 from app.api.dependencies.services import get_booking_service
-from app.core.exceptions import ConflictException, NotFoundException, ValidationException
+from app.core.exceptions import (
+    BusinessRuleException,
+    ConflictException,
+    NotFoundException,
+    ValidationException,
+)
 from app.core.ulid_helper import generate_ulid
 from app.main import fastapi_app as app
 from app.models.booking import BookingStatus
@@ -95,12 +100,14 @@ class TestBookingRoutes:
         mock_service.create_booking = Mock()
         mock_service.get_booking_for_user = Mock()
         mock_service.get_bookings_for_user = Mock()
+        mock_service.get_paginated_bookings_for_user = Mock()
         mock_service.cancel_booking = Mock()
         mock_service.complete_booking = Mock()
         mock_service.check_availability = Mock()
         mock_service.get_booking_stats_for_instructor = Mock()
         mock_service.send_booking_reminders = Mock()
         mock_service.update_booking = Mock()
+        mock_service.reschedule_booking = Mock()
         mock_service.create_rescheduled_booking_with_existing_payment = Mock()
         mock_service.cancel_booking_without_stripe = Mock()
         mock_service.should_trigger_lock = Mock(return_value=False)
@@ -108,6 +115,24 @@ class TestBookingRoutes:
         mock_service.activate_lock_for_reschedule = Mock()
         mock_service.create_rescheduled_booking_with_locked_funds = Mock()
         mock_service.retry_authorization = Mock()
+
+        def _paginate_for_route(**kwargs):
+            result = mock_service.get_bookings_for_user(
+                user=kwargs.get("user"),
+                status=kwargs.get("status"),
+                upcoming_only=kwargs.get("upcoming_only", False),
+                exclude_future_confirmed=kwargs.get("exclude_future_confirmed", False),
+                include_past_confirmed=kwargs.get("include_past_confirmed", False),
+            )
+            if isinstance(result, list):
+                page = kwargs.get("page", 1)
+                per_page = kwargs.get("per_page", len(result) or 1)
+                start = max(0, (page - 1) * per_page)
+                end = start + per_page
+                return result[start:end], len(result)
+            return result
+
+        mock_service.get_paginated_bookings_for_user.side_effect = _paginate_for_route
 
         return mock_service
 
@@ -200,9 +225,6 @@ class TestBookingRoutes:
         # Execute (no trailing slash — avoids 307 redirect through middleware stack)
         response = client_with_mock_booking_service.post("/api/v1/bookings", json=booking_data, headers=auth_headers_student)
 
-        # Verify
-        if response.status_code == 422:
-            print("Validation error:", response.json())
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
         assert data["id"] == mock_booking.id
@@ -1406,76 +1428,38 @@ class TestBookingRoutes:
         # The endpoint doesn't exist yet but the service method does
 
     # ===== Reschedule Route Tests (use mocked service + dependency override) =====
-    @patch('app.services.stripe_service.StripeService')
-    @patch('app.services.pricing_service.PricingService')
-    @patch('app.services.config_service.ConfigService')
     def test_reschedule_booking_success(
-        self, mock_config_service_class, mock_pricing_service_class, mock_stripe_service_class,
-        client_with_mock_booking_service, auth_headers_student, mock_booking_service
+        self,
+        client_with_mock_booking_service,
+        auth_headers_student,
+        mock_booking_service,
+        test_student,
     ):
-        """Reschedule cancels original and creates a new booking; returns the new booking."""
-        from app.models.booking import BookingStatus
-
-        # Mock payment method check (student has a default payment method)
-        mock_payment_repo = MagicMock()
-        mock_default_pm = MagicMock()
-        mock_default_pm.stripe_payment_method_id = "pm_test123"
-        mock_payment_repo.get_default_payment_method.return_value = mock_default_pm
-        mock_stripe_instance = MagicMock()
-        mock_stripe_instance.payment_repository = mock_payment_repo
-        mock_stripe_service_class.return_value = mock_stripe_instance
-
+        """Reschedule delegates orchestration to the booking service and returns the replacement booking."""
         original_id = generate_ulid()
         new_id = generate_ulid()
-
-        # Mock original booking returned by get_booking_for_user
-        original = Mock()
-        original.id = original_id
-        original.student_id = generate_ulid()
-        original.instructor_id = generate_ulid()
-        original.instructor_service_id = generate_ulid()
-        original.booking_date = date.today() + timedelta(days=2)
-        original.start_time = time(9, 0)
-        original.end_time = time(10, 0)
-        original.status = BookingStatus.CONFIRMED
-        original.service_name = "Piano"
-        original.total_price = 50.0
-        original.hourly_rate = 50.0
-        original.duration_minutes = 60
-        original.service_area = "Manhattan"
-        original.meeting_location = "Studio"
-        original.location_type = "neutral_location"
-        original.location_address = "123 Main St, New York, NY"
-        original.location_lat = 40.758
-        original.location_lng = -73.985
-        original.location_place_id = None
-        original.student_note = "Bring sheet music"
-        original.instructor_note = None
-        # Nested objects used by response factories downstream
-        original.student = Mock(id=generate_ulid(), first_name="Stu", last_name="Dent", email="s@example.com")
-        original.instructor = Mock(id=generate_ulid(), first_name="Ins", last_name="Tructor", email="i@example.com")
-        original.instructor_service = self._create_mock_instructor_service(name="Piano Lessons")
-        mock_booking_service.get_booking_for_user.return_value = original
-
-        # Mock new booking that will be returned by create_booking_with_payment_setup
+        mock_booking_service.get_booking_for_user.return_value = SimpleNamespace(
+            id=original_id,
+            student_id=test_student.id,
+        )
         new_booking = Mock()
         new_booking.id = new_id
-        new_booking.student_id = original.student_id
-        new_booking.instructor_id = original.instructor_id
-        new_booking.instructor_service_id = original.instructor_service_id
+        new_booking.student_id = generate_ulid()
+        new_booking.instructor_id = generate_ulid()
+        new_booking.instructor_service_id = generate_ulid()
         new_booking.rescheduled_from_booking_id = original_id
         new_booking.booking_date = date.today() + timedelta(days=3)
         new_booking.start_time = time(11, 0)
         new_booking.end_time = time(12, 0)
         new_booking.status = BookingStatus.CONFIRMED
-        new_booking.service_name = original.service_name
+        new_booking.service_name = "Piano"
         new_booking.total_price = 50.0
         new_booking.hourly_rate = 50.0
         new_booking.duration_minutes = 60
-        new_booking.service_area = original.service_area
-        new_booking.meeting_location = original.meeting_location
-        new_booking.location_type = original.location_type
-        new_booking.student_note = original.student_note
+        new_booking.service_area = "Manhattan"
+        new_booking.meeting_location = "Studio"
+        new_booking.location_type = "neutral_location"
+        new_booking.student_note = "Bring sheet music"
         new_booking.instructor_note = None
         new_booking.created_at = datetime.now()
         new_booking.confirmed_at = datetime.now()
@@ -1483,24 +1467,15 @@ class TestBookingRoutes:
         new_booking.cancelled_at = None
         new_booking.cancelled_by_id = None
         new_booking.cancellation_reason = None
-        new_booking.student = original.student
-        new_booking.instructor = original.instructor
-        new_booking.instructor_service = original.instructor_service
+        new_booking.student = Mock(
+            id=generate_ulid(), first_name="Stu", last_name="Dent", email="s@example.com"
+        )
+        new_booking.instructor = Mock(
+            id=generate_ulid(), first_name="Ins", last_name="Tructor", email="i@example.com"
+        )
+        new_booking.instructor_service = self._create_mock_instructor_service(name="Piano Lessons")
+        mock_booking_service.reschedule_booking.return_value = new_booking
 
-        # Mock availability check to return available
-        mock_booking_service.check_availability = MagicMock(return_value={"available": True})
-
-        # Mock service method for student conflict check (no conflict)
-        mock_booking_service.check_student_time_conflict = MagicMock(return_value=False)
-
-        # Mock service method for payment method validation
-        mock_booking_service.validate_reschedule_payment_method = MagicMock(return_value=(True, "pm_test123"))
-
-        mock_booking_service.cancel_booking = MagicMock()
-        mock_booking_service.create_booking_with_payment_setup = MagicMock(return_value=new_booking)
-        mock_booking_service.confirm_booking_payment = MagicMock(return_value=new_booking)
-
-        # Execute
         payload = {
             "booking_date": (date.today() + timedelta(days=3)).isoformat(),
             "start_time": "11:00",
@@ -1516,90 +1491,43 @@ class TestBookingRoutes:
         assert data["id"] == new_id
         assert data["status"] == BookingStatus.CONFIRMED.value
 
-        # Cancel called with reason 'Rescheduled'
-        mock_booking_service.cancel_booking.assert_called_once()
-        args, kwargs = mock_booking_service.cancel_booking.call_args
-        # Called positionally via asyncio.to_thread(service.cancel_booking, booking_id, user, "Rescheduled")
-        assert args[2] == "Rescheduled"
+        mock_booking_service.reschedule_booking.assert_called_once()
+        call_kwargs = mock_booking_service.reschedule_booking.call_args.kwargs
+        assert call_kwargs["booking_id"] == original_id
+        assert call_kwargs["payload"].selected_duration == 60
+        assert call_kwargs["payload"].start_time == time(11, 0)
 
-        # create_booking_with_payment_setup called with carried fields and default service id
-        mock_booking_service.create_booking_with_payment_setup.assert_called_once()
-        args, kwargs = mock_booking_service.create_booking_with_payment_setup.call_args
-        booking_data = args[1] if len(args) > 1 else kwargs.get("booking_data")
-        assert booking_data is not None
-        assert booking_data.instructor_service_id == original.instructor_service_id
-        assert booking_data.meeting_location == original.meeting_location
-        assert booking_data.location_type == original.location_type
-        assert booking_data.student_note == original.student_note
-        # And linkage is passed for persistence
-        if len(args) > 3:
-            assert args[3] == original_id
-        else:
-            assert kwargs.get("rescheduled_from_booking_id") == original_id
-
-        # Ensure call order: cancel before create
-        method_names = [m[0] for m in mock_booking_service.method_calls]
-        # New flow: create new booking first, then cancel the original
-        assert method_names.index("create_booking_with_payment_setup") < method_names.index("cancel_booking")
-
-    def test_reschedule_reuses_existing_payment_intent(
-        self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
+    def test_reschedule_passes_service_override_payload(
+        self,
+        client_with_mock_booking_service,
+        auth_headers_student,
+        mock_booking_service,
+        test_student,
     ):
-        """Reschedule should reuse an existing authorized/captured payment without creating a new PI."""
+        """Reschedule parses and forwards the optional service override to the service layer."""
         original_id = generate_ulid()
-        new_id = generate_ulid()
-
-        original = Mock()
-        original.id = original_id
-        original.student_id = generate_ulid()
-        original.instructor_id = generate_ulid()
-        original.instructor_service_id = generate_ulid()
-        original.booking_date = date.today() + timedelta(days=2)
-        original.start_time = time(9, 0)
-        original.end_time = time(10, 0)
-        original.status = BookingStatus.CONFIRMED
-        original.service_name = "Piano"
-        original.total_price = 50.0
-        original.hourly_rate = 50.0
-        original.duration_minutes = 60
-        original.service_area = "Manhattan"
-        original.meeting_location = "Studio"
-        original.location_type = "neutral_location"
-        original.location_address = "123 Main St, New York, NY"
-        original.location_lat = 40.758
-        original.location_lng = -73.985
-        original.location_place_id = None
-        original.student_note = "Bring sheet music"
-        original.instructor_note = None
-        # Payment fields now live on the payment_detail satellite
-        original.payment_detail = SimpleNamespace(
-            payment_intent_id="pi_test123",
-            payment_status="settled",
-            payment_method_id="pm_test123",
+        mock_booking_service.get_booking_for_user.return_value = SimpleNamespace(
+            id=original_id,
+            student_id=test_student.id,
         )
-        original.student = Mock(id=generate_ulid(), first_name="Stu", last_name="Dent", email="s@example.com")
-        original.instructor = Mock(id=generate_ulid(), first_name="Ins", last_name="Tructor", email="i@example.com")
-        original.instructor_service = self._create_mock_instructor_service(name="Piano Lessons")
-        mock_booking_service.get_booking_for_user.return_value = original
-
         new_booking = Mock()
-        new_booking.id = new_id
-        new_booking.student_id = original.student_id
-        new_booking.instructor_id = original.instructor_id
-        new_booking.instructor_service_id = original.instructor_service_id
+        new_booking.id = generate_ulid()
+        new_booking.student_id = generate_ulid()
+        new_booking.instructor_id = generate_ulid()
+        new_booking.instructor_service_id = generate_ulid()
         new_booking.rescheduled_from_booking_id = original_id
         new_booking.booking_date = date.today() + timedelta(days=3)
         new_booking.start_time = time(11, 0)
         new_booking.end_time = time(12, 0)
         new_booking.status = BookingStatus.CONFIRMED
-        new_booking.service_name = original.service_name
+        new_booking.service_name = "Piano"
         new_booking.total_price = 50.0
         new_booking.hourly_rate = 50.0
         new_booking.duration_minutes = 60
-        new_booking.service_area = original.service_area
-        new_booking.meeting_location = original.meeting_location
-        new_booking.location_type = original.location_type
-        new_booking.student_note = original.student_note
+        new_booking.service_area = "Manhattan"
+        new_booking.meeting_location = "Studio"
+        new_booking.location_type = "neutral_location"
+        new_booking.student_note = "Bring sheet music"
         new_booking.instructor_note = None
         new_booking.created_at = datetime.now()
         new_booking.confirmed_at = datetime.now()
@@ -1607,65 +1535,45 @@ class TestBookingRoutes:
         new_booking.cancelled_at = None
         new_booking.cancelled_by_id = None
         new_booking.cancellation_reason = None
-        new_booking.student = original.student
-        new_booking.instructor = original.instructor
-        new_booking.instructor_service = original.instructor_service
-
-        mock_booking_service.check_availability = MagicMock(return_value={"available": True})
-        mock_booking_service.check_student_time_conflict = MagicMock(return_value=False)
-        mock_booking_service.create_rescheduled_booking_with_existing_payment = MagicMock(
-            return_value=new_booking
+        new_booking.student = Mock(
+            id=generate_ulid(), first_name="Stu", last_name="Dent", email="s@example.com"
         )
-        mock_booking_service.cancel_booking_without_stripe = MagicMock()
-        mock_booking_service.create_booking_with_payment_setup = MagicMock()
-        mock_booking_service.confirm_booking_payment = MagicMock()
-        mock_booking_service.validate_reschedule_payment_method = MagicMock()
+        new_booking.instructor = Mock(
+            id=generate_ulid(), first_name="Ins", last_name="Tructor", email="i@example.com"
+        )
+        new_booking.instructor_service = self._create_mock_instructor_service(name="Piano Lessons")
+        mock_booking_service.reschedule_booking.return_value = new_booking
 
         payload = {
             "booking_date": (date.today() + timedelta(days=3)).isoformat(),
             "start_time": "11:00",
             "selected_duration": 60,
+            "instructor_service_id": generate_ulid(),
         }
         response = client_with_mock_booking_service.post(
             f"/api/v1/bookings/{original_id}/reschedule", json=payload, headers=auth_headers_student
         )
 
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert data["id"] == new_id
-        assert data["status"] == BookingStatus.CONFIRMED.value
+        call_kwargs = mock_booking_service.reschedule_booking.call_args.kwargs
+        assert call_kwargs["payload"].instructor_service_id == payload["instructor_service_id"]
 
-        mock_booking_service.create_rescheduled_booking_with_existing_payment.assert_called_once()
-        mock_booking_service.create_booking_with_payment_setup.assert_not_called()
-        mock_booking_service.confirm_booking_payment.assert_not_called()
-        mock_booking_service.validate_reschedule_payment_method.assert_not_called()
-
-        mock_booking_service.cancel_booking_without_stripe.assert_called_once()
-        _, cancel_kwargs = mock_booking_service.cancel_booking_without_stripe.call_args
-        assert cancel_kwargs.get("clear_payment_intent") is True
-
-    def test_reschedule_preflight_rejects_invalid_duration_before_lock_activation(
-        self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
+    def test_reschedule_maps_conflict_errors(
+        self,
+        client_with_mock_booking_service,
+        auth_headers_student,
+        mock_booking_service,
+        test_student,
     ):
-        """Invalid duration should stop the flow before any reschedule fund lock occurs."""
+        """Conflict exceptions from the service propagate as 409 responses."""
         original_id = generate_ulid()
-        original = Mock()
-        original.id = original_id
-        original.student_id = generate_ulid()
-        original.instructor_id = generate_ulid()
-        original.instructor_service_id = generate_ulid()
-        original.location_type = "student_location"
-        original.location_lat = 40.758
-        original.location_lng = -73.985
-        original.location_address = "123 Main St, New York, NY"
-        original.location_place_id = "place_123"
-        original.student_note = "Bring music"
-        original.meeting_location = "Lobby"
-        mock_booking_service.get_booking_for_user.return_value = original
-        mock_booking_service.check_availability.return_value = {
-            "available": False,
-            "reason": "Invalid duration 45. Available options: [30, 60]",
-        }
+        mock_booking_service.get_booking_for_user.return_value = SimpleNamespace(
+            id=original_id,
+            student_id=test_student.id,
+        )
+        mock_booking_service.reschedule_booking.side_effect = ConflictException(
+            "Invalid duration 45. Available options: [30, 60]"
+        )
 
         payload = {
             "booking_date": (date.today() + timedelta(days=3)).isoformat(),
@@ -1677,15 +1585,7 @@ class TestBookingRoutes:
         )
 
         assert response.status_code == status.HTTP_409_CONFLICT
-        assert "Invalid duration 45" in response.json()["detail"]
-        mock_booking_service.activate_lock_for_reschedule.assert_not_called()
-        mock_booking_service.create_rescheduled_booking_with_locked_funds.assert_not_called()
-
-        _, kwargs = mock_booking_service.check_availability.call_args
-        assert kwargs["exclude_booking_id"] == original_id
-        assert kwargs["selected_duration"] == 45
-        assert kwargs["location_lat"] == 40.758
-        assert kwargs["location_lng"] == -73.985
+        assert "Invalid duration 45" in str(response.json()["detail"])
 
     def test_reschedule_booking_not_found(
         self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
@@ -1703,6 +1603,36 @@ class TestBookingRoutes:
         )
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
+        mock_booking_service.reschedule_booking.assert_not_called()
+
+    def test_reschedule_forbids_instructor_participant(
+        self,
+        client_with_mock_booking_service,
+        auth_headers_instructor,
+        mock_booking_service,
+        test_instructor_with_availability,
+    ):
+        original_id = generate_ulid()
+        mock_booking_service.get_booking_for_user.return_value = SimpleNamespace(
+            id=original_id,
+            student_id=generate_ulid(),
+            instructor_id=test_instructor_with_availability.id,
+        )
+
+        payload = {
+            "booking_date": (date.today() + timedelta(days=3)).isoformat(),
+            "start_time": "11:00",
+            "selected_duration": 60,
+        }
+        response = client_with_mock_booking_service.post(
+            f"/api/v1/bookings/{original_id}/reschedule",
+            json=payload,
+            headers=auth_headers_instructor,
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.json()["detail"] == "Only the student on this booking can reschedule"
+        mock_booking_service.reschedule_booking.assert_not_called()
 
     def test_reschedule_requires_auth(self, client):
         """Reschedule endpoint should require auth like others."""
@@ -1714,53 +1644,20 @@ class TestBookingRoutes:
         response = client.post(f"/api/v1/bookings/{generate_ulid()}/reschedule", json=payload)
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
-    @patch('app.services.stripe_service.StripeService')
-    @patch('app.services.pricing_service.PricingService')
-    @patch('app.services.config_service.ConfigService')
     def test_reschedule_business_rule_violation(
-        self, mock_config_service_class, mock_pricing_service_class, mock_stripe_service_class,
-        client_with_mock_booking_service, auth_headers_student, mock_booking_service
+        self,
+        client_with_mock_booking_service,
+        auth_headers_student,
+        mock_booking_service,
+        test_student,
     ):
         """If cancellation policy blocks cancel, reschedule should return 422 via domain exception handler."""
-        from app.core.exceptions import BusinessRuleException
-
-        # Mock payment method check (student has a default payment method)
-        mock_payment_repo = MagicMock()
-        mock_default_pm = MagicMock()
-        mock_default_pm.stripe_payment_method_id = "pm_test123"
-        mock_payment_repo.get_default_payment_method.return_value = mock_default_pm
-        mock_stripe_instance = MagicMock()
-        mock_stripe_instance.payment_repository = mock_payment_repo
-        mock_stripe_service_class.return_value = mock_stripe_instance
-
-        # Return an original booking
-        original = Mock()
-        original.id = generate_ulid()
-        original.instructor_id = generate_ulid()
-        original.instructor_service_id = generate_ulid()
-        original.status = "CONFIRMED"  # Add status for new logic
-        mock_booking_service.get_booking_for_user.return_value = original
-
-        # Mock availability check to return available
-        mock_booking_service.check_availability = MagicMock(return_value={"available": True})
-
-        # Mock service method for student conflict check (no conflict)
-        mock_booking_service.check_student_time_conflict = MagicMock(return_value=False)
-
-        # Mock service method for payment method validation
-        mock_booking_service.validate_reschedule_payment_method = MagicMock(return_value=(True, "pm_test123"))
-
-        # Mock create and confirm to succeed
-        new_booking = Mock()
-        new_booking.id = generate_ulid()
-        mock_booking_service.create_booking_with_payment_setup = MagicMock(return_value=new_booking)
-        mock_booking_service.confirm_booking_payment = MagicMock(return_value=new_booking)
-
-        # Cancel raises business rule exception
-        def cancel_raise(*args, **kwargs):
-            raise BusinessRuleException("Late reschedule not allowed")
-
-        mock_booking_service.cancel_booking = MagicMock(side_effect=cancel_raise)
+        mock_booking_service.get_booking_for_user.return_value = SimpleNamespace(
+            student_id=test_student.id
+        )
+        mock_booking_service.reschedule_booking.side_effect = BusinessRuleException(
+            "Late reschedule not allowed"
+        )
 
         payload = {
             "booking_date": (date.today() + timedelta(days=1)).isoformat(),
@@ -1768,7 +1665,7 @@ class TestBookingRoutes:
             "selected_duration": 60,
         }
         response = client_with_mock_booking_service.post(
-            f"/api/v1/bookings/{original.id}/reschedule", json=payload, headers=auth_headers_student
+            f"/api/v1/bookings/{generate_ulid()}/reschedule", json=payload, headers=auth_headers_student
         )
 
         assert response.status_code == 422
@@ -2130,7 +2027,9 @@ class TestBookingIntegration:
         self, client, auth_headers_student
     ):
         mock_booking_service = MagicMock()
-        mock_booking_service.get_bookings_for_user.side_effect = ValidationException("bad filters")
+        mock_booking_service.get_paginated_bookings_for_user.side_effect = ValidationException(
+            "bad filters"
+        )
         app.dependency_overrides[get_booking_service] = lambda: mock_booking_service
 
         try:
@@ -2175,7 +2074,10 @@ class TestBookingIntegration:
             "instructor_service": {"id": generate_ulid(), "name": "Piano", "description": "Piano lessons"},
         }
         broken_booking = {"_from_cache": True, "id": generate_ulid()}
-        mock_booking_service.get_bookings_for_user.return_value = [good_booking, broken_booking]
+        mock_booking_service.get_paginated_bookings_for_user.return_value = (
+            [good_booking, broken_booking],
+            2,
+        )
         app.dependency_overrides[get_booking_service] = lambda: mock_booking_service
 
         try:
@@ -2238,7 +2140,10 @@ class TestBookingIntegration:
                 "description": "Piano lessons",
             },
         }
-        mock_booking_service.get_bookings_for_user.return_value = [cached_booking]
+        mock_booking_service.get_paginated_bookings_for_user.return_value = (
+            [cached_booking],
+            1,
+        )
         app.dependency_overrides[get_booking_service] = lambda: mock_booking_service
 
         try:

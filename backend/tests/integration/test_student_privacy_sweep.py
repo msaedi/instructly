@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from backend.tests._utils.bitmap_avail import seed_day
 import pytest
 
+from app.auth import create_access_token, get_password_hash
+from app.core.enums import PermissionName, RoleName
+from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus
 from app.models.conversation import Conversation
+from app.models.user import User
+from app.services.permission_service import PermissionService
+
+
+def _tomorrow_utc_date() -> date:
+    return datetime.now(timezone.utc).date() + timedelta(days=1)
 
 
 def _student_initial(last_name: str) -> str:
@@ -33,7 +42,7 @@ def _assert_public_other_user(other_user: dict, *, expected_first_name: str, exp
 
 @pytest.fixture(autouse=True)
 def _seed_availability_for_privacy_sweep(db, test_instructor):
-    tomorrow = date.today() + timedelta(days=1)
+    tomorrow = _tomorrow_utc_date()
     seed_day(db, test_instructor.id, tomorrow, [("09:00:00", "17:00:00")])
 
 
@@ -65,7 +74,7 @@ def _get_service(db, test_instructor):
 
 
 def _create_booking(client, *, service_id: str, instructor_id: str, headers: dict[str, str]):
-    tomorrow = date.today() + timedelta(days=1)
+    tomorrow = _tomorrow_utc_date()
     response = client.post(
         "/api/v1/bookings",
         json={
@@ -80,6 +89,29 @@ def _create_booking(client, *, service_id: str, instructor_id: str, headers: dic
     )
     assert response.status_code == 201, response.text
     return response.json()
+
+
+def _create_second_student(db, test_password: str) -> tuple[User, dict[str, str]]:
+    student = User(
+        email=f"privacy-{generate_ulid().lower()}@example.com",
+        hashed_password=get_password_hash(test_password),
+        first_name="Other",
+        last_name="Student",
+        phone="+12125550001",
+        zip_code="10001",
+        is_active=True,
+    )
+    db.add(student)
+    db.flush()
+
+    permission_service = PermissionService(db)
+    permission_service.assign_role(student.id, RoleName.STUDENT)
+    permission_service.grant_permission(student.id, PermissionName.CREATE_BOOKINGS.value)
+    db.commit()
+    db.refresh(student)
+
+    token = create_access_token(data={"sub": student.email})
+    return student, {"Authorization": f"Bearer {token}"}
 
 
 def _confirm_booking(db, booking_id: str) -> None:
@@ -349,3 +381,64 @@ def test_conversation_headers_are_redacted_but_admin_booking_detail_keeps_full_i
     assert admin_payload["student"]["email"] == test_student.email
     assert admin_payload["instructor"]["name"] == f"{test_instructor.first_name} {test_instructor.last_name}"
     assert admin_payload["instructor"]["email"] == test_instructor.email
+
+
+def test_second_student_cannot_access_another_students_booking_or_conversation_pii(
+    client,
+    db,
+    test_password,
+    test_student,
+    test_instructor,
+    auth_headers_student,
+):
+    service = _get_service(db, test_instructor)
+    created_booking = _create_booking(
+        client,
+        service_id=service.id,
+        instructor_id=test_instructor.id,
+        headers=auth_headers_student,
+    )
+    booking_id = created_booking["id"]
+    _confirm_booking(db, booking_id)
+
+    create_conversation = client.post(
+        "/api/v1/conversations",
+        json={
+            "instructor_id": test_instructor.id,
+            "initial_message": "Private hello",
+        },
+        headers=auth_headers_student,
+    )
+    assert create_conversation.status_code == 200, create_conversation.text
+    conversation_id = create_conversation.json()["id"]
+
+    _, other_student_headers = _create_second_student(db, test_password)
+
+    other_student_bookings = client.get("/api/v1/bookings", headers=other_student_headers)
+    assert other_student_bookings.status_code == 200, other_student_bookings.text
+    assert all(item["id"] != booking_id for item in other_student_bookings.json()["items"])
+
+    booking_detail = client.get(f"/api/v1/bookings/{booking_id}", headers=other_student_headers)
+    assert booking_detail.status_code == 404, booking_detail.text
+
+    booking_preview = client.get(
+        f"/api/v1/bookings/{booking_id}/preview",
+        headers=other_student_headers,
+    )
+    assert booking_preview.status_code == 404, booking_preview.text
+
+    other_student_conversations = client.get(
+        "/api/v1/conversations",
+        headers=other_student_headers,
+    )
+    assert other_student_conversations.status_code == 200, other_student_conversations.text
+    assert all(
+        item["id"] != conversation_id
+        for item in other_student_conversations.json()["conversations"]
+    )
+
+    conversation_detail = client.get(
+        f"/api/v1/conversations/{conversation_id}",
+        headers=other_student_headers,
+    )
+    assert conversation_detail.status_code == 404, conversation_detail.text

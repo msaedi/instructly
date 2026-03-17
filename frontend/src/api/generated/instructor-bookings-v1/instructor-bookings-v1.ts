@@ -23,13 +23,13 @@ import type {
 
 import type {
   BodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost,
+  BodyMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePost,
   GetCompletedBookingsApiV1InstructorBookingsCompletedGetParams,
   GetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetParams,
   GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetParams,
   HTTPValidationError,
   InstructorBookingResponse,
   ListInstructorBookingsApiV1InstructorBookingsGetParams,
-  MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams,
   PaginatedResponseInstructorBookingResponse,
 } from '../instructly.schemas';
 
@@ -836,34 +836,23 @@ Raises:
  * @summary Mark Lesson Complete
  */
 export const getMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostUrl = (
-  bookingId: string,
-  params?: MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams
+  bookingId: string
 ) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString());
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0
-    ? `/api/v1/instructor-bookings/${bookingId}/complete?${stringifiedParams}`
-    : `/api/v1/instructor-bookings/${bookingId}/complete`;
+  return `/api/v1/instructor-bookings/${bookingId}/complete`;
 };
 
 export const markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost = async (
   bookingId: string,
-  params?: MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams,
+  bodyMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePost: BodyMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePost,
   options?: RequestInit
 ): Promise<InstructorBookingResponse> => {
   return customFetch<InstructorBookingResponse>(
-    getMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostUrl(bookingId, params),
+    getMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostUrl(bookingId),
     {
       ...options,
       method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(bodyMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePost),
     }
   );
 };
@@ -875,20 +864,14 @@ export const getMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostMu
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost>>,
     TError,
-    {
-      bookingId: string;
-      params?: MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams;
-    },
+    { bookingId: string; data: BodyMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePost },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost>>,
   TError,
-  {
-    bookingId: string;
-    params?: MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams;
-  },
+  { bookingId: string; data: BodyMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePost },
   TContext
 > => {
   const mutationKey = ['markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost'];
@@ -900,16 +883,13 @@ export const getMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostMu
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost>>,
-    {
-      bookingId: string;
-      params?: MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams;
-    }
+    { bookingId: string; data: BodyMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePost }
   > = (props) => {
-    const { bookingId, params } = props ?? {};
+    const { bookingId, data } = props ?? {};
 
     return markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost(
       bookingId,
-      params,
+      data,
       requestOptions
     );
   };
@@ -921,7 +901,8 @@ export type MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostMutati
   NonNullable<
     Awaited<ReturnType<typeof markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost>>
   >;
-
+export type MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostMutationBody =
+  BodyMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePost;
 export type MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostMutationError =
   ErrorType<void | HTTPValidationError>;
 
@@ -938,7 +919,7 @@ export const useMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePost =
       TError,
       {
         bookingId: string;
-        params?: MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams;
+        data: BodyMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePost;
       },
       TContext
     >;
@@ -948,10 +929,7 @@ export const useMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePost =
 ): UseMutationResult<
   Awaited<ReturnType<typeof markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost>>,
   TError,
-  {
-    bookingId: string;
-    params?: MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams;
-  },
+  { bookingId: string; data: BodyMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePost },
   TContext
 > => {
   return useMutation(

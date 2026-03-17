@@ -35,6 +35,7 @@ from ..core.constants import (
     MIN_SESSION_DURATION,
     MINUTES_PER_SLOT,
     SLOTS_PER_DAY,
+    VALID_LOCATION_TYPES,
 )
 from ..core.enums import RoleName
 from ..core.exceptions import (
@@ -57,8 +58,9 @@ from ..repositories.availability_day_repository import AvailabilityDayRepository
 from ..repositories.factory import RepositoryFactory
 from ..repositories.filter_repository import FilterRepository
 from ..repositories.job_repository import JobRepository
-from ..schemas.booking import BookingCreate, BookingUpdate
+from ..schemas.booking import BookingCreate, BookingRescheduleRequest, BookingUpdate
 from ..utils.bitset import get_slot_tag, is_tag_compatible, new_empty_tags
+from ..utils.safe_cast import safe_float as _safe_float, safe_str as _safe_str
 from ..utils.time_helpers import string_to_time
 from ..utils.time_utils import time_to_minutes
 from .audit_redaction import redact
@@ -99,6 +101,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 AUDIT_ENABLED = os.getenv("AUDIT_ENABLED", "true").lower() in {"1", "true", "yes"}
+
+
+def _is_test_or_ci() -> bool:
+    return bool(os.getenv("PYTEST_CURRENT_TEST") or os.getenv("CI"))
+
 
 INSTRUCTOR_CONFLICT_MESSAGE = "Instructor already has a booking that overlaps this time"
 STUDENT_CONFLICT_MESSAGE = "Student already has a booking that overlaps this time"
@@ -378,7 +385,12 @@ class BookingService(BaseService):
                     metadata={"legacy_action": action},
                 )
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                # Side-effect only — does not affect booking state.
+                logger.debug(
+                    "Failed to write booking audit trail for booking %s",
+                    booking.id,
+                    exc_info=True,
+                )
 
     def _calculate_and_validate_end_time(
         self,
@@ -918,12 +930,13 @@ class BookingService(BaseService):
                 },
             )
         except Exception as e:
-            is_test_or_ci = bool(os.getenv("PYTEST_CURRENT_TEST") or os.getenv("CI"))
-            if settings.site_mode == "prod" or not is_test_or_ci:
+            site_mode = (os.getenv("SITE_MODE", "") or settings.site_mode).lower()
+            is_test_or_ci = _is_test_or_ci()
+            if site_mode == "prod" or not is_test_or_ci:
                 logger.error(
                     "SetupIntent creation failed for booking %s (site_mode=%s, test_or_ci=%s)",
                     booking.id,
-                    settings.site_mode,
+                    site_mode,
                     is_test_or_ci,
                     exc_info=True,
                 )
@@ -972,6 +985,667 @@ class BookingService(BaseService):
         self.log_operation("create_booking_with_payment_setup_completed", booking_id=booking.id)
         return booking
 
+    def _validate_rescheduled_booking_inputs(
+        self,
+        student: User,
+        booking_data: BookingCreate,
+        selected_duration: int,
+        original_booking_id: str,
+    ) -> tuple[InstructorService, InstructorProfile, Booking]:
+        """Validate the common inputs needed to create a replacement booking."""
+        self._validate_min_session_duration_floor(selected_duration)
+
+        existing_booking = self.repository.get_by_id(original_booking_id)
+        if not existing_booking:
+            raise NotFoundException("Original booking not found")
+        if booking_data.instructor_id != existing_booking.instructor_id:
+            raise BusinessRuleException(
+                "Cannot change instructor during reschedule. Please cancel and create a new booking."
+            )
+
+        service, instructor_profile = self._validate_booking_prerequisites(student, booking_data)
+
+        if selected_duration not in service.duration_options:
+            raise BusinessRuleException(
+                f"Invalid duration {selected_duration}. Available options: {service.duration_options}"
+            )
+
+        booking_data.end_time = self._calculate_and_validate_end_time(
+            booking_data.booking_date,
+            booking_data.start_time,
+            selected_duration,
+        )
+        self._validate_against_availability_bits(booking_data, instructor_profile)
+        return service, instructor_profile, existing_booking
+
+    def _create_rescheduled_booking_base_in_transaction(
+        self,
+        student: User,
+        booking_data: BookingCreate,
+        selected_duration: int,
+        original_booking_id: str,
+        service: InstructorService,
+        instructor_profile: InstructorProfile,
+    ) -> tuple[Booking, Booking, Any, Any]:
+        """Create a replacement booking and reschedule linkage inside an active transaction."""
+        self._acquire_booking_create_advisory_lock(
+            booking_data.instructor_id,
+            booking_data.booking_date,
+        )
+        self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
+        booking = self._create_booking_record(
+            student, booking_data, service, instructor_profile, selected_duration
+        )
+
+        old_booking = self.repository.get_by_id(original_booking_id)
+        if not old_booking:
+            raise NotFoundException("Original booking not found")
+        if booking_data.instructor_id != old_booking.instructor_id:
+            raise BusinessRuleException(
+                "Cannot change instructor during reschedule. Please cancel and create a new booking."
+            )
+
+        original_lesson_dt = self._get_booking_start_utc(old_booking)
+        booking.rescheduled_from_booking_id = old_booking.id
+        old_reschedule = self.repository.ensure_reschedule(old_booking.id)
+        current_reschedule = self.repository.ensure_reschedule(booking.id)
+        current_reschedule.original_lesson_datetime = original_lesson_dt
+        old_reschedule.rescheduled_to_booking_id = booking.id
+        previous_count = int(old_reschedule.reschedule_count or 0)
+        new_count = previous_count + 1
+        old_reschedule.reschedule_count = new_count
+        current_reschedule.reschedule_count = new_count
+        if bool(old_reschedule.late_reschedule_used):
+            current_reschedule.late_reschedule_used = True
+
+        self._enqueue_booking_outbox_event(booking, "booking.created")
+        audit_after = self._snapshot_booking(booking)
+        self._write_booking_audit(
+            booking,
+            "create",
+            actor=student,
+            before=None,
+            after=audit_after,
+            default_role=RoleName.STUDENT.value,
+        )
+
+        return booking, old_booking, old_reschedule, current_reschedule
+
+    def _apply_existing_payment_to_rescheduled_booking_in_transaction(
+        self,
+        booking: Booking,
+        old_booking: Booking,
+        *,
+        payment_intent_id: str,
+        payment_status: Optional[str],
+        payment_method_id: Optional[str],
+    ) -> None:
+        """Copy reusable payment state from the original booking onto the replacement booking."""
+        from ..repositories.payment_repository import PaymentRepository
+
+        bp = self.repository.ensure_payment(booking.id)
+        bp.payment_intent_id = payment_intent_id
+        if isinstance(payment_method_id, str):
+            bp.payment_method_id = payment_method_id
+        if isinstance(payment_status, str):
+            bp.payment_status = payment_status
+
+        try:
+            credit_repo = RepositoryFactory.create_credit_repository(self.db)
+            reserved_credits = credit_repo.get_reserved_credits_for_booking(
+                booking_id=old_booking.id
+            )
+            reserved_total = 0
+            for credit in reserved_credits:
+                reserved_total += int(credit.reserved_amount_cents or credit.amount_cents or 0)
+                credit.reserved_for_booking_id = booking.id
+            if reserved_total > 0:
+                bp.credits_reserved_cents = reserved_total
+                old_bp = self.repository.ensure_payment(old_booking.id)
+                old_bp.credits_reserved_cents = 0
+        except Exception as exc:
+            logger.warning(
+                "Failed to transfer reserved credits from booking %s: %s",
+                old_booking.id,
+                exc,
+            )
+
+        payment_repo = PaymentRepository(self.db)
+        payment_record = payment_repo.get_payment_by_intent_id(payment_intent_id)
+        if payment_record:
+            payment_record.booking_id = booking.id
+
+    def _apply_locked_funds_to_rescheduled_booking_in_transaction(
+        self,
+        booking: Booking,
+        current_reschedule: Any,
+    ) -> None:
+        """Mark a replacement booking as carrying locked funds."""
+        booking.has_locked_funds = True
+        bp = self.repository.ensure_payment(booking.id)
+        bp.payment_status = PaymentStatus.LOCKED.value
+        current_reschedule.late_reschedule_used = True
+
+    def _cancel_booking_without_stripe_in_transaction(
+        self,
+        booking_id: str,
+        user: User,
+        reason: Optional[str] = None,
+        *,
+        clear_payment_intent: bool = False,
+    ) -> tuple[Booking, str]:
+        """Apply a no-Stripe cancellation inside an active transaction."""
+        booking = self.repository.get_booking_with_details(booking_id)
+        if not booking:
+            raise NotFoundException("Booking not found")
+
+        if user.id not in [booking.student_id, booking.instructor_id]:
+            raise ValidationException("You don't have permission to cancel this booking")
+
+        if not booking.is_cancellable:
+            raise BusinessRuleException(
+                f"Booking cannot be cancelled - current status: {booking.status}"
+            )
+
+        audit_before = self._snapshot_booking(booking)
+
+        if clear_payment_intent:
+            bp = self.repository.ensure_payment(booking.id)
+            bp.payment_intent_id = None
+
+        booking.cancel(user.id, reason)
+        self._mark_video_session_terminal_on_cancellation(booking)
+        self._enqueue_booking_outbox_event(booking, "booking.cancelled")
+        audit_after = self._snapshot_booking(booking)
+        default_role = (
+            RoleName.STUDENT.value if user.id == booking.student_id else RoleName.INSTRUCTOR.value
+        )
+        self._write_booking_audit(
+            booking,
+            "cancel",
+            actor=user,
+            before=audit_before,
+            after=audit_after,
+            default_role=default_role,
+        )
+
+        cancelled_by_role = "student" if user.id == booking.student_id else "instructor"
+        return booking, cancelled_by_role
+
+    def _rollback_reschedule_replacement(self, booking: Booking, user: User) -> None:
+        """Best-effort rollback of a replacement booking when the original cannot be cancelled."""
+        try:
+            if booking.status == BookingStatus.PENDING:
+                if self.abort_pending_booking(booking.id):
+                    return
+            self.cancel_booking(
+                booking.id,
+                user,
+                "Reschedule failed - replacement booking cancelled",
+            )
+        except Exception as exc:  # pragma: no cover - defensive failure path
+            logger.critical(
+                "Failed to rollback replacement booking %s after reschedule failure: %s",
+                booking.id,
+                exc,
+                exc_info=True,
+            )
+
+    def _normalize_reschedule_location_type(self, original_booking: Booking) -> str:
+        """Return a canonical location type for rescheduling the original booking."""
+        location_type_raw = getattr(original_booking, "location_type", None)
+        if isinstance(location_type_raw, str):
+            if location_type_raw in VALID_LOCATION_TYPES:
+                return location_type_raw
+            raise ValidationException(
+                f"Invalid location_type: '{location_type_raw}'. Must be one of: {', '.join(sorted(VALID_LOCATION_TYPES))}"
+            )
+        return "online"
+
+    def _build_reschedule_booking_data(
+        self,
+        original_booking: Booking,
+        payload: BookingRescheduleRequest,
+    ) -> BookingCreate:
+        """Carry forward immutable booking fields into a replacement-booking payload."""
+        location_type = self._normalize_reschedule_location_type(original_booking)
+        student_note = (
+            original_booking.student_note
+            if isinstance(getattr(original_booking, "student_note", None), str)
+            else None
+        )
+        meeting_location = (
+            original_booking.meeting_location
+            if isinstance(getattr(original_booking, "meeting_location", None), str)
+            else None
+        )
+
+        return BookingCreate(
+            instructor_id=original_booking.instructor_id,
+            instructor_service_id=payload.instructor_service_id
+            or original_booking.instructor_service_id,
+            booking_date=payload.booking_date,
+            start_time=payload.start_time,
+            selected_duration=payload.selected_duration,
+            student_note=student_note,
+            meeting_location=meeting_location,
+            location_type=location_type,
+            location_address=_safe_str(getattr(original_booking, "location_address", None)),
+            location_lat=_safe_float(getattr(original_booking, "location_lat", None)),
+            location_lng=_safe_float(getattr(original_booking, "location_lng", None)),
+            location_place_id=_safe_str(getattr(original_booking, "location_place_id", None)),
+        )
+
+    def _ensure_reschedule_slot_available(
+        self,
+        *,
+        original_booking: Booking,
+        booking_data: BookingCreate,
+        selected_duration: int,
+        student_id: str,
+    ) -> None:
+        """Validate the proposed replacement slot before any payment or cancellation work."""
+        proposed_start = datetime.combine(  # tz-pattern-ok: duration math only
+            booking_data.booking_date,
+            booking_data.start_time,
+            tzinfo=timezone.utc,
+        )
+        proposed_end_time = (proposed_start + timedelta(minutes=selected_duration)).time()
+
+        availability = self.check_availability(
+            instructor_id=original_booking.instructor_id,
+            booking_date=booking_data.booking_date,
+            start_time=booking_data.start_time,
+            end_time=proposed_end_time,
+            service_id=booking_data.instructor_service_id,
+            instructor_service_id=None,
+            exclude_booking_id=original_booking.id,
+            location_type=booking_data.location_type,
+            student_id=student_id,
+            selected_duration=selected_duration,
+            location_lat=booking_data.location_lat,
+            location_lng=booking_data.location_lng,
+        )
+
+        if isinstance(availability, dict):
+            is_available = availability.get("available", False)
+            reason = availability.get("reason")
+        else:
+            try:
+                is_available = bool(availability)
+            except Exception:
+                is_available = False
+            reason = None
+
+        if not is_available:
+            raise BookingConflictException(message=reason or "Requested time is unavailable")
+
+    def _resolve_reschedule_student(self, original_booking: Booking) -> User:
+        """Return the canonical student for a reschedule, even if the actor is different."""
+        student = getattr(original_booking, "student", None)
+        if student is not None and str(getattr(student, "id", "")) == str(
+            original_booking.student_id
+        ):
+            return cast(User, student)
+
+        user_repository = RepositoryFactory.create_user_repository(self.db)
+        resolved_student = user_repository.get_by_id(original_booking.student_id)
+        if not resolved_student:
+            raise NotFoundException("Student not found")
+        return resolved_student
+
+    def _create_rescheduled_booking_with_existing_payment_in_transaction(
+        self,
+        *,
+        student: User,
+        booking_data: BookingCreate,
+        selected_duration: int,
+        original_booking_id: str,
+        service: InstructorService,
+        instructor_profile: InstructorProfile,
+        payment_intent_id: str,
+        payment_status: Optional[str],
+        payment_method_id: Optional[str],
+    ) -> tuple[Booking, Booking]:
+        """Create a replacement booking and copy the original payment within an open transaction."""
+        (
+            booking,
+            old_booking,
+            _old_reschedule,
+            _current_reschedule,
+        ) = self._create_rescheduled_booking_base_in_transaction(
+            student,
+            booking_data,
+            selected_duration,
+            original_booking_id,
+            service,
+            instructor_profile,
+        )
+        self._apply_existing_payment_to_rescheduled_booking_in_transaction(
+            booking,
+            old_booking,
+            payment_intent_id=payment_intent_id,
+            payment_status=payment_status,
+            payment_method_id=payment_method_id,
+        )
+        return booking, old_booking
+
+    def _create_rescheduled_booking_with_locked_funds_in_transaction(
+        self,
+        *,
+        student: User,
+        booking_data: BookingCreate,
+        selected_duration: int,
+        original_booking_id: str,
+        service: InstructorService,
+        instructor_profile: InstructorProfile,
+    ) -> tuple[Booking, Booking]:
+        """Create a replacement booking that inherits a reschedule lock within an open transaction."""
+        (
+            booking,
+            old_booking,
+            _old_reschedule,
+            current_reschedule,
+        ) = self._create_rescheduled_booking_base_in_transaction(
+            student,
+            booking_data,
+            selected_duration,
+            original_booking_id,
+            service,
+            instructor_profile,
+        )
+        self._apply_locked_funds_to_rescheduled_booking_in_transaction(booking, current_reschedule)
+        return booking, old_booking
+
+    @BaseService.measure_operation("reschedule_booking")
+    def reschedule_booking(
+        self,
+        *,
+        booking_id: str,
+        payload: BookingRescheduleRequest,
+        current_user: User,
+    ) -> Booking:
+        """Reschedule a booking while keeping cancellation and replacement creation consistent."""
+        original_booking = self.get_booking_for_user(booking_id, current_user)
+        if not original_booking:
+            raise NotFoundException("Booking not found")
+
+        self.validate_reschedule_allowed(original_booking)
+        reschedule_student = self._resolve_reschedule_student(original_booking)
+
+        new_booking_data = self._build_reschedule_booking_data(original_booking, payload)
+        self._ensure_reschedule_slot_available(
+            original_booking=original_booking,
+            booking_data=new_booking_data,
+            selected_duration=payload.selected_duration,
+            student_id=str(reschedule_student.id),
+        )
+
+        payment_detail = original_booking.payment_detail
+        raw_payment_intent_id = payment_detail.payment_intent_id if payment_detail else None
+        raw_payment_status = payment_detail.payment_status if payment_detail else None
+        raw_payment_method_id = payment_detail.payment_method_id if payment_detail else None
+
+        normalized_payment_status = raw_payment_status
+        if raw_payment_status == "requires_capture":
+            normalized_payment_status = PaymentStatus.AUTHORIZED.value
+        elif raw_payment_status == "succeeded":
+            normalized_payment_status = PaymentStatus.SETTLED.value
+
+        reuse_payment = (
+            isinstance(raw_payment_intent_id, str)
+            and raw_payment_intent_id.startswith("pi_")
+            and isinstance(normalized_payment_status, str)
+            and normalized_payment_status
+            in {PaymentStatus.AUTHORIZED.value, PaymentStatus.SETTLED.value}
+        )
+
+        initiator_role = (
+            "student" if current_user.id == original_booking.student_id else "instructor"
+        )
+        hours_until_original = self.get_hours_until_start(original_booking)
+        should_lock = self.should_trigger_lock(original_booking, initiator_role)
+        force_stripe_cancel = initiator_role == "student" and hours_until_original < 12
+
+        if should_lock:
+            self.activate_lock_for_reschedule(original_booking.id)
+            return self._reschedule_with_lock(
+                original_booking=original_booking,
+                booking_data=new_booking_data,
+                selected_duration=payload.selected_duration,
+                current_user=current_user,
+                reschedule_student=reschedule_student,
+            )
+
+        if reuse_payment and not force_stripe_cancel:
+            return self._reschedule_with_existing_payment(
+                original_booking=original_booking,
+                booking_data=new_booking_data,
+                selected_duration=payload.selected_duration,
+                current_user=current_user,
+                reschedule_student=reschedule_student,
+                payment_intent_id=cast(str, raw_payment_intent_id),
+                payment_status=cast(Optional[str], normalized_payment_status),
+                payment_method_id=cast(Optional[str], raw_payment_method_id),
+            )
+
+        return self._reschedule_with_new_payment(
+            original_booking=original_booking,
+            booking_data=new_booking_data,
+            selected_duration=payload.selected_duration,
+            current_user=current_user,
+            reschedule_student=reschedule_student,
+        )
+
+    def _reschedule_with_lock(
+        self,
+        *,
+        original_booking: Booking,
+        booking_data: BookingCreate,
+        selected_duration: int,
+        current_user: User,
+        reschedule_student: User,
+    ) -> Booking:
+        """Handle the LOCK reschedule path with one transaction for create + cancel."""
+        service, instructor_profile, _ = self._validate_rescheduled_booking_inputs(
+            reschedule_student,
+            booking_data,
+            selected_duration,
+            original_booking.id,
+        )
+        transactional_repo = cast(Any, self.repository)
+        old_booking: Optional[Booking] = None
+        try:
+            with transactional_repo.transaction():
+                (
+                    replacement_booking,
+                    old_booking,
+                ) = self._create_rescheduled_booking_with_locked_funds_in_transaction(
+                    student=reschedule_student,
+                    booking_data=booking_data,
+                    selected_duration=selected_duration,
+                    original_booking_id=original_booking.id,
+                    service=service,
+                    instructor_profile=instructor_profile,
+                )
+                (
+                    cancelled_booking,
+                    cancelled_by_role,
+                ) = self._cancel_booking_without_stripe_in_transaction(
+                    original_booking.id,
+                    current_user,
+                    "Rescheduled",
+                )
+        except IntegrityError as exc:
+            message, scope = self._resolve_integrity_conflict_message(exc)
+            conflict_details = self._build_conflict_details(
+                booking_data, str(reschedule_student.id)
+            )
+            if scope:
+                conflict_details["conflict_scope"] = scope
+            raise BookingConflictException(
+                message=message,
+                details=conflict_details,
+            ) from exc
+        except OperationalError as exc:
+            if self._is_deadlock_error(exc):
+                conflict_details = self._build_conflict_details(
+                    booking_data, str(reschedule_student.id)
+                )
+                raise BookingConflictException(
+                    message=GENERIC_CONFLICT_MESSAGE,
+                    details=conflict_details,
+                ) from exc
+            raise
+        except RepositoryException as exc:
+            self._raise_conflict_from_repo_error(exc, booking_data, str(reschedule_student.id))
+
+        self._handle_post_booking_tasks(
+            replacement_booking,
+            is_reschedule=old_booking is not None,
+            old_booking=old_booking,
+        )
+        self._post_cancellation_actions(cancelled_booking, cancelled_by_role)
+        return replacement_booking
+
+    def _reschedule_with_existing_payment(
+        self,
+        *,
+        original_booking: Booking,
+        booking_data: BookingCreate,
+        selected_duration: int,
+        current_user: User,
+        reschedule_student: User,
+        payment_intent_id: str,
+        payment_status: Optional[str],
+        payment_method_id: Optional[str],
+    ) -> Booking:
+        """Handle the payment-reuse reschedule path with one transaction for create + cancel."""
+        service, instructor_profile, _ = self._validate_rescheduled_booking_inputs(
+            reschedule_student,
+            booking_data,
+            selected_duration,
+            original_booking.id,
+        )
+        transactional_repo = cast(Any, self.repository)
+        old_booking: Optional[Booking] = None
+        try:
+            with transactional_repo.transaction():
+                (
+                    replacement_booking,
+                    old_booking,
+                ) = self._create_rescheduled_booking_with_existing_payment_in_transaction(
+                    student=reschedule_student,
+                    booking_data=booking_data,
+                    selected_duration=selected_duration,
+                    original_booking_id=original_booking.id,
+                    service=service,
+                    instructor_profile=instructor_profile,
+                    payment_intent_id=payment_intent_id,
+                    payment_status=payment_status,
+                    payment_method_id=payment_method_id,
+                )
+                (
+                    cancelled_booking,
+                    cancelled_by_role,
+                ) = self._cancel_booking_without_stripe_in_transaction(
+                    original_booking.id,
+                    current_user,
+                    "Rescheduled",
+                    clear_payment_intent=True,
+                )
+        except IntegrityError as exc:
+            message, scope = self._resolve_integrity_conflict_message(exc)
+            conflict_details = self._build_conflict_details(
+                booking_data, str(reschedule_student.id)
+            )
+            if scope:
+                conflict_details["conflict_scope"] = scope
+            raise BookingConflictException(
+                message=message,
+                details=conflict_details,
+            ) from exc
+        except OperationalError as exc:
+            if self._is_deadlock_error(exc):
+                conflict_details = self._build_conflict_details(
+                    booking_data, str(reschedule_student.id)
+                )
+                raise BookingConflictException(
+                    message=GENERIC_CONFLICT_MESSAGE,
+                    details=conflict_details,
+                ) from exc
+            raise
+        except RepositoryException as exc:
+            self._raise_conflict_from_repo_error(exc, booking_data, str(reschedule_student.id))
+
+        self._handle_post_booking_tasks(
+            replacement_booking,
+            is_reschedule=old_booking is not None,
+            old_booking=old_booking,
+        )
+        self._post_cancellation_actions(cancelled_booking, cancelled_by_role)
+        return replacement_booking
+
+    def _reschedule_with_new_payment(
+        self,
+        *,
+        original_booking: Booking,
+        booking_data: BookingCreate,
+        selected_duration: int,
+        current_user: User,
+        reschedule_student: User,
+    ) -> Booking:
+        """Handle the new-payment reschedule path with compensation if the original cancel fails."""
+        has_payment_method, stripe_payment_method_id = self.validate_reschedule_payment_method(
+            str(reschedule_student.id)
+        )
+        if not has_payment_method or not stripe_payment_method_id:
+            raise ValidationException(
+                "A payment method is required to reschedule this lesson. Please add a payment method and try again.",
+                code="payment_method_required_for_reschedule",
+            )
+
+        replacement_booking = self.create_booking_with_payment_setup(
+            reschedule_student,
+            booking_data,
+            selected_duration,
+            original_booking.id,
+        )
+
+        try:
+            replacement_booking = self.confirm_booking_payment(
+                replacement_booking.id,
+                reschedule_student,
+                stripe_payment_method_id,
+                False,
+            )
+        except Exception as exc:
+            logger.error(
+                "Failed to confirm payment for rescheduled booking %s: %s",
+                replacement_booking.id,
+                exc,
+            )
+            self.abort_pending_booking(replacement_booking.id)
+            raise ValidationException(
+                "We couldn't process your payment method. Please try again or update your payment method.",
+                code="payment_confirmation_failed",
+            ) from exc
+
+        try:
+            self.cancel_booking(original_booking.id, current_user, "Rescheduled")
+        except Exception as exc:
+            logger.critical(
+                "Failed to cancel original booking %s after creating replacement booking %s during reschedule: %s",
+                original_booking.id,
+                replacement_booking.id,
+                exc,
+                exc_info=True,
+            )
+            self._rollback_reschedule_replacement(replacement_booking, current_user)
+            raise
+
+        return replacement_booking
+
     @BaseService.measure_operation("create_rescheduled_booking_with_existing_payment")
     def create_rescheduled_booking_with_existing_payment(
         self,
@@ -989,7 +1663,6 @@ class BookingService(BaseService):
         This avoids creating a new PaymentIntent when the original payment was
         already authorized or captured.
         """
-        from ..repositories.payment_repository import PaymentRepository
 
         self.log_operation(
             "create_rescheduled_booking_with_existing_payment",
@@ -998,117 +1671,31 @@ class BookingService(BaseService):
             date=booking_data.booking_date,
             original_booking_id=original_booking_id,
         )
-        self._validate_min_session_duration_floor(selected_duration)
-
-        existing_booking = self.repository.get_by_id(original_booking_id)
-        if not existing_booking:
-            raise NotFoundException("Original booking not found")
-        if booking_data.instructor_id != existing_booking.instructor_id:
-            raise BusinessRuleException(
-                "Cannot change instructor during reschedule. Please cancel and create a new booking."
-            )
-
-        # 1. Validate and load required data
-        service, instructor_profile = self._validate_booking_prerequisites(student, booking_data)
-
-        # 2. Validate selected duration
-        if selected_duration not in service.duration_options:
-            raise BusinessRuleException(
-                f"Invalid duration {selected_duration}. Available options: {service.duration_options}"
-            )
-
-        # 3. Calculate end time
-        calculated_end_time = self._calculate_and_validate_end_time(
-            booking_data.booking_date,
-            booking_data.start_time,
+        service, instructor_profile, _ = self._validate_rescheduled_booking_inputs(
+            student,
+            booking_data,
             selected_duration,
+            original_booking_id,
         )
-        booking_data.end_time = calculated_end_time
-
-        # 4. Ensure requested interval fits published availability (bitmap V2)
-        self._validate_against_availability_bits(booking_data, instructor_profile)
 
         # 5. Create the booking with transaction-scoped conflict protection
         transactional_repo = cast(Any, self.repository)
         old_booking: Optional[Booking] = None
         try:
             with transactional_repo.transaction():
-                self._acquire_booking_create_advisory_lock(
-                    booking_data.instructor_id,
-                    booking_data.booking_date,
-                )
-                self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
-                booking = self._create_booking_record(
-                    student, booking_data, service, instructor_profile, selected_duration
-                )
-
-                old_booking = self.repository.get_by_id(original_booking_id)
-                if not old_booking:
-                    raise NotFoundException("Original booking not found")
-                if booking_data.instructor_id != old_booking.instructor_id:
-                    raise BusinessRuleException(
-                        "Cannot change instructor during reschedule. Please cancel and create a new booking."
-                    )
-
-                original_lesson_dt = self._get_booking_start_utc(old_booking)
-                booking.rescheduled_from_booking_id = old_booking.id
-                old_reschedule = self.repository.ensure_reschedule(old_booking.id)
-                current_reschedule = self.repository.ensure_reschedule(booking.id)
-                current_reschedule.original_lesson_datetime = original_lesson_dt
-                old_reschedule.rescheduled_to_booking_id = booking.id
-                previous_count = int(old_reschedule.reschedule_count or 0)
-                new_count = previous_count + 1
-                old_reschedule.reschedule_count = new_count
-                current_reschedule.reschedule_count = new_count
-                if bool(old_reschedule.late_reschedule_used):
-                    current_reschedule.late_reschedule_used = True
-
-                # Reuse payment fields from the original booking
-                bp = self.repository.ensure_payment(booking.id)
-                bp.payment_intent_id = payment_intent_id
-                if isinstance(payment_method_id, str):
-                    bp.payment_method_id = payment_method_id
-                if isinstance(payment_status, str):
-                    bp.payment_status = payment_status
-
-                # Transfer reserved credits to the new booking when reusing payment
-                try:
-                    credit_repo = RepositoryFactory.create_credit_repository(self.db)
-                    reserved_credits = credit_repo.get_reserved_credits_for_booking(
-                        booking_id=old_booking.id
-                    )
-                    reserved_total = 0
-                    for credit in reserved_credits:
-                        reserved_total += int(
-                            credit.reserved_amount_cents or credit.amount_cents or 0
-                        )
-                        credit.reserved_for_booking_id = booking.id
-                    if reserved_total > 0:
-                        bp.credits_reserved_cents = reserved_total
-                        old_bp = self.repository.ensure_payment(old_booking.id)
-                        old_bp.credits_reserved_cents = 0
-                except Exception as exc:
-                    logger.warning(
-                        "Failed to transfer reserved credits from booking %s: %s",
-                        old_booking.id,
-                        exc,
-                    )
-
-                # Move PaymentIntent record to the new booking if it exists
-                payment_repo = PaymentRepository(self.db)
-                payment_record = payment_repo.get_payment_by_intent_id(payment_intent_id)
-                if payment_record:
-                    payment_record.booking_id = booking.id
-
-                self._enqueue_booking_outbox_event(booking, "booking.created")
-                audit_after = self._snapshot_booking(booking)
-                self._write_booking_audit(
+                (
                     booking,
-                    "create",
-                    actor=student,
-                    before=None,
-                    after=audit_after,
-                    default_role=RoleName.STUDENT.value,
+                    old_booking,
+                ) = self._create_rescheduled_booking_with_existing_payment_in_transaction(
+                    student=student,
+                    booking_data=booking_data,
+                    selected_duration=selected_duration,
+                    original_booking_id=original_booking_id,
+                    service=service,
+                    instructor_profile=instructor_profile,
+                    payment_intent_id=payment_intent_id,
+                    payment_status=payment_status,
+                    payment_method_id=payment_method_id,
                 )
         except IntegrityError as exc:
             message, scope = self._resolve_integrity_conflict_message(exc)
@@ -1160,82 +1747,28 @@ class BookingService(BaseService):
             date=booking_data.booking_date,
             original_booking_id=original_booking_id,
         )
-        self._validate_min_session_duration_floor(selected_duration)
-
-        existing_booking = self.repository.get_by_id(original_booking_id)
-        if not existing_booking:
-            raise NotFoundException("Original booking not found")
-        if booking_data.instructor_id != existing_booking.instructor_id:
-            raise BusinessRuleException(
-                "Cannot change instructor during reschedule. Please cancel and create a new booking."
-            )
-
-        # 1. Validate and load required data
-        service, instructor_profile = self._validate_booking_prerequisites(student, booking_data)
-
-        # 2. Validate selected duration
-        if selected_duration not in service.duration_options:
-            raise BusinessRuleException(
-                f"Invalid duration {selected_duration}. Available options: {service.duration_options}"
-            )
-
-        # 3. Calculate end time
-        calculated_end_time = self._calculate_and_validate_end_time(
-            booking_data.booking_date,
-            booking_data.start_time,
+        service, instructor_profile, _ = self._validate_rescheduled_booking_inputs(
+            student,
+            booking_data,
             selected_duration,
+            original_booking_id,
         )
-        booking_data.end_time = calculated_end_time
-
-        # 4. Ensure requested interval fits published availability (bitmap V2)
-        self._validate_against_availability_bits(booking_data, instructor_profile)
 
         # 5. Create booking with transaction-scoped conflict protection
         transactional_repo = cast(Any, self.repository)
         old_booking: Optional[Booking] = None
         try:
             with transactional_repo.transaction():
-                self._acquire_booking_create_advisory_lock(
-                    booking_data.instructor_id,
-                    booking_data.booking_date,
-                )
-                self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
-                booking = self._create_booking_record(
-                    student, booking_data, service, instructor_profile, selected_duration
-                )
-
-                old_booking = self.repository.get_by_id(original_booking_id)
-                if not old_booking:
-                    raise NotFoundException("Original booking not found")
-                if booking_data.instructor_id != old_booking.instructor_id:
-                    raise BusinessRuleException(
-                        "Cannot change instructor during reschedule. Please cancel and create a new booking."
-                    )
-
-                original_lesson_dt = self._get_booking_start_utc(old_booking)
-                booking.rescheduled_from_booking_id = old_booking.id
-                current_reschedule = self.repository.ensure_reschedule(booking.id)
-                current_reschedule.original_lesson_datetime = original_lesson_dt
-                booking.has_locked_funds = True
-                bp = self.repository.ensure_payment(booking.id)
-                bp.payment_status = PaymentStatus.LOCKED.value
-                old_reschedule = self.repository.ensure_reschedule(old_booking.id)
-                old_reschedule.rescheduled_to_booking_id = booking.id
-                previous_count = int(old_reschedule.reschedule_count or 0)
-                new_count = previous_count + 1
-                old_reschedule.reschedule_count = new_count
-                current_reschedule.reschedule_count = new_count
-                current_reschedule.late_reschedule_used = True
-
-                self._enqueue_booking_outbox_event(booking, "booking.created")
-                audit_after = self._snapshot_booking(booking)
-                self._write_booking_audit(
+                (
                     booking,
-                    "create",
-                    actor=student,
-                    before=None,
-                    after=audit_after,
-                    default_role=RoleName.STUDENT.value,
+                    old_booking,
+                ) = self._create_rescheduled_booking_with_locked_funds_in_transaction(
+                    student=student,
+                    booking_data=booking_data,
+                    selected_duration=selected_duration,
+                    original_booking_id=original_booking_id,
+                    service=service,
+                    instructor_profile=instructor_profile,
                 )
         except IntegrityError as exc:
             message, scope = self._resolve_integrity_conflict_message(exc)
@@ -1495,12 +2028,20 @@ class BookingService(BaseService):
                             refreshed_bp.payment_status = PaymentStatus.AUTHORIZED.value
                 self.repository.refresh(booking)
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning(
+                    "Booking %s was updated after immediate authorization, but ORM refresh failed",
+                    booking.id,
+                    exc_info=True,
+                )
         elif trigger_immediate_auth:
             try:
                 self.repository.refresh(booking)
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning(
+                    "Failed to refresh booking %s after immediate authorization attempt",
+                    booking.id,
+                    exc_info=True,
+                )
         # Create system message in conversation only after confirmation
         if booking.status != BookingStatus.CONFIRMED:
             return booking
@@ -1549,7 +2090,12 @@ class BookingService(BaseService):
         try:
             self._invalidate_booking_caches(booking)
         except Exception:
-            logger.debug("Non-fatal error ignored", exc_info=True)
+            # Side-effect only — does not affect booking state.
+            logger.debug(
+                "Failed to invalidate booking caches after confirmation for booking %s",
+                booking.id,
+                exc_info=True,
+            )
         return booking
 
     @BaseService.measure_operation("retry_authorization")
@@ -1917,43 +2463,12 @@ class BookingService(BaseService):
         This is intended for reschedule flows where the existing payment is reused.
         """
         with self.transaction():
-            booking = self.repository.get_booking_with_details(booking_id)
-            if not booking:
-                raise NotFoundException("Booking not found")
-
-            if user.id not in [booking.student_id, booking.instructor_id]:
-                raise ValidationException("You don't have permission to cancel this booking")
-
-            if not booking.is_cancellable:
-                raise BusinessRuleException(
-                    f"Booking cannot be cancelled - current status: {booking.status}"
-                )
-
-            audit_before = self._snapshot_booking(booking)
-
-            if clear_payment_intent:
-                bp = self.repository.ensure_payment(booking.id)
-                bp.payment_intent_id = None
-
-            booking.cancel(user.id, reason)
-            self._mark_video_session_terminal_on_cancellation(booking)
-            self._enqueue_booking_outbox_event(booking, "booking.cancelled")
-            audit_after = self._snapshot_booking(booking)
-            default_role = (
-                RoleName.STUDENT.value
-                if user.id == booking.student_id
-                else RoleName.INSTRUCTOR.value
+            booking, cancelled_by_role = self._cancel_booking_without_stripe_in_transaction(
+                booking_id,
+                user,
+                reason,
+                clear_payment_intent=clear_payment_intent,
             )
-            self._write_booking_audit(
-                booking,
-                "cancel",
-                actor=user,
-                before=audit_before,
-                after=audit_after,
-                default_role=default_role,
-            )
-
-        cancelled_by_role = "student" if user.id == booking.student_id else "instructor"
         self._post_cancellation_actions(booking, cancelled_by_role)
 
         return booking
@@ -2110,7 +2625,11 @@ class BookingService(BaseService):
             try:
                 self.db.expire_all()
             except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
+                logger.warning(
+                    "Failed to expire session state after authorizing booking %s for reschedule lock",
+                    booking_id,
+                    exc_info=True,
+                )
         # Refresh booking after possible authorization
         booking = self.repository.get_booking_with_details(booking_id)
         if not booking:
@@ -3625,6 +4144,42 @@ class BookingService(BaseService):
                 limit=limit,
             )
             return bookings
+
+    @BaseService.measure_operation("get_paginated_bookings_for_user")
+    def get_paginated_bookings_for_user(
+        self,
+        *,
+        user: User,
+        page: int,
+        per_page: int,
+        status: Optional[BookingStatus] = None,
+        upcoming_only: bool = False,
+        exclude_future_confirmed: bool = False,
+        include_past_confirmed: bool = False,
+    ) -> tuple[List[Booking], int]:
+        """Get one page of bookings for a user along with the filtered total count."""
+        roles = cast(list[Any], getattr(user, "roles", []) or [])
+        is_student = any(cast(str, getattr(role, "name", "")) == RoleName.STUDENT for role in roles)
+        if is_student:
+            return self.repository.get_student_bookings_page(
+                student_id=user.id,
+                status=status,
+                upcoming_only=upcoming_only,
+                exclude_future_confirmed=exclude_future_confirmed,
+                include_past_confirmed=include_past_confirmed,
+                page=page,
+                per_page=per_page,
+            )
+
+        return self.repository.get_instructor_bookings_page(
+            instructor_id=user.id,
+            status=status,
+            upcoming_only=upcoming_only,
+            exclude_future_confirmed=exclude_future_confirmed,
+            include_past_confirmed=include_past_confirmed,
+            page=page,
+            per_page=per_page,
+        )
 
     @BaseService.measure_operation("get_booking_stats_for_instructor")
     def get_booking_stats_for_instructor(self, instructor_id: str) -> Dict[str, Any]:

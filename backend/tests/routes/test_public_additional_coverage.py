@@ -25,6 +25,10 @@ ORIGINAL_GET_OVERNIGHT_EARLIEST_HOUR = ConfigService.get_overnight_earliest_hour
 ORIGINAL_IS_IN_OVERNIGHT_WINDOW = ConfigService.is_in_overnight_window
 
 
+def _valid_referral_link() -> str:
+    return f"{public_routes.settings.frontend_url.rstrip('/')}/ref/ABC"
+
+
 def _make_request(headers: dict[str, str] | None = None) -> Request:
     raw_headers = []
     if headers:
@@ -738,7 +742,20 @@ async def test_public_availability_cache_hit_etag_304(monkeypatch):
         cache_service=DummyCache(),
         db=None,
     )
-    assert response.status_code == 304
+    assert response.status_code == 200
+    result = await public_routes.get_instructor_public_availability(
+        instructor_id=user.id,
+        request=request,
+        response_obj=Response(),
+        start_date=today,
+        end_date=today,
+        availability_service=DummyAvailabilityService(),
+        conflict_checker=DummyConflictChecker(),
+        instructor_service=DummyInstructorService(),
+        cache_service=DummyCache(),
+        db=None,
+    )
+    assert result.status_code == 304
 
 
 @pytest.mark.asyncio
@@ -882,7 +899,20 @@ async def test_public_availability_etag_on_cache_miss(monkeypatch):
         cache_service=None,
         db=None,
     )
-    assert response.status_code == 304
+    assert response.status_code == 200
+    result = await public_routes.get_instructor_public_availability(
+        instructor_id=user.id,
+        request=request,
+        response_obj=Response(),
+        start_date=start_date,
+        end_date=start_date,
+        availability_service=DummyAvailabilityService(),
+        conflict_checker=DummyConflictChecker(),
+        instructor_service=DummyInstructorService(),
+        cache_service=None,
+        db=None,
+    )
+    assert result.status_code == 304
 
 
 @pytest.mark.asyncio
@@ -902,7 +932,7 @@ async def test_send_referral_invites_validation_and_partial_failure(monkeypatch)
 
     payload = ReferralSendRequest(
         emails=["ok@example.com", "fail@example.com"],
-        referral_link="https://instainstru.com/ref/ABC",
+        referral_link=_valid_referral_link(),
         from_name="Tester",
     )
     mock_request = _make_request()
@@ -912,9 +942,24 @@ async def test_send_referral_invites_validation_and_partial_failure(monkeypatch)
 
 
 @pytest.mark.asyncio
+async def test_send_referral_invites_rejects_wrong_origin():
+    payload = ReferralSendRequest(
+        emails=["ok@example.com"],
+        referral_link="https://evil.com/referral?code=ABC",
+        from_name="Tester",
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await public_routes.send_referral_invites(request=_make_request(), payload=payload, db=None)
+
+    assert exc.value.status_code == 400
+    assert exc.value.detail == "Invalid referral link"
+
+
+@pytest.mark.asyncio
 async def test_send_referral_invites_empty_and_config_error(monkeypatch):
     mock_request = _make_request()
-    payload = ReferralSendRequest(emails=[], referral_link="https://instainstru.com/ref/ABC")
+    payload = ReferralSendRequest(emails=[], referral_link=_valid_referral_link())
     with pytest.raises(HTTPException) as exc:
         await public_routes.send_referral_invites(request=mock_request, payload=payload, db=None)
     assert exc.value.status_code == 400
@@ -929,7 +974,7 @@ async def test_send_referral_invites_empty_and_config_error(monkeypatch):
     monkeypatch.setattr(public_routes, "EmailService", FailingEmailService)
     payload = ReferralSendRequest(
         emails=["ok@example.com"],
-        referral_link="https://instainstru.com/ref/ABC",
+        referral_link=_valid_referral_link(),
         from_name=None,
     )
     with pytest.raises(HTTPException) as exc:
@@ -945,7 +990,7 @@ async def test_send_referral_invites_max_emails_exceeded(monkeypatch):
     emails = [f"user{i}@example.com" for i in range(11)]
     payload = ReferralSendRequest(
         emails=emails,
-        referral_link="https://instainstru.com/ref/ABC",
+        referral_link=_valid_referral_link(),
         from_name="Tester",
     )
     with pytest.raises(HTTPException) as exc:
@@ -974,7 +1019,7 @@ async def test_send_referral_invites_exactly_10_emails_allowed(monkeypatch):
     emails = [f"user{i}@example.com" for i in range(10)]
     payload = ReferralSendRequest(
         emails=emails,
-        referral_link="https://instainstru.com/ref/ABC",
+        referral_link=_valid_referral_link(),
         from_name="Tester",
     )
     result = await public_routes.send_referral_invites(request=mock_request, payload=payload, db=None)
@@ -986,7 +1031,7 @@ async def test_send_referral_invites_exactly_10_emails_allowed(monkeypatch):
 async def test_send_referral_invites_rejects_all_invalid_email_formats():
     payload = SimpleNamespace(
         emails=["not-an-email"],
-        referral_link="https://instainstru.com/ref/ABC",
+        referral_link=_valid_referral_link(),
         from_name="Tester",
     )
 
@@ -1012,7 +1057,7 @@ async def test_send_referral_invites_counts_invalid_emails_as_failures(monkeypat
     monkeypatch.setattr(public_routes, "EmailService", StubEmailService)
     payload = SimpleNamespace(
         emails=["ok@example.com", "bad-email"],
-        referral_link="https://instainstru.com/ref/ABC",
+        referral_link=_valid_referral_link(),
         from_name="Tester",
     )
     result = await public_routes.send_referral_invites(request=_make_request(), payload=payload, db=None)
@@ -1043,7 +1088,7 @@ async def test_send_referral_invites_tolerates_error_detail_serialization_failur
 
     payload = ReferralSendRequest(
         emails=["fail@example.com"],
-        referral_link="https://instainstru.com/ref/ABC",
+        referral_link=_valid_referral_link(),
         from_name="Tester",
     )
     result = await public_routes.send_referral_invites(request=_make_request(), payload=payload, db=None)

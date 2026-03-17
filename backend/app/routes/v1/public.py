@@ -19,8 +19,10 @@ import hashlib
 import logging
 import re
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, TypedDict, Union, cast
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi.params import Path
 from jwt import PyJWTError
 from sqlalchemy.orm import Session
 import ulid
@@ -66,6 +68,7 @@ MAX_REFERRAL_EMAILS_PER_REQUEST = 10
 
 # V1 router - mounted at /api/v1/public
 router = APIRouter(tags=["public"])
+ULID_PATH_PATTERN = r"^[0-9A-HJKMNP-TV-Z]{26}$"
 
 
 class AvailabilitySummaryEntry(TypedDict):
@@ -440,9 +443,9 @@ def public_logout(
     description="Public endpoint to view instructor's available time slots for booking. No authentication required. Response detail level depends on configuration.",
 )
 async def get_instructor_public_availability(
-    instructor_id: str,
     request: Request,
     response_obj: Response,
+    instructor_id: str = Path(..., description="Instructor ULID", pattern=ULID_PATH_PATTERN),
     start_date: date = Query(..., description="Start date for availability search"),
     end_date: Optional[date] = Query(
         None, description="End date (defaults to configured days from start)"
@@ -456,7 +459,7 @@ async def get_instructor_public_availability(
     instructor_service: InstructorService = Depends(get_instructor_service),
     cache_service: Optional[CacheService] = Depends(get_cache_service_dep),
     db: Session = Depends(get_db),
-) -> PublicInstructorAvailability:
+) -> PublicInstructorAvailability | Response:
     """
     Get public availability for an instructor.
 
@@ -562,11 +565,14 @@ async def get_instructor_public_availability(
                 # Check If-None-Match for 304 response
                 if_none_match = request.headers.get("If-None-Match")
                 if if_none_match and if_none_match == etag:
-                    response_obj.headers["ETag"] = etag
-                    response_obj.headers["Cache-Control"] = "public, max-age=120"
-                    response_obj.headers["Vary"] = "Accept-Encoding"
-                    response_obj.status_code = status.HTTP_304_NOT_MODIFIED
-                    return response_data
+                    return Response(
+                        status_code=status.HTTP_304_NOT_MODIFIED,
+                        headers={
+                            "ETag": etag,
+                            "Cache-Control": "public, max-age=120",
+                            "Vary": "Accept-Encoding",
+                        },
+                    )
 
                 # Return cached response (skip DB computation)
                 response_obj.headers["Cache-Control"] = "public, max-age=120"
@@ -688,14 +694,14 @@ async def get_instructor_public_availability(
     # Check If-None-Match header for conditional requests
     if_none_match = request.headers.get("If-None-Match")
     if if_none_match and if_none_match == etag:
-        # Set headers on the response object and return the current data
-        # The client will handle the 304 logic based on ETag matching
-        response_obj.headers["ETag"] = etag
-        response_obj.headers["Cache-Control"] = "public, max-age=60"
-        response_obj.headers["Vary"] = "Accept-Encoding"
-        response_obj.status_code = status.HTTP_304_NOT_MODIFIED
-        # Return the existing data - FastAPI will handle 304 response properly
-        return response_data
+        return Response(
+            status_code=status.HTTP_304_NOT_MODIFIED,
+            headers={
+                "ETag": etag,
+                "Cache-Control": "public, max-age=60",
+                "Vary": "Accept-Encoding",
+            },
+        )
 
     # Cache the freshly computed response (we only reach here on cache miss)
     if cache_service:
@@ -724,8 +730,8 @@ async def get_instructor_public_availability(
     description="Quick endpoint to find the next available booking slot",
 )
 async def get_next_available_slot(
-    instructor_id: str,
     response_obj: Response,
+    instructor_id: str = Path(..., description="Instructor ULID", pattern=ULID_PATH_PATTERN),
     duration_minutes: int = Query(60, description="Required duration in minutes"),
     availability_service: AvailabilityService = Depends(get_availability_service),
     conflict_checker: ConflictChecker = Depends(get_conflict_checker),
@@ -831,10 +837,24 @@ async def send_referral_invites(
     emails: List[str] = list(payload.emails)
     referral_link = str(payload.referral_link)
     from_name = payload.from_name or "A friend"
+    configured_frontend = (settings.frontend_url or "").strip()
+    expected_origin = urlparse(configured_frontend)
+    provided_origin = urlparse(referral_link)
 
     if not isinstance(emails, list) or not emails:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="No recipient emails provided"
+        )
+
+    if (
+        not expected_origin.scheme
+        or not expected_origin.netloc
+        or provided_origin.scheme.lower() != expected_origin.scheme.lower()
+        or provided_origin.netloc.lower() != expected_origin.netloc.lower()
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid referral link",
         )
 
     # Backend validation: max 10 emails per request

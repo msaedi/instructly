@@ -164,6 +164,11 @@ def list_conversations(
     upcoming_by_conv = service.batch_get_upcoming_bookings(conversations, current_user.id)
     states_by_conv = service.batch_get_states(conv_ids, current_user.id)
     unread_by_conv = service.batch_get_unread_counts(conv_ids, current_user.id)
+    batch_latest_messages = getattr(service, "batch_get_latest_messages", None)
+    latest_messages_by_conv = (
+        batch_latest_messages(conv_ids) if callable(batch_latest_messages) else {}
+    )
+    latest_message_lookup_ran = callable(batch_latest_messages)
 
     items: List[ConversationListItem] = []
     for conv in conversations:
@@ -175,9 +180,17 @@ def list_conversations(
 
         # Build last message preview
         last_message = None
-        if conv.messages:
-            # Get most recent message (assuming messages are ordered by created_at)
-            last_msg = sorted(conv.messages, key=lambda m: m.created_at)[-1]
+        last_msg = latest_messages_by_conv.get(conv.id)
+        if (
+            latest_message_lookup_ran
+            and last_msg is None
+            and getattr(conv, "last_message_at", None) is not None
+        ):
+            logger.warning(
+                "Latest message batch lookup missed conversation %s in list_conversations",
+                conv.id,
+            )
+        if last_msg is not None:
             last_message = LastMessage(
                 content=_safe_truncate(last_msg.content, 100),  # Unicode-safe truncate
                 created_at=last_msg.created_at,
@@ -275,7 +288,8 @@ async def create_conversation(
     )
 
     if not result.success:
-        if result.error == "Instructor not found":
+        error_code = getattr(result, "error_code", None)
+        if error_code == "instructor_not_found":
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=result.error,

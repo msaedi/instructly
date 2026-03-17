@@ -255,8 +255,13 @@ class PrivacyService(BaseService):
                 # Mark lifecycle status so auth blocks login
                 try:
                     user.account_status = "deactivated"
-                except Exception:
-                    logger.debug("Non-fatal error ignored", exc_info=True)
+                except Exception as exc:
+                    logger.error(
+                        "Failed to anonymize user %s field account_status: %s",
+                        user_id,
+                        exc,
+                    )
+                    raise
                 # Anonymize PII
                 user.email = f"deleted_{user.id}@deleted.com"
                 user.first_name = "Deleted"
@@ -264,12 +269,22 @@ class PrivacyService(BaseService):
                 # Additional PII anonymization
                 try:
                     user.phone = None  # phone is nullable
-                except Exception:
-                    logger.debug("Non-fatal error ignored", exc_info=True)
+                except Exception as exc:
+                    logger.error(
+                        "Failed to anonymize user %s field phone: %s",
+                        user_id,
+                        exc,
+                    )
+                    raise
                 try:
                     user.zip_code = "00000"  # zip_code is non-nullable; use neutral placeholder
-                except Exception:
-                    logger.debug("Non-fatal error ignored", exc_info=True)
+                except Exception as exc:
+                    logger.error(
+                        "Failed to anonymize user %s field zip_code: %s",
+                        user_id,
+                        exc,
+                    )
+                    raise
                 # Delete instructor profile if exists
                 instructor = self.instructor_repository.get_by_user_id(user_id)
                 if instructor:

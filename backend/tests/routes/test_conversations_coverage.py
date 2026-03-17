@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone
+import logging
 from types import SimpleNamespace
 
 from fastapi import HTTPException
@@ -40,6 +41,7 @@ class DummyCreateConversationResult:
     error: str | None
     conversation_id: str | None
     created: bool
+    error_code: str | None = None
 
 
 @dataclass
@@ -152,6 +154,9 @@ def test_list_conversations_skips_missing_user_and_last_message(test_student, te
         def batch_get_unread_counts(self, *_args, **_kwargs):
             return {"conv_with": 2}
 
+        def batch_get_latest_messages(self, *_args, **_kwargs):
+            return {"conv_with": message_new}
+
     response = conversations_routes.list_conversations(
         current_user=test_instructor,
         service=StubService(),
@@ -170,6 +175,44 @@ def test_list_conversations_skips_missing_user_and_last_message(test_student, te
     assert item.state == "archived"
     assert item.unread_count == 2
     assert item.next_booking is not None
+
+
+def test_list_conversations_warns_when_batch_lookup_misses_last_message(caplog, test_student, test_instructor):
+    conv_with = DummyConversation(
+        id="conv_with",
+        student=test_student,
+        instructor=test_instructor,
+        instructor_id=test_instructor.id,
+        messages=[],
+        created_at=datetime.now(timezone.utc),
+    )
+    conv_with.last_message_at = datetime.now(timezone.utc)
+
+    class StubService:
+        def list_conversations_for_user(self, *_args, **_kwargs):
+            return [conv_with], None
+
+        def batch_get_upcoming_bookings(self, *_args, **_kwargs):
+            return {}
+
+        def batch_get_states(self, *_args, **_kwargs):
+            return {}
+
+        def batch_get_unread_counts(self, *_args, **_kwargs):
+            return {}
+
+        def batch_get_latest_messages(self, *_args, **_kwargs):
+            return {}
+
+    with caplog.at_level(logging.WARNING):
+        response = conversations_routes.list_conversations(
+            current_user=test_instructor,
+            service=StubService(),
+        )
+
+    assert len(response.conversations) == 1
+    assert response.conversations[0].last_message is None
+    assert "Latest message batch lookup missed conversation conv_with" in caplog.text
 
 
 def test_get_conversation_missing_participant(test_instructor):
@@ -213,6 +256,7 @@ async def test_create_conversation_error_paths(monkeypatch, test_student):
                 error="Instructor not found",
                 conversation_id=None,
                 created=False,
+                error_code="instructor_not_found",
             )
 
     with pytest.raises(HTTPException) as excinfo:

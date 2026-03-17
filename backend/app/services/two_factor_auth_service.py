@@ -43,8 +43,11 @@ class TwoFactorAuthService(BaseService):
         super().__init__(db)
         self.user_repository = RepositoryFactory.create_user_repository(db)
         # Ensure Fernet key is valid length (44 url-safe base64 bytes). Expect provided via env.
-        raw_site_mode = (os.getenv("SITE_MODE", "") or "").strip().lower()
-        effective_mode = raw_site_mode or getattr(settings, "site_mode", "local")
+        effective_mode = (os.getenv("SITE_MODE", "") or "").strip().lower() or getattr(
+            settings,
+            "site_mode",
+            "local",
+        )
         hosted_modes = {"preview", "prod", "production", "live"}
         hosted_context = effective_mode in hosted_modes
 

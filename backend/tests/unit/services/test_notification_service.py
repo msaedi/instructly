@@ -545,7 +545,7 @@ def test_send_message_notification_skips_email_when_disabled(
                 return sender
             return None
 
-    monkeypatch.setattr("app.repositories.user_repository.UserRepository", FakeRepo)
+    monkeypatch.setattr(service, "user_repository", FakeRepo())
     monkeypatch.setattr(service, "_should_send_email", lambda *_: False)
     service._run_async_task = lambda *_: None
 
@@ -579,7 +579,7 @@ def test_send_message_notification_email_returns_false(
                 return sender
             return None
 
-    monkeypatch.setattr("app.repositories.user_repository.UserRepository", FakeRepo)
+    monkeypatch.setattr(service, "user_repository", FakeRepo())
     monkeypatch.setattr(service, "_should_send_email", lambda *_: True)
     monkeypatch.setattr(template_service, "render_template", lambda *_: "<p>ok</p>")
     service._run_async_task = lambda *_: None
@@ -621,7 +621,7 @@ def test_send_message_notification_sms_render_error(
                 return sender
             return None
 
-    monkeypatch.setattr("app.repositories.user_repository.UserRepository", FakeRepo)
+    monkeypatch.setattr(service, "user_repository", FakeRepo())
     monkeypatch.setattr(service, "_should_send_email", lambda *_: False)
     monkeypatch.setattr(service, "_should_send_sms", lambda *_: True)
     service._run_async_task = lambda *_: None
@@ -660,7 +660,7 @@ def test_send_message_notification_sms_skipped_when_disabled(
                 return sender
             return None
 
-    monkeypatch.setattr("app.repositories.user_repository.UserRepository", FakeRepo)
+    monkeypatch.setattr(service, "user_repository", FakeRepo())
     monkeypatch.setattr(service, "_should_send_email", lambda *_: False)
     monkeypatch.setattr(service, "_should_send_sms", lambda *_: False)
     service._run_async_task = lambda *_: None

@@ -1,17 +1,12 @@
 from contextlib import asynccontextmanager
-from datetime import datetime, time, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException
 import pytest
 
 from app.core.enums import PermissionName
-from app.models.booking import Booking, BookingStatus
+from app.models.booking import BookingStatus
 from app.routes.v1 import instructor_bookings as routes
-
-
-def _booking_stub(**kwargs):
-    booking = Booking(**kwargs)
-    return booking
 
 
 def test_check_permission_denied(monkeypatch, test_student, db):
@@ -25,15 +20,10 @@ def test_check_permission_denied(monkeypatch, test_student, db):
     assert exc.value.status_code == 403
 
 
-def test_get_booking_end_utc_returns_existing():
-    now = datetime.now(timezone.utc)
-    booking = _booking_stub(
-        booking_date=now.date(),
-        start_time=time(9, 0),
-        end_time=time(10, 0),
-        booking_end_utc=now,
-    )
-    assert routes._get_booking_end_utc(booking) == now
+def test_paginate_bookings_uses_precomputed_total(test_booking):
+    page = routes._paginate_bookings([test_booking], page=1, per_page=2, total=3)
+    assert page.total == 3
+    assert page.has_next is True
 
 
 def test_paginate_bookings(test_booking):
@@ -49,8 +39,8 @@ async def test_get_pending_completion_bookings(monkeypatch, test_instructor, tes
     db.commit()
 
     class _Repo:
-        def get_instructor_bookings(self, *args, **kwargs):
-            return [test_booking]
+        def get_instructor_bookings_page(self, *args, **kwargs):
+            return [test_booking], 1
 
     monkeypatch.setattr(
         "app.routes.v1.instructor_bookings.RepositoryFactory.create_booking_repository",
@@ -75,8 +65,8 @@ async def test_get_pending_completion_bookings(monkeypatch, test_instructor, tes
 @pytest.mark.asyncio
 async def test_get_upcoming_and_list_bookings(monkeypatch, test_instructor, test_booking, db):
     class _Repo:
-        def get_instructor_bookings(self, *args, **kwargs):
-            return [test_booking]
+        def get_instructor_bookings_page(self, *args, **kwargs):
+            return [test_booking], 1
 
     monkeypatch.setattr(
         "app.routes.v1.instructor_bookings.RepositoryFactory.create_booking_repository",
@@ -114,8 +104,8 @@ async def test_get_upcoming_and_list_bookings(monkeypatch, test_instructor, test
 @pytest.mark.asyncio
 async def test_get_completed_bookings(monkeypatch, test_instructor, test_booking, db):
     class _Repo:
-        def get_instructor_bookings(self, *args, **kwargs):
-            return [test_booking]
+        def get_instructor_bookings_page(self, *args, **kwargs):
+            return [test_booking], 1
 
     monkeypatch.setattr(
         "app.routes.v1.instructor_bookings.RepositoryFactory.create_booking_repository",

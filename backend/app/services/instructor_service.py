@@ -153,6 +153,7 @@ class InstructorService(BaseService):
         )
         self.taxonomy_filter_repository = RepositoryFactory.create_taxonomy_filter_repository(db)
         self.config_service = config_service or ConfigService(db)
+        self._availability_perf_debug = os.getenv("AVAILABILITY_PERF_DEBUG") == "1"
 
     @BaseService.measure_operation("get_instructor_profile")
     def get_instructor_profile(
@@ -462,7 +463,10 @@ class InstructorService(BaseService):
         existing = self.profile_repository.exists(user_id=user.id)
 
         if existing:
-            raise BusinessRuleException("Instructor profile already exists")
+            raise BusinessRuleException(
+                "Instructor profile already exists",
+                code="instructor_profile_exists",
+            )
 
         with self.transaction():
             # Validate catalog IDs before creating anything
@@ -1035,11 +1039,17 @@ class InstructorService(BaseService):
         Raises:
             ValidationException: If any catalog ID is invalid
         """
-        # Use repository to check existence
-        valid_ids: Set[str] = set()
-        for catalog_id in catalog_ids:
-            if self.catalog_repository.exists(id=catalog_id, is_active=True):
-                valid_ids.add(catalog_id)
+        valid_ids_raw = self.catalog_repository.get_active_catalog_ids(catalog_ids)
+        if isinstance(valid_ids_raw, set):
+            valid_ids = valid_ids_raw
+        elif isinstance(valid_ids_raw, (list, tuple)):
+            valid_ids = set(valid_ids_raw)
+        else:
+            valid_ids = {
+                catalog_id
+                for catalog_id in catalog_ids
+                if bool(self.catalog_repository.exists(id=catalog_id))
+            }
 
         # Check for invalid IDs
         invalid_ids = set(catalog_ids) - valid_ids
@@ -1691,13 +1701,13 @@ class InstructorService(BaseService):
         Returns:
             List of catalog service dictionaries
         """
+        perf_debug = getattr(self, "_availability_perf_debug", False)
         # Try cache first (5-minute TTL for analytics freshness)
         cache_key = f"catalog:services:{category_id or 'all'}"
-        debug_mode = os.getenv("AVAILABILITY_PERF_DEBUG") == "1"
         if self.cache_service:
             cached_result = self.cache_service.get(cache_key)
             if cached_result:
-                if debug_mode:
+                if perf_debug:
                     logger.debug("[catalog] cache hit for %s", cache_key)
                 return cast(JsonList, cached_result)
 
@@ -1709,13 +1719,13 @@ class InstructorService(BaseService):
         # Convert to dictionaries (no N+1 queries since categories are loaded)
         result = [self._catalog_service_to_dict(service) for service in services]
 
-        if debug_mode:
+        if perf_debug:
             logger.debug("[catalog] cache miss for %s; storing %d entries", cache_key, len(result))
 
         # Cache for 5 minutes (300 seconds)
         if self.cache_service:
             self.cache_service.set(cache_key, result, ttl=300)
-            if debug_mode:
+            if perf_debug:
                 logger.debug("[catalog] cached %d entries for 5 minutes", len(result))
 
         return result

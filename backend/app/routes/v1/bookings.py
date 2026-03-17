@@ -24,7 +24,6 @@ Endpoints:
 """
 
 import asyncio
-from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any, NoReturn, Optional, cast
 
@@ -35,12 +34,11 @@ from ...api.dependencies import get_booking_service, get_current_active_user
 from ...api.dependencies.auth import require_beta_phase_access
 from ...core.booking_lock import booking_lock
 from ...core.config import settings
-from ...core.constants import VALID_LOCATION_TYPES
 from ...core.enums import PermissionName
 from ...core.exceptions import DomainException, NotFoundException, ValidationException
 from ...dependencies.permissions import require_permission
 from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
-from ...models.booking import BookingStatus, PaymentStatus
+from ...models.booking import BookingStatus
 from ...models.user import User
 from ...ratelimit.dependency import rate_limit as new_rate_limit
 from ...schemas.base_responses import PaginatedResponse
@@ -444,24 +442,20 @@ async def get_bookings(
         elif upcoming_only is None:
             upcoming_only = False
 
-        bookings = await asyncio.to_thread(
-            booking_service.get_bookings_for_user,
+        bookings, total = await asyncio.to_thread(
+            booking_service.get_paginated_bookings_for_user,
             user=current_user,
+            page=page,
+            per_page=per_page,
             status=status,
             upcoming_only=upcoming_only,
             exclude_future_confirmed=exclude_future_confirmed,
             include_past_confirmed=include_past_confirmed,
         )
 
-        # Apply pagination
-        total = len(bookings)
-        start = (page - 1) * per_page
-        end = start + per_page
-        paginated_bookings = bookings[start:end]
-
         # Convert to audience-safe booking responses.
         booking_responses: list[BookingRouteResponse] = []
-        for booking in paginated_bookings:
+        for booking in bookings:
             try:
                 booking_responses.append(_serialize_booking_for_user(booking, current_user))
             except Exception as exc:
@@ -767,12 +761,24 @@ async def reschedule_booking(
     booking_service: BookingService = Depends(get_booking_service),
 ) -> BookingRouteResponse:
     """
-    Reschedule flow (server-orchestrated):
-    - Validates access to the original booking
-    - Cancels the original booking according to policy
-    - Creates a new booking with the requested time
-    - Returns the new booking
+    Reschedule a booking through the booking service orchestration layer.
     """
+    original_booking = await asyncio.to_thread(
+        booking_service.get_booking_for_user,
+        booking_id,
+        current_user,
+    )
+    if not original_booking:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking not found",
+        )
+    if str(current_user.id) != str(original_booking.student_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the student on this booking can reschedule",
+        )
+
     try:
         async with booking_lock(booking_id) as acquired:
             if not acquired:
@@ -780,216 +786,12 @@ async def reschedule_booking(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                     detail="Operation in progress",
                 )
-            # Load original booking
-            original = await asyncio.to_thread(
-                booking_service.get_booking_for_user, booking_id, current_user
+            new_booking = await asyncio.to_thread(
+                booking_service.reschedule_booking,
+                booking_id=booking_id,
+                payload=payload,
+                current_user=current_user,
             )
-            if not original:
-                raise NotFoundException("Booking not found")
-
-            # Part 5: Block second reschedule - a booking can only be rescheduled once
-            await asyncio.to_thread(booking_service.validate_reschedule_allowed, original)
-
-            # Pre-validate the requested slot
-            start_dt = datetime.combine(  # tz-pattern-ok: duration math only
-                payload.booking_date, payload.start_time, tzinfo=timezone.utc
-            )
-            end_dt = start_dt + timedelta(minutes=payload.selected_duration)
-            proposed_end_time = end_dt.time()
-
-            _location_type_raw = getattr(original, "location_type", None)
-            # Validate location_type is canonical (no legacy mapping - clean break)
-            if isinstance(_location_type_raw, str):
-                if _location_type_raw in VALID_LOCATION_TYPES:
-                    _location_type = _location_type_raw
-                else:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Invalid location_type: '{_location_type_raw}'. Must be one of: {', '.join(sorted(VALID_LOCATION_TYPES))}",
-                    )
-            else:
-                _location_type = "online"
-
-            _student_note = (
-                original.student_note
-                if isinstance(getattr(original, "student_note", None), str)
-                else None
-            )
-            _meeting_location = (
-                original.meeting_location
-                if isinstance(getattr(original, "meeting_location", None), str)
-                else None
-            )
-            _location_address = _safe_str(getattr(original, "location_address", None))
-            _location_lat = _safe_float(getattr(original, "location_lat", None))
-            _location_lng = _safe_float(getattr(original, "location_lng", None))
-            _location_place_id = _safe_str(getattr(original, "location_place_id", None))
-
-            availability = await asyncio.to_thread(
-                booking_service.check_availability,
-                instructor_id=original.instructor_id,
-                booking_date=payload.booking_date,
-                start_time=payload.start_time,
-                end_time=proposed_end_time,
-                service_id=payload.instructor_service_id or original.instructor_service_id,
-                instructor_service_id=None,
-                exclude_booking_id=original.id,
-                location_type=_location_type,
-                student_id=current_user.id,
-                selected_duration=payload.selected_duration,
-                location_lat=_location_lat,
-                location_lng=_location_lng,
-            )
-
-            if isinstance(availability, dict):
-                available_flag = availability.get("available", False)
-            else:
-                try:
-                    available_flag = bool(availability)
-                except Exception:
-                    available_flag = False
-
-            if not available_flag:
-                reason = None
-                if isinstance(availability, dict):
-                    reason = availability.get("reason")
-                reason = reason or "Requested time is unavailable"
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=reason)
-
-            new_booking_data = BookingCreate(
-                instructor_id=original.instructor_id,
-                instructor_service_id=payload.instructor_service_id
-                or original.instructor_service_id,
-                booking_date=payload.booking_date,
-                start_time=payload.start_time,
-                selected_duration=payload.selected_duration,
-                student_note=_student_note,
-                meeting_location=_meeting_location,
-                location_type=_location_type,
-                location_address=_location_address,
-                location_lat=_location_lat,
-                location_lng=_location_lng,
-                location_place_id=_location_place_id,
-            )
-
-            _pd = original.payment_detail
-            raw_payment_intent_id = _pd.payment_intent_id if _pd is not None else None
-            raw_payment_status = _pd.payment_status if _pd is not None else None
-            raw_payment_method_id = _pd.payment_method_id if _pd is not None else None
-            normalized_payment_status = raw_payment_status
-            if raw_payment_status == "requires_capture":
-                normalized_payment_status = PaymentStatus.AUTHORIZED.value
-            elif raw_payment_status == "succeeded":
-                normalized_payment_status = PaymentStatus.SETTLED.value
-            reuse_payment = (
-                isinstance(raw_payment_intent_id, str)
-                and raw_payment_intent_id.startswith("pi_")
-                and isinstance(normalized_payment_status, str)
-                and normalized_payment_status
-                in {PaymentStatus.AUTHORIZED.value, PaymentStatus.SETTLED.value}
-            )
-
-            initiator_role = "student" if current_user.id == original.student_id else "instructor"
-            hours_until_original = await asyncio.to_thread(
-                booking_service.get_hours_until_start, original
-            )
-            should_lock = await asyncio.to_thread(
-                booking_service.should_trigger_lock, original, initiator_role
-            )
-
-            force_stripe_cancel = initiator_role == "student" and hours_until_original < 12
-
-            if should_lock:
-                await asyncio.to_thread(booking_service.activate_lock_for_reschedule, original.id)
-                new_booking = await asyncio.to_thread(
-                    booking_service.create_rescheduled_booking_with_locked_funds,
-                    current_user,
-                    new_booking_data,
-                    payload.selected_duration,
-                    original.id,
-                )
-            elif reuse_payment and not force_stripe_cancel:
-                new_booking = await asyncio.to_thread(
-                    booking_service.create_rescheduled_booking_with_existing_payment,
-                    current_user,
-                    new_booking_data,
-                    payload.selected_duration,
-                    original.id,
-                    cast(str, raw_payment_intent_id),
-                    cast(Optional[str], normalized_payment_status),
-                    cast(Optional[str], raw_payment_method_id),
-                )
-            else:
-                # Preflight: Check payment method (using service method, no direct db access)
-                has_payment_method, stripe_pm_id = await asyncio.to_thread(
-                    booking_service.validate_reschedule_payment_method,
-                    current_user.id,
-                )
-
-                if not has_payment_method or not stripe_pm_id:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail={
-                            "code": "payment_method_required_for_reschedule",
-                            "message": "A payment method is required to reschedule this lesson. Please add a payment method and try again.",
-                        },
-                    )
-
-                new_booking = await asyncio.to_thread(
-                    booking_service.create_booking_with_payment_setup,
-                    current_user,
-                    new_booking_data,
-                    payload.selected_duration,
-                    original.id,
-                )
-
-                # Auto-confirm payment
-                try:
-                    new_booking = await asyncio.to_thread(
-                        booking_service.confirm_booking_payment,
-                        new_booking.id,
-                        current_user,
-                        stripe_pm_id,
-                        False,
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to confirm payment for rescheduled booking: {e}")
-                    # Abort the pending booking (using service method, no direct db access)
-                    await asyncio.to_thread(booking_service.abort_pending_booking, new_booking.id)
-
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail={
-                            "code": "payment_confirmation_failed",
-                            "message": "We couldn't process your payment method. Please try again or update your payment method.",
-                        },
-                    )
-
-            # Cancel original booking
-            try:
-                if should_lock:
-                    await asyncio.to_thread(
-                        booking_service.cancel_booking_without_stripe,
-                        booking_id,
-                        current_user,
-                        "Rescheduled",
-                    )
-                elif reuse_payment and not force_stripe_cancel:
-                    await asyncio.to_thread(
-                        booking_service.cancel_booking_without_stripe,
-                        booking_id,
-                        current_user,
-                        "Rescheduled",
-                        clear_payment_intent=True,
-                    )
-                else:
-                    await asyncio.to_thread(
-                        booking_service.cancel_booking, booking_id, current_user, "Rescheduled"
-                    )
-            except DomainException as e:
-                raise e
-            except Exception:
-                logger.debug("Non-fatal error ignored", exc_info=True)
             return _serialize_booking_for_user(new_booking, current_user)
     except DomainException as e:
         handle_domain_exception(e)
@@ -1060,6 +862,8 @@ async def report_no_show(
     - Student can report instructor no-show
     - Admin can report either type
     - Must be within reporting window
+    - Intentionally broader than COMPLETE_BOOKINGS: students must be able to report
+      instructor no-shows, and the service enforces actor-specific authorization.
     """
     try:
         async with booking_lock(booking_id) as acquired:

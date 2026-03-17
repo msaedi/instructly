@@ -27,10 +27,7 @@ def mock_booking_service():
     service = MagicMock(spec=BookingService)
     service.db = MagicMock()
     service.cancel_booking = MagicMock()
-    service.get_booking_for_user = MagicMock()
-    service.validate_reschedule_allowed = MagicMock()
-    service.check_availability = MagicMock()
-    service.create_rescheduled_booking_with_existing_payment = MagicMock()
+    service.reschedule_booking = MagicMock()
     service.report_no_show = MagicMock()
     service.instructor_dispute_completion = MagicMock()
     return service
@@ -66,6 +63,7 @@ def test_reschedule_returns_429_when_locked(
         "start_time": "10:00",
         "selected_duration": 60,
     }
+    mock_booking_service.get_booking_for_user.return_value = test_booking
     with patch("app.routes.v1.bookings.booking_lock", _lock_unavailable):
         response = client_with_mock_booking_service.post(
             f"/api/v1/bookings/{test_booking.id}/reschedule",
@@ -75,7 +73,7 @@ def test_reschedule_returns_429_when_locked(
 
     assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
     assert response.json()["detail"] == "Operation in progress"
-    mock_booking_service.get_booking_for_user.assert_not_called()
+    mock_booking_service.reschedule_booking.assert_not_called()
 
 
 def test_no_show_returns_429_when_locked(

@@ -26,10 +26,6 @@ from app.services.search.openai_semaphore import OPENAI_CALL_SEMAPHORE
 
 logger = logging.getLogger(__name__)
 
-# Strict OpenAI timeouts for async calls.
-# Fail fast rather than block the event loop with retries.
-OPENAI_TIMEOUT_S = float(os.getenv("OPENAI_TIMEOUT_S", "2.0"))
-
 
 class LocationEmbeddingService:
     """Embedding-based semantic matcher for location strings."""
@@ -43,6 +39,8 @@ class LocationEmbeddingService:
 
     def __init__(self, repository: Any) -> None:
         self._repository = repository
+        self._openai_timeout_s = float(os.getenv("OPENAI_TIMEOUT_S", "2.0"))
+        self._has_openai_api_key = bool(os.getenv("OPENAI_API_KEY"))
         self._client: Optional[AsyncOpenAI] = None
         self._client_max_retries: Optional[int] = None
 
@@ -56,13 +54,13 @@ class LocationEmbeddingService:
         max_retries = max(0, max_retries)
         if self._client is None:
             self._client = AsyncOpenAI(
-                timeout=OPENAI_TIMEOUT_S,
+                timeout=self._openai_timeout_s,
                 max_retries=max_retries,
             )
             self._client_max_retries = max_retries
         elif self._client_max_retries is not None and self._client_max_retries != max_retries:
             self._client = AsyncOpenAI(
-                timeout=OPENAI_TIMEOUT_S,
+                timeout=self._openai_timeout_s,
                 max_retries=max_retries,
             )
             self._client_max_retries = max_retries
@@ -90,7 +88,7 @@ class LocationEmbeddingService:
         if not has_embeddings:
             return []
 
-        if not os.getenv("OPENAI_API_KEY"):
+        if not self._has_openai_api_key:
             return []
 
         embedding = await self._embed_location_text(normalized)

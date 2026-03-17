@@ -6653,6 +6653,9 @@ export type components = {
  scope: string;
  username: string;
  };
+ Body_mark_lesson_complete_api_v1_instructor_bookings__booking_id__complete_post: {
+ notes?: string | null;
+ };
  Body_proxy_upload_to_r2_api_v1_uploads_r2_proxy_post: {
  content_type: string;
  file: string;
@@ -7865,15 +7868,11 @@ export type components = {
  years_experience: number;
  };
  InstructorProfilePublic: {
- background_check_uploaded_at?: string | null;
- bgc_name_mismatch: boolean;
- bgc_status?: string | null;
  bio: string;
  calendar_settings_acknowledged_at?: string | null;
  created_at: string;
  favorited_count: number;
  id: string;
- identity_name_mismatch: boolean;
  identity_verified_at?: string | null;
  is_favorited?: boolean | null;
  is_founding_instructor: boolean;
@@ -16632,16 +16631,18 @@ export interface operations {
  };
  mark_lesson_complete_api_v1_instructor_bookings__booking_id__complete_post: {
  parameters: {
- query?: {
- notes?: string | null;
- };
+ query?: never;
  header?: never;
  path: {
  booking_id: string;
  };
  cookie?: never;
  };
- requestBody?: never;
+ requestBody?: {
+ content: {
+ "application/json": components["schemas"]["Body_mark_lesson_complete_api_v1_instructor_bookings__booking_id__complete_post"];
+ };
+ };
  responses: {
  200: {
  headers: {
