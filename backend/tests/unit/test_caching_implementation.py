@@ -49,11 +49,10 @@ class TestRepositoryCaching:
         mock_query.all.assert_called_once()
         assert result == [{"id": 1, "status": "CONFIRMED"}]
 
-    def test_cache_result_decorator_miss(self, db):
-        """Test cache miss with @cache_result decorator."""
+    def test_student_bookings_list_bypasses_repository_cache(self, db):
+        """Student booking list queries should bypass repository caching."""
         # Create mock cache service
         mock_cache = Mock(spec=CacheServiceSyncAdapter)
-        mock_cache.get.return_value = None  # Cache miss
 
         # Create repository with mock cache
         repo = BookingRepository(db, cache_service=mock_cache)
@@ -62,14 +61,13 @@ class TestRepositoryCaching:
         with patch.object(repo.db, "query") as mock_query:
             mock_query.return_value.options.return_value.filter.return_value.all.return_value = []
 
-            # Call a cached method
+            # Call the list query
             student_id = generate_ulid()
             _result = repo.get_student_bookings(student_id=student_id)
 
-            # Verify cache was checked
-            mock_cache.get.assert_called_once()
-            # Verify result was cached
-            mock_cache.set.assert_called_once()
+            # Repository list queries return live ORM objects and do not cache them.
+            mock_cache.get.assert_not_called()
+            mock_cache.set.assert_not_called()
             # Verify database was queried
             mock_query.assert_called_once()
 

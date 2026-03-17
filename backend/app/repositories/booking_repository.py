@@ -1002,8 +1002,6 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
     ) -> List[Booking]:
         """
         Get bookings for a specific student with advanced filtering.
-
-        CACHED: Results are cached for 5 minutes with proper serialization.
         """
         try:
             query = self._build_student_bookings_query(

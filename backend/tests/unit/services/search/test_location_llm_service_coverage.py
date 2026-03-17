@@ -26,11 +26,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 
-def _make_service():
+def _make_service(*, has_api_key: bool | None = None):
     """Create LocationLLMService."""
     from app.services.search.location_llm_service import LocationLLMService
 
-    return LocationLLMService()
+    service = LocationLLMService()
+    if has_api_key is not None:
+        service._has_openai_api_key = has_api_key
+    return service
 
 
 @pytest.mark.unit
@@ -142,19 +145,18 @@ class TestResolveInternal:
     @pytest.mark.asyncio
     async def test_missing_api_key(self):
         """L156-158: no OPENAI_API_KEY -> None."""
-        with patch.dict("os.environ", {}, clear=True):
-            svc = _make_service()
-            result, debug = await svc._resolve_internal(
-                location_text="chelsea",
-                allowed_region_names=["Chelsea"],
-            )
+        svc = _make_service(has_api_key=False)
+        result, debug = await svc._resolve_internal(
+            location_text="chelsea",
+            allowed_region_names=["Chelsea"],
+        )
         assert result is None
         assert debug["reason"] == "missing_api_key"
 
     @pytest.mark.asyncio
     async def test_empty_response_content(self):
         """L216-218: empty response content -> None."""
-        svc = _make_service()
+        svc = _make_service(has_api_key=True)
 
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
@@ -196,7 +198,7 @@ class TestResolveInternal:
     @pytest.mark.asyncio
     async def test_invalid_json_response(self):
         """L221-223: parsed is not dict -> None."""
-        svc = _make_service()
+        svc = _make_service(has_api_key=True)
 
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
@@ -240,7 +242,7 @@ class TestResolveInternal:
         """L226-228: neighborhoods not a list -> None."""
         import json
 
-        svc = _make_service()
+        svc = _make_service(has_api_key=True)
 
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
@@ -286,7 +288,7 @@ class TestResolveInternal:
         """L233-234: non-numeric confidence -> defaults to 0.5."""
         import json
 
-        svc = _make_service()
+        svc = _make_service(has_api_key=True)
 
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
@@ -332,7 +334,7 @@ class TestResolveInternal:
         """L241-242: non-string item in neighborhoods -> skipped."""
         import json
 
-        svc = _make_service()
+        svc = _make_service(has_api_key=True)
 
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
@@ -378,7 +380,7 @@ class TestResolveInternal:
         """L244-246: item not in allowed list -> skipped."""
         import json
 
-        svc = _make_service()
+        svc = _make_service(has_api_key=True)
 
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
@@ -422,7 +424,7 @@ class TestResolveInternal:
     @pytest.mark.asyncio
     async def test_timeout_raises_when_configured(self):
         """L266-270: TimeoutError with raise_on_timeout=True -> raises."""
-        svc = _make_service()
+        svc = _make_service(has_api_key=True)
 
         mock_client = MagicMock()
         mock_client.chat.completions.create = AsyncMock(
@@ -461,7 +463,7 @@ class TestResolveInternal:
     @pytest.mark.asyncio
     async def test_timeout_returns_none_when_not_raising(self):
         """L266-271: TimeoutError with raise_on_timeout=False -> None."""
-        svc = _make_service()
+        svc = _make_service(has_api_key=True)
 
         mock_client = MagicMock()
         mock_client.chat.completions.create = AsyncMock(
@@ -504,7 +506,7 @@ class TestResolveInternal:
         """L272-279: OpenAIError with 'timed out' + raise_on_timeout -> raises TimeoutError."""
         from openai import OpenAIError
 
-        svc = _make_service()
+        svc = _make_service(has_api_key=True)
 
         mock_client = MagicMock()
         mock_client.chat.completions.create = AsyncMock(
@@ -545,7 +547,7 @@ class TestResolveInternal:
         """L280-283: OpenAIError without 'timed out' -> returns None."""
         from openai import OpenAIError
 
-        svc = _make_service()
+        svc = _make_service(has_api_key=True)
 
         mock_client = MagicMock()
         mock_client.chat.completions.create = AsyncMock(
@@ -593,7 +595,7 @@ class TestGpt5ModelBranch:
         """L197-201: gpt-5 model -> uses max_completion_tokens, no temperature."""
         import json
 
-        svc = _make_service()
+        svc = _make_service(has_api_key=True)
 
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]

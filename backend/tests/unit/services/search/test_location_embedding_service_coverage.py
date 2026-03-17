@@ -22,6 +22,13 @@ class _RepoStub:
         return self._pairs[:limit]
 
 
+def _make_service(repo: _RepoStub, *, has_api_key: bool | None = None) -> LocationEmbeddingService:
+    service = LocationEmbeddingService(repository=repo)
+    if has_api_key is not None:
+        service._has_openai_api_key = has_api_key
+    return service
+
+
 def _make_region(region_id: str, name: str, borough: str) -> RegionBoundary:
     region = RegionBoundary(region_type="nyc", region_code="TEST", region_name=name)
     region.id = region_id
@@ -36,7 +43,7 @@ async def test_get_candidates_filters_and_requires_api_key(monkeypatch) -> None:
     repo._pairs = [(region, 0.9), (region, 0.5)]
 
     monkeypatch.setenv("OPENAI_API_KEY", "test")
-    service = LocationEmbeddingService(repository=repo)
+    service = _make_service(repo, has_api_key=True)
     service._embed_location_text = AsyncMock(return_value=[0.1] * 1536)
 
     candidates = await service.get_candidates("Upper East Side", threshold=0.8)
@@ -44,7 +51,7 @@ async def test_get_candidates_filters_and_requires_api_key(monkeypatch) -> None:
     assert candidates[0]["region_id"] == "RID-1"
 
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    service = LocationEmbeddingService(repository=repo)
+    service = _make_service(repo, has_api_key=False)
     candidates = await service.get_candidates("Upper East Side")
     assert candidates == []
 
@@ -53,7 +60,7 @@ async def test_get_candidates_filters_and_requires_api_key(monkeypatch) -> None:
 async def test_get_candidates_handles_blank_and_missing_embeddings(monkeypatch) -> None:
     repo = _RepoStub()
     repo._has_embeddings = False
-    service = LocationEmbeddingService(repository=repo)
+    service = _make_service(repo)
 
     monkeypatch.setenv("OPENAI_API_KEY", "test")
     assert await service.get_candidates("   ") == []
@@ -199,7 +206,7 @@ def test_client_handles_negative_max_retries(monkeypatch) -> None:
 async def test_get_candidates_returns_empty_when_embedding_fails(monkeypatch) -> None:
     """Line 98: Return empty list when embedding returns None."""
     repo = _RepoStub()
-    service = LocationEmbeddingService(repository=repo)
+    service = _make_service(repo, has_api_key=True)
 
     monkeypatch.setenv("OPENAI_API_KEY", "test")
     service._embed_location_text = AsyncMock(return_value=None)
@@ -213,7 +220,7 @@ async def test_get_candidates_returns_empty_when_no_pairs(monkeypatch) -> None:
     """Line 106: Return empty list when repository returns empty pairs."""
     repo = _RepoStub()
     repo._pairs = []  # No results from repository
-    service = LocationEmbeddingService(repository=repo)
+    service = _make_service(repo, has_api_key=True)
 
     monkeypatch.setenv("OPENAI_API_KEY", "test")
     service._embed_location_text = AsyncMock(return_value=[0.1] * 1536)
@@ -226,7 +233,7 @@ async def test_get_candidates_returns_empty_when_no_pairs(monkeypatch) -> None:
 async def test_get_candidates_handles_invalid_similarity(monkeypatch) -> None:
     """Lines 113-115: Handle similarity that can't be converted to float."""
     repo = _RepoStub()
-    service = LocationEmbeddingService(repository=repo)
+    service = _make_service(repo, has_api_key=True)
 
     region = _make_region("RID-1", "Test Region", "Manhattan")
     # Use an object that can't be converted to float properly
