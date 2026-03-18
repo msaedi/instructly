@@ -32,10 +32,10 @@ class BookingRulesConfig(BaseModel):
         BOOKING_RULES_DEFAULTS["overnight_travel_earliest_hour"], ge=0, le=23
     )
     default_non_travel_buffer_minutes: int = Field(
-        BOOKING_RULES_DEFAULTS["default_non_travel_buffer_minutes"], ge=0, le=120
+        BOOKING_RULES_DEFAULTS["default_non_travel_buffer_minutes"], ge=10, le=120
     )
     default_travel_buffer_minutes: int = Field(
-        BOOKING_RULES_DEFAULTS["default_travel_buffer_minutes"], ge=15, le=120
+        BOOKING_RULES_DEFAULTS["default_travel_buffer_minutes"], ge=30, le=120
     )
 
     @model_validator(mode="after")

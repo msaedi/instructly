@@ -1830,7 +1830,7 @@ describe('PaymentConfirmation', () => {
 
       await waitFor(() => {
         // Check if there's confirmation UI
-  
+
       });
     });
   });
@@ -2422,7 +2422,7 @@ describe('PaymentConfirmation', () => {
       render(<PaymentConfirmation {...defaultProps} booking={bookingWithMetadata} />);
 
       await waitFor(() => {
-  
+
       });
     });
 
@@ -2439,7 +2439,7 @@ describe('PaymentConfirmation', () => {
       render(<PaymentConfirmation {...defaultProps} booking={bookingWithMetadata} />);
 
       await waitFor(() => {
-  
+
       });
     });
   });
@@ -2616,7 +2616,7 @@ describe('PaymentConfirmation', () => {
 
       // Component should still render
       await waitFor(() => {
-  
+
       });
     });
   });
@@ -3050,7 +3050,7 @@ describe('PaymentConfirmation', () => {
 
       // Should handle gracefully
       await waitFor(() => {
-  
+
       });
     });
 
@@ -3092,7 +3092,7 @@ describe('PaymentConfirmation', () => {
 
       // Should handle gracefully
       await waitFor(() => {
-  
+
       });
     });
   });
@@ -11293,7 +11293,7 @@ describe('PaymentConfirmation', () => {
       try {
         await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
-  
+
         expect(screen.getByText('Book now!')).toBeInTheDocument();
       } finally {
         process.env = previousEnv;

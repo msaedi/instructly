@@ -1,5 +1,4 @@
 import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import CalendarSettingsSection from '../CalendarSettingsSection';
 
 describe('CalendarSettingsSection', () => {
@@ -18,22 +17,20 @@ describe('CalendarSettingsSection', () => {
     jest.clearAllMocks();
   });
 
-  it('renders without the protections link when no reopen handler is provided', () => {
+  it('renders buffer cards and overnight protection', () => {
     render(<CalendarSettingsSection {...baseProps} saveState="idle" />);
 
-    expect(screen.queryByRole('button', { name: 'About calendar protections' })).not.toBeInTheDocument();
+    expect(screen.getByText('Staying put')).toBeInTheDocument();
+    expect(screen.getByText('Traveling to student')).toBeInTheDocument();
+    expect(screen.getByText('Overnight booking protection')).toBeInTheDocument();
     expect(screen.queryByTestId('calendar-settings-save-state')).not.toBeInTheDocument();
   });
 
-  it('shows saving and saved states and opens the protections info link', async () => {
-    const user = userEvent.setup();
-    const onOpenCalendarProtectionsInfo = jest.fn();
-
+  it('shows saving and saved states', () => {
     const { rerender } = render(
       <CalendarSettingsSection
         {...baseProps}
         saveState="saving"
-        onOpenCalendarProtectionsInfo={onOpenCalendarProtectionsInfo}
       />
     );
 
@@ -43,14 +40,9 @@ describe('CalendarSettingsSection', () => {
       <CalendarSettingsSection
         {...baseProps}
         saveState="saved"
-        onOpenCalendarProtectionsInfo={onOpenCalendarProtectionsInfo}
       />
     );
 
     expect(screen.getByTestId('calendar-settings-save-state')).toHaveTextContent('Saved');
-
-    await user.click(screen.getByRole('button', { name: 'About calendar protections' }));
-
-    expect(onOpenCalendarProtectionsInfo).toHaveBeenCalledTimes(1);
   });
 });

@@ -280,13 +280,13 @@ describe('InstructorAvailabilityPage', () => {
 
     expect(screen.getByRole('heading', { name: 'Buffer between lessons' })).toBeInTheDocument();
     expect(
-      screen.getByRole('combobox', { name: 'When staying put buffer' })
-    ).toHaveTextContent('15 minutes');
+      screen.getByRole('combobox', { name: 'Staying put buffer' })
+    ).toHaveTextContent('15 min');
     expect(
-      screen.getByRole('combobox', { name: 'When traveling to student buffer' })
-    ).toHaveTextContent('60 minutes');
+      screen.getByRole('combobox', { name: 'Traveling to student buffer' })
+    ).toHaveTextContent('60 min');
     expect(
-      screen.getByRole('switch', { name: 'Overnight Booking Protection' })
+      screen.getByRole('switch', { name: 'Overnight booking protection' })
     ).toHaveAttribute('aria-checked', 'true');
   });
 
@@ -299,9 +299,7 @@ describe('InstructorAvailabilityPage', () => {
     });
 
     expect(screen.getByTestId('availability-paint-toolbar')).toBeInTheDocument();
-    expect(screen.getByText(/Tip: Click any cell to mark yourself available/i)).toBeInTheDocument();
-    expect(screen.getByText('Business Hours')).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: /All.*All lesson formats/i })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /All/i })).toBeInTheDocument();
     expect(screen.getAllByRole('radio').map((item) => item.textContent)).toEqual([
       expect.stringContaining('All'),
       expect.stringContaining('Online'),
@@ -314,7 +312,7 @@ describe('InstructorAvailabilityPage', () => {
       })
     );
 
-    await user.click(screen.getByRole('radio', { name: /Online.*Online lessons only/i }));
+    await user.click(screen.getByRole('radio', { name: /Online/i }));
 
     await waitFor(() =>
       expect(mockWeekView).toHaveBeenLastCalledWith(
@@ -325,7 +323,7 @@ describe('InstructorAvailabilityPage', () => {
     );
   });
 
-  it('keeps the toolbar above the grid and moves the secondary controls below it', () => {
+  it('keeps the controls and toolbar above the grid', () => {
     renderPage({
       formatPrices: [
         { format: 'student_location', hourly_rate: 95 },
@@ -334,23 +332,16 @@ describe('InstructorAvailabilityPage', () => {
       ],
     });
 
-    const tip = screen.getByText(/Tip: Click any cell to mark yourself available/i);
-    const teachingWindow = screen.getByText('Business Hours');
+    const teachingWindow = screen.getByText('Teaching window');
     const toolbar = screen.getByTestId('availability-paint-toolbar');
     const grid = screen.getByTestId('mock-week-view');
-    const legend = screen.getByText('Format tags');
 
+    // Controls row → toolbar → grid (all above the calendar)
+    expect(
+      teachingWindow.compareDocumentPosition(toolbar) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
     expect(
       toolbar.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy();
-    expect(
-      grid.compareDocumentPosition(tip) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy();
-    expect(
-      tip.compareDocumentPosition(teachingWindow) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy();
-    expect(
-      teachingWindow.compareDocumentPosition(legend) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
   });
 
@@ -367,11 +358,11 @@ describe('InstructorAvailabilityPage', () => {
   it('auto-saves the full settings payload after debounced edits and collapses rapid changes', async () => {
     const { user } = renderPage();
 
-    await user.click(screen.getByRole('combobox', { name: 'When staying put buffer' }));
-    await user.click(screen.getByRole('option', { name: '30 minutes' }));
-    await user.click(screen.getByRole('combobox', { name: 'When traveling to student buffer' }));
-    await user.click(screen.getByRole('option', { name: '90 minutes' }));
-    await user.click(screen.getByRole('switch', { name: 'Overnight Booking Protection' }));
+    await user.click(screen.getByRole('combobox', { name: 'Staying put buffer' }));
+    await user.click(screen.getByRole('option', { name: '30 min' }));
+    await user.click(screen.getByRole('combobox', { name: 'Traveling to student buffer' }));
+    await user.click(screen.getByRole('option', { name: '90 min' }));
+    await user.click(screen.getByRole('switch', { name: 'Overnight booking protection' }));
 
     expect(mockUpdateCalendarSettings).not.toHaveBeenCalled();
 
@@ -396,7 +387,7 @@ describe('InstructorAvailabilityPage', () => {
   it('does not show the acknowledgement popup for settings autosave alone', async () => {
     const { user } = renderPage();
 
-    await user.click(screen.getByRole('switch', { name: 'Overnight Booking Protection' }));
+    await user.click(screen.getByRole('switch', { name: 'Overnight booking protection' }));
 
     await act(async () => {
       jest.advanceTimersByTime(1200);
@@ -461,7 +452,7 @@ describe('InstructorAvailabilityPage', () => {
     mockUpdateCalendarSettings.mockRejectedValueOnce(new Error('nope'));
     const { user } = renderPage();
 
-    await user.click(screen.getByRole('switch', { name: 'Overnight Booking Protection' }));
+    await user.click(screen.getByRole('switch', { name: 'Overnight booking protection' }));
 
     await act(async () => {
       jest.advanceTimersByTime(1200);

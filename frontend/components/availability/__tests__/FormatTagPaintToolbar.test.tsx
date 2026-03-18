@@ -4,7 +4,7 @@ import { TAG_NO_TRAVEL, TAG_NONE, TAG_ONLINE_ONLY } from '@/lib/calendar/bitset'
 import FormatTagPaintToolbar from '../FormatTagPaintToolbar';
 
 describe('FormatTagPaintToolbar', () => {
-  it('renders the availability label, ordered options, descriptions, and notifies on change', async () => {
+  it('renders the availability label, ordered pill options, and notifies on change', async () => {
     const user = userEvent.setup();
     const onChange = jest.fn();
 
@@ -16,21 +16,21 @@ describe('FormatTagPaintToolbar', () => {
       />
     );
 
-    expect(screen.getByText('Availability')).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: /All.*All lesson formats/i })).toHaveAttribute(
+    expect(screen.getByText('Availability format:')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /All/i })).toHaveAttribute(
       'aria-checked',
       'true'
     );
-    expect(screen.getByRole('radio', { name: /No Travel.*Online and studio only/i })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: /Online.*Online lessons only/i })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /No Travel/i })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Online/i })).toBeInTheDocument();
     expect(screen.getByTestId('paint-mode-no-travel-icon')).toBeInTheDocument();
     expect(screen.getAllByRole('radio').map((item) => item.textContent)).toEqual([
       expect.stringContaining('All'),
-      expect.stringContaining('No Travel'),
       expect.stringContaining('Online'),
+      expect.stringContaining('No Travel'),
     ]);
 
-    await user.click(screen.getByRole('radio', { name: /No Travel.*Online and studio only/i }));
+    await user.click(screen.getByRole('radio', { name: /No Travel/i }));
 
     expect(onChange).toHaveBeenCalledWith(TAG_NO_TRAVEL);
   });
@@ -65,7 +65,7 @@ describe('FormatTagPaintToolbar', () => {
       expect.stringContaining('No Travel'),
     ]);
     expect(
-      screen.queryByRole('radio', { name: /Online.*Online lessons only/i })
+      screen.queryByRole('radio', { name: /Online/i })
     ).not.toBeInTheDocument();
   });
 });

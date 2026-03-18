@@ -13,8 +13,8 @@ export const CALENDAR_SETTINGS_DEFAULTS = {
   overnightProtectionEnabled: true,
 } as const;
 
-export const CALENDAR_BUFFER_OPTIONS = [0, 5, 10, 15, 20, 25, 30, 45, 60, 75, 90, 120] as const;
-export const TRAVEL_BUFFER_OPTIONS = CALENDAR_BUFFER_OPTIONS.filter((value) => value >= 15);
+export const CALENDAR_BUFFER_OPTIONS = [10, 15, 20, 25, 30, 45, 60, 75, 90, 120] as const;
+export const TRAVEL_BUFFER_OPTIONS = CALENDAR_BUFFER_OPTIONS.filter((value) => value >= 30);
 
 export type CalendarSettingsDraft = {
   nonTravelBufferMinutes: number;

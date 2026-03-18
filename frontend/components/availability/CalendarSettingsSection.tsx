@@ -25,7 +25,7 @@ interface CalendarSettingsSectionProps {
 }
 
 function formatMinutesLabel(minutes: number): string {
-  return `${minutes} minutes`;
+  return `${minutes} min`;
 }
 
 const settingsCardClassName =
@@ -38,7 +38,6 @@ export default function CalendarSettingsSection({
   onNonTravelChange,
   onTravelChange,
   onOvernightProtectionChange,
-  onOpenCalendarProtectionsInfo,
 }: CalendarSettingsSectionProps) {
   const saveLabel =
     saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved' : null;
@@ -49,18 +48,12 @@ export default function CalendarSettingsSection({
       className="mt-8 border-t border-gray-200 pt-6 dark:border-gray-700"
     >
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2
-            id="calendar-settings-heading"
-            className="text-lg font-semibold text-gray-900 dark:text-gray-100"
-          >
-            Buffer between lessons
-          </h2>
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            These settings save separately from your teaching grid and apply automatically to student
-            bookings.
-          </p>
-        </div>
+        <h2
+          id="calendar-settings-heading"
+          className="text-lg font-semibold text-gray-900 dark:text-gray-100"
+        >
+          Buffer between lessons
+        </h2>
         {saveLabel ? (
           <p
             className="shrink-0 text-sm font-medium text-gray-500 dark:text-gray-400"
@@ -71,110 +64,109 @@ export default function CalendarSettingsSection({
         ) : null}
       </div>
 
-      <div className="mt-5 space-y-4">
-        <div className={`grid gap-3 ${settingsCardClassName} md:grid-cols-[minmax(0,1fr)_220px] md:items-center`}>
-          <div>
+      {/* Two side-by-side buffer cards */}
+      <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className={settingsCardClassName}>
+          <div className="flex items-center justify-between gap-3 mb-3">
             <label
               htmlFor="calendar-non-travel-buffer"
-              className="text-sm font-medium text-gray-900 dark:text-gray-100"
+              className="text-sm font-semibold text-gray-900 dark:text-gray-100"
             >
-              When staying put (online/studio)
+              Staying put
             </label>
-            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-              Adds buffer between online and at-your-location lessons.
-            </p>
-          </div>
-          <Select
-            value={String(value.nonTravelBufferMinutes)}
-            onValueChange={(next) => onNonTravelChange(Number.parseInt(next, 10))}
-            disabled={disabled}
-          >
-            <SelectTrigger
-              id="calendar-non-travel-buffer"
-              aria-label="When staying put buffer"
-              className="w-full"
+            <Select
+              value={String(value.nonTravelBufferMinutes)}
+              onValueChange={(next) => onNonTravelChange(Number.parseInt(next, 10))}
+              disabled={disabled}
             >
-              <SelectValue placeholder="Select minutes" />
-            </SelectTrigger>
-            <SelectContent>
-              {CALENDAR_BUFFER_OPTIONS.map((minutes) => (
-                <SelectItem key={minutes} value={String(minutes)}>
-                  {formatMinutesLabel(minutes)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <SelectTrigger
+                id="calendar-non-travel-buffer"
+                aria-label="Staying put buffer"
+                className="w-28"
+              >
+                <SelectValue placeholder="Select" />
+              </SelectTrigger>
+              <SelectContent>
+                {CALENDAR_BUFFER_OPTIONS.map((minutes) => (
+                  <SelectItem key={minutes} value={String(minutes)}>
+                    {formatMinutesLabel(minutes)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+            Time between lessons where you&apos;re not traveling — back-to-back online sessions,
+            students coming to your studio, or switching between online and studio. Enough time
+            for one student to leave, a quick break, and the next to arrive or log in. Most
+            instructors find 10–15 minutes works well.
+          </p>
         </div>
 
-        <div className={`grid gap-3 ${settingsCardClassName} md:grid-cols-[minmax(0,1fr)_220px] md:items-center`}>
-          <div>
+        <div className={settingsCardClassName}>
+          <div className="flex items-center justify-between gap-3 mb-3">
             <label
               htmlFor="calendar-travel-buffer"
-              className="text-sm font-medium text-gray-900 dark:text-gray-100"
+              className="text-sm font-semibold text-gray-900 dark:text-gray-100"
             >
-              When traveling to student
+              Traveling to student
             </label>
-            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-              Adds travel time after student-location lessons before the next lesson can start.
-            </p>
-          </div>
-          <Select
-            value={String(value.travelBufferMinutes)}
-            onValueChange={(next) => onTravelChange(Number.parseInt(next, 10))}
-            disabled={disabled}
-          >
-            <SelectTrigger
-              id="calendar-travel-buffer"
-              aria-label="When traveling to student buffer"
-              className="w-full"
+            <Select
+              value={String(value.travelBufferMinutes)}
+              onValueChange={(next) => onTravelChange(Number.parseInt(next, 10))}
+              disabled={disabled}
             >
-              <SelectValue placeholder="Select minutes" />
-            </SelectTrigger>
-            <SelectContent>
-              {TRAVEL_BUFFER_OPTIONS.map((minutes) => (
-                <SelectItem key={minutes} value={String(minutes)}>
-                  {formatMinutesLabel(minutes)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <SelectTrigger
+                id="calendar-travel-buffer"
+                aria-label="Traveling to student buffer"
+                className="w-28"
+              >
+                <SelectValue placeholder="Select" />
+              </SelectTrigger>
+              <SelectContent>
+                {TRAVEL_BUFFER_OPTIONS.map((minutes) => (
+                  <SelectItem key={minutes} value={String(minutes)}>
+                    {formatMinutesLabel(minutes)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+            Time between lessons when you&apos;re going to or coming from a student&apos;s location.
+            Include everything: wrapping up and packing your materials, leaving the building,
+            getting to your next location (subway delays, Uber wait times, walking from the
+            station), finding the address, buzzing in, and setting up. Aim to arrive 5–10 minutes
+            early. In NYC, most instructors need 45–75 minutes.
+          </p>
         </div>
       </div>
 
+      {/* Overnight booking protection — full-width card, toggle flush right */}
       <div
-        className={`mt-6 grid gap-3 ${settingsCardClassName} md:grid-cols-[minmax(0,1fr)_220px] md:items-center`}
+        className={`mt-4 flex items-start justify-between gap-4 ${settingsCardClassName}`}
       >
         <div>
-          <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">
-              Overnight Booking Protection
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            Overnight booking protection
           </h3>
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            When enabled, students can&apos;t book early morning lessons overnight. Online/studio
-            slots before 9am and travel slots before 11am are protected from bookings made after
-            8pm.
+          <p className="mt-1 text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+            Prevents students from booking early morning slots overnight after 8pm.
+          </p>
+          <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+            Online/studio slots before 9am and travel slots before 11am are protected from
+            bookings made after 8pm.
           </p>
         </div>
-        <div className="flex items-center justify-center md:justify-center">
+        <div className="shrink-0">
           <ToggleSwitch
             checked={value.overnightProtectionEnabled}
             onChange={() => onOvernightProtectionChange(!value.overnightProtectionEnabled)}
             disabled={disabled}
-            ariaLabel="Overnight Booking Protection"
+            ariaLabel="Overnight booking protection"
           />
         </div>
       </div>
-
-      {onOpenCalendarProtectionsInfo ? (
-        <div className="mt-3 flex justify-start">
-          <button
-            type="button"
-            onClick={onOpenCalendarProtectionsInfo}
-            className="text-sm font-medium text-[#7E22CE] underline-offset-4 transition-colors hover:text-purple-700 hover:underline dark:text-purple-300 dark:hover:text-purple-200"
-          >
-            About calendar protections
-          </button>
-        </div>
-      ) : null}
     </section>
   );
 }

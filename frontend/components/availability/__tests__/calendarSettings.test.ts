@@ -84,8 +84,9 @@ describe('calendarSettings helpers', () => {
     expect(deriveCalendarAcknowledgementVariant([serviceWithFormats('instructor_location')])).toBe(
       'non_travel_only'
     );
-    expect(CALENDAR_BUFFER_OPTIONS).toContain(0);
-    expect(TRAVEL_BUFFER_OPTIONS).toEqual([15, 20, 25, 30, 45, 60, 75, 90, 120]);
+    expect(CALENDAR_BUFFER_OPTIONS).toContain(10);
+    expect(CALENDAR_BUFFER_OPTIONS).not.toContain(0);
+    expect(TRAVEL_BUFFER_OPTIONS).toEqual([30, 45, 60, 75, 90, 120]);
   });
 
   it('returns no tag options for single-format instructors', () => {

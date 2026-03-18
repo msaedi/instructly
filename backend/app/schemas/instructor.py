@@ -512,8 +512,8 @@ class InstructorProfileUpdate(StrictRequestModel):
 class UpdateCalendarSettings(StrictRequestModel):
     """Editable instructor calendar settings surfaced on the availability page."""
 
-    non_travel_buffer_minutes: Optional[int] = Field(None, ge=0, le=120)
-    travel_buffer_minutes: Optional[int] = Field(None, ge=15, le=120)
+    non_travel_buffer_minutes: Optional[int] = Field(None, ge=10, le=120)
+    travel_buffer_minutes: Optional[int] = Field(None, ge=30, le=120)
     overnight_protection_enabled: Optional[bool] = None
 
 
