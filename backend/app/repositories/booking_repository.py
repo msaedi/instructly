@@ -314,6 +314,28 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.logger.error("Error getting payment for booking %s: %s", booking_id, str(e))
             raise RepositoryException(f"Failed to get booking payment: {str(e)}")
 
+    def atomic_confirm_if_pending(self, booking_id: str, confirmed_at: "datetime") -> int:
+        """Atomically confirm a booking only if it is currently PENDING.
+
+        Returns the number of rows updated (0 = already confirmed or not found, 1 = confirmed).
+        Uses UPDATE ... WHERE status='PENDING' to avoid TOCTOU races.
+        """
+        rows: int = (
+            self.db.query(Booking)
+            .filter(
+                Booking.id == booking_id,
+                Booking.status == BookingStatus.PENDING.value,
+            )
+            .update(
+                {
+                    Booking.status: BookingStatus.CONFIRMED.value,
+                    Booking.confirmed_at: confirmed_at,
+                },
+                synchronize_session="fetch",
+            )
+        )
+        return rows
+
     def ensure_payment(self, booking_id: str) -> BookingPayment:
         """Get or create payment satellite row for a booking."""
         payment = self.get_payment_by_booking_id(booking_id)

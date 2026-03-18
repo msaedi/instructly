@@ -920,7 +920,7 @@ class BookingService(BaseService):
             # Attempt real Stripe call; tests patch this in CI
             setup_intent = stripe.SetupIntent.create(
                 customer=stripe_customer.stripe_customer_id,
-                payment_method_types=["card"],
+                automatic_payment_methods={"enabled": True, "allow_redirects": "never"},
                 usage="off_session",  # Will be used for future off-session payments
                 metadata={
                     "booking_id": booking.id,

@@ -127,15 +127,25 @@ export default function ReviewPage() {
       const res = await reviewsApi.submit(payload);
 
       // If a tip PI is created, confirm it on the client
+      let tipFailed = false;
       if (res.tip_client_secret) {
         const stripe = await getStripe();
-        if (stripe) {
-          const { error: stripeError } = await stripe.confirmCardPayment(res.tip_client_secret);
-          if (stripeError) {
-            toast.error(stripeError.message || 'Tip payment failed');
-          } else {
-            toast.success('Tip processed successfully');
-          }
+        if (!stripe) {
+          toast.error('Payment system unavailable. Please try again later.');
+          return;
+        }
+        const { error: stripeError } = await stripe.confirmPayment({
+          clientSecret: res.tip_client_secret,
+          confirmParams: {
+            return_url: `${window.location.origin}/student/lessons`,
+          },
+          redirect: 'if_required',
+        });
+        if (stripeError) {
+          toast.error(stripeError.message || 'Tip payment failed. You can retry.');
+          tipFailed = true;
+        } else {
+          toast.success('Tip processed successfully');
         }
       }
 
@@ -150,6 +160,12 @@ export default function ReviewPage() {
         }
       }
 
+      // Don't navigate if tip failed — let user retry
+      if (tipFailed) {
+        toast.success('Review submitted! Please retry the tip payment.');
+        return;
+      }
+
       toast.success('Review submitted successfully!');
 
       // Invalidate lessons caches so History reflects Reviewed status immediately
@@ -162,6 +178,7 @@ export default function ReviewPage() {
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to submit review. Please try again.';
       toast.error(message);
+    } finally {
       setIsSubmitting(false);
     }
   };

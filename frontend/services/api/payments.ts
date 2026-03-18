@@ -1,7 +1,7 @@
 import { logger } from '@/lib/logger';
 import { withApiBase, withApiBaseForRequest } from '@/lib/apiBase';
 import { fetchWithSessionRefresh } from '@/lib/auth/sessionRefresh';
-import { httpGet, httpPost } from '@/lib/http';
+import { httpGet, httpPost, httpDelete } from '@/lib/http';
 import type { CheckoutResponse } from '@/types/api/checkout';
 import type {
   PaymentMethod,
@@ -38,6 +38,9 @@ class PaymentService {
     const url = withApiBaseForRequest(`${this.basePath}${endpoint}`, method);
     if (method === 'GET') {
       return (await httpGet(url)) as T;
+    }
+    if (method === 'DELETE') {
+      return (await httpDelete(url)) as T;
     }
     return (await httpPost(url, options.body ? JSON.parse(options.body as string) : undefined)) as T;
   }
@@ -86,6 +89,18 @@ class PaymentService {
       });
     } catch (error) {
       logger.error('Failed to set default payment method:', error);
+      throw error;
+    }
+  }
+
+  // SetupIntent for PaymentElement (saving new payment methods)
+  async createSetupIntent(): Promise<{ client_secret: string }> {
+    try {
+      return await this.request<{ client_secret: string }>('/setup-intent', {
+        method: 'POST',
+      });
+    } catch (error) {
+      logger.error('Failed to create setup intent:', error);
       throw error;
     }
   }

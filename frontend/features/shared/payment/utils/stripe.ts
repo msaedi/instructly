@@ -1,4 +1,4 @@
-import { loadStripe, Stripe } from '@stripe/stripe-js';
+import { loadStripe, type Appearance, type Stripe } from '@stripe/stripe-js';
 import { STRIPE_PUBLISHABLE_KEY } from '@/lib/publicEnv';
 
 // Initialize Stripe lazily to avoid throwing at module load time in tests
@@ -26,22 +26,23 @@ export const stripeElementsOptions = {
   ],
 };
 
-export const cardElementOptions = {
-  style: {
-    base: {
-      fontSize: '16px',
-      color: '#374151',
+// PaymentElement appearance configuration
+export function getPaymentElementAppearance(isDark = false): Appearance {
+  return {
+    theme: isDark ? 'night' : 'stripe',
+    variables: {
       fontFamily: 'Inter, system-ui, sans-serif',
-      '::placeholder': {
-        color: '#9CA3AF',
-      },
+      colorPrimary: '#7E22CE',
+      colorDanger: '#EF4444',
+      ...(isDark && {
+        colorBackground: '#1f2937',
+      }),
     },
-    invalid: {
-      color: '#EF4444',
-      iconColor: '#EF4444',
-    },
-  },
-};
+  };
+}
+
+// Static export for backward compatibility in tests
+export const paymentElementAppearance: Appearance = getPaymentElementAppearance(false);
 
 // Helper to format amount for Stripe (convert dollars to cents)
 export const formatAmountForStripe = (amount: number): number => {

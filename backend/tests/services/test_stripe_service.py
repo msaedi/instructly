@@ -3028,14 +3028,14 @@ class TestStripeService:
         events = stripe_service.payment_repository.get_payment_events_for_booking(test_booking.id)
         assert any(evt.event_type == "auth_succeeded_credits_only" for evt in events)
 
-    def test_process_booking_payment_requires_payment_method(
+    def test_process_booking_payment_no_method_returns_client_secret(
         self, stripe_service: StripeService, test_booking: Booking, test_instructor: tuple
     ) -> None:
-        """Missing payment methods should raise when balance remains."""
+        """Missing payment_method_id should create intent and return client_secret for PaymentElement."""
         _, profile, _ = test_instructor
-        stripe_service.payment_repository.create_customer_record(test_booking.student_id, "cus_missing_pm")
+        stripe_service.payment_repository.create_customer_record(test_booking.student_id, "cus_no_pm")
         stripe_service.payment_repository.create_connected_account_record(
-            profile.id, "acct_missing_pm", onboarding_completed=True
+            profile.id, "acct_no_pm", onboarding_completed=True
         )
 
         context = ChargeContext(
@@ -3052,8 +3052,28 @@ class TestStripeService:
         )
         stripe_service.build_charge_context = MagicMock(return_value=context)
 
-        with pytest.raises(ServiceException, match="Payment method required"):
-            stripe_service.process_booking_payment(booking_id=test_booking.id, payment_method_id=None)
+        # Mock create_payment_intent to avoid actual Stripe call
+        mock_record = MagicMock()
+        mock_record.stripe_payment_intent_id = "pi_test_no_pm"
+        mock_record.amount = 5000
+        mock_record.application_fee = 500
+
+        def _mock_create_pi(**kwargs: object) -> MagicMock:
+            # Simulate what the real method does: set _last_client_secret
+            stripe_service._last_client_secret = "pi_test_secret_no_pm"
+            return mock_record
+
+        stripe_service.create_payment_intent = MagicMock(side_effect=_mock_create_pi)
+
+        result = stripe_service.process_booking_payment(
+            booking_id=test_booking.id, payment_method_id=None
+        )
+
+        assert result["success"] is True
+        assert result["status"] == "requires_payment_method"
+        assert result["requires_action"] is True
+        assert result["client_secret"] == "pi_test_secret_no_pm"
+        assert result["payment_intent_id"] == "pi_test_no_pm"
 
     @patch("stripe.PaymentIntent.confirm")
     @patch("stripe.PaymentIntent.create")
@@ -3681,9 +3701,10 @@ class TestStripeService:
                 booking_service=_booking_service_stub(),
             )
 
-    def test_create_booking_checkout_save_payment_method_requires_id(
+    def test_create_booking_checkout_save_without_pm_uses_setup_future_usage(
         self, stripe_service: StripeService, test_booking: Booking, test_user: User
     ) -> None:
+        """save_payment_method=True without payment_method_id passes save flag to process_booking_payment."""
         test_user._cached_is_student = True
         payload = CreateCheckoutRequest(
             booking_id=test_booking.id,
@@ -3691,12 +3712,28 @@ class TestStripeService:
             save_payment_method=True,
         )
 
-        with pytest.raises(ServiceException, match="Payment method is required"):
-            stripe_service.create_booking_checkout(
-                current_user=test_user,
-                payload=payload,
-                booking_service=_booking_service_stub(),
-            )
+        mock_result = {
+            "success": True,
+            "payment_intent_id": "pi_test",
+            "status": "requires_payment_method",
+            "amount": 5000,
+            "application_fee": 500,
+            "requires_action": True,
+            "client_secret": "pi_secret_test",
+        }
+        stripe_service.process_booking_payment = MagicMock(return_value=mock_result)
+
+        result = stripe_service.create_booking_checkout(
+            current_user=test_user,
+            payload=payload,
+            booking_service=_booking_service_stub(),
+        )
+
+        stripe_service.process_booking_payment.assert_called_once_with(
+            test_booking.id, None, None, save_payment_method=True
+        )
+        assert result.requires_action is True
+        assert result.client_secret == "pi_secret_test"
 
     def test_create_booking_checkout_success_requires_capture(
         self, stripe_service: StripeService, test_booking: Booking, test_user: User
@@ -3740,6 +3777,7 @@ class TestStripeService:
             test_booking.id,
             "pm_capture",
             0,
+            save_payment_method=False,
         )
 
         assert response.success is True

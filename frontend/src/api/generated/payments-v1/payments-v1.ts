@@ -42,6 +42,7 @@ import type {
   PayoutScheduleResponse,
   SavePaymentMethodRequest,
   SetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostParams,
+  SetupIntentResponse,
   StartOnboardingApiV1PaymentsConnectOnboardPostParams,
   TransactionHistoryItem,
   WebhookResponse,
@@ -1893,6 +1894,91 @@ export function useGetInstructorPayoutsApiV1PaymentsPayoutsGet<
   return { ...query, queryKey: queryOptions.queryKey };
 }
 
+/**
+ * Create a SetupIntent for saving a new payment method via PaymentElement.
+ * @summary Create Setup Intent
+ */
+export const getCreateSetupIntentApiV1PaymentsSetupIntentPostUrl = () => {
+  return `/api/v1/payments/setup-intent`;
+};
+
+export const createSetupIntentApiV1PaymentsSetupIntentPost = async (
+  options?: RequestInit
+): Promise<SetupIntentResponse> => {
+  return customFetch<SetupIntentResponse>(getCreateSetupIntentApiV1PaymentsSetupIntentPostUrl(), {
+    ...options,
+    method: 'POST',
+  });
+};
+
+export const getCreateSetupIntentApiV1PaymentsSetupIntentPostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSetupIntentApiV1PaymentsSetupIntentPost>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSetupIntentApiV1PaymentsSetupIntentPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['createSetupIntentApiV1PaymentsSetupIntentPost'];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSetupIntentApiV1PaymentsSetupIntentPost>>,
+    void
+  > = () => {
+    return createSetupIntentApiV1PaymentsSetupIntentPost(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSetupIntentApiV1PaymentsSetupIntentPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSetupIntentApiV1PaymentsSetupIntentPost>>
+>;
+
+export type CreateSetupIntentApiV1PaymentsSetupIntentPostMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create Setup Intent
+ */
+export const useCreateSetupIntentApiV1PaymentsSetupIntentPost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof createSetupIntentApiV1PaymentsSetupIntentPost>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof createSetupIntentApiV1PaymentsSetupIntentPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(
+    getCreateSetupIntentApiV1PaymentsSetupIntentPostMutationOptions(options),
+    queryClient
+  );
+};
 /**
  * Get user's transaction history
 

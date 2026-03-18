@@ -1224,7 +1224,12 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
           throw new Error('Missing booking date. Please re-select date and time.');
         }
       } else {
-        bookingDate = toDateOnlyString(bookingData.date as Date | string, 'booking_date');
+        // Normalize: if date is an ISO timestamp string, convert to Date first
+        const rawDate: unknown = bookingData.date;
+        const dateInput = typeof rawDate === 'string' && rawDate.includes('T')
+          ? new Date(rawDate)
+          : (rawDate as Date | string);
+        bookingDate = toDateOnlyString(dateInput, 'booking_date');
       }
 
       // Debug logging to identify missing data

@@ -138,6 +138,8 @@ class StripeService(BaseService):
 
         # Configure Stripe API key with defensive error handling
         self.stripe_configured = False
+        # Per-request instance (via get_stripe_service Depends) — not shared across concurrent requests
+        self._last_client_secret: Optional[str] = None
         try:
             if settings.stripe_secret_key:
                 stripe.api_key = settings.stripe_secret_key.get_secret_value()
@@ -746,22 +748,22 @@ class StripeService(BaseService):
         if existing_payment and existing_payment.status == "succeeded":
             raise ServiceException("Booking has already been paid", code="already_paid")
 
-        if payload.save_payment_method:
-            if not payload.payment_method_id:
-                raise ServiceException(
-                    "Payment method is required when saving for future use",
-                    code="missing_payment_method",
-                )
+        if payload.save_payment_method and payload.payment_method_id:
+            # Saved-card flow: attach existing payment method to customer
             self.save_payment_method(
                 user_id=current_user.id,
                 payment_method_id=payload.payment_method_id,
                 set_as_default=False,
             )
 
+        # PaymentElement flow (no payment_method_id): always save the card via
+        # setup_future_usage. Users can delete saved cards from billing.
+        save_payment_method = not payload.payment_method_id
         payment_result = self.process_booking_payment(
             payload.booking_id,
             payload.payment_method_id,
             payload.requested_credit_cents,
+            save_payment_method=save_payment_method,
         )
 
         # With capture_method: "manual", successful authorization returns "requires_capture"
@@ -839,7 +841,8 @@ class StripeService(BaseService):
                     logger.debug("Non-fatal error ignored", exc_info=True)
         client_secret = (
             payment_result.get("client_secret")
-            if payment_result.get("status") in ["requires_action", "requires_confirmation"]
+            if payment_result.get("status")
+            in ["requires_action", "requires_confirmation", "requires_payment_method"]
             else None
         )
 
@@ -851,7 +854,7 @@ class StripeService(BaseService):
             "application_fee": payment_result["application_fee"],
             "client_secret": client_secret,
             "requires_action": payment_result["status"]
-            in ["requires_action", "requires_confirmation"],
+            in ["requires_action", "requires_confirmation", "requires_payment_method"],
         }
         return CheckoutResponse(**response_data)
 
@@ -1768,6 +1771,10 @@ class StripeService(BaseService):
             "metadata": metadata,
             "transfer_group": f"booking:{booking_id}",
             "capture_method": "manual",
+            "automatic_payment_methods": {
+                "enabled": True,
+                "allow_redirects": "never",
+            },
             "idempotency_key": f"pi_booking_{booking_id}",
         }
 
@@ -2657,6 +2664,7 @@ class StripeService(BaseService):
         requested_credit_cents: Optional[int] = None,
         amount_cents: Optional[int] = None,
         currency: str = "usd",
+        save_payment_method: bool = False,
     ) -> PaymentIntent:
         """
         Create a Stripe PaymentIntent for a booking.
@@ -2771,14 +2779,21 @@ class StripeService(BaseService):
                     },
                     "metadata": metadata,
                     "capture_method": "manual",
+                    "automatic_payment_methods": {
+                        "enabled": True,
+                        "allow_redirects": "never",
+                    },
                     "idempotency_key": f"pi_checkout_{booking_id}_{amount}",
                 }
                 if ctx is not None:
                     stripe_kwargs["transfer_group"] = f"booking:{booking_id}"
+                if save_payment_method:
+                    stripe_kwargs["setup_future_usage"] = "off_session"
 
                 stripe_intent = self._call_with_retry(stripe.PaymentIntent.create, **stripe_kwargs)
                 stripe_intent_id = stripe_intent.id
                 stripe_intent_status = stripe_intent.status
+                stripe_client_secret = stripe_intent.client_secret
 
             except Exception as e:
                 if not self.stripe_configured:
@@ -2794,6 +2809,7 @@ class StripeService(BaseService):
                     )
                     stripe_intent_id = f"mock_pi_{booking_id}"
                     stripe_intent_status = "requires_payment_method"
+                    stripe_client_secret = f"mock_secret_{booking_id}"
                 else:
                     raise
 
@@ -2809,6 +2825,9 @@ class StripeService(BaseService):
                     instructor_tier_pct=ctx.instructor_tier_pct if ctx else None,
                     instructor_payout_cents=ctx.target_instructor_payout_cents if ctx else None,
                 )
+
+            # Store client_secret in instance cache for PaymentElement flow
+            self._last_client_secret = stripe_client_secret
 
             self.logger.info(
                 "Created payment intent %s for booking %s", stripe_intent_id, booking_id
@@ -2856,6 +2875,10 @@ class StripeService(BaseService):
                 capture_method="manual",
                 confirm=True,
                 off_session=True,
+                automatic_payment_methods={
+                    "enabled": True,
+                    "allow_redirects": "never",
+                },
                 transfer_data={
                     "destination": destination_account_id,
                     "amount": transfer_amount_cents,
@@ -3370,6 +3393,7 @@ class StripeService(BaseService):
         booking_id: str,
         payment_method_id: Optional[str] = None,
         requested_credit_cents: Optional[int] = None,
+        save_payment_method: bool = False,
     ) -> Dict[str, Any]:
         """
         Process payment for a booking end-to-end.
@@ -3476,7 +3500,26 @@ class StripeService(BaseService):
                 }
 
             if not payment_method_id:
-                raise ServiceException("Payment method required for the remaining balance")
+                # PaymentElement flow: create PaymentIntent without confirming,
+                # return client_secret so the frontend can render PaymentElement
+                # and call stripe.confirmPayment().
+                self._last_client_secret = None
+                payment_record = self.create_payment_intent(
+                    booking_id=booking_id,
+                    customer_id=customer.stripe_customer_id,
+                    destination_account_id=stripe_account_id,
+                    charge_context=charge_context,
+                    save_payment_method=save_payment_method,
+                )
+                return {
+                    "success": True,
+                    "payment_intent_id": payment_record.stripe_payment_intent_id,
+                    "status": "requires_payment_method",
+                    "amount": payment_record.amount,
+                    "application_fee": payment_record.application_fee,
+                    "requires_action": True,
+                    "client_secret": self._last_client_secret,
+                }
 
             # create_payment_intent has its own transaction + Stripe call
             payment_record = self.create_payment_intent(
@@ -3616,6 +3659,33 @@ class StripeService(BaseService):
             raise ServiceException(f"Failed to process payment: {str(e)}")
 
     # ========== Payment Method Management ==========
+
+    @BaseService.measure_operation("stripe_create_setup_intent_for_saving")
+    def create_setup_intent_for_saving(self, user_id: str) -> Dict[str, str]:
+        """Create a SetupIntent for saving a payment method via PaymentElement.
+
+        Returns a client_secret the frontend uses to render PaymentElement
+        and call stripe.confirmSetup().
+
+        Args:
+            user_id: User's ID
+
+        Returns:
+            Dict with client_secret key
+        """
+        self._check_stripe_configured()
+        customer = self.get_or_create_customer(user_id)
+        setup_intent = self._call_with_retry(
+            stripe.SetupIntent.create,
+            customer=customer.stripe_customer_id,
+            automatic_payment_methods={"enabled": True, "allow_redirects": "never"},
+            usage="off_session",
+            metadata={"user_id": user_id, "platform": "instainstru"},
+        )
+        client_secret = setup_intent.client_secret
+        if not client_secret:
+            raise ServiceException("SetupIntent created without client_secret")
+        return {"client_secret": client_secret}
 
     @BaseService.measure_operation("stripe_save_payment_method")
     def save_payment_method(
@@ -3982,6 +4052,11 @@ class StripeService(BaseService):
                     if new_status == "succeeded":
                         self._handle_successful_payment(payment_record)
 
+                    # Handle requires_capture — advance booking to CONFIRMED
+                    # This fires after PaymentElement confirmPayment() succeeds
+                    if new_status == "requires_capture":
+                        self._advance_booking_on_capture(payment_record)
+
                     return True
                 else:
                     self.logger.warning(
@@ -3993,6 +4068,42 @@ class StripeService(BaseService):
         except Exception as e:
             self.logger.error("Error handling payment intent webhook: %s", e)
             raise ServiceException(f"Failed to handle payment webhook: {str(e)}")
+
+    @BaseService.measure_operation("stripe_advance_booking_on_capture")
+    def _advance_booking_on_capture(self, payment_record: PaymentIntent) -> None:
+        """Advance booking to CONFIRMED when PI reaches requires_capture (PaymentElement flow).
+
+        Uses atomic UPDATE ... WHERE status='PENDING' to avoid TOCTOU races.
+        Must NOT swallow exceptions — the webhook handler relies on exceptions
+        to return 5xx so Stripe retries on transient failures.
+        """
+        booking_id = payment_record.booking_id
+        now = datetime.now(timezone.utc)
+
+        with self.transaction():
+            # Atomic: only update if still PENDING (idempotent — no-op if already CONFIRMED)
+            rows = self.booking_repository.atomic_confirm_if_pending(booking_id, now)
+
+            if rows == 0:
+                # Already confirmed or booking doesn't exist — idempotent no-op
+                self.logger.info(
+                    "Booking %s not in PENDING state (rows=%d), skipping capture advance",
+                    booking_id,
+                    rows,
+                )
+                return
+
+            bp = self.booking_repository.ensure_payment(booking_id)
+            bp.payment_status = PaymentStatus.AUTHORIZED.value
+            bp.payment_intent_id = payment_record.stripe_payment_intent_id
+            bp.auth_attempted_at = now
+            bp.auth_failure_count = 0
+            bp.auth_last_error = None
+
+        self.logger.info(
+            "Booking %s confirmed via PaymentElement webhook (requires_capture)",
+            booking_id,
+        )
 
     def _handle_successful_payment(self, payment_record: PaymentIntent) -> None:
         """

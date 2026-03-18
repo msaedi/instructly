@@ -331,7 +331,8 @@ class TestCreateBookingCheckout:
         with pytest.raises(ServiceException, match="already been paid"):
             svc.create_booking_checkout(current_user=user, payload=payload, booking_service=booking_svc)
 
-    def test_save_payment_method_no_id(self):
+    def test_save_payment_method_no_id_passes_save_flag(self):
+        """save_payment_method=True without payment_method_id passes flag to process_booking_payment."""
         svc = _make_stripe_service()
         user = _fake_user(is_student=True)
         booking = MagicMock()
@@ -343,9 +344,21 @@ class TestCreateBookingCheckout:
         payload.booking_id = "B1"
         payload.save_payment_method = True
         payload.payment_method_id = None
+        payload.requested_credit_cents = None
         booking_svc = MagicMock()
-        with pytest.raises(ServiceException, match="required"):
-            svc.create_booking_checkout(current_user=user, payload=payload, booking_service=booking_svc)
+        mock_result = {
+            "success": True,
+            "payment_intent_id": "pi_test",
+            "status": "requires_payment_method",
+            "amount": 5000,
+            "application_fee": 500,
+            "requires_action": True,
+            "client_secret": "pi_secret_test",
+        }
+        svc.process_booking_payment = MagicMock(return_value=mock_result)
+        result = svc.create_booking_checkout(current_user=user, payload=payload, booking_service=booking_svc)
+        svc.process_booking_payment.assert_called_once_with("B1", None, None, save_payment_method=True)
+        assert result.requires_action is True
 
 
 @pytest.mark.unit
@@ -1963,3 +1976,97 @@ class TestHandleIdentityWebhookProcessingException:
         }
         result = svc._handle_identity_webhook(event)
         assert result is True
+
+
+@pytest.mark.unit
+class TestCreateSetupIntentForSaving:
+    @patch("stripe.SetupIntent.create")
+    def test_success(self, mock_create: MagicMock) -> None:
+        mock_create.return_value = MagicMock(client_secret="seti_secret_123")
+        svc = _make_stripe_service()
+        customer = MagicMock()
+        customer.stripe_customer_id = "cus_test"
+        svc.get_or_create_customer = MagicMock(return_value=customer)
+        svc._call_with_retry = MagicMock(side_effect=lambda fn, **kw: fn(**kw))
+
+        result = svc.create_setup_intent_for_saving("user_123")
+
+        assert result == {"client_secret": "seti_secret_123"}
+        svc.get_or_create_customer.assert_called_once_with("user_123")
+
+    @patch("stripe.SetupIntent.create")
+    def test_stripe_api_failure(self, mock_create: MagicMock) -> None:
+        mock_create.side_effect = stripe.StripeError("Stripe down")
+        svc = _make_stripe_service()
+        customer = MagicMock()
+        customer.stripe_customer_id = "cus_test"
+        svc.get_or_create_customer = MagicMock(return_value=customer)
+        svc._call_with_retry = MagicMock(side_effect=lambda fn, **kw: fn(**kw))
+
+        with pytest.raises(stripe.StripeError, match="Stripe down"):
+            svc.create_setup_intent_for_saving("user_123")
+
+    def test_missing_client_secret(self) -> None:
+        svc = _make_stripe_service()
+        customer = MagicMock()
+        customer.stripe_customer_id = "cus_test"
+        svc.get_or_create_customer = MagicMock(return_value=customer)
+        mock_intent = MagicMock(client_secret=None)
+        svc._call_with_retry = MagicMock(return_value=mock_intent)
+
+        with pytest.raises(ServiceException, match="client_secret"):
+            svc.create_setup_intent_for_saving("user_123")
+
+    def test_customer_creation_failure(self) -> None:
+        svc = _make_stripe_service()
+        svc.get_or_create_customer = MagicMock(
+            side_effect=ServiceException("Customer creation failed")
+        )
+
+        with pytest.raises(ServiceException, match="Customer creation failed"):
+            svc.create_setup_intent_for_saving("user_123")
+
+
+@pytest.mark.unit
+class TestAdvanceBookingOnCapture:
+    def test_happy_path_pending_to_confirmed(self) -> None:
+        svc = _make_stripe_service()
+        svc.booking_repository.atomic_confirm_if_pending.return_value = 1
+
+        bp = MagicMock()
+        svc.booking_repository.ensure_payment.return_value = bp
+
+        payment_record = MagicMock()
+        payment_record.booking_id = "B1"
+        payment_record.stripe_payment_intent_id = "pi_capture_1"
+
+        svc._advance_booking_on_capture(payment_record)
+
+        svc.booking_repository.atomic_confirm_if_pending.assert_called_once()
+        assert bp.payment_status == "authorized"
+        assert bp.payment_intent_id == "pi_capture_1"
+        assert bp.auth_failure_count == 0
+
+    def test_booking_not_found_or_already_confirmed(self) -> None:
+        """When atomic UPDATE matches 0 rows (missing or already confirmed), no-op."""
+        svc = _make_stripe_service()
+        svc.booking_repository.atomic_confirm_if_pending.return_value = 0
+
+        payment_record = MagicMock()
+        payment_record.booking_id = "B_MISSING"
+
+        svc._advance_booking_on_capture(payment_record)
+
+        svc.booking_repository.ensure_payment.assert_not_called()
+        svc.logger.info.assert_called()
+
+    def test_exception_propagates(self) -> None:
+        svc = _make_stripe_service()
+        svc.booking_repository.atomic_confirm_if_pending.return_value = 1
+        svc.booking_repository.ensure_payment.side_effect = RuntimeError("DB failure")
+
+        payment_record = MagicMock()
+        payment_record.booking_id = "B3"
+
+        with pytest.raises(RuntimeError, match="DB failure"):
+            svc._advance_booking_on_capture(payment_record)

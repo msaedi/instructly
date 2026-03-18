@@ -5927,6 +5927,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/payments/setup-intent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Setup Intent
+         * @description Create a SetupIntent for saving a new payment method via PaymentElement.
+         */
+        post: operations["create_setup_intent_api_v1_payments_setup_intent_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/payments/transactions": {
         parameters: {
             query?: never;
@@ -9480,7 +9500,7 @@ export type components = {
             /**
              * End Time
              * Format: time
-             * @description End time to check
+             * @description End time to check (HH:MM)
              */
             end_time: string;
             /**
@@ -9517,7 +9537,7 @@ export type components = {
             /**
              * Start Time
              * Format: time
-             * @description Start time to check
+             * @description Start time to check (HH:MM)
              */
             start_time: string;
         };
@@ -10300,7 +10320,7 @@ export type components = {
             booking_date: string;
             /**
              * End Time
-             * @description Calculated end time (set automatically)
+             * @description Calculated end time (HH:MM, set automatically)
              */
             end_time?: string | null;
             /**
@@ -10352,7 +10372,7 @@ export type components = {
             /**
              * Start Time
              * Format: time
-             * @description Start time
+             * @description Start time (HH:MM)
              */
             start_time: string;
             /**
@@ -20084,6 +20104,14 @@ export type components = {
         SessionRefreshResponse: {
             /** Message */
             message: string;
+        };
+        /** SetupIntentResponse */
+        SetupIntentResponse: {
+            /**
+             * Client Secret
+             * @description Client secret for PaymentElement on the frontend
+             */
+            client_secret: string;
         };
         /**
          * SignedUploadResponse
@@ -31334,6 +31362,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_setup_intent_api_v1_payments_setup_intent_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupIntentResponse"];
                 };
             };
         };

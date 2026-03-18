@@ -1316,7 +1316,7 @@ No slot references needed.
 export interface AvailabilityCheckRequest {
   /** Date to check */
   booking_date: string;
-  /** End time to check */
+  /** End time to check (HH:MM) */
   end_time: string;
   /** Instructor to check */
   instructor_id: string;
@@ -1330,7 +1330,7 @@ export interface AvailabilityCheckRequest {
   location_type: AvailabilityCheckRequestLocationType;
   /** Optional duration in minutes for parity with booking validation */
   selected_duration?: number | null;
-  /** Start time to check */
+  /** Start time to check (HH:MM) */
   start_time: string;
 }
 
@@ -1855,7 +1855,7 @@ the lesson will occur.
 export interface BookingCreate {
   /** Date of the booking */
   booking_date: string;
-  /** Calculated end time (set automatically) */
+  /** Calculated end time (HH:MM, set automatically) */
   end_time?: string | null;
   /** Instructor to book */
   instructor_id: string;
@@ -1879,7 +1879,7 @@ export interface BookingCreate {
    * @maximum 720
    */
   selected_duration: number;
-  /** Start time */
+  /** Start time (HH:MM) */
   start_time: string;
   /** Optional note from student */
   student_note?: string | null;
@@ -8280,6 +8280,11 @@ export interface SessionInvalidationResponse {
 
 export interface SessionRefreshResponse {
   message: string;
+}
+
+export interface SetupIntentResponse {
+  /** Client secret for PaymentElement on the frontend */
+  client_secret: string;
 }
 
 export type SignedUploadResponseHeaders = { [key: string]: string };

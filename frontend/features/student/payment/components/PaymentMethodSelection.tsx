@@ -1,14 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
-import { CreditCard, Plus, Check } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { CreditCard, Plus, Check, Loader2 } from 'lucide-react';
 import { PaymentCard, CreditBalance, BookingPayment, PaymentMethod } from '../types';
 import { paymentService } from '@/services/api/payments';
 import { logger } from '@/lib/logger';
-import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
-import { getStripe } from '@/features/shared/payment/utils/stripe';
+import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { getStripe, getPaymentElementAppearance } from '@/features/shared/payment/utils/stripe';
 
-// Add Card Form Component - EXACTLY like the billing page
+// Inner form that uses PaymentElement (must be inside <Elements>)
 const AddCardFormInner: React.FC<{
   onSuccess: (card: PaymentCard) => void;
   onCancel: () => void;
@@ -27,47 +27,48 @@ const AddCardFormInner: React.FC<{
       return;
     }
 
-    const cardElement = elements.getElement(CardElement);
-    if (!cardElement) {
-      setError('Card element not found');
-      return;
-    }
-
     setLoading(true);
     setError(null);
 
     try {
-      // Create payment method - EXACTLY like billing page
-      const { error: stripeError, paymentMethod } = await stripe.createPaymentMethod({
-        type: 'card',
-        card: cardElement,
+      const { error: confirmError, setupIntent } = await stripe.confirmSetup({
+        elements,
+        confirmParams: {
+          return_url: `${window.location.origin}/student/booking`,
+        },
+        redirect: 'if_required',
       });
 
-      if (stripeError) {
-        setError(stripeError.message || 'Failed to add card');
+      if (confirmError) {
+        setError(confirmError.message ?? 'Failed to add card');
         setLoading(false);
         return;
       }
 
-      // Save payment method to backend - EXACTLY like billing page
-      const savedCard = await paymentService.savePaymentMethod({
-        payment_method_id: paymentMethod?.id || '',
-        set_as_default: setAsDefault,
-      });
+      // Save payment method to backend
+      let savedCard: PaymentCard | null = null;
+      if (setupIntent?.payment_method) {
+        const pmId = typeof setupIntent.payment_method === 'string'
+          ? setupIntent.payment_method
+          : setupIntent.payment_method.id;
+        const result = await paymentService.savePaymentMethod({
+          payment_method_id: pmId,
+          set_as_default: setAsDefault,
+        });
 
-      logger.info('Payment method added successfully');
-
-      // Map to PaymentCard type
-      const newCard: PaymentCard = {
-        id: savedCard.id,
-        last4: savedCard.last4,
-        brand: savedCard.brand.charAt(0).toUpperCase() + savedCard.brand.slice(1),
-        expiryMonth: null,
-        expiryYear: null,
-        isDefault: savedCard.is_default,
-      };
-
-      onSuccess(newCard);
+        savedCard = {
+          id: result.id,
+          last4: result.last4,
+          brand: result.brand.charAt(0).toUpperCase() + result.brand.slice(1),
+          expiryMonth: null,
+          expiryYear: null,
+          isDefault: result.is_default,
+        };
+        logger.info('Payment method added successfully');
+        onSuccess(savedCard);
+      } else {
+        setError('Payment method could not be saved. Please try again.');
+      }
     } catch (err: unknown) {
       logger.error('Failed to save payment method', err);
       setError(err instanceof Error ? err.message : 'Failed to save payment method');
@@ -78,18 +79,7 @@ const AddCardFormInner: React.FC<{
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <CardElement
-        options={{
-          style: {
-            base: {
-              fontSize: '14px',
-              color: '#424770',
-              '::placeholder': {
-                color: '#aab7c4',
-              },
-            },
-          },
-        }}
+      <PaymentElement
         className="p-2 border border-gray-200 dark:border-gray-700 rounded"
       />
 
@@ -126,6 +116,72 @@ const AddCardFormInner: React.FC<{
         </button>
       </div>
     </form>
+  );
+};
+
+// Wrapper that fetches SetupIntent clientSecret, then renders Elements + inner form
+const AddCardFormWrapper: React.FC<{
+  onSuccess: (card: PaymentCard) => void;
+  onCancel: () => void;
+  cardsLength: number;
+}> = ({ onSuccess, onCancel, cardsLength }) => {
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [intentError, setIntentError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchIntent = async () => {
+      try {
+        const result = await paymentService.createSetupIntent();
+        if (!cancelled) {
+          setClientSecret(result.client_secret);
+        }
+      } catch {
+        if (!cancelled) {
+          setIntentError('Failed to initialize payment form.');
+        }
+      }
+    };
+    void fetchIntent();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (intentError) {
+    return (
+      <div className="space-y-2">
+        <p className="text-xs text-red-600">{intentError}</p>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded text-sm"
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  if (!clientSecret) {
+    return (
+      <div className="flex justify-center items-center py-4">
+        <Loader2 className="h-5 w-5 animate-spin text-gray-400 dark:text-gray-300" />
+      </div>
+    );
+  }
+
+  return (
+    <Elements
+      stripe={getStripe()}
+      options={{ clientSecret, appearance: getPaymentElementAppearance(
+        typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+      ) }}
+    >
+      <AddCardFormInner
+        onSuccess={onSuccess}
+        onCancel={onCancel}
+        cardsLength={cardsLength}
+      />
+    </Elements>
   );
 };
 
@@ -226,24 +282,18 @@ export default function PaymentMethodSelection({
                     </button>
                   </div>
 
-                  {/* Use Stripe Elements - EXACTLY like billing page */}
-                  <Elements stripe={getStripe()}>
-                    <AddCardFormInner
-                      onSuccess={(newCard) => {
-                        // Update UI with new card
-                        if (onCardAdded) {
-                          onCardAdded(newCard);
-                        }
-                        // Select the new card
-                        setSelectedCardId(newCard.id);
-                        // Close form
-                        setShowNewCardForm(false);
-                        logger.info('Card added and selected', { cardId: newCard.id });
-                      }}
-                      onCancel={() => setShowNewCardForm(false)}
-                      cardsLength={cards.length}
-                    />
-                  </Elements>
+                  <AddCardFormWrapper
+                    onSuccess={(newCard) => {
+                      if (onCardAdded) {
+                        onCardAdded(newCard);
+                      }
+                      setSelectedCardId(newCard.id);
+                      setShowNewCardForm(false);
+                      logger.info('Card added and selected', { cardId: newCard.id });
+                    }}
+                    onCancel={() => setShowNewCardForm(false)}
+                    cardsLength={cards.length}
+                  />
                 </div>
               )}
             </div>
@@ -254,7 +304,8 @@ export default function PaymentMethodSelection({
           <div className="mt-6">
             <button
               onClick={handleContinue}
-              className="w-full py-2.5 px-4 bg-[#7E22CE] text-white hover:bg-purple-800 dark:hover:bg-purple-700 rounded-lg font-medium transition-colors focus:outline-none focus:ring-0"
+              disabled={!selectedCardId}
+              className="w-full py-2.5 px-4 bg-[#7E22CE] text-white hover:bg-purple-800 dark:hover:bg-purple-700 rounded-lg font-medium transition-colors focus:outline-none focus:ring-0 disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
               {isInlineFlow ? 'Apply payment method' : 'Continue to Confirmation'}
             </button>
