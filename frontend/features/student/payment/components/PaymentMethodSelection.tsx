@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CreditCard, Plus, Check, Loader2 } from 'lucide-react';
 import { PaymentCard, CreditBalance, BookingPayment, PaymentMethod } from '../types';
 import { paymentService } from '@/services/api/payments';
@@ -96,14 +96,14 @@ const AddCardFormInner: React.FC<{
       )}
 
       {error && (
-        <p className="text-xs text-red-600">{error}</p>
+        <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
       )}
 
       <div className="flex gap-2">
         <button
           type="submit"
           disabled={!stripe || loading}
-          className="flex-1 p-2 bg-[#7E22CE] text-white rounded text-sm hover:bg-purple-800 dark:hover:bg-purple-700 disabled:bg-gray-300 font-semibold"
+          className="flex-1 p-2 bg-[#7E22CE] text-white rounded text-sm hover:bg-purple-800 dark:hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 font-semibold"
         >
           {loading ? 'Adding...' : 'Add Card'}
         </button>
@@ -149,7 +149,7 @@ const AddCardFormWrapper: React.FC<{
   if (intentError) {
     return (
       <div className="space-y-2">
-        <p className="text-xs text-red-600">{intentError}</p>
+        <p className="text-xs text-red-600 dark:text-red-400">{intentError}</p>
         <button
           type="button"
           onClick={onCancel}
@@ -192,6 +192,8 @@ interface PaymentMethodSelectionProps {
   onSelectPayment: (method: PaymentMethod, cardId?: string, creditsToUse?: number) => void;
   onBack?: () => void;
   onCardAdded?: (card: PaymentCard) => void;
+  /** When true, renders content only — no outer layout wrapper (for embedding inside another panel) */
+  compact?: boolean;
 }
 
 export default function PaymentMethodSelection({
@@ -201,6 +203,7 @@ export default function PaymentMethodSelection({
   onSelectPayment,
   onBack,
   onCardAdded,
+  compact = false,
 }: PaymentMethodSelectionProps) {
   const [selectedCardId, setSelectedCardId] = useState<string>(cards[0]?.id || '');
   const [creditsToApply] = useState(0);
@@ -213,20 +216,25 @@ export default function PaymentMethodSelection({
     onSelectPayment(PaymentMethod.CREDIT_CARD, selectedCardId);
   };
 
+  // In compact mode, auto-select the default card on mount (once only)
+  const hasAutoSelected = useRef(false);
+  useEffect(() => {
+    if (compact && selectedCardId && !hasAutoSelected.current) {
+      hasAutoSelected.current = true;
+      onSelectPayment(PaymentMethod.CREDIT_CARD, selectedCardId);
+    }
+  }, [compact, selectedCardId, onSelectPayment]);
 
   // Check if we're in the inline booking flow (from confirmation page)
   const isInlineFlow = !onBack;
 
-  return (
-    <div className="p-6">
-      <div className="flex gap-6">
-        {/* Main Column - 60% width to match confirmation page */}
-        <div className="w-[60%] bg-white dark:bg-gray-900 rounded-lg p-6">
+  const content = (
+    <>
           <h3 className="font-extrabold text-2xl mb-4">Select payment method</h3>
 
 
           {/* Payment Cards */}
-          <div className="mb-6 rounded-lg p-4" style={{ backgroundColor: 'rgb(249, 247, 255)' }}>
+          <div className="mb-6 rounded-lg p-4 bg-purple-50/60 dark:bg-purple-950/30">
             <h4 className="font-bold text-xl mb-3">
               {remainingAfterCredits > 0 ? 'Payment Card' : 'Backup Payment Method'}
             </h4>
@@ -246,7 +254,12 @@ export default function PaymentMethodSelection({
                     name="card"
                     value={card.id}
                     checked={selectedCardId === card.id}
-                    onChange={(e) => setSelectedCardId(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedCardId(e.target.value);
+                      if (compact) {
+                        onSelectPayment(PaymentMethod.CREDIT_CARD, e.target.value);
+                      }
+                    }}
                     className="sr-only"
                   />
                   <CreditCard className="mr-3 text-gray-600 dark:text-gray-400" size={24} />
@@ -300,20 +313,36 @@ export default function PaymentMethodSelection({
           </div>
 
 
-          {/* Action Button - Single button for inline flow */}
-          <div className="mt-6">
-            <button
-              onClick={handleContinue}
-              disabled={!selectedCardId}
-              className="w-full py-2.5 px-4 bg-[#7E22CE] text-white hover:bg-purple-800 dark:hover:bg-purple-700 rounded-lg font-medium transition-colors focus:outline-none focus:ring-0 disabled:bg-gray-300 disabled:cursor-not-allowed"
-            >
-              {isInlineFlow ? 'Apply payment method' : 'Continue to Confirmation'}
-            </button>
-          </div>
+          {/* Action Button — hidden in compact mode (card auto-selects, confirm button is below) */}
+          {!compact && (
+            <>
+              <div className="mt-6">
+                <button
+                  onClick={handleContinue}
+                  disabled={!selectedCardId}
+                  className="w-full py-2.5 px-4 bg-[#7E22CE] text-white hover:bg-purple-800 dark:hover:bg-purple-700 rounded-lg font-medium transition-colors focus:outline-none focus:ring-0 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:text-gray-500 dark:disabled:text-gray-400 disabled:cursor-not-allowed"
+                >
+                  {isInlineFlow ? 'Apply payment method' : 'Continue to Confirmation'}
+                </button>
+              </div>
 
-          <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-4">
-            🔒 Secure payment • Maximum transaction limit: $1,000
-          </p>
+              <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-4">
+                🔒 Secure payment • Maximum transaction limit: $1,000
+              </p>
+            </>
+          )}
+    </>
+  );
+
+  if (compact) {
+    return content;
+  }
+
+  return (
+    <div className="p-6">
+      <div className="flex gap-6">
+        <div className="w-[60%] bg-white/90 dark:bg-gray-900/70 border border-gray-200/80 dark:border-gray-700/80 rounded-lg p-6">
+          {content}
         </div>
       </div>
     </div>

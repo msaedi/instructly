@@ -447,12 +447,14 @@ describe('PaymentMethodSelection', () => {
     resolveSetup!({ setupIntent: { payment_method: 'pm_loading' } });
   });
 
-  it('selects empty string for selectedCardId when cards are empty', async () => {
+  it('disables apply button when cards are empty', async () => {
     const { onSelectPayment } = renderComponent({ cards: [] });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Apply payment method' }));
+    const applyButton = screen.getByRole('button', { name: 'Apply payment method' });
+    expect(applyButton).toBeDisabled();
 
-    expect(onSelectPayment).toHaveBeenCalledWith(PaymentMethod.CREDIT_CARD, '');
+    await userEvent.click(applyButton);
+    expect(onSelectPayment).not.toHaveBeenCalled();
   });
 
   it('shows error when confirmSetup returns no payment_method', async () => {
@@ -484,6 +486,58 @@ describe('PaymentMethodSelection', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Failed to initialize payment form.')).toBeInTheDocument();
+    });
+  });
+
+  describe('compact mode', () => {
+    it('auto-selects the default card on mount', async () => {
+      const { onSelectPayment } = renderComponent({ compact: true });
+
+      await waitFor(() => {
+        expect(onSelectPayment).toHaveBeenCalledWith('credit_card', 'card-1');
+      });
+    });
+
+    it('calls onSelectPayment immediately when a different card is clicked', async () => {
+      const { onSelectPayment } = renderComponent({ compact: true });
+
+      await waitFor(() => {
+        expect(onSelectPayment).toHaveBeenCalledWith('credit_card', 'card-1');
+      });
+
+      // Clear the auto-select call from mount
+      onSelectPayment.mockClear();
+
+      // Click the second card label (wrapping the sr-only radio)
+      await userEvent.click(screen.getByText('Mastercard ending in 1111'));
+
+      await waitFor(() => {
+        expect(onSelectPayment).toHaveBeenCalledWith('credit_card', 'card-2');
+      });
+    });
+
+    it('does not render the Apply button or security line', () => {
+      renderComponent({ compact: true });
+
+      expect(screen.queryByRole('button', { name: /Apply payment method|Continue to Confirmation/i })).not.toBeInTheDocument();
+      expect(screen.queryByText(/Maximum transaction limit/)).not.toBeInTheDocument();
+    });
+
+    it('renders without the outer layout wrapper', () => {
+      const { container } = render(
+        <PaymentMethodSelection
+          compact
+          booking={booking}
+          cards={cards}
+          credits={{ totalAmount: 0, credits: [] }}
+          onSelectPayment={jest.fn()}
+        />
+      );
+
+      // Compact mode should NOT have the p-6 outer wrapper
+      expect(container.querySelector('.p-6')).not.toBeInTheDocument();
+      // But should still render the heading
+      expect(screen.getByText('Select payment method')).toBeInTheDocument();
     });
   });
 });

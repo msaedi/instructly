@@ -122,7 +122,7 @@ function CheckoutApplyReferral({ orderId, subtotalCents, promoApplied, onApplied
   };
 
   return (
-    <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm">
+    <section className="rounded-lg p-4 bg-purple-50/60 dark:bg-purple-950/30">
       <div className="flex items-center gap-3">
         <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#7E22CE]/10 text-[#7E22CE]">
           <Gift className="h-5 w-5" aria-hidden="true" />
@@ -138,7 +138,7 @@ function CheckoutApplyReferral({ orderId, subtotalCents, promoApplied, onApplied
       <div className="mt-4 space-y-3">
         {appliedCents !== null ? (
           <div className="space-y-2">
-            <div className="flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:text-emerald-400">
+            <div className="flex items-start gap-2 rounded-lg border border-green-200 dark:border-green-800/50 bg-green-50 dark:bg-green-950/40 px-3 py-2 text-sm text-green-700 dark:text-emerald-400">
               <CheckCircle className="mt-0.5 h-4 w-4" aria-hidden="true" />
               <div>
                 <p className="font-medium">Referral credit applied</p>
@@ -146,7 +146,7 @@ function CheckoutApplyReferral({ orderId, subtotalCents, promoApplied, onApplied
               </div>
             </div>
             {bannerMessage && (
-              <div className="flex items-start gap-2 rounded-lg border border-[#7E22CE]/20 bg-[#7E22CE]/5 px-3 py-2 text-sm text-[#4f1790]">
+              <div className="flex items-start gap-2 rounded-lg border border-[#7E22CE]/20 bg-[#7E22CE]/5 dark:bg-[#7E22CE]/10 px-3 py-2 text-sm text-[#4f1790] dark:text-purple-300">
                 <AlertCircle className="mt-0.5 h-4 w-4" aria-hidden="true" />
                 <p>{bannerMessage}</p>
               </div>
@@ -179,7 +179,7 @@ function CheckoutApplyReferral({ orderId, subtotalCents, promoApplied, onApplied
               )}
             </div>
             {bannerMessage && (
-              <div className="flex items-start gap-2 rounded-lg border border-[#7E22CE]/20 bg-[#7E22CE]/5 px-3 py-2 text-sm text-[#4f1790]">
+              <div className="flex items-start gap-2 rounded-lg border border-[#7E22CE]/20 bg-[#7E22CE]/5 dark:bg-[#7E22CE]/10 px-3 py-2 text-sm text-[#4f1790] dark:text-purple-300">
                 <AlertCircle className="mt-0.5 h-4 w-4" aria-hidden="true" />
                 <p>{bannerMessage}</p>
               </div>

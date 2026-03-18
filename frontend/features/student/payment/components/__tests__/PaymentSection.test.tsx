@@ -120,6 +120,7 @@ jest.mock('../PaymentConfirmation', () => {
     onChangePaymentMethod,
     onCreditsAccordionToggle,
     onClearFloorViolation,
+    paymentMethodSlot,
   }: {
     booking: BookingWithMetadata;
     paymentMethod: PaymentMethod;
@@ -132,10 +133,12 @@ jest.mock('../PaymentConfirmation', () => {
     onChangePaymentMethod?: () => void;
     onCreditsAccordionToggle?: (expanded: boolean) => void;
     onClearFloorViolation?: () => void;
+    paymentMethodSlot?: React.ReactNode;
   }) {
     latestPaymentConfirmationProps = { booking, paymentMethod, creditEarliestExpiry };
     return (
       <div data-testid="payment-confirmation">
+        {paymentMethodSlot}
         <button onClick={onConfirm}>Confirm Payment</button>
         <button onClick={onBack}>Back</button>
         {onCreditToggle && <button onClick={onCreditToggle}>Toggle Credits</button>}
@@ -5270,7 +5273,6 @@ describe('PaymentSection', () => {
 
       await waitFor(() => {
         expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
-        expect(screen.getByText('Select Payment Method')).toBeInTheDocument();
       });
     });
   });

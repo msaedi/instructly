@@ -146,6 +146,9 @@ interface PaymentConfirmationProps {
   onBookingUpdate?: (updater: (prev: BookingWithMetadata) => BookingWithMetadata) => void;
   creditsAccordionExpanded?: boolean;
   onCreditsAccordionToggle?: (expanded: boolean) => void;
+  hidePaymentMethod?: boolean;
+  /** Slot to render payment method UI at the top of the left column (replaces built-in accordion) */
+  paymentMethodSlot?: React.ReactNode;
 }
 
 function PaymentConfirmationInner({
@@ -171,6 +174,8 @@ function PaymentConfirmationInner({
   onBookingUpdate,
   creditsAccordionExpanded,
   onCreditsAccordionToggle,
+  hidePaymentMethod = false,
+  paymentMethodSlot,
 }: PaymentConfirmationProps) {
   const [locationType, setLocationType] = useState<LocationType>('student_location');
   const [lastInPersonLocationType, setLastInPersonLocationType] =
@@ -1704,11 +1709,16 @@ function PaymentConfirmationInner({
     <div className="p-6">
       <div className="flex gap-6">
         {/* Left Column - Confirm Details - 60% width */}
-        <div className="w-[60%] bg-white dark:bg-gray-900 rounded-lg p-6 order-2 md:order-1">
-          <h3 className="font-extrabold text-2xl mb-4">Confirm details</h3>
+        <div className="w-[60%] bg-white/90 dark:bg-gray-900/70 border border-gray-200/80 dark:border-gray-700/80 rounded-lg p-6 order-2 md:order-1">
+          {/* Payment method slot — rendered when embedded externally (inline checkout) */}
+          {paymentMethodSlot && (
+            <div className="mb-6">{paymentMethodSlot}</div>
+          )}
 
-        {/* Payment Method */}
-        <div className="mb-6 rounded-lg p-4" style={{ backgroundColor: 'rgb(249, 247, 255)' }}>
+
+        {/* Payment Method — hidden when managed externally (inline checkout) */}
+        {!hidePaymentMethod && (
+        <div className="mb-6 rounded-lg p-4 bg-purple-50/60 dark:bg-purple-950/30">
           <div
             className="flex items-center justify-between cursor-pointer"
             onClick={() => setIsPaymentExpanded(!isPaymentExpanded)}
@@ -1908,48 +1918,6 @@ function PaymentConfirmationInner({
               </label>
             </div>
 
-            {/* Promo Code Section */}
-            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Promo Code
-              </label>
-              {referralActive ? (
-                <div className="flex items-start gap-2 rounded-lg border border-[#7E22CE]/20 bg-[#7E22CE]/5 px-3 py-2 text-sm text-[#4f1790]">
-                  <AlertCircle className="mt-0.5 h-4 w-4" aria-hidden="true" />
-                  <p>Referral credit applied — promotions can’t be combined.</p>
-                </div>
-              ) : (
-                <>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Enter promo code"
-                      value={promoCode}
-                      onChange={(event) => handlePromoInputChange(event.target.value)}
-                      disabled={promoActive}
-                      className="flex-1 p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors disabled:bg-gray-100"
-                      style={{ outline: 'none' }}
-                    />
-                    <button
-                      type="button"
-                      onClick={handlePromoAction}
-                      className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg text-sm font-medium hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors disabled:cursor-not-allowed disabled:opacity-70"
-                      disabled={promoApplyDisabled}
-                    >
-                      {promoActive ? 'Remove' : 'Apply'}
-                    </button>
-                  </div>
-                  {promoError && (
-                    <p className="mt-2 text-xs text-red-600">{promoError}</p>
-                  )}
-                  {promoActive && (
-                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                      Promo applied. Referral credit is disabled while a promo code is active.
-                    </p>
-                  )}
-                </>
-              )}
-            </div>
             </>
             )}
           </div>
@@ -1968,10 +1936,52 @@ function PaymentConfirmationInner({
             </>
           )}
         </div>
+        )}
+
+        {/* Promo Code Section — always visible */}
+        <div className="mb-6 rounded-lg p-4 bg-purple-50/60 dark:bg-purple-950/30">
+          <h4 className="font-bold text-xl mb-3">Promo Code</h4>
+          {referralActive ? (
+            <div className="flex items-start gap-2 rounded-lg border border-[#7E22CE]/20 bg-[#7E22CE]/5 dark:bg-[#7E22CE]/10 px-3 py-2 text-sm text-[#4f1790] dark:text-purple-300">
+              <AlertCircle className="mt-0.5 h-4 w-4" aria-hidden="true" />
+              <p>Referral credit applied — promotions can&apos;t be combined.</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Enter promo code"
+                  value={promoCode}
+                  onChange={(event) => handlePromoInputChange(event.target.value)}
+                  disabled={promoActive}
+                  className="flex-1 p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm placeholder-gray-400 dark:placeholder-gray-500 focus:border-purple-500 transition-colors disabled:bg-gray-100 dark:disabled:bg-gray-800 bg-white dark:bg-gray-800"
+                  style={{ outline: 'none' }}
+                />
+                <button
+                  type="button"
+                  onClick={handlePromoAction}
+                  className="px-4 py-2.5 bg-[#7E22CE] text-white rounded-lg text-sm font-medium hover:bg-purple-800 dark:hover:bg-purple-700 transition-colors disabled:cursor-not-allowed disabled:opacity-70"
+                  disabled={promoApplyDisabled}
+                >
+                  {promoActive ? 'Remove' : 'Apply'}
+                </button>
+              </div>
+              {promoError && (
+                <p className="mt-2 text-xs text-red-600 dark:text-red-400">{promoError}</p>
+              )}
+              {promoActive && (
+                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  Promo applied. Referral credit is disabled while a promo code is active.
+                </p>
+              )}
+            </>
+          )}
+        </div>
 
         {/* Available Credits Section - with interactive toggle and slider */}
         {availableCredits > 0 && (
-          <div className="mb-6 rounded-lg p-4" style={{ backgroundColor: 'rgb(249, 247, 255)' }}>
+          <div className="mb-6 rounded-lg p-4 bg-purple-50/60 dark:bg-purple-950/30">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <button
                 type="button"
@@ -2069,7 +2079,7 @@ function PaymentConfirmationInner({
         )}
 
         {/* Lesson Location */}
-        <div className="mb-6 rounded-lg p-4" style={{ backgroundColor: 'rgb(249, 247, 255)' }}>
+        <div className="mb-6 rounded-lg p-4 bg-purple-50/60 dark:bg-purple-950/30">
           <div
             className="flex items-center justify-between cursor-pointer"
             onClick={() => setIsLocationExpanded(!isLocationExpanded)}
@@ -2102,13 +2112,13 @@ function PaymentConfirmationInner({
                         aria-pressed={option.selected}
                         className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors ${
                           option.selected
-                            ? 'border-[#7E22CE] bg-purple-50 text-[#7E22CE]'
+                            ? 'border-[#7E22CE] bg-purple-50 dark:bg-purple-950/40 text-[#7E22CE] dark:text-purple-300'
                             : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
                         }`}
                       >
                         <span
                           className={`flex h-9 w-9 items-center justify-center rounded-full ${
-                            option.selected ? 'bg-purple-100 text-[#7E22CE]' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                            option.selected ? 'bg-purple-100 dark:bg-purple-900/50 text-[#7E22CE] dark:text-purple-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
                           }`}
                         >
                           <Icon className="h-4 w-4" aria-hidden="true" />
@@ -2160,7 +2170,7 @@ function PaymentConfirmationInner({
                             htmlFor={optionId}
                             className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
                               isSelected
-                                ? 'border-[#7E22CE] bg-purple-50 text-[#7E22CE]'
+                                ? 'border-[#7E22CE] bg-purple-50 dark:bg-purple-950/40 text-[#7E22CE] dark:text-purple-300'
                                 : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
                             }`}
                           >
@@ -2211,7 +2221,7 @@ function PaymentConfirmationInner({
                               htmlFor={optionId}
                               className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
                                 isSelected
-                                  ? 'border-[#7E22CE] bg-purple-50 text-[#7E22CE]'
+                                  ? 'border-[#7E22CE] bg-purple-50 dark:bg-purple-950/40 text-[#7E22CE] dark:text-purple-300'
                                   : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
                               }`}
                             >
@@ -2383,10 +2393,10 @@ function PaymentConfirmationInner({
         </div>
 
         {activeFloorMessage && (
-          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+          <div className="mt-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/50 rounded-lg">
             <div className="flex items-start gap-2">
-              <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
-              <div className="text-sm text-red-700">
+              <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-red-700 dark:text-red-300">
                 <p>{activeFloorMessage}</p>
                 <p className="mt-1">Adjust the lesson duration or choose a different modality to continue.</p>
               </div>
@@ -2396,10 +2406,10 @@ function PaymentConfirmationInner({
 
         {/* Conflict Warning */}
         {hasConflict && !isCheckingConflict && (
-          <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 rounded-lg">
             <div className="flex items-start gap-2">
-              <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
-              <div className="text-sm text-amber-800">
+              <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-amber-800 dark:text-amber-300">
                 <p className="font-medium">Scheduling Conflict</p>
                 <p>{conflictMessage}</p>
                 <p className="mt-1">Please select a different time slot to continue.</p>
@@ -2430,7 +2440,7 @@ function PaymentConfirmationInner({
       </div>
 
       {/* Right Column - Booking Details - 40% width */}
-      <div className="w-[40%] bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700 order-1 md:order-2">
+      <div className="w-[40%] bg-white/90 dark:bg-gray-800/70 rounded-lg p-6 border border-gray-200/80 dark:border-gray-700/80 order-1 md:order-2">
         <h3 className="font-bold text-xl mb-4">Booking Your Lesson with</h3>
         <div className="space-y-4">
           <div className="flex items-start">
@@ -2592,14 +2602,14 @@ function PaymentConfirmationInner({
                   </span>
                 </div>
                 {showFeesPlaceholder && (
-                  <p className="text-xs text-red-600 mt-1">{pricingPreviewError}</p>
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-1">{pricingPreviewError}</p>
                 )}
               </div>
             </div>
           </div>
 
           {/* Cancellation Policy */}
-          <div className="rounded-lg p-3 text-sm" style={{ backgroundColor: 'rgb(249, 247, 255)' }}>
+          <div className="rounded-lg p-3 text-sm bg-purple-50/60 dark:bg-purple-950/30">
             <h4 className="font-medium mb-2 flex items-center">
               <AlertCircle size={16} className="mr-1" />
               Cancellation Policy

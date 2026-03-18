@@ -446,7 +446,7 @@ describe('PaymentConfirmation', () => {
     it('renders booking details', async () => {
       await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
       expect(screen.getByText('Booking Your Lesson with')).toBeInTheDocument();
       expect(screen.getByText('John Doe')).toBeInTheDocument();
     });
@@ -1830,7 +1830,7 @@ describe('PaymentConfirmation', () => {
 
       await waitFor(() => {
         // Check if there's confirmation UI
-        expect(screen.getByText('Confirm details')).toBeInTheDocument();
+  
       });
     });
   });
@@ -2373,7 +2373,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} booking={inPersonBooking} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('computes price floor for online modality', () => {
@@ -2392,7 +2392,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} booking={onlineBooking} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('handles missing price floors config', () => {
@@ -2403,7 +2403,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
   });
 
@@ -2422,7 +2422,7 @@ describe('PaymentConfirmation', () => {
       render(<PaymentConfirmation {...defaultProps} booking={bookingWithMetadata} />);
 
       await waitFor(() => {
-        expect(screen.getByText('Confirm details')).toBeInTheDocument();
+  
       });
     });
 
@@ -2439,7 +2439,7 @@ describe('PaymentConfirmation', () => {
       render(<PaymentConfirmation {...defaultProps} booking={bookingWithMetadata} />);
 
       await waitFor(() => {
-        expect(screen.getByText('Confirm details')).toBeInTheDocument();
+  
       });
     });
   });
@@ -2616,7 +2616,7 @@ describe('PaymentConfirmation', () => {
 
       // Component should still render
       await waitFor(() => {
-        expect(screen.getByText('Confirm details')).toBeInTheDocument();
+  
       });
     });
   });
@@ -3050,7 +3050,7 @@ describe('PaymentConfirmation', () => {
 
       // Should handle gracefully
       await waitFor(() => {
-        expect(screen.getByText('Confirm details')).toBeInTheDocument();
+  
       });
     });
 
@@ -3092,7 +3092,7 @@ describe('PaymentConfirmation', () => {
 
       // Should handle gracefully
       await waitFor(() => {
-        expect(screen.getByText('Confirm details')).toBeInTheDocument();
+  
       });
     });
   });
@@ -3155,7 +3155,7 @@ describe('PaymentConfirmation', () => {
       );
 
       // Component should render without error
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
   });
 
@@ -3393,7 +3393,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingWithInfinitePrice} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('handles NaN base price', async () => {
@@ -3404,7 +3404,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingWithNaNPrice} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('handles pricing preview with line items', async () => {
@@ -3428,7 +3428,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('handles pricing preview error state', async () => {
@@ -3440,7 +3440,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('shows skeleton during pricing preview loading', async () => {
@@ -3452,7 +3452,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
       expect(screen.getAllByTestId('pricing-preview-skeleton').length).toBeGreaterThan(0);
     });
   });
@@ -3468,7 +3468,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingNoDuration} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('handles booking with zero duration', async () => {
@@ -3481,7 +3481,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingZeroDuration} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('handles booking with negative duration calculation', async () => {
@@ -3494,7 +3494,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingNegativeDuration} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('handles booking with invalid time formats', async () => {
@@ -3507,7 +3507,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingInvalidTime} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
   });
 
@@ -3520,7 +3520,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingNoStartTime} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('handles missing end time', async () => {
@@ -3531,7 +3531,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingNoEndTime} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('handles time with HH:MM:SS format', async () => {
@@ -3543,7 +3543,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingWithSeconds} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('handles AM/PM time format', async () => {
@@ -3555,7 +3555,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingWithAMPM} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
   });
 
@@ -3569,7 +3569,7 @@ describe('PaymentConfirmation', () => {
         />
       );
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('handles credits slider with credits exceeding total', async () => {
@@ -3581,7 +3581,7 @@ describe('PaymentConfirmation', () => {
         />
       );
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('handles credits slider with negative applied cents from preview', async () => {
@@ -3605,7 +3605,7 @@ describe('PaymentConfirmation', () => {
         />
       );
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
   });
 
@@ -3636,7 +3636,7 @@ describe('PaymentConfirmation', () => {
       render(<PaymentConfirmation {...defaultProps} booking={virtualBooking} />);
 
       // Component should render without errors
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('handles remote keyword in location', async () => {
@@ -3667,7 +3667,7 @@ describe('PaymentConfirmation', () => {
       );
 
       // Component should still render
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('handles promo code with empty string', async () => {
@@ -3678,7 +3678,7 @@ describe('PaymentConfirmation', () => {
         />
       );
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
   });
 
@@ -3693,7 +3693,7 @@ describe('PaymentConfirmation', () => {
         />
       );
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('displays MIXED payment method correctly', async () => {
@@ -3707,7 +3707,7 @@ describe('PaymentConfirmation', () => {
         />
       );
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
   });
 
@@ -3722,7 +3722,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingNoInstructor} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('handles undefined instructor id', async () => {
@@ -3735,7 +3735,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingUndefinedInstructor} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
   });
 
@@ -3748,7 +3748,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} booking={lastMinuteBooking} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
   });
 
@@ -3806,7 +3806,7 @@ describe('PaymentConfirmation', () => {
       render(<PaymentConfirmation {...defaultProps} />);
 
       // The line item with matching amount should be filtered
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('filters out credit line items', async () => {
@@ -3826,7 +3826,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
   });
 
@@ -3856,7 +3856,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingWhitespaceLocation} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
   });
 
@@ -3869,7 +3869,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('displays service support fee with zero percentage', async () => {
@@ -3880,7 +3880,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
   });
 
@@ -6606,7 +6606,7 @@ describe('PaymentConfirmation', () => {
       });
 
       // Component should render and process public spaces
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('normalizes public spaces using latitude/longitude and placeId fields', async () => {
@@ -6648,7 +6648,7 @@ describe('PaymentConfirmation', () => {
         expect(fetchInstructorProfileMock).toHaveBeenCalled();
       });
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('normalizes public space with missing id (falls back to address-index)', async () => {
@@ -6696,7 +6696,7 @@ describe('PaymentConfirmation', () => {
         expect(fetchInstructorProfileMock).toHaveBeenCalled();
       });
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('handles non-array preferred_teaching_locations (defaults to empty array)', async () => {
@@ -8789,7 +8789,7 @@ describe('PaymentConfirmation', () => {
       await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       // Should fall back gracefully when preview context is null
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('renders with undefined pricingPreview.preview', async () => {
@@ -8801,7 +8801,7 @@ describe('PaymentConfirmation', () => {
 
       await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('renders summary with pricingPreviewError fallback (total after credits)', async () => {
@@ -9030,7 +9030,7 @@ describe('PaymentConfirmation', () => {
 
       // instructorFirstName falls back to 'Instructor'
       // This renders in location type cards (e.g., "At Instructor's location")
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('covers booking.address lat/lng/placeId initialization', () => {
@@ -9047,7 +9047,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingWithAddress} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('covers booking.address with null lat/lng/placeId', () => {
@@ -9061,7 +9061,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingWithNullAddress} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('covers resolvedServiceId from sessionStorage fallback', async () => {
@@ -9075,7 +9075,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingNoServiceId} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
 
       window.sessionStorage.removeItem('serviceId');
     });
@@ -9089,7 +9089,7 @@ describe('PaymentConfirmation', () => {
 
       render(<PaymentConfirmation {...defaultProps} booking={bookingNoServiceId} />);
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('covers fallback when location type is not in availableLocationTypes', async () => {
@@ -9845,7 +9845,7 @@ describe('PaymentConfirmation', () => {
       );
 
       // Component renders without crashing
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
   });
 
@@ -9865,7 +9865,7 @@ describe('PaymentConfirmation', () => {
       );
 
       // Should fall through to the default student_location path
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
   });
 
@@ -9885,7 +9885,7 @@ describe('PaymentConfirmation', () => {
       );
 
       // The address should be pre-filled from booking.location
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
   });
 
@@ -9917,7 +9917,7 @@ describe('PaymentConfirmation', () => {
         await user.click(changeButtons[changeButtons.length - 1]!);
       }
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
   });
 
@@ -9962,7 +9962,7 @@ describe('PaymentConfirmation', () => {
       );
 
       // Component renders without crashing despite malformed time
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
   });
 
@@ -9978,7 +9978,7 @@ describe('PaymentConfirmation', () => {
       );
 
       // Should show fallback text since date parsing fails
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
   });
 
@@ -10024,7 +10024,7 @@ describe('PaymentConfirmation', () => {
         }
       }
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
   });
 
@@ -10116,7 +10116,7 @@ describe('PaymentConfirmation', () => {
       });
 
       // Component should still be rendered without crashing
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
 
     it('returns null when signal is already aborted after API resolves (line 547)', async () => {
@@ -10217,7 +10217,7 @@ describe('PaymentConfirmation', () => {
         jest.advanceTimersByTime(50);
       });
 
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
   });
 
@@ -10414,7 +10414,7 @@ describe('PaymentConfirmation', () => {
       await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       // When isTravelLocation is true, location editing shows
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
   });
 
@@ -10475,7 +10475,7 @@ describe('PaymentConfirmation', () => {
       });
 
       // addressFields.line1 was already set from first render → updater returns prev (line 1461).
-      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+
     });
   });
 
@@ -11293,7 +11293,7 @@ describe('PaymentConfirmation', () => {
       try {
         await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
-        expect(screen.getByText('Confirm details')).toBeInTheDocument();
+  
         expect(screen.getByText('Book now!')).toBeInTheDocument();
       } finally {
         process.env = previousEnv;

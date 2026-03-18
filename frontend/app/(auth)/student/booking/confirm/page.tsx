@@ -339,8 +339,8 @@ export default function BookingConfirmationPage() {
                 Confirmation #{confirmationNumber}
               </p>
 
-              <div className="rounded-lg p-4 mb-8" style={{ backgroundColor: 'rgb(249, 247, 255)' }}>
-                <p className="text-sm text-purple-800">
+              <div className="rounded-lg p-4 mb-8 bg-purple-50/60 dark:bg-purple-950/30">
+                <p className="text-sm text-purple-800 dark:text-purple-300">
                   Check your email for booking details and instructor contact information.
                 </p>
               </div>

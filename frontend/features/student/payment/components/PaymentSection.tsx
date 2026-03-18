@@ -1474,64 +1474,54 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   return (
     <PricingPreviewContext.Provider value={previewController}>
       <div className="w-full">
-      {/* Show both payment selection and confirmation on same page when inline mode */}
+      {/* Inline checkout: payment method + confirmation in one cohesive layout */}
       {showPaymentMethodInline && (currentStep === PaymentStep.METHOD_SELECTION || currentStep === PaymentStep.CONFIRMATION) ? (
-        <div className="space-y-6">
-          {/* Payment Method Selection at the top */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Select Payment Method</h2>
-            <PaymentMethodSelection
-              booking={updatedBookingData}
-              cards={userCards}
-              credits={userCredits}
-              onSelectPayment={(method, cardId, credits) => {
-                selectPaymentMethod(method, cardId, credits);
-                // Automatically move to confirmation view when a payment method is selected
-                if (currentStep === PaymentStep.METHOD_SELECTION) {
-                  goToStep(PaymentStep.CONFIRMATION);
-                }
-              }}
-              {...(onBack && { onBack })}
-              onCardAdded={(newCard) => {
-                // Add the new card to the list
-                setUserCards([...userCards, newCard]);
-              logDevInfo('New card added to list', { cardId: newCard.id });
-              }}
-            />
-          </div>
-
-          <div>
-            {referralApplyPanel}
-          </div>
-
-          {/* Show confirmation details below if payment method is selected */}
-          {currentStep === PaymentStep.CONFIRMATION && (
-            <PaymentConfirmation
-              booking={updatedBookingData}
-              paymentMethod={paymentMethod!}
-              {...(selectedCard?.last4 && { cardLast4: selectedCard.last4 })}
-              {...(selectedCard?.brand && { cardBrand: selectedCard.brand })}
-              {...(selectedCard?.isDefault !== undefined && { isDefaultCard: selectedCard.isDefault })}
-              creditsUsed={creditSliderCents / 100}
-              availableCredits={userCredits.totalAmount}
-              {...(userCredits.earliestExpiry && { creditEarliestExpiry: userCredits.earliestExpiry })}
-              promoApplied={promoApplied}
-              onPromoStatusChange={setPromoApplied}
-              referralAppliedCents={referralAppliedCents}
-              referralActive={referralAppliedCents > 0}
-              floorViolationMessage={floorViolationMessage}
-              onClearFloorViolation={handleClearFloorViolation}
-              onConfirm={processPayment}
-              onBack={handleBackToMethodSelection}
-              onChangePaymentMethod={handleChangePaymentMethodInline}
-              onCreditToggle={handleCreditToggle}
-              onCreditAmountChange={handleCreditAmountChange}
-              onBookingUpdate={handleBookingUpdate}
-              creditsAccordionExpanded={isCreditsExpanded}
-              onCreditsAccordionToggle={handleCreditsAccordionToggleFromChild}
-            />
-          )}
-        </div>
+        <PaymentConfirmation
+          booking={updatedBookingData}
+          paymentMethod={paymentMethod!}
+          {...(selectedCard?.last4 && { cardLast4: selectedCard.last4 })}
+          {...(selectedCard?.brand && { cardBrand: selectedCard.brand })}
+          {...(selectedCard?.isDefault !== undefined && { isDefaultCard: selectedCard.isDefault })}
+          creditsUsed={creditSliderCents / 100}
+          availableCredits={userCredits.totalAmount}
+          {...(userCredits.earliestExpiry && { creditEarliestExpiry: userCredits.earliestExpiry })}
+          promoApplied={promoApplied}
+          onPromoStatusChange={setPromoApplied}
+          referralAppliedCents={referralAppliedCents}
+          referralActive={referralAppliedCents > 0}
+          floorViolationMessage={floorViolationMessage}
+          onClearFloorViolation={handleClearFloorViolation}
+          onConfirm={processPayment}
+          onBack={handleBackToMethodSelection}
+          onChangePaymentMethod={handleChangePaymentMethodInline}
+          onCreditToggle={handleCreditToggle}
+          onCreditAmountChange={handleCreditAmountChange}
+          onBookingUpdate={handleBookingUpdate}
+          creditsAccordionExpanded={isCreditsExpanded}
+          onCreditsAccordionToggle={handleCreditsAccordionToggleFromChild}
+          hidePaymentMethod
+          paymentMethodSlot={
+            <>
+              <PaymentMethodSelection
+                compact
+                booking={updatedBookingData}
+                cards={userCards}
+                credits={userCredits}
+                onSelectPayment={(method, cardId, credits) => {
+                  selectPaymentMethod(method, cardId, credits);
+                  if (currentStep === PaymentStep.METHOD_SELECTION) {
+                    goToStep(PaymentStep.CONFIRMATION);
+                  }
+                }}
+                onCardAdded={(newCard) => {
+                  setUserCards([...userCards, newCard]);
+                  logDevInfo('New card added to list', { cardId: newCard.id });
+                }}
+              />
+              <div className="mt-6">{referralApplyPanel}</div>
+            </>
+          }
+        />
       ) : (
         <>
           {/* Original step-by-step flow for non-inline mode */}
