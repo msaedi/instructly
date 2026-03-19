@@ -421,3 +421,144 @@ class TestPricingService:
             result = PricingService._default_instructor_tier_pct({})
 
             assert result == Decimal("0")
+
+    class TestCommissionStatus:
+        def test_get_instructor_commission_status_raises_when_profile_missing(
+            self, pricing_service, instructor_profile_repo
+        ):
+            instructor_profile_repo.get_by_user_id.return_value = None
+
+            with pytest.raises(NotFoundException) as exc:
+                pricing_service.get_instructor_commission_status(
+                    instructor_user_id="instructor_1"
+                )
+
+            assert exc.value.code == "INSTRUCTOR_PROFILE_NOT_FOUND"
+
+        def test_get_instructor_commission_status_returns_founding_status(
+            self, pricing_service, instructor_profile_repo, booking_repo
+        ):
+            instructor_profile_repo.get_by_user_id.return_value = SimpleNamespace(
+                is_founding_instructor=True,
+                current_tier_pct=8,
+            )
+            booking_repo.count_instructor_completed_last_30d.return_value = 3
+
+            result = pricing_service.get_instructor_commission_status(
+                instructor_user_id="instructor_1"
+            )
+
+            assert result.is_founding is True
+            assert result.tier_name == "founding"
+            assert result.commission_rate_pct == pytest.approx(8.0)
+            assert result.completed_lessons_30d == 3
+            assert result.next_tier_name is None
+            assert result.next_tier_threshold is None
+            assert result.lessons_to_next_tier is None
+            assert len(result.tiers) == 3
+            assert all(tier.is_current is False for tier in result.tiers)
+
+        def test_get_instructor_commission_status_returns_entry_progress(
+            self, pricing_service, instructor_profile_repo, booking_repo
+        ):
+            instructor_profile_repo.get_by_user_id.return_value = SimpleNamespace(
+                is_founding_instructor=False,
+                current_tier_pct=15,
+            )
+            booking_repo.count_instructor_completed_last_30d.return_value = 3
+
+            result = pricing_service.get_instructor_commission_status(
+                instructor_user_id="instructor_1"
+            )
+
+            assert result.tier_name == "entry"
+            assert result.commission_rate_pct == pytest.approx(15.0)
+            assert result.next_tier_name == "growth"
+            assert result.next_tier_threshold == 5
+            assert result.lessons_to_next_tier == 2
+            assert [tier.name for tier in result.tiers] == ["entry", "growth", "pro"]
+            assert result.tiers[0].is_current is True
+            assert result.tiers[0].is_unlocked is True
+            assert result.tiers[1].is_current is False
+            assert result.tiers[1].is_unlocked is False
+
+        def test_get_instructor_commission_status_returns_growth_progress(
+            self, pricing_service, instructor_profile_repo, booking_repo
+        ):
+            instructor_profile_repo.get_by_user_id.return_value = SimpleNamespace(
+                is_founding_instructor=False,
+                current_tier_pct=12,
+            )
+            booking_repo.count_instructor_completed_last_30d.return_value = 7
+
+            result = pricing_service.get_instructor_commission_status(
+                instructor_user_id="instructor_1"
+            )
+
+            assert result.tier_name == "growth"
+            assert result.commission_rate_pct == pytest.approx(12.0)
+            assert result.next_tier_name == "pro"
+            assert result.next_tier_threshold == 11
+            assert result.lessons_to_next_tier == 4
+            assert result.tiers[0].is_unlocked is True
+            assert result.tiers[1].is_current is True
+            assert result.tiers[1].is_unlocked is True
+            assert result.tiers[2].is_unlocked is False
+
+        def test_get_instructor_commission_status_returns_pro_without_next_tier(
+            self, pricing_service, instructor_profile_repo, booking_repo
+        ):
+            instructor_profile_repo.get_by_user_id.return_value = SimpleNamespace(
+                is_founding_instructor=False,
+                current_tier_pct=10,
+            )
+            booking_repo.count_instructor_completed_last_30d.return_value = 12
+
+            result = pricing_service.get_instructor_commission_status(
+                instructor_user_id="instructor_1"
+            )
+
+            assert result.tier_name == "pro"
+            assert result.commission_rate_pct == pytest.approx(10.0)
+            assert result.next_tier_name is None
+            assert result.next_tier_threshold is None
+            assert result.lessons_to_next_tier is None
+            assert result.tiers[1].is_unlocked is True
+            assert result.tiers[2].is_current is True
+            assert result.tiers[2].is_unlocked is True
+
+        def test_get_instructor_commission_status_marks_lower_tiers_unlocked_from_persisted_pro(
+            self, pricing_service, instructor_profile_repo, booking_repo
+        ):
+            instructor_profile_repo.get_by_user_id.return_value = SimpleNamespace(
+                is_founding_instructor=False,
+                current_tier_pct=10,
+            )
+            booking_repo.count_instructor_completed_last_30d.return_value = 3
+
+            result = pricing_service.get_instructor_commission_status(
+                instructor_user_id="instructor_1"
+            )
+
+            assert result.tier_name == "pro"
+            assert result.completed_lessons_30d == 3
+            assert result.tiers[0].is_unlocked is True
+            assert result.tiers[1].is_unlocked is True
+            assert result.tiers[2].is_current is True
+            assert result.tiers[2].is_unlocked is True
+
+        def test_get_instructor_commission_status_falls_back_to_entry_on_bad_pct(
+            self, pricing_service, instructor_profile_repo, booking_repo
+        ):
+            instructor_profile_repo.get_by_user_id.return_value = SimpleNamespace(
+                is_founding_instructor=False,
+                current_tier_pct="bad",
+            )
+            booking_repo.count_instructor_completed_last_30d.return_value = 0
+
+            result = pricing_service.get_instructor_commission_status(
+                instructor_user_id="instructor_1"
+            )
+
+            assert result.tier_name == "entry"
+            assert result.commission_rate_pct == pytest.approx(15.0)

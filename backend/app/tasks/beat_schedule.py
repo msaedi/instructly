@@ -212,6 +212,15 @@ CELERYBEAT_SCHEDULE = {
         },
         # Note: Calls StripeService.set_payout_schedule_for_account for any mismatches
     },
+    "evaluate-instructor-tiers": {
+        "task": "app.tasks.payment_tasks.evaluate_instructor_tiers",
+        "schedule": crontab(minute=0, hour=3),  # 3 AM UTC nightly
+        "options": {
+            "queue": "payments",
+            "priority": 5,
+        },
+        # Note: Refreshes persisted commission tiers and inactivity resets
+    },
     # Generate search insights - runs daily at 4 AM
     "generate-search-insights": {
         "task": "app.tasks.search_analytics.generate_search_insights",

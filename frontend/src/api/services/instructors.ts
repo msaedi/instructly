@@ -10,6 +10,8 @@
 import { queryKeys } from '@/src/api/queryKeys';
 import {
   useListInstructorsApiV1InstructorsGet,
+  getMyCommissionStatusApiV1InstructorsMeCommissionStatusGet,
+  useGetMyCommissionStatusApiV1InstructorsMeCommissionStatusGet,
   useGetMyProfileApiV1InstructorsMeGet,
   useGetInstructorApiV1InstructorsInstructorIdGet,
   useGetCoverageApiV1InstructorsInstructorIdCoverageGet,
@@ -19,10 +21,12 @@ import {
   useGoLiveApiV1InstructorsMeGoLivePost,
 } from '@/src/api/generated/instructors-v1/instructors-v1';
 import type {
+  CommissionStatusResponse,
   ListInstructorsApiV1InstructorsGetParams,
   InstructorProfileResponse,
   InstructorProfileCreate,
   InstructorProfileUpdate,
+  TierInfo,
 } from '@/src/api/generated/instructly.schemas';
 
 /**
@@ -74,6 +78,19 @@ export function useInstructorMe() {
     query: {
       queryKey: queryKeys.instructors.me,
       staleTime: 1000 * 60 * 15, // 15 minutes
+    },
+  });
+}
+
+/**
+ * Get current instructor commission status (/instructors/me/commission-status).
+ */
+export function useInstructorCommissionStatus(options?: { enabled?: boolean }) {
+  return useGetMyCommissionStatusApiV1InstructorsMeCommissionStatusGet({
+    query: {
+      queryKey: queryKeys.instructors.commissionStatus,
+      staleTime: 1000 * 60 * 5,
+      ...(typeof options?.enabled === 'boolean' ? { enabled: options.enabled } : {}),
     },
   });
 }
@@ -227,6 +244,13 @@ export function useGoLiveInstructor() {
 export { getInstructorApiV1InstructorsInstructorIdGet as fetchInstructorProfile } from '@/src/api/generated/instructors-v1/instructors-v1';
 
 /**
+ * Fetch current instructor commission status imperatively.
+ */
+export {
+  getMyCommissionStatusApiV1InstructorsMeCommissionStatusGet as fetchInstructorCommissionStatus,
+};
+
+/**
  * Fetch instructor list imperatively.
  *
  * @example
@@ -240,8 +264,10 @@ export { listInstructorsApiV1InstructorsGet as fetchInstructorsList } from '@/sr
  * Type exports for convenience
  */
 export type {
+  CommissionStatusResponse,
   InstructorProfileResponse,
   InstructorProfileCreate,
   InstructorProfileUpdate,
   ListInstructorsApiV1InstructorsGetParams as InstructorListParams,
+  TierInfo,
 };

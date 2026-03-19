@@ -317,6 +317,7 @@ class TestRoutingInvariants:
         expected_instructor_endpoints = [
             "/api/v1/instructors",  # GET list, POST create (though POST is /me)
             "/api/v1/instructors/me",  # GET, POST, PUT, DELETE
+            "/api/v1/instructors/me/commission-status",  # GET
             "/api/v1/instructors/me/go-live",  # POST
             "/api/v1/instructors/{instructor_id}",  # GET
             "/api/v1/instructors/{instructor_id}/coverage",  # GET

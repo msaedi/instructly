@@ -170,6 +170,32 @@ class TestAuditAndFixPayoutSchedules:
         assert "checked" in result or "fixed" in result
 
 
+class TestEvaluateInstructorTiers:
+    """Test nightly instructor tier evaluation task."""
+
+    def test_evaluate_instructor_tiers_returns_service_results(self) -> None:
+        """The Celery task should delegate to PricingService and return its summary."""
+        from app.tasks.payment_tasks import evaluate_instructor_tiers
+
+        expected = {
+            "evaluated": 8,
+            "updated": 2,
+            "failed": 0,
+            "processed_at": "2030-01-01T03:00:00+00:00",
+        }
+
+        with patch("app.database.SessionLocal") as mock_session:
+            mock_db = MagicMock()
+            mock_session.return_value = mock_db
+
+            with patch("app.tasks.payment_tasks.PricingService") as pricing_cls:
+                pricing_cls.return_value.evaluate_active_instructor_tiers.return_value = expected
+
+                result = evaluate_instructor_tiers()
+
+        assert result == expected
+
+
 class TestRetryHeuristics:
     """Test retry window helper functions."""
 

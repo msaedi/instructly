@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict
 
 from sqlalchemy.orm import Session
 
@@ -20,6 +20,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.factory import RepositoryFactory
+from app.schemas.instructor import CommissionStatusResponse, TierInfo
 from app.schemas.pricing_preview import (
     LineItemData,
     PricingPreviewData,
@@ -42,6 +43,16 @@ class PricingInputs:
     booking: Booking
     instructor_profile: Optional[InstructorProfile]
     pricing_config: Dict[str, Any]
+
+
+class TierDefinition(TypedDict):
+    """Normalized instructor commission tier metadata for display logic."""
+
+    name: str
+    display_name: str
+    commission_rate: Decimal
+    min_lessons: int
+    max_lessons: int | None
 
 
 class PricingService(BaseService):
@@ -183,6 +194,94 @@ class PricingService(BaseService):
         return self._compute_pricing_from_inputs(
             inputs=inputs,
             applied_credit_cents=payload.applied_credit_cents,
+        )
+
+    @BaseService.measure_operation("pricing.get_instructor_commission_status")
+    def get_instructor_commission_status(
+        self, *, instructor_user_id: str
+    ) -> CommissionStatusResponse:
+        """Return the persisted instructor commission tier and progress display data."""
+
+        instructor_profile = self._instructor_profile_repository.get_by_user_id(instructor_user_id)
+        if instructor_profile is None:
+            raise NotFoundException(
+                "Instructor profile not found",
+                code="INSTRUCTOR_PROFILE_NOT_FOUND",
+                details={"instructor_user_id": instructor_user_id},
+            )
+
+        pricing_config, _ = self.config_service.get_pricing_config()
+        tier_defs = self._commission_tier_definitions(pricing_config)
+        completed_lessons_30d = self.booking_repository.count_instructor_completed_last_30d(
+            instructor_user_id
+        )
+
+        is_founding = bool(getattr(instructor_profile, "is_founding_instructor", False))
+        founding_rate = self._commission_rate_decimal(
+            pricing_config.get(
+                "founding_instructor_rate_pct",
+                DEFAULT_PRICING_CONFIG.get(
+                    "founding_instructor_rate_pct",
+                    PRICING_DEFAULTS.get("founding_instructor_rate_pct", 0),
+                ),
+            ),
+            fallback=Decimal(
+                str(
+                    DEFAULT_PRICING_CONFIG.get(
+                        "founding_instructor_rate_pct",
+                        PRICING_DEFAULTS.get("founding_instructor_rate_pct", 0),
+                    )
+                )
+            ),
+        )
+
+        if is_founding:
+            tier_name = "founding"
+            commission_rate = founding_rate
+        else:
+            tier_name = self._resolve_persisted_tier_name(instructor_profile, tier_defs)
+            commission_rate = self._tier_rate_for_name(tier_name, tier_defs)
+
+        next_tier_name: str | None = None
+        next_tier_threshold: int | None = None
+        lessons_to_next_tier: int | None = None
+        current_index = -1
+        if not is_founding:
+            current_index = next(
+                (idx for idx, tier in enumerate(tier_defs) if tier["name"] == tier_name),
+                0,
+            )
+            if current_index < len(tier_defs) - 1:
+                next_tier = tier_defs[current_index + 1]
+                next_tier_name = str(next_tier["name"])
+                next_tier_threshold = int(next_tier["min_lessons"])
+                lessons_to_next_tier = max(0, next_tier_threshold - completed_lessons_30d)
+
+        tiers = [
+            TierInfo(
+                name=str(tier["name"]),
+                display_name=str(tier["display_name"]),
+                commission_pct=self._commission_rate_pct_float(tier["commission_rate"]),
+                min_lessons=int(tier["min_lessons"]),
+                max_lessons=(int(tier["max_lessons"]) if tier["max_lessons"] is not None else None),
+                is_current=(not is_founding and tier_name == tier["name"]),
+                is_unlocked=bool(
+                    not is_founding
+                    and (idx <= current_index or completed_lessons_30d >= int(tier["min_lessons"]))
+                ),
+            )
+            for idx, tier in enumerate(tier_defs)
+        ]
+
+        return CommissionStatusResponse(
+            is_founding=is_founding,
+            tier_name=tier_name,
+            commission_rate_pct=self._commission_rate_pct_float(commission_rate),
+            completed_lessons_30d=completed_lessons_30d,
+            next_tier_name=next_tier_name,
+            next_tier_threshold=next_tier_threshold,
+            lessons_to_next_tier=lessons_to_next_tier,
+            tiers=tiers,
         )
 
     def _compute_pricing_from_inputs(
@@ -386,6 +485,24 @@ class PricingService(BaseService):
         instructor_profile: Optional[InstructorProfile],
         pricing_config: Dict[str, Any],
     ) -> Decimal:
+        projected_increment = (
+            1 if booking.status in {BookingStatus.CONFIRMED, BookingStatus.PENDING} else 0
+        )
+        return self._resolve_instructor_tier_pct_for_instructor(
+            instructor_user_id=booking.instructor_id,
+            instructor_profile=instructor_profile,
+            pricing_config=pricing_config,
+            projected_increment=projected_increment,
+        )
+
+    def _resolve_instructor_tier_pct_for_instructor(
+        self,
+        *,
+        instructor_user_id: str,
+        instructor_profile: Optional[InstructorProfile],
+        pricing_config: Dict[str, Any],
+        projected_increment: int = 0,
+    ) -> Decimal:
         # NOTE: Founding instructors are immune to tier changes; always use founding rate.
         if instructor_profile and getattr(instructor_profile, "is_founding_instructor", False):
             fallback_rate = DEFAULT_PRICING_CONFIG.get(
@@ -414,23 +531,23 @@ class PricingService(BaseService):
         fallback_pct = max(tier_pcts)
         current_pct = fallback_pct
         if instructor_profile and instructor_profile.current_tier_pct is not None:
-            current_pct = (
-                Decimal(str(instructor_profile.current_tier_pct)) / Decimal(100)
-            ).quantize(Decimal("0.0001"))
+            current_pct = self._normalize_stored_tier_rate(
+                instructor_profile.current_tier_pct,
+                fallback=fallback_pct,
+            )
 
         inactivity_days = int(pricing_config.get("tier_inactivity_reset_days", 90))
         now = datetime.now(timezone.utc)
         last_completed = self.booking_repository.get_instructor_last_completed_at(
-            booking.instructor_id
+            instructor_user_id
         )
         if not last_completed or last_completed < now - timedelta(days=inactivity_days):
             return fallback_pct.quantize(Decimal("0.0001"))
 
         completed_count = self.booking_repository.count_instructor_completed_last_30d(
-            booking.instructor_id
+            instructor_user_id
         )
-        increment = 1 if booking.status in {BookingStatus.CONFIRMED, BookingStatus.PENDING} else 0
-        projected_count = max(0, completed_count + increment)
+        projected_count = max(0, completed_count + max(projected_increment, 0))
 
         required_pct = fallback_pct
         for tier in tiers:
@@ -468,6 +585,124 @@ class PricingService(BaseService):
         new_index = min(current_index + stepdown, required_index, len(ordered) - 1)
         return ordered[new_index].quantize(Decimal("0.0001"))
 
+    @staticmethod
+    def _normalize_stored_tier_rate(value: Any, *, fallback: Decimal) -> Decimal:
+        try:
+            rate = Decimal(str(value))
+            if rate > 1:
+                rate = rate / Decimal("100")
+            return rate.quantize(Decimal("0.0001"))
+        except (InvalidOperation, TypeError, ValueError):
+            return fallback.quantize(Decimal("0.0001"))
+
+    def _should_persist_tier_change(
+        self,
+        *,
+        instructor_profile: InstructorProfile,
+        resolved_rate: Decimal,
+        pricing_config: Dict[str, Any],
+    ) -> bool:
+        fallback_rate = self._default_instructor_tier_pct(pricing_config)
+        current_rate = self._normalize_stored_tier_rate(
+            getattr(instructor_profile, "current_tier_pct", None),
+            fallback=fallback_rate,
+        )
+        return current_rate != resolved_rate.quantize(Decimal("0.0001"))
+
+    @staticmethod
+    def _commission_rate_decimal(value: Any, *, fallback: Decimal = Decimal("0")) -> Decimal:
+        try:
+            return Decimal(str(value)).quantize(Decimal("0.0001"))
+        except (InvalidOperation, TypeError, ValueError):
+            return fallback.quantize(Decimal("0.0001"))
+
+    @staticmethod
+    def _commission_rate_pct_float(rate_decimal: Decimal) -> float:
+        return float((rate_decimal * Decimal("100")).quantize(Decimal("0.01")))
+
+    @classmethod
+    def _commission_tier_definitions(cls, pricing_config: Dict[str, Any]) -> List[TierDefinition]:
+        configured = sorted(
+            pricing_config.get("instructor_tiers", []), key=lambda tier: tier.get("min", 0)
+        )
+        default_tiers = sorted(
+            DEFAULT_PRICING_CONFIG.get("instructor_tiers")
+            or PRICING_DEFAULTS.get("instructor_tiers", []),
+            key=lambda tier: tier.get("min", 0),
+        )
+
+        tier_defs: List[TierDefinition] = []
+        tier_names = [("entry", "Entry"), ("growth", "Growth"), ("pro", "Pro")]
+        for idx, (name, display_name) in enumerate(tier_names):
+            fallback = (
+                default_tiers[idx]
+                if idx < len(default_tiers)
+                else {"min": 0, "max": None, "pct": 0}
+            )
+            tier = configured[idx] if idx < len(configured) else fallback
+            commission_rate = cls._commission_rate_decimal(
+                tier.get("pct", fallback.get("pct", 0)),
+                fallback=cls._commission_rate_decimal(fallback.get("pct", 0)),
+            )
+            min_lessons_raw = tier.get("min", fallback.get("min", 0))
+            max_lessons_raw = tier.get("max", fallback.get("max"))
+            try:
+                min_lessons = int(min_lessons_raw)
+            except (TypeError, ValueError):
+                min_lessons = int(fallback.get("min", 0) or 0)
+            try:
+                max_lessons = int(max_lessons_raw) if max_lessons_raw is not None else None
+            except (TypeError, ValueError):
+                fallback_max = fallback.get("max")
+                max_lessons = int(fallback_max) if fallback_max is not None else None
+
+            tier_defs.append(
+                {
+                    "name": name,
+                    "display_name": display_name,
+                    "commission_rate": commission_rate,
+                    "min_lessons": min_lessons,
+                    "max_lessons": max_lessons,
+                }
+            )
+
+        return tier_defs
+
+    @classmethod
+    def _resolve_persisted_tier_name(
+        cls, instructor_profile: Optional[InstructorProfile], tier_defs: List[TierDefinition]
+    ) -> str:
+        if not tier_defs:
+            return "entry"
+        raw_pct = (
+            getattr(instructor_profile, "current_tier_pct", None) if instructor_profile else None
+        )
+        if raw_pct is None:
+            return "entry"
+        try:
+            current_rate = Decimal(str(raw_pct))
+            if current_rate > 1:
+                current_rate = current_rate / Decimal("100")
+            current_rate = current_rate.quantize(Decimal("0.0001"))
+        except (InvalidOperation, TypeError, ValueError):
+            return "entry"
+
+        for tier in tier_defs:
+            tier_rate = tier["commission_rate"]
+            if abs(current_rate - tier_rate) <= Decimal("0.0001"):
+                return str(tier["name"])
+
+        return "entry"
+
+    @staticmethod
+    def _tier_rate_for_name(tier_name: str, tier_defs: List[TierDefinition]) -> Decimal:
+        for tier in tier_defs:
+            if tier["name"] == tier_name:
+                return tier["commission_rate"]
+        if tier_defs:
+            return tier_defs[0]["commission_rate"]
+        return Decimal("0")
+
     @BaseService.measure_operation("pricing.update_instructor_tier")
     def update_instructor_tier(
         self, instructor_profile: InstructorProfile, new_tier_pct: float
@@ -483,6 +718,77 @@ class PricingService(BaseService):
         instructor_profile.current_tier_pct = pct_value
         instructor_profile.last_tier_eval_at = datetime.now(timezone.utc)
         return True
+
+    @BaseService.measure_operation("pricing.evaluate_and_persist_instructor_tier")
+    def evaluate_and_persist_instructor_tier(
+        self,
+        *,
+        instructor_user_id: str,
+        instructor_profile: Optional[InstructorProfile] = None,
+        pricing_config: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        resolved_config = pricing_config
+        if resolved_config is None:
+            resolved_config, _ = self.config_service.get_pricing_config()
+
+        profile = instructor_profile
+        if profile is None:
+            profile = self._instructor_profile_repository.get_by_user_id(instructor_user_id)
+        if profile is None:
+            logger.warning(
+                "Skipping tier evaluation; instructor profile missing for %s",
+                instructor_user_id,
+            )
+            return False
+
+        resolved_rate = self._resolve_instructor_tier_pct_for_instructor(
+            instructor_user_id=instructor_user_id,
+            instructor_profile=profile,
+            pricing_config=resolved_config,
+        )
+        if not self._should_persist_tier_change(
+            instructor_profile=profile,
+            resolved_rate=resolved_rate,
+            pricing_config=resolved_config,
+        ):
+            return False
+
+        with self.transaction():
+            self.update_instructor_tier(profile, float(resolved_rate))
+        return True
+
+    @BaseService.measure_operation("pricing.evaluate_active_instructor_tiers")
+    def evaluate_active_instructor_tiers(self) -> Dict[str, Any]:
+        pricing_config, _ = self.config_service.get_pricing_config()
+        profiles = self._instructor_profile_repository.list_active_for_tier_evaluation()
+
+        evaluated = 0
+        updated = 0
+        failed = 0
+        for profile in profiles:
+            evaluated += 1
+            try:
+                changed = self.evaluate_and_persist_instructor_tier(
+                    instructor_user_id=str(profile.user_id),
+                    instructor_profile=profile,
+                    pricing_config=pricing_config,
+                )
+                if changed:
+                    updated += 1
+            except Exception as exc:
+                failed += 1
+                logger.error(
+                    "Failed evaluating instructor tier for %s: %s",
+                    getattr(profile, "user_id", None),
+                    exc,
+                )
+
+        return {
+            "evaluated": evaluated,
+            "updated": updated,
+            "failed": failed,
+            "processed_at": datetime.now(timezone.utc).isoformat(),
+        }
 
     @staticmethod
     def _default_instructor_tier_pct(pricing_config: Dict[str, Any]) -> Decimal:

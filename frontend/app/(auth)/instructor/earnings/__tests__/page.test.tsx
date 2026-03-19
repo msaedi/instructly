@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 
 import InstructorEarningsPage from '../page';
+import { useCommissionStatus } from '@/hooks/queries/useCommissionStatus';
 import { useInstructorEarnings } from '@/hooks/queries/useInstructorEarnings';
 import { useInstructorPayouts } from '@/hooks/queries/useInstructorPayouts';
 
@@ -15,14 +16,59 @@ jest.mock('@/components/UserProfileDropdown', () => {
 jest.mock('../../_embedded/EmbeddedContext', () => ({
   useEmbedded: () => false,
 }));
+jest.mock('@/hooks/queries/useCommissionStatus');
 jest.mock('@/hooks/queries/useInstructorEarnings');
 jest.mock('@/hooks/queries/useInstructorPayouts');
 
+const mockUseCommissionStatus = useCommissionStatus as jest.MockedFunction<typeof useCommissionStatus>;
 const mockUseInstructorEarnings = useInstructorEarnings as jest.MockedFunction<typeof useInstructorEarnings>;
 const mockUseInstructorPayouts = useInstructorPayouts as jest.MockedFunction<typeof useInstructorPayouts>;
 
 describe('Instructor earnings page', () => {
   beforeEach(() => {
+    mockUseCommissionStatus.mockReturnValue({
+      data: {
+        is_founding: false,
+        tier_name: 'entry',
+        commission_rate_pct: 15,
+        completed_lessons_30d: 3,
+        next_tier_name: 'growth',
+        next_tier_threshold: 5,
+        lessons_to_next_tier: 2,
+        tiers: [
+          {
+            name: 'entry',
+            display_name: 'Entry',
+            commission_pct: 15,
+            min_lessons: 1,
+            max_lessons: 4,
+            is_current: true,
+            is_unlocked: true,
+          },
+          {
+            name: 'growth',
+            display_name: 'Growth',
+            commission_pct: 12,
+            min_lessons: 5,
+            max_lessons: 10,
+            is_current: false,
+            is_unlocked: false,
+          },
+          {
+            name: 'pro',
+            display_name: 'Pro',
+            commission_pct: 10,
+            min_lessons: 11,
+            max_lessons: null,
+            is_current: false,
+            is_unlocked: false,
+          },
+        ],
+      },
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useCommissionStatus>);
+
     mockUseInstructorEarnings.mockReturnValue({
       data: {
         total_earned: 68000,
@@ -70,6 +116,7 @@ describe('Instructor earnings page', () => {
 
   it('renders invoice rows with totals', () => {
     render(<InstructorEarningsPage />);
+    expect(screen.getByText('Entry tier · 15%')).toBeInTheDocument();
     expect(screen.getByText('Piano Basics')).toBeInTheDocument();
     expect(screen.getByText('Emma J.')).toBeInTheDocument();
     expect(screen.getByText('$120.00')).toBeInTheDocument();

@@ -10,6 +10,7 @@ from app.core.exceptions import BusinessRuleException, DomainException, NotFound
 from app.core.ulid_helper import generate_ulid
 from app.routes.v1 import instructors as instructors_routes
 from app.schemas.instructor import (
+    CommissionStatusResponse,
     InstructorProfileCreate,
     InstructorProfileUpdate,
     UpdateCalendarSettings,
@@ -77,6 +78,47 @@ def _profile_object(*, user_id: str, profile_id: str) -> SimpleNamespace:
     return SimpleNamespace(**payload)
 
 
+def _commission_status_payload() -> dict:
+    return {
+        "is_founding": False,
+        "tier_name": "entry",
+        "commission_rate_pct": 15.0,
+        "completed_lessons_30d": 3,
+        "next_tier_name": "growth",
+        "next_tier_threshold": 5,
+        "lessons_to_next_tier": 2,
+        "tiers": [
+            {
+                "name": "entry",
+                "display_name": "Entry",
+                "commission_pct": 15.0,
+                "min_lessons": 1,
+                "max_lessons": 4,
+                "is_current": True,
+                "is_unlocked": True,
+            },
+            {
+                "name": "growth",
+                "display_name": "Growth",
+                "commission_pct": 12.0,
+                "min_lessons": 5,
+                "max_lessons": 10,
+                "is_current": False,
+                "is_unlocked": False,
+            },
+            {
+                "name": "pro",
+                "display_name": "Pro",
+                "commission_pct": 10.0,
+                "min_lessons": 11,
+                "max_lessons": None,
+                "is_current": False,
+                "is_unlocked": False,
+            },
+        ],
+    }
+
+
 class _InstructorServiceStub:
     def __init__(self):
         self.cache_service = None
@@ -136,6 +178,11 @@ class _InstructorServiceListStub:
     def get_instructors_filtered(self, *_args, **kwargs):
         self.last_kwargs = kwargs
         return self._payload
+
+
+class _PricingServiceStub:
+    def get_instructor_commission_status(self, *_args, **_kwargs):
+        return CommissionStatusResponse(**_commission_status_payload())
 
 
 def test_get_address_service_returns_service(db):
@@ -226,6 +273,43 @@ async def test_get_my_profile_raises_unexpected_error(test_instructor):
             current_user=test_instructor,
             instructor_service=service,
         )
+
+
+@pytest.mark.asyncio
+async def test_get_my_commission_status_requires_instructor(test_student):
+    with pytest.raises(HTTPException) as exc:
+        await instructors_routes.get_my_commission_status(
+            current_user=test_student,
+            pricing_service=_PricingServiceStub(),
+        )
+    assert exc.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_get_my_commission_status_not_found(test_instructor):
+    service = _PricingServiceStub()
+    service.get_instructor_commission_status = lambda *_args, **_kwargs: (_ for _ in ()).throw(
+        NotFoundException("not found")
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await instructors_routes.get_my_commission_status(
+            current_user=test_instructor,
+            pricing_service=service,
+        )
+    assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_my_commission_status_success(test_instructor):
+    response = await instructors_routes.get_my_commission_status(
+        current_user=test_instructor,
+        pricing_service=_PricingServiceStub(),
+    )
+
+    assert response.tier_name == "entry"
+    assert response.next_tier_name == "growth"
+    assert len(response.tiers) == 3
 
 
 @pytest.mark.asyncio

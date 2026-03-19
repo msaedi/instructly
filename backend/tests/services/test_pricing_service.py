@@ -699,6 +699,41 @@ def test_regular_instructor_tier_can_be_updated(db, pricing_service, test_instru
     assert profile.last_tier_eval_at is not None
 
 
+def test_evaluate_active_instructor_tiers_demotes_inactive_instructor(
+    db,
+    pricing_service,
+    test_instructor,
+    test_student,
+    instructor_service,
+):
+    """Nightly tier evaluation should reset inactive instructors to entry tier."""
+
+    profile = test_instructor.instructor_profile
+    profile.is_founding_instructor = False
+    profile.current_tier_pct = Decimal("10.00")
+    profile.last_tier_eval_at = None
+    db.flush()
+
+    _create_booking(
+        db=db,
+        instructor=test_instructor,
+        student=test_student,
+        service=instructor_service,
+        hourly_rate=Decimal("90.00"),
+        status=BookingStatus.COMPLETED,
+        completed_at=datetime.now(timezone.utc) - timedelta(days=91),
+        offset_index=999,
+    )
+
+    result = pricing_service.evaluate_active_instructor_tiers()
+
+    db.refresh(profile)
+    assert result["updated"] >= 1
+    assert result["failed"] == 0
+    assert profile.current_tier_pct == Decimal("15")
+    assert profile.last_tier_eval_at is not None
+
+
 @pytest.fixture(autouse=True)
 def _restore_default_price_floors(db):
     config_service = ConfigService(db)

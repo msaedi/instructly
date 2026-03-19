@@ -3001,6 +3001,53 @@ export const CohortUserType = {
 } as const;
 
 /**
+ * Instructor tier metadata for commission ladder display.
+ */
+export interface TierInfo {
+  /** Commission percentage as whole percent */
+  commission_pct: number;
+  /** Human-readable tier label */
+  display_name: string;
+  /** Whether this is the displayed current tier */
+  is_current?: boolean;
+  /** Whether the instructor has unlocked this tier based on recent lesson volume */
+  is_unlocked?: boolean;
+  /** Maximum completed lessons for this tier; null for open-ended tiers */
+  max_lessons?: number | null;
+  /**
+   * Minimum completed lessons for this tier
+   * @minimum 0
+   */
+  min_lessons: number;
+  /** Tier key: "entry", "growth", or "pro" */
+  name: string;
+}
+
+/**
+ * Instructor-facing commission tier status.
+ */
+export interface CommissionStatusResponse {
+  /** Commission percentage as whole percent */
+  commission_rate_pct: number;
+  /**
+   * Completed lessons in the last 30 days
+   * @minimum 0
+   */
+  completed_lessons_30d: number;
+  is_founding?: boolean;
+  /** Remaining lessons needed to unlock the next tier */
+  lessons_to_next_tier?: number | null;
+  /** Next tier key for progress display; null for founding and pro */
+  next_tier_name?: string | null;
+  /** Completed lesson threshold needed to unlock the next tier */
+  next_tier_threshold?: number | null;
+  /** Current display tier: "founding", "entry", "growth", or "pro" */
+  tier_name: string;
+  /** Entry/Growth/Pro ladder */
+  tiers?: TierInfo[];
+}
+
+/**
  * Payload required to record FCRA consent.
  */
 export interface ConsentPayload {
@@ -8282,6 +8329,9 @@ export interface SessionRefreshResponse {
   message: string;
 }
 
+/**
+ * Response for SetupIntent creation — provides client_secret for PaymentElement.
+ */
 export interface SetupIntentResponse {
   /** Client secret for PaymentElement on the frontend */
   client_secret: string;

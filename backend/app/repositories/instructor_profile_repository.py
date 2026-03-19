@@ -131,6 +131,18 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             self.db.query(InstructorProfile).filter(InstructorProfile.user_id == user_id).first(),
         )
 
+    def list_active_for_tier_evaluation(self) -> List[InstructorProfile]:
+        """Return instructor profiles whose user accounts are currently active."""
+
+        return cast(
+            List[InstructorProfile],
+            self.db.query(InstructorProfile)
+            .join(InstructorProfile.user)
+            .filter(User.account_status == "active")
+            .order_by(InstructorProfile.id.asc())
+            .all(),
+        )
+
     def get_all_with_details(self, skip: int = 0, limit: int = 100) -> List[InstructorProfile]:
         """
         Get all instructor profiles with user and services eager loaded.

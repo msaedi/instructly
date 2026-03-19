@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState, useMemo } from 'react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import Modal from '@/components/Modal';
+import CommissionTierCard from '@/components/earnings/CommissionTierCard';
 import { Download, DollarSign, Info, ArrowLeft, Calendar, Briefcase, Clock } from 'lucide-react';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import { fetchWithAuth } from '@/lib/api';
@@ -225,12 +226,14 @@ function EarningsPageImpl() {
           }
         />
 
+        <CommissionTierCard />
+
         {/* Stat Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-8">
           <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-3 sm:p-6 h-32 sm:h-40">
             <div className="flex items-start justify-between h-full">
               <div>
-                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Total Lessons</h3>
+                <h3 className="min-h-[2.5rem] sm:min-h-[3.25rem] text-sm sm:text-lg font-semibold leading-tight text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Total Lessons</h3>
                 <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{isLoadingEarnings ? '—' : formatAmount(totalLessonValue)}</p>
               </div>
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
@@ -241,7 +244,11 @@ function EarningsPageImpl() {
           <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-3 sm:p-6 h-32 sm:h-40">
             <div className="flex items-start justify-between h-full">
               <div>
-                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Net Earnings</h3>
+                <h3 className="min-h-[2.5rem] sm:min-h-[3.25rem] text-sm sm:text-lg font-semibold leading-tight text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">
+                  Net
+                  <br />
+                  Earnings
+                </h3>
                 <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{isLoadingEarnings ? '—' : formatAmount(netEarnings)}</p>
               </div>
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
@@ -252,7 +259,7 @@ function EarningsPageImpl() {
           <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-3 sm:p-6 h-32 sm:h-40">
             <div className="flex items-start justify-between h-full">
               <div>
-                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Service count</h3>
+                <h3 className="min-h-[2.5rem] sm:min-h-[3.25rem] text-sm sm:text-lg font-semibold leading-tight text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Service count</h3>
                 <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{isLoadingEarnings ? '—' : resolvedServiceCount}</p>
               </div>
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
@@ -263,7 +270,7 @@ function EarningsPageImpl() {
           <div className="insta-dashboard-stat-card rounded-md sm:rounded-lg p-3 sm:p-6 h-32 sm:h-40">
             <div className="flex items-start justify-between h-full">
               <div>
-                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Hours invoiced</h3>
+                <h3 className="min-h-[2.5rem] sm:min-h-[3.25rem] text-sm sm:text-lg font-semibold leading-tight text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">Hours invoiced</h3>
                 <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
                   {isLoadingEarnings ? '—' : formatHours(resolvedHoursInvoiced)}
                 </p>

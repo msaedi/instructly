@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 from app.constants.booking_rules_defaults import BOOKING_RULES_DEFAULTS
 
@@ -37,6 +37,24 @@ class BookingRulesConfig(BaseModel):
     default_travel_buffer_minutes: int = Field(
         BOOKING_RULES_DEFAULTS["default_travel_buffer_minutes"], ge=30, le=120
     )
+
+    @field_validator("default_travel_buffer_minutes", mode="before")
+    @classmethod
+    def validate_travel_buffer_not_less_than_non_travel(
+        cls, value: object, info: ValidationInfo
+    ) -> object:
+        non_travel_buffer = info.data.get("default_non_travel_buffer_minutes")
+        if non_travel_buffer is None:
+            return value
+        if value is None:
+            return value
+        try:
+            travel_buffer = int(str(value))
+        except (TypeError, ValueError):
+            return value
+        if travel_buffer < non_travel_buffer:
+            raise ValueError("Travel buffer must be at least equal to non-travel buffer")
+        return value
 
     @model_validator(mode="after")
     def validate_windows(self) -> "BookingRulesConfig":

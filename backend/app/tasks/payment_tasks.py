@@ -100,6 +100,13 @@ class CaptureRetryResults(TypedDict):
     processed_at: str
 
 
+class TierEvaluationResults(TypedDict):
+    evaluated: int
+    updated: int
+    failed: int
+    processed_at: str
+
+
 class NoShowResolutionResults(TypedDict):
     resolved: int
     skipped: int
@@ -2731,6 +2738,24 @@ def check_authorization_health() -> Dict[str, Any]:
     finally:
         if db is not None:
             db.close()
+
+
+@typed_task(bind=True, max_retries=3, name="app.tasks.payment_tasks.evaluate_instructor_tiers")
+def evaluate_instructor_tiers(self: Any) -> TierEvaluationResults:
+    """Re-evaluate persisted instructor tiers as a daily safety net."""
+    from app.database import SessionLocal
+
+    db: Session = SessionLocal()
+    try:
+        pricing_service = PricingService(db)
+        result = pricing_service.evaluate_active_instructor_tiers()
+        logger.info("Instructor tier evaluation completed: %s", result)
+        return cast(TierEvaluationResults, result)
+    except Exception as exc:
+        logger.error("Instructor tier evaluation failed: %s", exc)
+        raise self.retry(exc=exc, countdown=1800)
+    finally:
+        db.close()
 
 
 @typed_task(bind=True, max_retries=3, name="app.tasks.payment_tasks.audit_and_fix_payout_schedules")

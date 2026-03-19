@@ -82,3 +82,45 @@ def test_slot_conflicts_queries_session_when_needed():
         seeder._slot_conflicts(session, "student-2", date_value, start, end, pending)
         is True
     )
+
+
+def test_seed_tier_maintenance_sessions_commits_seeded_rows():
+    """Public wrapper should commit seeded maintenance bookings."""
+    seeder = _new_seeder()
+    session = SimpleNamespace(commits=0)
+
+    def _commit():
+        session.commits += 1
+
+    session.commit = _commit
+
+    @contextmanager
+    def _scope():
+        yield session
+
+    seeder._session_scope = _scope
+    seeder._seed_tier_maintenance_sessions = lambda active_session, reason="": 2
+
+    assert seeder.seed_tier_maintenance_sessions() == 2
+    assert session.commits == 1
+
+
+def test_seed_tier_maintenance_sessions_skips_commit_when_nothing_seeded():
+    """Public wrapper should avoid empty commits when no rows were added."""
+    seeder = _new_seeder()
+    session = SimpleNamespace(commits=0)
+
+    def _commit():
+        session.commits += 1
+
+    session.commit = _commit
+
+    @contextmanager
+    def _scope():
+        yield session
+
+    seeder._session_scope = _scope
+    seeder._seed_tier_maintenance_sessions = lambda active_session, reason="": 0
+
+    assert seeder.seed_tier_maintenance_sessions() == 0
+    assert session.commits == 0
