@@ -67,7 +67,7 @@ function LadderCircle({
 }
 
 export default function CommissionTierCard() {
-  const { data, isLoading, error } = useCommissionStatus(true);
+  const { data, isLoading, error } = useCommissionStatus({ enabled: true });
 
   if (isLoading || error || !data) {
     return null;

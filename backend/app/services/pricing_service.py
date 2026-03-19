@@ -212,8 +212,10 @@ class PricingService(BaseService):
 
         pricing_config, _ = self.config_service.get_pricing_config()
         tier_defs = self._commission_tier_definitions(pricing_config)
+        activity_window_days = int(pricing_config.get("tier_activity_window_days", 30))
         completed_lessons_30d = self.booking_repository.count_instructor_completed_last_30d(
-            instructor_user_id
+            instructor_user_id,
+            activity_window_days,
         )
 
         is_founding = bool(getattr(instructor_profile, "is_founding_instructor", False))
@@ -537,6 +539,7 @@ class PricingService(BaseService):
             )
 
         inactivity_days = int(pricing_config.get("tier_inactivity_reset_days", 90))
+        activity_window_days = int(pricing_config.get("tier_activity_window_days", 30))
         now = datetime.now(timezone.utc)
         last_completed = self.booking_repository.get_instructor_last_completed_at(
             instructor_user_id
@@ -545,7 +548,8 @@ class PricingService(BaseService):
             return fallback_pct.quantize(Decimal("0.0001"))
 
         completed_count = self.booking_repository.count_instructor_completed_last_30d(
-            instructor_user_id
+            instructor_user_id,
+            activity_window_days,
         )
         projected_count = max(0, completed_count + max(projected_increment, 0))
 

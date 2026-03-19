@@ -1,70 +1,66 @@
 /**
  * @jest-environment jsdom
  */
-import { renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import React from 'react';
+import { renderHook } from '@testing-library/react';
 
-const mockFetchInstructorCommissionStatus = jest.fn();
+import { useInstructorCommissionStatus } from '@/src/api/services/instructors';
 
 jest.mock('@/src/api/services/instructors', () => ({
-  fetchInstructorCommissionStatus: (...args: unknown[]) =>
-    mockFetchInstructorCommissionStatus(...args),
+  useInstructorCommissionStatus: jest.fn(),
 }));
 
 import { useCommissionStatus } from '../useCommissionStatus';
 
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-    },
-  });
-
-  return function Wrapper({ children }: { children: React.ReactNode }) {
-    return React.createElement(QueryClientProvider, { client: queryClient }, children);
-  };
-}
-
 describe('useCommissionStatus', () => {
+  const mockUseInstructorCommissionStatus = useInstructorCommissionStatus as jest.MockedFunction<
+    typeof useInstructorCommissionStatus
+  >;
+
   beforeEach(() => {
-    mockFetchInstructorCommissionStatus.mockReset();
-    mockFetchInstructorCommissionStatus.mockResolvedValue({
-      is_founding: false,
-      tier_name: 'entry',
-      commission_rate_pct: 15,
-      completed_lessons_30d: 3,
-      next_tier_name: 'growth',
-      next_tier_threshold: 5,
-      lessons_to_next_tier: 2,
-      tiers: [],
-    });
+    mockUseInstructorCommissionStatus.mockReset();
+    mockUseInstructorCommissionStatus.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: null,
+    } as ReturnType<typeof useInstructorCommissionStatus>);
   });
 
-  it('fetches commission status when enabled by default', async () => {
-    const { result } = renderHook(() => useCommissionStatus(), {
-      wrapper: createWrapper(),
-    });
+  it('re-exports the instructor commission status hook', () => {
+    expect(useCommissionStatus).toBe(useInstructorCommissionStatus);
+  });
 
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-    expect(mockFetchInstructorCommissionStatus).toHaveBeenCalledTimes(1);
-    expect(result.current.data).toEqual(
-      expect.objectContaining({
+  it('passes options through to the instructor commission status hook', () => {
+    mockUseInstructorCommissionStatus.mockReturnValue({
+      data: {
+        is_founding: false,
         tier_name: 'entry',
         commission_rate_pct: 15,
+        completed_lessons_30d: 3,
+        next_tier_name: 'growth',
+        next_tier_threshold: 5,
         lessons_to_next_tier: 2,
+        tiers: [],
+      },
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useInstructorCommissionStatus>);
+
+    const { result } = renderHook(() => useCommissionStatus({ enabled: false }));
+
+    expect(mockUseInstructorCommissionStatus).toHaveBeenCalledWith({ enabled: false });
+    expect(result.current).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          tier_name: 'entry',
+          commission_rate_pct: 15,
+        }),
       })
     );
   });
 
-  it('skips fetching when disabled', async () => {
-    const { result } = renderHook(() => useCommissionStatus(false), {
-      wrapper: createWrapper(),
-    });
+  it('forwards undefined options unchanged', () => {
+    renderHook(() => useCommissionStatus());
 
-    await waitFor(() => expect(result.current.fetchStatus).toBe('idle'));
-
-    expect(mockFetchInstructorCommissionStatus).not.toHaveBeenCalled();
+    expect(mockUseInstructorCommissionStatus).toHaveBeenCalledWith();
   });
 });

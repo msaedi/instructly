@@ -356,6 +356,17 @@ def test_founding_claim_grants_and_missing_profile(profile_repo, db, test_instru
     assert isinstance(missing_count, int)
 
 
+def test_list_active_for_tier_evaluation_excludes_founding(profile_repo, db, test_instructor):
+    profile = profile_repo.get_by_user_id(test_instructor.id)
+    assert profile is not None
+    profile.is_founding_instructor = True
+    db.commit()
+
+    profiles = profile_repo.list_active_for_tier_evaluation()
+
+    assert profile.id not in {item.id for item in profiles}
+
+
 def test_report_and_invitation_missing_paths(profile_repo, db, test_instructor):
     profile = profile_repo.get_by_user_id(test_instructor.id)
     assert profile is not None

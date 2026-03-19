@@ -214,7 +214,7 @@ CELERYBEAT_SCHEDULE = {
     },
     "evaluate-instructor-tiers": {
         "task": "app.tasks.payment_tasks.evaluate_instructor_tiers",
-        "schedule": crontab(minute=0, hour=3),  # 3 AM UTC nightly
+        "schedule": crontab(minute=15, hour=3),  # 3:15 AM UTC nightly
         "options": {
             "queue": "payments",
             "priority": 5,

@@ -139,6 +139,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             self.db.query(InstructorProfile)
             .join(InstructorProfile.user)
             .filter(User.account_status == "active")
+            .filter(InstructorProfile.is_founding_instructor.is_(False))
             .order_by(InstructorProfile.id.asc())
             .all(),
         )

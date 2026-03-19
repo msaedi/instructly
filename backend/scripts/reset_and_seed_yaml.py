@@ -978,8 +978,8 @@ class DatabaseSeeder:
                     )
                     for row in unresolved_service_entries[:20]
                 ]
-                print(
-                    "  ⚠️  instructors.yaml contains services that do not exist in the current catalog.\n"
+                raise ValueError(
+                    "instructors.yaml contains services that do not exist in the current catalog.\n"
                     + "\n".join(sample_lines)
                 )
 

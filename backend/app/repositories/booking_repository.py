@@ -678,12 +678,12 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             )
             raise RepositoryException("Failed to load booking dates") from exc
 
-    def count_instructor_completed_last_30d(self, instructor_id: str) -> int:
-        """Return the number of completed bookings for an instructor in the last 30 days."""
+    def count_instructor_completed_last_30d(self, instructor_id: str, window_days: int) -> int:
+        """Return the number of completed bookings for an instructor in the activity window."""
 
         try:
             now = datetime.now(timezone.utc)
-            window_start = now - timedelta(days=30)
+            window_start = now - timedelta(days=window_days)
             query = (
                 self.db.query(func.count(Booking.id))
                 .filter(Booking.instructor_id == instructor_id)
@@ -694,7 +694,10 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             result = query.scalar()
             return int(result or 0)
         except Exception as exc:
-            self.logger.error("Error counting instructor completed bookings last 30d: %s", str(exc))
+            self.logger.error(
+                "Error counting instructor completed bookings in activity window: %s",
+                str(exc),
+            )
             raise RepositoryException("Failed to count instructor completions")
 
     def get_instructor_last_completed_at(self, instructor_id: str) -> Optional[datetime]:

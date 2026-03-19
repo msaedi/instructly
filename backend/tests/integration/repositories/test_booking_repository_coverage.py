@@ -211,7 +211,8 @@ def test_student_instructor_filters_and_counts(
     assert completed_booking.booking_date in distinct_dates
 
     count_last_30 = repo.count_instructor_completed_last_30d(
-        test_instructor_with_availability.id
+        test_instructor_with_availability.id,
+        30,
     )
     assert count_last_30 >= 1
     assert repo.get_instructor_last_completed_at(
@@ -1314,7 +1315,7 @@ def test_booking_repository_error_paths(
             week_dates=[date.today()],
         )
     with pytest.raises(RepositoryException):
-        repo.count_instructor_completed_last_30d(test_instructor_with_availability.id)
+        repo.count_instructor_completed_last_30d(test_instructor_with_availability.id, 30)
     with pytest.raises(RepositoryException):
         repo.get_instructor_last_completed_at(test_instructor_with_availability.id)
     with pytest.raises(RepositoryException):
