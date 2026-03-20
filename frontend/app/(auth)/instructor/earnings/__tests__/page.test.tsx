@@ -31,6 +31,7 @@ describe('Instructor earnings page', () => {
         is_founding: false,
         tier_name: 'entry',
         commission_rate_pct: 15,
+        activity_window_days: 30,
         completed_lessons_30d: 3,
         next_tier_name: 'growth',
         next_tier_threshold: 5,

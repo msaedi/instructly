@@ -3027,10 +3027,15 @@ export interface TierInfo {
  * Instructor-facing commission tier status.
  */
 export interface CommissionStatusResponse {
+  /**
+   * Configured activity window length used for tier progress
+   * @minimum 1
+   */
+  activity_window_days: number;
   /** Commission percentage as whole percent */
   commission_rate_pct: number;
   /**
-   * Completed lessons in the last 30 days
+   * Completed lessons in the configured activity window
    * @minimum 0
    */
   completed_lessons_30d: number;

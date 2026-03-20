@@ -297,7 +297,7 @@ class TestPricingService:
             self, pricing_service, booking_repo
         ):
             booking_repo.get_instructor_last_completed_at.return_value = datetime.now(timezone.utc)
-            booking_repo.count_instructor_completed_last_30d.return_value = 0
+            booking_repo.count_instructor_completed_in_window.return_value = 0
             booking = SimpleNamespace(instructor_id="inst_1", status=BookingStatus.CONFIRMED)
 
             result = pricing_service._resolve_instructor_tier_pct(
@@ -312,7 +312,7 @@ class TestPricingService:
             self, pricing_service, booking_repo, monkeypatch
         ):
             booking_repo.get_instructor_last_completed_at.return_value = datetime.now(timezone.utc)
-            booking_repo.count_instructor_completed_last_30d.return_value = 0
+            booking_repo.count_instructor_completed_in_window.return_value = 0
             booking = SimpleNamespace(instructor_id="inst_1", status=BookingStatus.CONFIRMED)
 
             monkeypatch.setitem(DEFAULT_PRICING_CONFIG, "instructor_tiers", [])
@@ -330,7 +330,7 @@ class TestPricingService:
             self, pricing_service, booking_repo
         ):
             booking_repo.get_instructor_last_completed_at.return_value = datetime.now(timezone.utc)
-            booking_repo.count_instructor_completed_last_30d.return_value = 0
+            booking_repo.count_instructor_completed_in_window.return_value = 0
             booking = SimpleNamespace(instructor_id="inst_1", status=BookingStatus.CONFIRMED)
             pricing_config = {
                 "instructor_tiers": [
@@ -351,7 +351,7 @@ class TestPricingService:
             self, pricing_service, booking_repo
         ):
             booking_repo.get_instructor_last_completed_at.return_value = datetime.now(timezone.utc)
-            booking_repo.count_instructor_completed_last_30d.return_value = 5
+            booking_repo.count_instructor_completed_in_window.return_value = 5
             booking = SimpleNamespace(instructor_id="inst_1", status=BookingStatus.CONFIRMED)
             profile = SimpleNamespace(current_tier_pct=11)
 
@@ -379,7 +379,7 @@ class TestPricingService:
                     return self._values[-1]
 
             booking_repo.get_instructor_last_completed_at.return_value = datetime.now(timezone.utc)
-            booking_repo.count_instructor_completed_last_30d.return_value = 1
+            booking_repo.count_instructor_completed_in_window.return_value = 1
             booking = SimpleNamespace(instructor_id="inst_1", status=BookingStatus.CONFIRMED)
             profile = SimpleNamespace(current_tier_pct=12)
             pricing_config = {
@@ -442,7 +442,7 @@ class TestPricingService:
                 is_founding_instructor=True,
                 current_tier_pct=8,
             )
-            booking_repo.count_instructor_completed_last_30d.return_value = 3
+            booking_repo.count_instructor_completed_in_window.return_value = 3
 
             result = pricing_service.get_instructor_commission_status(
                 instructor_user_id="instructor_1"
@@ -451,6 +451,7 @@ class TestPricingService:
             assert result.is_founding is True
             assert result.tier_name == "founding"
             assert result.commission_rate_pct == pytest.approx(8.0)
+            assert result.activity_window_days == 30
             assert result.completed_lessons_30d == 3
             assert result.next_tier_name is None
             assert result.next_tier_threshold is None
@@ -465,7 +466,7 @@ class TestPricingService:
                 is_founding_instructor=False,
                 current_tier_pct=15,
             )
-            booking_repo.count_instructor_completed_last_30d.return_value = 3
+            booking_repo.count_instructor_completed_in_window.return_value = 3
 
             result = pricing_service.get_instructor_commission_status(
                 instructor_user_id="instructor_1"
@@ -473,6 +474,7 @@ class TestPricingService:
 
             assert result.tier_name == "entry"
             assert result.commission_rate_pct == pytest.approx(15.0)
+            assert result.activity_window_days == 30
             assert result.next_tier_name == "growth"
             assert result.next_tier_threshold == 5
             assert result.lessons_to_next_tier == 2
@@ -489,7 +491,7 @@ class TestPricingService:
                 is_founding_instructor=False,
                 current_tier_pct=12,
             )
-            booking_repo.count_instructor_completed_last_30d.return_value = 7
+            booking_repo.count_instructor_completed_in_window.return_value = 7
 
             result = pricing_service.get_instructor_commission_status(
                 instructor_user_id="instructor_1"
@@ -512,7 +514,7 @@ class TestPricingService:
                 is_founding_instructor=False,
                 current_tier_pct=10,
             )
-            booking_repo.count_instructor_completed_last_30d.return_value = 12
+            booking_repo.count_instructor_completed_in_window.return_value = 12
 
             result = pricing_service.get_instructor_commission_status(
                 instructor_user_id="instructor_1"
@@ -534,7 +536,7 @@ class TestPricingService:
                 is_founding_instructor=False,
                 current_tier_pct=10,
             )
-            booking_repo.count_instructor_completed_last_30d.return_value = 3
+            booking_repo.count_instructor_completed_in_window.return_value = 3
 
             result = pricing_service.get_instructor_commission_status(
                 instructor_user_id="instructor_1"
@@ -554,7 +556,7 @@ class TestPricingService:
                 is_founding_instructor=False,
                 current_tier_pct="bad",
             )
-            booking_repo.count_instructor_completed_last_30d.return_value = 0
+            booking_repo.count_instructor_completed_in_window.return_value = 0
 
             result = pricing_service.get_instructor_commission_status(
                 instructor_user_id="instructor_1"
@@ -562,3 +564,39 @@ class TestPricingService:
 
             assert result.tier_name == "entry"
             assert result.commission_rate_pct == pytest.approx(15.0)
+
+    class TestBatchTierEvaluation:
+        def test_evaluate_active_instructor_tiers_uses_bulk_completion_stats(
+            self, pricing_service, instructor_profile_repo, booking_repo
+        ):
+            profiles = [
+                SimpleNamespace(user_id="instructor_1"),
+                SimpleNamespace(user_id="instructor_2"),
+            ]
+            instructor_profile_repo.list_active_for_tier_evaluation.return_value = profiles
+            booking_repo.get_instructor_completion_stats_in_window.return_value = {
+                "instructor_1": (3, datetime.now(timezone.utc)),
+                "instructor_2": (7, datetime.now(timezone.utc)),
+            }
+            pricing_service.evaluate_and_persist_instructor_tier = Mock(
+                side_effect=[True, False]
+            )
+
+            result = pricing_service.evaluate_active_instructor_tiers()
+
+            booking_repo.get_instructor_completion_stats_in_window.assert_called_once_with(
+                ["instructor_1", "instructor_2"],
+                30,
+            )
+            assert pricing_service.evaluate_and_persist_instructor_tier.call_args_list[0].kwargs[
+                "completion_stats"
+            ] == booking_repo.get_instructor_completion_stats_in_window.return_value[
+                "instructor_1"
+            ]
+            assert pricing_service.evaluate_and_persist_instructor_tier.call_args_list[1].kwargs[
+                "completion_stats"
+            ] == booking_repo.get_instructor_completion_stats_in_window.return_value[
+                "instructor_2"
+            ]
+            assert result["evaluated"] == 2
+            assert result["updated"] == 1

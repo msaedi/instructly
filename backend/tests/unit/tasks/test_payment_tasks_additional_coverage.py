@@ -1659,10 +1659,14 @@ def test_auto_complete_booking_locked_funds():
                                 referral_cls.return_value.on_instructor_lesson_completed = (
                                     MagicMock()
                                 )
-                                result = payment_tasks._auto_complete_booking(
-                                    "booking_id",
-                                    now,
-                                )
+                                with patch("app.tasks.payment_tasks.PricingService") as pricing_cls:
+                                    pricing_cls.return_value.evaluate_and_persist_instructor_tier = (
+                                        MagicMock()
+                                    )
+                                    result = payment_tasks._auto_complete_booking(
+                                        "booking_id",
+                                        now,
+                                    )
 
     assert result["captured"] is True
     mark_mock.assert_called_once_with("booking_id")
@@ -1714,10 +1718,14 @@ def test_auto_complete_booking_locked_funds_resolution_failure_keeps_uncaptured(
                                 referral_cls.return_value.on_instructor_lesson_completed = (
                                     MagicMock()
                                 )
-                                result = payment_tasks._auto_complete_booking(
-                                    "booking_id",
-                                    now,
-                                )
+                                with patch("app.tasks.payment_tasks.PricingService") as pricing_cls:
+                                    pricing_cls.return_value.evaluate_and_persist_instructor_tier = (
+                                        MagicMock()
+                                    )
+                                    result = payment_tasks._auto_complete_booking(
+                                        "booking_id",
+                                        now,
+                                    )
 
     assert result["captured"] is False
     mark_mock.assert_not_called()
@@ -1760,10 +1768,14 @@ def test_auto_complete_booking_no_payment_intent():
                         "app.services.referral_service.ReferralService"
                     ) as referral_cls:
                         referral_cls.return_value.on_instructor_lesson_completed = MagicMock()
-                        result = payment_tasks._auto_complete_booking(
-                            "booking_id",
-                            now,
-                        )
+                        with patch("app.tasks.payment_tasks.PricingService") as pricing_cls:
+                            pricing_cls.return_value.evaluate_and_persist_instructor_tier = (
+                                MagicMock()
+                            )
+                            result = payment_tasks._auto_complete_booking(
+                                "booking_id",
+                                now,
+                            )
 
     assert result["capture_attempted"] is False
 

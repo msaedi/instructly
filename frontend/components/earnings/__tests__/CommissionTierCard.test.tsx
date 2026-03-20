@@ -14,6 +14,7 @@ function buildStatus(
     is_founding: boolean;
     tier_name: string;
     commission_rate_pct: number;
+    activity_window_days: number;
     completed_lessons_30d: number;
     next_tier_name: string | null;
     next_tier_threshold: number | null;
@@ -33,6 +34,7 @@ function buildStatus(
     is_founding: false,
     tier_name: 'entry',
     commission_rate_pct: 15,
+    activity_window_days: 30,
     completed_lessons_30d: 3,
     next_tier_name: 'growth',
     next_tier_threshold: 5,
@@ -132,7 +134,9 @@ describe('CommissionTierCard', () => {
 
   it('renders standard tier ladder with progress helper text', () => {
     mockUseCommissionStatus.mockReturnValue({
-      data: buildStatus(),
+      data: buildStatus({
+        activity_window_days: 45,
+      }),
       isLoading: false,
       error: null,
     } as unknown as ReturnType<typeof useCommissionStatus>);
@@ -141,7 +145,7 @@ describe('CommissionTierCard', () => {
 
     expect(screen.getByText('Entry tier · 15%')).toBeInTheDocument();
     expect(
-      screen.getByText('3 of 5 lessons completed · in the last 30 days')
+      screen.getByText('3 of 5 lessons completed · in the last 45 days')
     ).toBeInTheDocument();
     expect(screen.getByText('Growth · 12%')).toBeInTheDocument();
     expect(screen.getByText('3 of 5 · 2 more to unlock')).toBeInTheDocument();

@@ -7348,6 +7348,7 @@ export type components = {
  };
  CohortUserType: "student" | "instructor";
  CommissionStatusResponse: {
+ activity_window_days: number;
  commission_rate_pct: number;
  completed_lessons_30d: number;
  is_founding: boolean;

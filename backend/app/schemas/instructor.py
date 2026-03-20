@@ -560,8 +560,11 @@ class CommissionStatusResponse(StrictModel):
         ..., description='Current display tier: "founding", "entry", "growth", or "pro"'
     )
     commission_rate_pct: float = Field(..., description="Commission percentage as whole percent")
+    activity_window_days: int = Field(
+        ..., ge=1, description="Configured activity window length used for tier progress"
+    )
     completed_lessons_30d: int = Field(
-        ..., ge=0, description="Completed lessons in the last 30 days"
+        ..., ge=0, description="Completed lessons in the configured activity window"
     )
     next_tier_name: str | None = Field(
         default=None,

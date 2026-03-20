@@ -11878,13 +11878,18 @@ export type components = {
          */
         CommissionStatusResponse: {
             /**
+             * Activity Window Days
+             * @description Configured activity window length used for tier progress
+             */
+            activity_window_days: number;
+            /**
              * Commission Rate Pct
              * @description Commission percentage as whole percent
              */
             commission_rate_pct: number;
             /**
              * Completed Lessons 30D
-             * @description Completed lessons in the last 30 days
+             * @description Completed lessons in the configured activity window
              */
             completed_lessons_30d: number;
             /**

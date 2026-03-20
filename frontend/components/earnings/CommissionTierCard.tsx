@@ -129,8 +129,8 @@ export default function CommissionTierCard() {
           </h2>
           <p className="mt-1.5 text-[1.05rem] leading-7 text-gray-700 dark:text-gray-300">
             {data.next_tier_threshold != null
-              ? `${data.completed_lessons_30d} of ${data.next_tier_threshold} lessons completed · in the last 30 days`
-              : `${data.completed_lessons_30d} lessons completed · in the last 30 days`}
+              ? `${data.completed_lessons_30d} of ${data.next_tier_threshold} lessons completed · in the last ${data.activity_window_days} days`
+              : `${data.completed_lessons_30d} lessons completed · in the last ${data.activity_window_days} days`}
           </p>
         </div>
         <div

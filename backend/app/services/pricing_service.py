@@ -55,6 +55,13 @@ class TierDefinition(TypedDict):
     max_lessons: int | None
 
 
+class TierEvaluationResults(TypedDict):
+    evaluated: int
+    updated: int
+    failed: int
+    processed_at: str
+
+
 class PricingService(BaseService):
     """Compute pricing line items and payouts for bookings."""
 
@@ -213,29 +220,13 @@ class PricingService(BaseService):
         pricing_config, _ = self.config_service.get_pricing_config()
         tier_defs = self._commission_tier_definitions(pricing_config)
         activity_window_days = int(pricing_config.get("tier_activity_window_days", 30))
-        completed_lessons_30d = self.booking_repository.count_instructor_completed_last_30d(
+        completed_lessons_30d = self.booking_repository.count_instructor_completed_in_window(
             instructor_user_id,
             activity_window_days,
         )
 
         is_founding = bool(getattr(instructor_profile, "is_founding_instructor", False))
-        founding_rate = self._commission_rate_decimal(
-            pricing_config.get(
-                "founding_instructor_rate_pct",
-                DEFAULT_PRICING_CONFIG.get(
-                    "founding_instructor_rate_pct",
-                    PRICING_DEFAULTS.get("founding_instructor_rate_pct", 0),
-                ),
-            ),
-            fallback=Decimal(
-                str(
-                    DEFAULT_PRICING_CONFIG.get(
-                        "founding_instructor_rate_pct",
-                        PRICING_DEFAULTS.get("founding_instructor_rate_pct", 0),
-                    )
-                )
-            ),
-        )
+        founding_rate = self._founding_rate_pct(pricing_config)
 
         if is_founding:
             tier_name = "founding"
@@ -279,6 +270,7 @@ class PricingService(BaseService):
             is_founding=is_founding,
             tier_name=tier_name,
             commission_rate_pct=self._commission_rate_pct_float(commission_rate),
+            activity_window_days=activity_window_days,
             completed_lessons_30d=completed_lessons_30d,
             next_tier_name=next_tier_name,
             next_tier_threshold=next_tier_threshold,
@@ -504,21 +496,11 @@ class PricingService(BaseService):
         instructor_profile: Optional[InstructorProfile],
         pricing_config: Dict[str, Any],
         projected_increment: int = 0,
+        completion_stats: tuple[int, Optional[datetime]] | None = None,
     ) -> Decimal:
         # NOTE: Founding instructors are immune to tier changes; always use founding rate.
         if instructor_profile and getattr(instructor_profile, "is_founding_instructor", False):
-            fallback_rate = DEFAULT_PRICING_CONFIG.get(
-                "founding_instructor_rate_pct",
-                PRICING_DEFAULTS.get("founding_instructor_rate_pct", 0),
-            )
-            rate_value = pricing_config.get(
-                "founding_instructor_rate_pct",
-                fallback_rate,
-            )
-            try:
-                return Decimal(str(rate_value)).quantize(Decimal("0.0001"))
-            except (InvalidOperation, TypeError, ValueError):
-                return Decimal(str(fallback_rate)).quantize(Decimal("0.0001"))
+            return self._founding_rate_pct(pricing_config)
 
         tiers = sorted(
             pricing_config.get("instructor_tiers", []), key=lambda tier: tier.get("min", 0)
@@ -541,16 +523,20 @@ class PricingService(BaseService):
         inactivity_days = int(pricing_config.get("tier_inactivity_reset_days", 90))
         activity_window_days = int(pricing_config.get("tier_activity_window_days", 30))
         now = datetime.now(timezone.utc)
-        last_completed = self.booking_repository.get_instructor_last_completed_at(
-            instructor_user_id
-        )
+        completed_count: int
+        last_completed: Optional[datetime]
+        if completion_stats is None:
+            last_completed = self.booking_repository.get_instructor_last_completed_at(
+                instructor_user_id
+            )
+            completed_count = self.booking_repository.count_instructor_completed_in_window(
+                instructor_user_id,
+                activity_window_days,
+            )
+        else:
+            completed_count, last_completed = completion_stats
         if not last_completed or last_completed < now - timedelta(days=inactivity_days):
             return fallback_pct.quantize(Decimal("0.0001"))
-
-        completed_count = self.booking_repository.count_instructor_completed_last_30d(
-            instructor_user_id,
-            activity_window_days,
-        )
         projected_count = max(0, completed_count + max(projected_increment, 0))
 
         required_pct = fallback_pct
@@ -623,6 +609,18 @@ class PricingService(BaseService):
     @staticmethod
     def _commission_rate_pct_float(rate_decimal: Decimal) -> float:
         return float((rate_decimal * Decimal("100")).quantize(Decimal("0.01")))
+
+    @classmethod
+    def _founding_rate_pct(cls, pricing_config: Dict[str, Any]) -> Decimal:
+        """Get the founding instructor commission rate from config."""
+        fallback_rate = DEFAULT_PRICING_CONFIG.get(
+            "founding_instructor_rate_pct",
+            PRICING_DEFAULTS.get("founding_instructor_rate_pct", 0),
+        )
+        return cls._commission_rate_decimal(
+            pricing_config.get("founding_instructor_rate_pct", fallback_rate),
+            fallback=cls._commission_rate_decimal(fallback_rate),
+        )
 
     @classmethod
     def _commission_tier_definitions(cls, pricing_config: Dict[str, Any]) -> List[TierDefinition]:
@@ -730,6 +728,7 @@ class PricingService(BaseService):
         instructor_user_id: str,
         instructor_profile: Optional[InstructorProfile] = None,
         pricing_config: Optional[Dict[str, Any]] = None,
+        completion_stats: tuple[int, Optional[datetime]] | None = None,
     ) -> bool:
         resolved_config = pricing_config
         if resolved_config is None:
@@ -749,6 +748,7 @@ class PricingService(BaseService):
             instructor_user_id=instructor_user_id,
             instructor_profile=profile,
             pricing_config=resolved_config,
+            completion_stats=completion_stats,
         )
         if not self._should_persist_tier_change(
             instructor_profile=profile,
@@ -762,9 +762,16 @@ class PricingService(BaseService):
         return True
 
     @BaseService.measure_operation("pricing.evaluate_active_instructor_tiers")
-    def evaluate_active_instructor_tiers(self) -> Dict[str, Any]:
+    def evaluate_active_instructor_tiers(self) -> TierEvaluationResults:
         pricing_config, _ = self.config_service.get_pricing_config()
         profiles = self._instructor_profile_repository.list_active_for_tier_evaluation()
+        activity_window_days = int(pricing_config.get("tier_activity_window_days", 30))
+        completion_stats_by_instructor = (
+            self.booking_repository.get_instructor_completion_stats_in_window(
+                [str(profile.user_id) for profile in profiles],
+                activity_window_days,
+            )
+        )
 
         evaluated = 0
         updated = 0
@@ -776,6 +783,10 @@ class PricingService(BaseService):
                     instructor_user_id=str(profile.user_id),
                     instructor_profile=profile,
                     pricing_config=pricing_config,
+                    completion_stats=completion_stats_by_instructor.get(
+                        str(profile.user_id),
+                        (0, None),
+                    ),
                 )
                 if changed:
                     updated += 1
