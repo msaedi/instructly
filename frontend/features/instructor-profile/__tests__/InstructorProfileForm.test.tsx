@@ -93,7 +93,7 @@ jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/PersonalI
     profile: { first_name?: string; last_name?: string; postal_code?: string };
     lastNameError?: string | null;
     onProfileChange: (updates: Record<string, unknown>) => void;
-    onToggle: () => void;
+    onToggle?: () => void;
   }) {
     return (
       <section>
@@ -131,7 +131,7 @@ jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/PersonalI
           administrative_area: 'NY',
           postal_code: '10017',
         })}>Set Basic Address</button>
-        <button type="button" onClick={onToggle}>Toggle</button>
+        <button type="button" onClick={() => onToggle?.()}>Toggle</button>
       </section>
     );
   }
@@ -722,6 +722,31 @@ describe('InstructorProfileForm', () => {
     await waitFor(() => {
       expect(screen.getByTestId('skills-inline')).toBeInTheDocument();
     });
+  });
+
+  it('hides Personal Information when the profile page opts out of it', async () => {
+    const { Wrapper } = createWrapper();
+    mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
+    mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: { bio: 'Test', is_live: false },
+      isLoading: false,
+    });
+
+    mockFetchWithAuth.mockImplementation(async (url: string) => {
+      if (url === '/api/v1/addresses/service-areas/me') {
+        return { ok: true, status: 200, json: async () => ({ items: [] }) };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    });
+
+    render(<InstructorProfileForm context="dashboard" showPersonalInfo={false} />, { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByText(/skills & pricing/i)).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTestId('personal-info')).not.toBeInTheDocument();
   });
 
   it('uses ref to call save with redirect option', async () => {

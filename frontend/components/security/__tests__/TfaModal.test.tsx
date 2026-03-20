@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import TfaModal from '../TfaModal';
 import { fetchWithAuth } from '@/lib/api';
 import { useTfaStatus } from '@/hooks/queries/useTfaStatus';
@@ -26,7 +27,17 @@ const useTfaStatusMock = useTfaStatus as jest.Mock;
 const renderModal = (props?: { onClose?: jest.Mock; onChanged?: jest.Mock }) => {
   const onClose = props?.onClose ?? jest.fn();
   const onChanged = props?.onChanged ?? jest.fn();
-  render(<TfaModal onClose={onClose} onChanged={onChanged} />);
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <TfaModal onClose={onClose} onChanged={onChanged} />
+    </QueryClientProvider>
+  );
   return { onClose, onChanged };
 };
 
@@ -50,7 +61,14 @@ describe('TfaModal', () => {
       expect(fetchWithAuthMock).toHaveBeenCalledWith('/api/v1/2fa/setup/initiate', { method: 'POST' });
     });
 
+    expect(screen.getByRole('dialog', { name: 'Connect your authenticator app' })).toBeInTheDocument();
+    expect(
+      screen.getByText(/Scan the QR code using your authenticator app, then enter the 6-digit code from the app\./i, {
+        selector: 'p',
+      })
+    ).toBeInTheDocument();
     expect(await screen.findByText('Secret (manual entry):')).toBeInTheDocument();
+    expect(screen.getByLabelText(/Step 2: Enter your 6-digit code/i)).toBeInTheDocument();
   });
 
   it('shows error when initiation fails', async () => {
@@ -80,7 +98,7 @@ describe('TfaModal', () => {
 
     const codeInput = await screen.findByPlaceholderText('123 456');
     await userEvent.type(codeInput, '123456');
-    await userEvent.click(screen.getByRole('button', { name: 'Verify & Enable' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Verify' }));
 
     await waitFor(() => {
       expect(screen.getByText('Invalid code')).toBeInTheDocument();
@@ -113,7 +131,7 @@ describe('TfaModal', () => {
 
     const codeInput = await screen.findByPlaceholderText('123 456');
     await userEvent.type(codeInput, '123456');
-    await userEvent.click(screen.getByRole('button', { name: 'Verify & Enable' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Verify' }));
 
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
     expect(toast.success).toHaveBeenCalledWith('Two‑factor authentication enabled');
@@ -167,7 +185,7 @@ describe('TfaModal', () => {
 
       const codeInput = await screen.findByPlaceholderText('123 456');
       await userEvent.type(codeInput, '123456');
-      await userEvent.click(screen.getByRole('button', { name: 'Verify & Enable' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Verify' }));
 
       await waitFor(() => {
         expect(screen.getByText('Network error.')).toBeInTheDocument();
@@ -206,7 +224,7 @@ describe('TfaModal', () => {
 
       const codeInput = await screen.findByPlaceholderText('123 456');
       await userEvent.type(codeInput, '123456');
-      await userEvent.click(screen.getByRole('button', { name: 'Verify & Enable' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Verify' }));
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: 'Regenerate' })).toBeInTheDocument();
@@ -277,7 +295,7 @@ describe('TfaModal', () => {
 
       const codeInput = await screen.findByPlaceholderText('123 456');
       await userEvent.type(codeInput, '123456');
-      await userEvent.click(screen.getByRole('button', { name: 'Verify & Enable' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Verify' }));
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: 'Regenerate' })).toBeInTheDocument();
@@ -384,7 +402,7 @@ describe('TfaModal', () => {
 
       const codeInput = await screen.findByPlaceholderText('123 456');
       await userEvent.type(codeInput, '123456');
-      await userEvent.click(screen.getByRole('button', { name: 'Verify & Enable' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Verify' }));
 
       await waitFor(() => {
         expect(screen.getByText("That code didn't work. Please try again.")).toBeInTheDocument();
@@ -407,7 +425,7 @@ describe('TfaModal', () => {
 
       const codeInput = await screen.findByPlaceholderText('123 456');
       await userEvent.type(codeInput, '654321');
-      await userEvent.click(screen.getByRole('button', { name: 'Verify & Enable' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Verify' }));
 
       await waitFor(() => {
         // .catch(() => ({})) returns empty object, so falls back to default message

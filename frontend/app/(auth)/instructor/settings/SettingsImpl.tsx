@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
+import { Info, SlidersHorizontal } from '@phosphor-icons/react';
 import { toast } from 'sonner';
-import { ArrowLeft, Settings, ChevronDown, Shield, Power, KeyRound, Gift } from 'lucide-react';
+import { ArrowLeft, Settings, ChevronDown, Shield, Power, KeyRound, Gift, UserRoundPen } from 'lucide-react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { extractApiErrorCode, extractApiErrorMessage } from '@/lib/apiErrors';
@@ -20,6 +21,7 @@ import { useTfaStatus, useInvalidateTfaStatus } from '@/hooks/queries/useTfaStat
 import { usePushNotifications } from '@/features/shared/hooks/usePushNotifications';
 import { useNotificationPreferences } from '@/features/shared/hooks/useNotificationPreferences';
 import { usePhoneVerification } from '@/features/shared/hooks/usePhoneVerification';
+import { formatPhoneDisplay } from '@/lib/phone';
 
 const RewardsPanel = dynamic(() => import('@/features/referrals/RewardsPanel'), { ssr: false });
 
@@ -31,10 +33,10 @@ const PREFERENCE_DEFAULTS = {
   system_updates: { email: true, push: false, sms: false },
   promotional: { email: false, push: false, sms: false },
 } as const;
-const E164_PATTERN = /^\+[1-9]\d{7,14}$/;
 
 type PreferenceCategory = keyof typeof PREFERENCE_DEFAULTS;
 type PreferenceChannel = keyof (typeof PREFERENCE_DEFAULTS)['lesson_updates'];
+type OpenSection = 'account' | 'refer' | 'security' | 'status' | 'password' | 'preferences' | 'about' | null;
 
 const CATEGORY_LABELS: Record<PreferenceCategory, string> = {
   lesson_updates: 'Lesson Updates',
@@ -51,14 +53,157 @@ const CHANNEL_LABELS: Record<PreferenceChannel, string> = {
   push: 'Push',
 };
 
+const PREFERENCE_ROWS: Array<{ category: PreferenceCategory; description: string }> = [
+  { category: 'lesson_updates', description: 'Booking confirmations, reminders, cancellations' },
+  { category: 'messages', description: 'Direct messages from students' },
+  { category: 'reviews', description: 'New reviews, review responses' },
+  { category: 'learning_tips', description: 'Platform tips and learning resources' },
+  { category: 'system_updates', description: 'Important platform notices and policy changes' },
+  { category: 'promotional', description: 'Discounts, special offers, new features' },
+];
+
+type ToggleSwitchProps = {
+  checked: boolean;
+  onChange?: () => void;
+  disabled?: boolean;
+  title?: string;
+  ariaLabel?: string;
+};
+
+const ToggleSwitch = memo(function ToggleSwitch({
+  checked,
+  onChange,
+  disabled = false,
+  title,
+  ariaLabel,
+}: ToggleSwitchProps) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-disabled={disabled}
+      aria-label={ariaLabel}
+      onClick={onChange}
+      disabled={disabled}
+      title={title}
+      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+        checked ? 'bg-purple-600' : 'bg-gray-200 dark:bg-gray-700'
+      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+    >
+      <span
+        className={`inline-block h-4 w-4 transform rounded-full bg-white dark:bg-gray-800 shadow transition-transform ${
+          checked ? 'translate-x-6' : 'translate-x-1'
+        }`}
+      />
+    </button>
+  );
+});
+
+type PreferenceToggleProps = {
+  category: PreferenceCategory;
+  channel: PreferenceChannel;
+  checked: boolean;
+  disabled?: boolean;
+  title?: string | undefined;
+  onToggle: (category: PreferenceCategory, channel: PreferenceChannel, checked: boolean) => void;
+};
+
+const PreferenceToggle = memo(function PreferenceToggle({
+  category,
+  channel,
+  checked,
+  disabled = false,
+  title,
+  onToggle,
+}: PreferenceToggleProps) {
+  const ariaLabel = `${CATEGORY_LABELS[category]} ${CHANNEL_LABELS[channel]} notifications`;
+  const handleChange = useCallback(() => {
+    onToggle(category, channel, checked);
+  }, [category, channel, checked, onToggle]);
+
+  return (
+    <ToggleSwitch
+      checked={checked}
+      onChange={handleChange}
+      disabled={disabled}
+      ariaLabel={ariaLabel}
+      {...(title ? { title } : {})}
+    />
+  );
+});
+
+type NotificationPreferenceRowProps = {
+  category: PreferenceCategory;
+  description: string;
+  emailChecked: boolean;
+  smsChecked: boolean;
+  pushChecked: boolean;
+  emailDisabled?: boolean;
+  smsDisabled?: boolean;
+  pushDisabled?: boolean;
+  emailTitle?: string | undefined;
+  smsTitle?: string | undefined;
+  pushTitle?: string | undefined;
+  onToggle: (category: PreferenceCategory, channel: PreferenceChannel, checked: boolean) => void;
+};
+
+const NotificationPreferenceRow = memo(function NotificationPreferenceRow({
+  category,
+  description,
+  emailChecked,
+  smsChecked,
+  pushChecked,
+  emailDisabled = false,
+  smsDisabled = false,
+  pushDisabled = false,
+  emailTitle,
+  smsTitle,
+  pushTitle,
+  onToggle,
+}: NotificationPreferenceRowProps) {
+  return (
+    <div className="grid grid-cols-4 gap-4 items-start py-2">
+      <div>
+        <div className="font-medium text-gray-900 dark:text-gray-100">{CATEGORY_LABELS[category]}</div>
+        <div className="text-xs text-gray-500 dark:text-gray-400">{description}</div>
+      </div>
+      <div className="flex justify-center">
+        <PreferenceToggle
+          category={category}
+          channel="email"
+          checked={emailChecked}
+          disabled={emailDisabled}
+          title={emailTitle}
+          onToggle={onToggle}
+        />
+      </div>
+      <div className="flex justify-center">
+        <PreferenceToggle
+          category={category}
+          channel="sms"
+          checked={smsChecked}
+          disabled={smsDisabled}
+          title={smsTitle}
+          onToggle={onToggle}
+        />
+      </div>
+      <div className="flex justify-center">
+        <PreferenceToggle
+          category={category}
+          channel="push"
+          checked={pushChecked}
+          disabled={pushDisabled}
+          title={pushTitle}
+          onToggle={onToggle}
+        />
+      </div>
+    </div>
+  );
+});
+
 export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
-  const [openAccount, setOpenAccount] = useState(false);
-  const [openRefer, setOpenRefer] = useState(false);
-  const [openSecurity, setOpenSecurity] = useState(false);
-  const [openStatus, setOpenStatus] = useState(false);
-  const [openPassword, setOpenPassword] = useState(false);
-  const [openPreferences, setOpenPreferences] = useState(false);
-  const [openAbout, setOpenAbout] = useState(false);
+  const [openSection, setOpenSection] = useState<OpenSection>(null);
   const [showTfaModal, setShowTfaModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
@@ -70,12 +215,9 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   const [savingAccount, setSavingAccount] = useState(false);
   const [accountNameError, setAccountNameError] = useState('');
   const [formInitialized, setFormInitialized] = useState(false);
-  const [smsPhone, setSmsPhone] = useState('');
-  const [smsCode, setSmsCode] = useState('');
-  const [resendCooldown, setResendCooldown] = useState(0);
 
   // React Query hooks for data fetching (replaces useEffect fetches)
-  const { data: tfaStatus } = useTfaStatus(embedded && openSecurity);
+  const { data: tfaStatus } = useTfaStatus(embedded && openSection === 'security');
   const { data: userData, isLoading: userLoading } = useSession();
   const { data: addressData, isLoading: addressLoading } = useUserAddresses(embedded);
   const invalidateTfaStatus = useInvalidateTfaStatus();
@@ -92,23 +234,20 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   const {
     preferences,
     isLoading: preferencesLoading,
-    isUpdating: preferencesUpdating,
+    isPreferenceUpdating,
     updatePreference,
   } = useNotificationPreferences();
   const {
     phoneNumber,
     isVerified: phoneVerified,
     isLoading: phoneLoading,
-    updatePhone,
-    sendVerification,
-    confirmVerification,
   } = usePhoneVerification();
 
   // Derived state from hooks
   const tfaEnabled = tfaStatus?.enabled ?? null;
   const accountLoading = userLoading || addressLoading;
   const pushDisabled = !pushSupported || pushLoading || pushPermission === 'denied';
-  const preferencesDisabled = preferencesLoading || preferencesUpdating;
+  const preferencesDisabled = preferencesLoading;
   const pushPreferenceDisabled =
     preferencesDisabled || !pushSupported || pushPermission === 'denied' || !pushEnabled;
   const pushToggleTitle = !pushSupported
@@ -129,89 +268,15 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
     : !phoneVerified
       ? 'Verify your phone number to enable SMS notifications.'
       : undefined;
+  const toggleSection = useCallback((section: Exclude<OpenSection, null>) => {
+    setOpenSection((prev) => (prev === section ? null : section));
+  }, []);
 
   const handlePushToggle = async (enabled: boolean) => {
     if (enabled) {
       await enablePush();
     } else {
       await disablePush();
-    }
-  };
-
-  useEffect(() => {
-    if (phoneLoading) return;
-    setSmsPhone(phoneNumber || '');
-  }, [phoneNumber, phoneLoading]);
-
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const timer = setTimeout(() => {
-      setResendCooldown((value) => Math.max(0, value - 1));
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [resendCooldown]);
-
-  const handleUpdatePhone = async () => {
-    const trimmed = smsPhone.trim();
-    if (!trimmed) {
-      toast.error('Please enter a phone number.');
-      return;
-    }
-    if (!E164_PATTERN.test(trimmed)) {
-      toast.error('Phone number must be in E.164 format (+1234567890).');
-      return;
-    }
-    const previousPhone = phoneNumber;
-    const wasVerified = phoneVerified;
-    try {
-      const updated = await updatePhone.mutateAsync(trimmed);
-      setMobile(trimmed);
-      setSmsCode('');
-      const shouldSendVerification =
-        !updated.verified && (trimmed !== previousPhone || !wasVerified);
-      if (shouldSendVerification) {
-        try {
-          await sendVerification.mutateAsync();
-          setResendCooldown(60);
-          toast.success('Phone number saved. Verification code sent.');
-        } catch (error) {
-          toast.error(
-            error instanceof Error
-              ? error.message
-              : 'Phone saved, but failed to send verification code.'
-          );
-        }
-      } else {
-        toast.success('Phone number saved.');
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update phone number.');
-    }
-  };
-
-  const handleSendVerification = async () => {
-    if (resendCooldown > 0 || sendVerification.isPending) return;
-    try {
-      await sendVerification.mutateAsync();
-      setResendCooldown(60);
-      toast.success('Verification code sent.');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to send verification code.');
-    }
-  };
-
-  const handleConfirmVerification = async () => {
-    const trimmed = smsCode.trim();
-    if (!trimmed) {
-      toast.error('Enter the verification code.');
-      return;
-    }
-    try {
-      await confirmVerification.mutateAsync(trimmed);
-      setSmsCode('');
-      toast.success('Phone number verified.');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Verification failed.');
     }
   };
 
@@ -240,132 +305,16 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
     const fallback = PREFERENCE_DEFAULTS[category][channel];
     return preferences?.[category]?.[channel] ?? fallback;
   };
-
-  const ToggleSwitch = ({
-    checked,
-    onChange,
-    disabled = false,
-    title,
-    ariaLabel,
-  }: {
-    checked: boolean;
-    onChange: () => void;
-    disabled?: boolean;
-    title?: string;
-    ariaLabel?: string;
-  }) => (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-disabled={disabled}
-      aria-label={ariaLabel}
-      onClick={onChange}
-      disabled={disabled}
-      title={title}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-        checked ? 'bg-purple-600' : 'bg-gray-200 dark:bg-gray-700'
-      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-    >
-      <span
-        className={`inline-block h-4 w-4 transform rounded-full bg-white dark:bg-gray-800 shadow transition-transform ${
-          checked ? 'translate-x-6' : 'translate-x-1'
-        }`}
-      />
-    </button>
+  const handlePreferenceToggle = useCallback(
+    (category: PreferenceCategory, channel: PreferenceChannel, checked: boolean) => {
+      updatePreference(category, channel, !checked);
+    },
+    [updatePreference]
   );
 
-  const renderPreferenceToggle = (
-    category: PreferenceCategory,
-    channel: PreferenceChannel,
-    options?: { disabled?: boolean; title?: string }
-  ) => {
-    const isDisabled = options?.disabled ?? preferencesDisabled;
-    const title = options?.title;
-    const ariaLabel = `${CATEGORY_LABELS[category]} ${CHANNEL_LABELS[channel]} notifications`;
-    return (
-      <ToggleSwitch
-        checked={getPreferenceValue(category, channel)}
-        onChange={() => updatePreference(category, channel, !getPreferenceValue(category, channel))}
-        disabled={isDisabled}
-        ariaLabel={ariaLabel}
-        {...(title ? { title } : {})}
-      />
-    );
-  };
-
   const renderNotificationPreferences = () => {
-    const pushPreferenceOptions = pushPreferenceTitle
-      ? { disabled: pushPreferenceDisabled, title: pushPreferenceTitle }
-      : { disabled: pushPreferenceDisabled };
-    const smsPreferenceOptions = smsPreferenceTitle
-      ? { disabled: smsPreferenceDisabled, title: smsPreferenceTitle }
-      : { disabled: smsPreferenceDisabled };
-
     return (
       <div className="space-y-4">
-        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 space-y-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">Phone number (for SMS)</label>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Add and verify a phone number to receive SMS alerts.</p>
-          </div>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <input
-              type="tel"
-              value={smsPhone}
-              onChange={(event) => setSmsPhone(event.target.value)}
-              placeholder="+1 (555) 123-4567"
-              className="w-full max-w-sm px-3 py-2 insta-form-input focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
-            />
-            <button
-              type="button"
-              onClick={handleUpdatePhone}
-              disabled={updatePhone.isPending}
-              className="min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 insta-primary-btn"
-            >
-              {updatePhone.isPending ? 'Saving…' : 'Save'}
-            </button>
-          </div>
-          {phoneVerified && (
-            <p className="text-xs font-medium text-green-600">Phone verified</p>
-          )}
-          {!phoneVerified && phoneNumber && (
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <input
-                type="text"
-                value={smsCode}
-                onChange={(event) => setSmsCode(event.target.value.replace(/\D/g, ''))}
-                placeholder="Enter 6-digit code"
-                className="w-full max-w-sm px-3 py-2 insta-form-input focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
-                maxLength={6}
-              />
-              <button
-                type="button"
-                onClick={handleConfirmVerification}
-                disabled={confirmVerification.isPending}
-                className="min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 insta-primary-btn"
-              >
-                {confirmVerification.isPending ? 'Verifying…' : 'Verify'}
-              </button>
-              <button
-                type="button"
-                onClick={handleSendVerification}
-                disabled={sendVerification.isPending || resendCooldown > 0}
-                className={`min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
-                  resendCooldown > 0 || sendVerification.isPending
-                    ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-300 cursor-not-allowed'
-                    : 'bg-[#7E22CE] text-white hover:bg-[#6b1fb8] insta-primary-btn'
-                }`}
-              >
-                {resendCooldown > 0
-                  ? `Resend (${resendCooldown}s)`
-                  : sendVerification.isPending
-                    ? 'Sending…'
-                    : 'Resend'}
-              </button>
-            </div>
-          )}
-        </div>
         <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -385,109 +334,31 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             <div className="text-sm font-medium text-gray-700 dark:text-gray-300 text-center">SMS</div>
             <div className="text-sm font-medium text-gray-700 dark:text-gray-300 text-center">Push</div>
           </div>
+          {PREFERENCE_ROWS.map(({ category, description }) => {
+            const emailUpdating = isPreferenceUpdating(category, 'email');
+            const smsUpdating = isPreferenceUpdating(category, 'sms');
+            const pushUpdating = isPreferenceUpdating(category, 'push');
+            const messagePushLocked = category === 'messages';
 
-          <div className="grid grid-cols-4 gap-4 items-start py-2">
-            <div>
-              <div className="font-medium text-gray-900 dark:text-gray-100">Lesson Updates</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Booking confirmations, reminders, cancellations</div>
-            </div>
-            <div className="flex justify-center">
-              {renderPreferenceToggle('lesson_updates', 'email')}
-            </div>
-            <div className="flex justify-center">
-              {renderPreferenceToggle('lesson_updates', 'sms', smsPreferenceOptions)}
-            </div>
-            <div className="flex justify-center">
-              {renderPreferenceToggle('lesson_updates', 'push', pushPreferenceOptions)}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-4 gap-4 items-start py-2">
-            <div>
-              <div className="font-medium text-gray-900 dark:text-gray-100">Messages</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Direct messages from students</div>
-            </div>
-            <div className="flex justify-center">
-              {renderPreferenceToggle('messages', 'email')}
-            </div>
-            <div className="flex justify-center">
-              {renderPreferenceToggle('messages', 'sms', smsPreferenceOptions)}
-            </div>
-            <div className="flex justify-center">
-              {renderPreferenceToggle('messages', 'push', {
-                disabled: true,
-                title: 'Push notifications for messages are required.',
-              })}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-4 gap-4 items-start py-2">
-            <div>
-              <div className="font-medium text-gray-900 dark:text-gray-100">Reviews</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">New reviews, review responses</div>
-            </div>
-            <div className="flex justify-center">
-              {renderPreferenceToggle('reviews', 'email')}
-            </div>
-            <div className="flex justify-center">
-              {renderPreferenceToggle('reviews', 'sms', smsPreferenceOptions)}
-            </div>
-            <div className="flex justify-center">
-              {renderPreferenceToggle('reviews', 'push', pushPreferenceOptions)}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-4 gap-4 items-start py-2">
-            <div>
-              <div className="font-medium text-gray-900 dark:text-gray-100">Tips &amp; Updates</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Platform tips and learning resources</div>
-            </div>
-            <div className="flex justify-center">
-              {renderPreferenceToggle('learning_tips', 'email')}
-            </div>
-            <div className="flex justify-center">
-              {renderPreferenceToggle('learning_tips', 'sms', smsPreferenceOptions)}
-            </div>
-            <div className="flex justify-center">
-              {renderPreferenceToggle('learning_tips', 'push', pushPreferenceOptions)}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-4 gap-4 items-start py-2">
-            <div>
-              <div className="font-medium text-gray-900 dark:text-gray-100">System Updates</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                Important platform notices and policy changes
-              </div>
-            </div>
-            <div className="flex justify-center">
-              {renderPreferenceToggle('system_updates', 'email')}
-            </div>
-            <div className="flex justify-center">
-              {renderPreferenceToggle('system_updates', 'sms', smsPreferenceOptions)}
-            </div>
-            <div className="flex justify-center">
-              {renderPreferenceToggle('system_updates', 'push', pushPreferenceOptions)}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-4 gap-4 items-start py-2">
-            <div>
-              <div className="font-medium text-gray-900 dark:text-gray-100">Promotional</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Discounts, special offers, new features</div>
-            </div>
-            <div className="flex justify-center">
-              {renderPreferenceToggle('promotional', 'email')}
-            </div>
-            <div className="flex justify-center">
-              {renderPreferenceToggle('promotional', 'sms', smsPreferenceOptions)}
-            </div>
-            <div className="flex justify-center">
-              {renderPreferenceToggle('promotional', 'push', pushPreferenceOptions)}
-            </div>
-          </div>
+            return (
+              <NotificationPreferenceRow
+                key={category}
+                category={category}
+                description={description}
+                emailChecked={getPreferenceValue(category, 'email')}
+                smsChecked={getPreferenceValue(category, 'sms')}
+                pushChecked={getPreferenceValue(category, 'push')}
+                emailDisabled={preferencesDisabled || emailUpdating}
+                smsDisabled={smsPreferenceDisabled || smsUpdating}
+                pushDisabled={messagePushLocked ? true : pushPreferenceDisabled || pushUpdating}
+                smsTitle={smsPreferenceTitle}
+                pushTitle={messagePushLocked ? 'Push notifications for messages are required.' : pushPreferenceTitle}
+                onToggle={handlePreferenceToggle}
+              />
+            );
+          })}
         </div>
-    </div>
+      </div>
     );
   };
 
@@ -526,7 +397,6 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         body: JSON.stringify({
           first_name: firstName,
           last_name: lastName,
-          phone: (mobile || '').toString().trim(),
         }),
       });
       if (!userResponse.ok) {
@@ -621,26 +491,29 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
               <button
                 type="button"
                 className="insta-dashboard-accordion-trigger"
-                onClick={() => setOpenAccount((v) => !v)}
-                aria-expanded={openAccount}
+                onClick={() => toggleSection('account')}
+                aria-expanded={openSection === 'account'}
               >
                 <div className="insta-dashboard-accordion-leading">
                   <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                    <Settings className="w-6 h-6 text-[#7E22CE]" />
+                    <UserRoundPen className="w-6 h-6 text-[#7E22CE]" />
                   </div>
                   <div>
                     <span className="insta-dashboard-accordion-title">Account details</span>
                     <span className="insta-dashboard-accordion-subtitle">Update your contact info and preferred ZIP.</span>
                   </div>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openAccount ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openSection === 'account' ? 'rotate-180' : ''}`} />
               </button>
-              {openAccount && (
+              {openSection === 'account' && (
                 <div className="mt-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Name</label>
+                      <label htmlFor="settings-name" className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                        Name
+                      </label>
                       <input
+                        id="settings-name"
                         type="text"
                         value={fullName}
                         onChange={(e) => {
@@ -656,8 +529,11 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                       )}
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Email</label>
+                      <label htmlFor="settings-email" className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                        Email
+                      </label>
                       <input
+                        id="settings-email"
                         type="email"
                         value={email}
                         readOnly
@@ -668,17 +544,26 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Mobile phone</label>
+                      <label htmlFor="settings-phone" className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                        Phone number
+                      </label>
                       <input
+                        id="settings-phone"
                         type="text"
-                        value={mobile}
-                        onChange={(e) => setMobile(e.target.value)}
-                        className="w-full px-3 py-2 insta-form-input focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
+                        value={formatPhoneDisplay(mobile)}
+                        readOnly
+                        disabled
+                        className="w-full px-3 py-2 insta-form-input insta-form-input-readonly cursor-not-allowed pointer-events-none select-none"
+                        aria-readonly="true"
+                        aria-disabled="true"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">ZIP code</label>
+                      <label htmlFor="settings-zip" className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                        ZIP code
+                      </label>
                       <input
+                        id="settings-zip"
                         type="text"
                         value={zip}
                         onChange={(e) => setZip(e.target.value)}
@@ -754,7 +639,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                   <button
                     type="button"
                     className="text-[#7E22CE] hover:text-[#6B1FA0] text-sm font-medium"
-                    onClick={() => setOpenPreferences(true)}
+                    onClick={() => setOpenSection('preferences')}
                   >
                     Manage
                   </button>
@@ -771,8 +656,8 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
               <button
                 type="button"
                 className="insta-dashboard-accordion-trigger"
-                onClick={() => setOpenRefer((v) => !v)}
-                aria-expanded={openRefer}
+                onClick={() => toggleSection('refer')}
+                aria-expanded={openSection === 'refer'}
               >
                 <div className="insta-dashboard-accordion-leading">
                   <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
@@ -783,9 +668,9 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                     <span className="insta-dashboard-accordion-subtitle">Share your link to invite peers and earn rewards.</span>
                   </div>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openRefer ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openSection === 'refer' ? 'rotate-180' : ''}`} />
               </button>
-              {openRefer && (
+              {openSection === 'refer' && (
                 <div className="mt-4">
                   <RewardsPanel
                     inviterName={fullName}
@@ -829,8 +714,8 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             <button
               type="button"
               className="insta-dashboard-accordion-trigger"
-              onClick={() => setOpenSecurity((v) => !v)}
-              aria-expanded={openSecurity}
+              onClick={() => toggleSection('security')}
+              aria-expanded={openSection === 'security'}
             >
               <div className="insta-dashboard-accordion-leading">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
@@ -841,9 +726,9 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                   <span className="insta-dashboard-accordion-subtitle">Enable two-factor authentication for extra protection.</span>
                 </div>
               </div>
-              <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openSecurity ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openSection === 'security' ? 'rotate-180' : ''}`} />
             </button>
-            {openSecurity && (
+            {openSection === 'security' && (
               <div className="mt-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
@@ -883,8 +768,8 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             <button
               type="button"
               className="insta-dashboard-accordion-trigger"
-              onClick={() => setOpenStatus((v) => !v)}
-              aria-expanded={openStatus}
+              onClick={() => toggleSection('status')}
+              aria-expanded={openSection === 'status'}
             >
               <div className="insta-dashboard-accordion-leading">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
@@ -895,9 +780,9 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                   <span className="insta-dashboard-accordion-subtitle">Pause or close your instructor account if needed.</span>
                 </div>
               </div>
-              <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openStatus ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openSection === 'status' ? 'rotate-180' : ''}`} />
             </button>
-            {openStatus && (
+            {openSection === 'status' && (
               <div className="mt-4 flex items-center justify-end gap-2 sm:gap-3 flex-wrap">
                 <button
                   type="button"
@@ -940,8 +825,8 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             <button
               type="button"
               className="insta-dashboard-accordion-trigger"
-              onClick={() => setOpenPassword((v) => !v)}
-              aria-expanded={openPassword}
+              onClick={() => toggleSection('password')}
+              aria-expanded={openSection === 'password'}
             >
               <div className="insta-dashboard-accordion-leading">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
@@ -952,9 +837,9 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                   <span className="insta-dashboard-accordion-subtitle">Keep your login secure with a strong password.</span>
                 </div>
               </div>
-              <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openPassword ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openSection === 'password' ? 'rotate-180' : ''}`} />
             </button>
-            {openPassword && (
+            {openSection === 'password' && (
               <div className="mt-4 flex items-center justify-end">
                 <button
                   type="button"
@@ -975,21 +860,21 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
               <button
                 type="button"
                 className="insta-dashboard-accordion-trigger"
-                onClick={() => setOpenPreferences((v) => !v)}
-                aria-expanded={openPreferences}
+                onClick={() => toggleSection('preferences')}
+                aria-expanded={openSection === 'preferences'}
               >
                 <div className="insta-dashboard-accordion-leading">
                   <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                    <Settings className="w-6 h-6 text-[#7E22CE]" />
+                    <SlidersHorizontal className="w-6 h-6 text-[#7E22CE]" />
                   </div>
                   <div>
                     <span className="insta-dashboard-accordion-title">Preferences</span>
                     <span className="insta-dashboard-accordion-subtitle">Choose how we contact you about lessons and updates.</span>
                   </div>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openPreferences ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openSection === 'preferences' ? 'rotate-180' : ''}`} />
               </button>
-              {openPreferences && (
+              {openSection === 'preferences' && (
                 <div className="mt-4">
                   <div className="py-1">
                     <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">Notifications</h3>
@@ -1014,27 +899,22 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             <button
               type="button"
               className="insta-dashboard-accordion-trigger"
-              onClick={() => setOpenAbout((v) => !v)}
-              aria-expanded={openAbout}
+              onClick={() => toggleSection('about')}
+              aria-expanded={openSection === 'about'}
             >
               <div className="insta-dashboard-accordion-leading">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <Settings className="w-6 h-6 text-[#7E22CE]" />
+                  <Info className="w-6 h-6 text-[#7E22CE]" />
                 </div>
                 <div>
                   <span className="insta-dashboard-accordion-title">About</span>
                   <span className="insta-dashboard-accordion-subtitle">Access legal resources and support information.</span>
                 </div>
               </div>
-              <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openAbout ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${openSection === 'about' ? 'rotate-180' : ''}`} />
             </button>
-            {openAbout && (
-              <div className="mt-3 text-sm text-gray-700 dark:text-gray-300 space-y-2">
-                <div>
-                  <a href="/acknowledgments" className="focus-link text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300">
-                    Acknowledgments
-                  </a>
-                </div>
+            {openSection === 'about' && (
+              <div className="mt-5 text-sm text-gray-700 dark:text-gray-300 space-y-3">
                 <div>
                   <a href="/legal#privacy" className="focus-link text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300">
                     Privacy Policy
@@ -1047,7 +927,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 </div>
                 <div>
                   <a href="/support" className="focus-link text-[#7E22CE] hover:text-purple-900 dark:hover:text-purple-300">
-                    iNSTAiNSTRU support
+                    Support
                   </a>
                 </div>
               </div>

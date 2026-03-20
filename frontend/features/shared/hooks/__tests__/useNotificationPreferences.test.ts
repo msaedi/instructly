@@ -169,4 +169,49 @@ describe('useNotificationPreferences', () => {
       expect(cachedData).toBeUndefined();
     });
   });
+
+  it('tracks pending state per preference key', async () => {
+    useAuthMock.mockReturnValue({ isAuthenticated: true });
+    const initialPrefs = {
+      lesson_updates: { email: true, push: true, sms: false },
+      messages: { email: false, push: true, sms: false },
+      reviews: { email: true, push: true, sms: false },
+      learning_tips: { email: true, push: true, sms: false },
+      system_updates: { email: true, push: false, sms: false },
+      promotional: { email: false, push: false, sms: false },
+    };
+    let resolveUpdate: (() => void) | undefined;
+
+    getPreferencesMock.mockResolvedValue(initialPrefs);
+    updatePreferenceMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveUpdate = () => resolve({ success: true });
+        })
+    );
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useNotificationPreferences(), { wrapper });
+
+    await waitFor(() => expect(result.current.preferences).toEqual(initialPrefs));
+
+    act(() => {
+      result.current.updatePreference('promotional', 'email', true);
+    });
+
+    await waitFor(() => {
+      expect(result.current.isUpdating).toBe(true);
+      expect(result.current.isPreferenceUpdating('promotional', 'email')).toBe(true);
+      expect(result.current.isPreferenceUpdating('promotional', 'push')).toBe(false);
+    });
+
+    act(() => {
+      resolveUpdate?.();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isUpdating).toBe(false);
+      expect(result.current.isPreferenceUpdating('promotional', 'email')).toBe(false);
+    });
+  });
 });

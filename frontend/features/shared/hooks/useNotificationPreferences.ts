@@ -1,5 +1,6 @@
 'use client';
 
+import { useCallback, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import {
@@ -17,9 +18,16 @@ type UpdatePreferencePayload = {
   enabled: boolean;
 };
 
+type PendingPreferenceMap = Record<string, true>;
+
+function getPendingPreferenceKey(category: PreferenceCategory, channel: PreferenceChannel) {
+  return `${category}:${channel}`;
+}
+
 export function useNotificationPreferences() {
   const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
+  const [pendingPreferences, setPendingPreferences] = useState<PendingPreferenceMap>({});
 
   const queryKey = ['notification-preferences'];
 
@@ -34,6 +42,9 @@ export function useNotificationPreferences() {
     mutationFn: ({ category, channel, enabled }: UpdatePreferencePayload) =>
       notificationPreferencesApi.updatePreference(category, channel, enabled),
     onMutate: async ({ category, channel, enabled }: UpdatePreferencePayload) => {
+      const pendingKey = getPendingPreferenceKey(category, channel);
+
+      setPendingPreferences((prev) => ({ ...prev, [pendingKey]: true }));
       await queryClient.cancelQueries({ queryKey });
       const previous = queryClient.getQueryData<PreferencesByCategory>(queryKey);
 
@@ -47,24 +58,44 @@ export function useNotificationPreferences() {
         });
       }
 
-      return { previous };
+      return { previous, pendingKey };
     },
     onError: (_error, _variables, context) => {
       if (context?.previous) {
         queryClient.setQueryData(queryKey, context.previous);
       }
     },
-    onSettled: () => {
+    onSettled: (_data, _error, _variables, context) => {
+      if (context?.pendingKey) {
+        setPendingPreferences((prev) => {
+          const next = { ...prev };
+          delete next[context.pendingKey];
+          return next;
+        });
+      }
+
       void queryClient.invalidateQueries({ queryKey });
     },
   });
+
+  const updatePreference = useCallback(
+    (category: PreferenceCategory, channel: PreferenceChannel, enabled: boolean) =>
+      updatePreferenceMutation.mutate({ category, channel, enabled }),
+    [updatePreferenceMutation]
+  );
+
+  const isPreferenceUpdating = useCallback(
+    (category: PreferenceCategory, channel: PreferenceChannel) =>
+      Boolean(pendingPreferences[getPendingPreferenceKey(category, channel)]),
+    [pendingPreferences]
+  );
 
   return {
     preferences: preferencesQuery.data,
     isLoading: preferencesQuery.isLoading,
     error: preferencesQuery.error,
-    updatePreference: (category: PreferenceCategory, channel: PreferenceChannel, enabled: boolean) =>
-      updatePreferenceMutation.mutate({ category, channel, enabled }),
-    isUpdating: updatePreferenceMutation.isPending,
+    updatePreference,
+    isUpdating: Object.keys(pendingPreferences).length > 0,
+    isPreferenceUpdating,
   };
 }

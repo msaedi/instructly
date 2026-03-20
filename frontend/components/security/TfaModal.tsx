@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import Image from 'next/image';
 import { fetchWithAuth } from '@/lib/api';
 import { toast } from 'sonner';
-import { useTfaStatus } from '@/hooks/queries/useTfaStatus';
+import { tfaStatusQueryKey, useTfaStatus } from '@/hooks/queries/useTfaStatus';
 import Modal from '@/components/Modal';
 import type { ApiErrorResponse, components } from '@/features/shared/api/types';
 import { extractApiErrorMessage } from '@/lib/apiErrors';
@@ -28,6 +29,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hasInitiatedRef = useRef(false);
+  const queryClient = useQueryClient();
 
   // Use React Query hook for 2FA status (deduplicates calls)
   const { data: tfaStatus, isSuccess: tfaStatusLoaded } = useTfaStatus();
@@ -88,6 +90,10 @@ export default function TfaModal({ onClose, onChanged }: Props) {
       const data = (await res.json()) as TfaSetupVerifyResponse;
       setBackupCodes(data.backup_codes || []);
       setStep('enabled');
+      queryClient.setQueryData(tfaStatusQueryKey, (prev?: { enabled?: boolean }) => ({
+        ...prev,
+        enabled: true,
+      }));
       onChanged();
       toast.success('Two‑factor authentication enabled');
     } catch {
@@ -113,6 +119,10 @@ export default function TfaModal({ onClose, onChanged }: Props) {
         return;
       }
       setStep('disabled');
+      queryClient.setQueryData(tfaStatusQueryKey, (prev?: { enabled?: boolean }) => ({
+        ...prev,
+        enabled: false,
+      }));
       onChanged();
       toast.success('Two‑factor authentication disabled');
     } catch {
@@ -146,8 +156,8 @@ export default function TfaModal({ onClose, onChanged }: Props) {
     <Modal
       isOpen={true}
       onClose={onClose}
-      title="Two-Factor Authentication"
-      description="Manage two-factor authentication settings for your account"
+      title="Connect your authenticator app"
+      description="Use an authenticator app to secure your account with one-time codes."
       size="md"
       autoHeight
       closeOnEscape={!loading}
@@ -158,6 +168,10 @@ export default function TfaModal({ onClose, onChanged }: Props) {
 
         {step === 'show' && (
           <>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              <span className="font-medium">Step 1:</span> Scan the QR code using your authenticator app,
+              then enter the 6-digit code from the app.
+            </p>
             {qr && (
               <Image
                 src={qr}
@@ -176,7 +190,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
             )}
             <div>
               <label htmlFor="tfa-code" className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-                Enter 6-digit code
+                <span className="font-medium">Step 2:</span> Enter your 6-digit code
               </label>
               <input
                 id="tfa-code"
@@ -208,7 +222,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
                 onClick={verify}
                 disabled={loading}
               >
-                {loading ? 'Verifying…' : 'Verify & Enable'}
+                {loading ? 'Verifying…' : 'Verify'}
               </button>
             </div>
           </>

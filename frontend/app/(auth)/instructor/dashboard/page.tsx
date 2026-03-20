@@ -16,6 +16,7 @@ import {
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import { Star as PhosphorStar } from '@phosphor-icons/react';
 import Modal from '@/components/Modal';
 import { Calendar, SquareArrowDownLeft, DollarSign, Eye, MessageSquare, Menu, X, ChevronDown, User } from 'lucide-react';
 import { useInstructorAvailability } from '@/hooks/queries/useInstructorAvailability';
@@ -46,6 +47,7 @@ import { FoundingBadge } from '@/components/ui/FoundingBadge';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import type { ApiErrorResponse, components } from '@/features/shared/api/types';
 import { extractApiErrorMessage } from '@/lib/apiErrors';
+import { getReviewFillPercent, getReviewsCardSummary } from '@/lib/dashboardReviews';
 
 type DashboardLinkResponse = components['schemas']['DashboardLinkResponse'];
 type InstantPayoutResponse = components['schemas']['InstantPayoutResponse'];
@@ -85,6 +87,25 @@ const MOBILE_NAV_SECONDARY: Array<{ key: DashboardPanel; label: string }> = [
 ];
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
+
+function ReviewRatingStar({ rating }: { rating?: number | null }) {
+  const fillPercent = getReviewFillPercent(rating);
+
+  return (
+    <div className="relative h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true">
+      <PhosphorStar
+        weight="regular"
+        className="absolute inset-0 h-full w-full text-[#7E22CE]/35"
+      />
+      <div className="absolute inset-y-0 left-0 overflow-hidden" style={{ width: `${fillPercent}%` }}>
+        <PhosphorStar
+          weight="fill"
+          className="h-full w-full text-[#7E22CE]"
+        />
+      </div>
+    </div>
+  );
+}
 
 function DashboardPopover({
   icon: Icon,
@@ -437,10 +458,8 @@ export default function InstructorDashboardNew() {
     (typeof ratingsData?.overall?.rating === 'number'
       ? ratingsData.overall.rating.toFixed(1)
       : null);
-  const reviewSubtitle =
-    reviewCount > 0 ? `${reviewCount} review${reviewCount === 1 ? '' : 's'}` : 'Not yet available';
-  const reviewAverageText =
-    reviewCount > 0 && reviewAverageDisplay ? reviewAverageDisplay : '–';
+  const reviewRatingValue = ratingsData?.overall?.rating ?? null;
+  const reviewSummaryText = getReviewsCardSummary(reviewAverageDisplay, reviewCount);
   // Suggestions state removed; no longer used
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [bgUploading, setBgUploading] = useState(false);
@@ -1128,17 +1147,15 @@ export default function InstructorDashboardNew() {
             <div className="flex items-start justify-between h-full">
               <div>
                 <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2 group-hover:text-[#7E22CE] dark:group-hover:text-purple-300">Reviews</h3>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white group-hover:text-gray-900 dark:group-hover:text-white" data-testid="reviews-avg">
-                  {reviewAverageText}
-                </p>
-                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 mt-1" data-testid="reviews-count">
-                  {reviewSubtitle}
+                <p
+                  className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 mt-1"
+                  data-testid="reviews-summary"
+                >
+                  {reviewSummaryText}
                 </p>
               </div>
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <svg className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                </svg>
+                <ReviewRatingStar rating={reviewRatingValue} />
               </div>
             </div>
           </button>
